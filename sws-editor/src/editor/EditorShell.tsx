@@ -71,7 +71,7 @@ import { NavigatorProperties } from "./NavigatorProperties";
 import { CampoTestoTradotto } from "@/editor/CampoTestoTradotto";
 import { CampoFormato } from "@/components/CampoFormato";
 import type { AlignMode } from "@/store";
-import type { AlarmSeverity, ButtonAction, FunctionDef, GridCell, PageLayoutConfig, PageSizeMode, ProjectTargetKind, RadioOption, SubCellEntry, SubGrid, SynopticObject, TableRow, TagDef, TypeDef, TextListEntry, TrendTrace, XySeries } from "@/types";
+import type { AlarmSeverity, ButtonAction, FunctionDef, GridCell, PageLayoutConfig, PageSizeMode, ProjectTargetKind, RadioOption, SubCellEntry, SubGrid, SynopticObject, SynopticPage, TableRow, TagDef, TypeDef, TextListEntry, TrendTrace, XySeries } from "@/types";
 import { eBoot, paginePerNavigazione } from "@/boot/tipi";
 import { aggiornaPagina, applicaATutte, applicaPredefinito, generePagina, salvaLayout } from "@/formatoProgettoAzioni";
 import { dalTag, descrizioniDeiTag } from "@/tag/forma";
@@ -688,6 +688,19 @@ function ApplicaATutte({ fine }: { fine: (n: number | null) => void }) {
   );
 }
 
+/** Il canvas dell'editor coi valori vivi (piano «viewer leggero», passo 5a).
+ *  È l'unico pezzo dell'editor iscritto alla mappa dei valori: prima la
+ *  prendeva `EditorShell`, e a ogni messaggio dei tag si ridisegnavano anche
+ *  pannello proprietà, barre e linguette. Lo sfondo da variabile della pagina
+ *  si legge qui per lo stesso motivo. */
+function CanvasVivo({ pagina, ...props }: Omit<React.ComponentProps<typeof SvgCanvas>, "tagValues" | "background"> & {
+  pagina: SynopticPage | undefined;
+}) {
+  const tagValues = useAppStore((s) => s.tagValues);
+  const themeMode = useAppStore((s) => s.themeMode);
+  return <SvgCanvas {...props} tagValues={tagValues} background={sfondoPagina(pagina, themeMode, tagValues)} />;
+}
+
 export function EditorShell() {
   useImpostazioneIniziale();
   const { t } = useTranslation();
@@ -705,11 +718,11 @@ export function EditorShell() {
   const project         = useAppStore((s) => s.project);
   const customSymbols   = useAppStore((s) => s.customSymbols);
   const faceplates      = useAppStore((s) => s.faceplates);
-  const tagValues       = useAppStore((s) => s.tagValues);
+  // La mappa dei valori la prende solo `CanvasVivo` (piano «viewer leggero»,
+  // passo 5a): qui ridisegnerebbe pannello proprietà e barre a ogni messaggio.
   const gridSize        = useAppStore((s) => s.gridSize);
   const snapEnabled     = useAppStore((s) => s.snapEnabled);
   const gridColor       = useAppStore((s) => s.gridColor);
-  const themeMode       = useAppStore((s) => s.themeMode);
   const editorPreviewLang = useAppStore((s) => s.editorPreviewLang);
   const addObject       = useAppStore((s) => s.addObject);
   const updateObject    = useAppStore((s) => s.updateObject);
@@ -1178,10 +1191,9 @@ export function EditorShell() {
       {/* Canvas */}
       <div style={{ flex: 1, overflow: "hidden" }}>
         <LinguaContenutiProvider value={linguaAnteprima}>
-        <SvgCanvas
+        <CanvasVivo
+          pagina={currentPage}
           objects={objectsSulCanvas}
-          tagValues={tagValues}
-          background={sfondoPagina(currentPage, themeMode, tagValues)}
           selectedId={selectedId}
           selectedIds={selectedIds}
           gridSize={gridSize}
@@ -3222,8 +3234,9 @@ function CrossTypeProps({
     />
   );
 
-  /** I valori vivi dei tag: servono all'anteprima del formato. */
-  const valoriTag = useAppStore((st) => st.tagValues);
+  /** Il valore vivo del tag, per l'anteprima del formato. Solo il suo: con
+   *  tutta la mappa il pannello si ridisegnava a ogni messaggio (passo 5a). */
+  const statoTag = useAppStore((st) => (mergedProps.tag ? st.tagValues[mergedProps.tag as string] : undefined));
 
   /** Il campo «Formato» col suo elenco (▾) e l'anteprima sul valore vero. */
   const formatInput = (placeholder?: string) => (
@@ -3231,7 +3244,7 @@ function CrossTypeProps({
       style={INPUT}
       placeholder={isMixed("format") ? t("props.vari") : placeholder}
       value={isMixed("format") ? "" : ((mergedProps.format as string) ?? "")}
-      statoTag={mergedProps.tag ? valoriTag[mergedProps.tag as string] : undefined}
+      statoTag={statoTag}
       onChange={(v) => onChange({ format: v || undefined })}
     />
   );
@@ -3583,8 +3596,9 @@ export function ObjectProps({
     );
   };
 
-  /** I valori vivi dei tag: servono all'anteprima del formato. */
-  const valoriTag = useAppStore((st) => st.tagValues);
+  /** Il valore vivo del tag, per l'anteprima del formato. Solo il suo: con
+   *  tutta la mappa il pannello si ridisegnava a ogni messaggio (passo 5a). */
+  const statoTag = useAppStore((st) => (obj.tag ? st.tagValues[obj.tag] : undefined));
 
   /** Il campo «Formato» col suo elenco (▾) e l'anteprima sul valore vero. */
   const formatInput = (placeholder?: string) => (
@@ -3592,7 +3606,7 @@ export function ObjectProps({
       style={INPUT}
       placeholder={mixedKeys.has("format") ? t("props.vari") : placeholder}
       value={mixedKeys.has("format") ? "" : (obj.format ?? "")}
-      statoTag={obj.tag ? valoriTag[obj.tag] : undefined}
+      statoTag={statoTag}
       onChange={(v) => onChange({ format: v || undefined })}
     />
   );

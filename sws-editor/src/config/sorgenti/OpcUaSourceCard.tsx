@@ -1,3 +1,4 @@
+import { CampoPassword } from "@/components/CampoPassword";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { QuickCreateTagModal } from "@/components/QuickCreateTagModal";
@@ -139,8 +140,7 @@ export function OpcUaSourceCard({
                 </div>
                 <div>
                   <label style={S.label}>{t("cfg.password")}</label>
-                  <input
-                    type="password"
+                  <CampoPassword
                     style={S.input}
                     placeholder={t("cfg.emptyIfPwdEnv")}
                     value={source.auth.password ?? ""}

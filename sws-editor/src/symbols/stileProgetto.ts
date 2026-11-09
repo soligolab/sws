@@ -43,8 +43,16 @@ export function stileProgetto(): StileSimboliProgetto | undefined {
   return corrente;
 }
 
+/** Una funzione sola per tutti: con una scritta in linea React rifaceva
+ *  l'iscrizione a ogni disegno, e dal 09-11-2026 la chiama ogni oggetto. */
+function iscrivi(a: () => void): () => void {
+  ascoltatori.add(a);
+  return () => { ascoltatori.delete(a); };
+}
+const leggiGiro = () => giro;
+
 export function useStileProgetto(): StileSimboliProgetto | undefined {
-  useSyncExternalStore((a) => { ascoltatori.add(a); return () => { ascoltatori.delete(a); }; }, () => giro, () => giro);
+  useSyncExternalStore(iscrivi, leggiGiro, leggiGiro);
   return corrente;
 }
 

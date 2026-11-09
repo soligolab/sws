@@ -27,6 +27,96 @@
 
 ---
 
+## Il viewer leggero (09-11-2026)
+
+Rami A e B del piano `docs/plans/2026-11-09-viewer-leggero.md` (§10): `fix/mini-tendenze-leggere` e, annidato sopra,
+`fix/ridisegno-mirato`, con le correzioni delle revisioni del 09-11. Vanno nella 2.26.0-rc.10 insieme all'occhio sulle
+password: le voci del pannello vogliono quell'immagine. Il WP630 si aggiorna dal viewer e tiene Montagna a 10 Hz come
+prova di carico (il template ora è a 1 Hz).
+
+**Montagna sul WP630, viewer web** (progetto ancora a 10 Hz)
+1. [ ] 30 minuti sulla pagina iniziale di Montagna. Il login si apre subito. I valori sono freschi: si confrontano con
+       l'IDE. Le mini tendenze scorrono anche a valore fermo.
+2. [ ] CPU del renderer con `top` (prima si chiede l'accesso SSH). Resta piatta fra il minuto 5 e il minuto 30. La base
+       era il 96%.
+3. [ ] Journal del runtime: non c'è «ws/tags subscriber lagged». Se c'è, si apre il passo facoltativo del §8 del piano.
+4. [ ] IDE 8460, Montagna in modifica: le kpi mostrano mini tendenza e variazione.
+
+**I segnali decisi il 09-11**
+5. [ ] Dati in ritardo, **socket giù**: si ferma il runtime per 10 s (sul pannello serve SSH: chiederlo prima). Il socket
+       si chiude. Dopo 5 s compaiono la fascia «Dati in ritardo di N s» e gli oggetti grigi, e il numero sale di 1 al
+       secondo. Al riavvio del runtime spariscono. Sul viewer web e sul viewer LVGL. *Non* staccando la rete: il socket
+       resta aperto per minuti, nessuno dei due motori ha un battito, e un socket vivo e muto vale come impianto fermo
+       (il battito è in `docs/plans/Appunti.txt`).
+6. [ ] Dati in ritardo, **aspetto** sul LVGL: `--ritardo-di-prova 8`. La fascia sta in alto, sopra la card
+       dell'aggiornamento e sotto la schermata d'accesso; gli oggetti sono grigi.
+7. [ ] Dati in ritardo, **età vera**, sul banco (`tmp/viewer-leggero/banco`, solo su theobroma): con una SPA ricostruita
+       dopo la revisione e la copia a 10 Hz a ×6, la fascia non compare mai (le tre corse del 09-11 col ramo A: mai
+       comparsa). Il §10 chiede anche che compaia con la SPA di base: non si può fare così, perché `www-base` (rc.9) la
+       fascia non ce l'ha.
+8. [ ] Login lento, viewer web: dopo 10 s il pulsante dice «Il pannello risponde lentamente…»; a 60 s compare «Nessuna
+       risposta, riprova» e il pulsante torna attivo. Si vede solo con un pannello lento. Sull'IDE lo stesso testo dice
+       «Il server risponde lentamente…». Sul LVGL le stesse attese sono la voce 14.
+9. [ ] «Aggiorna ora» dal viewer, web e LVGL, aggiornando il WP630 alla rc.10: dal tocco fino alla partenza si legge
+       «Aggiornamento in avvio…», anche quando in mezzo chiede l'accesso. Con un aggiornamento già in corso il pulsante
+       è spento. Sul LVGL, dopo l'accesso chiesto per aggiornare, la card non torna con «Aggiorna ora» attivo.
+10. [ ] LVGL: Montagna sul viewer LVGL per 30 minuti. CPU del viewer **e del runtime** piatte (fino alla revisione la
+        mini tendenza LVGL chiedeva l'ora intera ogni 2 s, e il costo cadeva sul runtime). Le mini tendenze scorrono a
+        valore fermo e tengono i picchi; linea ed etichetta stanno nel riquadro (i margini ora sono di 2 px come sul
+        web, e su uno schermo non li ha ancora guardati nessuno).
+
+**Ramo B, il ridisegno mirato e il filtro di pagina** (viewer web sul WP630; dove serve un faceplate o un tubo si usa
+`demo-items-web`, perché CasaDomotica non ne ha)
+11. [ ] Popup di un faceplate (bottone `open_faceplate`) e pagina-finestra con lo sfondo da variabile: i valori dentro
+        al popup e alla finestra si muovono, e lo sfondo segue il suo tag. Anche dopo un cambio di pagina e ritorno, e
+        dopo una riconnessione del socket (runtime riavviato: SSH da chiedere prima).
+12. [ ] Il tubo segue la pompa (`demo-items-web`, il tubo agganciato all'oggetto che si muove). Toggle con conferma,
+        incremento e checkbox partono dal valore attuale e scrivono quello giusto. Il badge ⌛ dello stale compare quando
+        il tag sta fermo oltre `stale_after_s`, e non compare finché il tag si rinfresca.
+13. [ ] IDE 8460 su CasaDomotica: il trascinamento è fluido, il pannello proprietà non è in ritardo, nessun valore resta
+        fermo (in modifica i valori sono vivi). Su `demo-items-web`, trascinando un oggetto, griglie e faceplate non
+        scattano.
+14. [ ] LVGL, login lento: dopo «Accedi», entro 10 s la card dice che il pannello è lento; a 60 s compare «Nessuna
+        risposta, riprova» e «Accedi» torna premibile. «Annulla» a metà attesa: una risposta arrivata dopo non fa
+        entrare, e un toggle premuto subito dopo scrive subito, senza aspettare il login abbandonato. Si vede solo con un
+        pannello lento, oppure congelando il runtime per qualche secondo (`kill -STOP`, poi `kill -CONT`; SSH da
+        chiedere prima): un runtime fermo del tutto rifiuta la connessione, e quello non è il caso lento.
+
+## L'occhio sulle password (09-11-2026)
+
+Piano `docs/plans/2026-11-09-occhio-sulle-password.md`, ramo `feat/occhio-password` annidato su `fix/ridisegno-mirato`,
+con le correzioni delle due revisioni del 09-11. Va nella 2.26.0-rc.10 insieme al viewer leggero: le voci del pannello
+vogliono quell'immagine. Regola unica su tutti gli ambienti: la password parte nascosta, l'occhio la mostra, un secondo
+tocco la nasconde, chiusa la finestra riparte nascosta. L'icona è la stessa su web e LVGL: aperta quando la password è
+nascosta («toccami per vederla»), barrata quando si legge.
+
+**IDE 8460**
+1. [ ] Login: l'occhio a destra dentro il campo, parte nascosta, un clic mostra e uno nasconde, il fuoco resta nel campo
+       e Invio entra ancora. Un login sbagliato lascia la password nascosta anche se era in chiaro.
+2. [ ] Cambio password (tre campi) e Registrazione: occhi indipendenti, mostrarne uno non mostra gli altri; il testo si
+       ferma prima dell'occhio.
+3. [ ] Configurazione → Utenti: la password iniziale del nuovo utente in chiaro, poi «Crea»: il campo si svuota e torna
+       nascosto, e la password del prossimo utente parte nascosta. La password per riga nel reset ha l'occhio anche sui
+       campi bassi (sporge sopra e sotto, senza fondo).
+4. [ ] Configurazione → Istanza → Device → Connessione, e Dispositivi: l'occhio c'è anche sui campi a larghezza fissa
+       (150-160 px) e il campo non esce più largo dei vicini. Notifiche → Twilio: «Auth token» salvato e mascherato dal
+       server ha l'occhio spento; scrivendo un token nuovo si accende.
+
+**Viewer web sul pannello (TC620/WP630, touch e tastiera a schermo)**
+5. [ ] Login per l'aggiornamento: l'occhio è da dito (40×40), il tocco mostra la password senza chiudere la tastiera a
+       schermo, Invio dalla tastiera entra. Dopo l'invio la password torna nascosta.
+6. [ ] Password di un comando critico su CasaDomotica (`chiedi({ password: true })`): la stessa cosa nella Finestra di
+       avviso; la volta dopo riparte nascosta.
+
+**LVGL sul pannello**
+7. [ ] Login LVGL: l'occhio a destra nel campo password, stessa icona e stesso grigio del web, un fondo scuro mentre il
+       dito preme; il tocco mostra il testo in chiaro, un secondo lo nasconde; «Annulla» e un login riuscito la rimettono
+       nascosta, alla prossima apertura parte nascosta. Aprire e chiudere il login dieci volte non fa crescere la
+       memoria del viewer (dalla revisione i raster dell'occhio sono condivisi).
+8. [ ] Tastiera LVGL in modalità password: oggi nessuna schermata la apre con `password = true`, quindi l'occhio della
+       tastiera dal pannello non si vede. Si prende atto e si segna qui l'esito: se resta senza chiamanti, si toglie o
+       si tiene come pronto per il primo campo che lo userà.
+
 ## La serie L0 → F2 → F3 (05-11-2026) — la sandbox Python e la Finestra di avviso dappertutto
 
 In `main` dal 06-11-2026 (2.26.0-rc.2). *(08-11: il piano della Finestra di avviso è archiviato; restano qui L0.1 e L0.3

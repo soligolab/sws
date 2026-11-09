@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { getBrand } from "@/branding";
 import { SvgCanvas } from "@/canvas/SvgCanvas";
-import { collectTagIds } from "@/runtime-view/collectTagIds";
+import { tagDellaVista } from "@/runtime-view/collectTagIds";
 import { pagineNavigabili } from "@/boot/tipi";
 import { useScorrimentoPagine } from "@/runtime-view/scorrimentoPagine";
 import { viewerFitScale, effectiveSizeMode } from "@/pageLayout";
@@ -20,7 +20,9 @@ import { useAppStore } from "@/store";
 import { localizePageName, effectiveProjectLang, resolveMsg } from "@/i18n/projectI18n";
 import { LinguaContenutiProvider, useLinguaContenuti } from "@/i18n/linguaContenuti";
 import { useTagStream, tryTagWriteWs, sendSubscribe } from "@/ws/tagStream";
-import type { ButtonAction, FunctionDef } from "@/types";
+import { useDatiInRitardo } from "@/ws/coalescenza";
+import { testoSistemaCon } from "@/i18n/testiSistema";
+import type { ButtonAction, CustomSymbol, FaceplateDef, FunctionDef, PageSizeMode, SynopticObject, SynopticPage } from "@/types";
 import { puoScrivere, sogliaScritturaTag } from "@/auth/permessoScrittura";
 import { CampoNumero } from "@/components/CampoNumero";
 
@@ -134,9 +136,9 @@ export function RuntimeView() {
   const pages               = useAppStore((s) => s.pages);
   const currentPageId       = useAppStore((s) => s.currentPageId);
   const setCurrentPage      = useAppStore((s) => s.setCurrentPage);
-  const tagValues           = useAppStore((s) => s.tagValues);
+  // La mappa dei valori non si legge qui ma in `PaginaViva`, più sotto: chi la
+  // prende si ridisegna a ogni messaggio (piano «viewer leggero», passo 5a).
   const project             = useAppStore((s) => s.project);
-  const themeMode           = useAppStore((s) => s.themeMode);
   const languageTable       = useAppStore((s) => s.project?.languages);
   const projectLang         = useAppStore((s) => s.projectLang);
   const customSymbols       = useAppStore((s) => s.customSymbols);
@@ -216,23 +218,23 @@ export function RuntimeView() {
     return viewerFitScale(box?.w, box?.h, currentPage?.width, currentPage?.height);
   }, [sizeMode, box, currentPage?.width, currentPage?.height]);
   // F0.1: raccolta COMPLETA dei tag della pagina — binding, visibilità, stati,
-  // serie dei grafici, celle grid e figli faceplate inclusi. Il filtro server
-  // è esatto: un tag non raccolto qui riceve lo snapshot e poi si congela.
+  // serie dei grafici, celle grid e figli faceplate inclusi, più gli sfondi da
+  // variabile e la finestra aperta coi parametri già sostituiti. Il filtro
+  // server è esatto: un tag non raccolto qui riceve lo snapshot e poi si congela.
   const pageTagIds = useMemo(
-    // Lo sfondo da variabile (11-10-2026) è un uso della pagina, non di un oggetto.
-    () => [...collectTagIds(currentPage?.objects ?? [], faceplates),
-      ...(currentPage?.background_tag ? [currentPage.background_tag] : []),
-      // I tag della finestra aperta, con i parametri già sostituiti: senza,
-      // riceverebbero lo snapshot e poi si congelerebbero.
-      ...collectTagIds(oggettiDellaFinestra, faceplates)],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [currentPageId, pages, faceplates, oggettiDellaFinestra],
+    () => tagDellaVista(currentPage, faceplates,
+      paginaFinestra && finestra ? { pagina: paginaFinestra, oggetti: oggettiDellaFinestra } : undefined),
+    [currentPage, faceplates, paginaFinestra, finestra, oggettiDellaFinestra],
   );
 
   useEffect(() => {
-    // Send subscribe. Empty array = all tags (no restriction).
+    // Send subscribe. Empty array = all tags (no restriction). La lista resta
+    // in `tagStream` e si rimanda a ogni apertura del socket: avvio, login,
+    // riconnessione (piano «viewer leggero», passo 4).
     sendSubscribe(pageTagIds.length > 0 ? pageTagIds : []);
   }, [pageTagIds]);
+  // Fuori dal viewer si torna a ricevere tutto: l'IDE non sceglie i tag.
+  useEffect(() => () => sendSubscribe(["*"]), []);
 
   const addToast = (toast: ScriptToast, ttlMs: number) => {
     // Anche nel registro del pannello (07-11-2026): il toast sparisce dopo
@@ -255,6 +257,10 @@ export function RuntimeView() {
     [effLang, languageTable],
   );
   const objects = currentPage?.objects ?? [];
+  // «Dati in ritardo» (§5-bis del piano 2026-11-09-viewer-leggero): i secondi,
+  // o null. La misura sta in `ws/coalescenza.ts`.
+  const ritardoS = useDatiInRitardo();
+  const nonAggiornato = ritardoS !== null;
 
   const authRole = useAppStore((s) => s.authRole);
   const handleWriteTag = (tagId: string, value: string | number | boolean) => {
@@ -499,42 +505,41 @@ export function RuntimeView() {
         </nav>
       )}
 
-      {/* Canvas. overflow hidden anche in "fixed": la pagina che non entra
-          viene rimpicciolita (fitScale) invece di far comparire scrollbar. */}
-      <div ref={canvasBoxRef} style={{ flex: 1, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <SvgCanvas
-          objects={objects}
-          tagValues={tagValues}
-          background={sfondoPagina(currentPage, themeMode, tagValues)}
-          customSymbols={customSymbols}
-          faceplates={faceplates}
-          pageWidth={currentPage?.width}
-          pageHeight={currentPage?.height}
-          sizeMode={sizeMode}
-          fitScale={fitScale}
-          onWriteTag={handleWriteTag}
-          onScript={handleScript}
-          onNavigate={setCurrentPage}
-          onButtonAction={handleButtonAction}
-        />
-      </div>
+      <PaginaViva
+        riquadro={canvasBoxRef}
+        pagina={currentPage}
+        objects={objects}
+        customSymbols={customSymbols}
+        faceplates={faceplates}
+        sizeMode={sizeMode}
+        fitScale={fitScale}
+        onWriteTag={handleWriteTag}
+        onScript={handleScript}
+        onNavigate={setCurrentPage}
+        onButtonAction={handleButtonAction}
+        nonAggiornato={nonAggiornato}
+        finestra={paginaFinestra && finestra ? {
+          pagina: paginaFinestra,
+          parametri: finestra.params,
+          oggetti: oggettiDellaFinestra,
+          onNavigate: (id) => { setFinestra(null); setCurrentPage(id); },
+          onClose: () => setFinestra(null),
+        } : undefined}
+      />
 
-      {paginaFinestra && finestra && (
-        <PaginaFinestra
-          key={`${finestra.pageId}:${JSON.stringify(finestra.params)}`}
-          pagina={paginaFinestra}
-          oggetti={oggettiDellaFinestra}
-          parametri={finestra.params}
-          sfondo={sfondoPagina(paginaFinestra, themeMode, tagValues)}
-          tagValues={tagValues}
-          customSymbols={customSymbols}
-          faceplates={faceplates}
-          onWriteTag={handleWriteTag}
-          onScript={handleScript}
-          onNavigate={(id) => { setFinestra(null); setCurrentPage(id); }}
-          onButtonAction={handleButtonAction}
-          onClose={() => setFinestra(null)}
-        />
+      {/* La fascia «Dati in ritardo» (decisione del maintainer, 09-11-2026):
+          in alto, sopra finestre e popup perché chi ci lavora la deve
+          leggere, sotto il login. Non si tocca: i tocchi passano alla pagina,
+          come per lo stale. I colori sono quelli della fascia LVGL. */}
+      {ritardoS !== null && (
+        <div role="status" data-testid="dati-in-ritardo" style={{
+          position: "fixed", top: 0, left: 0, right: 0, zIndex: 9550, height: 28,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          background: "#eab308", color: "#0f172a", fontSize: 14, fontWeight: 600,
+          pointerEvents: "none",
+        }}>
+          {testoSistemaCon("dati_in_ritardo", effLang, { n: String(ritardoS) })}
+        </div>
       )}
 
       {/* Function test panel (bottom-left floating — operator picks a
@@ -570,6 +575,84 @@ export function RuntimeView() {
       )}
     </div>
     </LinguaContenutiProvider>
+  );
+}
+
+// ── La parte viva della pagina ───────────────────────────────────────────────
+//
+// Piano «viewer leggero», passo 5a: la mappa dei valori la prende solo questo
+// componente, che disegna gli sfondi da variabile, la pagina e la finestra
+// aperta. Prima la prendeva `RuntimeView`, e a ogni messaggio dei tag si
+// ridisegnavano anche barra delle pagine, toast, login e pannello delle
+// funzioni, che i valori non li leggono.
+
+function PaginaViva({ riquadro, pagina, objects, customSymbols, faceplates, sizeMode, fitScale,
+  onWriteTag, onScript, onNavigate, onButtonAction, nonAggiornato, finestra }: {
+  /** Il contenitore che `RuntimeView` misura per il fattore di riduzione. */
+  riquadro: React.RefObject<HTMLDivElement | null>;
+  pagina: SynopticPage | undefined;
+  objects: SynopticObject[];
+  customSymbols: CustomSymbol[];
+  faceplates: FaceplateDef[];
+  sizeMode: PageSizeMode;
+  fitScale: number;
+  onWriteTag: (tagId: string, value: string | number | boolean) => void;
+  onScript: (fn: string, args: Record<string, string | number | boolean>) => void;
+  onNavigate: (pageId: string) => void;
+  onButtonAction: (action: ButtonAction) => void;
+  nonAggiornato: boolean;
+  finestra?: {
+    pagina: SynopticPage;
+    parametri: Record<string, string>;
+    oggetti: SynopticObject[];
+    onNavigate: (pageId: string) => void;
+    onClose: () => void;
+  };
+}) {
+  const tagValues = useAppStore((s) => s.tagValues);
+  const themeMode = useAppStore((s) => s.themeMode);
+  return (
+    <>
+      {/* Canvas. overflow hidden anche in "fixed": la pagina che non entra
+          viene rimpicciolita (fitScale) invece di far comparire scrollbar. */}
+      <div ref={riquadro} style={{ flex: 1, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <SvgCanvas
+          objects={objects}
+          tagValues={tagValues}
+          background={sfondoPagina(pagina, themeMode, tagValues)}
+          customSymbols={customSymbols}
+          faceplates={faceplates}
+          pageWidth={pagina?.width}
+          pageHeight={pagina?.height}
+          sizeMode={sizeMode}
+          fitScale={fitScale}
+          onWriteTag={onWriteTag}
+          onScript={onScript}
+          onNavigate={onNavigate}
+          onButtonAction={onButtonAction}
+          nonAggiornato={nonAggiornato}
+        />
+      </div>
+
+      {finestra && (
+        <PaginaFinestra
+          key={`${finestra.pagina.id}:${JSON.stringify(finestra.parametri)}`}
+          pagina={finestra.pagina}
+          oggetti={finestra.oggetti}
+          parametri={finestra.parametri}
+          sfondo={sfondoPagina(finestra.pagina, themeMode, tagValues)}
+          tagValues={tagValues}
+          customSymbols={customSymbols}
+          faceplates={faceplates}
+          onWriteTag={onWriteTag}
+          onScript={onScript}
+          onNavigate={finestra.onNavigate}
+          onButtonAction={onButtonAction}
+          onClose={finestra.onClose}
+          nonAggiornato={nonAggiornato}
+        />
+      )}
+    </>
   );
 }
 

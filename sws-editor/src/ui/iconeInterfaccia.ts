@@ -38,6 +38,12 @@ export const ICONE_UI: Record<string, string> = {
   // ── stati ──
   avviso: '<path d="M12 3.5l9 16H3z"/><path d="M12 10v4.5M12 17.2v.3"/>',
   bandiera: '<path d="M5.5 21V3.5"/><path d="M5.5 4.5h12.5l-2.5 4 2.5 4H5.5z"/>',
+  // ── campi ──
+  // L'occhio del campo password (`components/CampoPassword.tsx`): aperto quando
+  // la password è nascosta e il tocco la mostra, barrato quando è in chiaro.
+  // Lo stesso disegno lo porta il viewer LVGL (piano 2026-11-09-occhio-sulle-password).
+  occhio: '<path d="M2.5 12s3.5-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.5 6.5-9.5 6.5S2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>',
+  occhioBarrato: '<path d="M2.5 12s3.5-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.5 6.5-9.5 6.5S2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/><path d="M4 4l16 16"/>',
 };
 
 /** I nomi, per la guardia e per una tavola di prova. */

@@ -101,9 +101,13 @@ describe("avviso, chiedi, scegli, modulo", () => {
     await p;
   });
 
-  it("chiedi: password nasconde il testo, Annulla dà null", async () => {
+  it("chiedi: password nasconde il testo e ha l'occhio, Annulla dà null", async () => {
     const { esito: p } = await apri(() => chiedi({ testo: "Password", password: true }));
-    expect((screen.getByTestId("finestra-avviso-campo") as HTMLInputElement).type).toBe("password");
+    const campo = screen.getByTestId("finestra-avviso-campo") as HTMLInputElement;
+    expect(campo.type).toBe("password");
+    // L'occhio (09-11-2026): mostra, e Invio nel campo conferma ancora.
+    fireEvent.click(screen.getByTestId("occhio-password"));
+    expect(campo.type).toBe("text");
     fireEvent.click(annulla());
     await expect(p).resolves.toBeNull();
   });

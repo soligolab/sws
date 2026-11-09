@@ -100,6 +100,11 @@ export function AvvisoAggiornamento() {
   const [esitoVisto, setEsitoVisto] = useState(false);
   const [novitaAperte, setNovitaAperte] = useState(false);
   const [inCorso, setInCorso] = useState(false);
+  // Dal tocco su «Aggiorna ora» alla risposta di `/api/update/apply`, login
+  // compreso (09-11-2026): il pulsante e il login dicono «Aggiornamento in
+  // avvio…». Prima diceva «avviato» quando ancora non lo era, e il login in
+  // mezzo diceva «Accesso…» per minuti su un pannello lento.
+  const [inAvvio, setInAvvio] = useState(false);
   const [errore, setErrore] = useState<string | null>(null);
   // Il quadlet che viaggia (02-10-2026): la configurazione del servizio più
   // vecchia di quella della versione che gira. «Più tardi» vale fino al
@@ -167,12 +172,13 @@ export function AvvisoAggiornamento() {
     const azione = inAttesa;
     setInAttesa(null);
     if (authRole === "Admin") void azione();
-    else { setErrore(testoSistema("agg_serve_admin", lang)); setInCorso(false); }
+    else { setErrore(testoSistema("agg_serve_admin", lang)); setInCorso(false); setInAvvio(false); }
   }, [authToken, authRole, inAttesa, lang]);
   const login = inAttesa ? (
     <div style={{ position: "fixed", inset: 0, zIndex: 9600, background: "var(--brand-bg, #0f172a)" }}>
       <LoginScreen motivo="runtimeView.loginPerAggiornare"
-        onCancel={() => { setInAttesa(null); setInCorso(false); }} />
+        testoAttesa={inAvvio ? testoSistema("agg_in_avvio", lang) : undefined}
+        onCancel={() => { setInAttesa(null); setInCorso(false); setInAvvio(false); }} />
     </div>
   ) : null;
 
@@ -373,6 +379,7 @@ export function AvvisoAggiornamento() {
 
   const aggiorna = async () => {
     setInCorso(true);
+    setInAvvio(true);
     setErrore(null);
     try {
       await daAdmin(() => api.avviaAggiornamento());
@@ -382,8 +389,13 @@ export function AvvisoAggiornamento() {
     } catch (e) {
       setErrore(e instanceof Error ? e.message : String(e));
       setInCorso(false);
+    } finally {
+      setInAvvio(false);
     }
   };
+  // Un aggiornamento già partito, da questo schermo prima di un ricaricamento
+  // o da un altro: lo dice `/api/update/status`, e «Aggiorna ora» resta spento.
+  const giaPartito = inCorso || stato?.in_corso === true;
 
   return conLogin(
     <Cornice titolo={testoSistemaCon("agg_titolo", lang, { a: nuova })} z={Z_AVVISO} larghezza={520} sotto={!!login}
@@ -445,10 +457,12 @@ export function AvvisoAggiornamento() {
           <button
             type="button"
             onClick={() => void aggiorna()}
-            disabled={inCorso}
+            disabled={giaPartito}
             style={{ fontWeight: 600, background: "#1d4ed8", color: "#fff", border: "1px solid var(--brand-primary-hover, #2563eb)", borderRadius: 5, padding: "6px 14px", cursor: "pointer" }}
           >
-            {inCorso ? testoSistema("agg_in_corso", lang) : testoSistema("agg_aggiorna", lang)}
+            {inAvvio ? testoSistema("agg_in_avvio", lang)
+              : giaPartito ? testoSistema("agg_in_corso", lang)
+              : testoSistema("agg_aggiorna", lang)}
           </button>
         </div>
       </div>

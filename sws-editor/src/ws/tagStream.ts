@@ -4,6 +4,7 @@ import { useAppStore } from "@/store";
 import type { TagQuality } from "@/types";
 import { buildWsUrl } from "@/ws/wsUrl";
 import { socketCondiviso } from "@/ws/singletonWs";
+import { accoda, ricominciaMisura, segnaScollegato } from "@/ws/coalescenza";
 
 const socket = socketCondiviso(() => buildWsUrl("/ws/tags", "VITE_RUNTIME_WS_URL"));
 /** Il socket dei tag: cambia anche quando ci si collega/scollega da un runtime
@@ -44,6 +45,15 @@ type ServerMsg = SnapshotMsg | DeltaMsg | WriteAck;
 
 let lastSeq: number = -1;
 
+/** Le voci vanno allo store una volta per fotogramma, non una per una. */
+function accodaVoci(voci: TagEntry[], origine: "delta" | "snapshot"): void {
+  accoda(voci.map((e) => [e.id, {
+    value: e.value,
+    quality: e.quality as TagQuality,
+    timestamp_ms: e.ts,
+  }] as const), origine);
+}
+
 /**
  * Send a tag write through the live /ws/tags socket if it's open.
  */
@@ -57,16 +67,28 @@ export function tryTagWriteWs(
   return true;
 }
 
+/** La sottoscrizione voluta, quella che si manda a ogni apertura del socket.
+ *  Prima l'apertura mandava sempre `["*"]` e la lista della pagina partiva solo
+ *  quando cambiava, scartata in silenzio se il socket non era ancora aperto:
+ *  dopo l'avvio, un login o una riconnessione il viewer riceveva tutti i tag
+ *  (piano «viewer leggero», passo 4). L'IDE non la cambia mai. */
+let sottoscrizione: readonly string[] = ["*"];
+
 /**
  * Send a subscription update to the server. Pass [] or ["*"] to subscribe to all tags.
  * Pass specific tag IDs to receive only those tags in delta frames.
+ * La lista resta: se il socket non è aperto parte alla prossima apertura.
+ * Una lista uguale a quella voluta non si rimanda: il server risponde a ogni
+ * subscribe con uno snapshot intero, e un progetto ricaricato uguale rifà le
+ * pagine, e con esse la lista (rilievo della revisione del 09-11-2026).
  */
 export function sendSubscribe(tags: string[]): void {
+  if (tags.length === sottoscrizione.length && tags.every((t, i) => t === sottoscrizione[i])) return;
+  sottoscrizione = [...tags];
   socket.corrente()?.send(JSON.stringify({ type: "subscribe", tags }));
 }
 
 export function useTagStream(): void {
-  const updateTagValue    = useAppStore((s) => s.updateTagValue);
   const authToken         = useAppStore((s) => s.authToken);
   const remoteConnected   = useAppStore((s) => s.remoteConnected);
 
@@ -74,6 +96,7 @@ export function useTagStream(): void {
     if (!authToken) {
       socket.chiudi();
       lastSeq = -1;
+      ricominciaMisura();
       return;
     }
 
@@ -82,10 +105,23 @@ export function useTagStream(): void {
 
     // Both the local /ws/tags and the /ws/remote/* relay need a subscribe
     // frame to start (or resume) streaming data. Send it on every open,
-    // including reconnects, and immediately if already open.
-    const onOpen = () => stream.send(JSON.stringify({ type: "subscribe", tags: ["*"] }));
+    // including reconnects, and immediately if already open: quella voluta,
+    // non `["*"]` fisso.
+    const onOpen = () => stream.send(JSON.stringify({ type: "subscribe", tags: sottoscrizione }));
     stream.on("open", onOpen);
     if (stream.readyState === WebSocket.OPEN) onOpen();
+
+    // «Dati in ritardo» (§5-bis): un socket chiuso o in riconnessione fa
+    // invecchiare i valori a schermo; uno che si apre è una connessione nuova.
+    // Solo dagli eventi veri: un secondo `useTagStream` montato più tardi sullo
+    // stesso socket non deve far ripartire la misura. Funzioni proprie di
+    // questo effetto: `off` toglie per riferimento, e la stessa funzione
+    // registrata da due `useTagStream` sparirebbe per tutti e due.
+    const onAperto = () => ricominciaMisura();
+    const onChiuso = () => segnaScollegato();
+    stream.on("open", onAperto);
+    stream.on("close", onChiuso);
+    if (stream.readyState !== WebSocket.OPEN) segnaScollegato();
 
     const onMessage = (ev: MessageEvent) => {
       const text = typeof ev.data === "string" ? ev.data : "";
@@ -107,14 +143,11 @@ export function useTagStream(): void {
 
         if (parsed.type === "snapshot") {
           const snap = parsed as SnapshotMsg;
-          lastSeq = snap.seq;
-          for (const entry of snap.tags) {
-            updateTagValue(entry.id, {
-              value: entry.value,
-              quality: entry.quality as TagQuality,
-              timestamp_ms: entry.ts,
-            });
-          }
+          // Sul server snapshot e delta hanno contatori diversi (`seq` e
+          // `batcher_seq` in `router.rs`): dopo un subscribe il confronto dava
+          // falsi «seq gap». Dopo uno snapshot il conteggio dei delta riparte.
+          lastSeq = -1;
+          accodaVoci(snap.tags, "snapshot");
           return;
         }
 
@@ -124,13 +157,7 @@ export function useTagStream(): void {
             console.warn(`[ws/tags] seq gap: expected ${lastSeq + 1}, got ${delta.seq}`);
           }
           lastSeq = delta.seq;
-          for (const entry of delta.changed) {
-            updateTagValue(entry.id, {
-              value: entry.value,
-              quality: entry.quality as TagQuality,
-              timestamp_ms: entry.ts,
-            });
-          }
+          accodaVoci(delta.changed, "delta");
           return;
         }
       } catch {
@@ -141,7 +168,9 @@ export function useTagStream(): void {
     stream.on("message", onMessage);
     return () => {
       stream.off("open", onOpen);
+      stream.off("open", onAperto);
+      stream.off("close", onChiuso);
       stream.off("message", onMessage);
     };
-  }, [updateTagValue, authToken, remoteConnected]);
+  }, [authToken, remoteConnected]);
 }

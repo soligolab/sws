@@ -1,3 +1,4 @@
+import { CampoPassword } from "@/components/CampoPassword";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, type Azienda, type UtenteInstallazione } from "@/api/client";
@@ -164,13 +165,12 @@ export function Persone() {
           placeholder={t("console.persone.nome")}
           style={{ ...campo, maxWidth: 180 }}
         />
-        <input
+        <CampoPassword
           value={nuovo.password}
           onChange={(e) => setNuovo({ ...nuovo, password: e.target.value })}
           placeholder={t("console.persone.passwordIniziale")}
-          type="password"
           autoComplete="new-password"
-          style={{ ...campo, maxWidth: 200 }}
+          style={{ ...campo, maxWidth: 230 }}
         />
         <button type="submit" disabled={!pronto || inCorso} style={pulsante(pronto && !inCorso)}>
           {t("console.persone.crea")}
@@ -360,8 +360,7 @@ export function Persone() {
                 alta, perche non lo si indovina guardando. */}
             <div style={riga}>
               <label style={titoletto}>{t("console.persone.reset")}</label>
-              <input
-                type="password"
+              <CampoPassword
                 value={bozza.nuovaPassword}
                 onChange={(e) => setBozza({ ...bozza, nuovaPassword: e.target.value })}
                 placeholder={t("console.persone.nuovaPassword")}

@@ -25,7 +25,7 @@
 //! `Ok(None)`, che **spegne** il controllo invece di ritentare ogni minuto.
 
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
 
@@ -144,6 +144,8 @@ pub enum Avviso {
         errore: Option<String>,
         /// Una richiesta è in volo: i pulsanti si spengono.
         in_corso: bool,
+        /// In volo da più di [`ACCESSO_LENTO`]: la card lo dice.
+        lento: bool,
     },
     /// C'è una versione più nuova.
     VersioneNuova {
@@ -270,13 +272,30 @@ pub enum AzioneRichiesta {
     Accesso,
 }
 
+/// Le attese del login (decisione del maintainer, 09-11-2026, come
+/// `LoginScreen.tsx` sul web). Sul WP630 in affanno la card dell'accesso
+/// restava ferma per minuti, e sembrava bloccata: dopo 10 s dice che il
+/// pannello è lento, a 60 s si rinuncia e lo dice, e si può riprovare.
+pub const ACCESSO_LENTO: Duration = Duration::from_secs(10);
+pub const ACCESSO_MASSIMO: Duration = Duration::from_secs(60);
+
 /// L'accesso chiesto dall'avviso, in corso.
 #[derive(Debug, Clone, Default)]
 pub struct Accesso {
     pub azione: Option<AzioneRichiesta>,
     pub errore: Option<String>,
     pub in_corso: bool,
+    /// Quando sono partite le credenziali: l'orologio delle due attese.
+    pub partito: Option<Instant>,
+    /// In volo da più di [`ACCESSO_LENTO`].
+    pub lento: bool,
 }
+
+/// La risposta di un tentativo d'accesso che non si aspetta più: rinunciato
+/// a 60 s, annullato da chi stava davanti, o superato da un tentativo nuovo.
+/// **Non fa entrare**: sul web la richiesta si annulla, qui la si ignora.
+#[derive(Debug, PartialEq)]
+pub struct RispostaTardiva;
 
 /// Quel che il thread di controllo aggiorna e il disegno legge, con lo stesso
 /// `Arc<Mutex<_>>` di `SharedSession`/`SharedAlarms`.
@@ -290,6 +309,10 @@ pub struct StatoAvviso {
     pub visto: Visto,
     /// «Aggiorna ora» è stato premuto: il pulsante cambia testo e si spegne.
     pub avvio_chiesto: bool,
+    /// Dal tocco su «Aggiorna ora» alla risposta di `/api/update/apply`,
+    /// accesso compreso (09-11-2026, come il web): il pulsante dice
+    /// «Aggiornamento in avvio…», e non «avviato» prima che lo sia.
+    pub avvio_in_volo: bool,
     /// La configurazione del servizio, da `/api/system` (02-10-2026).
     pub quadlet: Option<QuadletSistema>,
     /// «Più tardi» sulla configurazione: fino al prossimo avvio del runtime.
@@ -304,6 +327,9 @@ pub struct StatoAvviso {
     /// Cresce a ogni cambiamento: il disegno ridisegna l'overlay solo quando
     /// serve, invece di ricostruirlo a ogni frame.
     pub generazione: u64,
+    /// Il numero dell'ultimo tentativo d'accesso partito. La risposta porta
+    /// il suo, e conta solo se è ancora quello che si aspetta.
+    pub tentativo_accesso: u64,
 }
 
 pub type SharedAvviso = Arc<Mutex<StatoAvviso>>;
@@ -311,6 +337,13 @@ pub type SharedAvviso = Arc<Mutex<StatoAvviso>>;
 impl StatoAvviso {
     fn cambiato(&mut self) {
         self.generazione = self.generazione.wrapping_add(1);
+    }
+
+    /// «Aggiorna ora» non si può premere: lo si è già premuto, o il runtime
+    /// dice (`/api/update/status`) che un aggiornamento è già in corso, partito
+    /// da qui prima di un riavvio del viewer o da un altro schermo.
+    pub fn aggiornamento_spento(&self) -> bool {
+        self.avvio_chiesto || self.stato.as_ref().is_some_and(|s| s.in_corso)
     }
 
     pub fn avviso(&self) -> Avviso {
@@ -327,6 +360,7 @@ impl StatoAvviso {
                 },
                 errore: a.errore.clone(),
                 in_corso: a.in_corso,
+                lento: a.lento,
             };
         }
         da_mostrare_tutto(
@@ -343,11 +377,55 @@ impl StatoAvviso {
             self.ritorno_chiesto,
         )
     }
+
+    /// L'orologio delle attese del login, a ogni giro del loop di disegno: a
+    /// [`ACCESSO_LENTO`] la card dice che il pannello è lento, a
+    /// [`ACCESSO_MASSIMO`] si rinuncia. La schermata delle credenziali torna
+    /// con `senza_risposta` in cima e «Accedi» di nuovo premibile; la
+    /// risposta di quel tentativo, se arriva dopo, non conta più.
+    pub fn avanza_attesa(&mut self, adesso: Instant, senza_risposta: &str) {
+        let Some(a) = self.accesso.as_mut().filter(|a| a.in_corso) else {
+            return;
+        };
+        let Some(partito) = a.partito else {
+            return;
+        };
+        let atteso = adesso.saturating_duration_since(partito);
+        if atteso >= ACCESSO_MASSIMO {
+            a.in_corso = false;
+            a.lento = false;
+            a.partito = None;
+            a.errore = Some(senza_risposta.to_string());
+            self.cambiato();
+        } else if atteso >= ACCESSO_LENTO && !a.lento {
+            a.lento = true;
+            self.cambiato();
+        }
+    }
+
+    /// Il tentativo `n` è quello che il pannellino sta aspettando?
+    fn attende(&self, n: u64) -> bool {
+        self.tentativo_accesso == n && self.accesso.as_ref().is_some_and(|a| a.in_corso)
+    }
+
+    fn accesso_fallito(&mut self, motivo: String) {
+        if let Some(a) = self.accesso.as_mut() {
+            a.in_corso = false;
+            a.lento = false;
+            a.partito = None;
+            a.errore = Some(motivo);
+        }
+        self.cambiato();
+    }
 }
 
 /// Serve un Admin: si apre il pannellino e si ricorda cosa fare dopo.
 pub fn chiedi_accesso(s: &SharedAvviso, azione: AzioneRichiesta) {
     if let Ok(mut g) = s.lock() {
+        // Il web accende «in avvio» al tocco, prima dell'accesso.
+        if azione == AzioneRichiesta::Aggiorna {
+            g.avvio_in_volo = true;
+        }
         g.accesso = Some(Accesso {
             azione: Some(azione),
             ..Default::default()
@@ -364,7 +442,7 @@ pub fn chiedi_accesso_per_comando(s: &SharedAvviso, motivo: Option<String>) {
         g.accesso = Some(Accesso {
             azione: Some(AzioneRichiesta::Comando),
             errore: motivo,
-            in_corso: false,
+            ..Default::default()
         });
         g.cambiato();
     }
@@ -374,41 +452,66 @@ pub fn chiedi_accesso_per_comando(s: &SharedAvviso, motivo: Option<String>) {
 pub fn annulla_accesso(s: &SharedAvviso) {
     if let Ok(mut g) = s.lock() {
         g.accesso = None;
+        g.avvio_in_volo = false;
         g.cambiato();
     }
 }
 
-/// Le credenziali sono partite: i pulsanti si spengono finché non si sa.
-pub fn accesso_in_corso(s: &SharedAvviso) {
+/// Le credenziali sono partite alle `adesso`: i pulsanti si spengono finché
+/// non si sa, e parte l'orologio delle attese. Ritorna il numero del
+/// tentativo, che la risposta deve riportare.
+pub fn accesso_in_corso(s: &SharedAvviso, adesso: Instant) -> u64 {
+    let mut n = 0;
     if let Ok(mut g) = s.lock() {
+        g.tentativo_accesso += 1;
+        n = g.tentativo_accesso;
         if let Some(a) = g.accesso.as_mut() {
             a.in_corso = true;
             a.errore = None;
+            a.partito = Some(adesso);
+            a.lento = false;
         }
         g.cambiato();
     }
+    n
 }
 
-/// Rifiutate: si resta nel pannellino, con il motivo scritto.
+/// Le credenziali non sono nemmeno partite (la tastiera non si apre): si
+/// resta nel pannellino, con il motivo scritto.
 pub fn accesso_fallito(s: &SharedAvviso, motivo: String) {
     if let Ok(mut g) = s.lock() {
-        if let Some(a) = g.accesso.as_mut() {
-            a.in_corso = false;
-            a.errore = Some(motivo);
+        g.accesso_fallito(motivo);
+    }
+}
+
+/// Rifiutate, o il runtime non raggiungibile: si resta nel pannellino, con il
+/// motivo scritto. Solo se è la risposta che si aspetta: dopo la rinuncia a
+/// 60 s il motivo scritto è già «Nessuna risposta, riprova».
+pub fn accesso_rifiutato(s: &SharedAvviso, tentativo: u64, motivo: String) {
+    if let Ok(mut g) = s.lock() {
+        if g.attende(tentativo) {
+            g.accesso_fallito(motivo);
         }
-        g.cambiato();
     }
 }
 
 /// Entrati: il pannellino si chiude e si riprende quel che si stava facendo.
-/// Ritorna l'azione da eseguire, se ce n'era una.
-pub fn accesso_riuscito(s: &SharedAvviso) -> Option<AzioneRichiesta> {
-    let mut azione = None;
-    if let Ok(mut g) = s.lock() {
-        azione = g.accesso.take().and_then(|a| a.azione);
-        g.cambiato();
+/// Ritorna l'azione da eseguire, se ce n'era una — oppure [`RispostaTardiva`]
+/// se il tentativo non è più quello che si aspetta, e allora non si entra.
+///
+/// Il controllo e la chiusura stanno sotto lo stesso lock: fra i due la
+/// rinuncia a 60 s non può infilarsi.
+pub fn accesso_riuscito(
+    s: &SharedAvviso,
+    tentativo: u64,
+) -> Result<Option<AzioneRichiesta>, RispostaTardiva> {
+    let mut g = s.lock().map_err(|_| RispostaTardiva)?;
+    if !g.attende(tentativo) {
+        return Err(RispostaTardiva);
     }
-    azione
+    let azione = g.accesso.take().and_then(|a| a.azione);
+    g.cambiato();
+    Ok(azione)
 }
 
 /// «Più tardi».
@@ -490,14 +593,34 @@ pub fn chiudi_esito(s: &SharedAvviso, id: i64) {
 /// viene sostituito: non c'è nessun «riuscito» da mostrare dopo, e mostrarlo
 /// mentirebbe sul fatto che l'aggiornamento sia finito.
 pub fn avvia(s: &SharedAvviso, base_url: &str, token: Option<String>) {
-    if let Ok(mut g) = s.lock() {
-        g.avvio_chiesto = true;
-        g.cambiato();
-    }
+    segna_avvio(s);
     crate::net_worker::invia(crate::net_worker::Comando::AvviaAggiornamento {
         base_url: base_url.to_string(),
         token,
+        avviso: Some(s.clone()),
     });
+}
+
+/// Il pulsante premuto: spento, e «in avvio» finché il runtime non risponde.
+fn segna_avvio(s: &SharedAvviso) {
+    if let Ok(mut g) = s.lock() {
+        g.avvio_chiesto = true;
+        g.avvio_in_volo = true;
+        g.cambiato();
+    }
+}
+
+/// Il runtime ha risposto a `/api/update/apply`. Se ha detto sì,
+/// l'aggiornamento è partito e il pulsante dice «avviato»; se ha detto no, il
+/// pulsante torna premibile.
+pub fn avvio_risposto(s: &SharedAvviso, ok: bool) {
+    if let Ok(mut g) = s.lock() {
+        g.avvio_in_volo = false;
+        if !ok {
+            g.avvio_chiesto = false;
+        }
+        g.cambiato();
+    }
 }
 
 /// Il thread che tiene aggiornato lo stato.
@@ -680,6 +803,65 @@ pub fn stato_di_prova(quale: &str) -> Option<StatoAggiornamento> {
 
 #[cfg(test)]
 mod tests {
+    // ── «Aggiorna ora»: in avvio, avviato, spento (09-11-2026) ──────────────
+
+    fn con_stato(in_corso: bool) -> SharedAvviso {
+        let s: SharedAvviso = Default::default();
+        s.lock().unwrap().stato = Some(StatoAggiornamento {
+            in_corso,
+            ..Default::default()
+        });
+        s
+    }
+
+    #[test]
+    fn dopo_l_accesso_per_aggiornare_il_pulsante_resta_spento() {
+        // Prima l'accesso riuscito mandava la richiesta senza segnare il
+        // pulsante: la card tornava con «Aggiorna ora» premibile, e un
+        // secondo tocco faceva un secondo apply.
+        let s = con_stato(false);
+        chiedi_accesso(&s, AzioneRichiesta::Aggiorna);
+        assert!(s.lock().unwrap().avvio_in_volo, "«in avvio» dal tocco");
+        let n = accesso_in_corso(&s, Instant::now());
+        assert_eq!(accesso_riuscito(&s, n), Ok(Some(AzioneRichiesta::Aggiorna)));
+        segna_avvio(&s);
+        let g = s.lock().unwrap();
+        assert!(g.aggiornamento_spento());
+        assert!(g.avvio_in_volo);
+    }
+
+    #[test]
+    fn la_risposta_del_runtime_chiude_l_avvio() {
+        let s = con_stato(false);
+        segna_avvio(&s);
+        avvio_risposto(&s, true);
+        {
+            let g = s.lock().unwrap();
+            assert!(!g.avvio_in_volo);
+            assert!(g.aggiornamento_spento(), "partito: resta spento");
+        }
+        segna_avvio(&s);
+        avvio_risposto(&s, false);
+        let g = s.lock().unwrap();
+        assert!(!g.aggiornamento_spento(), "rifiutato: si può riprovare");
+    }
+
+    #[test]
+    fn in_corso_dal_server_spegne_aggiorna_ora() {
+        assert!(con_stato(true).lock().unwrap().aggiornamento_spento());
+        assert!(!con_stato(false).lock().unwrap().aggiornamento_spento());
+    }
+
+    #[test]
+    fn annullare_l_accesso_spegne_in_avvio() {
+        let s = con_stato(false);
+        chiedi_accesso(&s, AzioneRichiesta::Aggiorna);
+        annulla_accesso(&s);
+        assert!(!s.lock().unwrap().avvio_in_volo);
+        chiedi_accesso(&s, AzioneRichiesta::Quadlet);
+        assert!(!s.lock().unwrap().avvio_in_volo, "solo per «Aggiorna ora»");
+    }
+
     /// Un comando rifiutato apre l'accesso col suo titolo, il motivo solo se
     /// si era già dentro, e dopo l'accesso non si ripete niente da soli
     /// (25-10-2026).
@@ -692,6 +874,7 @@ mod tests {
                 motivo,
                 errore,
                 in_corso,
+                ..
             } => {
                 assert_eq!(motivo, "cmd_serve_accesso");
                 assert_eq!(errore, None, "anonimi: il titolo basta");
@@ -699,7 +882,8 @@ mod tests {
             }
             altro => panic!("atteso l'accesso, arrivato {altro:?}"),
         }
-        assert_eq!(accesso_riuscito(&s), Some(AzioneRichiesta::Comando));
+        let n = accesso_in_corso(&s, Instant::now());
+        assert_eq!(accesso_riuscito(&s, n), Ok(Some(AzioneRichiesta::Comando)));
         chiedi_accesso_per_comando(&s, Some("403".into()));
         assert!(matches!(
             s.lock().unwrap().avviso(),
@@ -712,6 +896,103 @@ mod tests {
 
     use super::*;
     use crate::client::EsitoAggiornamento;
+
+    // ── Le attese del login: 10 s «lento», 60 s si rinuncia (09-11-2026) ──
+
+    const NESSUNA: &str = "Nessuna risposta, riprova";
+
+    /// Il pannellino con le credenziali appena partite alle `t0`.
+    fn accesso_partito(t0: Instant) -> (SharedAvviso, u64) {
+        let s: SharedAvviso = Default::default();
+        chiedi_accesso(&s, AzioneRichiesta::Accesso);
+        let n = accesso_in_corso(&s, t0);
+        (s, n)
+    }
+
+    fn al(s: &SharedAvviso, adesso: Instant) -> Avviso {
+        let mut g = s.lock().unwrap();
+        g.avanza_attesa(adesso, NESSUNA);
+        g.avviso()
+    }
+
+    #[test]
+    fn dopo_10_s_l_accesso_dice_che_il_pannello_e_lento() {
+        let t0 = Instant::now();
+        let (s, _) = accesso_partito(t0);
+        let lento = |a: Avviso| {
+            matches!(
+                a,
+                Avviso::Accesso {
+                    in_corso: true,
+                    lento: true,
+                    ..
+                }
+            )
+        };
+        assert!(!lento(al(&s, t0 + Duration::from_millis(9_999))));
+        let prima = s.lock().unwrap().generazione;
+        assert!(lento(al(&s, t0 + ACCESSO_LENTO)), "a 10 s lo dice");
+        // La card si ridisegna solo a generazione cambiata.
+        assert_ne!(
+            s.lock().unwrap().generazione,
+            prima,
+            "la card va ridisegnata"
+        );
+    }
+
+    #[test]
+    fn a_60_s_si_rinuncia_e_si_puo_riprovare() {
+        let t0 = Instant::now();
+        let (s, _) = accesso_partito(t0);
+        assert!(matches!(
+            al(&s, t0 + Duration::from_millis(59_999)),
+            Avviso::Accesso { in_corso: true, .. }
+        ));
+        // Le credenziali tornano a schermo, col motivo in cima e «Accedi»
+        // premibile: è la stessa forma di un rifiuto.
+        match al(&s, t0 + ACCESSO_MASSIMO) {
+            Avviso::Accesso {
+                in_corso,
+                lento,
+                errore,
+                ..
+            } => {
+                assert!(!in_corso, "«Accedi» torna premibile");
+                assert!(!lento);
+                assert_eq!(errore.as_deref(), Some(NESSUNA));
+            }
+            altro => panic!("atteso l'accesso, arrivato {altro:?}"),
+        }
+    }
+
+    #[test]
+    fn una_risposta_dopo_la_rinuncia_non_fa_entrare() {
+        let t0 = Instant::now();
+        let (s, n) = accesso_partito(t0);
+        al(&s, t0 + ACCESSO_MASSIMO);
+        assert_eq!(accesso_riuscito(&s, n), Err(RispostaTardiva));
+        accesso_rifiutato(&s, n, "401".into());
+        assert!(
+            matches!(s.lock().unwrap().avviso(), Avviso::Accesso { errore: Some(e), .. } if e == NESSUNA),
+            "il pannellino resta com'era"
+        );
+        // Si riprova: la risposta vecchia resta tardiva, quella nuova fa entrare.
+        let m = accesso_in_corso(&s, t0 + ACCESSO_MASSIMO);
+        assert_eq!(accesso_riuscito(&s, n), Err(RispostaTardiva));
+        assert_eq!(accesso_riuscito(&s, m), Ok(Some(AzioneRichiesta::Accesso)));
+    }
+
+    /// Come sul web: un login riuscito dopo «Annulla» farebbe entrare chi ha
+    /// rinunciato.
+    #[test]
+    fn dopo_annulla_una_risposta_non_fa_entrare() {
+        let (s, n) = accesso_partito(Instant::now());
+        annulla_accesso(&s);
+        assert_eq!(accesso_riuscito(&s, n), Err(RispostaTardiva));
+        // E un pannellino aperto dopo non si prende la risposta di prima.
+        chiedi_accesso(&s, AzioneRichiesta::Accesso);
+        assert_eq!(accesso_riuscito(&s, n), Err(RispostaTardiva));
+    }
 
     fn novita(v: &str) -> NovitaVersione {
         NovitaVersione {

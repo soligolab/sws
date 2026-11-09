@@ -1,3 +1,4 @@
+import { CampoPassword } from "@/components/CampoPassword";
 import React, { useEffect, useRef, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { api } from "@/api/client";
@@ -457,12 +458,19 @@ export function DatastoresTab() {
                 {(["host", "port", "database", "username", "password", "ssl_mode", "schema"] as const).map((field) => (
                   <div key={field} style={cellStyle}>
                     <span style={labelStyle}>{field}</span>
-                    <input
-                      type={field === "password" ? "password" : "text"}
-                      value={String((ds.backend as unknown as Record<string, unknown>)[field] ?? "")}
-                      onChange={(e) => patchBackend(ds.id, { [field]: field === "port" ? Number(e.target.value) : e.target.value })}
-                      style={inputStyle}
-                    />
+                    {field === "password" ? (
+                      <CampoPassword
+                        value={String((ds.backend as unknown as Record<string, unknown>)[field] ?? "")}
+                        onChange={(e) => patchBackend(ds.id, { [field]: e.target.value })}
+                        style={inputStyle}
+                      />
+                    ) : (
+                      <input
+                        value={String((ds.backend as unknown as Record<string, unknown>)[field] ?? "")}
+                        onChange={(e) => patchBackend(ds.id, { [field]: field === "port" ? Number(e.target.value) : e.target.value })}
+                        style={inputStyle}
+                      />
+                    )}
                   </div>
                 ))}
               </div>

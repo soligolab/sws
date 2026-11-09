@@ -1,3 +1,4 @@
+import { CampoPassword } from "@/components/CampoPassword";
 import { BrandLogo } from "@/components/BrandLogo";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -104,8 +105,7 @@ export function AbbinamentoScreen({
           <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" style={input} />
         </Campo>
         <Campo etichetta={t("abbinamento.password")}>
-          <input
-            type="password"
+          <CampoPassword
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             autoComplete="new-password"
@@ -114,8 +114,7 @@ export function AbbinamentoScreen({
           />
         </Campo>
         <Campo etichetta={t("abbinamento.ripetiPassword")}>
-          <input
-            type="password"
+          <CampoPassword
             value={conferma}
             onChange={(e) => setConferma(e.target.value)}
             autoComplete="new-password"

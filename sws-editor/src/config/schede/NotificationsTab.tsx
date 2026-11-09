@@ -1,3 +1,4 @@
+import { CampoPassword } from "@/components/CampoPassword";
 import { useEffect, useRef, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { api } from "@/api/client";
@@ -310,9 +311,8 @@ export function NotificationsTab() {
           </div>
           <div>
             <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 4 }}>{t("notifiche.passwordSmtp")}</div>
-            <input
+            <CampoPassword
               style={S.input}
-              type="password"
               placeholder={t("cfg.optional")}
               value={smtp.password ?? ""}
               onChange={(e) => patchSmtp({ password: e.target.value || undefined })}
@@ -430,7 +430,7 @@ export function NotificationsTab() {
               onChange={(e) => { setTouched(true); setTw({ ...tw, account_sid: e.target.value.trim() }); }} />
           </label>
           <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>Auth token
-            <input style={S.input} type="password" value={tw.auth_token}
+            <CampoPassword style={S.input} value={tw.auth_token}
               placeholder={tw.auth_token === MASKED ? t("cfgUi.savedLeaveEmptyToKeep") : ""}
               onChange={(e) => { setTouched(true); setTw({ ...tw, auth_token: e.target.value.trim() }); }} />
           </label>
@@ -446,7 +446,7 @@ export function NotificationsTab() {
               onChange={(e) => { setTouched(true); setTw({ ...tw, api_key_sid: e.target.value.trim() }); }} />
           </label>
           <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>{t("notifiche.chiaveApiSegreto")}
-            <input style={S.input} type="password" value={tw.api_key_secret ?? ""}
+            <CampoPassword style={S.input} value={tw.api_key_secret ?? ""}
               placeholder={tw.api_key_secret === MASKED ? t("cfgUi.savedLeaveEmptyToKeep") : ""}
               onChange={(e) => { setTouched(true); setTw({ ...tw, api_key_secret: e.target.value.trim() }); }} />
           </label>
@@ -542,9 +542,8 @@ export function NotificationsTab() {
             {/* Il token arriva mascherato dalle GET: mostrare "********" nel
                 campo faceva sembrare che il dato fosse andato perso. Meglio un
                 campo vuoto che dice esplicitamente com'è la situazione. */}
-            <input
+            <CampoPassword
               style={S.input}
-              type="password"
               placeholder={tokenSaved ? t("cfgUi.alreadySavedWriteHereOnly") : "123456789:ABCdef..."}
               value={tokenSaved && tg.bot_token === MASKED ? "" : tg.bot_token}
               onChange={(e) => patchTg({ bot_token: e.target.value })}

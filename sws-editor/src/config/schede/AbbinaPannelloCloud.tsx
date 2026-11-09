@@ -1,3 +1,4 @@
+import { CampoPassword } from "@/components/CampoPassword";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, type PannelloCloud } from "@/api/client";
@@ -96,7 +97,7 @@ export function AbbinaPannelloCloud({ onAbbinato }: { onAbbinato: (url: string) 
                 <div style={{ display: "flex", gap: 6 }}>
                   <input style={{ ...INPUT, flex: 1 }} placeholder={t("abbinamento.utente")} value={utente}
                     onChange={(e) => setUtente(e.target.value)} autoComplete="off" />
-                  <input style={{ ...INPUT, flex: 1 }} type="password" placeholder={t("abbinamento.passwordSemplice")} value={password}
+                  <CampoPassword style={{ ...INPUT, flex: 1 }} placeholder={t("abbinamento.passwordSemplice")} value={password}
                     onChange={(e) => setPassword(e.target.value)} autoComplete="off"
                     onKeyDown={(e) => e.key === "Enter" && abbina()} />
                 </div>

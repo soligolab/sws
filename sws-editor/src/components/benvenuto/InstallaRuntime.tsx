@@ -7,6 +7,7 @@
 // Installare un runtime su un dispositivo: il modale, la sezione di deploy e la
 // guida a mano. Stanno insieme perche' li usa solo il modale.
 
+import { CampoPassword } from "@/components/CampoPassword";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { IconaUI } from "@/ui/IconaUI";
@@ -166,7 +167,7 @@ function DeploySection() {
         <div>
           <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 3 }}>{t("welcome.sshPassword")}</label>
           {/* Non si salva da nessuna parte: resta nel modulo finché la finestra è aperta. */}
-          <input style={INPUT} type="password" autoComplete="off" placeholder="••••••" value={password} onChange={(e) => setPassword(e.target.value)} />
+          <CampoPassword style={INPUT} autoComplete="off" placeholder="••••••" value={password} onChange={(e) => setPassword(e.target.value)} />
         </div>
       </div>
       {/* 3 · Verifica, prima di installare. Spegne Installa solo se trova errori. */}

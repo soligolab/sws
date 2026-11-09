@@ -12,6 +12,53 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Aggiunto
+- **L'occhio sui campi password, in tutti gli ambienti** (piano `docs/plans/2026-11-09-occhio-sulle-password.md`,
+  richiesta del maintainer del 09-11-2026; 6017a2cb, a833caec, 6b152483, poi le revisioni 0bfa610b, 5a109698,
+  dfba9833). Sul pannello, col touch e la tastiera a schermo, una password si sbaglia e non si vede dove: «è l'utente
+  che fa show quando è in condizioni di sicurezza». `CampoPassword` (`sws-editor/src/components/`) è un `<input>`
+  con l'occhio dentro, a destra, bersaglio 40×40 px: parte nascosta, un tocco mostra e uno nasconde, il fuoco resta
+  nel campo e Invio invia ancora; un valore mascherato dal server («********», `MASCHERA_SERVER`) tiene l'occhio
+  spento; nei moduli che restano montati (Utenti, console) si richiude all'invio e quando il valore si svuota; lo
+  stato lo dice solo l'etichetta («Mostra»/«Nascondi la password»), senza `aria-pressed`. Lo stile si divide:
+  larghezza, flex e margini al contenitore, il resto al campo (`dividiStile`). Sostituiti i 36 campi in 22 file —
+  IDE, console, viewer web: il login e il campo di `chiedi({ password: true })` della `FinestraAvviso`, cioè la
+  password dei comandi critici. LVGL: lo stesso occhio con la stessa icona SVG (`OcchioPassword`, `aggiungi_occhio`
+  in `lvgl_render.rs`), rasterizzata una volta per misura (`raster_occhio`), sulla tastiera a schermo e sul login;
+  chiusa la finestra torna nascosta. Guardia `scripts/check_campi_password.sh` in `check_static.sh`: nessun
+  `type=…password` scritto a mano, comunque scritto e anche a capo, e si prova da sé su otto evasioni note.
+- **«Dati in ritardo», sul viewer web e su LVGL** (piano `docs/plans/2026-11-09-viewer-leggero.md`, §5-bis, decisione
+  del maintainer del 09-11-2026; 232dc97e, 2385f768, 701d2c93, f005b860, b7aba449). Sul WP630 i valori a schermo
+  arrivavano vecchi fino a 29 s e niente lo diceva. Ora, oltre 5 s, compare in alto la fascia «Dati in ritardo di N s»
+  (testo di sistema `dati_in_ritardo`, nella lingua dei contenuti; cf3aa83c) e tutti gli oggetti prendono lo stile
+  «non aggiornato» dello stale; sotto i 5 s sparisce da sé. Le regole sono le stesse sui due motori, e i due file si
+  citano a vicenda:
+  - l'età si misura quando la pagina applica i valori: `adesso − ts` della voce più recente del lotto, meno lo scarto
+    d'orologio stimato come il **minimo** `adesso − ts` della connessione (un orologio sfasato non dà falsi allarmi);
+  - lo scarto riparte all'apertura del socket e a un salto dell'orologio di più di 1 s rispetto a quello monotono
+    (NTP); il lotto di quel momento non si misura. Lo snapshot non dà un'età, serve solo alla stima;
+  - il socket chiuso o in riconnessione fa invecchiare i valori da quando è caduto; col socket vivo e nessun delta per
+    5 s la misura scade, perché un impianto fermo non è in ritardo. Senza un battito sul socket, un socket vivo e muto
+    vale come impianto fermo: la proposta del battito è in `Appunti.txt`;
+  - web: `ws/coalescenza.ts` misura, `tagStream.ts` passa apertura e chiusura, la prop `nonAggiornato` di `SvgCanvas`
+    vale anche per il popup dei faceplate e la pagina-finestra, solo a runtime; la fascia sta in `RuntimeView` sopra
+    finestre e popup, sotto il login;
+  - LVGL: `ritardo.rs` (logica pura, `Misura::aperto`, `Misura::orologio`), `lvgl_ritardo.rs` (fascia e velo sul
+    layer superiore, sopra la card dell'aggiornamento e subito sotto l'accesso, come sul web), `effects::non_aggiornato`
+    perché un oggetto non si attenui due volte. `--ritardo-di-prova N` accende una fascia finta, anche con
+    `--istantanea`.
+- **Le attese del login e di «Aggiorna ora»** (§5-bis; 6e12e68a, f5dcf4a6, d1d0b69d, 997a9109):
+  - `LoginScreen`: dopo 10 s il pulsante dice «Il pannello risponde lentamente…» (con le credenziali
+    dell'installazione, cioè sull'IDE, «Il server risponde lentamente…»); a 60 s la richiesta si annulla con un
+    `AbortController` e compare «Nessuna risposta, riprova», col pulsante di nuovo attivo. `login` di `api/client.ts`
+    accetta un `AbortSignal`, solo lui, e `request()` rilancia l'annullamento invece di leggerlo come runtime
+    irraggiungibile. Nessun tempo massimo globale. Sul login LVGL le stesse due attese arrivano col ramo B (sotto,
+    «Corretto»);
+  - «Aggiorna ora», web (`AvvisoAggiornamento.tsx`) e LVGL (`aggiornamento.rs`, `lvgl_avviso.rs`, `net_worker.rs`):
+    dal tocco alla risposta di `/api/update/apply`, accesso compreso, si legge «Aggiornamento in avvio…» (testo di
+    sistema `agg_in_avvio`, `Testo::AggInAvvio`), e il pulsante resta spento quando `/api/update/status` dice
+    `in_corso`. Sul LVGL l'apply chiesto dopo l'accesso passa da `aggiornamento::avvia` (prima la card tornava con
+    «Aggiorna ora» attivo, e un secondo tocco faceva un secondo apply), e il riquadro d'accesso dice «in avvio» solo
+    per l'aggiornamento.
 - **MQTT, la disponibilità per dispositivo** (piano `docs/archive/2026-11-08-mqtt-dispositivi.md`, nato dal collaudo
   della presa Sandokan dell'08-11): `MqttConfig.dispositivi` (`id` + `disponibilita`, la stessa struct della
   sorgente) e `TopicMapping.dispositivo`. Il plugin sottoscrive ogni topic di disponibilità una volta sola; un
@@ -111,6 +158,103 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   il salvataggio non è finito.
 
 ### Corretto
+- **Il viewer leggero, ramo A** (piano `docs/plans/2026-11-09-viewer-leggero.md`, 09-11-2026). Sul WP630 la pagina
+  iniziale di Montagna saturava il processore dopo un quarto d'ora, e i valori arrivavano vecchi. Al banco
+  (`tmp/viewer-leggero/banco`, Chromium a CPU ×6, copia del template a 10 Hz, 15 minuti) la pagina passava dal 43% al
+  99% di thread occupato, con 21.708 punti di mini tendenza e risposte fino a 7,2 s; col ramo A (SPA di prima della
+  revisione, `www-A`) resta fra il 33% e il 50%, con 594 punti, risposte entro 24 ms e dati vecchi al più di 0,1 s.
+  Il bus non cambia: `TagDb::set` trasmette ancora
+  le scritture uguali (§4 e §8 del piano).
+  - **le mini tendenze web a secchielli** (99663b15, 701d2c93): `kpi_tile` e `sparkline` tenevano un campione per
+    cambio e a ogni render copiavano e filtravano tutto l'array (36.000 punti in un'ora per un tag a 10 Hz).
+    `canvas/miniSerie.ts`: una colonna di pixel è un secchiello di `max(100, round(finestra / colonne))` ms,
+    allineato come il server; per secchiello primo, minimo, massimo e ultimo (M4), al più 4 punti per colonna, fusione
+    idempotente fra seme e dato vivo. `canvas/MiniTendenza.tsx` (`memo`, riceve solo lo stato del suo tag) prende il
+    posto di `SparklineWidget`: il seme con una richiesta `getHistoryBuckets`, mai a intervalli; un orologio del
+    server solo per la pagina (`oraDelServer` in `coalescenza.ts`); un timer al confine del secchiello fa scorrere la
+    linea anche a valore fermo. Un salto dell'orologio (`epocaOrologio`) rifà la serie, e i secchielli di prima si
+    ricopiano (`MiniSerie.ricopia`). La kpi in edit disegna mini tendenza e variazione (regola UI 1): `KpiDelta` fa una
+    richiesta al montaggio e niente polling;
+  - **i valori dei tag arrivano allo store una volta per fotogramma** (4399599a): `applicaValori(voci)` in
+    `store/index.ts` fa una `set()` sola, un'unione, scarta le triple identiche (valore, qualità, timestamp) e, se non
+    cambia niente, non avvisa nessuno; `updateTagValue` la chiama con una voce. `ws/coalescenza.ts` raccoglie le voci
+    (`accoda`, per tag vince l'ultima) e le applica col fotogramma o con un timer di riserva da 100 ms, per la scheda
+    nascosta. In `tagStream.ts` snapshot e delta passano da lì, l'ack con errore resta immediato, e dopo uno snapshot
+    `lastSeq` torna a −1: snapshot e delta hanno contatori diversi sul server, da lì i falsi «seq gap»;
+  - **la mini tendenza LVGL è quella del web** (d7ccf84d, 429b5493, 7aaee4c8): il poller di `sparkline` e `kpi_tile`
+    non si fermava mai (12 in più a ogni visita della pagina iniziale di Montagna) e chiedeva tutta la finestra ogni
+    2 s, che il runtime rileggeva da SQLite sulla CPU del pannello. Ora `mini_serie.rs` porta la `MiniSerie` del web
+    riga per riga, e `Viva` è la mini tendenza viva: il seme una volta (`spawn_seme_spark`, una richiesta che finisce;
+    nessuna senza tag), i valori del socket negli stessi secchi, la testa che scorre al confine del secchio, l'ora del
+    server di `ritardo::ora_del_server`. Colonne = larghezza − 4 come sul web (kpi di Montagna: 144 colonne, secchi da
+    25 s), i picchi restano, i valori vanno in una scala fissa `0..=SCALA_Y` invece che nell'`i16` arrotondato (una
+    pressione in Pa si schiacciava sul tetto), valgono `y_min` e `y_max`, un testo non numerico non entra nella serie.
+    Una linea ferma resta a metà altezza, sul web in basso: scelta d'aspetto, in `Appunti.txt`;
+  - **il template Montagna a 1 Hz** (e46a0848): `s.rete_scambio` e `s.energia_oggi` non sono più generatori a 10 Hz;
+    li scrive lo script `giornata` una volta al secondo, con le forme di prima (triangolo da −60 a 90 kW con periodo
+    di 150 s; energia da 0 a 5.200 kWh nella giornata). I progetti già creati dal template restano a 10 Hz.
+- **Il viewer leggero, ramo B** (piano `docs/plans/2026-11-09-viewer-leggero.md` §6, 09-11-2026; `fix/ridisegno-mirato`,
+  annidato su A). Col ramo A la pagina non cresceva più, ma ogni messaggio ridisegnava ancora tutti gli oggetti, e il
+  filtro di pagina si perdeva a ogni apertura del socket (`["*"]` fisso). Ora un oggetto si ridisegna solo quando
+  cambia un tag suo, e la pagina riceve solo i tag che le servono. Le due cose stanno insieme perché tutte e due
+  possono lasciare un oggetto fermo senza avviso: una funzione sola dice al filtro e al memo cosa legge ogni oggetto, e
+  una guardia la tiene completa.
+  - **le dipendenze di ogni oggetto in un posto solo** (60f9a3a8): `dipendenzeOggetto(obj, faceplates, objects?)` in
+    `runtime-view/collectTagIds.ts` restituisce `{ ids, conTempo, tutti, usaOggetti }` e si tiene in una WeakMap;
+    `collectTagIds` è l'unione delle dipendenze più i figli dei popup `open_faceplate`. `canvas/parametriFaceplate.ts`
+    (nuovo) porta `substituteFaceplateParams`, `effectiveFaceplateParams` e `figliDelFaceplate`, usati da raccolta,
+    istanza e popup, e il ciclo d'import con `SvgCanvas` sparisce. Coperti i parametri predefiniti, gli override,
+    l'annidamento, i legami e il `motion_tag` delle ancore di un tubo, `tutti` quando un legame riscrive un campo-tag.
+    La guardia `tests/dipendenzeComplete.test.tsx` monta ogni oggetto dei quattro template con la mappa dentro un
+    `Proxy`: ogni lettura deve stare nelle dipendenze (sul codice vecchio cadeva su `demo-items-web` e `-lvgl`: il tubo
+    `o_tubo_segue` leggeva `demo.cmd.slider` dall'ancora senza dichiararlo). La fixture
+    `tests/fixtures/oggettiTemplate.json` la tiene allineata `check_fixture_template.sh` (nuovo in `check_static.sh`,
+    `--aggiorna` la riscrive);
+  - **il filtro di pagina non si perde** (8c72f5b4, dabed969, 8b0d12b3): `ws/tagStream.ts` tiene la sottoscrizione
+    voluta in una variabile di modulo e la rimanda a ogni apertura (riconnessione, cambio di token, login) al posto di
+    `["*"]`; una lista uguale non si rimanda. `RuntimeView` usa `tagDellaVista`, che ha anche il `background_tag` della
+    pagina-finestra (mancava), e torna a `["*"]` allo smontaggio. Se un oggetto della pagina, della finestra o dei
+    figli di un popup ha un legame che sceglie il tag (`tutti`), la vista chiede `["*"]`: altrimenti il tag scelto
+    restava fermo allo snapshot (rilievo della revisione). L'IDE non chiama mai `sendSubscribe` e resta su `["*"]`.
+    Quello che il client non può fare — il server nasce «tutti» e `subscribe []` vale «tutti» — è in `Appunti.txt`;
+  - **un oggetto si ridisegna solo quando cambia un suo tag** (3a0fce31, e7636bfc, c01c0847): `SvgObject` è `memo`
+    col confronto `stesseDipendenze`: tutte le prop per riferimento, `tagValues` solo sugli id delle dipendenze (valore
+    con `Object.is`, qualità, e il timestamp solo con `conTempo`, cioè la colonna «time» della tabella), `objects` solo
+    per chi li usa (`usaOggetti`); con `tutti` l'oggetto si ridisegna sempre. Le callback verso gli oggetti sono
+    stabili (un ref tiene le ultime; se manca, resta `undefined`). La mappa dei valori la prendono solo `PaginaViva`
+    in `RuntimeView` e `CanvasVivo` in `EditorShell`: barra, toast, login e il resto dell'editor non si ridisegnano
+    più a ogni messaggio; l'anteprima del formato nel pannello proprietà usa un selettore su un tag solo.
+    `useStileProgetto()` in ogni oggetto e due selettori per la lingua al posto di `getState()`, così stile e lingua
+    si aggiornano anche col memo. Serie del trend, SVG sanificato dei simboli custom e `descrizioniDeiTag` in cache.
+    Sulla home di Montagna un tag cambiato ridisegna `bil_rete` e basta, non 39 oggetti (`tests/ridisegnoMirato`,
+    `oggettoMemo`, `piccoliCosti`; misura con React di produzione in jsdom: 12 → 1 ms, 300 oggetti 31 → 3,3 ms);
+  - **dalle due revisioni del 09-11** (ff58ac88, 015efde2, 0cd01b56, 563e937c): lo `stale_after_s` non chiede più
+    `conTempo` — la ⌛ la calcola l'involucro di pagina fuori dal memo, e un tag ritrasmesso uguale a 1 Hz non
+    ridisegnava più l'oggetto ogni secondo; i figli del popup di un faceplate in `useMemo` su definizione e parametri
+    (si rifacevano a ogni messaggio); nell'editor griglie e faceplate senza tubi non si ridisegnano a ogni passo di
+    trascinamento; il ciclo della radice confronta un elenco fisso di prop (`Record<keyof ObjProps, true>`: una prop
+    nuova senza riga non compila), tiene il lucchetto per ruolo in una WeakMap (prima `ruoloCheServe` girava per ogni
+    oggetto a ogni messaggio) e l'ordine z in `useMemo`. Il resto del ciclo della radice (style e `onPress` nuovi per
+    ogni `<g>`) è il §7 del piano, in `Appunti.txt`;
+  - **LVGL, le attese del login** (92191898, 92a3bd0e; `aggiornamento.rs`, `lvgl_avviso.rs`, `net_worker.rs`): come
+    sul web, dopo 10 s la card dice che il pannello è lento (testo di sistema `accesso_lento`), a 60 s rinuncia con
+    «Nessuna risposta, riprova» (`accesso_senza_risposta`) e «Accedi» torna premibile. Ogni tentativo ha un numero:
+    una risposta tardiva, dopo «Annulla» o dopo la rinuncia, non fa più entrare (prima il thread di rete abbandonava il
+    login a 15 s senza dirlo, e una risposta arrivata dopo «Annulla» faceva entrare chi aveva rinunciato). `Accedi`
+    gira su un thread suo (`accedi_a_parte`, runtime a un thread come il thread di rete): le scritture in coda (PutTag,
+    AckAlarm) non aspettano più un login lento, nemmeno dopo «Annulla». I due testi nuovi in 5 lingue
+    (`testi_sistema.rs`, `testiSistema.ts`, `tests/fixtures/testi-sistema.json`).
+  - **Al banco** (`tmp/viewer-leggero/banco`, Chromium a CPU ×6, copia del template a 10 Hz, 15 minuti; occupato =
+    thread principale per finestra di 30 s): base dal 43 al 99%; **ramo A** 33-43% di notte e 49-55% di giorno;
+    **ramo B** 27-34% di notte e 55-60% di giorno, nessuna crescita, 493 punti, impronta ≤ 3,1 s, dati vecchi ≤ 0,1 s,
+    risposta mediana ~10 ms (massimo 101 ms in una finestra), fascia «Dati in ritardo» mai comparsa, 0 errori in
+    console. Template a 1 Hz, di giorno: A 23,5-25,3% → B 25,4-26,9% (×1: 1,2-2,6%). Copia a 10 Hz a ×1: A 9-12,6%
+    → B 6,5-8,6%. Il profilo (t60-90 s) dice dove va il resto: lo script scende da 10,2 a 4,3 s ogni 30 s e React dal
+    16,9% al 6,4%, ma l'occupato resta al 42% perché quello che rimane è **pittura, layout e compositing del
+    browser** (Paint 17%), circa 20 fotogrammi al secondo per l'animazione `sws-flow` dei tubi e per i valori a
+    10 Hz. L'obiettivo del §9, meno del 25% a ×6 sulla copia a 10 Hz, **non è raggiunto**, e il maintainer l'ha
+    **accettato così per la 2.26.0-rc.10**: l'animazione dei tubi, e con lei tutte le animazioni, si guardano quando
+    saranno un problema vero (`Appunti.txt`); il §7 resta chiuso.
 - **Un allarme con ritardo su una variabile che non cambia più non scattava mai** (08-11-2026, collaudando la presa
   del laboratorio staccata su CasaDomotica: falsa da dieci minuti, nessun allarme). `on_delay_s` e `off_delay_s` si
   ricontrollavano solo all'arrivo di un valore nuovo, e un tag di disponibilità si scrive solo ai cambi. Ora
@@ -417,7 +561,7 @@ e sul VPS resta la 2.25.1. Le sue voci di `NOVITA.yaml` sono riportate in «Unre
   disponibilità pubblicata su MQTT, che usciva `offline` con la sorgente che rispondeva. Ora un tag che non c'è più si
   riscrive al giro dopo (`disponibilita_loop` in `source_supervisor.rs`).
 - **La pubblicazione MQTT «ai cambiamenti» usciva a ogni giro di lettura**: un giro riscrive i tag anche invariati, e
-  ogni riscrittura contava come un cambio (è il seme `docs/plans/2026-10-17-tag-uguali-ritrasmessi.md`). Ora lo stato
+  ogni riscrittura contava come un cambio (è il seme `docs/archive/2026-10-17-tag-uguali-ritrasmessi.md`). Ora lo stato
   esce solo se diverso dall'ultimo mandato; le pubblicazioni periodiche escono comunque.
 - **OPC UA client con una policy di sicurezza** (trovato eseguendo il tutorial T05 contro OpenPLC, 03-11-2026): con
   qualunque policy diversa da `None` — `Basic256Sha256` è il default — la sorgente non si collegava mai. Tre difetti

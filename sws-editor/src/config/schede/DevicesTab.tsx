@@ -1,3 +1,4 @@
+import { CampoPassword } from "@/components/CampoPassword";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, RuntimeUnavailableError, type DispositivoRete } from "@/api/client";
@@ -377,7 +378,7 @@ export function DevicesTab() {
                     </td>
                     <td style={{ padding: "8px", textAlign: "right" }}>
                       <div style={{ display: "flex", gap: 4, justifyContent: "flex-end", alignItems: "center" }}>
-                        <input style={{ ...INPUT, width: 120 }} type="password" autoComplete="off"
+                        <CampoPassword style={{ ...INPUT, width: 150 }} autoComplete="off"
                           data-testid={`device-password-${d.label}`}
                           placeholder={t("cfg.passwordSession")} title={t("cfg.passwordSessionTitle")}
                           value={passwords[d.url] ?? ""}
@@ -482,7 +483,7 @@ export function DevicesTab() {
             <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }} title={t("cfg.passwordSessionTitle")}>
               {t("cfg.swsPassword")} <span style={{ color: "var(--brand-text-subtle, #94a3b8)" }}>({t("cfg.passwordSession")})</span>
             </label>
-            <input style={{ ...INPUT, width: 130 }} type="password" autoComplete="off" placeholder="••••••••"
+            <CampoPassword style={{ ...INPUT, width: 160 }} autoComplete="off" placeholder="••••••••"
               value={addForm.pass} onChange={(e) => setAddForm((f) => ({ ...f, pass: e.target.value }))} />
           </div>
           <button

@@ -37,6 +37,8 @@ export type VoceSistema =
   | "cmd_serve_accesso"
   | "agg_ignora"
   | "agg_in_corso"
+  | "agg_in_avvio"
+  | "dati_in_ritardo"
   | "esito_titolo_ok"
   | "esito_titolo_ko"
   | "esito_versioni"
@@ -65,7 +67,9 @@ export type VoceSistema =
   | "conf_annulla"
   | "conf_accedi"
   | "conf_utente"
-  | "conf_password";
+  | "conf_password"
+  | "accesso_lento"
+  | "accesso_senza_risposta";
 
 export const LINGUE_SISTEMA = ["it", "de", "fr", "es", "en"] as const;
 export type LinguaSistema = (typeof LINGUE_SISTEMA)[number];
@@ -126,6 +130,20 @@ export const TESTI_SISTEMA: Record<VoceSistema, Record<LinguaSistema, string>> =
     es: "Actualización iniciada…",
     en: "Update started…",
   },
+  agg_in_avvio: {
+    it: "Aggiornamento in avvio…",
+    de: "Aktualisierung wird gestartet…",
+    fr: "Démarrage de la mise à jour…",
+    es: "Iniciando la actualización…",
+    en: "Starting the update…",
+  },
+  dati_in_ritardo: {
+    it: "Dati in ritardo di {n} s",
+    de: "Daten um {n} s verzögert",
+    fr: "Données en retard de {n} s",
+    es: "Datos con {n} s de retraso",
+    en: "Data delayed by {n} s",
+  },
   esito_titolo_ok: {
     it: "Aggiornamento completato",
     de: "Aktualisierung abgeschlossen",
@@ -173,6 +191,23 @@ export const TESTI_SISTEMA: Record<VoceSistema, Record<LinguaSistema, string>> =
   conf_accedi: { it: "Accedi", de: "Anmelden", fr: "Se connecter", es: "Acceder", en: "Log in" },
   conf_utente: { it: "Utente", de: "Benutzer", fr: "Utilisateur", es: "Usuario", en: "User" },
   conf_password: { it: "Password", de: "Passwort", fr: "Mot de passe", es: "Contraseña", en: "Password" },
+  // Le attese del login sul pannello LVGL (09-11-2026). Il login del viewer web
+  // ha le sue (`login.rispondeLentamente` in it/en.json), come il resto della
+  // sua schermata d'accesso.
+  accesso_lento: {
+    it: "Il pannello risponde lentamente…",
+    de: "Das Panel antwortet langsam…",
+    fr: "Le panneau répond lentement…",
+    es: "El panel responde lentamente…",
+    en: "The panel is responding slowly…",
+  },
+  accesso_senza_risposta: {
+    it: "Nessuna risposta, riprova",
+    de: "Keine Antwort, bitte erneut versuchen",
+    fr: "Pas de réponse, réessayez",
+    es: "Sin respuesta, inténtalo de nuevo",
+    en: "No response, try again",
+  },
   allarme_attivo: {
     it: "🔴 ALLARME ATTIVO", de: "🔴 ALARM AKTIV", fr: "🔴 ALARME ACTIVE", es: "🔴 ALARMA ACTIVA", en: "🔴 ALARM ACTIVE",
   },

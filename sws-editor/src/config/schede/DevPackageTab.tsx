@@ -13,6 +13,7 @@
  *  configura un pannello non deve incontrarla mentre cerca il deploy, e il
  *  sotto-ramo intero **non si disegna** quando il repo non c'è.
  */
+import { CampoPassword } from "@/components/CampoPassword";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, getAuthToken } from "@/api/client";
@@ -185,7 +186,7 @@ export function DevPackageTab() {
             <input style={{ ...INPUT, width: 110 }} placeholder="user" title={t("cfg.sshUser")} value={user}
               onChange={(e) => { setUser(e.target.value); ricorda(K_USER, e.target.value); }} />
             {/* La password solo nello stato, mai in localStorage. */}
-            <input style={{ ...INPUT, width: 130 }} type="password" autoComplete="off"
+            <CampoPassword style={{ ...INPUT, width: 160 }} autoComplete="off"
               title={t("cfg.sshPassword")} placeholder={t("cfg.passwordSession")} value={pass}
               onChange={(e) => setPass(e.target.value)} />
           </div>

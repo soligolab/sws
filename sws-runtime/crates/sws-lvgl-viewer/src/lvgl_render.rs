@@ -36,8 +36,7 @@ use sws_core::geometria_testo::{altezza_etichetta, altezza_valore, passo_riga};
 use sws_core::tag::{TagQuality, TagValue};
 
 use crate::client::{
-    self, AlarmStateLite, HistorySample, SharedAlarms, SharedHistory, SharedLang, TagSnapshot,
-    TagSnapshotValue,
+    self, AlarmStateLite, SharedAlarms, SharedLang, TagSnapshot, TagSnapshotValue,
 };
 use crate::model::{
     BarChartSeries, LanguageTable, OnValue, PieSlice, PipePoint, RadioOption, SubGrid,
@@ -454,17 +453,20 @@ pub enum LiveKind {
         destra: f64,
         y: f64,
     },
-    /// Grafico compatto senza assi/griglia, stesso principio del `trend`
-    /// (poller REST in background, non `/ws/tags`) ma una sola serie e senza
-    /// range Y fisso — sempre autofit, come `SparklineWidget` in
-    /// `SvgCanvas.tsx`.
+    /// La mini tendenza (`sparkline`, e quella in basso nel `kpi_tile`): il
+    /// seme dello storico una volta, poi i valori del socket negli stessi
+    /// secchi, come `MiniTendenza.tsx` (`mini_serie::Viva`, 09-11-2026).
     Sparkline {
         ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
         ser: *mut lvgl_sys::lv_chart_series_t,
-        shared: SharedHistory,
-        last_seen_version: u64,
-        last_samples: Vec<HistorySample>,
-        window_s: u64,
+        tag: String,
+        viva: crate::mini_serie::Viva,
+        /// La scala fissa, se c'è (`y_min`/`y_max`, come sul web).
+        y_min: Option<f64>,
+        y_max: Option<f64>,
+        /// Per chiedere il seme di nuovo quando l'orologio cambia.
+        base_url: String,
+        rt: tokio::runtime::Handle,
         /// L'ultimo valore in alto a destra (`spark_show_last`, 25-10-2026):
         /// il campo arrivava al pannello e nessuno lo disegnava.
         ultimo: Option<core::ptr::NonNull<lvgl_sys::lv_obj_t>>,
@@ -3042,6 +3044,19 @@ impl FiltroLuce {
             respiro: 1.0,
         })
     }
+    /// Il filtro del solo grigio dello stale, per gli oggetti che un filtro
+    /// loro non ce l'hanno (la fascia «Dati in ritardo», `lvgl_ritardo.rs`):
+    /// stessa formula, stesso callback, nessuna seconda versione del grigio.
+    pub(crate) fn solo_grigio() -> Box<Self> {
+        let mut f = Self::nuovo();
+        f.grigio = true;
+        f
+    }
+    /// Il descrittore da dare a `lv_obj_set_style_color_filter_dsc`. Vale
+    /// quanto il `Box`: LVGL ne tiene il puntatore.
+    pub(crate) fn dsc(&self) -> *const lvgl_sys::lv_color_filter_dsc_t {
+        &self.dsc
+    }
     fn attivo(&self) -> bool {
         self.grigio || self.luminosita != 0.0 || self.respiro < 1.0
     }
@@ -4338,6 +4353,10 @@ fn azione_del_bottone(obj: &SynopticObject) -> Option<Navigazione> {
 /// sta qui da solo e non c'è una lista di puntatori da tenere allineata.
 pub struct FinestraViva {
     velo: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    /// L'area sotto la barra, dove stanno gli oggetti della finestra: serve
+    /// alla fascia «Dati in ritardo», che li vuole grigi come quelli della
+    /// pagina. Muore col velo.
+    area: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
     /// I collegamenti ai tag degli oggetti della finestra: si aggiornano
     /// mentre è aperta e muoiono con lei.
     pub live: Vec<LiveBinding>,
@@ -4352,6 +4371,12 @@ pub struct FinestraViva {
 }
 
 impl FinestraViva {
+    /// Il genitore degli oggetti della finestra. Valido finché la finestra è
+    /// aperta: non va tenuto oltre il giro in cui lo si chiede.
+    pub fn area(&self) -> *mut lvgl_sys::lv_obj_t {
+        self.area.as_ptr()
+    }
+
     /// Distrugge la finestra e libera quello che le apparteneva.
     pub fn chiudi(self) {
         unsafe {
@@ -4575,9 +4600,12 @@ pub fn apri_finestra(
         &mut live,
     );
 
+    let area = core::ptr::NonNull::new(area_ptr)
+        .ok_or_else(|| anyhow::anyhow!("l'area della finestra è nulla"))?;
     Ok((
         FinestraViva {
             velo,
+            area,
             live,
             _styles: styles,
             contesti,
@@ -8190,7 +8218,284 @@ pub(crate) struct Tastiera {
 struct TastieraCtx {
     overlay: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
     textarea: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    /// L'occhio sul campo, se è un campo password.
+    occhio: Option<&'static OcchioCtx>,
     esito: EsitoTastiera,
+}
+
+/// Lo stato dell'occhio di un campo password (09-11-2026): la password parte
+/// **nascosta**, l'occhio la mostra, un secondo tocco la nasconde, e quando la
+/// finestra si chiude torna nascosta — la volta dopo si riparte così.
+///
+/// È la stessa regola dell'IDE e del viewer web (`CampoPassword`): il maintainer
+/// l'ha voluta uguale in tutti gli ambienti, perché è proprio col touch e la
+/// tastiera a schermo che una password si sbaglia, ed è chi sta davanti al
+/// vetro a decidere quando è al sicuro per leggerla.
+///
+/// Un valore a sé, e non un flag sparso nei callback, perché la regola è una
+/// e deve potersi leggere — e provare — senza accendere LVGL.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct OcchioPassword {
+    visibile: bool,
+}
+
+/// I tratti dell'occhio aperto, **gli stessi del web**: la voce `occhio` di
+/// `sws-editor/src/ui/iconeInterfaccia.ts`, copiata qui perché il pannello
+/// non legge i sorgenti dell'editor. Il maintainer ha voluto la stessa icona
+/// su web e LVGL (09-11-2026), e la prova `l_occhio_del_pannello_e_quello_del_web`
+/// tiene le due copie uguali.
+pub(crate) const OCCHIO_TRATTI: &str = r#"<path d="M2.5 12s3.5-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.5 6.5-9.5 6.5S2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>"#;
+/// L'occhio barrato (`occhioBarrato` sul web): lo stesso, con la sbarra.
+pub(crate) const OCCHIO_BARRATO_TRATTI: &str = r#"<path d="M2.5 12s3.5-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.5 6.5-9.5 6.5S2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/><path d="M4 4l16 16"/>"#;
+
+impl OcchioPassword {
+    /// All'apertura della finestra: nascosta.
+    pub const fn all_apertura() -> Self {
+        Self { visibile: false }
+    }
+
+    /// Un tocco sull'occhio.
+    pub fn commuta(&mut self) {
+        self.visibile = !self.visibile;
+    }
+
+    /// La finestra si chiude: si riparte nascosti, qualunque cosa si fosse
+    /// scelto. Una password lasciata in chiaro non deve sopravvivere alla
+    /// finestra che la mostrava.
+    pub fn alla_chiusura(&mut self) {
+        self.visibile = false;
+    }
+
+    /// Quello che va passato a `lv_textarea_set_password_mode`.
+    pub fn nasconde(&self) -> bool {
+        !self.visibile
+    }
+
+    /// Il disegno sul pulsante: l'occhio aperto quando la password è nascosta
+    /// («toccami per vederla»), barrato quando si legge («nascondila»). Come
+    /// sul web (`CampoPassword.tsx`).
+    pub fn disegno(&self) -> &'static str {
+        if self.visibile {
+            OCCHIO_BARRATO_TRATTI
+        } else {
+            OCCHIO_TRATTI
+        }
+    }
+}
+
+/// L'SVG di un'icona dell'interfaccia come la monta `IconaUI.tsx` sul web:
+/// riquadro 24×24, solo tratto, spessore 1.75, punte e angoli tondi. Il
+/// colore qui è fisso, perché LVGL non ha un `currentColor` da ereditare.
+fn svg_icona_ui(tratti: &str, (r, g, b): (u8, u8, u8)) -> String {
+    format!(
+        r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#{r:02x}{g:02x}{b:02x}" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">{tratti}</svg>"##
+    )
+}
+
+/// L'occhio accanto a un campo password: il campo, i due disegni e lo stato.
+///
+/// Vive quanto la finestra (`Box::leak`, come i contesti delle finestre che lo
+/// ospitano): nasce con la password nascosta e **non si riusa** — una finestra
+/// nuova ha un occhio nuovo, ed è così che «chiusa la finestra, la volta dopo
+/// riparte nascosta» è vero per costruzione. [`chiudi`](Self::chiudi) lo dice
+/// anche a LVGL, per il tempo che il campo resta a schermo.
+struct OcchioCtx {
+    campo: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    /// Un canvas per disegno — l'occhio aperto e quello barrato — col tratto
+    /// che lo identifica: se ne vede uno alla volta, quello che lo stato
+    /// chiede. Due canvas e non uno ridisegnato, perché il tocco deve
+    /// rispondere subito e i disegni sono due e piccoli.
+    disegni: [(&'static str, core::ptr::NonNull<lvgl_sys::lv_obj_t>); 2],
+    stato: std::cell::Cell<OcchioPassword>,
+}
+
+impl OcchioCtx {
+    /// Porta campo e icona allo stato corrente.
+    unsafe fn applica(&self) {
+        let stato = self.stato.get();
+        lvgl_sys::lv_textarea_set_password_mode(self.campo.as_ptr(), stato.nasconde());
+        let nascosto = lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t;
+        for (tratti, canvas) in self.disegni {
+            if tratti == stato.disegno() {
+                lvgl_sys::lv_obj_clear_flag(canvas.as_ptr(), nascosto);
+            } else {
+                lvgl_sys::lv_obj_add_flag(canvas.as_ptr(), nascosto);
+            }
+        }
+    }
+
+    /// La finestra si sta chiudendo: la password torna nascosta.
+    unsafe fn chiudi(&self) {
+        let mut stato = self.stato.get();
+        stato.alla_chiusura();
+        self.stato.set(stato);
+        self.applica();
+    }
+}
+
+/// Il lato minimo del pulsante dell'occhio: quanto serve a un dito sul vetro
+/// (`OCCHIO_PX` di `CampoPassword.tsx`).
+const LATO_MINIMO_OCCHIO: i16 = 40;
+
+/// Il colore dell'occhio, `#94a3b8`: lo stesso del web (`--brand-text-muted`).
+const COLORE_OCCHIO: (u8, u8, u8) = (148, 163, 184);
+
+/// Un disegno dell'occhio rasterizzato, pronto per `lv_canvas`, **uno per
+/// misura e per disegno**, condiviso da tutte le finestre.
+///
+/// La prima stesura (09-11-2026) rasterizzava a ogni apertura e faceva
+/// `Box::leak` del buffer: il canvas moriva con la finestra, i suoi px²×3
+/// byte no — a 32 px, ~6 KB persi a ogni login, su un pannello che resta
+/// acceso mesi e il login lo chiede a ogni aggiornamento. L'icona però è
+/// costante per misura, e LVGL il buffer di un canvas lo legge soltanto: si
+/// rasterizza una volta, si tiene per sempre e lo si dà a ogni canvas che lo
+/// chiede. Le misure possibili sono 13 (20..=32 px) per due disegni: al
+/// massimo ~80 KB, in pratica una o due misure per pannello.
+struct RasterOcchio {
+    larghezza: u32,
+    altezza: u32,
+    /// Il buffer con la sua lunghezza (`larghezza × altezza × 3`:
+    /// TRUE_COLOR_ALPHA a `LV_COLOR_DEPTH=16`), vivo per sempre e di sola
+    /// lettura per chi lo usa.
+    pixel: core::ptr::NonNull<[u8]>,
+}
+
+thread_local! {
+    /// I raster dell'occhio già fatti, per (misura in px, barrato). Il
+    /// rendering LVGL è su un thread solo.
+    static RASTER_OCCHIO: std::cell::RefCell<std::collections::HashMap<(u32, bool), &'static RasterOcchio>> =
+        std::cell::RefCell::new(std::collections::HashMap::new());
+}
+
+/// Il raster dell'occhio aperto (`barrato = false`) o barrato, `px × px`,
+/// dalla cache o rasterizzato ora e messo in cache. `None` se l'SVG non si
+/// rasterizza (misura fuori dal tetto, o memoria finita).
+fn raster_occhio(px: u32, barrato: bool) -> Option<&'static RasterOcchio> {
+    RASTER_OCCHIO.with(|cache| {
+        if let Some(r) = cache.borrow().get(&(px, barrato)) {
+            return Some(*r);
+        }
+        let tratti = if barrato {
+            OCCHIO_BARRATO_TRATTI
+        } else {
+            OCCHIO_TRATTI
+        };
+        let icona = crate::svg_raster::rasterize_entro(
+            svg_icona_ui(tratti, COLORE_OCCHIO).as_bytes(),
+            px,
+            px,
+            false,
+            false,
+            64,
+        )?;
+        let buf: &'static mut [u8] = Box::leak(icona.to_lvgl_true_color_alpha().into_boxed_slice());
+        let r: &'static RasterOcchio = Box::leak(Box::new(RasterOcchio {
+            larghezza: icona.width,
+            altezza: icona.height,
+            pixel: core::ptr::NonNull::from(buf),
+        }));
+        cache.borrow_mut().insert((px, barrato), r);
+        Some(r)
+    })
+}
+
+/// Un canvas con l'icona, figlio di `genitore` e centrato in lui. Il buffer
+/// è quello condiviso di [`raster_occhio`]: il canvas muore con la finestra,
+/// il buffer resta per il prossimo.
+unsafe fn canvas_icona(
+    genitore: *mut lvgl_sys::lv_obj_t,
+    icona: &'static RasterOcchio,
+) -> Option<core::ptr::NonNull<lvgl_sys::lv_obj_t>> {
+    let c = core::ptr::NonNull::new(lvgl_sys::lv_canvas_create(genitore))?;
+    lvgl_sys::lv_canvas_set_buffer(
+        c.as_ptr(),
+        icona.pixel.as_ptr() as *mut u8 as *mut std::ffi::c_void,
+        icona.larghezza as lvgl_sys::lv_coord_t,
+        icona.altezza as lvgl_sys::lv_coord_t,
+        lvgl_sys::LV_IMG_CF_TRUE_COLOR_ALPHA as lvgl_sys::lv_img_cf_t,
+    );
+    lvgl_sys::lv_obj_align(
+        c.as_ptr(),
+        lvgl_sys::LV_ALIGN_CENTER as lvgl_sys::lv_align_t,
+        0,
+        0,
+    );
+    Some(c)
+}
+
+/// Mette l'occhio **dentro** il campo password `campo`, a destra: un pulsante
+/// quadrato alto quanto il campo (mai meno di [`LATO_MINIMO_OCCHIO`]),
+/// trasparente, con la sola icona; il campo si tiene il testo lontano da lì
+/// col `pad_right`. `(x, y, w, h)` è dove sta il campo dentro `genitore`.
+///
+/// L'icona è l'SVG del web rasterizzato una volta per misura
+/// ([`raster_occhio`]): metà del lato, fra 20 e 32 px — 20 è la misura del
+/// web, 32 quella che un campo da 64 px sul WP630 regge senza sembrare un
+/// pulsante a sé.
+///
+/// Il pulsante è fratello del campo e non figlio: un figlio del `textarea`
+/// finirebbe nella sua area scorrevole, e il tocco si confonderebbe col
+/// tocco che porta la tastiera sul campo.
+///
+/// `None` se LVGL non ha memoria per il pulsante o l'SVG non si rasterizza:
+/// il campo resta com'era, nascosto e senza occhio — meglio di una finestra
+/// che non si apre.
+unsafe fn aggiungi_occhio(
+    genitore: *mut lvgl_sys::lv_obj_t,
+    campo: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    (x, y, w, h): (i16, i16, i16, i16),
+) -> Option<&'static OcchioCtx> {
+    let lato = h.max(LATO_MINIMO_OCCHIO);
+    let px = (lato / 2).clamp(20, 32) as u32;
+    let (aperto, barrato) = (raster_occhio(px, false)?, raster_occhio(px, true)?);
+
+    let b = core::ptr::NonNull::new(lvgl_sys::lv_btn_create(genitore))?;
+    lvgl_sys::lv_obj_set_size(b.as_ptr(), lato, lato);
+    lvgl_sys::lv_obj_set_pos(b.as_ptr(), x + w - lato, y + (h - lato) / 2);
+    // Solo l'icona: niente fondo, bordo né ombra del tema, così sembra parte
+    // del campo. Un fondo appare mentre il dito preme, perché sul vetro si
+    // deve vedere che il tocco è arrivato.
+    stile::trasparente(b.as_ptr(), stile::MAIN);
+    stile::bordo(b.as_ptr(), None, 0.0, stile::MAIN);
+    lvgl_sys::lv_obj_set_style_shadow_width(b.as_ptr(), 0, stile::MAIN);
+    stile::sfondo(
+        b.as_ptr(),
+        (51, 65, 85),
+        stile::MAIN | lvgl_sys::LV_STATE_PRESSED,
+    );
+    stile::raggio(b.as_ptr(), 4.0, stile::MAIN);
+    let (Some(aperto), Some(barrato)) = (
+        canvas_icona(b.as_ptr(), aperto),
+        canvas_icona(b.as_ptr(), barrato),
+    ) else {
+        lvgl_sys::lv_obj_del(b.as_ptr());
+        return None;
+    };
+    // Il testo del campo si ferma prima dell'occhio.
+    lvgl_sys::lv_obj_set_style_pad_right(campo.as_ptr(), lato, stile::MAIN);
+    let ctx: &'static OcchioCtx = Box::leak(Box::new(OcchioCtx {
+        campo,
+        disegni: [(OCCHIO_TRATTI, aperto), (OCCHIO_BARRATO_TRATTI, barrato)],
+        stato: std::cell::Cell::new(OcchioPassword::all_apertura()),
+    }));
+    ctx.applica();
+    lvgl_sys::lv_obj_add_event_cb(
+        b.as_ptr(),
+        Some(sws_occhio_cb),
+        lvgl_sys::lv_event_code_t_LV_EVENT_CLICKED,
+        ctx as *const OcchioCtx as *mut std::ffi::c_void,
+    );
+    Some(ctx)
+}
+
+/// Il tocco sull'occhio: commuta e ridisegna. Non sposta la tastiera sul
+/// campo — mostra solo quello che c'è scritto.
+unsafe extern "C" fn sws_occhio_cb(e: *mut lvgl_sys::lv_event_t) {
+    let ctx = &*(lvgl_sys::lv_event_get_user_data(e) as *const OcchioCtx);
+    let mut stato = ctx.stato.get();
+    stato.commuta();
+    ctx.stato.set(stato);
+    ctx.applica();
 }
 
 /// Un tastierino a schermo intero sul layer superiore, aperto su richiesta
@@ -8215,10 +8520,14 @@ pub(crate) fn apri_tastiera(numerica: bool, password: bool, iniziale: &str) -> O
         }
         lvgl_sys::lv_textarea_set_text(ta.as_ptr(), text_cstring(iniziale).as_ptr());
         // Una password non si legge da sopra la spalla di chi sta davanti a un
-        // impianto (20-10-2026): il campo la nasconde, la tastiera no.
-        if password {
+        // impianto (20-10-2026): il campo la nasconde, la tastiera no. E dal
+        // 09-11-2026 c'è l'occhio: è chi digita a decidere quando leggerla.
+        let occhio = if password {
             lvgl_sys::lv_textarea_set_password_mode(ta.as_ptr(), true);
-        }
+            aggiungi_occhio(ov.as_ptr(), ta, (20, 20, lw - 40, 50))
+        } else {
+            None
+        };
         let kb = core::ptr::NonNull::new(lvgl_sys::lv_keyboard_create(ov.as_ptr()))?;
         lvgl_sys::lv_keyboard_set_textarea(kb.as_ptr(), ta.as_ptr());
         lvgl_sys::lv_keyboard_set_mode(
@@ -8249,6 +8558,7 @@ pub(crate) fn apri_tastiera(numerica: bool, password: bool, iniziale: &str) -> O
         let ctx: &'static TastieraCtx = Box::leak(Box::new(TastieraCtx {
             overlay: ov,
             textarea: ta,
+            occhio,
             esito: esito.clone(),
         }));
         for code in [
@@ -8271,17 +8581,33 @@ pub(crate) type EsitoCredenziali = std::rc::Rc<RefCell<Option<Option<(String, St
 /// La schermata di accesso del pannello: **utente e password insieme**.
 pub(crate) struct Credenziali {
     overlay: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    /// L'occhio sul campo password: alla chiusura la rimette nascosta.
+    occhio: Option<&'static OcchioCtx>,
     pub esito: EsitoCredenziali,
 }
 
 impl Credenziali {
+    /// La schermata, finché è aperta: la fascia «Dati in ritardo» le passa
+    /// sotto (`lvgl_ritardo`).
+    pub fn radice(&self) -> Option<*mut lvgl_sys::lv_obj_t> {
+        self.esito
+            .borrow()
+            .is_none()
+            .then_some(self.overlay.as_ptr())
+    }
+
     /// Chiude la schermata **se è ancora aperta**. Stesso motivo del gemello
     /// in [`Tastiera`]: la cella del risultato è anche il segno che si è già
     /// chiusa da sé, e senza il controllo si cancellerebbe due volte lo stesso
     /// oggetto — che sul WP630 vuol dire pannello che non risponde più.
     pub fn chiudi(&self) {
         if self.esito.borrow().is_none() {
-            unsafe { lvgl_sys::lv_obj_del_async(self.overlay.as_ptr()) };
+            unsafe {
+                if let Some(o) = self.occhio {
+                    o.chiudi();
+                }
+                lvgl_sys::lv_obj_del_async(self.overlay.as_ptr());
+            }
         }
     }
 }
@@ -8290,8 +8616,21 @@ struct CredenzialiCtx {
     overlay: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
     utente: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
     password: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    occhio: Option<&'static OcchioCtx>,
     tastiera: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
     esito: EsitoCredenziali,
+}
+
+impl CredenzialiCtx {
+    /// La schermata se ne va: la password torna nascosta e l'overlay si
+    /// cancella. Tutte le uscite passano di qui — «Annulla», la ✗ della
+    /// tastiera, la conferma — dopo aver letto quello che serviva.
+    unsafe fn congeda(&self) {
+        if let Some(o) = self.occhio {
+            o.chiudi();
+        }
+        lvgl_sys::lv_obj_del_async(self.overlay.as_ptr());
+    }
 }
 
 /// Il bordo del campo attivo si accende, quello dell'altro si spegne.
@@ -8495,6 +8834,9 @@ pub(crate) fn apri_credenziali(testi: TestiAccesso<'_>) -> Option<Credenziali> {
         etichetta(&format!("{}:", testi.password_etichetta), y);
         y += alto + 4;
         let ta_password = campo(y, true, "")?;
+        // L'occhio (09-11-2026), dentro il campo a destra: la password parte
+        // nascosta e la mostra chi la sta scrivendo, quando è al sicuro.
+        let occhio = aggiungi_occhio(ov.as_ptr(), ta_password, (x0, y, w_col, h_campo));
 
         let kb = core::ptr::NonNull::new(lvgl_sys::lv_keyboard_create(ov.as_ptr()))?;
         lvgl_sys::lv_keyboard_set_mode(
@@ -8580,6 +8922,7 @@ pub(crate) fn apri_credenziali(testi: TestiAccesso<'_>) -> Option<Credenziali> {
             overlay: ov,
             utente: ta_utente,
             password: ta_password,
+            occhio,
             tastiera: kb,
             esito: esito.clone(),
         }));
@@ -8611,14 +8954,18 @@ pub(crate) fn apri_credenziali(testi: TestiAccesso<'_>) -> Option<Credenziali> {
                 dato,
             );
         }
-        Some(Credenziali { overlay: ov, esito })
+        Some(Credenziali {
+            overlay: ov,
+            occhio,
+            esito,
+        })
     }
 }
 
 unsafe extern "C" fn sws_credenziali_annulla_cb(e: *mut lvgl_sys::lv_event_t) {
     let ctx = &*(lvgl_sys::lv_event_get_user_data(e) as *const CredenzialiCtx);
     *ctx.esito.borrow_mut() = Some(None);
-    lvgl_sys::lv_obj_del_async(ctx.overlay.as_ptr());
+    ctx.congeda();
 }
 
 unsafe extern "C" fn sws_credenziali_campo_cb(e: *mut lvgl_sys::lv_event_t) {
@@ -8649,7 +8996,7 @@ unsafe extern "C" fn sws_credenziali_kb_cb(e: *mut lvgl_sys::lv_event_t) {
     let ctx = &*(lvgl_sys::lv_event_get_user_data(e) as *const CredenzialiCtx);
     if lvgl_sys::lv_event_get_code(e) == lvgl_sys::lv_event_code_t_LV_EVENT_CANCEL {
         *ctx.esito.borrow_mut() = Some(None);
-        lvgl_sys::lv_obj_del_async(ctx.overlay.as_ptr());
+        ctx.congeda();
         return;
     }
     // ✓ sull'utente: non conferma, **sposta sulla password**. Confermare qui
@@ -8666,10 +9013,12 @@ unsafe extern "C" fn sws_credenziali_kb_cb(e: *mut lvgl_sys::lv_event_t) {
 /// Manda quello che c'è nei due campi e chiude. Condivisa fra il ✓ della
 /// tastiera e il pulsante «Accedi».
 unsafe fn conferma_credenziali(ctx: &CredenzialiCtx) {
+    // Prima si legge, poi si congeda: `lv_textarea_get_text` dà il testo vero
+    // in tutti e due i modi, ma l'ordine lo rende ovvio.
     let utente = testo_di(ctx.utente.as_ptr());
     let password = testo_di(ctx.password.as_ptr());
     *ctx.esito.borrow_mut() = Some(Some((utente, password)));
-    lvgl_sys::lv_obj_del_async(ctx.overlay.as_ptr());
+    ctx.congeda();
 }
 
 /// «Accedi» **conferma sempre**, anche col fuoco sul campo utente — a
@@ -8694,6 +9043,10 @@ unsafe extern "C" fn sws_tastiera_cb(e: *mut lvgl_sys::lv_event_t) {
         None
     };
     *ctx.esito.borrow_mut() = Some(risultato);
+    // Il testo è già stato letto: la password può tornare nascosta.
+    if let Some(o) = ctx.occhio {
+        o.chiudi();
+    }
     lvgl_sys::lv_obj_del_async(ctx.overlay.as_ptr());
 }
 
@@ -9136,11 +9489,13 @@ fn aggiorna_trend(t: &mut TrendVivo, lingua: &str, table: &LanguageTable) {
     t.scena = scena;
 }
 
-/// `sparkline`: stesso principio del `trend` (poller REST in background via
-/// `client::spawn_history_poller`, la storia non è un delta live) ma una
-/// sola serie, sempre autofit (nessun `y_min`/`y_max` nello schema web per
-/// questo tipo) e senza griglia/assi — `lv_chart_set_div_line_count(0, 0)`
-/// per il solo grafico "nudo" che il nome del widget implica.
+/// `sparkline`: la mini tendenza, come `MiniTendenza.tsx` sul web. Lo
+/// storico si chiede una volta, a secchi, e i valori vivi del socket entrano
+/// negli stessi secchi (`mini_serie::Viva`): al massimo quattro punti per
+/// colonna, e un costo che non cresce col tempo. Una sola serie, senza
+/// griglia né assi (`lv_chart_set_div_line_count(0, 0)`), con la scala di
+/// `y_min`/`y_max` se ci sono, come sul web. Il riempimento sotto la linea
+/// (`spark_fill`) qui non c'è: `lv_chart` 8.3 non lo fa per lo scatter.
 fn render_sparkline(
     screen: &mut lvgl::Obj,
     obj: &SynopticObject,
@@ -9153,44 +9508,54 @@ fn render_sparkline(
     let ptr = chart.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
 
     // Sfondo/bordo del tema di default disegna un pannello — il web non ne
-    // ha uno per la sparkline (solo la linea), quindi li azzeriamo qui.
+    // ha uno per la sparkline (solo la linea), quindi li azzeriamo qui. Il
+    // margine di 2 px su ogni lato è quello del web (`MARGINE`): così le
+    // colonne del disegno sono pixel veri.
     let mut bg_style = Style::default();
     bg_style.set_bg_opa(lvgl::style::Opacity::OPA_TRANSP);
     bg_style.set_border_width(0);
-    bg_style.set_pad_left(0);
-    bg_style.set_pad_right(0);
-    bg_style.set_pad_top(0);
-    bg_style.set_pad_bottom(0);
+    bg_style.set_pad_left(crate::mini_serie::MARGINE);
+    bg_style.set_pad_right(crate::mini_serie::MARGINE);
+    bg_style.set_pad_top(crate::mini_serie::MARGINE);
+    bg_style.set_pad_bottom(crate::mini_serie::MARGINE);
     chart
         .add_style(Part::Main, &mut bg_style)
         .map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
     styles.push(bg_style);
 
-    let window_s = obj
-        .spark_window_s
-        .unwrap_or(60.0)
-        .round()
-        .clamp(1.0, i16::MAX as f64) as u64;
+    let window_s = obj.spark_window_s.unwrap_or(60.0).round().max(1.0) as u64;
+    // Una colonna di pixel per secchio, come sul web.
+    let colonne = crate::mini_serie::colonne(obj.width.unwrap_or(120.0));
+    let tag = obj.tag.clone().unwrap_or_default();
+    let mut chiedi = |da, a, secchio| {
+        client::spawn_seme_spark(rt_handle, base_url.to_string(), tag.clone(), da, a, secchio)
+    };
+    let viva = crate::mini_serie::Viva::nuova(
+        window_s.saturating_mul(1000),
+        colonne,
+        crate::mini_serie::Ora::adesso(),
+        &mut chiedi,
+    );
     unsafe {
         lvgl_sys::lv_chart_set_type(
             ptr.as_ptr(),
             lvgl_sys::LV_CHART_TYPE_SCATTER as lvgl_sys::lv_chart_type_t,
         );
         lvgl_sys::lv_chart_set_div_line_count(ptr.as_ptr(), 0, 0);
+        // L'asse X in terzi di colonna (`mini_serie::Disegno`).
         lvgl_sys::lv_chart_set_range(
             ptr.as_ptr(),
             lvgl_sys::LV_CHART_AXIS_PRIMARY_X as lvgl_sys::lv_chart_axis_t,
             0,
-            window_s as i16,
+            viva.serie.disegno(None, None).ultima_x.max(1),
         );
-        // Placeholder prima del primo poll — sempre autofit dopo, come trend
-        // quando y_min/y_max sono assenti (qui non esistono affatto nello
-        // schema, quindi è l'unico comportamento).
+        // I valori arrivano già riportati in `0..=SCALA_Y`, quindi l'asse è
+        // fisso.
         lvgl_sys::lv_chart_set_range(
             ptr.as_ptr(),
             lvgl_sys::LV_CHART_AXIS_PRIMARY_Y as lvgl_sys::lv_chart_axis_t,
             0,
-            100,
+            crate::mini_serie::SCALA_Y,
         );
     }
 
@@ -9201,9 +9566,6 @@ fn render_sparkline(
     )
     .unwrap_or((59, 130, 246));
     let ser = unsafe { chart_add_series(ptr, rgb) };
-    let tag = obj.tag.clone().unwrap_or_default();
-    let shared =
-        client::spawn_history_poller(rt_handle, base_url.to_string(), tag, window_s, false);
 
     // L'ultimo valore (25-10-2026), corpo `font_size` (9 sul web), del colore
     // della linea, in alto a destra.
@@ -9218,10 +9580,12 @@ fn render_sparkline(
             lvgl_sys::lv_label_set_text(l, text_cstring("").as_ptr());
             stile::font(l, corpo as u16, stile::MAIN);
             stile::testo(l, rgb, stile::MAIN);
+            // Dentro il margine del grafico: il bordo destro del testo cade a
+            // 2 px dal bordo, come sul web.
             lvgl_sys::lv_obj_align(
                 l,
                 lvgl_sys::LV_ALIGN_TOP_RIGHT as lvgl_sys::lv_align_t,
-                -2,
+                0,
                 0,
             );
             core::ptr::NonNull::new(l)
@@ -9233,10 +9597,12 @@ fn render_sparkline(
         kind: LiveKind::Sparkline {
             ptr,
             ser,
-            shared,
-            last_seen_version: 0,
-            last_samples: Vec::new(),
-            window_s,
+            tag,
+            viva,
+            y_min: obj.y_min,
+            y_max: obj.y_max,
+            base_url: base_url.to_string(),
+            rt: rt_handle.clone(),
             ultimo,
         },
     })
@@ -16122,8 +16488,13 @@ fn update_effects(
         1.0
     };
     let tv = tag.as_deref().and_then(|t| tags.get(t));
-    let attenuato = effects::attenuato(stale_after_s, bad_gray, tv, now_ms);
-    let opa = effects::opa_finale(opa_base, attenuato, acceso);
+    // «Dati in ritardo» (09-11-2026): con la fascia accesa ogni oggetto è
+    // grigio, e l'opacità la abbassa il velo di `lvgl_ritardo`.
+    let (grigio, opa_attenuata) = effects::non_aggiornato(
+        effects::attenuato(stale_after_s, bad_gray, tv, now_ms),
+        crate::ritardo::attivo(),
+    );
+    let opa = effects::opa_finale(opa_base, opa_attenuata, acceso);
 
     if opa != ultimo.opa {
         for f in figli {
@@ -16135,13 +16506,13 @@ fn update_effects(
     // valori arrotondati — il respiro cambia a ogni frame, ma sotto il
     // millesimo non si vede, e ridipingere costa.
     let stato = (
-        attenuato,
+        grigio,
         (luminosita * 10.0).round() as i32,
         (respiro * 1000.0).round() as i32,
     );
     if Some(stato) != ultimo.filtro {
         let prima_attivo = luce.filtro.attivo();
-        luce.filtro.grigio = attenuato;
+        luce.filtro.grigio = grigio;
         luce.filtro.luminosita = luminosita as f32;
         luce.filtro.respiro = respiro as f32;
         let attivo = luce.filtro.attivo();
@@ -16154,7 +16525,7 @@ fn update_effects(
         // invece funzionava, perché passa dall'opacità. Le due strade non si
         // sommano: un widget nativo non ha immagine da ricolorare, e
         // un'immagine il color filter non lo riceve.
-        let recolor = effects::recolor_per(attenuato, luminosita, respiro);
+        let recolor = effects::recolor_per(grigio, luminosita, respiro);
         for f in figli {
             unsafe {
                 if attivo != prima_attivo || ultimo.filtro.is_none() {
@@ -16914,24 +17285,24 @@ pub fn update_bindings(
             LiveKind::Sparkline {
                 ptr,
                 ser,
-                shared,
-                last_seen_version,
-                last_samples,
-                window_s,
+                tag,
+                viva,
+                y_min,
+                y_max,
+                base_url,
+                rt,
                 ultimo,
             } => {
-                let prima = *last_seen_version;
-                update_sparkline(
-                    *ptr,
-                    *ser,
-                    shared,
-                    last_seen_version,
-                    last_samples,
-                    *window_s,
-                );
-                if let (Some(l), true) = (ultimo, *last_seen_version != prima) {
-                    if let Some(c) = last_samples.last() {
-                        let v = tag_value_as_f64(&c.value);
+                let valore = tags
+                    .get(tag.as_str())
+                    .and_then(|v| valore_numerico(&v.value).map(|n| (v.ts, n)));
+                let mut chiedi = |da, a, secchio| {
+                    client::spawn_seme_spark(rt, base_url.clone(), tag.clone(), da, a, secchio)
+                };
+                if viva.giro(crate::mini_serie::Ora::adesso(), valore, &mut chiedi) {
+                    let d = viva.serie.disegno(*y_min, *y_max);
+                    update_sparkline(*ptr, *ser, &d);
+                    if let (Some(l), Some(v)) = (ultimo, d.ultimo) {
                         unsafe {
                             lvgl_sys::lv_label_set_text(
                                 l.as_ptr(),
@@ -17508,90 +17879,46 @@ fn update_alarm_viewer(
     }
 }
 
-/// Aggiorna un chart trend: legge `SharedHistory` per ogni serie, e se
-/// almeno una ha una versione nuova dal poller, riscrive **tutte** le serie
-/// (non solo quella cambiata) e chiama `lv_chart_refresh` una volta sola.
-///
-/// Perché tutte e non solo quella cambiata: `point_cnt` è una proprietà
-/// dell'intero `lv_chart_t`, non per-serie (`lv_chart_set_point_count`
-/// ridimensiona gli array `x_points`/`y_points` di **ogni** serie sul
-/// chart — verificato in `lv_chart.c` prima di scrivere questo codice).
-/// Impostarlo dentro un giro per-serie farebbe sì che l'ultima serie
-/// processata sovrascriva silenziosamente il conteggio delle precedenti;
-/// tenere `last_samples` per serie e riscriverle tutte insieme quando una
-/// qualunque cambia evita quel bug per costruzione, al costo di qualche
-/// riscrittura in più non strettamente necessaria (accettabile: succede al
-/// massimo al ritmo del poll, ogni 2s, non a ogni frame).
-/// Una sola serie, sempre autofit — niente
-/// `point_cnt` da riconciliare fra più serie (il problema per cui
-/// `update_trend` riscrive tutte le serie insieme non esiste con una sola).
+/// Riscrive i punti di una mini tendenza: al massimo quattro per colonna, più
+/// due, già riportati in `0..=SCALA_Y`. Si chiama solo quando il disegno è
+/// cambiato (`Viva::giro`): un valore uguale nello stesso secchio non costa
+/// niente. Una sola serie, quindi niente `point_cnt` da riconciliare.
 fn update_sparkline(
     ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
     ser: *mut lvgl_sys::lv_chart_series_t,
-    shared: &SharedHistory,
-    last_seen_version: &mut u64,
-    last_samples: &mut Vec<HistorySample>,
-    window_s: u64,
+    disegno: &crate::mini_serie::Disegno,
 ) {
-    let (version, samples) = {
-        let guard = shared.lock().unwrap_or_else(|e| e.into_inner());
-        (guard.0, guard.1.clone())
-    };
-    if version == *last_seen_version {
-        return;
-    }
-    *last_seen_version = version;
-    *last_samples = samples;
-
-    let point_count = last_samples.len().max(1);
+    let punti = &disegno.punti;
+    let point_count = punti.len().clamp(1, u16::MAX as usize);
     unsafe {
         lvgl_sys::lv_chart_set_point_count(ptr.as_ptr(), point_count as u16);
-    }
-
-    let now_ms = client::now_unix_ms();
-    let window_start_ms = now_ms.saturating_sub(window_s.saturating_mul(1000));
-    let mut y_lo = f64::INFINITY;
-    let mut y_hi = f64::NEG_INFINITY;
-    for i in 0..point_count {
-        match last_samples.get(i) {
-            Some(s) => {
-                let x = (s.ts_ms.saturating_sub(window_start_ms) / 1000).min(window_s) as i16;
-                let y_f = tag_value_as_f64(&s.value);
-                y_lo = y_lo.min(y_f);
-                y_hi = y_hi.max(y_f);
-                unsafe {
-                    lvgl_sys::lv_chart_set_value_by_id2(
-                        ptr.as_ptr(),
-                        ser,
-                        i as u16,
-                        x,
-                        y_f.round() as i16,
-                    );
-                }
-            }
-            None => unsafe {
-                let none = lvgl_sys::LV_CHART_POINT_NONE as i16;
-                lvgl_sys::lv_chart_set_value_by_id2(ptr.as_ptr(), ser, i as u16, none, none);
-            },
+        lvgl_sys::lv_chart_set_range(
+            ptr.as_ptr(),
+            lvgl_sys::LV_CHART_AXIS_PRIMARY_X as lvgl_sys::lv_chart_axis_t,
+            0,
+            disegno.ultima_x.max(1),
+        );
+        if punti.is_empty() {
+            let none = lvgl_sys::LV_CHART_POINT_NONE as i16;
+            lvgl_sys::lv_chart_set_value_by_id2(ptr.as_ptr(), ser, 0, none, none);
         }
-    }
-    if y_lo.is_finite() && y_hi.is_finite() {
-        let (lo, hi) = if (y_hi - y_lo) < 1.0 {
-            (y_lo - 1.0, y_hi + 1.0)
-        } else {
-            (y_lo, y_hi)
-        };
-        unsafe {
-            lvgl_sys::lv_chart_set_range(
-                ptr.as_ptr(),
-                lvgl_sys::LV_CHART_AXIS_PRIMARY_Y as lvgl_sys::lv_chart_axis_t,
-                lo.round() as i16,
-                hi.round() as i16,
-            );
+        for (i, &(x, y)) in punti.iter().take(point_count).enumerate() {
+            lvgl_sys::lv_chart_set_value_by_id2(ptr.as_ptr(), ser, i as u16, x, y);
         }
-    }
-    unsafe {
         lvgl_sys::lv_chart_refresh(ptr.as_ptr());
+    }
+}
+
+/// `Number(value)` del web per la mini tendenza: un testo che non è un numero
+/// e un composito non entrano nella serie (lì sono `NaN`), invece di
+/// diventare zero come in `tag_value_as_f64`.
+fn valore_numerico(v: &TagValue) -> Option<f64> {
+    match v {
+        TagValue::Bool(b) => Some(if *b { 1.0 } else { 0.0 }),
+        TagValue::Int(i) => Some(*i as f64),
+        TagValue::Float(f) => Some(*f),
+        TagValue::Str(s) => s.trim().parse::<f64>().ok(),
+        TagValue::Array(_) | TagValue::Struct(_) => None,
     }
 }
 
@@ -17857,6 +18184,119 @@ mod binding_tests {
         }
         // Su un vetro alto le misure restano quelle di prima.
         assert_eq!(super::misure_accesso(400, false), (24, 64, 48));
+    }
+
+    /// L'occhio sui campi password (09-11-2026): parte nascosta, il tocco la
+    /// mostra, il secondo la nasconde, e chiusa la finestra si riparte
+    /// nascosti — anche se la si era lasciata in chiaro.
+    #[test]
+    fn l_occhio_parte_chiuso_commuta_e_si_richiude_con_la_finestra() {
+        use super::{OcchioPassword, OCCHIO_BARRATO_TRATTI, OCCHIO_TRATTI};
+        let mut o = OcchioPassword::all_apertura();
+        assert!(o.nasconde(), "all'apertura la password è nascosta");
+        assert_eq!(
+            o.disegno(),
+            OCCHIO_TRATTI,
+            "nascosta: l'occhio aperto, «toccami per vederla»"
+        );
+        o.commuta();
+        assert!(!o.nasconde(), "il primo tocco la mostra");
+        assert_eq!(
+            o.disegno(),
+            OCCHIO_BARRATO_TRATTI,
+            "in chiaro: l'occhio barrato, «nascondila»"
+        );
+        o.commuta();
+        assert!(o.nasconde(), "il secondo tocco la nasconde");
+        o.commuta();
+        assert!(!o.nasconde());
+        o.alla_chiusura();
+        assert!(o.nasconde(), "chiusa la finestra, torna nascosta");
+        assert_eq!(o, OcchioPassword::all_apertura());
+        // Da nascosta, la chiusura non la rovescia.
+        o.alla_chiusura();
+        assert!(o.nasconde());
+    }
+
+    /// I raster dell'occhio si fanno una volta per misura e per disegno, e
+    /// ogni finestra riusa gli stessi: prima (09-11-2026, prima revisione)
+    /// ogni apertura del login lasciava in memoria due buffer da px²×3 byte,
+    /// e il commento diceva che vivevano quanto la finestra.
+    #[test]
+    fn i_raster_dell_occhio_si_fanno_una_volta_per_misura() {
+        use super::raster_occhio;
+        let a = raster_occhio(32, false).expect("l'SVG dell'occhio si rasterizza");
+        let b = raster_occhio(32, false).expect("la seconda volta viene dalla cache");
+        assert!(
+            core::ptr::eq(a, b),
+            "due occhi della stessa misura devono condividere il raster"
+        );
+        assert_eq!((a.larghezza, a.altezza), (32, 32));
+        assert_eq!(
+            a.pixel.len(),
+            32 * 32 * 3,
+            "TRUE_COLOR_ALPHA a 16 bit: 3 byte per pixel"
+        );
+        let barrato = raster_occhio(32, true).expect("anche il barrato");
+        assert!(
+            !core::ptr::eq(a, barrato),
+            "aperto e barrato sono due disegni"
+        );
+        let piccolo = raster_occhio(20, false).expect("la misura del web");
+        assert!(!core::ptr::eq(a, piccolo), "misure diverse, raster diversi");
+        assert_eq!(piccolo.pixel.len(), 20 * 20 * 3);
+    }
+
+    /// La stessa icona del web (scelta del maintainer, 09-11-2026): i tratti
+    /// qui sono una copia di `iconeInterfaccia.ts`, e se là cambiano qui si
+    /// deve saperlo.
+    #[test]
+    fn l_occhio_del_pannello_e_quello_del_web() {
+        let web = include_str!("../../../../sws-editor/src/ui/iconeInterfaccia.ts");
+        for (nome, tratti) in [
+            ("occhio", super::OCCHIO_TRATTI),
+            ("occhioBarrato", super::OCCHIO_BARRATO_TRATTI),
+        ] {
+            assert!(
+                web.contains(&format!("{nome}: '{tratti}'")),
+                "{nome}: il web disegna un occhio diverso da quello del pannello"
+            );
+        }
+    }
+
+    /// I due disegni si rasterizzano davvero, alla misura del web (20 px) e a
+    /// quella più grande del pannello (32): un tratto scritto male non è un
+    /// errore per resvg, è un'icona vuota — e sul vetro un pulsante vuoto.
+    #[test]
+    fn l_occhio_si_disegna_e_non_e_vuoto() {
+        for tratti in [super::OCCHIO_TRATTI, super::OCCHIO_BARRATO_TRATTI] {
+            let svg = super::svg_icona_ui(tratti, (148, 163, 184));
+            for px in [20u32, 32] {
+                let r = crate::svg_raster::rasterize(svg.as_bytes(), px, px, false, false)
+                    .expect("l'SVG dell'occhio si rasterizza");
+                let coperti = r.pixels.chunks_exact(4).filter(|p| p[3] > 0).count();
+                assert!(
+                    coperti > (px * px / 10) as usize,
+                    "{px} px: solo {coperti} pixel disegnati"
+                );
+            }
+        }
+        // La sbarra aggiunge tratto: l'occhio barrato copre più dell'aperto.
+        let copre = |tratti: &str| {
+            crate::svg_raster::rasterize(
+                super::svg_icona_ui(tratti, (0, 0, 0)).as_bytes(),
+                24,
+                24,
+                false,
+                false,
+            )
+            .unwrap()
+            .pixels
+            .chunks_exact(4)
+            .filter(|p| p[3] > 0)
+            .count()
+        };
+        assert!(copre(super::OCCHIO_BARRATO_TRATTI) > copre(super::OCCHIO_TRATTI));
     }
 
     #[test]

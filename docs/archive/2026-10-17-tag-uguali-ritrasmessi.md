@@ -1,5 +1,7 @@
 # Seme — i valori uguali al precedente si ritrasmettono comunque
 
+> **Assorbito il 09-11-2026** dal piano [viewer leggero](../plans/2026-11-09-viewer-leggero.md), §4 e §8: il bus non cambia, il browser scarta le triple identiche, il batcher WS si tocca solo se le misure lo chiedono.
+
 > **Seme — decisione.** Trovato il 17-10-2026 preparando il banco di prestazioni (onda 2).
 >
 > **Quando questo lavoro inizia, il primo passo è una sessione di plan approfondita per definirne tutti i dettagli.**

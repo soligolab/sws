@@ -1,3 +1,4 @@
+import { CampoPassword } from "@/components/CampoPassword";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { QuickCreateTagModal } from "@/components/QuickCreateTagModal";
@@ -80,7 +81,7 @@ export function HomeAssistantSourceCard({
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <div>
                 <label style={etichetta}>{t("sorgenti.tokenAccesso")}</label>
-                <input style={S.input} type="password" placeholder="long-lived access token"
+                <CampoPassword style={S.input} placeholder="long-lived access token"
                   value={source.token ?? ""}
                   onChange={(e) => setField("token", e.target.value || undefined)} />
               </div>

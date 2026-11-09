@@ -1,3 +1,4 @@
+import { CampoPassword } from "@/components/CampoPassword";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, RuntimeUnavailableError, type DispositivoRete, type SondaggioDispositivo, type VarianteImmagine } from "@/api/client";
@@ -349,8 +350,8 @@ export function InstallTab() {
             <div style={{ flex: 1 }}>
               <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 4 }} title={t("cfg.passwordSessionTitle")}>{t("cfg.sshPassword")}</label>
               {/* Solo nello stato: mai in localStorage (regola del 2026-09-09). */}
-              <input style={{ ...INPUT, width: "100%", boxSizing: "border-box" as const }}
-                type="password" autoComplete="off" placeholder={t("cfg.passwordSession")} value={devicePass}
+              <CampoPassword style={{ ...INPUT, width: "100%", boxSizing: "border-box" as const }}
+                autoComplete="off" placeholder={t("cfg.passwordSession")} value={devicePass}
                 onChange={(e) => setDevicePass(e.target.value)} />
             </div>
           </div>

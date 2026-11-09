@@ -199,8 +199,9 @@ export const S = {
 // `saving`/`saved`/`label` restano nella firma per non toccare quaranta
 // chiamate in un colpo: sono ignorati, lo stato viene dallo store.
 /** Sentinella con cui il backend maschera i segreti già salvati (password SMTP,
- *  bot token Telegram). Rimandarla indietro invariata lascia il valore com'è. */
-export const MASKED = "********";
+ *  bot token Telegram). Rimandarla indietro invariata lascia il valore com'è.
+ *  Vive in `CampoPassword`, che spegne l'occhio quando la vede (09-11-2026). */
+export { MASCHERA_SERVER as MASKED } from "@/components/CampoPassword";
 
 /** Registra la bozza di una sezione fra quelle pendenti, **senza** disegnare
  *  niente. È la metà di `SaveBar` che conta per il Salva unico: una

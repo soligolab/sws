@@ -844,7 +844,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let res: Response;
   try {
     res = await fetch(`${baseDi(path)}${path}`, { ...init, headers });
-  } catch {
+  } catch (e) {
+    // Una richiesta annullata da chi l'ha fatta (il login che si ferma a 60 s,
+    // 09-11-2026) non è un runtime irraggiungibile: l'errore torna com'è.
+    if (init?.signal?.aborted) throw e;
     // Network error (ECONNREFUSED, DNS failure, …) — runtime is not reachable.
     throw new RuntimeUnavailableError();
   }
@@ -1140,12 +1143,15 @@ export const api = {
   /** `ricordami` vale solo per gli utenti dell'installazione: 30 giorni
    *  invece di 8 ore, scorrevoli. `riautentica` lo manda solo il modale
    *  «Sessione scaduta»: chi rientra nel progetto che ha aperto lui non se lo
-   *  vede chiudere. */
-  login: (username: string, password: string, ricordami = false, riautentica = false) =>
+   *  vede chiudere. `segnale` lo passa la schermata di login, che dopo 60 s
+   *  senza risposta si ferma (09-11-2026): è l'unica chiamata che lo prende,
+   *  un tempo massimo per tutte non c'è. */
+  login: (username: string, password: string, ricordami = false, riautentica = false, segnale?: AbortSignal) =>
     request<LoginOk>("/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username, password, ricordami, riautentica }),
+      signal: segnale,
     }),
 
   /** «Mandami un PIN». Risponde uguale per chiunque: non dice chi è iscritto. */

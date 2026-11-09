@@ -13,7 +13,7 @@ import { titoloFinestra } from "@/finestre/finestra";
 const BARRA = 32;
 
 export function PaginaFinestra({ pagina, oggetti, parametri, sfondo, tagValues, customSymbols, faceplates,
-  onWriteTag, onScript, onNavigate, onButtonAction, onClose }: {
+  onWriteTag, onScript, onNavigate, onButtonAction, onClose, nonAggiornato }: {
   pagina: SynopticPage;
   oggetti: SynopticObject[];
   parametri: Record<string, string>;
@@ -26,6 +26,8 @@ export function PaginaFinestra({ pagina, oggetti, parametri, sfondo, tagValues, 
   onNavigate?: (pageId: string) => void;
   onButtonAction?: (a: ButtonAction) => void;
   onClose: () => void;
+  /** I dati in ritardo: la finestra è a schermo come la pagina sotto. */
+  nonAggiornato?: boolean;
 }) {
   const { t } = useTranslation();
   const modale = pagina.finestra?.modale !== false;
@@ -99,6 +101,7 @@ export function PaginaFinestra({ pagina, oggetti, parametri, sfondo, tagValues, 
           onScript={onScript}
           onNavigate={onNavigate}
           onButtonAction={onButtonAction}
+          nonAggiornato={nonAggiornato}
         />
       </div>
     </div>

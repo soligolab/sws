@@ -46,7 +46,8 @@ describe("CancelloAbbinamento", () => {
     const pw = document.querySelectorAll('input[type="password"]');
     fireEvent.change(pw[0], { target: { value: "lunga-abbastanza" } });
     fireEvent.change(pw[1], { target: { value: "lunga-abbastanza" } });
-    fireEvent.click(screen.getByRole("button"));
+    // Il bottone del modulo: dal 09-11-2026 ogni campo password ha anche il suo occhio.
+    fireEvent.click(document.querySelector('button[type="submit"]')!);
     expect(await screen.findByText("pagina")).toBeTruthy();
     const [url, init] = fetchFinto.mock.calls[1];
     expect(url).toBe("/api/abbinamento/rivendica");
@@ -63,7 +64,7 @@ describe("CancelloAbbinamento", () => {
     const pw = document.querySelectorAll('input[type="password"]');
     fireEvent.change(pw[0], { target: { value: "corta" } });
     fireEvent.change(pw[1], { target: { value: "corta" } });
-    expect((screen.getByRole("button") as HTMLButtonElement).disabled).toBe(true);
+    expect((document.querySelector('button[type="submit"]') as HTMLButtonElement).disabled).toBe(true);
   });
 });
 

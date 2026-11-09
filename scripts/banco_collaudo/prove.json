@@ -1,33 +1,492 @@
 {
-  "titolo": "Collaudo della 2.26.0-rc.6 — TC620 di casa con CasaDomotica, e le novità dal cloud",
+  "titolo": "Collaudo della 2.26.0-rc.10 — da casa: il TC620 con CasaDomotica, l'IDE nel cloud, e l'occhio sulle password",
   "prove": [
     {
-      "id": "r6-agg",
-      "dove": "0 · TC620 di casa · il giro della 2.26.0-rc.6",
-      "titolo": "Il TC620 alla rc.6, da «Aggiorna ora»",
-      "rif": "r5-agg (passata il 08-11)",
-      "scopo": "La rc.6 corregge i due difetti trovati il 08-11 (Ctrl+Z dopo la rinomina di una funzione, la misura delle Prestazioni che non si spegneva). Il pilota automatico del TC620 è spento: l'aggiornamento parte solo da qui.",
-      "prima": "Ricarica la pagina dell'IDE nel cloud: in Informazioni deve dire 2.26.0-rc.6. Il TC620 è sulla rc.5.",
+      "id": "r10-agg",
+      "n": 1,
+      "dove": "0 · TC620 · aggiornamento alla rc.10 dal viewer",
+      "titolo": "Il TC620 alla rc.10, da «Aggiorna ora» del viewer",
+      "rif": "Viewer leggero 9 (parte web) — «Aggiornamento in avvio…»; r6-agg superata (il TC620 è sulla rc.9)",
+      "scopo": "La rc.10 porta il viewer leggero (rami A e B) e l'occhio sulle password. L'aggiornamento stesso è la prima prova: dal tocco fino alla partenza il pulsante deve dire «Aggiornamento in avvio…», anche mentre chiede l'accesso, e un «Accesso in corso…» non deve restare lì. Il pilota automatico del TC620 è spento: l'aggiornamento parte solo da qui.",
+      "prima": "Ricarica la pagina dell'IDE nel cloud: in Informazioni deve dire 2.26.0-rc.10. Il TC620 è sulla rc.9. Tieni sotto mano la password dell'Admin di CasaDomotica.",
       "passi": [
-        "Configurazione → Istanza → Device → Connessione → «Aggiornamento del runtime»: deve proporre la `2.26.0-rc.6`.",
-        "«Aggiorna ora» e conferma."
+        "Sullo schermo del TC620 (o nel browser del PC, link sotto) c'è la card «Versione nuova 2.26.0-rc.10».",
+        "Tocca «Aggiorna ora». Quando chiede l'accesso, entra come Admin (qui vedi già l'occhio sulla password: gruppo 4).",
+        "Guarda il testo del pulsante dal tocco fino a quando il pannello si ferma. Prova un secondo tocco mentre è in corso.",
+        "Dopo il riavvio: IDE nel cloud → Istanza → Device → Connessione → «Dopo l'aggiornamento» (compare dopo circa due minuti) → «Conferma e pulisci». Se il pallino non è verde, prima «Connetti»."
       ],
       "atteso": [
-        "Il TC620 si riavvia sulla rc.6 e chiede di confermare l'aggiornamento."
+        "Dal tocco alla partenza si legge «Aggiornamento in avvio…», anche durante l'accesso. Nessun «Accesso in corso…» / «Logging in…» che resta fermo.",
+        "Con l'aggiornamento in corso il pulsante è spento: il secondo tocco non fa niente.",
+        "Il TC620 riparte sulla 2.26.0-rc.10 (riga della versione in Connessione) e la domanda di conferma compare; dopo «Conferma e pulisci» sparisce."
       ],
-      "sblocca": "—",
+      "sblocca": "Viewer leggero 9 (parte web); il pannello è sulla rc.10 per tutto il resto del banco",
+      "link": [
+        {
+          "testo": "viewer TC620",
+          "url": "https://tc620-a-p3-c6-07aff9.local:7443"
+        },
+        {
+          "testo": "IDE nel cloud",
+          "url": "https://sws.soligo.net/"
+        }
+      ]
+    },
+    {
+      "id": "vl-prep",
+      "n": 2,
+      "dove": "1 · TC620 · viewer leggero",
+      "titolo": "Prima di tutto: la pagina «Collaudo» in CasaDomotica",
+      "rif": "preparazione — serve alle prove 11 e 12 del viewer leggero e all'occhio sul comando critico",
+      "scopo": "CasaDomotica non ha faceplate né tubi, e le prove del ramo B li vogliono. Non si usa `demo-items-web`: un deploy con un altro nome cancella CasaDomotica dal pannello, storico compreso. Una pagina in più nello stesso progetto non cancella niente. Se la pagina non ti va nel progetto di casa, si toglie a fine collaudo.",
+      "passi": [
+        "IDE nel cloud, CasaDomotica: nuova pagina «Collaudo» (non la home), raggiungibile dalla navigazione o da un bottone pagina.",
+        "Un simbolo con «Tag posizione» su una variabile interna, uno slider accanto che la scrive, e un tubo con un'ancora agganciata al simbolo.",
+        "Un faceplate piccolo con un valore vivo e un bottone `open_faceplate` che lo apre in popup; una pagina-finestra con «Sfondo da variabile».",
+        "Un toggle con conferma, un bottone «Incremento tag», una checkbox: tutti su variabili interne scrivibili.",
+        "Un valore con «Stale dopo (s)» = 10 su una variabile interna che scrivi tu (un bottone che la incrementa va bene).",
+        "Un bottone «Comando critico (password)».",
+        "Salva e deploy al TC620 (stesso nome: non cancella niente)."
+      ],
+      "atteso": [
+        "La pagina «Collaudo» è sul TC620 e si apre dal pannello."
+      ],
+      "sblocca": "prepara le prove del tubo, del popup e dell'occhio sul comando critico",
       "link": [
         {
           "testo": "IDE nel cloud",
           "url": "https://sws.soligo.net/"
         }
+      ]
+    },
+    {
+      "id": "vl-30min",
+      "n": 3,
+      "dove": "1 · TC620 · viewer leggero",
+      "titolo": "30 minuti sulla home di CasaDomotica: login subito, valori freschi, mini tendenze che scorrono",
+      "rif": "Viewer leggero 1 (su CasaDomotica; Montagna a 10 Hz resta la prova di carico del WP630)",
+      "scopo": "Sul WP630 la pagina saturava il processore dopo un quarto d'ora e i valori arrivavano vecchi. Qui si guarda l'uso vero: il pannello di casa per mezz'ora, mentre fai le altre prove.",
+      "prima": "Appena il TC620 è sulla rc.10. Lo schermo del pannello sulla home; nel browser del PC il viewer, con l'accesso fatto.",
+      "passi": [
+        "Apri il viewer nel browser del PC e fai l'accesso.",
+        "Lascia schermo e scheda sulla pagina iniziale per 30 minuti.",
+        "Ogni tanto confronta due o tre valori con l'IDE nel cloud (albero dei tag live) o con lo schermo del pannello.",
+        "Guarda una mini tendenza (kpi o sparkline, es. SystemInfo) con un valore che sta fermo."
       ],
-      "n": 1
+      "atteso": [
+        "Il login si apre subito.",
+        "I valori sono gli stessi dell'IDE, senza un ritardo che cresce col tempo.",
+        "Le mini tendenze scorrono anche a valore fermo: la linea avanza da sola."
+      ],
+      "sblocca": "Viewer leggero 1",
+      "link": [
+        {
+          "testo": "viewer TC620",
+          "url": "https://tc620-a-p3-c6-07aff9.local:7443"
+        },
+        {
+          "testo": "IDE nel cloud",
+          "url": "https://sws.soligo.net/"
+        }
+      ]
+    },
+    {
+      "id": "vl-cpu",
+      "n": 4,
+      "dove": "1 · TC620 · viewer leggero",
+      "titolo": "CPU del renderer piatta dal minuto 5 al 30, e niente «lagged» nel journal",
+      "rif": "Viewer leggero 2 e 3 — da terminale (SSH)",
+      "scopo": "La base sul WP630 era il 96% di un core e saliva. Con i rami A e B la CPU del renderer del browser deve restare sullo stesso livello per tutta la mezz'ora. Nel journal del runtime non deve esserci «ws/tags subscriber lagged»: se c'è, si apre il passo facoltativo del §8 del piano.",
+      "prima": "Serve SSH sul pannello (`user@tc620-a-p3-c6-07aff9.local`): chiedimelo e lo faccio io. Si fa insieme alla prova dei 30 minuti.",
+      "passi": [
+        "Da SSH: `top -d 10`. Il processo da guardare è il Chromium più carico, il renderer (`ps -o pid,pcpu,args -C chromium | grep type=renderer` lo distingue).",
+        "Annota la CPU al minuto 5, 15 e 30.",
+        "Poi: `XDG_RUNTIME_DIR=/run/user/$(id -u) journalctl --user -u sws-runtime --since -40min | grep -c lagged`"
+      ],
+      "atteso": [
+        "La CPU del renderer sta sullo stesso livello dal minuto 5 al minuto 30: non sale.",
+        "`grep -c lagged` stampa 0."
+      ],
+      "sblocca": "Viewer leggero 2 e 3"
+    },
+    {
+      "id": "vl-ritardo-web",
+      "n": 5,
+      "dove": "1 · TC620 · viewer leggero",
+      "titolo": "La fascia «Dati in ritardo» sul viewer web, fermando il runtime per 10 secondi",
+      "rif": "Viewer leggero 5 (viewer web) — da terminale (SSH)",
+      "scopo": "Un socket chiuso da più di 5 s vale come «dati in ritardo»: fascia in alto e oggetti grigi, finché il runtime non torna. Non si prova staccando la rete: il socket resta aperto per minuti e un socket vivo e muto vale come impianto fermo, per scelta (il battito è in Appunti).",
+      "prima": "SSH da chiedere prima. Fermare il runtime 10 s lascia un buco di 10 s nello storico di casa: va bene. Viewer nel browser del PC e schermo del pannello sotto gli occhi.",
+      "passi": [
+        "Da SSH: `XDG_RUNTIME_DIR=/run/user/$(id -u) systemctl --user stop sws-runtime; sleep 10; XDG_RUNTIME_DIR=/run/user/$(id -u) systemctl --user start sws-runtime`",
+        "Conta i secondi e guarda la pagina."
+      ],
+      "atteso": [
+        "Dopo circa 5 s dal fermo compare in alto «Dati in ritardo di N s» e gli oggetti diventano grigi.",
+        "N sale di 1 al secondo.",
+        "Al riavvio del runtime fascia e grigio spariscono da soli e i valori tornano a muoversi, senza ricaricare la pagina."
+      ],
+      "sblocca": "Viewer leggero 5 (viewer web)",
+      "link": [
+        {
+          "testo": "viewer TC620",
+          "url": "https://tc620-a-p3-c6-07aff9.local:7443"
+        }
+      ]
+    },
+    {
+      "id": "vl-tubo",
+      "n": 6,
+      "dove": "1 · TC620 · viewer leggero",
+      "titolo": "Il tubo segue la pompa; toggle, incremento, checkbox e il badge ⌛ dello stale",
+      "rif": "Viewer leggero 12 — pagina «Collaudo»",
+      "scopo": "Col ridisegno mirato un oggetto si ridisegna solo quando cambia un tag suo. Il rischio è un oggetto fermo senza avviso: il tubo che si stacca dalla pompa, un toggle che scrive l'opposto di un valore vecchio, lo stale che non compare. Si guardano tutti e quattro.",
+      "prima": "Pagina «Collaudo» sul TC620, accesso fatto.",
+      "passi": [
+        "Muovi lo slider: il simbolo si sposta.",
+        "Toggle con conferma: leggi il valore, premi, conferma. Incremento: premi tre volte. Checkbox: spunta e togli.",
+        "Scrivi la variabile dello stale una volta, poi lasciala ferma 10 s; poi riscrivila."
+      ],
+      "atteso": [
+        "Il tubo resta agganciato al simbolo mentre si muove: non si stacca e non resta indietro.",
+        "Il toggle scrive l'inverso del valore al momento della conferma; l'incremento parte dal valore attuale (+1 a pressione, niente salti); la checkbox scrive quello che mostra.",
+        "Il badge ⌛ compare passati i 10 s di fermo e sparisce appena la variabile si rinfresca; finché il tag si aggiorna non compare."
+      ],
+      "sblocca": "Viewer leggero 12",
+      "link": [
+        {
+          "testo": "viewer TC620",
+          "url": "https://tc620-a-p3-c6-07aff9.local:7443"
+        }
+      ]
+    },
+    {
+      "id": "vl-popup",
+      "n": 7,
+      "dove": "1 · TC620 · viewer leggero",
+      "titolo": "Popup del faceplate e pagina-finestra con lo sfondo da variabile: i valori si muovono",
+      "rif": "Viewer leggero 11 — pagina «Collaudo»; l'ultimo passo da terminale (SSH)",
+      "scopo": "La pagina ora chiede al server solo i tag che le servono. Popup e pagina-finestra devono stare nella lista, anche il tag dello sfondo (mancava), e la lista deve sopravvivere a un cambio di pagina e a una riconnessione del socket.",
+      "prima": "Pagina «Collaudo». Per l'ultimo passo serve SSH: chiederlo prima, o fare la prova subito dopo quella della fascia.",
+      "passi": [
+        "Apri il popup col bottone `open_faceplate`: guarda il valore dentro per qualche secondo.",
+        "Apri la pagina-finestra e cambia la variabile dello sfondo.",
+        "Cambia pagina e torna: riapri popup e finestra.",
+        "Da SSH: `XDG_RUNTIME_DIR=/run/user/$(id -u) systemctl --user restart sws-runtime`; aspetta che il viewer si ricolleghi; riapri popup e finestra."
+      ],
+      "atteso": [
+        "I valori nel popup e nella finestra si muovono, non restano fermi al primo valore.",
+        "Lo sfondo segue la sua variabile.",
+        "Vale anche dopo cambio pagina e ritorno, e dopo la riconnessione."
+      ],
+      "sblocca": "Viewer leggero 11",
+      "link": [
+        {
+          "testo": "viewer TC620",
+          "url": "https://tc620-a-p3-c6-07aff9.local:7443"
+        }
+      ]
+    },
+    {
+      "id": "vl-login-web",
+      "n": 8,
+      "dove": "1 · TC620 · viewer leggero",
+      "titolo": "Login lento sul viewer web: «Il pannello risponde lentamente…», poi «Nessuna risposta, riprova»",
+      "rif": "Viewer leggero 8 — solo con un pannello lento; da terminale (SSH)",
+      "scopo": "Dopo 10 s il pulsante del login dice che il pannello è lento; a 60 s la richiesta si annulla, compare «Nessuna risposta, riprova» e il pulsante torna attivo. Si vede solo con un pannello lento: lo si provoca congelando il runtime, che accetta la connessione ma non risponde. Un runtime fermo del tutto rifiuta, e non è il caso lento.",
+      "prima": "SSH da chiedere prima: `podman pause sws-runtime` congela, `podman unpause sws-runtime` libera. Se non si vuole toccare il pannello: «Dopo».",
+      "passi": [
+        "Viewer nel browser del PC: esci (logout) se sei dentro.",
+        "Da SSH: `podman pause sws-runtime`.",
+        "Premi «Accedi» con le credenziali. Guarda il pulsante a 10 s e a 60 s.",
+        "Da SSH: `podman unpause sws-runtime`. Rifai l'accesso."
+      ],
+      "atteso": [
+        "A 10 s il pulsante dice «Il pannello risponde lentamente…».",
+        "A 60 s compare «Nessuna risposta, riprova» e il pulsante torna attivo.",
+        "Dopo l'unpause l'accesso riesce al primo colpo."
+      ],
+      "sblocca": "Viewer leggero 8 (viewer web; sull'IDE lo stesso testo dice «Il server risponde lentamente…»)",
+      "link": [
+        {
+          "testo": "viewer TC620",
+          "url": "https://tc620-a-p3-c6-07aff9.local:7443"
+        }
+      ]
+    },
+    {
+      "id": "lv-prep",
+      "n": 9,
+      "dove": "2 · TC620 · LVGL",
+      "titolo": "Prima di tutto: CasaDomotica col motore LVGL",
+      "rif": "preparazione — HOWTO §14",
+      "scopo": "Il TC620 mostra CasaDomotica col viewer web. Per le prove LVGL si cambia il motore del progetto, non il progetto: un deploy con un altro nome cancellerebbe CasaDomotica e il suo storico. Il cambio è reversibile; gli oggetti che LVGL non disegna spariscono dallo schermo finché non si torna al web, e per il collaudo va bene. Se non te la senti sul progetto di casa: «Dopo» su tutto il gruppo, e si fa sul WP630.",
+      "passi": [
+        "IDE nel cloud, CasaDomotica: clic sullo sfondo del canvas; pannello destro in fondo → «Impostazioni progetto» → «Motore di rendering» → LVGL. Accetta l'avviso.",
+        "Salva e deploy al TC620.",
+        "Istanza → Device → Connessione, riga «Schermo del pannello»: dice com'è andata.",
+        "A fine gruppo (dopo l'occhio su LVGL, gruppo 4): rimetti «Web» allo stesso modo e deploy."
+      ],
+      "atteso": [
+        "Lo schermo del TC620 passa da solo al viewer LVGL (Chromium si spegne, il viewer LVGL parte).",
+        "Rimesso «Web», lo schermo torna al browser."
+      ],
+      "sblocca": "prepara il gruppo 2 e l'occhio su LVGL (gruppo 4)",
+      "link": [
+        {
+          "testo": "IDE nel cloud",
+          "url": "https://sws.soligo.net/"
+        }
+      ]
+    },
+    {
+      "id": "lv-spark",
+      "n": 10,
+      "dove": "2 · TC620 · LVGL",
+      "titolo": "Le mini tendenze LVGL: margini di 2 px, etichetta nel riquadro, e niente più poller",
+      "rif": "Viewer leggero 10 (su CasaDomotica) — la CPU da terminale (SSH)",
+      "scopo": "La mini tendenza LVGL è ora quella del web (stessi secchielli, seme una volta, valori dal socket). Prima ogni visita della pagina lasciava 12 poller che rileggevano SQLite ogni 2 s, e il costo cadeva sul runtime. I margini sono di 2 px come sul web e su uno schermo non li ha ancora guardati nessuno.",
+      "prima": "Una pagina con kpi o sparkline che LVGL disegna (SystemInfo). Per la CPU serve SSH: chiederlo prima.",
+      "passi": [
+        "Vai sulla pagina delle kpi e guardala da vicino: linea, picchi, etichetta del valore.",
+        "Lascia la pagina 15 minuti (30 se c'è tempo). Da SSH, `top`: la CPU di `sws-lvgl-viewer` e di `sws-runtime` al minuto 5 e alla fine.",
+        "Cambia pagina tre volte avanti e indietro, poi riguarda la CPU del runtime per un minuto."
+      ],
+      "atteso": [
+        "Linea ed etichetta stanno dentro il riquadro, con 2 px di margine; i picchi restano; la linea scorre anche a valore fermo. Una linea ferma sta a metà altezza (scelta nota, in Appunti).",
+        "CPU del viewer E del runtime piatte: non salgono col tempo né dopo i cambi di pagina."
+      ],
+      "sblocca": "Viewer leggero 10"
+    },
+    {
+      "id": "lv-ritardo",
+      "n": 11,
+      "dove": "2 · TC620 · LVGL",
+      "titolo": "La fascia «Dati in ritardo» sul LVGL, fermando il runtime per 10 secondi",
+      "rif": "Viewer leggero 5 (viewer LVGL) e l'aspetto della 6 — da terminale (SSH)",
+      "scopo": "Stessa regola del web: socket chiuso da più di 5 s, fascia in alto e oggetti grigi. Il viewer LVGL non muore col runtime (il suo servizio ha solo `After=`): resta a schermo e deve accorgersene da solo. Non staccare la rete (vedi la prova web).",
+      "prima": "SSH da chiedere prima. Schermo del pannello sotto gli occhi.",
+      "passi": [
+        "Da SSH: `XDG_RUNTIME_DIR=/run/user/$(id -u) systemctl --user stop sws-runtime; sleep 10; XDG_RUNTIME_DIR=/run/user/$(id -u) systemctl --user start sws-runtime`",
+        "Conta i secondi e guarda lo schermo."
+      ],
+      "atteso": [
+        "Dopo circa 5 s la fascia in alto «Dati in ritardo di N s», sopra la card dell'aggiornamento (se c'è) e sotto la schermata d'accesso; gli oggetti grigi.",
+        "N sale di 1 al secondo.",
+        "Al riavvio torna tutto normale da solo."
+      ],
+      "sblocca": "Viewer leggero 5 (viewer LVGL); l'aspetto vale anche per la 6 (`--ritardo-di-prova 8` resta per il banco)"
+    },
+    {
+      "id": "lv-login",
+      "n": 12,
+      "dove": "2 · TC620 · LVGL",
+      "titolo": "Login lento sul LVGL: il messaggio, lo stop a 60 s, e «Annulla» che non blocca le scritture",
+      "rif": "Viewer leggero 14 — solo con un pannello lento; da terminale (SSH)",
+      "scopo": "Sul LVGL le attese del login sono le stesse del web. In più: «Annulla» a metà attesa deve essere definitivo (una risposta arrivata dopo non fa entrare) e non deve bloccare un toggle premuto subito dopo. Si vede solo con un pannello lento: `podman pause` congela il runtime, che accetta la connessione ma non risponde. Un runtime fermo del tutto rifiuta, e non è quello.",
+      "prima": "SSH da chiedere prima. Un toggle su una pagina che LVGL disegna. Se non si riesce a provocare il pannello lento: «Dopo».",
+      "passi": [
+        "Da SSH: `podman pause sws-runtime`.",
+        "Sul pannello tocca un'azione che chiede l'accesso (la card dell'aggiornamento, se c'è, o un oggetto protetto) → «Accedi» con le credenziali. Guarda la card a 10 s e a 60 s.",
+        "Di nuovo «Accedi»; a metà attesa premi «Annulla». Da SSH: `podman unpause sws-runtime`. Premi subito un toggle."
+      ],
+      "atteso": [
+        "Entro 10 s la card dice che il pannello è lento; a 60 s compare «Nessuna risposta, riprova» e «Accedi» torna premibile.",
+        "Dopo «Annulla» la risposta arrivata dopo NON fa entrare.",
+        "Il toggle scrive subito, senza aspettare il login abbandonato."
+      ],
+      "sblocca": "Viewer leggero 14"
+    },
+    {
+      "id": "id-kpi",
+      "n": 13,
+      "dove": "3 · Cloud IDE (sws.soligo.net) e IDE locale",
+      "titolo": "In modifica le kpi mostrano mini tendenza e variazione, con una richiesta al montaggio e basta",
+      "rif": "Viewer leggero 4 (su CasaDomotica nel cloud, o Montagna sull'IDE 8460)",
+      "scopo": "Regola UI 1: in modifica si vede quello che si vede a runtime. La kpi in edit ora disegna mini tendenza e variazione; `KpiDelta` fa una richiesta al montaggio e niente polling (prima ne faceva due ogni 30 s per riquadro).",
+      "passi": [
+        "IDE nel cloud, CasaDomotica, SystemInfo in modifica (o Montagna sull'IDE 8460).",
+        "F12 → Rete, filtro `history`, «Conserva registro». Ricarica la pagina.",
+        "Guarda le kpi, poi aspetta 60 s guardando la Rete."
+      ],
+      "atteso": [
+        "Ogni kpi disegna la mini tendenza e la variazione (freccia e differenza), come a runtime.",
+        "In Rete: le richieste di ogni kpi arrivano una volta al montaggio; nei 60 s dopo non ne arriva nessuna periodica."
+      ],
+      "sblocca": "Viewer leggero 4",
+      "link": [
+        {
+          "testo": "IDE nel cloud",
+          "url": "https://sws.soligo.net/"
+        },
+        {
+          "testo": "IDE 8460",
+          "url": "http://{host}:8460"
+        }
+      ]
+    },
+    {
+      "id": "id-casa",
+      "n": 14,
+      "dove": "3 · Cloud IDE (sws.soligo.net) e IDE locale",
+      "titolo": "CasaDomotica in modifica: trascinamento fluido, pannello proprietà pronto, valori vivi",
+      "rif": "Viewer leggero 13 (CasaDomotica)",
+      "scopo": "Il ridisegno mirato vale anche in modifica: la mappa dei valori la prende solo il canvas, non il resto dell'editor. Trascinamento e pannello proprietà non devono più sentire ogni messaggio del socket, e nessun valore deve restare fermo.",
+      "passi": [
+        "IDE nel cloud, CasaDomotica, la home in modifica.",
+        "Trascina un oggetto avanti e indietro per 10 s.",
+        "Seleziona oggetti diversi e cambia una proprietà (un colore): guarda quanto ci mette.",
+        "Guarda i valori degli oggetti per un minuto."
+      ],
+      "atteso": [
+        "L'oggetto segue il mouse senza scatti.",
+        "Il pannello proprietà risponde subito al clic e alla modifica.",
+        "I valori in modifica si muovono: nessuno resta fermo al primo valore."
+      ],
+      "sblocca": "Viewer leggero 13 (CasaDomotica)",
+      "link": [
+        {
+          "testo": "IDE nel cloud",
+          "url": "https://sws.soligo.net/"
+        }
+      ]
+    },
+    {
+      "id": "id-griglie",
+      "n": 15,
+      "dove": "3 · Cloud IDE (sws.soligo.net) e IDE locale",
+      "titolo": "Trascinando un oggetto, griglie e faceplate non scattano (demo-items-web)",
+      "rif": "Viewer leggero 13 (demo-items-web)",
+      "scopo": "Griglie e faceplate sono gli oggetti con più figli: se si ridisegnassero a ogni mossa di un altro oggetto, si vedrebbe uno scatto. Col memo sulle dipendenze non devono muoversi.",
+      "prima": "Un progetto dal template `demo-items-web`, sull'IDE 8460 del ramo (`./scripts/start_editor_develop.sh`) o nel cloud.",
+      "passi": [
+        "Apri la pagina con la griglia e i faceplate.",
+        "Trascina un oggetto vicino (non la griglia) per 10 s.",
+        "Poi trascina la griglia stessa e un faceplate."
+      ],
+      "atteso": [
+        "Griglie e faceplate non lampeggiano né scattano mentre un altro oggetto si muove.",
+        "Trascinati loro, seguono il mouse fluidi."
+      ],
+      "sblocca": "Viewer leggero 13 (demo-items-web)",
+      "link": [
+        {
+          "testo": "IDE 8460",
+          "url": "http://{host}:8460"
+        },
+        {
+          "testo": "IDE nel cloud",
+          "url": "https://sws.soligo.net/"
+        }
+      ]
+    },
+    {
+      "id": "oc-ide",
+      "n": 16,
+      "dove": "3 · Cloud IDE (sws.soligo.net) e IDE locale",
+      "titolo": "L'occhio sulla password nell'IDE: login, cambio password, utenti, connessione al dispositivo",
+      "rif": "Occhio IDE — piano 2026-11-09-occhio-sulle-password, §Collaudo",
+      "scopo": "Ogni campo password dell'IDE ha un occhio dentro il campo, a destra: mostra quello che hai scritto e lo nasconde al secondo clic. Parte nascosto e, chiusa la finestra, riparte nascosto. Un valore già mascherato dal server («••••») resta mascherato: l'occhio mostra solo quello che si è scritto.",
+      "prima": "IDE nel cloud alla rc.10 (Informazioni), o l'IDE 8460 del ramo.",
+      "passi": [
+        "Esci e rientra: nel login scrivi la password, clicca l'occhio, poi di nuovo. Invio con l'occhio aperto.",
+        "Menu account → cambia password: i tre campi.",
+        "Configurazione → Sicurezza → Utenti: la password di un utente nuovo (non salvare).",
+        "Istanza → Device → Connessione: la password del pannello."
+      ],
+      "atteso": [
+        "In ogni campo c'è l'occhio a destra, dentro il campo. Parte nascosto; un clic mostra il testo, il secondo lo nasconde.",
+        "Chiusa e riaperta la finestra, riparte nascosto.",
+        "L'occhio non invia il modulo e non toglie il fuoco dal campo; Invio invia ancora.",
+        "Il valore già mascherato dal server («••••») resta tale."
+      ],
+      "sblocca": "Occhio IDE",
+      "link": [
+        {
+          "testo": "IDE nel cloud",
+          "url": "https://sws.soligo.net/"
+        },
+        {
+          "testo": "IDE 8460",
+          "url": "http://{host}:8460"
+        }
+      ]
+    },
+    {
+      "id": "oc-web-login",
+      "n": 17,
+      "dove": "4 · Occhio sulle password sul pannello",
+      "titolo": "Viewer web sul pannello: l'occhio nel login, col touch e la tastiera a schermo",
+      "rif": "Occhio viewer web (login) — piano 2026-11-09-occhio-sulle-password",
+      "scopo": "È col touch e la tastiera a schermo che si sbaglia la password: l'occhio deve essere grande abbastanza per il dito, stare dentro il campo, e non chiudere la tastiera. Chi fa «mostra» decide da sé che è in condizioni di sicurezza.",
+      "prima": "Sullo schermo del TC620 col motore web, non nel browser del PC. Si può fare già durante la prova 1 (l'accesso per aggiornare).",
+      "passi": [
+        "Tocca un'azione che chiede l'accesso (la card dell'aggiornamento, o un oggetto protetto).",
+        "Scrivi la password con la tastiera a schermo, sbaglia apposta una lettera.",
+        "Tocca l'occhio, correggi, tocca di nuovo l'occhio, Accedi.",
+        "Chiudi e riapri il login."
+      ],
+      "atteso": [
+        "L'occhio sta dentro il campo a destra ed è comodo per il dito.",
+        "Mostra la password scritta e la nasconde al secondo tocco; la tastiera a schermo resta aperta e il fuoco resta nel campo.",
+        "Riaperto il login, il campo riparte nascosto."
+      ],
+      "sblocca": "Occhio viewer web (login)",
+      "link": [
+        {
+          "testo": "viewer TC620",
+          "url": "https://tc620-a-p3-c6-07aff9.local:7443"
+        }
+      ]
+    },
+    {
+      "id": "oc-critico",
+      "n": 18,
+      "dove": "4 · Occhio sulle password sul pannello",
+      "titolo": "Viewer web sul pannello: la password di un comando critico",
+      "rif": "Occhio viewer web (comando critico) — pagina «Collaudo»",
+      "scopo": "La finestra del comando critico (`FinestraAvviso`, campo password) usa lo stesso campo con l'occhio. Il campo parte nascosto a ogni apertura.",
+      "prima": "Il bottone «Comando critico (password)» della pagina «Collaudo»; accesso fatto.",
+      "passi": [
+        "Tocca il bottone. Scrivi la password, tocca l'occhio, poi di nuovo.",
+        "Prova una password sbagliata, poi quella giusta."
+      ],
+      "atteso": [
+        "L'occhio c'è e commuta come nel login; il campo parte nascosto a ogni apertura.",
+        "Sbagliata: errore e nessuna scrittura. Giusta: il comando scrive."
+      ],
+      "sblocca": "Occhio viewer web (comando critico)",
+      "link": [
+        {
+          "testo": "viewer TC620",
+          "url": "https://tc620-a-p3-c6-07aff9.local:7443"
+        }
+      ]
+    },
+    {
+      "id": "oc-lvgl",
+      "n": 19,
+      "dove": "4 · Occhio sulle password sul pannello",
+      "titolo": "LVGL sul pannello: l'occhio nel login e nella tastiera",
+      "rif": "Occhio LVGL — piano 2026-11-09-occhio-sulle-password",
+      "scopo": "Stessa esigenza, stessa icona (aperto / barrato) del web, nei due posti di LVGL: la finestra di login e il campo password della tastiera a schermo. Chiusa la finestra, il campo torna nascosto.",
+      "prima": "CasaDomotica col motore LVGL (prima prova del gruppo 2).",
+      "passi": [
+        "Tocca un'azione che chiede l'accesso. Nel campo password tocca l'occhio mentre scrivi con la tastiera LVGL; poi di nuovo.",
+        "Chiudi la finestra e riaprila.",
+        "Se LVGL disegna il comando critico della pagina «Collaudo»: lo stesso nel suo campo password."
+      ],
+      "atteso": [
+        "L'icona è la stessa del web, accanto al campo a destra, comoda per il dito.",
+        "Mostra e nasconde al tocco; la tastiera non si chiude.",
+        "Riaperta la finestra, il campo riparte nascosto."
+      ],
+      "sblocca": "Occhio LVGL"
     },
     {
       "id": "1125-14",
-      "n": 4,
-      "dove": "3 · Dal cloud · CasaDomotica (sws.soligo.net)",
+      "n": 20,
+      "dove": "5 · Dal cloud · CasaDomotica (sws.soligo.net), il resto del banco",
       "titolo": "L'assistente trova una pagina col suo nome tradotto",
       "rif": "2.25.1.14 — l'assistente e i nomi tradotti",
       "scopo": "Nei progetti con le lingue, il nome di una pagina è salvato come codice ({{t0069}}) e tradotto a schermo. L'assistente vedeva solo il codice: non trovava «la pagina Soggiorno» e nei riepiloghi scriveva {{t0069}}.",
@@ -51,7 +510,8 @@
     },
     {
       "id": "cl-temperature",
-      "dove": "3 · Dal cloud · CasaDomotica (sws.soligo.net)",
+      "n": 21,
+      "dove": "5 · Dal cloud · CasaDomotica (sws.soligo.net), il resto del banco",
       "titolo": "L'assistente fa la pagina Temperature: faceplate, sfondo, giorno e notte",
       "rif": "Assistente — faceplate e sfondi (06-11-2026)",
       "scopo": "La tua idea del 06-11: una pagina che raccoglie le temperature del broker MQTT, con uno sfondo bello e la variante notte. Prova insieme le due cose nuove: le sonde ripetute diventano UN faceplate con le istanze, e «Usa come base» si può premere anche mentre l'assistente lavora.",
@@ -72,13 +532,12 @@
       ],
       "sblocca": "il passo «faceplate» del prompt; ap-sfondi (gli sfondi del 05-11)",
       "link": null,
-      "sonda": null,
-      "n": 5
+      "sonda": null
     },
     {
       "id": "ap-history",
-      "n": 6,
-      "dove": "3 · Dal cloud · CasaDomotica (sws.soligo.net)",
+      "n": 22,
+      "dove": "5 · Dal cloud · CasaDomotica (sws.soligo.net), il resto del banco",
       "titolo": "I grafici smettono di chiedere dati quando la scheda è nascosta",
       "rif": "Appunti — ricontare le richieste /api/history",
       "scopo": "I grafici con lo storico chiedono dati al server. Se la scheda del browser non è visibile non devono chiederne: è traffico e lavoro per niente. Quando torni, devono aggiornarsi subito.",
@@ -91,7 +550,7 @@
       ],
       "atteso": [
         "Mentre eri sull'altra scheda: nessuna richiesta /api/history/<variabile>?from=…",
-        "Le richieste …/stats ogni 30 secondi (i KPI) sono normali: non contano.",
+        "Le richieste delle kpi (statistiche) arrivano solo al montaggio: dalla rc.10 non ce ne sono più ogni 30 secondi. Se le vedi, segnalalo.",
         "Al ritorno: un gruppo di richieste tutte insieme."
       ],
       "sblocca": "si toglie la voce «Ricontare le richieste /api/history» da Appunti",
@@ -104,8 +563,8 @@
     },
     {
       "id": "abis-3",
-      "n": 7,
-      "dove": "9 · Solo ufficio (WP630) — WP630 senza deploy (Montagna resta)",
+      "n": 23,
+      "dove": "9 · Solo ufficio (WP630)",
       "titolo": "Certificati: la card dice che il browser del pannello si fida",
       "rif": "A-bis 3 — la fiducia del browser del pannello",
       "scopo": "Con il TLS acceso, il browser sullo schermo del pannello si fida del certificato da solo (niente più «La connessione non è privata»). La card dei certificati deve dirlo, e non proporre più le vecchie procedure da fare a mano.",
@@ -117,7 +576,7 @@
       "atteso": [
         "C'è scritto «Il browser del pannello si fida del certificato…».",
         "Nessuna proposta da accettare e nessun comando da copiare.",
-        "C'è il bottone «Disabilita TLS» (non premerlo adesso: è la prova 33)."
+        "C'è il bottone «Disabilita TLS» (non premerlo adesso: è la prova 30)."
       ],
       "sblocca": "A-bis 3",
       "link": [
@@ -129,8 +588,8 @@
     },
     {
       "id": "abis-1",
-      "n": 8,
-      "dove": "9 · Solo ufficio (WP630) — WP630 senza deploy (Montagna resta)",
+      "n": 24,
+      "dove": "9 · Solo ufficio (WP630)",
       "titolo": "Sul pannello c'è il «guardiano» che aggiorna la fiducia del browser",
       "rif": "A-bis 1 — da terminale (SSH)",
       "scopo": "Un piccolo servizio sul pannello (sws-fiducia.path) guarda il certificato: se cambia, lo rimette fra quelli di cui il browser del pannello si fida. Controlliamo che sia installato e acceso. Si fa da terminale: se preferisci, dimmelo e lo faccio io via SSH.",
@@ -147,8 +606,8 @@
     },
     {
       "id": "d13",
-      "n": 9,
-      "dove": "9 · Solo ufficio (WP630) — WP630 senza deploy (Montagna resta)",
+      "n": 25,
+      "dove": "9 · Solo ufficio (WP630)",
       "titolo": "Ricollegandosi, l'IDE riconosce il certificato del pannello",
       "rif": "D 13 — l'impronta al collegamento",
       "scopo": "Al primo collegamento l'IDE memorizza l'«impronta» del certificato del pannello (come SSH). Al collegamento dopo deve dire che è la stessa di prima.",
@@ -165,8 +624,8 @@
     },
     {
       "id": "d14",
-      "n": 10,
-      "dove": "9 · Solo ufficio (WP630) — WP630 senza deploy (Montagna resta)",
+      "n": 26,
+      "dove": "9 · Solo ufficio (WP630)",
       "titolo": "Collegandosi in http non compare nessuna impronta",
       "rif": "D 14 — l'impronta al collegamento",
       "scopo": "In http non c'è un certificato, quindi non c'è niente da verificare: la riga dell'impronta non deve comparire. Se compare, è un errore che fa credere a una sicurezza che non c'è.",
@@ -184,8 +643,8 @@
     },
     {
       "id": "x-prep",
-      "n": 11,
-      "dove": "9 · Solo ufficio (WP630) — WP630 con deploy (cancella il progetto del pannello)",
+      "n": 27,
+      "dove": "9 · Solo ufficio (WP630)",
       "titolo": "Prima di tutto: un progetto con gli utenti",
       "rif": "preparazione",
       "scopo": "Le prove di questo gruppo mandano progetti diversi al WP630. Un deploy con un progetto diverso cancella dal pannello il progetto di prima, e con «Utenti e segreti» anche i suoi account. Per non restare chiuso fuori, usiamo un progetto che porta già un Admin e un Operator.",
@@ -201,8 +660,8 @@
     },
     {
       "id": "f2-5",
-      "n": 12,
-      "dove": "9 · Solo ufficio (WP630) — WP630 con deploy (cancella il progetto del pannello)",
+      "n": 28,
+      "dove": "9 · Solo ufficio (WP630)",
       "titolo": "Inviare un progetto senza utenti avvisa che il pannello resterà aperto",
       "rif": "F2.5 — la Finestra di avviso",
       "scopo": "Se invii con «Utenti e segreti» un progetto che non ha utenti, gli account del pannello vengono tolti e il pannello resta senza password per chiunque. SWS deve chiederlo due volte, con finestre chiare. In questa prova si preme sempre Annulla: non si invia niente.",
@@ -221,12 +680,12 @@
     },
     {
       "id": "f2-4",
-      "n": 13,
-      "dove": "9 · Solo ufficio (WP630) — WP630 con deploy (cancella il progetto del pannello)",
+      "n": 29,
+      "dove": "9 · Solo ufficio (WP630)",
       "titolo": "Il deploy che sostituisce il progetto del pannello chiede conferma",
       "rif": "F2.4 — la Finestra di avviso",
       "scopo": "Inviare un progetto diverso da quello del pannello cancella il vecchio progetto e il suo storico. Ci sono tre punti da cui si può inviare: testata, Connessione, Dispositivi. Tutti e tre devono chiedere con la stessa finestra rossa.",
-      "prima": "homeassistant-pro aperto (la prova 24), WP630 collegato con un altro progetto (Montagna).",
+      "prima": "homeassistant-pro aperto (la prova 27), WP630 collegato con un altro progetto (Montagna).",
       "passi": [
         "Nella testata premi «Invia ora». Alla finestra premi Annulla.",
         "Configurazione → Istanza → Device → Connessione: il bottone di deploy. Annulla.",
@@ -242,11 +701,11 @@
     },
     {
       "id": "abis-4",
-      "n": 14,
-      "dove": "9 · Solo ufficio (WP630) — WP630 certificati (cambiano il TLS: per ultimi)",
+      "n": 30,
+      "dove": "9 · Solo ufficio (WP630)",
       "titolo": "Cambiato il certificato, lo schermo del pannello non dà avvisi",
       "rif": "A-bis 4 e 6 — il guardiano segue il cambio",
-      "scopo": "Quando il certificato del pannello cambia, il guardiano (prova 20) deve rimetterlo fra quelli di cui si fida il browser dello schermo, senza riavviare niente. Oggi «Disabilita TLS» di fatto genera un certificato nuovo (è un difetto noto): lo usiamo per provocare il cambio.",
+      "scopo": "Quando il certificato del pannello cambia, il guardiano (prova 24) deve rimetterlo fra quelli di cui si fida il browser dello schermo, senza riavviare niente. Oggi «Disabilita TLS» di fatto genera un certificato nuovo (è un difetto noto): lo usiamo per provocare il cambio.",
       "prima": "Si fa per ultima: cambia il certificato e le prove dopo ne dipendono.",
       "passi": [
         "Configurazione → Sicurezza → Certificati: premi «Disabilita TLS» e conferma.",
@@ -262,12 +721,12 @@
     },
     {
       "id": "c10-11",
-      "n": 15,
-      "dove": "9 · Solo ufficio (WP630) — WP630 certificati (cambiano il TLS: per ultimi)",
+      "n": 31,
+      "dove": "9 · Solo ufficio (WP630)",
       "titolo": "Dopo il cambio, l'IDE rifiuta il certificato nuovo finché non dici di fidarti",
       "rif": "C 10–11, D 12 — governare il certificato da remoto",
       "scopo": "L'IDE ricorda l'impronta del certificato. Se cambia, potrebbe essere un impostore: l'IDE deve rifiutare e offrire «Dimentica certificato». Non deve mai farlo da solo. Controlliamo anche che il cambio abbia toccato solo il pannello e non il PC.",
-      "prima": "Subito dopo la prova 33.",
+      "prima": "Subito dopo la prova 30.",
       "passi": [
         "Connessione: «Disconnetti», poi «Connetti».",
         "Leggi l'errore e premi «Dimentica certificato».",
@@ -289,12 +748,12 @@
     },
     {
       "id": "h31",
-      "n": 16,
-      "dove": "9 · Solo ufficio (WP630) — WP630 certificati (cambiano il TLS: per ultimi)",
+      "n": 32,
+      "dove": "9 · Solo ufficio (WP630)",
       "titolo": "Le operazioni sui certificati finiscono nel registro di audit",
       "rif": "H 31 — ruoli e registro",
       "scopo": "Chi tocca i certificati deve lasciare traccia: ogni operazione va nel registro di audit, col nome di chi l'ha fatta.",
-      "prima": "Dopo le prove 33 e 34.",
+      "prima": "Dopo le prove 30 e 31.",
       "passi": [
         "Apri il registro di audit del WP630 (IDE del pannello, porta 7444, da Admin) — o da terminale: /data/user/sws/config/audit.jsonl.",
         "Cerca le operazioni di oggi sui certificati."

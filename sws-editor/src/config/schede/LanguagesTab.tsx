@@ -1,3 +1,4 @@
+import { CampoPassword } from "@/components/CampoPassword";
 import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
@@ -448,12 +449,12 @@ export function LanguagesTab() {
           {FORNITORI.map((f) => <option key={f} value={f}>{t(`langtab.fornitore.${f}`)}</option>)}
         </select>
         {CHIAVE[traduttore] !== "none" && CHIAVE[traduttore] !== "ide" && (
-          <input type="password" value={chiaveTrad} onChange={(e) => setChiaveTrad(e.target.value)}
+          <CampoPassword value={chiaveTrad} onChange={(e) => setChiaveTrad(e.target.value)}
             placeholder={haChiaveSalvata
               ? t("langtab.chiaveSalvataPlaceholder")
               : t(CHIAVE[traduttore] === "required" ? "langtab.chiaveApi" : "langtab.chiaveApiFacoltativa")}
             autoComplete="off"
-            style={{ background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "3px 8px", fontSize: 12, width: 140 }} />
+            style={{ background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "3px 8px", fontSize: 12, width: 170 }} />
         )}
         {traduttore === "libre_translate" && (
           <input type="text" value={urlTrad} onChange={(e) => setUrlTrad(e.target.value)}

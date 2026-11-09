@@ -1,3 +1,4 @@
+import { CampoPassword } from "@/components/CampoPassword";
 import { useEffect, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { api, type CreateUserBody, type UpdateUserBody, type UserRole, type UserSummary } from "@/api/client";
@@ -261,12 +262,11 @@ export function UsersTab() {
                     </td>
                     <td style={S.td}>
                       <div style={{ display: "flex", gap: 6 }}>
-                        <input
-                          type="password"
+                        <CampoPassword
                           value={resetBuf[u.username] ?? ""}
                           placeholder={t("cfg.newPasswordPh")}
                           onChange={(e) => setResetBuf((prev) => ({ ...prev, [u.username]: e.target.value }))}
-                          style={{ ...S.inputSm, minWidth: 140 }}
+                          style={{ ...S.inputSm, minWidth: 170 }}
                         />
                         <button
                           type="button"
@@ -317,8 +317,7 @@ export function UsersTab() {
           </div>
           <div>
             <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 4 }}>{t("cfg.initialPassword")}</label>
-            <input
-              type="password"
+            <CampoPassword
               value={newUser.password}
               onChange={(e) => setNewUser((s) => ({ ...s, password: e.target.value }))}
               style={S.input}

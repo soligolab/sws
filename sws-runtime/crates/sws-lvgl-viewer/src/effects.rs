@@ -173,6 +173,19 @@ pub fn attenuato(
     stantio(stale_after_s, tv.ts, now_ms) || (bad_gray && matches!(tv.quality, TagQuality::Bad))
 }
 
+/// Lo stile «non aggiornato» di un oggetto con effetti: `(grigio, opacità
+/// abbassata)`.
+///
+/// Con la fascia «Dati in ritardo» accesa (09-11-2026) **tutti** gli oggetti
+/// diventano grigi, non solo quelli col dato vecchio. L'opacità invece la
+/// abbassa il velo sopra la pagina, una volta sola per tutti
+/// (`lvgl_ritardo.rs`): abbassarla anche qui farebbe di un oggetto già stantio
+/// un oggetto al 30 %, mentre sul web lo stesso stile scrive `opacity: 0.55`
+/// una volta e basta.
+pub fn non_aggiornato(attenuato: bool, in_ritardo: bool) -> (bool, bool) {
+    (attenuato || in_ritardo, attenuato && !in_ritardo)
+}
+
 /// Colore del pallino di qualità. Stessi valori di `qualityColor` sul web, e
 /// stesso ordine di precedenza: il colore dichiarato dall'oggetto vince.
 pub fn colore_qualita(
@@ -578,6 +591,28 @@ mod tests {
             ts: 1_000,
         };
         assert!(attenuato(Some(5.0), false, Some(&buono_ma_fermo), 20_000));
+    }
+
+    /// «Dati in ritardo» (09-11-2026): un oggetto che non ha chiesto
+    /// `stale_after_s`, col suo dato appena arrivato, diventa grigio lo stesso.
+    /// L'opacità la toglie il velo, una volta per tutti.
+    #[test]
+    fn in_ritardo_ogni_oggetto_e_grigio_e_il_velo_fa_il_resto() {
+        let fresco = TagSnapshotValue {
+            value: TagValue::Float(1.0),
+            quality: TagQuality::Good,
+            ts: 19_900,
+        };
+        let a = attenuato(None, false, Some(&fresco), 20_000);
+        assert_eq!(non_aggiornato(a, true), (true, false));
+        assert_eq!(
+            non_aggiornato(true, true),
+            (true, false),
+            "uno già stantio non si attenua due volte"
+        );
+        // Senza fascia resta lo stale di sempre.
+        assert_eq!(non_aggiornato(true, false), (true, true));
+        assert_eq!(non_aggiornato(a, false), (false, false));
     }
 
     // ── opacità risultante ────────────────────────────────────────────────

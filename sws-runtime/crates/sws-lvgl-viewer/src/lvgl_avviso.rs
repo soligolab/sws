@@ -35,6 +35,7 @@
 //!    prima: l'ordine è la sicurezza.
 
 use std::ffi::c_void;
+use std::time::Instant;
 
 use lvgl::style::Style;
 use lvgl::Color;
@@ -139,6 +140,9 @@ unsafe extern "C" fn sws_avviso_cb(e: *mut lvgl_sys::lv_event_t) {
 #[derive(Default)]
 pub struct Overlay {
     radice: Option<*mut lvgl_sys::lv_obj_t>,
+    /// La radice è la card «Accesso in corso»: per la fascia vale come la
+    /// schermata delle credenziali.
+    radice_di_accesso: bool,
     /// La raccolta delle credenziali, quando è in corso.
     accesso: Option<crate::lvgl_render::Credenziali>,
     /// La generazione di [`crate::aggiornamento::StatoAvviso`] già disegnata.
@@ -157,6 +161,18 @@ impl Overlay {
         Overlay::default()
     }
 
+    /// L'accesso a schermo: la raccolta delle credenziali, o la card che
+    /// aspetta la risposta. La fascia «Dati in ritardo» gli passa sotto
+    /// (`lvgl_ritardo`), come sul web passa sotto il login (9550 contro 9600):
+    /// i campi in alto non vanno coperti. Sopra la card «Versione nuova» invece
+    /// ci sta, come sul web (9550 contro 9000).
+    pub fn credenziali(&self) -> Option<*mut lvgl_sys::lv_obj_t> {
+        self.accesso
+            .as_ref()
+            .and_then(|c| c.radice())
+            .or(self.radice.filter(|_| self.radice_di_accesso))
+    }
+
     /// Da chiamare a ogni giro del loop di rendering, dopo `task_handler()`.
     /// Non fa niente finché lo stato non cambia — un `lock` e un confronto di
     /// interi per frame.
@@ -169,9 +185,20 @@ impl Overlay {
         hor_res: u32,
         ver_res: u32,
     ) {
-        let (generazione, avviso, avvio_chiesto) = {
-            let g = stato.lock().unwrap_or_else(|e| e.into_inner());
-            (g.generazione, g.avviso(), g.avvio_chiesto)
+        // `avvio_chiesto` qui vale «Aggiorna ora non si può premere»: anche
+        // con un aggiornamento già in corso secondo il runtime (09-11-2026).
+        let (generazione, avviso, avvio_chiesto, in_avvio) = {
+            let mut g = stato.lock().unwrap_or_else(|e| e.into_inner());
+            // Le attese del login (09-11-2026, come il web): a 10 s la card
+            // dice che il pannello è lento, a 60 s si rinuncia. Prima del
+            // confronto di generazione, perché è lui a cambiarla.
+            g.avanza_attesa(Instant::now(), testo(Testo::AccessoSenzaRisposta, lingua));
+            (
+                g.generazione,
+                g.avviso(),
+                g.aggiornamento_spento(),
+                g.avvio_in_volo,
+            )
         };
         // **Prima del confronto di generazione**: la tastiera va guardata a
         // ogni giro, e la generazione non cambia mentre si digita.
@@ -206,7 +233,7 @@ impl Overlay {
         }
         if let Err(e) = self.costruisci(
             &avviso,
-            avvio_chiesto,
+            (avvio_chiesto, in_avvio),
             stato,
             lingua,
             base_url,
@@ -289,13 +316,16 @@ impl Overlay {
                     None => self.accesso = Some(schermata),
                     Some(None) => aggiornamento::annulla_accesso(stato),
                     Some(Some((utente, password))) => {
-                        aggiornamento::accesso_in_corso(stato);
+                        let adesso = Instant::now();
+                        let tentativo = aggiornamento::accesso_in_corso(stato, adesso);
                         crate::net_worker::invia(crate::net_worker::Comando::Accedi {
                             base_url: base_url.to_string(),
                             utente,
                             password,
                             sessione: sessione.clone(),
                             avviso: stato.clone(),
+                            tentativo,
+                            scadenza: adesso + aggiornamento::ACCESSO_MASSIMO,
                         });
                     }
                 }
@@ -307,6 +337,7 @@ impl Overlay {
         if let Some(r) = self.radice.take() {
             unsafe { lvgl_sys::lv_obj_del(r) };
         }
+        self.radice_di_accesso = false;
         // **Dopo** la distruzione degli oggetti, mai prima.
         self.contesti.clear();
         self.stili.clear();
@@ -316,7 +347,7 @@ impl Overlay {
     fn costruisci(
         &mut self,
         avviso: &Avviso,
-        avvio_chiesto: bool,
+        (avvio_chiesto, in_avvio): (bool, bool),
         stato: &SharedAvviso,
         lingua: &str,
         base_url: &str,
@@ -333,6 +364,7 @@ impl Overlay {
             anyhow::bail!("lv_obj_create della radice ha restituito null");
         }
         self.radice = Some(radice);
+        self.radice_di_accesso = matches!(avviso, Avviso::Accesso { .. });
         // Durante la raccolta delle credenziali questa radice copre tutto lo
         // schermo **sopra** la tastiera, e un oggetto LVGL nasce cliccabile:
         // si mangiava ogni tocco diretto ai tasti, che quindi non scrivevano
@@ -449,7 +481,7 @@ impl Overlay {
             compatibilita,
             corpo,
             pulsanti,
-        } = self.contenuto(avviso, lingua, avvio_chiesto);
+        } = self.contenuto(avviso, lingua, avvio_chiesto, in_avvio);
 
         etichetta(
             card,
@@ -597,7 +629,13 @@ impl Overlay {
     /// pulsanti, nella lingua dei contenuti. Le parole vengono dalla tabella
     /// condivisa col web (`sws_core::testi_sistema`), il **contenuto** delle
     /// Novità arriva già bilingue dall'API.
-    fn contenuto(&self, avviso: &Avviso, lingua: &str, avvio_chiesto: bool) -> Contenuto {
+    fn contenuto(
+        &self,
+        avviso: &Avviso,
+        lingua: &str,
+        avvio_chiesto: bool,
+        in_avvio: bool,
+    ) -> Contenuto {
         match avviso {
             Avviso::Niente => Contenuto::default(),
             Avviso::Esito { evento, novita } => {
@@ -666,6 +704,7 @@ impl Overlay {
                 motivo,
                 errore,
                 in_corso,
+                lento,
             } => Contenuto {
                 // Da un comando rifiutato il titolo è suo: «per aggiornare serve
                 // un amministratore» lì sarebbe falso (25-10-2026).
@@ -674,10 +713,20 @@ impl Overlay {
                 // Un rifiuto si legge qui, in rosso, e il pannellino resta
                 // aperto: riprovare non deve voler dire ricominciare.
                 compatibilita: errore.clone().map(|e| format!("⚠ {e}")).unwrap_or_default(),
-                corpo: if *in_corso {
-                    testo(Testo::AggInCorso, lingua).to_string()
-                } else {
-                    String::new()
+                // Mentre le credenziali viaggiano: per «Aggiorna ora»
+                // l'aggiornamento non è ancora partito, e per un comando della
+                // pagina o un «Accedi» non c'è nessun aggiornamento. Dopo 10 s
+                // senza risposta vince «Il pannello risponde lentamente…», come
+                // sul pulsante del login web (09-11-2026).
+                corpo: match (*in_corso, *lento, motivo.as_str()) {
+                    (true, true, _) => testo(Testo::AccessoLento, lingua).to_string(),
+                    (false, ..) | (true, false, "cmd_serve_accesso" | "conf_accedi") => {
+                        String::new()
+                    }
+                    (true, false, "agg_accesso_aggiorna") => {
+                        testo(Testo::AggInAvvio, lingua).to_string()
+                    }
+                    (true, false, _) => testo(Testo::AggInCorso, lingua).to_string(),
                 },
                 pulsanti: vec![(
                     testo(Testo::ConfAnnulla, lingua).to_string(),
@@ -813,7 +862,9 @@ impl Overlay {
                         ),
                         (
                             testo(
-                                if avvio_chiesto {
+                                if in_avvio {
+                                    Testo::AggInAvvio
+                                } else if avvio_chiesto {
                                     Testo::AggInCorso
                                 } else {
                                     Testo::AggAggiorna
@@ -937,5 +988,45 @@ fn titolo_accesso(motivo: &str) -> Testo {
         "cmd_serve_accesso" => Testo::CmdServeAccesso,
         "conf_accedi" => Testo::ConfAccedi,
         _ => Testo::AggServeAdmin,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn corpo(motivo: &str, in_corso: bool, lento: bool, lingua: &str) -> String {
+        let a = Avviso::Accesso {
+            motivo: motivo.into(),
+            errore: None,
+            in_corso,
+            lento,
+        };
+        Overlay::new().contenuto(&a, lingua, false, false).corpo
+    }
+
+    /// Dopo 10 s senza risposta la card dell'accesso lo dice, nella lingua
+    /// dei contenuti, qualunque cosa avesse chiesto l'accesso (09-11-2026,
+    /// come il pulsante del login web, dove vince anche su «in avvio»).
+    #[test]
+    fn la_card_dell_accesso_lento_dice_che_il_pannello_e_lento() {
+        for motivo in ["conf_accedi", "cmd_serve_accesso", "agg_accesso_aggiorna"] {
+            assert_eq!(
+                corpo(motivo, true, true, "it"),
+                "Il pannello risponde lentamente…",
+                "{motivo}"
+            );
+            assert_eq!(
+                corpo(motivo, true, true, "en"),
+                "The panel is responding slowly…",
+                "{motivo}"
+            );
+        }
+        // Prima dei 10 s resta quel che diceva.
+        assert_eq!(corpo("conf_accedi", true, false, "it"), "");
+        assert_eq!(
+            corpo("agg_accesso_aggiorna", true, false, "it"),
+            "Aggiornamento in avvio…"
+        );
     }
 }

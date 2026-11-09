@@ -1,3 +1,4 @@
+import { CampoPassword } from "@/components/CampoPassword";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
@@ -76,7 +77,7 @@ export function Posta() {
           <input value={cfg.username} onChange={(e) => setCfg({ ...cfg, username: e.target.value })} autoComplete="off" style={campo} />
         </Campo>
         <Campo etichetta={t("console.posta.password")}>
-          <input type="password" value={cfg.password} onChange={(e) => setCfg({ ...cfg, password: e.target.value })} autoComplete="new-password" style={campo} />
+          <CampoPassword value={cfg.password} onChange={(e) => setCfg({ ...cfg, password: e.target.value })} autoComplete="new-password" style={campo} />
         </Campo>
         <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13, marginBottom: 12 }}>
           <input type="checkbox" checked={cfg.starttls} onChange={(e) => setCfg({ ...cfg, starttls: e.target.checked })} />

@@ -4,7 +4,7 @@ import { frazioneLivello } from "@/canvas/livello";
 import { ImmagineSvg } from "@/canvas/ImmagineSvg";
 import { defaultObjectSubtleColor, defaultObjectTextColor } from "@/theme";
 import { coloreEffettivo, predefinito } from "@/coloriPredefiniti";
-import { Fragment, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { Fragment, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { dalTag, descrizioniDeiTag, PREDEFINITI_DAL_TAG, type DescrizioneTag } from "@/tag/forma";
 import { useTranslation } from "react-i18next";
 import { PALETTE, TrendCanvas } from "@/canvas/TrendCanvas";
@@ -38,7 +38,8 @@ import { trendTraces } from "@/canvas/trendModel";
 import { xySeriesOf } from "@/canvas/xyModel";
 import { matchTextListEntry } from "@/canvas/textList";
 import { statoSimbolo, veroSimbolo } from "@/symbols/statoSimbolo";
-import { animazioniEffettive, CONTORNO_DISEGNO, stileProgetto } from "@/symbols/stileProgetto";
+import { animazioniEffettive, CONTORNO_DISEGNO, useStileProgetto } from "@/symbols/stileProgetto";
+import { dipendenzeOggetto } from "@/runtime-view/collectTagIds";
 import { OggettoLib } from "@/symbols/lib/SimboloLib";
 import {
   PAGE_EDGE_RESIST_PX,
@@ -50,7 +51,8 @@ import {
   SFONDO_PREDEFINITO,
 } from "@/pageLayout";
 import { faceplateDefBBox, normalizeFaceplateParams } from "@/faceplate/definizione";
-import type { AlarmSeverity, AlarmState, CustomSymbol, FaceplateDef, GridCell, PageSizeMode, PipePoint, Sample, SynopticObject, SynopticObjectType, TableRow, TagState } from "@/types";
+import { effectiveFaceplateParams, figliDelFaceplate, substituteFaceplateParams } from "./parametriFaceplate";
+import type { AlarmSeverity, AlarmState, CustomSymbol, FaceplateDef, GridCell, PageSizeMode, PipePoint, Sample, SynopticObject, SynopticObjectType, TableRow, TagDef, TagState, TypeDef } from "@/types";
 import { fattoreFondoRespiro, luminositaValida, parametriLuminosita } from "./luce";
 import { puntiSvg, verticiPoligono } from "./forme";
 import { aggancioSu, bersagli, calamita, diametriCapi, instrada, percorsoTubo, type Bersaglio } from "./tubazioni";
@@ -61,6 +63,7 @@ import { larghezzaTubo, stileTubo, svgTubo } from "./stiliTubo";
 import { useManifestoLib } from "@/symbols/lib/libreria";
 import { cssFamiglia } from "@/font/famiglie";
 import { SliderSvg, type EsitoScrittura } from "./slider/SliderSvg";
+import { MiniTendenza } from "./MiniTendenza";
 /** Il valore che un oggetto del viewer scrive in un tag. */
 type ValoreScritto = string | number | boolean;
 /** - `senzaConferma`: niente `require_confirm` (il momentaneo, la molla);
@@ -187,6 +190,11 @@ interface SvgCanvasProps {
   sfondoArea?: SynopticObject;
   /** Editor: si può lasciare qui un faceplate trascinato dal suo ramo. */
   accettaFaceplate?: boolean;
+  /** Viewer: i dati a schermo sono in ritardo (§5-bis del piano
+   *  2026-11-09-viewer-leggero). Tutti gli oggetti prendono lo stile «non
+   *  aggiornato» dello stale. In modifica non vale: è un segnale per
+   *  l'operatore, non per chi progetta. */
+  nonAggiornato?: boolean;
 }
 
 interface DragState {
@@ -380,6 +388,30 @@ function sortByZ(objects: SynopticObject[]): SynopticObject[] {
       return a.i - b.i;
     })
     .map((x) => x.o);
+}
+
+/** Il lucchetto di un oggetto della pagina, finché ruolo, tag e tipi del
+ *  progetto sono gli stessi (rilievo della revisione del 09-11-2026).
+ *  `ruoloCheServe` cerca le soglie fra i tag del progetto con `find`: nel
+ *  ciclo della radice girava per ogni oggetto a ogni messaggio, oggetti × tag,
+ *  senza che niente di suo fosse cambiato. */
+const lucchetti = new WeakMap<SynopticObject, {
+  ruolo: string | null | undefined;
+  tags: TagDef[] | undefined;
+  tipi: readonly TypeDef[] | undefined;
+  esito: ReturnType<typeof ruoloCheServe>;
+}>();
+function lucchettoDi(
+  obj: SynopticObject,
+  ruolo: string | null | undefined,
+  tags: TagDef[] | undefined,
+  tipi: readonly TypeDef[] | undefined,
+): ReturnType<typeof ruoloCheServe> {
+  const m = lucchetti.get(obj);
+  if (m && m.ruolo === ruolo && m.tags === tags && m.tipi === tipi) return m.esito;
+  const esito = ruoloCheServe(obj, ruolo, tags, tipi);
+  lucchetti.set(obj, { ruolo, tags, tipi, esito });
+  return esito;
 }
 
 /**
@@ -587,6 +619,10 @@ export function isRoleAllowed(minRole: string | undefined, role: string | null |
   return have >= (ROLE_RANK[minRole] ?? 0);
 }
 
+/** Lo stile «non aggiornato» (F4.3): dello stale, del Bad in grigio, del fuori
+ *  pagina e, dal 09-11-2026, di tutta la pagina quando i dati sono in ritardo. */
+const STILE_NON_AGGIORNATO = { filter: "grayscale(0.9)", opacity: 0.55 } as const;
+
 /** Tipi che disegnano già da soli il QDot dentro il proprio branch (default
  *  attivo per retro-compatibilità). Sugli ALTRI tipi il QDot è opt-in
  *  esplicito (quality_dot: true) e lo disegna il wrapper universale (F4.3). */
@@ -688,9 +724,16 @@ function QDot({ x, y, quality, goodColor, badColor, uncertainColor }: {
  *  `INTERVALLO_SELETTORE_MS` dei selettori colore (`editor/CampoColore.tsx`). */
 const INTERVALLO_TRASCINAMENTO_MS = 100;
 
+// I default delle prop, uno per modulo e non uno per disegno: `SvgObject` è
+// memo e confronta per riferimento, e un `[]` nuovo a ogni giro lo farebbe
+// ridisegnare sempre (piano «viewer leggero», passo 5b).
+const NESSUN_VALORE: Record<string, TagState> = {};
+const NESSUN_SIMBOLO: CustomSymbol[] = [];
+const NESSUN_FACEPLATE: FaceplateDef[] = [];
+
 export function SvgCanvas({
   objects: oggettiDelProgetto,
-  tagValues = {},
+  tagValues = NESSUN_VALORE,
   // Il default resta (lo usano una quarantina di punti, `defaultObjectTextColor`
   // compreso), ma serve anche sapere se la prop **è stata data**: vedi
   // `pageFillOn` più sotto — la miniatura del LeftPanel monta questo componente
@@ -702,8 +745,8 @@ export function SvgCanvas({
   gridSize = 10,
   snapEnabled = true,
   gridColor = "#1e293b",
-  customSymbols = [],
-  faceplates = [],
+  customSymbols = NESSUN_SIMBOLO,
+  faceplates = NESSUN_FACEPLATE,
   pageWidth,
   pageHeight,
   sizeMode = "fixed",
@@ -731,6 +774,7 @@ export function SvgCanvas({
   fasceCornice,
   sfondoArea,
   accettaFaceplate = false,
+  nonAggiornato = false,
 }: SvgCanvasProps) {
   const { t } = useTranslation();
   // **Il trascinamento fluido** (02-11-2026, lo stesso difetto dei selettori
@@ -744,6 +788,8 @@ export function SvgCanvas({
     () => (anteprima ? oggettiDelProgetto.map((o) => (anteprima[o.id] ? { ...o, ...anteprima[o.id] } : o)) : oggettiDelProgetto),
     [oggettiDelProgetto, anteprima],
   );
+  // L'ordine di disegno cambia solo con gli oggetti, non a ogni messaggio.
+  const ordinati = useMemo(() => sortByZ(objects), [objects]);
   const inSospeso = useRef<Record<string, Partial<SynopticObject>>>({});
   const timerScrittura = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onMoveCorrente = useRef(onMove);
@@ -901,6 +947,13 @@ export function SvgCanvas({
   // bersaglio su cui si aggancerebbe (null = capo libero).
   const [capoInPresa, setCapoInPresa] = useState<{ pipeId: string; bersaglio: Bersaglio | null } | null>(null);
   const [expandedTrendObj, setExpandedTrendObj] = useState<SynopticObject | null>(null);
+  // Le tracce del trend espanso, fatte una volta per apertura: la radice si
+  // ridisegna a ogni messaggio, e array nuovi rifanno tutto il disegno del
+  // `TrendCanvas` (piano «viewer leggero», passo 5e).
+  const serieEspanse = useMemo(() => {
+    const tracce = expandedTrendObj ? trendTraces(expandedTrendObj).filter((tr) => tr.tag) : [];
+    return { tags: tracce.map((tr) => tr.tag), etichette: tracce.map((tr) => tr.label ?? tr.tag), stili: tracce };
+  }, [expandedTrendObj]);
   // F6.3: popup faceplate aperto da un'azione open_faceplate (uno alla volta).
   const [popupFaceplate, setPopupFaceplate] = useState<{ id: string; params: Record<string, string> } | null>(null);
   // Set to true when a rect-selection just completed so the SVG onClick
@@ -1744,6 +1797,30 @@ export function SvgCanvas({
     dragRef.current = ds;
   };
 
+  // ── Le callback degli oggetti, stabili (piano «viewer leggero», passo 5b) ──
+  //
+  // `SvgObject` è memo e confronta le prop per riferimento. Chi monta il canvas
+  // le scrive in linea (l'editor ne passa cinque), quindi sono nuove a ogni
+  // disegno, e il memo non salterebbe mai niente. Gli oggetti ricevono funzioni
+  // fatte una volta sola, che chiamano sempre le ultime. Se la callback non c'è
+  // si passa `undefined`, come prima: il codice controlla `onScript ?` e simili.
+  const ultime = useRef({ onSelect, onWriteTag, onScript, onNavigate, onSelectCell, onSelectCellChild, onSelectCellRange, onSelectSubCell, startDrag });
+  ultime.current = { onSelect, onWriteTag, onScript, onNavigate, onSelectCell, onSelectCellChild, onSelectCellRange, onSelectSubCell, startDrag };
+  const [stabili] = useState(() => ({
+    startDrag: (e: React.MouseEvent<SVGElement>, obj: SynopticObject) => ultime.current.startDrag(e, obj),
+    chiudiPopup: () => setPopupFaceplate(null),
+    onSelect: (id: string | null, shift?: boolean) => ultime.current.onSelect?.(id, shift),
+    onWriteTag: (tagId: string, value: ValoreScritto) => ultime.current.onWriteTag?.(tagId, value),
+    onScript: (fn: string, args: Record<string, ValoreScritto>) => ultime.current.onScript?.(fn, args),
+    onNavigate: (pageId: string) => ultime.current.onNavigate?.(pageId),
+    onSelectCell: (objectId: string, row: number, col: number) => ultime.current.onSelectCell?.(objectId, row, col),
+    onSelectCellChild: (objectId: string, row: number, col: number) => ultime.current.onSelectCellChild?.(objectId, row, col),
+    onSelectCellRange: (objectId: string, r1: number, c1: number, r2: number, c2: number) =>
+      ultime.current.onSelectCellRange?.(objectId, r1, c1, r2, c2),
+    onSelectSubCell: (objectId: string, row: number, col: number, path: ("a" | "b")[]) =>
+      ultime.current.onSelectSubCell?.(objectId, row, col, path),
+  }));
+
   // ── T-52: il colore della pagina si ferma al bordo della pagina ───────────
   //
   // Prima il colore stava come `background` CSS sul nodo `<svg>`, che in editor
@@ -1769,23 +1846,24 @@ export function SvgCanvas({
         objects={objects}
         tagValues={tagValues}
         customSymbols={customSymbols}
-        onWriteTag={onWriteTag}
-        onScript={onScript}
-        onNavigate={onNavigate}
-        onClose={() => setPopupFaceplate(null)}
+        onWriteTag={onWriteTag && stabili.onWriteTag}
+        onScript={onScript && stabili.onScript}
+        onNavigate={onNavigate && stabili.onNavigate}
+        onClose={stabili.chiudiPopup}
+        nonAggiornato={nonAggiornato}
       />
     )}
     {expandedTrendObj && (
       <TrendExpandedModal
-        tags={trendTraces(expandedTrendObj).filter((tr) => tr.tag).map((tr) => tr.tag)}
-        seriesLabels={trendTraces(expandedTrendObj).filter((tr) => tr.tag).map((tr) => tr.label ?? tr.tag)}
+        tags={serieEspanse.tags}
+        seriesLabels={serieEspanse.etichette}
         windowS={expandedTrendObj.window_s ?? 60}
         corpo={expandedTrendObj.font_size ?? 10}
         lineColor={expandedTrendObj.line_color}
         yMin={expandedTrendObj.y_min}
         yMax={expandedTrendObj.y_max}
         opcuaBackfill={expandedTrendObj.opcua_backfill}
-        seriesStyles={trendTraces(expandedTrendObj).filter((tr) => tr.tag)}
+        seriesStyles={serieEspanse.stili}
         dtDateOrder={expandedTrendObj.trend_dt_date_order}
         dtSeparator={expandedTrendObj.trend_dt_separator}
         dtTimeFormat={expandedTrendObj.trend_dt_time_format}
@@ -1984,7 +2062,7 @@ export function SvgCanvas({
           ))}
         </g>
       )}
-      {sortByZ(objects).map((obj) => {
+      {ordinati.map((obj) => {
         // Visibility: in view mode, skip non-visible objects entirely.
         // In edit mode, always render so the designer can still select them
         // (rendered at reduced opacity to signal "hidden at runtime").
@@ -2013,7 +2091,7 @@ export function SvgCanvas({
         if (!inEdit && !roleOk && obj.min_role_effect === "hide") return null;
         // Il lucchetto col ruolo che manca (R7, 04-11-2026): solo a runtime,
         // come l'attenuazione qui sotto.
-        const lucchetto = !inEdit ? ruoloCheServe(obj, viewerRole, tagsProgetto, tipiProgetto) : null;
+        const lucchetto = !inEdit ? lucchettoDi(obj, viewerRole, tagsProgetto, tipiProgetto) : null;
         // F4 — lampeggio, stato allarme, stale e Bad-gray (tutti opt-in,
         // tutti calcolati qui una volta per ogni tipo di oggetto).
         const [ripiegoW, ripiegoH] = MISURA_DI_RIPIEGO[obj.type] ?? [100, 50];
@@ -2037,7 +2115,8 @@ export function SvgCanvas({
         const isStale = fxOn && !!obj.stale_after_s && !!tvMain
           && nowMs - tvMain.timestamp_ms > obj.stale_after_s * 1000;
         const isBadGray = fxOn && obj.bad_value_style === "gray" && tvMain?.quality === "Bad";
-        const grayed = isStale || isBadGray;
+        // I dati in ritardo (§5-bis) valgono per tutta la pagina, ma solo a runtime.
+        const grayed = isStale || isBadGray || (!inEdit && nonAggiornato);
         const gStyle: React.CSSProperties | undefined = (() => {
           const st: React.CSSProperties = {};
           if (!visible && inEdit) st.opacity = 0.35;
@@ -2053,7 +2132,7 @@ export function SvgCanvas({
           // Il fuori pagina riusa il trattamento di stale/Bad invece di
           // inventarne un terzo. Sta **dopo** il ramo `!visible && inEdit` così
           // vince sull'opacità 0.35, e **non** passa da `fxOn`/`previewEffects`.
-          if (grayed || offPage) { st.filter = "grayscale(0.9)"; st.opacity = 0.55; }
+          if (grayed || offPage) Object.assign(st, STILE_NON_AGGIORNATO);
           // Lampeggio sfumato (26-09-2026): la luminosità respira fino al fondo
           // scelto, morbida, con la stessa velocità e le stesse condizioni.
           if (blinkOn && obj.blink_style === "fade") {
@@ -2141,15 +2220,15 @@ export function SvgCanvas({
               selectedCellChild={selectedCellChild}
               selectedCellRange={selectedCellRange}
               selectedSubCell={selectedSubCell}
-              onSelect={onSelect}
-              onStartDrag={onMove ? startDrag : undefined}
-              onWriteTag={onWriteTag}
-              onScript={onScript}
-              onNavigate={onNavigate}
-              onSelectCell={onSelectCell}
-              onSelectCellChild={onSelectCellChild}
-              onSelectCellRange={onSelectCellRange}
-              onSelectSubCell={onSelectSubCell}
+              onSelect={onSelect && stabili.onSelect}
+              onStartDrag={onMove ? stabili.startDrag : undefined}
+              onWriteTag={onWriteTag && stabili.onWriteTag}
+              onScript={onScript && stabili.onScript}
+              onNavigate={onNavigate && stabili.onNavigate}
+              onSelectCell={onSelectCell && stabili.onSelectCell}
+              onSelectCellChild={onSelectCellChild && stabili.onSelectCellChild}
+              onSelectCellRange={onSelectCellRange && stabili.onSelectCellRange}
+              onSelectSubCell={onSelectSubCell && stabili.onSelectSubCell}
               onExpandTrend={!inEdit ? setExpandedTrendObj : undefined}
             />
             {/* F4.2: bordo di allarme opt-in — colorato per severità,
@@ -3017,8 +3096,6 @@ export interface ObjProps {
   onExpandTrend?: (obj: SynopticObject) => void;
 }
 
-// ── SparklineWidget ───────────────────────────────────────────────────────────
-
 // ── Data log (F5.4): tabella storica paginata ───────────────────────────────
 // Scarica la finestra (fino a 5000 campioni) e pagina lato client — il
 // server non ha ancora un offset di paginazione; è annotato nel piano.
@@ -3104,7 +3181,8 @@ function DataLogWidget({ tag, windowS, pageSize, width, height, decimals, unit, 
 
 // ── KPI tile (F5.5): confronto vs periodo precedente ────────────────────────
 // Media della finestra corrente vs media della finestra precedente via
-// /api/history/:tag/stats (due chiamate), aggiornato ogni 30 s.
+// /api/history/:tag/stats (due chiamate), aggiornato ogni 30 s; in edit una
+// volta sola, al montaggio (regola UI 1: niente polling in edit).
 /** Margine orizzontale del testo di «Data e ora» (lo stesso in `lvgl_render.rs`). */
 const PAD_OROLOGIO = 6;
 
@@ -3120,7 +3198,11 @@ function TestoOrologio({ formato, secondi, modello, lingua }: {
   return <>{testoOrologio(componentiDi(ora), formato, secondi, modello, lingua)}</>;
 }
 
-function KpiDelta({ tag, windowS, corpo = 11 }: { tag: string; windowS: number; corpo?: number }) {
+function KpiDelta({ tag, windowS, corpo = 11, aggiorna = true }: {
+  tag: string; windowS: number; corpo?: number;
+  /** Falso in edit: una richiesta al montaggio e basta. */
+  aggiorna?: boolean;
+}) {
   const [delta, setDelta] = useState<number | null>(null);
   useEffect(() => {
     if (!tag) return;
@@ -3142,9 +3224,9 @@ function KpiDelta({ tag, windowS, corpo = 11 }: { tag: string; windowS: number; 
       } catch { /* stats non disponibili: nessun confronto */ }
     };
     load();
-    const id = setInterval(load, 30_000);
+    const id = aggiorna ? setInterval(load, 30_000) : undefined;
     return () => { cancelled = true; clearInterval(id); };
-  }, [tag, windowS]);
+  }, [tag, windowS, aggiorna]);
 
   if (delta === null) return null;
   const up = delta >= 0;
@@ -3152,90 +3234,6 @@ function KpiDelta({ tag, windowS, corpo = 11 }: { tag: string; windowS: number; 
     <span style={{ fontSize: corpo, fontWeight: 700, color: up ? "var(--brand-success, #22c55e)" : "var(--brand-danger, #ef4444)" }}>
       {up ? "▲" : "▼"} {Math.abs(delta).toFixed(1)}%
     </span>
-  );
-}
-
-function SparklineWidget({ tag, windowS, width, height, color, strokeWidth, fill, fillOpacity, showLast, yMin, yMax, tagValues, corpo = 9 }: {
-  tag: string; windowS: number; width: number; height: number;
-  color: string; strokeWidth: number; fill: boolean; fillOpacity: number;
-  showLast: boolean; yMin?: number; yMax?: number;
-  /** Il corpo dell'ultimo valore (25-10-2026). */
-  corpo?: number;
-  tagValues: Record<string, TagState>;
-}) {
-  const [samples, setSamples] = useState<{ ts: number; v: number }[]>([]);
-  const tv = tag ? tagValues[tag] : undefined;
-
-  // F5.3: seed dallo storico all'apertura pagina — prima il buffer partiva
-  // vuoto e il grafico restava bianco per windowS secondi a ogni mount.
-  useEffect(() => {
-    if (!tag) return;
-    let cancelled = false;
-    const now = Date.now();
-    api.getHistory(tag, { fromMs: now - windowS * 1000, toMs: now, ancora: true })
-      .then((hist) => {
-        if (cancelled) return;
-        const seeded = hist
-          .map((s) => ({ ts: s.ts_ms, v: Number(s.value) }))
-          .filter((s) => Number.isFinite(s.v));
-        // Il seed non deve scartare i live già arrivati nel frattempo.
-        setSamples((prev) => {
-          const firstLive = prev[0]?.ts ?? Infinity;
-          return [...seeded.filter((s) => s.ts < firstLive), ...prev];
-        });
-      })
-      .catch(() => { /* storico non disponibile: si parte live come prima */ });
-    return () => { cancelled = true; };
-  }, [tag, windowS]);
-
-  useEffect(() => {
-    if (tv === undefined) return;
-    const v = Number(tv.value);
-    if (!isFinite(v)) return;
-    const now = Date.now();
-    setSamples((prev) => {
-      const cutoff = now - windowS * 1000;
-      return [...prev.filter((s) => s.ts > cutoff), { ts: now, v }];
-    });
-  }, [tv?.value, windowS]);
-
-  const pad = 2;
-  const pw = width - pad * 2; const ph = height - pad * 2;
-  if (samples.length < 2) {
-    const last = samples[0]?.v;
-    return (
-      <div style={{ width, height, background: "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <svg width={width} height={height}>
-          <line x1={pad} y1={ph / 2 + pad} x2={pw + pad} y2={ph / 2 + pad} stroke={color} strokeWidth={strokeWidth} opacity={0.3} />
-          {showLast && last !== undefined && (
-            <text x={width - pad} y={pad + corpo + 1} textAnchor="end" fill={color} fontSize={corpo}>{last.toFixed(1)}</text>
-          )}
-        </svg>
-      </div>
-    );
-  }
-
-  const allV = samples.map((s) => s.v);
-  const lo = yMin ?? Math.min(...allV); const hi = yMax ?? Math.max(...allV);
-  const range = hi - lo || 1;
-  const now2 = Date.now(); const oldest = now2 - windowS * 1000;
-
-  const toX = (ts: number) => pad + ((ts - oldest) / (windowS * 1000)) * pw;
-  const toY = (v: number) => pad + ph - ((v - lo) / range) * ph;
-
-  const pts = samples.map((s) => `${toX(s.ts).toFixed(1)},${toY(s.v).toFixed(1)}`).join(" ");
-  const last = samples[samples.length - 1];
-
-  return (
-    <div style={{ width, height, background: "transparent" }}>
-      <svg width={width} height={height} style={{ overflow: "visible" }}>
-        {fill && <path d={`M ${toX(samples[0].ts)} ${ph + pad} L ${pts} L ${toX(last.ts)} ${ph + pad} Z`} fill={color} fillOpacity={fillOpacity} />}
-        <polyline points={pts} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinejoin="round" />
-        {showLast && (
-          <text x={width - pad} y={pad + corpo + 1} textAnchor="end" fill={color} fontSize={corpo}>{last.v.toFixed(1)}</text>
-        )}
-      </svg>
-    </div>
   );
 }
 
@@ -3536,79 +3534,32 @@ function gestiPressione(premi: () => void, rilascia: () => void) {
   };
 }
 
-/** Substitute `{param}` placeholders in a faceplate child's `tag`/`label`/
- *  `name`/`text` fields with the given parameter values. Extracted so the
- *  Faceplates config panel's live preview (`ConfigView.tsx`) can render a
- *  definition's `objects` the same way a placed `faceplate` instance does,
- *  without an instance's real `faceplate_params` (it passes placeholder
- *  values instead, one per declared param name). */
-/** Campi strutturali che la sostituzione NON deve toccare: identità e
- *  riferimenti che parametrizzare romperebbe (id oggetto, tipo, gruppo,
- *  riferimento alla definizione del faceplate stesso). */
-const FACEPLATE_SUB_EXCLUDE = new Set(["id", "type", "group_id", "faceplate_id"]);
-
-/** F6.1 — sostituzione parametri su TUTTI i campi stringa, ricorsiva.
- *  Prima toccava solo tag/label/name/text: un faceplate pompa reale con
- *  `state_tag: "{p}.running"`, binding `{p}.mode` o soglie nelle celle grid
- *  non funzionava. Il walker attraversa oggetti e array (bindings, grid_cells,
- *  table_rows, faceplate_params annidati → pass-through dei parametri ai
- *  faceplate figli); un valore senza `{` passa per identità (niente copie). */
-export function substituteFaceplateParams(
-  child: SynopticObject,
-  params: Record<string, string>,
-): SynopticObject {
-  if (Object.keys(params).length === 0) return child;
-  const subStr = (s: string) => s.replace(/\{(\w+)\}/g, (_, k) => params[k] ?? `{${k}}`);
-  const walk = (v: unknown): unknown => {
-    if (typeof v === "string") return v.indexOf("{") >= 0 ? subStr(v) : v;
-    if (Array.isArray(v)) {
-      let changed = false;
-      const out = v.map((x) => { const nx = walk(x); if (nx !== x) changed = true; return nx; });
-      return changed ? out : v;
-    }
-    if (v && typeof v === "object") {
-      let changed = false;
-      const out: Record<string, unknown> = {};
-      for (const [k, val] of Object.entries(v)) {
-        const nv = FACEPLATE_SUB_EXCLUDE.has(k) ? val : walk(val);
-        out[k] = nv;
-        if (nv !== val) changed = true;
-      }
-      return changed ? out : v;
-    }
-    return v;
-  };
-  return walk(child) as SynopticObject;
+/** Lo svg di un simbolo custom sanificato e diviso, uno per simbolo (piano
+ *  «viewer leggero», passo 5e): `sanitizeSvg` passa tutto il markup, e lo
+ *  faceva a ogni disegno del simbolo. Il simbolo dello store non si modifica,
+ *  si sostituisce; il testo si confronta lo stesso. */
+const svgPronti = new WeakMap<CustomSymbol, { svg: string; pronto: { viewBox: string; inner: string } }>();
+function svgPronto(sim: CustomSymbol, svg: string): { viewBox: string; inner: string } {
+  const c = svgPronti.get(sim);
+  if (c && c.svg === svg) return c.pronto;
+  const pronto = parseSvg(sanitizeSvg(svg));
+  svgPronti.set(sim, { svg, pronto });
+  return pronto;
 }
+
+// I parametri dei faceplate vivono in `parametriFaceplate.ts` dal 09-11-2026:
+// li usa anche la raccolta dei tag, che importandoli da qui passava dal canvas
+// e dallo store. Si riesportano per chi li importa da qui.
+export { effectiveFaceplateParams, figliDelFaceplate, substituteFaceplateParams };
 
 // Pure, e vivono in `faceplate/definizione.ts` dal 29-10-2026: lo store le
 // usa, e importarle da qui faceva un giro store → canvas → store.
 export { faceplateDefBBox, normalizeFaceplateParams };
 
-/** F6.2 — parametri effettivi di un'istanza: valori dell'istanza + default
- *  della definizione per i parametri non forniti. */
-export function effectiveFaceplateParams(
-  def: FaceplateDef,
-  instance: Record<string, string> | undefined,
-): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const p of normalizeFaceplateParams(def)) {
-    const v = instance?.[p.name];
-    if (v !== undefined && v !== "") out[p.name] = v;
-    else if (p.default !== undefined) out[p.name] = p.default;
-  }
-  // Chiavi extra dell'istanza (parametri rimossi dalla def): passano comunque,
-  // così un template rinominato non rompe in silenzio la sostituzione.
-  for (const [k, v] of Object.entries(instance ?? {})) {
-    if (!(k in out) && v !== "") out[k] = v;
-  }
-  return out;
-}
-
 /** F6.3 — popup faceplate: rende i figli della definizione (parametri
  *  sostituiti, default inclusi) in una modale interattiva sopra la pagina.
  *  Un popup alla volta; Esc o click fuori chiudono. */
-function FaceplatePopup({ faceplateId, params, faceplates, objects, tagValues, customSymbols, onWriteTag, onScript, onNavigate, onClose }: {
+function FaceplatePopup({ faceplateId, params, faceplates, objects, tagValues, customSymbols, onWriteTag, onScript, onNavigate, onClose, nonAggiornato }: {
   faceplateId: string;
   params: Record<string, string>;
   faceplates: FaceplateDef[];
@@ -3619,6 +3570,8 @@ function FaceplatePopup({ faceplateId, params, faceplates, objects, tagValues, c
   onScript?: (fn: string, args: Record<string, string | number | boolean>) => void;
   onNavigate?: (page: string) => void;
   onClose: () => void;
+  /** I dati in ritardo: i figli del popup sono a schermo come quelli della pagina. */
+  nonAggiornato?: boolean;
 }) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -3627,8 +3580,13 @@ function FaceplatePopup({ faceplateId, params, faceplates, objects, tagValues, c
   }, [onClose]);
 
   const defn = faceplates.find((f) => f.id === faceplateId);
+  // Gli stessi figli della raccolta dei tag: i parametri del bottone coi
+  // default della definizione; un popup non ha override. Una volta per
+  // definizione e parametri (rilievo della revisione del 09-11-2026): il
+  // popup sta nel ciclo della radice, che si ridisegna a ogni messaggio, e
+  // figli rifatti a ogni giro sono oggetti nuovi che il memo ridisegna tutti.
+  const figli = useMemo(() => (defn ? figliDelFaceplate({ faceplate_params: params }, defn) : []), [defn, params]);
   if (!defn) return null;
-  const eff = effectiveFaceplateParams(defn, params);
   const box = faceplateDefBBox(defn);
   const PAD = 16;
 
@@ -3647,11 +3605,11 @@ function FaceplatePopup({ faceplateId, params, faceplates, objects, tagValues, c
             style={{ background: "transparent", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4,
                      color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer", padding: "1px 8px", fontSize: 13 }}>✕</button>
         </div>
-        <svg width={box.w} height={box.h} style={{ display: "block" }}>
-          {defn.objects.map((child, i) => (
+        <svg width={box.w} height={box.h} style={{ display: "block", ...(nonAggiornato ? STILE_NON_AGGIORNATO : undefined) }}>
+          {figli.map((child, i) => (
             <SvgObject
               key={child.id ?? i}
-              obj={substituteFaceplateParams(child, eff)}
+              obj={child}
               objects={objects}
               tagValues={tagValues}
               selected={false}
@@ -3673,9 +3631,64 @@ function FaceplatePopup({ faceplateId, params, faceplates, objects, tagValues, c
  *  risolti dai legami: un tag che oscilla (una waveform) le fa variare. Prima
  *  l'opacità la applicavano solo i 14 tipi che passano da `applyTransform`, e la
  *  luminosità non esisteva. Il `<g>` esterno di chi disegna la pagina resta
- *  libero per le animazioni di lampeggio: le due cose si moltiplicano. */
-export function SvgObject(p: ObjProps) {
+ *  libero per le animazioni di lampeggio: le due cose si moltiplicano.
+ *
+ *  È `memo` (piano «viewer leggero», passo 5c): un oggetto si ridisegna solo
+ *  quando cambia un tag che legge, vedi `stesseDipendenze`. Prima ogni
+ *  messaggio dei tag ridisegnava tutta la pagina. */
+export const SvgObject = memo(function SvgObject(p: ObjProps) {
   return p.obj.type === "pipe" ? <TuboVivo {...p} /> : <SvgObjectBase {...p} />;
+}, stesseDipendenze);
+
+/** Tutte le prop di `SvgObject`, una riga per prop: il tipo obbliga a tenere
+ *  l'elenco uguale a `ObjProps`, una prop nuova senza la sua riga non compila.
+ *  Il confronto del memo le scorre da qui, senza allocare due `Object.keys`
+ *  per oggetto a ogni messaggio: nel profilo con 300 oggetti era la funzione
+ *  JS più pesante (rilievo della revisione del 09-11-2026). */
+const PROP_DI_OBJ: Record<keyof ObjProps, true> = {
+  obj: true, objects: true, tagValues: true, selected: true, selectedCount: true, isEditMode: true,
+  customSymbols: true, faceplates: true, selectedCell: true, selectedCellChild: true, selectedCellRange: true,
+  selectedSubCell: true, onSelect: true, onStartDrag: true, onWriteTag: true, onScript: true, onNavigate: true,
+  onSelectCell: true, onSelectCellChild: true, onSelectCellRange: true, onSelectSubCell: true, onExpandTrend: true,
+};
+/** Le prop confrontate per riferimento: tutte tranne le due che il memo guarda dentro. */
+const PROP_PER_RIFERIMENTO = (Object.keys(PROP_DI_OBJ) as (keyof ObjProps)[])
+  .filter((k) => k !== "tagValues" && k !== "objects");
+
+/** Il confronto del memo di `SvgObject`. Tutte le prop per riferimento, tranne
+ *  due:
+ *  - `tagValues`: contano solo i tag di `dipendenzeOggetto`, la stessa fonte
+ *    del filtro di pagina. Valore (`Object.is`) e qualità; il tempo solo se
+ *    l'oggetto lo mostra (`conTempo`, la colonna «time» di una tabella),
+ *    perché il bus ritrasmette anche i valori uguali col tempo nuovo. Lo stale
+ *    non ha bisogno del tempo qui: la ⌛ la mette l'involucro, sotto. Con
+ *    `tutti` (un legame sceglie il tag) si ridisegna sempre;
+ *  - `objects`: conta solo per chi li legge (`usaOggetti`): un tubo agganciato,
+ *    anche dentro una griglia o un faceplate. Prima contava per tipo, e in
+ *    edit ogni griglia e ogni faceplate si ridisegnavano a ogni passo di
+ *    trascinamento, figli compresi, anche senza tubi.
+ *  L'involucro di pagina (visibilità, lampeggio, stale, Bad, moto, bordo
+ *  d'allarme, dati in ritardo) sta nel ciclo della radice, che ha ancora la
+ *  mappa intera: il memo non lo tocca. Dove serve il valore al momento del
+ *  gesto (incremento, toggle) il bersaglio è fra le dipendenze, quindi la
+ *  mappa che l'oggetto ha è giusta per lui. */
+function stesseDipendenze(prima: ObjProps, dopo: ObjProps): boolean {
+  for (const k of PROP_PER_RIFERIMENTO) {
+    if (!Object.is(prima[k], dopo[k])) return false;
+  }
+  const dip = dipendenzeOggetto(dopo.obj, dopo.faceplates, dopo.objects);
+  if (prima.objects !== dopo.objects && dip.usaOggetti) return false;
+  if (prima.tagValues === dopo.tagValues) return true;
+  if (dip.tutti) return false;
+  for (const id of dip.ids) {
+    const a = prima.tagValues[id];
+    const b = dopo.tagValues[id];
+    if (a === b) continue;
+    if (!a || !b) return false;
+    if (!Object.is(a.value, b.value) || a.quality !== b.quality) return false;
+    if (dip.conTempo && a.timestamp_ms !== b.timestamp_ms) return false;
+  }
+  return true;
 }
 
 /** Un tubo si ridisegna quando arriva il manifesto della libreria: le bocche
@@ -3726,7 +3739,7 @@ function SvgObjectBase(p: ObjProps) {
 }
 
 function SvgObjectCorpo(p: ObjProps) {
-  const { objects, tagValues, selected, selectedCount = 0, isEditMode, customSymbols, faceplates = [], selectedCell, selectedCellChild, selectedCellRange, onSelect, onStartDrag, onWriteTag, onScript, onNavigate, onSelectCell, onSelectCellChild, onSelectCellRange, onExpandTrend } = p;
+  const { objects, tagValues, selected, selectedCount = 0, isEditMode, customSymbols, faceplates = NESSUN_FACEPLATE, selectedCell, selectedCellChild, selectedCellRange, onSelect, onStartDrag, onWriteTag, onScript, onNavigate, onSelectCell, onSelectCellChild, onSelectCellRange, onExpandTrend } = p;
   const { t } = useTranslation();
   // Toggle "Anteprima effetti" (rotazioni simboli, flusso pipe) anche in edit.
   const fxPreview = useAppStore((s) => s.previewEffects);
@@ -3746,10 +3759,29 @@ function SvgObjectCorpo(p: ObjProps) {
   // Il lucchetto sui figli di un faceplate (R7, 04-11-2026): il gruppo della
   // pagina non li vede, sono disegnati qui dentro.
   const ruoloVista = useAppStore((s) => s.authRole);
+  // Letture che prima si aggiornavano solo perché a ogni messaggio si
+  // ridisegnava tutta la pagina (piano «viewer leggero», passo 5d): lo stile
+  // dei simboli del progetto, che tubi e `coloreEffettivo` leggono fuori da
+  // React, e la lingua scelta per i bottoni della lingua. Col memo l'oggetto se
+  // ne accorge da solo.
+  const stile = useStileProgetto();
+  const linguaScelta = useAppStore((s) => s.projectLang);
+  const lingueProgetto = useAppStore((s) => s.project?.languages);
   const descrizioni = projectTags ? descrizioniDeiTag(projectTags, projectTypes) : undefined;
   const conDefault = applyTagDefaults(resolved, resolved.tag ? descrizioni?.get(resolved.tag) : undefined);
   const lingua = useLinguaContenuti();
   const obj = localizeObject(conDefault, lingua.lang, lingua.table);
+  // Le tracce di un trend, lo stesso riferimento finché non cambiano (passo
+  // 5e): `TrendCanvas` rifà tutto il disegno quando cambiano `seriesLabels` o
+  // `seriesStyles`, e prima erano array nuovi a ogni render. Si confrontano
+  // per contenuto: un'etichetta tradotta rifà l'array anche se è uguale.
+  const tracceTrend = obj.type === "trend" ? trendTraces(obj).filter((tr) => tr.tag) : undefined;
+  const chiaveTracce = tracceTrend ? JSON.stringify(tracceTrend) : "";
+  const serieTrend = useMemo(() => ({
+    tags: (tracceTrend ?? []).map((tr) => tr.tag),
+    etichette: (tracceTrend ?? []).map((tr) => tr.label ?? tr.tag),
+    stili: tracceTrend ?? [],
+  }), [chiaveTracce]);
   // Drag-to-zoom range for the "trend" object type (T-48). Declared
   // unconditionally (rules of hooks) even though only the trend branch uses
   // it — this component instance is keyed by obj.id, so the state persists
@@ -4359,7 +4391,7 @@ function SvgObjectCorpo(p: ObjProps) {
 
     let svgNuovo = "";
     if (stileNuovo) {
-      const prog = stileProgetto();
+      const prog = stile;
       const coloreStato =
         (alarmTv && alarmTv.value) ? (obj.state_alarm_color ?? "#ef4444") :
         obj.state_tag ? ((stateTv && stateTv.value) ? obj.state_on_color : obj.state_off_color) : undefined;
@@ -4754,8 +4786,7 @@ function SvgObjectCorpo(p: ObjProps) {
   if (obj.type === "lang_button") {
     const w = obj.width ?? 80; const h = obj.height ?? 32;
     const code = obj.target_lang ?? "";
-    const st = useAppStore.getState();
-    const active = st.projectLang ? st.projectLang === code : st.project?.languages?.default === code;
+    const active = linguaScelta ? linguaScelta === code : lingueProgetto?.default === code;
     return (
       <g style={{ cursor: isEditMode ? editCursor : "pointer" }}
         onMouseDown={isEditMode ? handleMouseDown : undefined}
@@ -4786,9 +4817,8 @@ function SvgObjectCorpo(p: ObjProps) {
   // ── LANGUAGE SELECTOR (T-40) ────────────────────────────────────────────────
   if (obj.type === "lang_selector") {
     const w = obj.width ?? 120; const h = obj.height ?? 32;
-    const st = useAppStore.getState();
-    const langs = st.project?.languages?.langs ?? [];
-    const cur = st.projectLang || st.project?.languages?.default || "";
+    const langs = lingueProgetto?.langs ?? [];
+    const cur = linguaScelta || lingueProgetto?.default || "";
 
     // WYSIWYG (2026-08-23): <select> vero anche in editor. Il rettangolo finto
     // serviva perché il select ingoiava il mousedown prima del <g>: ora il
@@ -5592,8 +5622,8 @@ function SvgObjectCorpo(p: ObjProps) {
           <>
             <foreignObject x={obj.x} y={obj.y} width={w} height={h}>
               <TrendCanvas
-                tags={trendTraces(obj).filter((tr) => tr.tag).map((tr) => tr.tag)}
-                seriesLabels={trendTraces(obj).filter((tr) => tr.tag).map((tr) => tr.label ?? tr.tag)}
+                tags={serieTrend.tags}
+                seriesLabels={serieTrend.etichette}
                 windowS={obj.window_s ?? 60}
                 width={w}
                 height={h}
@@ -5601,7 +5631,7 @@ function SvgObjectCorpo(p: ObjProps) {
                 yMin={trendZoom?.yLo !== undefined ? trendZoom.yLo : obj.y_min}
                 yMax={trendZoom?.yHi !== undefined ? trendZoom.yHi : obj.y_max}
                 opcuaBackfill={obj.opcua_backfill}
-                seriesStyles={trendTraces(obj).filter((tr) => tr.tag)}
+                seriesStyles={serieTrend.stili}
                 corpo={obj.font_size ?? 10}
                 dtDateOrder={obj.trend_dt_date_order}
                 dtSeparator={obj.trend_dt_separator}
@@ -6230,19 +6260,21 @@ function SvgObjectCorpo(p: ObjProps) {
           {valueText}
           {obj.unit && <tspan fontSize={corpoUnita} fill="#64748b"> {obj.unit}</tspan>}
         </text>
-        {!isEditMode && obj.tag && (
+        {/* Anche in edit (regola UI 1, 09-11-2026): prima l'editor mostrava la
+            kpi senza variazione né mini tendenza. In edit niente polling. */}
+        {obj.tag && (
           <>
             <foreignObject x={obj.x + w - 74} y={obj.y + 6} width={68} height={18} style={{ pointerEvents: "none" }}>
               <div style={{ textAlign: "right" }}>
-                <KpiDelta tag={obj.tag} windowS={windowS} corpo={corpoEtichetta} />
+                <KpiDelta tag={obj.tag} windowS={windowS} corpo={corpoEtichetta} aggiorna={!isEditMode} />
               </div>
             </foreignObject>
             <foreignObject x={obj.x + 6} y={obj.y + h - 34} width={w - 12} height={30} style={{ pointerEvents: "none" }}>
-              <SparklineWidget
+              <MiniTendenza
                 tag={obj.tag} windowS={windowS} width={w - 12} height={30}
                 color={coloreEffettivo(obj, "spark_color")}
                 strokeWidth={1.5} fill fillOpacity={0.15} showLast={false}
-                yMin={undefined} yMax={undefined} tagValues={tagValues} />
+                valore={tv} />
             </foreignObject>
           </>
         )}
@@ -6258,15 +6290,14 @@ function SvgObjectCorpo(p: ObjProps) {
     const windowS = obj.spark_window_s ?? 60;
 
     // WYSIWYG (2026-08-23): widget vero anche in editor (seed dallo storico).
-
-    // Runtime: use foreignObject with SparklineCanvas (inline component)
+    // La mini tendenza riceve solo lo stato del suo tag (09-11-2026).
     return (
       <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}>
         {selRect(obj.x, obj.y, w, h)}
         {bgLayer(obj.x, obj.y, w, h, 2)}
         <foreignObject x={obj.x} y={obj.y} width={w} height={h}
           style={isEditMode ? { pointerEvents: "none" } : undefined}>
-          <SparklineWidget
+          <MiniTendenza
             tag={obj.tag ?? ""}
             windowS={windowS}
             width={w}
@@ -6278,7 +6309,7 @@ function SvgObjectCorpo(p: ObjProps) {
             showLast={obj.spark_show_last ?? false}
             yMin={obj.y_min}
             yMax={obj.y_max}
-            tagValues={tagValues}
+            valore={obj.tag ? tagValues[obj.tag] : undefined}
             corpo={obj.font_size ?? 9}
           />
         </foreignObject>
@@ -6504,7 +6535,7 @@ function SvgObjectCorpo(p: ObjProps) {
       (obj.symbol_spin === "tag" && truthy(obj.symbol_spin_tag))
     );
     // Fase 4: i tempi vengono dall'oggetto, poi dallo stile del progetto.
-    const anim = animazioniEffettive(obj, stileProgetto());
+    const anim = animazioniEffettive(obj, stile);
     const spinStyle: React.CSSProperties | undefined = spinActive
       ? { animation: `sws-spin ${anim.spinS}s linear infinite`, transformOrigin: "50px 50px" }
       : undefined;
@@ -6553,7 +6584,7 @@ function SvgObjectCorpo(p: ObjProps) {
             /* F6.9: simbolo custom multi-stato — markup inline con gli
                elementi colorable_ids ricolorati per stato. */
             (() => {
-              const { viewBox, inner } = parseSvg(sanitizeSvg(customEntry.svg));
+              const { viewBox, inner } = svgPronto(customEntry, customEntry.svg);
               const colored = customEntry.colorable_ids?.length
                 ? applyStateColor(inner, customEntry.colorable_ids, badgeColor)
                 : inner;
@@ -6893,8 +6924,6 @@ function SvgObjectCorpo(p: ObjProps) {
   // ── Faceplate instance ────────────────────────────────────────────────────
   if (obj.type === "faceplate") {
     const defn = faceplates.find((f) => f.id === obj.faceplate_id);
-    // F6.2: i default della definizione riempiono i parametri non forniti.
-    const params = defn ? effectiveFaceplateParams(defn, obj.faceplate_params) : (obj.faceplate_params ?? {});
     const w = obj.width ?? 120;
     const h = obj.height ?? 80;
 
@@ -6916,14 +6945,11 @@ function SvgObjectCorpo(p: ObjProps) {
       );
     }
 
-    // Substitute `{param}` placeholders in all string fields of a child object.
-    // F6.4: gli override per-istanza si applicano DOPO la sostituzione
-    // ("link spezzato" rispetto al template, per singolo figlio).
-    const substituteParams = (child: SynopticObject) => {
-      const sub = substituteFaceplateParams(child, params);
-      const over = obj.faceplate_overrides?.[child.id];
-      return over ? { ...sub, ...over, id: sub.id, type: sub.type } : sub;
-    };
+    // I figli coi parametri sostituiti (F6.2: i default della definizione
+    // riempiono quelli non forniti) e poi gli override per figlio (F6.4). La
+    // stessa funzione della raccolta dei tag, così il filtro di pagina chiede
+    // proprio i tag che i figli leggono.
+    const figli = figliDelFaceplate(obj, defn);
     // F6.4: scaling opzionale dei figli al box dell'istanza (uniforme sui due
     // assi per non distorcere i testi... no: viewBox-like, assi indipendenti,
     // come uno <svg> con preserveAspectRatio="none" — è ciò che l'utente
@@ -6934,8 +6960,8 @@ function SvgObjectCorpo(p: ObjProps) {
       : "";
 
     if (isEditMode) {
-      // Edit mode: render the faceplate's own children (same substituteParams
-      // as view mode) for a faithful preview — each child shows its own
+      // Edit mode: render the faceplate's own children (the same `figli` as
+      // view mode) for a faithful preview — each child shows its own
       // edit-mode rendering, all static, no new polling. Children sit under
       // pointerEvents:none so they never intercept the click; a single
       // transparent hit-rect on top (same size as the faceplate) carries
@@ -6950,11 +6976,10 @@ function SvgObjectCorpo(p: ObjProps) {
                 box e non seguiva faceplate_scale (in editor lo sfondo non
                 combaciava coi figli scalati). */}
             {bgLayer(0, 0, obj.faceplate_scale ? defBox.w : w, obj.faceplate_scale ? defBox.h : h, 4)}
-            {defn.objects.map((child, i) => {
-              const resolved = substituteParams(child);
+            {figli.map((resolved, i) => {
               return (
                 <SvgObject
-                  key={child.id ?? i}
+                  key={resolved.id ?? i}
                   obj={resolved}
                   objects={objects}
                   tagValues={tagValues}
@@ -6987,11 +7012,10 @@ function SvgObjectCorpo(p: ObjProps) {
     return (
       <g transform={`translate(${obj.x}, ${obj.y})${scaleTf}`} style={{ cursor: "default" }}>
         {bgLayer(0, 0, obj.faceplate_scale ? defBox.w : w, obj.faceplate_scale ? defBox.h : h, 4)}
-        {defn.objects.map((child, i) => {
-          const resolved = substituteParams(child);
+        {figli.map((resolved, i) => {
           const lucchetto = ruoloCheServe(resolved, ruoloVista, projectTags, projectTypes);
           return (
-            <Fragment key={child.id ?? i}>
+            <Fragment key={resolved.id ?? i}>
               <SvgObject
                 obj={resolved}
                 objects={objects}

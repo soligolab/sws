@@ -1,3 +1,4 @@
+import { CampoPassword } from "@/components/CampoPassword";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, NoProjectError, RateLimitedError, RuntimeUnavailableError, type LoginOk } from "@/api/client";
@@ -153,9 +154,8 @@ export function ReAuthModal() {
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <div>
             <div style={LABEL}>{t("auth.password")}</div>
-            <input
+            <CampoPassword
               ref={inputRef}
-              type="password"
               autoFocus
               style={INPUT}
               value={password}

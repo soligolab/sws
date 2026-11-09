@@ -768,6 +768,13 @@ interface AppState {
 
   // Tag values from WebSocket
   updateTagValue: (id: string, state: TagState) => void;
+  /** Più valori in una scrittura sola: è la strada del socket dei tag, una
+   *  volta per fotogramma (`ws/coalescenza.ts`). Una voce con valore, qualità
+   *  **e** timestamp uguali a quelli nello store si scarta e l'oggetto resta lo
+   *  stesso; il timestamp conta perché serve allo stale e alla colonna «time»
+   *  delle tabelle. Se non cambia niente, lo store non avvisa nessuno. È
+   *  un'unione: i tag che non sono fra le voci restano come sono. */
+  applicaValori: (voci: ReadonlyMap<string, TagState>) => void;
 
   // Alarms
   setAlarms: (list: AlarmState[]) => void;
@@ -2865,8 +2872,26 @@ export const useAppStore = create<AppState>((set, get) => {
       return { ok: true, avviso };
     },
 
-    updateTagValue: (id, state) =>
-      set((s) => ({ tagValues: { ...s.tagValues, [id]: state } })),
+    updateTagValue: (id, state) => get().applicaValori(new Map([[id, state]])),
+
+    applicaValori: (voci) =>
+      set((s) => {
+        const cambiate: [string, TagState][] = [];
+        for (const [id, nuovo] of voci) {
+          const prima = s.tagValues[id];
+          if (
+            prima !== undefined &&
+            Object.is(prima.value, nuovo.value) &&
+            prima.quality === nuovo.quality &&
+            prima.timestamp_ms === nuovo.timestamp_ms
+          ) continue;
+          cambiate.push([id, nuovo]);
+        }
+        // Restituire `s` com'è, per zustand, vuol dire «niente di nuovo»:
+        // nessun selettore riparte. Altrimenti la mappa si copia una volta.
+        if (cambiate.length === 0) return s;
+        return { tagValues: { ...s.tagValues, ...Object.fromEntries(cambiate) } };
+      }),
 
     setAlarms: (list) =>
       set({ alarms: Object.fromEntries(list.map((a) => [a.def.id, a])) }),

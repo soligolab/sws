@@ -1,3 +1,4 @@
+import { CampoPassword } from "@/components/CampoPassword";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
@@ -122,19 +123,19 @@ export function ChangePasswordScreen({ onAnnulla, rimandabile }: {
 
         <div>
           <label style={label}>{t("auth.currentPassword")}</label>
-          <input type="password" value={oldPassword}
+          <CampoPassword value={oldPassword}
                  onChange={(e) => setOldPassword(e.target.value)}
                  autoComplete="current-password" autoFocus style={input} />
         </div>
         <div>
           <label style={label}>{t("auth.newPassword")}</label>
-          <input type="password" value={newPassword}
+          <CampoPassword value={newPassword}
                  onChange={(e) => setNewPassword(e.target.value)}
                  autoComplete="new-password" style={input} />
         </div>
         <div>
           <label style={label}>{t("auth.confirmNewPassword")}</label>
-          <input type="password" value={confirm}
+          <CampoPassword value={confirm}
                  onChange={(e) => setConfirm(e.target.value)}
                  autoComplete="new-password" style={input} />
         </div>

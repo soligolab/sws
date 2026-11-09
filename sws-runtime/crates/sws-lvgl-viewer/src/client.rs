@@ -1059,83 +1059,56 @@ pub async fn fetch_history_xy(
     Ok(resp.json::<Vec<HistoryXyPoint>>().await?)
 }
 
-/// Stato condiviso tra il task di polling in background (che scrive) e il
-/// loop di rendering (che legge a ogni frame dentro `update_bindings`) — un
-/// `(u64, Vec<HistorySample>)` invece del solo `Vec` come `SharedTagSnapshot`:
-/// il contatore di versione dà al lettore un modo economico per sapere "sono
-/// arrivati dati nuovi da quando ho ridisegnato l'ultima volta" senza
-/// confrontare l'intero vettore a 60fps — un `lv_chart_refresh` a ogni frame
-/// anche quando i dati non cambiano (il poll è ogni 2s, il rendering a
-/// 60fps) sprecherebbe redraw veri su un pannello embedded, non solo cicli
-/// CPU astratti.
-pub type SharedHistory = Arc<Mutex<(u64, Vec<HistorySample>)>>;
-
-/// Interroga periodicamente (ogni 2s, stesso `pollMs` di default di
-/// `TrendCanvas.tsx`) lo storico di un singolo tag e lo pubblica in
-/// `SharedHistory`. Un task per serie, non uno per widget: più semplice da
-/// comporre, il costo di N fetch invece di 1 è accettabile per un pannello
-/// con poche trend a schermo insieme. Il backfill OPC-UA (se richiesto)
-/// parte solo al primo giro, non a ogni poll — stessa logica di
-/// `firstTick && opcuaBackfill` in `TrendCanvas.tsx`.
+/// Il seme della mini tendenza (`sparkline`, e quella in basso nel
+/// `kpi_tile`): **una** richiesta dei secchi della finestra, poi il task
+/// finisce. Da lì la mini tendenza vive dei valori del socket, negli stessi
+/// secchi (`mini_serie::Viva`).
 ///
-/// Non ha un modo per essere fermato: vive quanto il task tokio lo lascia
-/// vivo, cioè quanto il processo — stesso compromesso già accettato per gli
-/// `Style`/i contesti `Box::leak` delle callback (vedi `lvgl_render.rs`), ma
-/// qui è un task che continua a fare I/O di rete, non un valore inerte: se
-/// il maintainer naviga più volte sulla stessa pagina con un trend, ogni
-/// visita apre un nuovo poller e i vecchi non vengono mai fermati — limite
-/// noto, accettabile per una sessione di test, vedi `docs/OPEN_QUESTIONS.md`
-/// Q14.
-pub fn spawn_history_poller(
+/// Fino al 09-11-2026 qui c'era un poller che chiedeva tutta la finestra ogni
+/// 2 s, per ogni mini tendenza: sulla pagina iniziale di Montagna, 12 mini
+/// tendenze, erano 6 richieste al secondo, e il server rileggeva e aggregava
+/// un'ora di campioni a ogni richiesta, sulla stessa CPU del pannello. Prima
+/// ancora non si fermava nemmeno quando la pagina se ne andava (Q14).
+///
+/// Una richiesta che fallisce porta una lista vuota: si parte dal dato vivo,
+/// come sul web. Senza tag non si chiede niente, come sul web.
+pub fn spawn_seme_spark(
     rt_handle: &tokio::runtime::Handle,
     base_url: String,
     tag: String,
-    window_s: u64,
-    backfill: bool,
-) -> SharedHistory {
-    let shared: SharedHistory = Arc::new(Mutex::new((0, Vec::new())));
-    let shared_bg = shared.clone();
+    da: u64,
+    a: u64,
+    secchio: u64,
+) -> crate::mini_serie::SharedSeme {
+    if tag.is_empty() {
+        return Arc::new(Mutex::new(Some(Vec::new())));
+    }
+    let seme: crate::mini_serie::SharedSeme = Arc::new(Mutex::new(None));
+    let dove = seme.clone();
     rt_handle.spawn(async move {
-        let mut first = true;
-        let mut voce = VoceAttenuata::nuova();
-        let mut interval = tokio::time::interval(std::time::Duration::from_secs(2));
-        loop {
-            interval.tick().await;
-            let now_ms = now_unix_ms();
-            let from_ms = now_ms.saturating_sub(window_s.saturating_mul(1000));
-            let do_backfill = first && backfill;
-            first = false;
-            match fetch_history_con(&base_url, &tag, from_ms, now_ms, do_backfill, true).await {
-                Ok(samples) => {
-                    if voce.riuscito() {
-                        eprintln!("[trend] storico di '{tag}' di nuovo raggiungibile");
-                    }
-                    let mut guard = shared_bg.lock().unwrap_or_else(|e| e.into_inner());
-                    guard.0 = guard.0.wrapping_add(1);
-                    guard.1 = samples;
-                }
-                Err(e) => {
-                    if let Some(n) = voce.errore(std::time::Instant::now()) {
-                        eprintln!(
-                            "[trend] storico di '{tag}' fallito: {e} — riprovo al prossimo poll{}",
-                            taciuti(n)
-                        );
-                    }
-                }
+        let secchi = match fetch_history_buckets(&base_url, &tag, da, a, secchio, false).await {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!("[trend] storico di '{tag}' non raggiungibile per la mini tendenza: {e}");
+                Vec::new()
             }
-        }
+        };
+        *dove.lock().unwrap_or_else(|e| e.into_inner()) = Some(secchi);
     });
-    shared
+    seme
 }
 
-/// Un secchio dello storico aggregato (`GET /api/history/:tag?bucket_ms=`),
-/// solo i campi che il trend disegna: la media è la linea, min e max la banda.
+/// Un secchio dello storico aggregato (`GET /api/history/:tag?bucket_ms=`).
+/// Per il trend la media è la linea, min e max la banda; per la mini
+/// tendenza contano primo, minimo, massimo e ultimo (`mini_serie`).
 #[derive(Debug, Clone, Deserialize)]
 pub struct HistoryBucket {
     pub ts_ms: u64,
     pub min: f64,
     pub max: f64,
     pub avg: f64,
+    pub first: f64,
+    pub last: f64,
 }
 
 /// Cosa il trend vuole vedere: la finestra che scorre, o un intervallo fisso
@@ -1176,9 +1149,9 @@ pub type SharedTrend = Arc<TrendFeed>;
 /// trend su 30 giorni non scarica tutti i campioni.
 const SECCHI_OLTRE_MS: u64 = 15 * 60_000;
 
-/// Il poller di un trend: **uno per oggetto**, non uno per traccia come
-/// `spawn_history_poller`, perché le tracce vanno chieste tutte sullo stesso
-/// intervallo, e l'intervallo lo decide l'operatore (◀/▶, zoom).
+/// Il poller di un trend: **uno per oggetto**, non uno per traccia, perché
+/// le tracce vanno chieste tutte sullo stesso intervallo, e l'intervallo lo
+/// decide l'operatore (◀/▶, zoom).
 ///
 /// In diretta chiede ogni 2 s (il `pollMs` del web); su un intervallo fisso
 /// chiede una volta per cambio. Il tocco di un pulsante lo sveglia subito.
@@ -1186,7 +1159,7 @@ const SECCHI_OLTRE_MS: u64 = 15 * 60_000;
 /// **Si ferma da solo** quando la pagina se ne va: il trend tiene l'altro
 /// capo dell'`Arc`, e quando resta solo questo non c'è più nessuno a cui
 /// rispondere. È il limite Q14 dei poller che vivevano per sempre, chiuso
-/// almeno qui.
+/// qui; la mini tendenza, dal 09-11-2026, un poller non ce l'ha più.
 pub fn spawn_trend_poller(
     rt_handle: &tokio::runtime::Handle,
     base_url: String,
@@ -1403,7 +1376,8 @@ pub async fn fetch_history_buckets(
         q.append_pair("from", &from_ms.to_string());
         q.append_pair("to", &to_ms.to_string());
         q.append_pair("bucket_ms", &bucket_ms.to_string());
-        // Solo i trend chiedono i secchi: il valore fermo vale anche qui.
+        // Chiedono i secchi i trend e le mini tendenze: il valore fermo vale
+        // anche qui.
         q.append_pair("ancora", "true");
         if backfill {
             q.append_pair("backfill", "true");
@@ -1499,6 +1473,13 @@ pub type TagSnapshot = HashMap<String, TagSnapshotValue>;
 /// recente", non la sequenza di eventi intermedi — un lock breve e frequente
 /// è più semplice di un canale con backpressure/coalescing a mano.
 pub type SharedTagSnapshot = Arc<Mutex<TagSnapshot>>;
+
+/// Il `ts` più recente fra le voci di un messaggio, 0 se nessuna lo porta.
+/// È quello che dice quanto è fresco il messaggio: le altre voci possono
+/// essere foglie sorelle ritrasmesse col loro `ts` vecchio (vedi `ritardo`).
+fn ts_piu_recente(entries: &[WsTagEntry]) -> u64 {
+    entries.iter().map(|t| t.ts).max().unwrap_or(0)
+}
 
 fn apply_entries(map: &mut TagSnapshot, entries: Vec<WsTagEntry>) {
     for t in entries {
@@ -1639,6 +1620,9 @@ pub async fn spawn_tag_subscription(
         Some(connector),
     )
     .await?;
+    // Una connessione nuova: la misura del ritardo riparte da qui, non dallo
+    // snapshot (come `ricominciaMisura` del web all'apertura del socket).
+    crate::ritardo::socket_aperto();
 
     // Blocca finché non arriva lo snapshot iniziale — i widget non possono
     // essere creati con valori mancanti.
@@ -1659,6 +1643,7 @@ pub async fn spawn_tag_subscription(
         if parsed.ty != "snapshot" {
             continue;
         }
+        crate::ritardo::snapshot_arrivato(ts_piu_recente(&parsed.tags));
         let mut map = TagSnapshot::new();
         apply_entries(&mut map, parsed.tags);
         break map;
@@ -1697,8 +1682,14 @@ pub async fn spawn_tag_subscription(
                 // il server ne rimanda uno, es. dopo una riconnessione interna).
                 if let Ok(delta) = serde_json::from_str::<WsDeltaMsg>(&text) {
                     if delta.ty == "delta" {
-                        let mut map = shared_bg.lock().unwrap_or_else(|e| e.into_inner());
-                        apply_entries(&mut map, delta.changed);
+                        let ts = ts_piu_recente(&delta.changed);
+                        {
+                            let mut map = shared_bg.lock().unwrap_or_else(|e| e.into_inner());
+                            apply_entries(&mut map, delta.changed);
+                        }
+                        // Dopo la mappa, non prima: così il disegno non conta
+                        // mai un'età per valori che non ha ancora.
+                        crate::ritardo::delta_arrivato(ts);
                         continue;
                     }
                 }
@@ -1717,6 +1708,7 @@ pub async fn spawn_tag_subscription(
                 }
                 if let Ok(snap) = serde_json::from_str::<WsSnapshotMsg>(&text) {
                     if snap.ty == "snapshot" {
+                        crate::ritardo::snapshot_arrivato(ts_piu_recente(&snap.tags));
                         let mut map = shared_bg.lock().unwrap_or_else(|e| e.into_inner());
                         apply_entries(&mut map, snap.tags);
                     }
@@ -1725,6 +1717,11 @@ pub async fn spawn_tag_subscription(
             // Qui si arriva quando il flusso è finito, in un modo o nell'altro.
             // Non si esce dal task: si riprova, perché il runtime che è stato
             // sostituito fra un istante sarà di nuovo lì.
+            //
+            // Da qui i valori a schermo invecchiano: oltre 5 s la fascia «Dati
+            // in ritardo» lo dice (09-11-2026). La connessione nuova, appena
+            // aperta, la spegne.
+            crate::ritardo::socket_giu();
             eprintln!(
                 "[ws] /ws/tags interrotto — riprovo fra {}s",
                 attesa.as_secs()
@@ -1732,6 +1729,7 @@ pub async fn spawn_tag_subscription(
             tokio::time::sleep(attesa).await;
             match apri_ws(&url_bg).await {
                 Ok(nuovo) => {
+                    crate::ritardo::socket_aperto();
                     stream = nuovo;
                     attesa = ATTESA_MIN;
                     // Ricaricare la pagina, non solo riprendere i valori: se il
@@ -2183,5 +2181,164 @@ mod tests_riconnessione {
     #[test]
     fn un_progetto_senza_pagine_non_ha_una_prima() {
         assert_eq!(primo_id_dell_albero(&nav(&[], vec![])), None);
+    }
+}
+
+#[cfg(test)]
+mod prove_seme_spark {
+    use super::spawn_seme_spark;
+    use std::time::{Duration, Instant};
+
+    /// Un server finto conta le richieste dello storico: il seme ne fa una, e
+    /// la risposta arriva nella mini tendenza.
+    #[test]
+    fn il_seme_fa_una_richiesta_sola() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let conta = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let base = rt.block_on(async {
+            let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let base = format!("http://{}", l.local_addr().unwrap());
+            let conta = conta.clone();
+            tokio::spawn(async move {
+                while let Ok((mut s, _)) = l.accept().await {
+                    conta.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                    let mut buf = [0u8; 4096];
+                    let _ = s.read(&mut buf).await;
+                    let corpo = r#"[{"ts_ms":1000,"min":1,"max":3,"avg":2,"first":1,"last":3}]"#;
+                    let risposta = format!(
+                        "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{corpo}",
+                        corpo.len()
+                    );
+                    let _ = s.write_all(risposta.as_bytes()).await;
+                }
+            });
+            base
+        });
+        let seme = spawn_seme_spark(rt.handle(), base, "t".into(), 0, 60_000, 517);
+        let t0 = Instant::now();
+        let secchi = loop {
+            if let Some(s) = seme.lock().unwrap().take() {
+                break s;
+            }
+            assert!(t0.elapsed() < Duration::from_secs(5), "il seme non arriva");
+            std::thread::sleep(Duration::from_millis(10));
+        };
+        assert_eq!(secchi.len(), 1);
+        assert_eq!(secchi[0].last, 3.0);
+        // Una sparkline senza tag non chiede niente, come sul web.
+        let vuoto = spawn_seme_spark(rt.handle(), "http://x".into(), String::new(), 0, 1, 1);
+        assert_eq!(vuoto.lock().unwrap().take().map(|v| v.len()), Some(0));
+        // Altri tre secondi: nessuno chiede più niente.
+        std::thread::sleep(Duration::from_secs(3));
+        assert_eq!(conta.load(std::sync::atomic::Ordering::SeqCst), 1);
+    }
+}
+
+/// Il task di `/ws/tags` misura il ritardo dei valori (09-11-2026): un server
+/// finto manda snapshot, delta e chiusura, e si guarda cosa vede il disegno.
+///
+/// È l'unica prova che tocca lo stato del processo in `ritardo`: un'altra che
+/// aprisse `/ws/tags` in parallelo le mescolerebbe le misure.
+#[cfg(test)]
+mod prove_ritardo_ws {
+    use super::{now_unix_ms, spawn_tag_subscription};
+    use crate::ritardo;
+    use futures_util::SinkExt;
+    use std::time::{Duration, Instant};
+    use tokio_tungstenite::tungstenite::Message;
+
+    fn voce(id: &str, v: i64, ts: u64) -> String {
+        format!(r#"{{"id":"{id}","value":{v},"quality":"Good","ts":{ts}}}"#)
+    }
+
+    fn delta(voci: &[String]) -> String {
+        format!(
+            r#"{{"type":"delta","changed":[{}],"seq":1}}"#,
+            voci.join(",")
+        )
+    }
+
+    /// L'età vista dal disegno `piu_ms` dopo adesso, appena soddisfa `ok`
+    /// (fino a 3 s: il task lavora su un altro thread).
+    async fn aspetta(piu_ms: u64, ok: impl Fn(u64) -> bool) -> u64 {
+        let t0 = Instant::now();
+        loop {
+            let eta = ritardo::al_fotogramma(now_unix_ms() + piu_ms);
+            if ok(eta) || t0.elapsed() > Duration::from_secs(3) {
+                return eta;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    }
+
+    #[test]
+    fn il_task_ws_misura_il_ritardo_dei_valori() {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let base = format!("http://{}", l.local_addr().unwrap());
+            let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<Option<String>>();
+            tokio::spawn(async move {
+                let (s, _) = l.accept().await.unwrap();
+                let mut ws = tokio_tungstenite::accept_async(s).await.unwrap();
+                while let Some(m) = rx.recv().await {
+                    match m {
+                        Some(t) => {
+                            if ws.send(Message::Text(t)).await.is_err() {
+                                return;
+                            }
+                        }
+                        None => {
+                            let _ = ws.close(None).await;
+                            return;
+                        }
+                    }
+                }
+            });
+
+            // Lo snapshot: un tag scritto adesso e uno fermo da un'ora.
+            let adesso = now_unix_ms();
+            tx.send(Some(format!(
+                r#"{{"type":"snapshot","tags":[{},{}],"seq":0}}"#,
+                voce("a", 1, adesso),
+                voce("b", 1, adesso - 3_600_000)
+            )))
+            .unwrap();
+            let (_tags, _ricarica) = spawn_tag_subscription(&base).await.unwrap();
+            assert_eq!(
+                ritardo::al_fotogramma(now_unix_ms()),
+                0,
+                "lo snapshot non è un ritardo, nemmeno col tag fermo da un'ora"
+            );
+
+            // Un delta arrivato con 8 s di coda.
+            tx.send(Some(delta(&[voce("a", 2, now_unix_ms() - 8_000)])))
+                .unwrap();
+            let eta = aspetta(0, |e| e >= 7_000).await;
+            assert_eq!(
+                ritardo::testo_fascia(eta, "it").as_deref(),
+                Some("Dati in ritardo di 8 s"),
+                "{eta} ms"
+            );
+
+            // Una foglia scritta adesso, e la sorella ritrasmessa col suo ts
+            // di un'ora fa: il lotto è fresco.
+            let ora = now_unix_ms();
+            tx.send(Some(delta(&[
+                voce("s.x", 3, ora),
+                voce("s.y", 0, ora - 3_600_000),
+            ])))
+            .unwrap();
+            let eta = aspetta(0, |e| e < ritardo::SOGLIA_MS).await;
+            assert!(eta < 1_000, "la sorella vecchia non conta: {eta} ms");
+
+            // Il server chiude: sei secondi dopo i valori sono in ritardo.
+            tx.send(None).unwrap();
+            let eta = aspetta(6_000, ritardo::in_ritardo).await;
+            assert!(ritardo::in_ritardo(eta), "socket giù da 6 s: {eta} ms");
+        });
     }
 }

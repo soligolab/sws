@@ -224,7 +224,7 @@ script. Ogni volta che qualcosa «va a scatti» si finisce a indovinare.
 
 ## Il precedente che dice che serve
 
-`docs/plans/2026-10-17-tag-uguali-ritrasmessi.md` — «trovato col banco di prestazioni»: il
+`docs/archive/2026-10-17-tag-uguali-ritrasmessi.md` — «trovato col banco di prestazioni»: il
 `TagDb` ritrasmette anche i valori invariati, e i generatori fanno 10 aggiornamenti al secondo
 per tag verso ogni client. Quel difetto è stato trovato perché una misura esisteva. Quello di
 stasera non si trova, perché la misura che servirebbe non c'è.

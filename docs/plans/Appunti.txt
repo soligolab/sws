@@ -379,3 +379,68 @@ Annoto di seguito, uno per punto, le cose che devono essere verificate e trasfor
   funziona solo nel viewer web. Da L1 l'editor lo dice sotto la scelta della funzione, su un progetto LVGL. Farlo
   eseguire al pannello vuol dire che il viewer LVGL chiami `POST /api/script/run/<nome>` coi parametri del bottone
   (ha già un client HTTP verso il runtime per le scritture), e decidere cosa mostra se la funzione fallisce.
+
+- (09-11-2026, dalla revisione del ramo A del viewer leggero) **Un socket dei tag vivo ma muto non si vede.** Con il
+  cavo del pannello staccato la connessione TCP resta aperta per minuti: il server (`handle_ws` in
+  `sws-web/src/router.rs`) non manda ping e il batcher manda solo quando ha voci; il viewer web (`tagStream.ts`) reagisce
+  solo a `close`, il viewer LVGL (`spawn_tag_subscription` in `client.rs`) non ha un tempo massimo di silenzio. Per tutti
+  e due è un «impianto fermo col socket vivo», e la fascia «Dati in ritardo» non si accende. Servirebbe un battito: un
+  frame leggero dal server ogni 2 s anche senza voci (`{"type":"tick","ts":…}`), e nei due client il socket vale giù dopo
+  5 s di silenzio. Cambia il protocollo WS: prima una sessione di plan. Intanto il collaudo prova la fascia fermando il
+  runtime (piano 2026-11-09-viewer-leggero, §10).
+
+- (09-11-2026, revisione del ramo A) **Il login del pannello LVGL non ha le attese di 10 s e 60 s.** Sul web il login dice
+  «Il pannello risponde lentamente…» dopo 10 s e si ferma a 60 s con «Nessuna risposta, riprova» (decisione del
+  09-11); il §5-bis del piano le elenca solo per il web. Sul LVGL `client::login` non ha un tempo massimo, e
+  `net_worker` è una coda sola (Q55): mentre il login è appeso restano in coda anche le scritture della pagina. Da
+  fare: in `net_worker` il login dentro un `select!` con un timer di 10 s (stato «lento» nell'avviso) e un `timeout` di
+  60 s, e due testi di sistema nuovi (`accesso_lento`, `accesso_nessuna_risposta`, cinque lingue) in
+  `testi_sistema.rs`, `testiSistema.ts` e `tests/fixtures/testi-sistema.json`. Da chiedere prima se vale la stessa
+  decisione del web.
+  **Fatto nel ramo B il 09-11-2026** (92191898, 92a3bd0e): stesse attese del web, testi `accesso_lento` e
+  `accesso_senza_risposta`, e il login su un thread suo, così le scritture non lo aspettano. Collaudo: voce 14 del
+  viewer leggero in `COLLAUDI_IN_SOSPESO.md`.
+
+- (09-11-2026, revisione del ramo A) **Una mini tendenza ferma sta in basso sul web e a metà sul LVGL.** Con un valore
+  fermo per tutta la finestra (`lo = hi`) il web disegna la linea sul fondo (`range = hi - lo || 1` in
+  `miniSerie.ts:disegno`, com'era già `SparklineWidget`), e sembra uno zero; il LVGL a metà altezza (`SCALA_Y / 2` in
+  `mini_serie.rs`), come il segnaposto del web con meno di due punti. È una scelta d'aspetto: chiederla al maintainer,
+  poi scriverla una volta sola nei due `disegno` (solo con la scala automatica).
+
+- (09-11-2026, revisione del ramo A) **La sparkline LVGL non riempie l'area sotto la linea** (`spark_fill`,
+  `spark_fill_opacity`; la kpi sul web la riempie al 15%): `lv_chart` 8.3 non lo fa per lo scatter, va disegnata con
+  un evento di disegno. E con la fascia «Dati in ritardo» accesa gli oggetti di una finestra LVGL aperta sono grigi ma
+  pieni (il velo sta sotto le finestre), mentre sul web sono al 55%: un secondo velo dentro l'area della finestra va
+  agganciato alla sua distruzione (`LV_EVENT_DELETE`), altrimenti resta un puntatore a un oggetto già cancellato.
+
+- (09-11-2026, dal banco del ramo A) **Il flusso dei tubi costa 59 ricalcoli di stile al secondo per tubo.** Sul template
+  Montagna a 1 Hz, CPU ×6, una finestra di giorno arriva al 25,3% contro il 25% del §9: quasi tutto è fuori dallo
+  script, ed è l'animazione `sws-flow` (`stroke-dashoffset` in CSS, `SvgCanvas.tsx`, il ramo `pipe_flow`), che non si
+  compone sulla GPU e ricalcola stile e pittura a ogni fotogramma, solo quando FV e inverter producono. Strade: una
+  `steps(8)` nell'animazione (10 aggiornamenti al secondo invece di 60, più a scatti), o un tratteggio che si muove con
+  un `transform`. È una scelta d'aspetto, e il LVGL anima il flusso a modo suo.
+  **Deciso dal maintainer il 09-11-2026: per la 2.26.0-rc.10 si accetta così.** Il profilo del ramo B (copia a 10 Hz,
+  CPU ×6) dice che il nostro codice ora pesa poco (script 4,3 s ogni 30 s, React al 6%) e che il resto, circa il 40%
+  del thread, è pittura e layout del browser a ~20 fotogrammi al secondo: l'animazione dei tubi e i valori a 10 Hz.
+  Si riprende **quando sarà un problema vero**, e allora **con un occhio a tutte le animazioni** (flusso dei tubi,
+  lampeggio, moto lungo un percorso, dissolvenze delle foto, barre), non solo ai tubi: parole del maintainer,
+  «vorrei analizzare la cosa quando sarà un vero problema e in quel caso con un occhio a tutte le animazioni».
+
+- (09-11-2026, revisione del ramo B) **Il server manda tutti i delta finché non arriva un subscribe.** Il filtro
+  nasce vuoto, cioè «tutti» (`sub_cell` in `sws-runtime/crates/sws-web/src/router.rs:9311-9312`), e un subscribe `[]`
+  vale lo stesso «tutti» (:9475). Quindi all'avvio il viewer riceve tutti i tag finché non arrivano le pagine
+  (`getProject`, `listSynoptics`, N `getPaginaComposta`), e una pagina senza tag non può chiedere «niente». Il
+  rimedio è un default «niente finché non chiedi», o un subscribe che voglia dire «nessuno»: tocca il protocollo,
+  il relay remoto (`/ws/remote/*`), l'IDE (che manda già `["*"]` a ogni apertura) e il viewer LVGL, che non manda
+  mai subscribe (`client.rs:1630-1760`). Dal lato client resta fatto quel che si poteva: la lista della pagina si
+  rimanda a ogni apertura e una lista uguale non si rimanda (`ws/tagStream.ts`). Il §13 del piano «viewer leggero»
+  lo annotava solo per la pagina senza tag.
+
+- (09-11-2026, revisione del ramo B) **Il ciclo della radice di `SvgCanvas` resta O(oggetti) a ogni messaggio.**
+  Per ogni oggetto gira `stesseDipendenze`, e ogni `<g>` involucro riceve uno `style` e un `onPress` nuovi
+  (`sws-editor/src/canvas/SvgCanvas.tsx`, il ciclo `ordinati.map` intorno a :2060-2200), quindi React aggiorna
+  sempre il DOM anche quando il memo salta l'oggetto: nel profilo con 300 oggetti e React di produzione,
+  `updateProperties` 385 ms e `commitHostUpdate` 227 ms. I costi facili sono tolti il 09-11 (elenco fisso delle
+  prop, lucchetto in cache, ordine in `useMemo`); il resto è il §7 del piano, un involucro per oggetto iscritto da
+  solo, da aprire solo se una pagina con centinaia di oggetti lo mostra nel profilo: il banco del ramo B dice che
+  il collo di bottiglia ora è la pittura del browser, non il nostro JavaScript.

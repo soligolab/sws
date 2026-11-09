@@ -119,9 +119,12 @@ mod lvgl_font;
 mod lvgl_indev;
 mod lvgl_log;
 mod lvgl_render;
+mod lvgl_ritardo;
+mod mini_serie;
 mod model;
 mod net_worker;
 mod parametri;
+mod ritardo;
 mod session;
 mod simbolo_lib;
 mod svg_assets;
@@ -270,6 +273,13 @@ struct Args {
     /// vero e nient'altro.
     #[arg(long)]
     avviso_di_prova: Option<String>,
+
+    /// Accende la fascia «Dati in ritardo» con un ritardo **finto** di tanti
+    /// secondi (09-11-2026), per guardarla senza staccare la rete del pannello.
+    /// Come `--avviso-di-prova`, funziona anche con `--istantanea`. Vince sulla
+    /// misura vera solo quando è più grande.
+    #[arg(long, value_name = "SECONDI")]
+    ritardo_di_prova: Option<u64>,
 
     /// Backend di rendering. "sdl2" (default) apre una finestra SDL2 — vedi
     /// docs/OPEN_QUESTIONS.md Q14 per i bug noti su Wayland/X11/kmsdrm reali.
@@ -484,6 +494,9 @@ fn main() -> anyhow::Result<()> {
     lvgl_log::install();
 
     let mut args = Args::parse();
+    if let Some(s) = args.ritardo_di_prova {
+        ritardo::di_prova(s);
+    }
 
     // Q55: le scritture di rete girano su un thread loro, non sul runtime condiviso.
     net_worker::avvia();
@@ -1200,6 +1213,9 @@ fn scrivi_istantanea(
     let mut finestra: Option<lvgl_render::FinestraViva> = None;
     let mut comandi_nav = 0;
     let mut overlay_avviso = lvgl_avviso::Overlay::new();
+    // La fascia «Dati in ritardo» (09-11-2026): con `--ritardo-di-prova` è
+    // l'unico modo di vederla disegnata senza staccare la rete di un pannello.
+    let mut fascia_ritardo = lvgl_ritardo::Fascia::new();
     let giri = (per_ms / PASSO_MS).max(1);
     let punti: Vec<(i32, i32)> = match tocca {
         None => Vec::new(),
@@ -1278,6 +1294,7 @@ fn scrivi_istantanea(
             }
         }
         {
+            let eta = ritardo::al_fotogramma(client::now_unix_ms());
             let tags = shared_tags
                 .lock()
                 .unwrap_or_else(|e| e.into_inner())
@@ -1286,6 +1303,12 @@ fn scrivi_istantanea(
             if let Some(f) = finestra.as_mut() {
                 lvgl_render::update_bindings(&mut f.live, &tags, lang_table, shared_lang);
             }
+            fascia_ritardo.sincronizza(
+                eta,
+                shared_lang,
+                finestra.as_ref().map(|f| f.area()),
+                overlay_avviso.credenziali(),
+            );
             // Le finestre si servono DENTRO il ciclo, fra un tocco e l'altro:
             // il secondo tocco di `--tocca "a;b"` deve poter cadere su un
             // bottone che esiste solo perché il primo ha aperto la finestra.
@@ -1534,6 +1557,8 @@ fn run_drm(
     // Vive quanto il loop: dentro ci sono i contesti delle callback, che LVGL
     // tiene per puntatore.
     let mut overlay_avviso = lvgl_avviso::Overlay::new();
+    // La fascia «Dati in ritardo» (09-11-2026). Vedi `run_window`.
+    let mut fascia_ritardo = lvgl_ritardo::Fascia::new();
 
     // La finestra modale aperta, al più una (22-10-2026): vive quanto il
     // ciclo, e la pagina sotto resta dov'è.
@@ -1542,6 +1567,7 @@ fn run_drm(
         let frame_start = Instant::now();
 
         let t_tag = Instant::now();
+        let eta = ritardo::al_fotogramma(client::now_unix_ms());
         let tags_now = {
             let tags = shared_tags
                 .lock()
@@ -1557,6 +1583,12 @@ fn run_drm(
             mostra_rifiuto(&shared_session, &avviso);
             tags
         };
+        fascia_ritardo.sincronizza(
+            eta,
+            &shared_lang,
+            finestra.as_ref().map(|f| f.area()),
+            overlay_avviso.credenziali(),
+        );
         tempi::registra("tag", t_tag.elapsed());
 
         tempi::misura("lvgl", lvgl::task_handler);
@@ -1816,6 +1848,10 @@ fn run_window(
     // Vive quanto il loop: dentro ci sono i contesti delle callback, che LVGL
     // tiene per puntatore.
     let mut overlay_avviso = lvgl_avviso::Overlay::new();
+    // La fascia «Dati in ritardo» (09-11-2026, stessa regola del viewer web):
+    // nasce spenta e si accende da sé quando i valori a schermo hanno più di
+    // 5 s, o il socket è giù da più di 5 s.
+    let mut fascia_ritardo = lvgl_ritardo::Fascia::new();
     // Mutabili: il display segue la pagina aperta (18-10-2026), quindi misura,
     // passo di riga e margine si rileggono quando la pagina cambia misura.
     let (mut hor_res, mut ver_res) = (hor_res, ver_res);
@@ -1913,6 +1949,10 @@ fn run_window(
         }
 
         let t_tag = Instant::now();
+        // L'età dei valori che questo giro mette a schermo. **Prima** di
+        // `update_bindings`: gli oggetti con effetti la leggono lì, per il
+        // grigio della fascia accesa.
+        let eta = ritardo::al_fotogramma(client::now_unix_ms());
         let tags_now = {
             // Lock breve: solo per clonare lo stato corrente, mai tenuto
             // durante le chiamate FFI a LVGL più sotto.
@@ -1930,6 +1970,12 @@ fn run_window(
             mostra_rifiuto(&shared_session, &avviso);
             tags
         };
+        fascia_ritardo.sincronizza(
+            eta,
+            &shared_lang,
+            finestra.as_ref().map(|f| f.area()),
+            overlay_avviso.credenziali(),
+        );
         tempi::registra("tag", t_tag.elapsed());
 
         // Qui LVGL processa l'indev (click/drag) e può invocare sincronamente

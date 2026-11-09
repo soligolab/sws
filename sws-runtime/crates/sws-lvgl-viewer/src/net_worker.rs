@@ -22,10 +22,14 @@
 //!   coda, e il difetto — se ricapita — si legge nel log invece di essere silenzio.
 //!
 //! Questo thread **non tocca mai LVGL**: fa solo rete e scrive sul log.
+//!
+//! L'accesso (`Comando::Accedi`) non sta nella coda: ogni login parte su un
+//! thread suo, della stessa forma (`accedi_a_parte`). Nella coda un login lento
+//! — fino a 60 s — tratteneva le scritture arrivate dopo, anche dopo «Annulla».
 
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::OnceLock;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use sws_core::tag::TagValue;
 
@@ -65,6 +69,9 @@ pub enum Comando {
     AvviaAggiornamento {
         base_url: String,
         token: Option<String>,
+        /// Dove dire che il runtime ha risposto: «Aggiornamento in avvio…»
+        /// finisce lì (09-11-2026).
+        avviso: Option<crate::aggiornamento::SharedAvviso>,
     },
     /// L'accesso chiesto dall'avviso di aggiornamento (20-10-2026).
     ///
@@ -76,12 +83,24 @@ pub enum Comando {
     /// Porta con sé gli `Arc` dello stato perché la risposta va scritta da
     /// qui: il pulsante che ha chiesto l'accesso, quando il token arriva, è
     /// già stato distrutto e ricostruito dal loop di disegno.
+    ///
+    /// Non passa dalla coda delle scritture: ha un thread suo
+    /// (`accedi_a_parte`), così un login lento non le trattiene.
     Accedi {
         base_url: String,
         utente: String,
         password: String,
         sessione: crate::session::SharedSession,
         avviso: crate::aggiornamento::SharedAvviso,
+        /// Il numero del tentativo (`aggiornamento::accesso_in_corso`): la
+        /// risposta conta solo se il pannellino aspetta ancora questo.
+        tentativo: u64,
+        /// I 60 s dal tocco su «Accedi» (09-11-2026, come il web): qui si
+        /// smette di aspettare, alla stessa ora in cui la card rinuncia. È il
+        /// tetto di questo comando al posto di `TETTO_DI_TEMPO`: con quello
+        /// un login lento spariva a 15 s senza dire niente, e la card restava
+        /// in attesa finché qualcuno non premeva «Annulla».
+        scadenza: Instant,
     },
     /// La configurazione del servizio riscritta dal pannello (02-10-2026).
     AggiornaQuadlet {
@@ -110,6 +129,15 @@ impl Comando {
                 format!("risposta «{scelta}» alla conferma dell'aggiornamento")
             }
             Comando::Accedi { utente, .. } => format!("accesso come '{utente}'"),
+        }
+    }
+
+    /// Quanto aspettare questo comando, da `adesso`: l'accesso fino alla sua
+    /// scadenza, le altre scritture il tetto comune.
+    fn tetto(&self, comune: Duration, adesso: Instant) -> Duration {
+        match self {
+            Comando::Accedi { scadenza, .. } => scadenza.saturating_duration_since(adesso),
+            _ => comune,
         }
     }
 }
@@ -144,8 +172,16 @@ async fn esegui(cmd: Comando) -> anyhow::Result<()> {
             }
             r
         }
-        Comando::AvviaAggiornamento { base_url, token } => {
-            client::avvia_aggiornamento(&base_url, token.as_deref()).await
+        Comando::AvviaAggiornamento {
+            base_url,
+            token,
+            avviso,
+        } => {
+            let r = client::avvia_aggiornamento(&base_url, token.as_deref()).await;
+            if let Some(a) = avviso {
+                crate::aggiornamento::avvio_risposto(&a, r.is_ok());
+            }
+            r
         }
         Comando::AggiornaQuadlet { base_url, token } => {
             client::aggiorna_quadlet(&base_url, token.as_deref()).await
@@ -161,9 +197,18 @@ async fn esegui(cmd: Comando) -> anyhow::Result<()> {
             password,
             sessione,
             avviso,
+            tentativo,
+            scadenza: _,
         } => {
             match client::login(&base_url, &utente, &password).await {
                 Ok(ok) => {
+                    // Prima si chiede al pannellino se aspetta ancora, poi si
+                    // entra: dopo la rinuncia a 60 s o un «Annulla» la
+                    // risposta non conta, e chi ha rinunciato resta fuori.
+                    let Ok(azione) = crate::aggiornamento::accesso_riuscito(&avviso, tentativo)
+                    else {
+                        anyhow::bail!("risposta arrivata quando non si aspettava più, ignorata");
+                    };
                     let token = ok.token.clone();
                     if let Ok(mut s) = sessione.lock() {
                         s.set_logged_in(ok);
@@ -172,11 +217,18 @@ async fn esegui(cmd: Comando) -> anyhow::Result<()> {
                     // poteva: la pagina si ridisegna (29-10-2026).
                     crate::session::chiedi_ridisegno();
                     // Entrati: si riprende il gesto che aveva chiesto l'accesso.
-                    if let Some(a) = crate::aggiornamento::accesso_riuscito(&avviso) {
+                    if let Some(a) = azione {
                         use crate::aggiornamento::AzioneRichiesta as A;
                         let token = Some(token);
                         let dopo = match a {
-                            A::Aggiorna => Some(Comando::AvviaAggiornamento { base_url, token }),
+                            // Come il tocco con l'accesso già fatto: il
+                            // pulsante resta spento e dice «in avvio». Prima
+                            // la card tornava con «Aggiorna ora» premibile, e
+                            // un secondo tocco faceva un secondo apply.
+                            A::Aggiorna => {
+                                crate::aggiornamento::avvia(&avviso, &base_url, token);
+                                None
+                            }
                             A::Quadlet => Some(Comando::AggiornaQuadlet { base_url, token }),
                             A::Conferma(scelta) => Some(Comando::ConfermaAggiornamento {
                                 base_url,
@@ -195,8 +247,9 @@ async fn esegui(cmd: Comando) -> anyhow::Result<()> {
                     Ok(())
                 }
                 Err(e) => {
-                    // Rifiutate o rete muta: si resta nel pannellino, col motivo.
-                    crate::aggiornamento::accesso_fallito(&avviso, e.to_string());
+                    // Rifiutate o runtime irraggiungibile: si resta nel
+                    // pannellino, col motivo.
+                    crate::aggiornamento::accesso_rifiutato(&avviso, tentativo, e.to_string());
                     Err(e)
                 }
             }
@@ -211,6 +264,7 @@ fn esegui_bloccando(
     tetto: Duration,
 ) -> Result<(), String> {
     let cosa = cmd.descrizione();
+    let tetto = cmd.tetto(tetto, Instant::now());
     // In un blocco `async`: `timeout` crea il suo timer subito, e fuori dal runtime panica.
     match rt.block_on(async { tokio::time::timeout(tetto, esegui(cmd)).await }) {
         Ok(Ok(())) => Ok(()),
@@ -240,30 +294,69 @@ fn e_un_rifiuto(msg: &str) -> bool {
     msg.contains("401") || msg.contains("403")
 }
 
-fn lavora(rx: Receiver<Comando>, tetto: Duration) {
-    let rt = match tokio::runtime::Builder::new_current_thread()
+/// Il runtime a un solo thread di un thread di rete; `None` se non si crea,
+/// col motivo e la `conseguenza` nel log.
+fn runtime_di_rete(conseguenza: &str) -> Option<tokio::runtime::Runtime> {
+    match tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
     {
-        Ok(rt) => rt,
+        Ok(rt) => Some(rt),
         Err(e) => {
-            eprintln!(
-                "[net] runtime del thread di rete non creato: {e} — le scritture non partiranno"
-            );
-            return;
+            eprintln!("[net] runtime del thread di rete non creato: {e} — {conseguenza}");
+            None
         }
-    };
-    while let Ok(cmd) = rx.recv() {
-        if let Err(msg) = esegui_bloccando(&rt, cmd, tetto) {
-            eprintln!("[net] {msg}");
-            if e_un_rifiuto(&msg) {
-                // Lo raccoglie il ciclo di rendering al prossimo giro: qui non
-                // si può toccare LVGL, questo è un altro thread.
-                if let Ok(mut r) = RIFIUTO.lock() {
-                    *r = Some(msg);
-                }
+    }
+}
+
+/// L'esito di un comando: un rifiuto finisce nel log e, se è per
+/// autorizzazione, in [`RIFIUTO`].
+fn registra(esito: Result<(), String>) {
+    if let Err(msg) = esito {
+        eprintln!("[net] {msg}");
+        if e_un_rifiuto(&msg) {
+            // Lo raccoglie il ciclo di rendering al prossimo giro: qui non
+            // si può toccare LVGL, questo è un altro thread.
+            if let Ok(mut r) = RIFIUTO.lock() {
+                *r = Some(msg);
             }
         }
+    }
+}
+
+fn lavora(rx: Receiver<Comando>, tetto: Duration) {
+    let Some(rt) = runtime_di_rete("le scritture non partiranno") else {
+        return;
+    };
+    while let Ok(cmd) = rx.recv() {
+        if matches!(cmd, Comando::Accedi { .. }) {
+            accedi_a_parte(cmd, tetto);
+            continue;
+        }
+        registra(esegui_bloccando(&rt, cmd, tetto));
+    }
+}
+
+/// L'accesso su un thread suo (09-11-2026). Nella coda unica un login lento
+/// — fino a 60 s, la sua scadenza — teneva ferme le scritture arrivate dopo:
+/// un toggle premuto dopo «Annulla» mostrava lo stato vecchio e partiva da
+/// solo quando il login finiva. Qui le scritture non aspettano mai il login,
+/// e «Annulla» non ha niente da liberare: la risposta tardiva la scarta già
+/// `accesso_riuscito`. Stessa forma del thread di rete — un runtime a un
+/// thread suo e `block_on` — e non il runtime condiviso del processo (Q55).
+fn accedi_a_parte(cmd: Comando, tetto: Duration) {
+    let cosa = cmd.descrizione();
+    let avviato = std::thread::Builder::new()
+        .name("sws-net-accesso".into())
+        .spawn(move || {
+            if let Some(rt) = runtime_di_rete("l'accesso non parte") {
+                registra(esegui_bloccando(&rt, cmd, tetto));
+            }
+        });
+    if let Err(e) = avviato {
+        // Il comando è andato col thread mancato: la card rinuncia da sola
+        // alla sua scadenza, con «Nessuna risposta, riprova».
+        eprintln!("[net] thread dell'accesso non avviabile: {e} — {cosa} persa");
     }
 }
 
@@ -342,6 +435,58 @@ mod tests {
         (base, visti)
     }
 
+    /// Un server di login che risponde `status` dopo `ritardo`: con 200 un
+    /// accesso valido, come lo manda il runtime.
+    fn server_login(status: u16, ritardo: Duration) -> String {
+        let l = TcpListener::bind("127.0.0.1:0").unwrap();
+        let base = format!("http://{}", l.local_addr().unwrap());
+        std::thread::spawn(move || {
+            for s in l.incoming() {
+                let mut s = s.unwrap();
+                std::thread::spawn(move || {
+                    let mut buf = [0u8; 8192];
+                    let _ = s.read(&mut buf);
+                    std::thread::sleep(ritardo);
+                    let body =
+                        r#"{"token":"tok","username":"admin","role":"Admin","expires_at_ms":null}"#;
+                    let r = format!(
+                        "HTTP/1.1 {status} X\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                        body.len()
+                    );
+                    let _ = s.write_all(r.as_bytes());
+                });
+            }
+        });
+        base
+    }
+
+    /// Il pannellino d'accesso con le credenziali appena partite.
+    fn accesso_partito(adesso: Instant) -> (crate::aggiornamento::SharedAvviso, u64) {
+        use crate::aggiornamento::{accesso_in_corso, chiedi_accesso, AzioneRichiesta};
+        let avviso: crate::aggiornamento::SharedAvviso = Default::default();
+        chiedi_accesso(&avviso, AzioneRichiesta::Accesso);
+        let n = accesso_in_corso(&avviso, adesso);
+        (avviso, n)
+    }
+
+    fn accedi(
+        base_url: String,
+        avviso: &crate::aggiornamento::SharedAvviso,
+        sessione: &crate::session::SharedSession,
+        tentativo: u64,
+        scadenza: Instant,
+    ) -> Comando {
+        Comando::Accedi {
+            base_url,
+            utente: "admin".into(),
+            password: "pw".into(),
+            sessione: sessione.clone(),
+            avviso: avviso.clone(),
+            tentativo,
+            scadenza,
+        }
+    }
+
     fn rt() -> tokio::runtime::Runtime {
         tokio::runtime::Builder::new_current_thread()
             .enable_all()
@@ -417,6 +562,7 @@ mod tests {
             Comando::AvviaAggiornamento {
                 base_url: base,
                 token: Some("tok".into()),
+                avviso: None,
             },
             Duration::from_secs(5),
         );
@@ -424,6 +570,33 @@ mod tests {
         let req = visti.lock().unwrap()[0].to_lowercase();
         assert!(req.starts_with("post /api/update/apply"), "{req}");
         assert!(req.contains("authorization: bearer tok"), "{req}");
+    }
+
+    /// «Aggiornamento in avvio…» dura fino alla risposta del runtime: con un sì
+    /// il pulsante resta spento («avviato»), con un no torna premibile.
+    #[test]
+    fn la_risposta_all_avvio_dell_aggiornamento_arriva_al_pulsante() {
+        for (status, spento) in [(200, true), (500, false)] {
+            let (base, _) = server(status, false);
+            let avviso: crate::aggiornamento::SharedAvviso = Default::default();
+            {
+                let mut g = avviso.lock().unwrap();
+                g.avvio_chiesto = true;
+                g.avvio_in_volo = true;
+            }
+            let _ = esegui_bloccando(
+                &rt(),
+                Comando::AvviaAggiornamento {
+                    base_url: base,
+                    token: Some("tok".into()),
+                    avviso: Some(avviso.clone()),
+                },
+                Duration::from_secs(5),
+            );
+            let g = avviso.lock().unwrap();
+            assert!(!g.avvio_in_volo, "{status}");
+            assert_eq!(g.aggiornamento_spento(), spento, "{status}");
+        }
     }
 
     #[test]
@@ -458,6 +631,138 @@ mod tests {
         );
         assert!(r.unwrap_err().contains("nessuna risposta"));
         assert!(t0.elapsed() < Duration::from_secs(3));
+    }
+
+    /// Una risposta che arriva quando il pannellino non la aspetta più non fa
+    /// entrare: dopo la rinuncia a 60 s, o dopo «Annulla» (09-11-2026, come
+    /// il web, dove la richiesta si annulla). Prima il token arrivava lo
+    /// stesso, e chi aveva rinunciato si ritrovava dentro.
+    #[test]
+    fn una_risposta_che_non_si_aspetta_piu_non_fa_entrare() {
+        use crate::aggiornamento::{annulla_accesso, Avviso, ACCESSO_MASSIMO};
+        for caso in ["rinuncia a 60 s", "annulla"] {
+            let base = server_login(200, Duration::ZERO);
+            let t0 = Instant::now();
+            let (avviso, n) = accesso_partito(t0);
+            if caso == "annulla" {
+                annulla_accesso(&avviso);
+            } else {
+                avviso
+                    .lock()
+                    .unwrap()
+                    .avanza_attesa(t0 + ACCESSO_MASSIMO, "Nessuna risposta, riprova");
+            }
+            let sessione: crate::session::SharedSession = Default::default();
+            let _ = esegui_bloccando(
+                &rt(),
+                accedi(base, &avviso, &sessione, n, t0 + Duration::from_secs(5)),
+                Duration::from_secs(5),
+            );
+            assert!(
+                !sessione.lock().unwrap().is_logged_in(),
+                "{caso}: chi ha rinunciato resta fuori"
+            );
+            if caso != "annulla" {
+                assert!(
+                    matches!(
+                        avviso.lock().unwrap().avviso(),
+                        Avviso::Accesso { errore: Some(e), in_corso: false, .. }
+                            if e == "Nessuna risposta, riprova"
+                    ),
+                    "il pannellino resta com'era"
+                );
+            }
+        }
+    }
+
+    /// Il login aspetta fino alla sua scadenza, i 60 s dal tocco, e non il
+    /// tetto comune delle scritture. Prima a 15 s il comando spariva senza
+    /// scrivere niente, e la card restava in attesa finché qualcuno non
+    /// premeva «Annulla».
+    #[test]
+    fn il_login_aspetta_la_sua_scadenza_non_il_tetto_comune() {
+        let base = server_login(401, Duration::from_millis(600));
+        let t0 = Instant::now();
+        let (avviso, n) = accesso_partito(t0);
+        let sessione: crate::session::SharedSession = Default::default();
+        let _ = esegui_bloccando(
+            &rt(),
+            accedi(base, &avviso, &sessione, n, t0 + Duration::from_secs(5)),
+            Duration::from_millis(200),
+        );
+        let g = avviso.lock().unwrap();
+        let a = g.accesso.as_ref().expect("il pannellino resta aperto");
+        assert!(!a.in_corso, "la card non resta in attesa");
+        assert!(
+            a.errore.as_deref().is_some_and(|e| e.contains("401")),
+            "{:?}",
+            a.errore
+        );
+    }
+
+    /// E alla scadenza smette davvero di aspettare: la richiesta si
+    /// abbandona alla stessa ora in cui la card rinuncia.
+    #[test]
+    fn il_login_si_ferma_alla_scadenza() {
+        let (base, _) = server(200, true);
+        let t0 = Instant::now();
+        let (avviso, n) = accesso_partito(t0);
+        let sessione: crate::session::SharedSession = Default::default();
+        let r = esegui_bloccando(
+            &rt(),
+            accedi(base, &avviso, &sessione, n, t0 + Duration::from_millis(300)),
+            Duration::from_secs(5),
+        );
+        assert!(r.unwrap_err().contains("nessuna risposta"));
+        assert!(t0.elapsed() < Duration::from_secs(3), "{:?}", t0.elapsed());
+    }
+
+    /// Un login lento non trattiene le scritture (rilievo del 09-11-2026).
+    /// Nella coda unica un PutTag premuto mentre il login aspettava partiva
+    /// dopo la sua risposta — fino a 60 s, anche dopo «Annulla»: il bottone
+    /// mostrava lo stato vecchio e il comando partiva da solo più tardi.
+    #[test]
+    fn un_login_lento_non_trattiene_le_scritture() {
+        use crate::aggiornamento::annulla_accesso;
+        let lento = server_login(200, Duration::from_secs(3));
+        let (veloce, visti) = server(200, false);
+        let t0 = Instant::now();
+        let (avviso, n) = accesso_partito(t0);
+        let sessione: crate::session::SharedSession = Default::default();
+        let (tx, rx) = mpsc::channel();
+        tx.send(accedi(
+            lento,
+            &avviso,
+            &sessione,
+            n,
+            t0 + Duration::from_secs(60),
+        ))
+        .unwrap();
+        // L'operatore rinuncia e preme un pulsante della pagina.
+        annulla_accesso(&avviso);
+        tx.send(Comando::PutTag {
+            base_url: veloce,
+            tag: "pompa.avvio".into(),
+            value: TagValue::Bool(true),
+            token: None,
+        })
+        .unwrap();
+        drop(tx);
+        // `lavora` esce quando il canale si chiude e la scrittura è partita.
+        lavora(rx, Duration::from_secs(5));
+        let atteso = t0.elapsed();
+        assert!(
+            !visti.lock().unwrap().is_empty(),
+            "la scrittura non è partita"
+        );
+        assert!(
+            atteso < Duration::from_millis(1500),
+            "la scrittura ha aspettato il login: {atteso:?}"
+        );
+        assert!(
+            !sessione.lock().unwrap().is_logged_in(),
+            "chi ha rinunciato resta fuori"
+        );
     }
 
     #[test]

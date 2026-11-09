@@ -11,9 +11,10 @@
  *  I tasti premuti dentro la finestra non arrivano alle scorciatoie
  *  dell'editor (`stopPropagation`); quelli che partono da fuori — il fuoco su
  *  `body` — li ferma un ascoltatore in cattura e il fuoco torna qui. */
-import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type ComponentProps } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
+import { CampoPassword } from "@/components/CampoPassword";
 import { finestreAperte, iscriviti, rispondiA, type Richiesta } from "./finestraAvviso";
 
 /** Sopra le finestre dell'IDE (fino a 10000) e del viewer (9600). */
@@ -84,6 +85,19 @@ function Finestra({ r, attiva = true, livello = 0 }: { r: Richiesta; attiva?: bo
     const msg = r.valida?.(testo) ?? null;
     if (msg) { setErrore(msg); return; }
     chiudi(testo);
+  };
+
+  /** Il campo di `chiedi`, uguale con e senza password: solo il tipo cambia. */
+  const campoChiedi: ComponentProps<"input"> & { "data-testid": string } = {
+    "data-testid": "finestra-avviso-campo", value: testo,
+    ref: (el) => { predefinito.current = el; },
+    onChange: (e) => { setTesto(e.target.value); setErrore(null); },
+    "aria-invalid": errore ? true : undefined,
+    style: {
+      width: "100%", boxSizing: "border-box", padding: "8px 10px", fontSize: 13, borderRadius: 5,
+      background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)",
+      border: `1px solid ${errore ? "var(--brand-danger, #ef4444)" : "var(--brand-border, #475569)"}`,
+    },
   };
 
   // Il fuoco al predefinito all'apertura, e a chi l'aveva alla chiusura. «Chi
@@ -204,16 +218,11 @@ function Finestra({ r, attiva = true, livello = 0 }: { r: Richiesta; attiva?: bo
         )}
         {r.tipo === "chiedi" && (
           <div>
-            <input data-testid="finestra-avviso-campo" type={r.password ? "password" : "text"} value={testo}
-              autoComplete={r.password ? "current-password" : "off"}
-              ref={(el) => { predefinito.current = el; }}
-              onChange={(e) => { setTesto(e.target.value); setErrore(null); }}
-              aria-invalid={errore ? true : undefined}
-              style={{
-                width: "100%", boxSizing: "border-box", padding: "8px 10px", fontSize: 13, borderRadius: 5,
-                background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)",
-                border: `1px solid ${errore ? "var(--brand-danger, #ef4444)" : "var(--brand-border, #475569)"}`,
-              }} />
+            {/* Con `password` è il CampoPassword, con l'occhio (09-11-2026): la
+                password di un comando critico sul pannello si scrive col touch. */}
+            {r.password
+              ? <CampoPassword {...campoChiedi} autoComplete="current-password" />
+              : <input {...campoChiedi} type="text" autoComplete="off" />}
             {errore && (
               <div role="alert" data-testid="finestra-avviso-errore"
                 style={{ fontSize: 12, marginTop: 6, color: "var(--brand-danger-soft, #fca5a5)" }}>{errore}</div>

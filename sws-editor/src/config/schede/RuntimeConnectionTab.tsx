@@ -1,3 +1,4 @@
+import { CampoPassword } from "@/components/CampoPassword";
 import { AbbinaPannelloCloud } from "@/config/schede/AbbinaPannelloCloud";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
@@ -806,8 +807,8 @@ export function RuntimeConnectionTab() {
             </div>
             <div style={{ flex: 1 }}>
               <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 4 }}>{t("cfg.swsPassword")} <span style={{ color: "var(--brand-text-subtle, #94a3b8)" }}>{t("cfg.optional")}</span></label>
-              <input style={{ ...INPUT, width: "100%", boxSizing: "border-box" }}
-                type="password" placeholder="••••••••" value={targetPass}
+              <CampoPassword style={{ ...INPUT, width: "100%", boxSizing: "border-box" }}
+                placeholder="••••••••" value={targetPass}
                 onChange={(e) => setTargetPass(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && !connected && handleConnect()} />
             </div>

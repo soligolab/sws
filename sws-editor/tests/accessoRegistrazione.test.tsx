@@ -35,7 +35,8 @@ describe("la schermata d'accesso", () => {
     fireEvent.change(campo(container, 'input[autocomplete="email"]'), { target: { value: "mario@tizio.it" } });
     fireEvent.change(campo(container, 'input[autocomplete="current-password"]'), { target: { value: "password-lunga" } });
     fireEvent.submit(container.querySelector("form")!);
-    await waitFor(() => expect(login).toHaveBeenCalledWith("mario@tizio.it", "password-lunga", true));
+    // Il segnale è quello che ferma il login a 60 s (09-11-2026).
+    await waitFor(() => expect(login).toHaveBeenCalledWith("mario@tizio.it", "password-lunga", true, false, expect.any(AbortSignal)));
   });
 
   it("il PIN: prima l'indirizzo, poi il codice", async () => {

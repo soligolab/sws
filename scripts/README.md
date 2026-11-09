@@ -281,6 +281,7 @@ Quelle che girano su file fermi:
 | `check_vendor_patches.sh` | le patch al sorgente C vendored spariscono a un aggiornamento |
 | `check_templates.sh` | i template restano indietro rispetto al runtime |
 | `check_demo_templates.sh` | i due gemelli "Demo Items" divergono fra loro |
+| `check_fixture_template.sh` | la guardia `tests/dipendenzeComplete.test.tsx` gira su oggetti che i template non hanno più. La guardia monta ogni oggetto di `demo-items-web`, `demo-items-lvgl`, `grid-playground` e `montagna-rinnovabile` e controlla che legga solo i tag dichiarati da `dipendenzeOggetto` (un tag non dichiarato il filtro di pagina non lo chiede, e l'oggetto resta fermo). Gli oggetti arrivano da `sws-editor/tests/fixtures/oggettiTemplate.json`, scritta da PyYAML perché in `node_modules` un parser YAML non c'è; questa guardia la confronta coi template. `--aggiorna` la riscrive (piano «viewer leggero», 09-11-2026) |
 | `check_systemd_units.sh` | trappole note nelle unit che spediamo: condizioni di livello che fanno ciclare una unit, `.path` verso unit inesistenti, `ExecStart=` relativi |
 | `check_synoptic_schema.sh` | `synoptic_schema.rs` resta indietro rispetto alle sue quattro fonti, e l'assistente IA riceve un vocabolario che non è più quello vero |
 | `check_session_start.sh` | `session_start.sh` perde lavoro o tace su una release a metà: reset su commit locali che origin non ha, tag lasciati sulla storia vecchia, **tag di versione che origin non ha** (prova anche che non li pushi da sé), avanzamenti ad albero sporco |

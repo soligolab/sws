@@ -2,6 +2,7 @@
  *  `docs/plans/2026-10-26-aprire-sws-soligo-net.md`). Solo per chi si è
  *  registrato da sé: fuori subito, cancellato fra 30 giorni, e la piattaforma
  *  lo può riattivare prima. La password conferma che a chiudere è davvero lui. */
+import { CampoPassword } from "@/components/CampoPassword";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
@@ -35,7 +36,7 @@ export function ChiudiAccount({ onAnnulla, onChiuso }: { onAnnulla: () => void; 
         <div style={{ fontSize: 13, lineHeight: 1.5, color: "var(--brand-text-2, #cbd5e1)" }}>{t("accesso.chiudiSpiegazione")}</div>
         <div>
           <label style={etichettaAccesso}>{t("accesso.chiudiPassword")}</label>
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)}
+          <CampoPassword value={password} onChange={(e) => setPassword(e.target.value)}
             autoComplete="current-password" autoFocus style={campoAccesso} />
         </div>
         {errore && <div style={erroreAccesso}>{errore}</div>}

@@ -1,3 +1,4 @@
+import { CampoPassword } from "@/components/CampoPassword";
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
@@ -137,7 +138,7 @@ function Fornitore({ f, onCambiato }: { f: AiConfig["fornitori"][number]; onCamb
       </Stato>
       <label style={etichetta}>
         {t("cfgUi.apiKey")}
-        <input type="password" value={chiave} data-testid={`ia-chiave-${f.id}`}
+        <CampoPassword value={chiave} data-testid={`ia-chiave-${f.id}`}
           placeholder={f.chiave ? t("cfgUi.savedLeaveEmptyToKeep") : "sk-…"}
           onChange={(e) => setChiave(e.target.value)} style={{ ...campo, marginTop: 4 }} />
         <span style={{ display: "block", marginTop: 2 }}>{t("cfgUi.itNeverEntersTheProject")}</span>

@@ -160,13 +160,17 @@ export function dalTag(d: DescrizioneTag, chiave: string): string | number | und
 }
 
 const cacheDescrizioni = new WeakMap<readonly TagDef[], { types: readonly TypeDef[]; mappa: Map<string, DescrizioneTag> }>();
+/** Il default di `types`, uno solo: un `[]` nuovo a ogni chiamata non è mai
+ *  quello della cache, e un progetto senza tipi rifaceva la mappa a ogni
+ *  disegno di ogni oggetto (piano «viewer leggero», passo 5e). */
+const NESSUN_TIPO: readonly TypeDef[] = [];
 
 /** Id → descrizione, per le radici **e per le foglie** (02-11-2026): un testo
  *  legato a `inverter.main.grid_voltage` prende unità e decimali dal membro del
  *  tipo, come uno legato a una variabile semplice li prende dal suo `TagDef`.
  *  Prima le foglie non ereditavano niente, e una tabella mostrava
  *  `235.60000000000002`. Una mappa sola per progetto, finché tag e tipi non cambiano. */
-export function descrizioniDeiTag(tags: readonly TagDef[], types: readonly TypeDef[] = []): Map<string, DescrizioneTag> {
+export function descrizioniDeiTag(tags: readonly TagDef[], types: readonly TypeDef[] = NESSUN_TIPO): Map<string, DescrizioneTag> {
   const c = cacheDescrizioni.get(tags);
   if (c && c.types === types) return c.mappa;
   const mappa = new Map<string, DescrizioneTag>();

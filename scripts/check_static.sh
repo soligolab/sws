@@ -33,6 +33,7 @@ STATICHE=(
     check_vendor_patches    # le patch al sorgente vendored sono ancora applicate
     check_templates         # tutti i template contro il runtime
     check_demo_templates    # i due gemelli "Demo Items" fra loro
+    check_fixture_template  # la fixture della guardia dipendenzeComplete è quella dei template
     check_systemd_units     # trappole note nelle unit che spediamo
      # lo script host dell'immagine di boot, provato con un launcher finto
     check_synoptic_schema   # il vocabolario dato all'assistente IA contro le sue fonti
@@ -65,6 +66,7 @@ STATICHE=(
     check_finestra_avviso   # i pop-up del browser (alert/confirm/prompt) non tornano: tetti per file che scendono, a zero dopo F3
     check_testi_sistema     # «Ora», «sì», «N/D»: una tabella, e le due implementazioni la contengono parola per parola
     check_campi_numerici    # i campi numerici dell'editor passano da CampoNumero: il «-» da tastiera non si perde
+    check_campi_password    # i campi password passano da CampoPassword: l'occhio che mostra quello che si è scritto, ovunque
     check_colori            # i colori predefiniti sono una tabella sola: creazione, pannello e template senza var(--), swatch sempre hex
     check_predefiniti       # i predefiniti dei campi: una tabella scritta nei file (creazione e apertura), e i ripieghi web che non la contraddicono
     check_intestazioni      # CSP, nosniff, referrer e limiti per indirizzo su ogni router, e nessuno script in linea nelle pagine dell'IDE

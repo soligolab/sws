@@ -8,6 +8,7 @@
  *  **Le due caselle sono due di proposito**: accettare le condizioni e approvare
  *  in modo specifico le clausole che la legge vuole approvate a parte (artt.
  *  1341-1342 c.c.) — `docs/legale/LEGGIMI.md`, punto 2 da verificare. */
+import { CampoPassword } from "@/components/CampoPassword";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, RateLimitedError, RuntimeUnavailableError, type LoginOk } from "@/api/client";
@@ -126,12 +127,12 @@ export function Registrazione({
       </div>
       <div>
         <label style={etichettaAccesso}>{t("auth.password")}</label>
-        <input type="password" value={password} onChange={(e) => setPassword(e.target.value)}
+        <CampoPassword value={password} onChange={(e) => setPassword(e.target.value)}
           autoComplete="new-password" style={campoAccesso} />
       </div>
       <div>
         <label style={etichettaAccesso}>{t("accesso.ripetiPassword")}</label>
-        <input type="password" value={ripetuta} onChange={(e) => setRipetuta(e.target.value)}
+        <CampoPassword value={ripetuta} onChange={(e) => setRipetuta(e.target.value)}
           autoComplete="new-password" style={campoAccesso} />
       </div>
       {problema && (password || ripetuta) && <div style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)" }}>{problema}</div>}

@@ -8,8 +8,8 @@ meta:
 # `inverter.temperatura`, `idro.marcia`, `villaggio.illuminazione`. Ogni cosa c'è una volta
 # sola, ma un secondo inverter o una seconda turbina si aggiungono con un'istanza in più.
 # Restano variabili piatte quelle che non sono una cosa dell'impianto: l'ora simulata e la
-# luce, il bilancio (`s.*`) e il cursore della pagina Lago. Lo scambio con la rete e
-# l'energia di oggi vengono da un generatore, che su un'istanza non si può mettere.
+# luce, il bilancio (`s.*`) e il cursore della pagina Lago. Nessun tag ha un generatore:
+# tutto quello che si muove lo scrive lo script «giornata», una volta al secondo.
 types:
 - id: campo_fv
   description: Pensiline fotovoltaiche del parcheggio
@@ -126,31 +126,21 @@ tags:
   data_type: float
   type_ref: villaggio_alpino
 - id: s.rete_scambio
-  description: Scambio con la rete (positivo = energia ceduta alla rete)
+  description: Scambio con la rete (positivo = energia ceduta alla rete). Lo scrive lo script «giornata» una volta al
+    secondo
   data_type: float
   unit: kW
   range_lo: -150.0
   range_hi: 150.0
   decimals: 1
-  generator:
-    shape: triangle
-    period_ms: 150000
-    min: -60.0
-    max: 90.0
-    enabled: true
 - id: s.energia_oggi
-  description: Energia rinnovabile prodotta oggi (fotovoltaico + idroelettrico)
+  description: Energia rinnovabile prodotta oggi (fotovoltaico + idroelettrico). La scrive lo script «giornata» una volta
+    al secondo
   data_type: float
   unit: kWh
   range_lo: 0.0
   range_hi: 6000.0
   decimals: 0
-  generator:
-    shape: ramp
-    period_ms: 600000
-    min: 0.0
-    max: 5200.0
-    enabled: true
 - id: c.giorno_notte
   description: 'Cursore della pagina Lago: 0 = notte, 100 = giorno'
   data_type: float
@@ -182,6 +172,15 @@ global_scripts:
         h = h - 24.0
     tags.write("s.ora", round(h, 2))
     tags.write("s.luce", round(1.0 - abs(h - 12.0) / 12.0, 3))
+    # Lo scambio con la rete e l'energia di oggi erano generatori anche loro, e
+    # cambiavano 10 volte al secondo: sul WP630 la pagina iniziale si ridisegnava a
+    # ogni cambio, e dopo un quarto d'ora Chromium occupava un core intero (09-11-2026).
+    # Le forme sono quelle di prima. Lo scambio è un triangolo da -60 a 90 kW, con un
+    # periodo di 6 ore simulate (150 s); l'energia sale da 0 a 5200 kWh in tutta la
+    # giornata, e a mezzanotte riparte da zero.
+    r = abs((h / 3.0) % 2.0 - 1.0)
+    tags.write("s.rete_scambio", round(-60.0 + 150.0 * (1.0 - r), 1))
+    tags.write("s.energia_oggi", round(5200.0 * h / 24.0, 0))
     s = (h - 6.0) / 12.0
     sole = 4.0 * s * (1.0 - s) if 0.0 < s < 1.0 else 0.0
     p_inv = 112.0 * 0.965 * sole

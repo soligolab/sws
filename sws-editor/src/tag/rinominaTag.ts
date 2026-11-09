@@ -125,9 +125,11 @@ function sostituisciNellaEspressioneBinding(
   return { testo, n };
 }
 
-// Calcolato alla prima chiamata, non all'import: collectTagIds passa da
-// SvgCanvas, che passa dallo store, che importa questo modulo — al momento
-// dell'import `TAG_FIELDS` può non essere ancora inizializzato (ciclo).
+// Calcolato alla prima chiamata, non all'import: fino al 09-11-2026
+// collectTagIds passava da SvgCanvas, che passa dallo store, che importa questo
+// modulo, e al momento dell'import `TAG_FIELDS` poteva non essere ancora
+// inizializzato (ciclo). Il giro non c'è più (`canvas/parametriFaceplate.ts`);
+// la chiamata pigra resta, e non costa niente.
 let campiTag: ReadonlySet<string> | null = null;
 function CAMPI(): ReadonlySet<string> {
   campiTag ??= new Set<string>([...TAG_FIELDS, "tag", "y_tag", "visible_tag"]);

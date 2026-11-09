@@ -2039,6 +2039,10 @@
     "noProject": "Nessun progetto aperto nell'editor. Aprine uno prima di chiedere: gli strumenti leggerebbero il vuoto.",
     "blocked": "Il browser ha bloccato la finestra della chat. Consenti i popup per questo sito e riprova — la conversazione qui è intatta."
   },
+  "campoPassword": {
+    "mostra": "Mostra la password",
+    "nascondi": "Nascondi la password"
+  },
   "campoTradotto": {
     "riusoTitolo": "«{{testo}}» esiste già nella tabella lingue ({{key}}).",
     "riusoDove": "\n\nQuella voce è già usata {{usi}} volta/e: tradurla una volta le cambia tutte.",
@@ -2463,7 +2467,10 @@
     "backToTheProjectList": "← Torna all'elenco progetti",
     "inMemorySessionsARuntime": "Sessioni in-memory: un riavvio del runtime ti disconnette automaticamente.",
     "troppiTentativi": "Troppi tentativi falliti. Riprova tra {{s}}s.",
-    "accountBloccato": "Account bloccato. Riprova tra {{s}}s."
+    "accountBloccato": "Account bloccato. Riprova tra {{s}}s.",
+    "rispondeLentamente": "Il pannello risponde lentamente…",
+    "serverRispondeLentamente": "Il server risponde lentamente…",
+    "nessunaRisposta": "Nessuna risposta, riprova"
   },
   "accesso": {
     "conPin": "Entra con un PIN via e-mail",
@@ -4221,8 +4228,6 @@
     "analizza": "Analizza",
     "variabiliSel": "{{n}} variabili — {{sel}} selezionate",
     "tipo": "Tipo",
-    "nascondi": "Nascondi",
-    "mostra": "Mostra",
     "passwordEnv": "Password da env (opz.) — alternativa al campo password, letta a runtime",
     "passwordEnvPh": "es. MQTT_PUMP1_PWD",
     "abilitaTls": "Abilita TLS",

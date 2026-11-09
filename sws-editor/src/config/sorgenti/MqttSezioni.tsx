@@ -1,3 +1,4 @@
+import { CampoPassword } from "@/components/CampoPassword";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
@@ -25,7 +26,6 @@ export function MqttAuthSection({
   onChange: (patch: Partial<MqttSource>) => void;
 }) {
   const { t } = useTranslation();
-  const [show, setShow] = useState(false);
   return (
     <>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 12 }}>
@@ -44,24 +44,13 @@ export function MqttAuthSection({
             Password{" "}
             <span style={{ color: "var(--brand-text-subtle, #94a3b8)" }}>{t("cfgUi.leaveToKeepUnchanged")}</span>
           </label>
-          <div style={{ display: "flex", gap: 4 }}>
-            <input
-              style={S.input}
-              type={show ? "text" : "password"}
-              value={source.password ?? ""}
-              onChange={(e) => onChange({ password: e.target.value || undefined })}
-              autoComplete="new-password"
-              spellCheck={false}
-            />
-            <button
-              type="button"
-              style={S.btn("ghost")}
-              onClick={() => setShow((v) => !v)}
-              title={show ? t("sorgenti.nascondi") : t("sorgenti.mostra")}
-            >
-              {show ? "🙈" : "👁"}
-            </button>
-          </div>
+          <CampoPassword
+            style={S.input}
+            value={source.password ?? ""}
+            onChange={(e) => onChange({ password: e.target.value || undefined })}
+            autoComplete="new-password"
+            spellCheck={false}
+          />
         </div>
         <div>
           <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>

@@ -73,6 +73,10 @@ pub enum Testo {
     CmdServeAccesso,
     AggIgnora,
     AggInCorso,
+    /// Dal tocco su «Aggiorna ora» alla partenza, login compreso (09-11-2026).
+    AggInAvvio,
+    /// La fascia del viewer quando i valori a schermo sono vecchi (09-11-2026, `{n}` i secondi).
+    DatiInRitardo,
     EsitoTitoloOk,
     EsitoTitoloKo,
     EsitoVersioni,
@@ -108,6 +112,10 @@ pub enum Testo {
     ConfAccedi,
     ConfUtente,
     ConfPassword,
+    // Le attese del login sul pannello (09-11-2026, come il web): dopo 10 s
+    // senza risposta, e a 60 s, quando si rinuncia.
+    AccessoLento,
+    AccessoSenzaRisposta,
 }
 
 /// Tutte le voci, per i test che devono iterarle senza ripetere l'elenco a
@@ -144,6 +152,8 @@ pub const TUTTI: &[Testo] = &[
     Testo::CmdServeAccesso,
     Testo::AggIgnora,
     Testo::AggInCorso,
+    Testo::AggInAvvio,
+    Testo::DatiInRitardo,
     Testo::EsitoTitoloOk,
     Testo::EsitoTitoloKo,
     Testo::EsitoVersioni,
@@ -167,6 +177,8 @@ pub const TUTTI: &[Testo] = &[
     Testo::ConfAccedi,
     Testo::ConfUtente,
     Testo::ConfPassword,
+    Testo::AccessoLento,
+    Testo::AccessoSenzaRisposta,
 ];
 
 /// Dal nome nella fixture alla voce. `None` = la fixture ha una voce che
@@ -204,6 +216,8 @@ pub fn da_nome(nome: &str) -> Option<Testo> {
         "cmd_serve_accesso" => Testo::CmdServeAccesso,
         "agg_ignora" => Testo::AggIgnora,
         "agg_in_corso" => Testo::AggInCorso,
+        "agg_in_avvio" => Testo::AggInAvvio,
+        "dati_in_ritardo" => Testo::DatiInRitardo,
         "esito_titolo_ok" => Testo::EsitoTitoloOk,
         "esito_titolo_ko" => Testo::EsitoTitoloKo,
         "esito_versioni" => Testo::EsitoVersioni,
@@ -227,6 +241,8 @@ pub fn da_nome(nome: &str) -> Option<Testo> {
         "conf_accedi" => Testo::ConfAccedi,
         "conf_utente" => Testo::ConfUtente,
         "conf_password" => Testo::ConfPassword,
+        "accesso_lento" => Testo::AccessoLento,
+        "accesso_senza_risposta" => Testo::AccessoSenzaRisposta,
         _ => return None,
     })
 }
@@ -413,6 +429,18 @@ pub fn testo(t: Testo, lingua: &str) -> &'static str {
         (AggInCorso, "es") => "Actualización iniciada…",
         (AggInCorso, _) => "Update started…",
 
+        (AggInAvvio, "it") => "Aggiornamento in avvio…",
+        (AggInAvvio, "de") => "Aktualisierung wird gestartet…",
+        (AggInAvvio, "fr") => "Démarrage de la mise à jour…",
+        (AggInAvvio, "es") => "Iniciando la actualización…",
+        (AggInAvvio, _) => "Starting the update…",
+
+        (DatiInRitardo, "it") => "Dati in ritardo di {n} s",
+        (DatiInRitardo, "de") => "Daten um {n} s verzögert",
+        (DatiInRitardo, "fr") => "Données en retard de {n} s",
+        (DatiInRitardo, "es") => "Datos con {n} s de retraso",
+        (DatiInRitardo, _) => "Data delayed by {n} s",
+
         (EsitoTitoloOk, "it") => "Aggiornamento completato",
         (EsitoTitoloOk, "de") => "Aktualisierung abgeschlossen",
         (EsitoTitoloOk, "fr") => "Mise à jour terminée",
@@ -545,6 +573,16 @@ pub fn testo(t: Testo, lingua: &str) -> &'static str {
         (ConfPassword, "fr") => "Mot de passe",
         (ConfPassword, "es") => "Contraseña",
         (ConfPassword, _) => "Password",
+        (AccessoLento, "it") => "Il pannello risponde lentamente…",
+        (AccessoLento, "de") => "Das Panel antwortet langsam…",
+        (AccessoLento, "fr") => "Le panneau répond lentement…",
+        (AccessoLento, "es") => "El panel responde lentamente…",
+        (AccessoLento, _) => "The panel is responding slowly…",
+        (AccessoSenzaRisposta, "it") => "Nessuna risposta, riprova",
+        (AccessoSenzaRisposta, "de") => "Keine Antwort, bitte erneut versuchen",
+        (AccessoSenzaRisposta, "fr") => "Pas de réponse, réessayez",
+        (AccessoSenzaRisposta, "es") => "Sin respuesta, inténtalo de nuevo",
+        (AccessoSenzaRisposta, _) => "No response, try again",
     }
 }
 

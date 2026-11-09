@@ -2039,6 +2039,10 @@
     "noProject": "No project open in the editor. Open one before asking: the tools would read nothing.",
     "blocked": "The browser blocked the chat window. Allow pop-ups for this site and retry — the conversation here is intact."
   },
+  "campoPassword": {
+    "mostra": "Show password",
+    "nascondi": "Hide password"
+  },
   "campoTradotto": {
     "riusoTitolo": "“{{testo}}” is already in the language table ({{key}}).",
     "riusoDove": "\n\nThat entry is already used {{usi}} time(s): translating it once changes them all.",
@@ -2463,7 +2467,10 @@
     "backToTheProjectList": "← Back to the project list",
     "inMemorySessionsARuntime": "In-memory sessions: a runtime restart signs you out automatically.",
     "troppiTentativi": "Too many failed attempts. Try again in {{s}}s.",
-    "accountBloccato": "Account locked. Try again in {{s}}s."
+    "accountBloccato": "Account locked. Try again in {{s}}s.",
+    "rispondeLentamente": "The panel is responding slowly…",
+    "serverRispondeLentamente": "The server is responding slowly…",
+    "nessunaRisposta": "No response, try again"
   },
   "accesso": {
     "conPin": "Use a PIN by e-mail instead",
@@ -4221,8 +4228,6 @@
     "analizza": "Analyze",
     "variabiliSel": "{{n}} variables — {{sel}} selected",
     "tipo": "Type",
-    "nascondi": "Hide",
-    "mostra": "Show",
     "passwordEnv": "Password from env (opt.) — alternative to the password field, read at runtime",
     "passwordEnvPh": "e.g. MQTT_PUMP1_PWD",
     "abilitaTls": "Enable TLS",

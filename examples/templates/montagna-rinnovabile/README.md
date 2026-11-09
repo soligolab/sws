@@ -32,7 +32,8 @@
 - **Una giornata in 10 minuti**: `s.ora` va da 0 a 24, `s.luce` da 0 (mezzanotte) a 1 (mezzogiorno). Lo script
   `giornata`, una volta al secondo, fa seguire l'ora al fotovoltaico (zero dalle 18 alle 6) e alla temperatura
   dell'inverter, fa salire e scendere il consumo del villaggio, e fa girare la turbina quando `idro.marcia` è acceso.
-  Lo scambio con la rete e l'energia di oggi sono generatori.
+  Scrive anche il bilancio: lo scambio con la rete va e viene fra −60 e 90 kW, e l'energia di oggi sale fino a
+  5.200 kWh e a mezzanotte riparte da zero. Nessun tag ha un generatore: tutto cambia una volta al secondo.
 - **Tre simboli disegnati dall'assistente** nel progetto: `prj:turbina-idro` e `prj:lampione-stradale` (Opus),
   `prj:turbina-pelton` (Kimi).
 

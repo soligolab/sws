@@ -22,6 +22,7 @@
  *  foglia, quindi senza memoria si ridigiterebbe tutto a ogni giro. La
  *  password no: quella si riscrive ogni volta, di proposito.
  */
+import { CampoPassword } from "@/components/CampoPassword";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { getAuthToken } from "@/api/client";
@@ -219,9 +220,8 @@ export function ContainerTab() {
             />
             {/* La password solo nello stato: mai in localStorage (regola del
                 2026-09-09), a differenza di host, porta e utente qui sopra. */}
-            <input
-              style={{ ...INPUT, width: 130 }}
-              type="password"
+            <CampoPassword
+              style={{ ...INPUT, width: 160 }}
               autoComplete="off"
               title={t("cfg.sshPassword")}
               placeholder={t("cfg.passwordSession")}

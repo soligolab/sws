@@ -1,3 +1,4 @@
+import { CampoPassword } from "@/components/CampoPassword";
 import { BrandLogo } from "@/components/BrandLogo";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -90,8 +91,7 @@ export function PrimoAmministratoreScreen({ onFatto }: { onFatto: () => void }) 
         </Campo>
 
         <Campo etichetta={t("primoAccesso.password")}>
-          <input
-            type="password"
+          <CampoPassword
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             autoComplete="new-password"
@@ -100,8 +100,7 @@ export function PrimoAmministratoreScreen({ onFatto }: { onFatto: () => void }) 
         </Campo>
 
         <Campo etichetta={t("primoAccesso.ripetiPassword")}>
-          <input
-            type="password"
+          <CampoPassword
             value={conferma}
             onChange={(e) => setConferma(e.target.value)}
             autoComplete="new-password"

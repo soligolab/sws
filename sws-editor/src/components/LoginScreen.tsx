@@ -1,3 +1,4 @@
+import { CampoPassword } from "@/components/CampoPassword";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { BrandLogo } from "@/components/BrandLogo";
@@ -17,6 +18,14 @@ import {
 import { AccessoPin } from "@/components/accesso/AccessoPin";
 import { Registrazione } from "@/components/accesso/Registrazione";
 
+/** Le attese del login (decisione del maintainer, 09-11-2026). Sul WP630 in
+ *  affanno il pulsante restava su «Accesso…» per minuti, e sembrava bloccato:
+ *  dopo 10 s dice che il pannello è lento, a 60 s si ferma e lo dice. Con le
+ *  credenziali dell'installazione (l'IDE, il gateway) a rispondere è il server
+ *  dell'IDE, non un pannello, e il testo lo dice. */
+const LOGIN_LENTO_MS = 10_000;
+const LOGIN_MAX_MS = 60_000;
+
 /**
  * Minimal login screen shown when the store has no auth token.
  * Calls POST /api/auth/login, stores the returned token, and the App
@@ -31,8 +40,13 @@ import { Registrazione } from "@/components/accesso/Registrazione";
 export function LoginScreen({
   onCancel,
   motivo,
+  testoAttesa,
 }: {
   onCancel?: () => void;
+  /** Il testo del pulsante mentre la richiesta è in volo, al posto di
+   *  «Accesso…»: il login chiesto da «Aggiorna ora» dice «Aggiornamento in
+   *  avvio…», perché è quello che sta succedendo. */
+  testoAttesa?: string;
   /** Chiave i18n del motivo per cui si è finiti qui, quando non è ovvio —
    *  per esempio perché l'autenticazione si è **accesa adesso**, definendo il
    *  primo utente del progetto. Un login comparso dal nulla senza una riga di
@@ -67,6 +81,12 @@ export function LoginScreen({
   const [password, setPassword] = useState("");
   const [error, setError]       = useState<string | null>(null);
   const [busy, setBusy]         = useState(false);
+  // Oltre LOGIN_LENTO_MS senza risposta.
+  const [lento, setLento]       = useState(false);
+  // La richiesta in volo: si annulla a LOGIN_MAX_MS, o se la schermata se ne va
+  // prima — un login riuscito dopo «Annulla» farebbe entrare chi ha rinunciato.
+  const richiesta = useRef<AbortController | null>(null);
+  useEffect(() => () => richiesta.current?.abort(), []);
 
   // Lockout countdown: millisecond epoch when the lockout expires.
   const [lockedUntilMs, setLockedUntilMs] = useState<number | null>(null);
@@ -108,10 +128,16 @@ export function LoginScreen({
     if (isLocked) return;
     setError(null);
     setBusy(true);
+    const ctrl = new AbortController();
+    richiesta.current = ctrl;
+    const avviso = setTimeout(() => setLento(true), LOGIN_LENTO_MS);
+    const stop = setTimeout(() => ctrl.abort(), LOGIN_MAX_MS);
     try {
-      entrato(await api.login(username, password, perInstallazione === true && ricordami));
+      entrato(await api.login(username, password, perInstallazione === true && ricordami, false, ctrl.signal));
     } catch (e: unknown) {
-      if (e instanceof DaConfermareError) {
+      if (ctrl.signal.aborted) {
+        setError(t("login.nessunaRisposta"));
+      } else if (e instanceof DaConfermareError) {
         setVista("conferma");
       } else if (e instanceof RateLimitedError) {
         setLockedUntilMs(Date.now() + e.retryAfterSecs * 1000);
@@ -124,6 +150,10 @@ export function LoginScreen({
       }
       console.warn("login failed:", e);
     } finally {
+      clearTimeout(avviso);
+      clearTimeout(stop);
+      if (richiesta.current === ctrl) richiesta.current = null;
+      setLento(false);
       setBusy(false);
     }
   };
@@ -172,8 +202,7 @@ export function LoginScreen({
         </div>
         <div>
           <label style={etichettaAccesso}>{t("auth.password")}</label>
-          <input
-            type="password"
+          <CampoPassword
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             autoComplete="current-password"
@@ -200,7 +229,10 @@ export function LoginScreen({
           disabled={busy || !password || !username || isLocked}
           style={pulsanteAccesso(busy || isLocked || !password || !username)}
         >
-          {isLocked ? `${t("auth.locked", { s: countdown })}` : busy ? t("auth.loggingIn") : t("auth.login")}
+          {isLocked ? `${t("auth.locked", { s: countdown })}`
+            : busy ? (lento ? t(perInstallazione === true ? "login.serverRispondeLentamente" : "login.rispondeLentamente")
+              : testoAttesa ?? t("auth.loggingIn"))
+            : t("auth.login")}
         </button>
         {(offre.pin || offre.registrazione) && (
           <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>

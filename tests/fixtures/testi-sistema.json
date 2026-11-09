@@ -259,6 +259,20 @@
       "es": "Actualización iniciada…",
       "en": "Update started…"
     },
+    "agg_in_avvio": {
+      "it": "Aggiornamento in avvio…",
+      "de": "Aktualisierung wird gestartet…",
+      "fr": "Démarrage de la mise à jour…",
+      "es": "Iniciando la actualización…",
+      "en": "Starting the update…"
+    },
+    "dati_in_ritardo": {
+      "it": "Dati in ritardo di {n} s",
+      "de": "Daten um {n} s verzögert",
+      "fr": "Données en retard de {n} s",
+      "es": "Datos con {n} s de retraso",
+      "en": "Data delayed by {n} s"
+    },
     "esito_titolo_ok": {
       "it": "Aggiornamento completato",
       "de": "Aktualisierung abgeschlossen",
@@ -419,6 +433,20 @@
       "fr": "Mot de passe",
       "es": "Contraseña",
       "en": "Password"
+    },
+    "accesso_lento": {
+      "it": "Il pannello risponde lentamente…",
+      "de": "Das Panel antwortet langsam…",
+      "fr": "Le panneau répond lentement…",
+      "es": "El panel responde lentamente…",
+      "en": "The panel is responding slowly…"
+    },
+    "accesso_senza_risposta": {
+      "it": "Nessuna risposta, riprova",
+      "de": "Keine Antwort, bitte erneut versuchen",
+      "fr": "Pas de réponse, réessayez",
+      "es": "Sin respuesta, inténtalo de nuevo",
+      "en": "No response, try again"
     }
   }
 }
