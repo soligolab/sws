@@ -12,6 +12,15 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+> **Promemoria per casa (chiesto dal maintainer il 09-11-2026, da dire appena una sessione gira su `ufficio` col TC620
+> che risponde):** cambiare in **Zigbee2MQTT** il tempo dopo cui un dispositivo è dato offline. Il 09-11, fra le 10:04 e
+> le 11:03 UTC, sono arrivati su Telegram sei allarmi «non risponde da un minuto» di CasaDomotica per dispositivi a rete
+> elettrica (`presa.TelevisioneSoggiorno`, `presa.PiastraElettrica`, `Tapparella.PianoTerra.Soggiorno.SX`/`.DX`,
+> `Tapparella.PianoTerra.Bagno` due volte): la soglia di Zigbee2MQTT è più corta del loro ritmo vero. Si cambia nel
+> `configuration.yaml` di Zigbee2MQTT, `availability` → `active.timeout` (minuti, dispositivi a rete) e
+> `passive.timeout` (minuti, a batteria) — nomi da riscontrare sulla versione installata. In SWS non c'è niente da
+> cambiare: l'allarme scatta un minuto dopo che Zigbee2MQTT dice offline, come deve.
+
 ## ▶ Riprendere da qui — dispositivi MQTT collaudati, piano archiviato (2026-11-09 mattina)
 
 Il maintainer ha staccato e riattaccato `presa.Laboratorio` sul TC620 con la **rc.9**: l'allarme di disponibilità
