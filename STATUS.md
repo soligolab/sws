@@ -12,7 +12,7 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — la 2.26.0-rc.8: dispositivi MQTT, e CasaDomotica con una sorgente MQTT sola (2026-11-08 sera, ufficio)
+## ▶ Riprendere da qui — la 2.26.0-rc.9: dispositivi MQTT, allarmi con ritardo, e CasaDomotica con una sorgente MQTT sola (2026-11-08 sera, ufficio)
 
 **`main` e il tag `2.26.0-rc.8` su origin**, immagini arm64 e amd64 pubblicate. Il tag `2.26.0-rc.7` è su origin
 **senza immagine**: la build è stata fermata prima di pubblicare, perché provando la parte B è uscito il difetto delle
@@ -36,8 +36,16 @@ aperto, descrizioni aggiornate) e non pubblica più `e_rev`; il TC620 è sulla *
 unico è deployato e «tutto funziona regolarmente» (maintainer, 08-11). Il contatore del rack del garage è rotto:
 `garage_meter.*` restano senza valore finché non arriva il ricambio, e il progetto non va toccato.
 
-**Resta**: il collaudo «stacca Sandokan» con la sorgente unica (Bad solo `sandokan.*`, il resto Good), poi il piano
-si archivia.
+**Collaudo dello stacco, sera dell'08-11, con `presa.Laboratorio`**: pallino rosso solo su di lei, `plug_lab.*` Bad, il
+resto Good, `mqtt-casa.presa_laboratorio.disponibile` falso — **passato**. L'allarme di disponibilità invece **non è
+scattato**: difetto vecchio del motore degli allarmi (un `on_delay_s` si ricontrollava solo a un valore nuovo, e il tag
+di disponibilità si scrive solo ai cambi). Corretto in `ce5c6b91` (`AlarmDb::scadenze`, ogni secondo), verificato su
+un runtime di prova, nella **rc.9** (`17ae0a1f`): VPS e progetti su `17ae0a1f-amd64` (ripiego `288b6e4e`), il TC620
+aggiornato via ssh (`podman-auto-update`, su richiesta del maintainer) alle 23:42.
+
+**Domani mattina**: staccare di nuovo `presa.Laboratorio` e vedere l'allarme «Il dispositivo «presa.Laboratorio» non
+risponde da un minuto» comparire un minuto dopo l'offline, e rientrare riattaccandola. Se passa, il piano
+[mqtt-dispositivi](docs/plans/2026-11-08-mqtt-dispositivi.md) si archivia.
 
 ## ▶ Riprendere da qui — la 2.26.0-rc.6 pubblicata: le due correzioni del collaudo dell'08-11 (2026-11-08, ufficio)
 
