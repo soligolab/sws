@@ -21,6 +21,63 @@
 > `passive.timeout` (minuti, a batteria) — nomi da riscontrare sulla versione installata. In SWS non c'è niente da
 > cambiare: l'allarme scatta un minuto dopo che Zigbee2MQTT dice offline, come deve.
 
+## ▶ Riprendere da qui — la 2.26.0-rc.10: il viewer leggero e l'occhio sulle password, da collaudare sul TC620 (2026-11-09 sera, theobroma)
+
+**`main` e il tag `2.26.0-rc.10` su origin** (push con `/finalizza-giornata`), nessun ramo aperto. Immagini
+`be8066eb-arm64`/`-amd64` e `2.26.0-rc.10-*` pubblicate alle 20:40, `rc-arm64` spostato. **VPS** gateway e progetti su
+`be8066eb-amd64` (ripiego `17ae0a1f-amd64`, rc.9), `check_gateway_immagine` verde, tunnel del TC620 riaperto. Il
+**TC620** di casa è sulla rc.9: la prima prova del banco è aggiornarlo dal viewer. Il **WP630** dell'ufficio è spento, sulla
+rc.9, col progetto Montagna a 10 Hz che fa da prova di carico.
+
+**Da dove è nato (09-11, ufficio).** Il login per l'aggiornamento sul WP630 restava su «Logging in…» per minuti: non
+era il login ma la pagina iniziale di Montagna, che dopo 10-20 minuti teneva il browser del pannello al 96% di un core
+(mini tendenze con fino a 36.000 punti, pagina ridisegnata a ogni messaggio, due generatori a 10 Hz), con ogni richiesta
+in ritardo di minuti e i valori a schermo vecchi di mezzo minuto senza avviso. Da qui la regola nuova di `CLAUDE.md`
+«Un'anomalia che rovina l'uso passa davanti» e il piano [viewer leggero](docs/plans/2026-11-09-viewer-leggero.md).
+
+**Fatto, in `main` con lo squash `791a3ed8`** (catena A → B → occhio, rami eliminati, definition of done verde:
+`cargo test` 1675+, vitest 2302, 56 guardie):
+- **Ramo A**: mini tendenze a secchielli (≤ 4 punti per colonna, la linea arriva ad «adesso» e scorre anche a valore
+  fermo; kpi in edit con mini tendenza e variazione), i valori allo store una volta per fotogramma, Montagna a 1 Hz nel
+  template, la fascia **«Dati in ritardo di N s»** oltre 5 s con gli oggetti grigi (web e LVGL, stesse regole), il login
+  che dice **«Il pannello risponde lentamente…»** a 10 s e si ferma a 60 s, **«Aggiornamento in avvio…»** dal tocco alla
+  partenza; LVGL: la sparkline non accumula poller né campioni e chiede lo storico una volta.
+- **Ramo B**: le dipendenze di ogni oggetto in un posto solo, ogni oggetto si ridisegna solo quando cambia un suo tag,
+  il filtro di pagina non si perde a riconnessione e login; LVGL: un login lento non trattiene le scritture.
+- **L'occhio sulle password** ([piano](docs/plans/2026-11-09-occhio-sulle-password.md)): `CampoPassword` nei 36 campi
+  di 22 file e nella Finestra di avviso, guardia `check_campi_password.sh`, la stessa icona su LVGL (tastiera e login).
+- **Banco** (`tmp/viewer-leggero/`, solo theobroma; copia di Montagna a 10 Hz, CPU ×6, 15 min): prima dal 43% al 99%
+  con 21.708 punti e risposte fino a 7,2 s; ora piatto fra 27% e 60% con ~500 punti e risposte entro ~20 ms; a velocità
+  piena dal 23-26% al 6-8%. Il costo rimasto è la pittura del browser (animazione `sws-flow` dei tubi, valori a 10 Hz):
+  **accettato dal maintainer per la rc.10**, da riprendere «quando sarà un problema vero, con un occhio a tutte le
+  animazioni» (`Appunti.txt`).
+
+**Decisioni del maintainer del 09-11** (tutte nel piano §4): fascia + grigi oltre 5 s; avviso a 10 s e stop a 60 s; template
+a 1 Hz e WP630 invariato; il bus del server non cambia; occhio ovunque, nascosto all'inizio, icona nel campo; tutto nella
+rc.10. Scelte mie da confermare a schermo: nell'IDE il login lento dice «Il server risponde lentamente…»; dopo 10 s
+l'avviso vince su «Aggiornamento in avvio…»; l'occhio sta nell'ordine del Tab (`tabIndex={-1}` se non piace).
+
+**Il collaudo, cosa guardare**: il banco `python3 scripts/banco_collaudo/server.py` → `:8471`, 32 prove in 7 gruppi scritti
+per casa: 0 aggiornamento del TC620 alla rc.10 dal viewer (prova anche il login nuovo); 1 viewer leggero sul TC620 (una
+pagina «Collaudo» in CasaDomotica da arricchire con tubo, faceplate, toggle, comando critico; la fascia si prova fermando
+il runtime 10 s, non staccando la rete); 2 LVGL; 3 IDE cloud e locale; 4 occhio sul pannello; 5 il resto dal cloud; 9 WP630
+(aspetta l'ufficio). Le voci sono in `docs/COLLAUDI_IN_SOSPESO.md`, sezioni «Il viewer leggero» e «L'occhio sulle
+password». Prima della 2.26.0 vera: gli esiti del banco, poi lo squash delle correzioni.
+
+**La CI di GitHub sarà rossa sul job «Rust audit» a questo push**, e non per il lavoro di oggi: `cargo audit` ha preso
+stasera l'avviso **RUSTSEC-2026-0459** (CVE-2026-119375 nello SQLite in C, gravità 6,8) su `libsqlite3-sys 0.30.1`, che
+arriva da `rusqlite 0.32` (`sws-historian`, `sws-identita`, `sws-web`). Il rimedio è salire a `libsqlite3-sys ≥ 0.39`,
+cioè `rusqlite 0.41` (nove versioni, bundled): non è un `cargo update`, è un ramo suo, da fare per primo a casa prima di
+toccare altro codice. Non l'ho messo in `audit.toml`: lo SQLite lo usiamo davvero. Stamattina lo stesso comando era
+verde: è il database degli avvisi che si è aggiornato in giornata. Il resto della CI (fmt, clippy, lint, type-check,
+test) è verde in locale.
+
+**Promemoria per casa** (già sopra): la soglia di offline di Zigbee2MQTT.
+
+**Appunti nuovi del 09-11**: l'animazione dei tubi e tutte le animazioni; un battito sul socket per la fascia; «subscribe
+vuoto = tutti» nel protocollo WS; il §7 del piano (iscrizione per oggetto) se le misure lo chiedono; `spark_fill` su
+LVGL; la linea ferma in basso sul web e a metà su LVGL; il velo dentro le finestre LVGL.
+
 ## ▶ Riprendere da qui — dispositivi MQTT collaudati, piano archiviato (2026-11-09 mattina)
 
 Il maintainer ha staccato e riattaccato `presa.Laboratorio` sul TC620 con la **rc.9**: l'allarme di disponibilità

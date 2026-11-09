@@ -444,3 +444,8 @@ Annoto di seguito, uno per punto, le cose che devono essere verificate e trasfor
   prop, lucchetto in cache, ordine in `useMemo`); il resto è il §7 del piano, un involucro per oggetto iscritto da
   solo, da aprire solo se una pagina con centinaia di oggetti lo mostra nel profilo: il banco del ramo B dice che
   il collo di bottiglia ora è la pittura del browser, non il nostro JavaScript.
+
+- (09-11-2026, chiusura della rc.10) **`rusqlite` da 0.32 a 0.41** (`sws-runtime/Cargo.toml:51`, usata da `sws-historian`,
+  `sws-identita`, `sws-web`): `cargo audit` segnala RUSTSEC-2026-0459 su `libsqlite3-sys 0.30.1` (CVE-2026-119375 nello
+  SQLite in C, 6,8), rimedio `libsqlite3-sys ≥ 0.39` = rusqlite recente. Il job «Rust audit» della CI è rosso finché non si
+  sale. Da fare per primo, in un ramo suo, con i test dello storico e delle identità come guardia.
