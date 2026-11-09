@@ -64,7 +64,7 @@ il runtime 10 s, non staccando la rete); 2 LVGL; 3 IDE cloud e locale; 4 occhio 
 (aspetta l'ufficio). Le voci sono in `docs/COLLAUDI_IN_SOSPESO.md`, sezioni «Il viewer leggero» e «L'occhio sulle
 password». Prima della 2.26.0 vera: gli esiti del banco, poi lo squash delle correzioni.
 
-**La CI di GitHub sarà rossa sul job «Rust audit» a questo push**, e non per il lavoro di oggi: `cargo audit` ha preso
+*(10-11: **risolto** in `5539e708`, `rusqlite` 0.41.1 / SQLite 3.54.1, `cargo audit` verde; entra nella rc.11.)* **La CI di GitHub sarà rossa sul job «Rust audit» a questo push**, e non per il lavoro di oggi: `cargo audit` ha preso
 stasera l'avviso **RUSTSEC-2026-0459** (CVE-2026-119375 nello SQLite in C, gravità 6,8) su `libsqlite3-sys 0.30.1`, che
 arriva da `rusqlite 0.32` (`sws-historian`, `sws-identita`, `sws-web`). Il rimedio è salire a `libsqlite3-sys ≥ 0.39`,
 cioè `rusqlite 0.41` (nove versioni, bundled): non è un `cargo update`, è un ramo suo, da fare per primo a casa prima di
