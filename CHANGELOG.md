@@ -158,6 +158,10 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   il salvataggio non è finito.
 
 ### Corretto
+- **SQLite 3.54.1, per l'avviso RUSTSEC-2026-0459** (CVE-2026-119375 nello SQLite in C, gravità 6,8, 09-11-2026).
+  `rusqlite` sale da 0.32 a 0.41 e `libsqlite3-sys` da 0.30 a 0.39 (bundled). Il codice di `sws-historian`,
+  `sws-identita` e `sws-web` compila senza modifiche e i test passano tutti. `cargo audit` torna verde senza nuove
+  eccezioni in `audit.toml`.
 - **Il viewer leggero, ramo A** (piano `docs/plans/2026-11-09-viewer-leggero.md`, 09-11-2026). Sul WP630 la pagina
   iniziale di Montagna saturava il processore dopo un quarto d'ora, e i valori arrivavano vecchi. Al banco
   (`tmp/viewer-leggero/banco`, Chromium a CPU ×6, copia del template a 10 Hz, 15 minuti) la pagina passava dal 43% al
