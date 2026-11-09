@@ -185,6 +185,27 @@ la cancellazione stessa a rendere impossibile il parallelo. Fa eccezione
 `backup/main-pre-riscrittura-2026-09-09`, che non è un ramo di lavoro ma la storia pre-riscrittura
 e **non si tocca**.
 
+## Un'anomalia che rovina l'uso passa davanti (regola del maintainer, 2026-11-09)
+
+**Quando salta fuori un'anomalia che pesa davvero sull'esperienza di chi usa il prodotto, non si
+annota per dopo e non si scrive un seme: si chiude quello che è in corso e si parte subito con
+piano e correzione.** Se aiuta, il ramo della correzione si annida su quello aperto (regola «un
+ramo alla volta», opzione 2) invece di aspettare che il primo sia collaudato. Parole del
+maintainer: «quando incappiamo in anomalie così impattanti per l'esperienza utente organizzati per
+concludere le attività in corso poi iniziare subito plan e correzione, eventualmente annidando i
+rami se aiuta».
+
+Il caso che l'ha prodotta: il 09-11-2026 sul WP630 il login per l'aggiornamento restava su
+«Logging in…» per minuti. Non era il login: la pagina iniziale di Montagna, dopo 10-20 minuti,
+teneva il browser del pannello al 96 % di un core, e ogni richiesta (login compreso) partiva con
+minuti di ritardo, con i valori a schermo vecchi di mezzo minuto senza nessun avviso. La proposta
+di trattare la parte grossa come seme è stata respinta: «più che fare il seme fai già il plan e
+correggi, è una cosa importante».
+
+Il metro è chi sta davanti allo schermo: un pannello che smette di rispondere, un dato vecchio
+mostrato come buono, un comando che non parte. Un difetto estetico o un caso raro restano dove
+stavano (`Appunti.txt`, un seme); la regola «piano, non seme» vale per questi.
+
 ## Plans
 
 **Plans go in `docs/plans/<date>-<slug>.md`, committed — never left in `~/.claude/plans/`.** That directory is per-machine and doesn't travel with git, and the maintainer works from two machines (office server, home PC): on 2026-07-30 an analysis written at home never made it to the office while the code did. Instruction of 2026-09-11: «i plan, non tenerli in ~/.claude/plans/ perché altrimenti li perdo tra casa e lavoro». Write the plan there as soon as it's approved — earlier if it's long — and commit it with the work. When a plan is finished or overtaken, move it to `docs/archive/` and add a row to that folder's README — `docs/plans/` should list only what's still in play. Keep the finished plan: it is the record of why things are the way they are.
