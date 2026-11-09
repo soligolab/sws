@@ -1,5 +1,5 @@
 // I dispositivi dentro una sorgente MQTT (08-11-2026, piano
-// `docs/plans/2026-11-08-mqtt-dispositivi.md`).
+// `docs/archive/2026-11-08-mqtt-dispositivi.md`).
 //
 // Una sorgente sola per tutta casa, e per ogni dispositivo il topic che dice
 // se è vivo: quando una presa sparisce diventano Bad solo le sue righe. Qui le

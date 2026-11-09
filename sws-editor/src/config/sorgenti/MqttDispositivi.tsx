@@ -13,7 +13,7 @@ import { SezioneSorgente } from "@/config/sorgenti/card/SezioneSorgente";
 const NESSUNO: never[] = [];
 
 /** La sezione DISPOSITIVI di una sorgente MQTT (08-11-2026, piano
- *  `docs/plans/2026-11-08-mqtt-dispositivi.md`).
+ *  `docs/archive/2026-11-08-mqtt-dispositivi.md`).
  *
  *  Nasce dal collaudo della presa Sandokan, lo stesso giorno: la disponibilità
  *  di sorgente funziona, ma è una per sorgente, e una casa ha trenta

@@ -179,3 +179,19 @@ nella mappa) e produce il blocco YAML. Prima si controlla il diff, poi si applic
   - le pagine Sandokan, Home, Garage e «Finestre e porte» coi valori vivi;
   - lo storico di `sandokan.power` continuo;
   - staccando Sandokan, Bad solo su `sandokan.*`.
+
+## Esito (09-11-2026)
+
+**Fatto, collaudato sul TC620 e archiviato il 09-11-2026.**
+
+- **Parte A** in `main`:
+  - `6b66e9d7`: la funzione;
+  - `8872a435`: la correzione delle sottoscrizioni, perché oltre ~30 righe la sorgente restava «mai collegata».
+- **Parte B** applicata sul VPS l'08-11 e deployata sul TC620 (rc.8): una sorgente `mqtt-casa` con 29 dispositivi e
+  116 righe.
+- **Collaudo con `presa.Laboratorio`** (al posto di Sandokan). Staccata: pallino rosso solo su di lei, `plug_lab.*`
+  Bad, il resto Good.
+- **L'allarme di disponibilità** la sera dell'08-11 non scattava, per un difetto vecchio del motore degli allarmi:
+  un `on_delay_s` si ricontrollava solo a un valore nuovo. Corretto in `ce5c6b91` (`AlarmDb::scadenze`), nella
+  rc.9. Il 09-11 mattina l'allarme compare un minuto dopo l'offline e rientra riattaccandola: «funziona tutto»
+  (maintainer).

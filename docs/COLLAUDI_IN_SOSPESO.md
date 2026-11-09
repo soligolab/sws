@@ -231,6 +231,11 @@ disponibilità (era spenta; timeout attivo 2 min). Presa staccata: `offline` sul
 «not responding since 06:49 PM» col motivo letto dal topic, pallino rosso nell'albero, allarme di disponibilità
 scattato, `sandokan.*` Bad. Riattaccata: `online` alle 18:55:05, tutto verde e Good. La 10 su Modbus/S7 resta.)*
 
+*(09-11-2026, TC620 con la 2.26.0-rc.9 — la **sorgente unica** `mqtt-casa` con 29 dispositivi: staccata
+`presa.Laboratorio`, pallino rosso solo su di lei, `plug_lab.*` Bad e il resto Good; l'allarme «non risponde da un
+minuto» compare un minuto dopo l'offline e rientra riattaccandola. La sera dell'08-11, con la rc.8, l'allarme non
+scattava: difetto del ritardo degli allarmi, corretto in `ce5c6b91`. Passato.)*
+
 ## A-octies. Le card delle sorgenti, ridisegnate (29-10-2026)
 
 Piano `docs/archive/2026-10-29-card-delle-sorgenti.md`. Nasce dal collaudo a schermo di A-septies: il pulsante

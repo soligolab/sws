@@ -12,7 +12,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Aggiunto
-- **MQTT, la disponibilità per dispositivo** (piano `docs/plans/2026-11-08-mqtt-dispositivi.md`, nato dal collaudo
+- **MQTT, la disponibilità per dispositivo** (piano `docs/archive/2026-11-08-mqtt-dispositivi.md`, nato dal collaudo
   della presa Sandokan dell'08-11): `MqttConfig.dispositivi` (`id` + `disponibilita`, la stessa struct della
   sorgente) e `TopicMapping.dispositivo`. Il plugin sottoscrive ogni topic di disponibilità una volta sola; un
   dispositivo morto passa a `Bad` solo le righe che lo nominano, e l'eco di un comando verso di lui non scrive

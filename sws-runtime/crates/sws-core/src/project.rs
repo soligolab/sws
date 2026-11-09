@@ -1043,7 +1043,7 @@ pub struct MqttConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub disponibilita: Option<DisponibilitaMqtt>,
     /// I dispositivi dietro il broker, ognuno col suo topic di disponibilità
-    /// (08-11-2026, piano `docs/plans/2026-11-08-mqtt-dispositivi.md`). Una
+    /// (08-11-2026, piano `docs/archive/2026-11-08-mqtt-dispositivi.md`). Una
     /// sorgente sola per tutta casa: quando una presa sparisce diventano `Bad`
     /// solo le righe che hanno `dispositivo` uguale al suo id, non tutta la
     /// sorgente. Un blocco per dispositivo, perché nella stessa sorgente

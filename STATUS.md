@@ -12,6 +12,21 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — dispositivi MQTT collaudati, piano archiviato (2026-11-09 mattina)
+
+Il maintainer ha staccato e riattaccato `presa.Laboratorio` sul TC620 con la **rc.9**: l'allarme di disponibilità
+compare un minuto dopo l'offline e rientra, «funziona tutto». Il piano
+[mqtt-dispositivi](docs/archive/2026-11-08-mqtt-dispositivi.md) è archiviato, e la nota è in
+`docs/COLLAUDI_IN_SOSPESO.md` (A-septies). Nessun ramo aperto.
+
+**Prossimo**: il resto del banco, che è:
+- gruppo 3: 1125-14, cl-temperature, ap-history;
+- gruppo 9: WP630;
+- L0.1 e L0.3 sul pannello;
+- A-septies punto 8 (Zigbee2MQTT fermo) e punto 10 (Modbus/S7).
+
+Poi la logica unificata L2–L3.
+
 ## ▶ Riprendere da qui — la 2.26.0-rc.9: dispositivi MQTT, allarmi con ritardo, e CasaDomotica con una sorgente MQTT sola (2026-11-08 sera, ufficio)
 
 **`main` e il tag `2.26.0-rc.8` su origin**, immagini arm64 e amd64 pubblicate. Il tag `2.26.0-rc.7` è su origin
@@ -19,7 +34,7 @@
 sottoscrizioni (sotto); la rc.8 porta lo stesso blocco Novità 2.26.0, quindi non si perde niente. VPS: gateway e
 progetti su **`288b6e4e-amd64`** (rc.8), copia del quadlet accanto (`.prima-rc8-…`). Il TC620 è sulla rc.5 o rc.6.
 
-Fatto in sessione ([piano](docs/plans/2026-11-08-mqtt-dispositivi.md)):
+Fatto in sessione ([piano](docs/archive/2026-11-08-mqtt-dispositivi.md)):
 1. **Parte A** (`6b66e9d7`): disponibilità per dispositivo dentro una sorgente MQTT — `dispositivi` + `dispositivo`
    sulle righe, Bad solo sulle righe del dispositivo morto, tag `<sorgente>.<dispositivo>.disponibile`, sezione
    DISPOSITIVI e colonna nella card, «Raggruppa per dispositivo».
@@ -44,8 +59,8 @@ un runtime di prova, nella **rc.9** (`17ae0a1f`): VPS e progetti su `17ae0a1f-am
 aggiornato via ssh (`podman-auto-update`, su richiesta del maintainer) alle 23:42.
 
 **Domani mattina**: staccare di nuovo `presa.Laboratorio` e vedere l'allarme «Il dispositivo «presa.Laboratorio» non
-risponde da un minuto» comparire un minuto dopo l'offline, e rientrare riattaccandola. Se passa, il piano
-[mqtt-dispositivi](docs/plans/2026-11-08-mqtt-dispositivi.md) si archivia.
+risponde da un minuto» comparire un minuto dopo l'offline, e rientrare riattaccandola. **Passato il 09-11**, piano
+[mqtt-dispositivi](docs/archive/2026-11-08-mqtt-dispositivi.md) archiviato.
 
 ## ▶ Riprendere da qui — la 2.26.0-rc.6 pubblicata: le due correzioni del collaudo dell'08-11 (2026-11-08, ufficio)
 

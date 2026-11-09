@@ -1,5 +1,5 @@
 /** I dispositivi dentro una sorgente MQTT (08-11-2026, piano
- *  `docs/plans/2026-11-08-mqtt-dispositivi.md`): le impostazioni pronte col
+ *  `docs/archive/2026-11-08-mqtt-dispositivi.md`): le impostazioni pronte col
  *  nome del dispositivo, il raggruppamento delle righe dai topic, la sezione
  *  della card col pallino di ciascuno, e la sorgente «con errori» quando un
  *  dispositivo tace. */
