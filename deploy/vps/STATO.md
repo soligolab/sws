@@ -168,7 +168,18 @@ con la pagina dentro, perché `ServeDir` serviva il guscio della SPA come rispos
 Ora una rotta della SPA (una richiesta di navigazione) ha 200, mentre un file davvero mancante
 resta 404: così un bundle che manca non torna come HTML con stato 200.
 
-**Versione in esecuzione: `2.25.1-amd64`** dal 05-11-2026, 08:20: le anomalie del collaudo 2.25.0 (chat e registro in
+**Versione in esecuzione: `be8066eb-amd64` (2.26.0-rc.10)** dal 09-11-2026, 20:42: il viewer leggero (mini tendenze
+a secchielli, ridisegno mirato, valori una volta per fotogramma), la fascia «Dati in ritardo», le attese del login,
+l'occhio sui campi password. Quadlet aggiornato da `deploy/vps/quadlet/` (`Image=` e `--gateway-immagine` insieme),
+dopo un `diff` con la copia sul server, che era uguale alla rc.9. Verificato: gateway `healthy`, radice 200, tunnel di
+`tc620-garage` riaperto da solo, `check_gateway_immagine.sh` verde. Tenuta come ripiego la `17ae0a1f-amd64` (rc.9);
+tolte la `288b6e4e-amd64` (rc.8) e la `2.25.1-amd64`; disco a 9,0 GB usati.
+
+Fra il 06-11 e il 08-11-2026 il VPS ha seguito le `2.26.0-rc.2` … `rc.9` (`f4627806`, `57af9904`, `288b305e`,
+`9a7fcd98`, `fb36fa4f`, `288b6e4e`, `17ae0a1f`): i passaggi stanno in `STATUS.md` del repo, qui non erano stati
+annotati.
+
+Prima: **Versione in esecuzione: `2.25.1-amd64`** dal 05-11-2026, 08:20: le anomalie del collaudo 2.25.0 (chat e registro in
 una finestra a parte che nel cloud parlano col progetto, menù di pagina col nome tradotto), le regole R6/R7/R8 su tutti
 i template, il lucchetto col ruolo che serve. Quadlet, `identita.db` e `audit.jsonl` di prima in
 `~/sws-vps/backup-prima-di-2.25.1/`; immagine scaricata prima del riavvio (ID `01e4377d94c3`, lo stesso costruito su
