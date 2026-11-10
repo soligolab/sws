@@ -168,7 +168,15 @@ con la pagina dentro, perché `ServeDir` serviva il guscio della SPA come rispos
 Ora una rotta della SPA (una richiesta di navigazione) ha 200, mentre un file davvero mancante
 resta 404: così un bundle che manca non torna come HTML con stato 200.
 
-**Versione in esecuzione: `e5f58031-amd64` (2.26.0-rc.11)** dal 10-11-2026, 10:10 (09:10 UTC nel journal): la rc.10 più
+**Versione in esecuzione: `847ccd3f-amd64` (2.26.0-rc.12)** dal 10-11-2026 sera (gateway riavviato alle 21:16 UTC): le
+correzioni del collaudo della rc.11 (banco della chat per conversazione, foto della pagina col motore del progetto e
+viewer LVGL nell'immagine x86_64 — +28 MB, fasce della cornice, viewer e IDE che aspettano il runtime, anteprima delle
+foto), il cron nell'ora del pannello, la posta per azienda, la licenza doppia. Stessa sequenza della rc.11 (pull, `scp`
+del quadlet, `daemon-reload`, restart). Verificato: gateway e Montagna `healthy`, radice 200, tunnel di `tc620-garage`
+riaperto (il WP630 a quell'ora è spento), `check_gateway_immagine.sh` verde. Ripiego `e5f58031-amd64` (rc.11); tolta la
+`be8066eb-amd64` (rc.10); disco 12 GB usati, con le copie giornaliere dei dati.
+
+Prima: **Versione in esecuzione: `e5f58031-amd64` (2.26.0-rc.11)** dal 10-11-2026, 10:10 (09:10 UTC nel journal): la rc.10 più
 «Aggiorna ora» che non parte due volte (il runtime prenota l'aggiornamento e risponde 409 al secondo clic) e `rusqlite` 0.41.
 Quadlet aggiornato da `deploy/vps/quadlet/` (`Image=` e `--gateway-immagine` insieme), copia sul server identica al repo
 prima e dopo (`md5sum`). Sequenza: `podman pull` dell'immagine, `scp` del quadlet, `systemctl --user daemon-reload`,
