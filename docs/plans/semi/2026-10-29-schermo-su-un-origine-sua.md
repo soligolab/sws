@@ -1,7 +1,7 @@
 # Lo schermo del pannello su un'origine sua
 
 > **Seme — decisione.** Nato chiudendo il piano
-> [lo schermo del pannello dal cloud](../archive/2026-10-29-schermo-remoto.md), validato dal maintainer
+> [lo schermo del pannello dal cloud](../../archive/2026-10-29-schermo-remoto.md), validato dal maintainer
 > il 29-10-2026 sera. **Quando questo lavoro comincia, il primo passo è una sessione di plan
 > approfondita per sviscerarne tutti i dettagli**: qui ci sono l'idea e le misure di oggi, non un
 > disegno.

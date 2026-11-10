@@ -78,7 +78,7 @@ in ritardo di minuti e i valori a schermo vecchi di mezzo minuto senza avviso. D
   con 21.708 punti e risposte fino a 7,2 s; ora piatto fra 27% e 60% con ~500 punti e risposte entro ~20 ms; a velocità
   piena dal 23-26% al 6-8%. Il costo rimasto è la pittura del browser (animazione `sws-flow` dei tubi, valori a 10 Hz):
   **accettato dal maintainer per la rc.10**, da riprendere «quando sarà un problema vero, con un occhio a tutte le
-  animazioni» (`Appunti.txt`).
+  animazioni» (seme `docs/plans/semi/2026-11-10-viewer-prestazioni-e-protocollo.md`).
 
 **Decisioni del maintainer del 09-11** (tutte nel piano §4): fascia + grigi oltre 5 s; avviso a 10 s e stop a 60 s; template
 a 1 Hz e WP630 invariato; il bus del server non cambia; occhio ovunque, nascosto all'inizio, icona nel campo; tutto nella
@@ -224,7 +224,7 @@ l'IDE di CasaDomotica è rinato sulla **rc.2**. Ora la guardia `check_gateway_im
 2. **le assenze**: la chiavetta Solarman perde una risposta ogni minuto o due — non era l'inverter spento. Un timeout
    ora si dice al terzo giro muto, il ritorno con la durata; assente da 5 min = interrogato ogni 60 s; la stessa caduta
    di sessione (tutti i protocolli) si riscrive solo dopo un'ora. **Livelli 2 e 3** (i tag Bad a ogni risposta persa,
-   l'assenza prevista) in `docs/plans/Appunti.txt`, da trattare insieme alle sorgenti disattivabili;
+   l'assenza prevista) nel seme `docs/plans/semi/2026-11-10-sorgenti-spegnere-assenze-e-inverter.md`, insieme alle sorgenti disattivabili;
 3. **il deploy** chiede sempre prima di sostituire gli utenti di un pannello che ne ha (428 `utenti-sostituiti`);
 4. **la pagina «Collaudo 2.26»** sul VPS: il momentaneo e le spie della luce 1 e 3 usavano true/false su tag
    zigbee2mqtt `string` (ON/OFF). Errore mio, il validatore lo segnalava. Corretta (copia `…prima-on-off-*`); arriva
@@ -248,7 +248,7 @@ rc.2 dal viewer passano F3.9, F3.12, F3.14, F3.16, L0.2 e G-ter 34. I difetti tr
    (540 MB di storico). Ora 15 minuti, e l'IDE dice che sta copiando;
 3. **il deploy ha portato un `admin` col cambio password obbligatorio** senza dirlo: ora un 428 `utenti-da-cambiare`;
    **il cambio si può rimandare** («Più tardi» per la sessione, «Non chiedere più» per l'Admin, nell'audit). Il CRA
-   è un seme: [credenziali e CRA](docs/plans/2026-11-07-credenziali-cra.md). Il segno di `admin` in `users.yaml` di
+   è un seme: [credenziali e CRA](docs/plans/semi/2026-11-07-credenziali-cra.md). Il segno di `admin` in `users.yaml` di
    CasaDomotica nel cloud **non** è stato toccato;
 4. **il momentaneo sul touch** (il TC620 disegna con Chromium in kiosk): solo eventi del mouse, la pressione lunga non
    mandava niente. Ora eventi pointer;
@@ -393,8 +393,8 @@ nell'IDE?).
 - **Disco di theobroma** pieno a metà giornata: liberati 147 GB dentro `~/sws` (cache incrementale, `target/debug`,
   archivi in `dist/`, cache della vecchia build QEMU, due cartelle di compilazione in `tmp/`). Tenuti `target/release`
   (lo usa la prova OpenPLC che gira da 15 giorni) e le cache delle immagini container.
-- **Semi nuovi**: [build veloce e due portali](docs/plans/2026-11-05-build-veloce-e-due-portali.md); nello
-  [stile sobrio](docs/plans/2026-11-04-stile-sobrio.md) la misura delle icone che non vale nelle barre dello stile VS
+- **Semi nuovi**: [build veloce e due portali](docs/plans/semi/2026-11-05-build-veloce-e-due-portali.md); nello
+  [stile sobrio](docs/plans/semi/2026-11-04-stile-sobrio.md) la misura delle icone che non vale nelle barre dello stile VS
   Code. In `Appunti.txt`: la CI di GitHub rossa dal 05-10 al passo clippy.
 
 **Pomeriggio (in `main`, non pushato: `4d918f75`, `b24193d7`)**, tutto collaudato dal maintainer:
@@ -447,7 +447,7 @@ tunnel del `tc620-garage` riaperto. Il `wp630-ufficio` non si è ricollegato: in
   IA che riconosce le pagine col nome tradotto, il selettore dell'istanza annidata in un faceplate.
 
 **Build più veloce in sviluppo — domanda del maintainer, salvata come seme** insieme ai due portali (stabile e di
-sviluppo): [`docs/plans/2026-11-05-build-veloce-e-due-portali.md`](docs/plans/2026-11-05-build-veloce-e-due-portali.md). La 2.25.1 ha preso 60 minuti: **19 per ricostruire il builder aarch64**, che non
+sviluppo): [`docs/plans/semi/2026-11-05-build-veloce-e-due-portali.md`](docs/plans/semi/2026-11-05-build-veloce-e-due-portali.md). La 2.25.1 ha preso 60 minuti: **19 per ricostruire il builder aarch64**, che non
 serviva, 16 + 5 + 16 di cargo, 3 di immagini e push. Il builder si rifà perché il suo stadio `sysroot`
 (`Containerfile.aarch64-cross.builder:45`) è un'immagine senza nome: la pulizia delle immagini podman la cancella
 (`clean_disk_space.sh:111` e la memoria «immagini vecchie»), e fino al 28-10 il builder prendeva un minuto. Anche
@@ -537,7 +537,7 @@ Dall'altra macchina: `./scripts/session_start.sh`, poi `git checkout feat/assist
   (`e3368fcd`); default Anthropic `claude-opus-5-5`.
 
 **Revisione col maintainer delle prime bozze** (decisioni, nel piano): 1) alzare la libreria → seme
-`docs/plans/2026-11-03-libreria-simboli-piu-ricca.md` (anche per simboli grandi mezzo schermo HD); 2) banco con
+`docs/plans/semi/2026-11-03-libreria-simboli-piu-ricca.md` (anche per simboli grandi mezzo schermo HD); 2) banco con
 `kimi-k3.1-pro`; 3) vocabolario più largo (nel seme) **e** SVG libero (F7, ora richiesta); 4) dopo la tavola delle bozze
 l'assistente si ferma e la persona dice quali rifare.
 
@@ -681,7 +681,7 @@ ZCS di casa e ha chiesto la release e l'aggiornamento di CasaDomotica con lo sto
 - **In `main`**: squash di `feat/inverter-solarman` (trasporti Solarman V5 e RTU su TCP, blocchi, plausibilità, testi,
   diagnostica, catalogo inverter, pubblicazione MQTT, `verifica_mappa`, simbolo `lib:building/house`, unità e decimali
   dalle foglie), poi `chore(release): 2.24.0`. Piano archiviato: `docs/archive/2026-11-01-inverter-solarman.md`;
-  seguito nel seme `docs/plans/2026-11-02-inverter-sunspec.md` e in `docs/plans/Appunti.txt`.
+  seguito nel seme `docs/plans/semi/2026-11-02-inverter-sunspec.md` e in `docs/plans/Appunti.txt`.
 - **CasaDomotica** (sul VPS): sorgente `inverter-zcs` (192.168.1.29:8899, Solarman, seriale 1786079474), variabile
   `inverter` con storico, pagine `energy` (sotto Home) ed `energy_dati` (finestra). Nel cloud la sorgente va in
   timeout come le altre di casa: legge **dal pannello di casa** dopo il deploy.
@@ -843,7 +843,7 @@ eliminati. **Niente è pushato da questo squash**: su origin restano i sette ram
 - **Validato dal maintainer** la sera stessa, sulla 2.23.7: «funziona perfettamente lo schermo remoto». Piano in
   archivio.
 - **Decisione aperta**: la pagina del pannello gira sull'origine `sws.soligo.net`, e un pannello manomesso potrebbe
-  leggere il gettone cloud di chi apre il suo schermo. È il seme `docs/plans/2026-10-29-schermo-su-un-origine-sua.md`,
+  leggere il gettone cloud di chi apre il suo schermo. È il seme `docs/plans/semi/2026-10-29-schermo-su-un-origine-sua.md`,
   da decidere prima di aprire lo schermo a clienti veri.
 - **Annotato in `Appunti.txt`**: l'IDE non mostra più «nuova versione disponibile» (il controllo prende 404 dal
   ripiego della SPA), dal 28-10.
@@ -1090,7 +1090,7 @@ feat/dove-se-ne-va-il-tempo              la misura
   runtime (sorgenti, storico, allarmi, derivati, script, `/ws/tags`), pagina Configurazione → Istanza → Prestazioni,
   `sws_lavoro_secondi` in `/metrics`. Provata in locale col viewer SDL senza schermo.
 - **Guardia** `check_rotte_preauth.sh`: ora legge tutti i gruppi `open`; è uscito `/api/project` sulla 7443 → seme
-  `docs/plans/2026-10-26-progetto-letto-da-un-anonimo.md` (il progetto intero, coi numeri dei reperibili, a un anonimo).
+  `docs/plans/semi/2026-10-26-progetto-letto-da-un-anonimo.md` (il progetto intero, coi numeri dei reperibili, a un anonimo).
 - **In servizio**: VPS gateway su `195e8c72-amd64`; TC620 su `195e8c72-arm64` ritaggata `rc-arm64`, ripiego
   `prima-della-prova` (= `ed9d47b5`). Il TC620 ha `AutoUpdate=registry`: può tornare da sé alla 2.23.0 pubblicata.
   Il container di progetto di CasaDomotica nel cloud è ancora sulla **2.22.0** (non riavviato, per regola): si
@@ -1300,7 +1300,7 @@ minuti (mediana 50 s), 18h32m ininterrotti chiusi **solo** dall'aggiornamento de
 riconnessione in 2 secondi. **Non chiusa per il WP630**, e non per colpa sua: il gateway non
 registra i tentativi falliti, quindi «pannello spento» e «pannello che non rientra» sono lo stesso
 silenzio. Numeri in [`deploy/vps/STATO.md`](deploy/vps/STATO.md), difetto nel seme
-[il gateway non dice chi bussa](docs/plans/2026-10-24-il-gateway-non-dice-chi-bussa.md).
+[il gateway non dice chi bussa](docs/plans/semi/2026-10-24-il-gateway-non-dice-chi-bussa.md).
 
 **Una domanda al maintainer resta in sospeso**: nelle quattro finestre lunghe il WP630 era
 alimentato? Se sì il test si chiude anche per lui, se no serve un log dal lato pannello.
@@ -1353,7 +1353,7 @@ niente: da qui si aprono rami.
 | [OpenPLC sul dispositivo](docs/archive/2026-10-20-openplc-sul-dispositivo.md) | **otto su otto** — governo ibrido, per board generiche **e** Pixsys, **opzionale**, logica in `<progetto>/openplc/` con git **e** deploy |
 | [I certificati in un posto solo](docs/archive/2026-10-15-certificati-in-un-posto-solo.md) | **otto su otto** — vista a due colonne, rotte remote, trust store riparato col default della policy, certificato con nome e scadenza |
 | [OPC-UA, Fase 4](docs/archive/2026-10-22-opcua-fase-4-decisioni.md) | **sei su sei** — la 4a è già nella 2.19.0; 4b e 4c diventano **un ramo solo** |
-| [Server Modbus](docs/plans/2026-10-23-server-modbus.md) | **seme nuovo**: SWS parla Modbus solo da client |
+| [Server Modbus](docs/plans/semi/2026-10-23-server-modbus.md) | **seme nuovo**: SWS parla Modbus solo da client |
 
 ### Le tre cose che le decisioni fanno nascere, e che prima non c'erano
 
@@ -1584,7 +1584,7 @@ dimezza il carico senza rischi.
   stessi digest. Il maintainer ha aggiornato il WP630 dall'IDE e ha confermato i quattro controlli
   a vetro. Il tag è stato creato **costruendo l'immagine**, come vuole la regola.
 - **I piani vivi sono 19**, erano 32 stamattina. Di settembre ne restano due, e sono lavoro vero:
-  [riorganizzare i file dell'editor](docs/plans/2026-09-22-riorganizzare-i-file-dell-editor.md)
+  [riorganizzare i file dell'editor](docs/plans/semi/2026-09-22-riorganizzare-i-file-dell-editor.md)
   (16 385 righe da dividere) e
   [tag come oggetto unico](docs/archive/2026-09-21-gestione-tag-oggetto-unico.md) (Fase 4 OPC-UA a
   zero righe, più il collaudo a schermo della Fase 2, 2 timbri su 6).
@@ -2199,7 +2199,7 @@ Piano dell'onda 2 archiviato (`docs/archive/2026-10-17-onda-2-prestazioni-e-prot
 
 - **Nel cloud i limiti oggi non agiscono**: Traefik rootless vede ogni visitatore come `10.89.0.89`
   (rootlessport), quindi il gateway non conta gli indirizzi privati. Seme
-  `docs/plans/2026-10-18-indirizzo-vero-dietro-traefik.md`.
+  `docs/plans/semi/2026-10-18-indirizzo-vero-dietro-traefik.md`.
 - **TC620 giù per disco pieno il 18-10 alle 05:40** (colpa mia): tredici immagini da 554 MB in `/home`, il restart
   falliva con `no space left on device`. Tolte le dieci più vecchie (restano `efbc6e94`/`rc-arm64`, `d4eb1d1b`,
   `prima-della-prova`), ripartito da sé. D'ora in poi la pulizia fa parte dell'allineamento. Sul VPS ci sono 32

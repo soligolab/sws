@@ -3735,7 +3735,7 @@ struct RimandaCambio {
 /// cambiare la password, ed è solo dell'Admin. Nato dal collaudo sul TC620: un
 /// deploy aveva portato un `admin` col cambio obbligatorio, e per aggiornare il
 /// pannello bisognava prima inventarsi una password nuova. Tutti e due finiscono
-/// nell'audit. Il seme `docs/plans/2026-11-07-credenziali-cra.md` tiene la
+/// nell'audit. Il seme `docs/plans/semi/2026-11-07-credenziali-cra.md` tiene la
 /// domanda sul CRA.
 async fn rimanda_cambio_password(State(s): State<AppState>, req: Request) -> Response {
     let user = match req.extensions().get::<AuthUser>().cloned() {

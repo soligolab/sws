@@ -7,7 +7,7 @@
 > contro un calcolo indipendente in Python; turni, TwiML e ripristino del token mascherato coperti da test. Collaudo
 > vero con un account Twilio in `COLLAUDI_IN_SOSPESO.md` §A-quinquies.
 
-> Nato dal [piano prima fascia e CRA](2026-10-15-piano-prima-fascia-e-cra.md), voce P4. Decisioni del maintainer del
+> Nato dal [piano prima fascia e CRA](../plans/2026-10-15-piano-prima-fascia-e-cra.md), voce P4. Decisioni del maintainer del
 > 25-10-2026: **servizio esterno via API, Twilio** (SMS e chiamata con sintesi vocale); **turni di reperibilità** con
 > escalation al successivo; **conferma dal telefono solo per i pannelli collegati al cloud**, perché Twilio deve poter
 > richiamare un indirizzo pubblico.

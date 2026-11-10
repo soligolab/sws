@@ -1,7 +1,7 @@
 # Seme — uno stile grafico di progetto per tutti gli oggetti
 
 **Seme, non piano d'esecuzione.** Nato il 30-10-2026 dalla revisione dello slider
-([piano](../archive/2026-10-30-revisione-slider.md)). **Quando si comincia questo lavoro, il primo passo è una sessione di
+([piano](../../archive/2026-10-30-revisione-slider.md)). **Quando si comincia questo lavoro, il primo passo è una sessione di
 plan approfondita per sviscerarne tutti i dettagli.**
 
 ## L'idea

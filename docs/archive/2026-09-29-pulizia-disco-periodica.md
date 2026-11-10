@@ -70,7 +70,7 @@ Quello che manca è la via di mezzo: una pulizia **economica e ripetibile**, non
 `/finalizza-giornata` è il posto proposto. Da decidere nella sessione dedicata: **prima o dopo il
 push** (dopo, quasi certamente: una pulizia non deve poter far fallire la chiusura), se
 **interattiva o no**, e cosa succede quando un'altra sessione sta compilando sullo stesso
-checkout — c'è già il precedente delle [sessioni concorrenti](2026-09-22-riorganizzare-i-file-dell-editor.md)
+checkout — c'è già il precedente delle [sessioni concorrenti](../plans/semi/2026-09-22-riorganizzare-i-file-dell-editor.md)
 e la regola di non toccare uno script in esecuzione. Cancellare `target` sotto una build altrui è
 lo stesso genere di guasto.
 

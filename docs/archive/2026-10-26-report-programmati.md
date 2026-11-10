@@ -8,7 +8,7 @@
 > `qpdf --check` e si legge con `pdftotext`; l'Excel si apre con openpyxl e LibreOffice. Collaudo vero sul pannello in
 > `COLLAUDI_IN_SOSPESO.md` §A-quater.
 
-> Nato dal [piano prima fascia e CRA](2026-10-15-piano-prima-fascia-e-cra.md), voce P3, e dal programma delle funzioni
+> Nato dal [piano prima fascia e CRA](../plans/2026-10-15-piano-prima-fascia-e-cra.md), voce P3, e dal programma delle funzioni
 > utente (gruppo 9). Decisione del maintainer del 25-10-2026: **PDF ed Excel, con le tabelle dello storico** (per ogni
 > tag scelto min/max/media e le aggregazioni del periodo, più gli allarmi), per turno/giorno/settimana/mese, **salvati
 > nel progetto e inviati per email** con l'SMTP già configurato.

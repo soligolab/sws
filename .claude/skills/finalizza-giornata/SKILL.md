@@ -109,7 +109,7 @@ breve in `NOVITA.yaml`, **italiano e inglese**: è quella che il pannello mostra
 ## 6. Niente decisioni architetturali prese qui
 
 Se durante la sessione è emersa una decisione architetturale mai presa, verifica che esista già
-il suo **seme** in `docs/plans/` (dal 18-09-2026 le domande aperte non vanno più in
+il suo **seme** in `docs/plans/semi/` (dal 18-09-2026 le domande aperte non vanno più in
 `docs/OPEN_QUESTIONS.md`, che è congelato: diventano un file di piano sintetico, vedi CLAUDE.md
 «Plans») — non deciderla in questo passaggio (regola 3 di `CLAUDE.md`).
 

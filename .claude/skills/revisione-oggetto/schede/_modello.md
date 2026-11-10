@@ -9,7 +9,7 @@ e correggi la scheda, con la data, se qualcosa è cambiato.
 ## Cosa vuole il maintainer
 
 L'appunto o la richiesta da cui nasce la revisione, citata parola per parola. Cerca in
-`docs/plans/Appunti.txt` e in `docs/plans/`. Se non c'è niente, chiedi al maintainer cosa vuole
+`docs/plans/semi/` e in `docs/plans/`. Se non c'è niente, chiedi al maintainer cosa vuole
 ottenere da questo oggetto.
 
 ## File da leggere

@@ -49,7 +49,7 @@
 3. **`SWS_IP_ALLOWLIST` e `X-Forwarded-For`.** L'allowlist vale solo per il login, e se manca l'indirizzo della
    connessione ripiega su `X-Forwarded-For`, che chiunque può scrivere (`router.rs:2475-2490`). Da verificare se il
    caso «manca l'indirizzo» capita davvero; se sì, non fidarsi dell'intestazione (vedi anche il seme
-   [indirizzo vero dietro Traefik](2026-10-18-indirizzo-vero-dietro-traefik.md)).
+   [indirizzo vero dietro Traefik](../plans/semi/2026-10-18-indirizzo-vero-dietro-traefik.md)).
 4. **FATTI il 20-10-2026.** Il consiglio della card OPC UA («abilita temporaneamente *Accetta
    qualsiasi*») è stato sostituito: con la fiducia al primo contatto non serve, e spingeva ad
    abbassare una protezione per niente. Corretti anche i tre commenti. Quello delle policy OPC UA

@@ -81,7 +81,7 @@ giro del «dimentica» a ogni rinnovo non esiste. Avviso in tre posti: barra del
 sistema, email.
 
 **Non è una variante, è un protocollo**, e ha un seme suo:
-[`2026-10-23-rinnovo-del-certificato-firmato.md`](../plans/2026-10-23-rinnovo-del-certificato-firmato.md).
+[`2026-10-23-rinnovo-del-certificato-firmato.md`](../plans/semi/2026-10-23-rinnovo-del-certificato-firmato.md).
 Il punto duro misurato: l'archivio tiene solo `sha256:<hex>`, e **da un'impronta non si verifica
 una firma**. **La scadenza si mette dopo che il rinnovo esiste**, e il rinnovo viene dopo la
 prova sul TC620.

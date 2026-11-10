@@ -1,7 +1,7 @@
 # Inverter SunSpec — seme
 
 > **Stato: seme — decisione.** Nato il 02-11-2026 chiudendo il piano
-> [inverter Solarman](../archive/2026-11-01-inverter-solarman.md), che lo rimandava a un ramo successivo.
+> [inverter Solarman](../../archive/2026-11-01-inverter-solarman.md), che lo rimandava a un ramo successivo.
 >
 > **Quando questo lavoro comincia, il primo passo è una sessione di plan approfondita, dedicata, per sviscerarne
 > tutti i dettagli.** Qui ci sono l'idea e le misure del 02-11-2026, non un progetto.

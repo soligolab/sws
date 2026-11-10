@@ -232,7 +232,8 @@ command -v podman >/dev/null || { echo "ERRORE: podman non installato." >&2; exi
 #
 # Il tempo reale: il container eredita i limiti di chi lo avvia, e lo avvia il
 # systemd dell'utente. Quando PixsysOS alzera' RTPRIO per `user@1000` (drop-in
-# in `docs/plans/Appunti.txt`) gira in SCHED_FIFO senza toccare niente qui.
+# nel seme `docs/plans/semi/2026-11-10-openplc-finestra-credenziali-tempo-reale.md`)
+# gira in SCHED_FIFO senza toccare niente qui.
 # `--ulimit rtprio=99` invece NO: senza il drop-in il limite massimo e' 0, e
 # crun rifiuterebbe di avviare il container.
 OPENPLC_IMG="ghcr.io/autonomy-logic/openplc-runtime:v4.3.1"

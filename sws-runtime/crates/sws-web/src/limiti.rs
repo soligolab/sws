@@ -207,7 +207,7 @@ fn privato(ip: IpAddr) -> bool {
 /// l'indirizzo del client, e Traefik vede ogni visitatore come `10.89.0.89` (1.238
 /// richieste su 1.238 in due minuti). Contato così, tutto il cloud dividerebbe un
 /// solo secchio. Finché la rete non porta l'indirizzo vero (seme
-/// `docs/plans/2026-10-18-indirizzo-vero-dietro-traefik.md`) il gateway resta aperto
+/// `docs/plans/semi/2026-10-18-indirizzo-vero-dietro-traefik.md`) il gateway resta aperto
 /// invece di rifiutare tutti insieme.
 pub fn indirizzo(peer: Option<SocketAddr>, h: &HeaderMap, dietro_proxy: bool) -> Option<IpAddr> {
     let peer = peer?.ip();

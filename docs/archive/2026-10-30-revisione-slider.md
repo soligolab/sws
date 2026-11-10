@@ -214,9 +214,9 @@ rimisurare** i punti che tocca: il codice si muove.
 
 ## Fuori da questo piano
 
-- **Seme** [uno stile grafico di progetto per tutti gli oggetti](../plans/2026-10-30-stile-grafico-di-progetto.md): qui lo
+- **Seme** [uno stile grafico di progetto per tutti gli oggetti](../plans/semi/2026-10-30-stile-grafico-di-progetto.md): qui lo
   stile è per oggetto.
-- **Seme** [lo stato «in attesa» per tutte le scritture](../plans/2026-10-30-in-attesa-per-tutte-le-scritture.md): lo slider
+- **Seme** [lo stato «in attesa» per tutte le scritture](../plans/semi/2026-10-30-in-attesa-per-tutte-le-scritture.md): lo slider
   ha il suo in fase 1.
 - **Appunti:** l'intervallo a due cursori.
 - Il bottone col gestore del puntatore nuovo.

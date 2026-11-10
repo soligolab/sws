@@ -4,7 +4,7 @@
 Si avvia sulla macchina di sviluppo (`python3 scripts/banco_collaudo/server.py`) e
 si apre dal browser: http://<macchina>:8471. Le prove stanno in prove.json, gli
 esiti in esiti.json (accanto a questo file, fuori da git): Claude li legge per
-spuntare COLLAUDI_IN_SOSPESO.md, archiviare i piani e sfoltire Appunti.txt.
+spuntare COLLAUDI_IN_SOSPESO.md, archiviare i piani e aggiornare i semi.
 Solo libreria standard. Vedi LEGGIMI.md.
 """
 import json, os, ssl, sys, threading, time, urllib.request

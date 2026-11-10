@@ -3,7 +3,7 @@
 > **CHIUSO e archiviato il 25-10-2026.** Fasi 0, 1 e 2 su `main` dal 22-09-2026; Fase 3 (Modbus) il 04-10-2026;
 > Fase 4 (OPC-UA) completa il 25-10-2026 con la 4d. Quello che il piano teneva «in coda, non pianificato qui» —
 > strutture e array su S7, EtherNet/IP, MQTT, Home Assistant e Host — è lavoro vero e sta nel seme
-> [`2026-10-25-strutture-sugli-altri-protocolli.md`](../plans/2026-10-25-strutture-sugli-altri-protocolli.md).
+> [`2026-10-25-strutture-sugli-altri-protocolli.md`](../plans/semi/2026-10-25-strutture-sugli-altri-protocolli.md).
 > Il collaudo a schermo della Fase 2, mai fatto, è in [`COLLAUDI_IN_SOSPESO.md`](../COLLAUDI_IN_SOSPESO.md) §G-ter.
 
 > Sostituisce il seme `docs/archive/2026-09-21-gestione-tag-oggetto-unico.md` (da riscrivere con questo testo dopo l'approvazione).

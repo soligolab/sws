@@ -234,10 +234,153 @@ Ramo `feat/assistente-sinottici`, una fase per commit, e ogni fase verde sulla d
   `ai:tags`, e `ai:simboli`. Il bottone «Procedi» sotto il piano non c'è (era facoltativo): si risponde scrivendo.
 - **Revisione delle prime bozze col maintainer (03-11-2026)**, un punto alla volta:
   1. *dettaglio*: le bozze sono semplici quanto la libreria (mediana 16 operazioni). Decisione: **alzare la libreria**,
-     seme [`2026-11-03-libreria-simboli-piu-ricca.md`](2026-11-03-libreria-simboli-piu-ricca.md); qui la regola di
+     seme [`2026-11-03-libreria-simboli-piu-ricca.md`](semi/2026-11-03-libreria-simboli-piu-ricca.md); qui la regola di
      `schema_simbolo` dice «lo stesso livello della libreria» invece di «forme semplici»;
   2. *modello*: default Anthropic `claude-opus-5-5`; il banco si rifà con `kimi-k3.1-pro`;
   3. *formato*: **tutti e due** — vocabolario più largo (nel seme della libreria) e SVG libero (F7, ora richiesta).
   4. *revisione*: **la decide la persona** — dopo la tavola delle bozze l'assistente si ferma, la persona dice quali
      simboli rifare e come, e la pagina si compone solo dopo il suo via (prompt, punto 3 del giro).
   Strada facendo: il pannello LVGL tagliava i simboli a 500 px per lato (corretto, `e4842c02`).
+
+## Code annotate il 10-11-2026 (da `Appunti.txt`): fornitori, spesa, faceplate, MCP, e una prova non passata
+
+> Sezione nata il 10-11-2026 da `Appunti.txt` (punti del 04-11-2026 e del 05-11-2026, più una nota senza data sul MCP
+> che stava in testa al file), quando il maintainer ha chiesto di trasformare gli appunti in semi e piani e di
+> eliminare il file. Il resto di questo piano non è stato toccato. I quattro punti del 04-11 erano i residui del piano
+> archiviato [un modello per ogni scopo](../archive/2026-11-04-un-modello-per-ogni-scopo.md), chiuso il 04-11-2026.
+> Lo stato di ogni punto è quello misurato nel codice il 10-11-2026.
+
+### 1. L'assistente che propone faceplate (regola R8) — fatto il 06-11-2026, resta il collaudo
+
+**Da dove viene.** 04-11-2026, dalla sessione T1 della serie coordinata (`feat/template-regole`). La regola R8 dei
+template — «gli aggregati di oggetti in un faceplate»; parole del maintainer: «quando puoi gli aggregati di oggetti
+falli in un faceplates» — sta in `examples/templates/README.md` e nel [README dei piani](README.md), §Regole dei
+template. Varrebbe anche per il sinottico intero composto dall'IA, ma il 04-11 `proponi_modifica` non portava
+faceplate: né `ai/tools.rs` né `applyAiProposal` (`sws-editor/src/store/index.ts`) li conoscevano. Serviva una
+sezione nuova della proposta (i faceplate, che su disco stanno in `faceplates/<id>.yaml`) e le istanze nella pagina,
+poi la riga nel prompt (`ai/prompt.rs`, «Quando ti chiedono un sinottico intero», punto 4). Il punto 1 di «Da decidere
+all'inizio di T1» nel README dei piani rimanda a questa sezione.
+
+**Stato il 10-11-2026: fatto**, su richiesta del maintainer del 06-11-2026, nel commit `630a0f30` (in `main`, nella
+2.26.0-rc.2; la regola generale del prompt in `1e34abdf`):
+- `faceplate_proposti` in `sws-runtime/crates/sws-web/src/ai/tools.rs` (riga 933) legge il campo `faceplates` di
+  `valida`, `istantanea_pagina` e `proponi_modifica`; `sws-runtime/crates/sws-web/src/ai/mod.rs` lo porta nella
+  proposta (righe 662 e 787);
+- nello store dell'editor `AiProposta.faceplates?: FaceplateDef[]` (`sws-editor/src/store/index.ts`, riga 128):
+  i faceplate proposti diventano pagine-faceplate, il diff li elenca, e il Salva li scrive in `faceplates/`;
+- strumento nuovo `leggi_faceplate` (elenco con misura e parametri, o il faceplate intero; anche via MCP);
+- la validazione dice le istanze che nominano un faceplate che non c'è e applica `rilievi_faceplate` ai proposti;
+  l'istantanea li scrive nella copia;
+- prompt (`sws-runtime/crates/sws-web/src/ai/prompt.rs`): la sezione «I gruppi di oggetti diventano faceplate»
+  (riga 100, vale per ogni proposta: un gruppo ripetuto è sempre un faceplate, uno solo lo è se è un tipo) e il punto
+  4 di «Quando ti chiedono un sinottico intero» (riga 141 e seguenti): «I faceplate, prima della pagina».
+
+**Cosa resta.** Il collaudo del maintainer: una pagina composta dall'assistente con una macchina ripetuta esce come
+un faceplate e le sue istanze, e il Salva scrive il file in `faceplates/`. Il 10-11-2026 `docs/COLLAUDI_IN_SOSPESO.md`
+non ha una voce su questo.
+
+### 2. OpenAI (o altri) come fornitore di testo — da fare
+
+**Da dove viene.** 04-11-2026. Oggi solo Anthropic e Kimi, che parlano la stessa API Messages. Vuole un secondo
+protocollo di chiamata e di strumenti.
+
+**Misurato il 10-11-2026.** `enum Fornitore` in `sws-runtime/crates/sws-web/src/ai/client.rs` (riga 47) ha due
+varianti, `Anthropic` e `Kimi`. Kimi espone la Messages API di Anthropic su `https://api.moonshot.ai/anthropic/v1/messages`,
+quindi streaming, blocchi di contenuto, strumenti e nomi degli eventi SSE sono gli stessi (`leggi_sse` e
+`ricomponi_blocchi` non cambiano); cambiano solo l'indirizzo, l'header di autenticazione e il modo di chiedere il
+pensiero. Un fornitore con un'altra API (OpenAI, o altri) vuole un secondo ciclo SSE, un secondo formato dei blocchi
+e una seconda resa degli strumenti. OpenAI oggi c'è solo per le immagini: scopo `sfondi` in
+`sws-runtime/crates/sws-web/src/ai/scopi.rs` («OpenAI (immagini)», chiave in `openai.key`, `prova_chiave` su
+`https://api.openai.com/v1/models`).
+
+### 3. Altri fornitori di immagini, e una storia della spesa — da fare
+
+**Da dove viene.** 04-11-2026. Altri fornitori di immagini (FLUX.2 Pro, Imagen 4) accanto a gpt-image-2, e una
+storia della spesa per scopo e per mese: oggi c'è solo il tetto per conversazione.
+
+**Misurato il 10-11-2026.**
+- Immagini: `sws-runtime/crates/sws-web/src/ai/immagini.rs` conosce un modello solo, `gpt-image-2` (JPEG a
+  1536×1024, il formato più vicino al 16:10 dei pannelli), in due passi: `genera_sfondo` fa solo basi, la persona ne
+  sceglie una con «Usa come base» in chat, `varia_sfondo` cambia la luce di una base.
+- Spesa: il tetto per conversazione di F0 (`SWS_AI_TETTO_USD`, 10 $ di default); dal 04-11 anche un `tetto_usd` per
+  scopo in `config_dir/ai.yaml` (`scopi.rs`), e nel `Banco` della conversazione (`ai/mod.rs`) i contatori
+  `spesa_sfondi` e `spesa_simboli`; con `SWS_AI_MISURE=<dir>` un resoconto JSON per conversazione. Niente somma la
+  spesa fra conversazioni, per scopo o per mese: la «storia» non esiste.
+
+### 4. Il prezzo di kimi-k3.1-pro — da aggiungere quando si conosce il listino
+
+**Da dove viene.** 04-11-2026. Il prezzo di `kimi-k3.1-pro` non è in `prezzi()` (`ai/client.rs`): la spesa mostrata è
+una stima per eccesso (≈).
+
+**Misurato il 10-11-2026.** `prezzi()` sta in `sws-runtime/crates/sws-web/src/ai/client.rs` alla riga 192. Conosce
+`kimi-k3` (3 $ in ingresso, 15 $ in uscita, 0,30 $ la cache in lettura, per Mtok) ma non `kimi-k3.1-pro`; un modello
+che la tabella non conosce si conta ai prezzi di Opus 5 (5 / 25 / 0,50 $) e la funzione torna `false` nel secondo
+valore, che la chat mostra come «≈». Il banco dei tubi d'acciaio del 04-11 con `kimi-k3.1-pro`: 19 minuti, ≈2 $,
+7 simboli nuovi + 3 di libreria, pagina da 56 oggetti (contro `kimi-k3`: 15 minuti, 1,01 $, 9 simboli, 37 oggetti).
+
+### 5. La conversazione intera con gli sfondi — provata il 05-11-2026 e non passata, da rifare
+
+**Da dove viene.** 04-11-2026: una conversazione intera con gli sfondi, provata dall'IDE: `genera_sfondo` → «Usa come
+base» → `varia_sfondo` → proposta → Applica → Salva → le foto in `images/`. Provati a pezzi (API vera di gpt-image-2,
+test del flusso, la pagina Lago su web e LVGL), non tutti insieme in chat con un modello vero.
+
+**Provata il 05-11-2026 sull'IDE 8460, e non passa.**
+- (a) «Usa come base» non fa niente al primo clic: risponde solo dopo vari tentativi, e la chat sembra lenta a
+  reagire.
+- (b) `istantanea_pagina` va in timeout tre volte («il viewer non ha finito entro 60 s»): cinque foto a tutta pagina
+  sono troppe per il banco di prova, che ci rinuncia. L'assistente ha proposto lo stesso la pagina, validata ma mai
+  fotografata.
+- Il maintainer la riprova da casa, sul TC620.
+
+**Cosa è cambiato dopo** (06-11-2026, `630a0f30`, nella 2.26.0-rc.2; voce «Gli sfondi dell'assistente, dal collaudo
+del 05-11» in `CHANGELOG.md`):
+- per (a): «Usa come base» cliccato mentre il modello lavora non si perde più. La scelta resta in coda («scelta:
+  parte appena l'assistente finisce questo turno») e parte col frame `fine`; prima il bottone era spento senza dirlo
+  (`sws-editor/src/components/ChatPanel.tsx`, `approva_sfondo`);
+- per (b): l'istantanea non ha più un tempo totale fisso di 60 s. L'attesa riparte a ogni riga del viewer (30 s di
+  silenzio, `SWS_ISTANTANEA_ATTESA_S`; tetto 5 minuti), le righe arrivano in chat sotto lo strumento, il viewer LVGL
+  scrive «[sfondo] … pronto in N ms», e a tempo scaduto il viewer viene fermato (prima restava acceso) con le sue
+  ultime righe nell'errore (`sws-runtime/crates/sws-web/src/istantanea.rs`). In un turno che ha generato le basi
+  `istantanea_pagina` è rifiutata: il modello si ferma invece di fotografare;
+- per capire cosa succede: `SWS_AI_DEBUG=1` mette nel log una riga per messaggio della chat, per strumento e per
+  risposta del modello, coi tempi; il browser le stesse in `console.debug` («[chat]»).
+
+**Cosa resta.** La prova intera, in una chat sola, con un modello vero, dal maintainer da casa sul TC620. Il
+10-11-2026 non c'è un esito registrato, né in `STATUS.md` né in `docs/COLLAUDI_IN_SOSPESO.md`.
+
+### Nota a parte: se MCP debba un giorno anche scrivere (oggi no)
+
+Dal 22-10-2026 `sws-runtime --mcp` espone undici strumenti di lettura e nessuno che scrive (piano archiviato
+[un server MCP per far editare il progetto all'IA](../archive/2026-09-18-mcp-editing-con-ia.md), che misurava 13
+strumenti in tutto). Il 10-11-2026 i soli-lettura sono **14** (`tools::SOLA_LETTURA` in
+`sws-runtime/crates/sws-web/src/ai/tools.rs`, riga 374: si sono aggiunti `cerca_simboli`, `schema_simbolo` e
+`leggi_faceplate`) e sei restano fuori (`tools::FUORI_DA_ESEGUI`: `proponi_modifica`, `istantanea_pagina`,
+`bozza_simbolo`, `disegna_simbolo`, `genera_sfondo`, `varia_sfondo`); il test
+`nessuno_strumento_sfugge_alla_classificazione` obbliga a classificare ogni strumento nuovo. Il server è in
+`sws-runtime/crates/sws-web/src/mcp.rs`.
+
+Il no di oggi non è un ostacolo tecnico: scrivere vorrebbe dire riprodurre fuori dall'editor l'approvazione umana che
+lì c'è già — il confronto, i due bottoni, il controllo dell'impronta del progetto su disco, l'annullamento in un
+passo. Fuori da quella finestra una proposta non ha nessuno che la guardi prima che arrivi sul disco. Da riaprire solo
+se emerge un bisogno vero: il piano archiviato del 31-08
+([la chat IA nell'editor](../archive/2026-08-31-chat-ai-nelleditor.md), Fase 4, §8) lo diceva già («fuori scope
+finché non emerge un bisogno reale») e in otto settimane non è emerso. Non è un punto di questo piano: resta qui come
+promemoria. Se un giorno diventa una domanda, nasce un seme in `semi/`.
+
+### Da decidere col maintainer
+
+- I punti 2, 3 e 4 entrano in questo piano come una fase dopo F7, o aspettano che F5–F7 e il collaudo siano chiusi?
+- Punto 2: quale fornitore per primo, e se conviene prima di avere le misure di F5 (il costo per pagina è ancora
+  una stima: 3–6 $).
+- Punto 3: dove vive la storia della spesa — nell'installazione (`config_dir`, accanto a `ai.yaml`), perché le chiavi
+  e i tetti stanno lì e non nel progetto.
+- Punto 4: il listino di Moonshot per `kimi-k3.1-pro` lo cerca il maintainer o la sessione.
+
+### Collaudo
+
+- Punto 1: in una chat, chiedere una pagina con tre macchine uguali; la proposta porta un faceplate e tre istanze,
+  il diff li elenca, dopo Salva c'è `faceplates/<id>.yaml`.
+- Punto 5: il flusso intero `genera_sfondo` → «Usa come base» → `varia_sfondo` → proposta → Applica → Salva → foto in
+  `images/`, in una chat sola sull'IDE, con un modello vero. «Usa come base» reagisce al primo clic o dice che è in
+  coda; nessuna istantanea in timeout.
+- Punto 4, quando c'è il listino: la spesa in chat con `kimi-k3.1-pro` non porta più «≈».

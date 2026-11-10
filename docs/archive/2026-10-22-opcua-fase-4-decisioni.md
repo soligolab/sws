@@ -179,7 +179,7 @@ mai.** Nessun errore, nessun avviso.
 > OpenPLC, e di chi fra i due sia il master — ed è il contesto che la rende ovvia: un SWS esposto a
 > un altro sistema che scrive su un tag di campo e non lo manda al campo è un difetto che nessuno
 > vede finché non guarda il dispositivo. La stessa regola varrà per il **server Modbus**, quando
-> si farà: vedi il seme [server Modbus](../plans/2026-10-23-server-modbus.md).
+> si farà: vedi il seme [server Modbus](../plans/semi/2026-10-23-server-modbus.md).
 
 ## 6. Un valore che non si sa leggere: Bad o Uncertain? — **DECISA: non gestito = Bad**
 

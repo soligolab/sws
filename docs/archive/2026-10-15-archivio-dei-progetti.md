@@ -27,7 +27,7 @@ sbaglio, e si può riprendere quando serve. Oggi le scelte sono solo tenerlo fra
 - Cosa resta consultabile (pagine in sola lettura, storico, audit) e cosa no.
 - Chi può archiviare e ripristinare; cosa finisce nell'audit; quote del cloud.
 - Rapporto col CRA (conservazione dei dati) e col reset di fabbrica (C5 del
-  [piano d'azione](2026-10-15-piano-prima-fascia-e-cra.md)).
+  [piano d'azione](../plans/2026-10-15-piano-prima-fascia-e-cra.md)).
 
 ## 18-10-2026 — fatto (gruppo 4 del programma delle funzioni utente), da collaudare
 

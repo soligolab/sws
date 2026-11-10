@@ -223,8 +223,9 @@ Poi **chiedi conferma per registrare.** Dopo il sì:
 2. **`STATUS.md`**, nel blocco «▶ Riprendere da qui» corrente: una riga con l'esito
    (**«Collaudo 2.25.1 del GG-MM su <pannello>: N passate, M anomalie»**) e le anomalie, che sono
    l'elenco di lavoro della prossima patch.
-3. Un dettaglio piccolo che non è un'anomalia va in `docs/plans/Appunti.txt`, con il contesto
-   scritto per intero.
+3. Un dettaglio piccolo che non è un'anomalia va in un **seme** di `docs/plans/semi/` (uno esistente
+   se il tema c'è già, altrimenti nuovo, con la riga in `docs/plans/semi/README.md`), con il contesto
+   scritto per intero. `Appunti.txt` non esiste più dal 10-11-2026 e non si ricrea.
 4. **Commit meta**, con i soli file toccati e **nessun push**:
    ```bash
    git add docs/COLLAUDI_IN_SOSPESO.md STATUS.md

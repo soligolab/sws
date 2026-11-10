@@ -128,7 +128,7 @@ Scritto qui perché chi installa SWS sappia cosa deve coprire da sé, finché no
 | P6 | **2FA e LDAP / Active Directory** | onda 3, con C4 |
 | C5 | **Reset di fabbrica dei dati** (progetti, storico, utenti, segreti, certificati) | onda 4 |
 | C7 | **Firma delle immagini** (cosign) con verifica sul pannello, **SBOM per release**, scansione dell'immagine in CI | onda 5 |
-| — | **Limiti per indirizzo nel cloud**: dietro Traefik rootless ogni visitatore arriva con lo stesso indirizzo interno, quindi il gateway oggi non limita (seme [`2026-10-18-indirizzo-vero-dietro-traefik.md`](../plans/2026-10-18-indirizzo-vero-dietro-traefik.md)) | da decidere |
+| — | **Limiti per indirizzo nel cloud**: dietro Traefik rootless ogni visitatore arriva con lo stesso indirizzo interno, quindi il gateway oggi non limita (seme [`2026-10-18-indirizzo-vero-dietro-traefik.md`](../plans/semi/2026-10-18-indirizzo-vero-dietro-traefik.md)) | da decidere |
 | C8 | **Valutazione del rischio e fascicolo tecnico** (Allegato VII) | si scrivono man mano, a partire da questo capitolo |
 
 ## Per chi installa: le cose da fare a mano

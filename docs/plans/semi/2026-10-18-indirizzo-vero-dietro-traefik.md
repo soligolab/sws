@@ -33,7 +33,7 @@ dietro il cloud.
 
 ## Entra qui anche la lista bianca del login (21-10-2026)
 
-Era il punto 3 del seme [residui dal manuale](../archive/2026-10-20-residui-dal-manuale.md), archiviato quel
+Era il punto 3 del seme [residui dal manuale](../../archive/2026-10-20-residui-dal-manuale.md), archiviato quel
 giorno: **`SWS_IP_ALLOWLIST` si fida di `X-Forwarded-For`**. L'allowlist vale solo per il login, e se manca
 l'indirizzo della connessione ripiega sull'intestazione (`router.rs:2475-2490`), che chiunque può scrivere — una
 lista bianca che si può aggirare dichiarando di essere dentro.

@@ -1,4 +1,4 @@
-> **Assorbito il 27-09-2026** nel piano [aggiornamento runtime e bus utente](../plans/2026-09-27-aggiornamento-runtime-e-bus-utente.md).
+> **Assorbito il 27-09-2026** nel piano [aggiornamento runtime e bus utente](2026-09-27-aggiornamento-runtime-e-bus-utente.md).
 
 # La commutazione web/LVGL senza niente sull'host — seme
 

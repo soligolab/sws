@@ -97,7 +97,7 @@ esito() {
 #                                        solo il primo gruppo `open`). Porta con
 #                                        sé anche destinatari email e numeri dei
 #                                        reperibili: la decisione è nel seme
-#                                        docs/plans/2026-10-26-progetto-letto-da-un-anonimo.md
+#                                        docs/plans/semi/2026-10-26-progetto-letto-da-un-anonimo.md
 #   /api/prestazioni/richiesta           (26-10-2026) il viewer LVGL chiede se
 #   /api/prestazioni/viewer              qualcuno guarda le prestazioni, e se sì
 #                                        manda il riassunto delle fasi del suo

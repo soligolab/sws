@@ -170,5 +170,5 @@ attività: le icone erano fisse a 24 px in una barra da 48. Ora le barre la segu
 24 o 28), barra larga il doppio, voce alta l'icona più 20 (`larghezzaBarra` in `editor/BarraAttivita.tsx`); alla
 misura predefinita, 24, la barra resta di 48 px come prima. La frase della preferenza dice che vale anche per le barre.
 Prova in `tests/barraAttivita.test.tsx`. Ramo `fix/misura-icone-vscode`; la voce stava nel seme dello
-[stile sobrio](../plans/2026-11-04-stile-sobrio.md), che ora non la porta più.
+[stile sobrio](../plans/semi/2026-11-04-stile-sobrio.md), che ora non la porta più.
 

@@ -90,7 +90,7 @@ e sul pannello c'è `certutil`.
 5. **Il ritiro** del percorso del certificato del dispositivo (elenco sopra), con la sua voce in
    `NOVITA.yaml`. Le copie della chiave del dispositivo già fatte sui pannelli di prova (il TC620)
    vanno tolte.
-6. **Il rinnovo** ([seme](2026-10-23-rinnovo-del-certificato-firmato.md)). Con questa strada il
+6. **Il rinnovo** ([seme](../plans/semi/2026-10-23-rinnovo-del-certificato-firmato.md)). Con questa strada il
    kiosk si aggiusta da solo a ogni rinnovo, purché il punto 1 lo segua. Il problema del pinning
    di chi si collega dalla rete resta tutto in quel seme.
 

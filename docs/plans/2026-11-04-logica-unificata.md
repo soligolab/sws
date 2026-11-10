@@ -83,7 +83,7 @@
 
 *Fatta l'08-11-2026 sul ramo `feat/logica-un-ramo`, annidato su I2.* Decisioni del maintainer quel giorno: **l'editor
 si apre al centro** (come le funzioni), quindi anche gli script escono dalla Configurazione; **l'avviso LVGL** sul
-bottone, e il viewer LVGL che esegue `on_press_fn` in `Appunti.txt`. Fatto: `editor/LogicaEditor.tsx` (funzioni e
+bottone, e il viewer LVGL che esegue `on_press_fn` nel piano [oggetti e template](2026-11-10-oggetti-e-template-parita-lvgl.md) (dal 10-11-2026). Fatto: `editor/LogicaEditor.tsx` (funzioni e
 script, Controlla, Prova con conferma, i rilievi cliccabili portano alla riga), la sezione Logica nei due stili
 (Funzioni, Script, Ricette; cancellazioni con conferma), gli script nello store (`selectedScriptId`, scritti dal Salva
 unico solo se cambiati: `scriptCambiati`), `description?` su `GlobalScriptDef`, la rinomina di una funzione che
@@ -121,13 +121,13 @@ La proposta vale se il maintainer non dice altro.
    `all`, `sorted`* (nessuno tocca file, rete o interprete).
 2. Dove va il testo di `print`: *proposta: nel log del runtime col nome della funzione o dello script, e per una funzione
    anche nella risposta HTTP (la vede «Prova»).*
-3. Le espressioni dei tag senza sandbox: *proposta: in `Appunti.txt`, con la misura; non è logica che si scrive
-   nell'editor del codice.*
+3. Le espressioni dei tag senza sandbox: *proposta: nel seme [la sandbox, secondo giro](semi/2026-11-10-sandbox-degli-script-secondo-giro.md),
+   con la misura; non è logica che si scrive nell'editor del codice.*
 
 **L1**
 1. Gli id delle schede `scripts` e `recipes`: *proposta: restano* (deep link, test, l'aiuto per schermata di M4).
 2. LVGL che non esegue `on_press_fn`: *proposta: un avviso nell'editor sul bottone, quando il progetto è LVGL; il viewer
-   LVGL in `Appunti.txt`.*
+   LVGL nel piano [oggetti e template](2026-11-10-oggetti-e-template-parita-lvgl.md).*
 
 **L2**
 1. Il completamento mostra il valore live del tag? *Proposta: sì, se c'è, come `TagInput`.*
@@ -135,7 +135,7 @@ La proposta vale se il maintainer non dice altro.
 
 **L3**
 1. Quali modelli: *proposta: tutti e dieci.*
-2. `recipes.apply(id)` da Python (oggi non esiste): *proposta: no in questa serie, in `Appunti.txt`.*
+2. `recipes.apply(id)` da Python (oggi non esiste): *proposta: no in questa serie; se servirà, diventa un seme in `semi/`.*
 3. Dove stanno i modelli: *proposta: un file per modello in `sws-editor/src/logica/modelli/`, con i segnaposto dei tag
    dichiarati; un test che li compila tutti con `/api/script/check` a stack acceso.*
 

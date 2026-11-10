@@ -13,8 +13,8 @@ Poi dal browser `http://<macchina>:8471`. I link «IDE 8460» puntano alla stess
 
 **Uso**: le prove sono in gruppi, da fare nell'ordine. `p` passa, `f` non passa, `d` dopo, `n` scrive una nota,
 `j`/`k` per muoversi. Gli esiti si salvano in `esiti.json`, accanto al server, **fuori da git**: prima di chiudere la
-sessione si fanno leggere a Claude, che spunta `docs/COLLAUDI_IN_SOSPESO.md`, archivia i piani e toglie le voci da
-`docs/plans/Appunti.txt`, poi toglie da `prove.json` le prove fatte.
+sessione si fanno leggere a Claude, che spunta `docs/COLLAUDI_IN_SOSPESO.md`, archivia i piani e aggiorna i semi in
+`docs/plans/semi/`, poi toglie da `prove.json` le prove fatte.
 
 **Dove si fa cosa**: i gruppi «IDE 8460» e «cloud» vanno da qualunque macchina, con l'IDE del ramo avviato da
 `./scripts/start_editor.sh`. I gruppi «WP630» vogliono il WP630 dell'ufficio. Un deploy con un nome nuovo cancella il

@@ -143,8 +143,8 @@ La proposta vale se il maintainer non dice altro.
 
 **M2**
 1. Il limite per indirizzo: *proposta: si fa prima l'indirizzo vero dietro Traefik* (il seme del 18-10, un pezzo di
-   configurazione di Traefik e di podman); se non sta nella sessione, un limite per user-agent e il resto in
-   `Appunti.txt`.
+   configurazione di Traefik e di podman); se non sta nella sessione, un limite per user-agent e il resto nel seme
+   [indirizzo vero dietro Traefik](semi/2026-10-18-indirizzo-vero-dietro-traefik.md).
 2. Il server statico: *proposta: nginx a versione fissa.*
 
 **M3**

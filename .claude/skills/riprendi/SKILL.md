@@ -79,9 +79,9 @@ rituale di inizio è già stato fatto una volta.
 - Guarda `docs/plans/README.md` (i piani **vivi**). Se c'è almeno un piano
   PARZIALE/vivo, proponi di ripartire da lì, a meno che il maintainer non indichi
   altro.
-- Se non c'è nessun piano **in corso**, guarda i **semi** nella seconda tabella di
-  `docs/plans/README.md`: sono le domande aperte, una per file, ognuna con l'idea e le
-  misure di quando è nata. Proponi al maintainer quale prendere in mano — e quando lo
+- Se non c'è nessun piano **in corso**, guarda i **semi** in `docs/plans/semi/README.md`
+  (dal 10-11-2026 stanno in una cartella loro): sono le domande aperte, una per file, ognuna con
+  l'idea e le misure di quando è nata. Proponi al maintainer quale prendere in mano — e quando lo
   sceglie, la prima cosa è **una sessione di plan approfondita** su quel seme, in **Plan
   mode**, senza scrivere codice: il seme dice apposta di essere materiale e non un piano
   d'esecuzione, perché fra la domanda e il lavoro passa troppo tempo.
@@ -134,7 +134,7 @@ i. **Archivia il piano concluso**: sposta il file da `docs/plans/<file>.md` a
    (`grep -rl "docs/plans/<file>.md" .`).
 
 j. Se durante il lavoro emerge una decisione architetturale non prevista dal piano:
-   **non deciderla** — scrivi un **seme** in `docs/plans/<data>-<slug>.md` (CLAUDE.md,
+   **non deciderla** — scrivi un **seme** in `docs/plans/semi/<data>-<slug>.md` (CLAUDE.md,
    sezione «Plans»: l'idea, le misure di adesso, e la frase che quando quel lavoro
-   comincerà servirà una sessione di plan approfondita), aggiungi la riga nella seconda
-   tabella di `docs/plans/README.md`, e continua con il default PoC.
+   comincerà servirà una sessione di plan approfondita), aggiungi la riga in
+   `docs/plans/semi/README.md`, e continua con il default PoC.

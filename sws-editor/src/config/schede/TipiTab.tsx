@@ -9,7 +9,7 @@
 // istanze insieme.
 //
 // Sta in un file suo e non dentro `ConfigView.tsx`, che è già a 11 600 righe
-// (vedi il seme `docs/plans/2026-09-22-riorganizzare-i-file-dell-editor.md`).
+// (vedi il seme `docs/plans/semi/2026-09-22-riorganizzare-i-file-dell-editor.md`).
 
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";

@@ -96,7 +96,7 @@ Dal 18-10-2026 il runtime limita le richieste alle API **per indirizzo**, con du
   il gateway, già contato dal gateway.
 - **Nel cloud oggi il limite non agisce**: dietro Traefik rootless ogni visitatore arriva con lo stesso indirizzo
   interno, e il gateway non conta gli indirizzi privati per non rifiutare tutti insieme. Vedi il seme
-  `docs/plans/2026-10-18-indirizzo-vero-dietro-traefik.md`.
+  `docs/plans/semi/2026-10-18-indirizzo-vero-dietro-traefik.md`.
 - **Più persone dietro lo stesso indirizzo** (un ufficio dietro un NAT, verso il cloud) dividono lo stesso secchio. Per
   quel caso: `SWS_LIMITE_LETTURE=<raffica>/<al secondo>` e `SWS_LIMITE_SCRITTURE=…`, oppure `0` per spegnere il limite.
 - **Verificato** il 18-10-2026 su x86, con le richieste dall'indirizzo di rete: il banco a 1.000 tag × 20 client e

@@ -12,7 +12,7 @@
 // colonne che non gli servono: l'import non azzera ciò che il file non nomina.
 //
 // Sta in un modulo suo e non dentro `ConfigView.tsx`, che è già a 11 700 righe
-// (vedi il seme `docs/plans/2026-09-22-riorganizzare-i-file-dell-editor.md`).
+// (vedi il seme `docs/plans/semi/2026-09-22-riorganizzare-i-file-dell-editor.md`).
 
 import type { TagDef, TypeDef } from "@/types";
 

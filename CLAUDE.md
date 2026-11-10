@@ -204,37 +204,50 @@ correggi, è una cosa importante».
 
 Il metro è chi sta davanti allo schermo: un pannello che smette di rispondere, un dato vecchio
 mostrato come buono, un comando che non parte. Un difetto estetico o un caso raro restano dove
-stavano (`Appunti.txt`, un seme); la regola «piano, non seme» vale per questi.
+stavano (un seme in `docs/plans/semi/`); la regola «piano, non seme» vale per questi.
 
 ## Plans
 
 **Plans go in `docs/plans/<date>-<slug>.md`, committed — never left in `~/.claude/plans/`.** That directory is per-machine and doesn't travel with git, and the maintainer works from two machines (office server, home PC): on 2026-07-30 an analysis written at home never made it to the office while the code did. Instruction of 2026-09-11: «i plan, non tenerli in ~/.claude/plans/ perché altrimenti li perdo tra casa e lavoro». Write the plan there as soon as it's approved — earlier if it's long — and commit it with the work. When a plan is finished or overtaken, move it to `docs/archive/` and add a row to that folder's README — `docs/plans/` should list only what's still in play. Keep the finished plan: it is the record of why things are the way they are.
 
-**Un piano quasi finito si chiude, in uno dei due modi (regola del 2026-10-22).** Quando di un
-piano restano **uno o due punti brevi**, ci sono due strade e nessuna terza: **concluderli
-subito** e archiviare, oppure **spostarli in `docs/plans/Appunti.txt`** e archiviare lo stesso.
-Quello che non si fa è lasciare il piano vivo per quei due punti.
+**Piani e semi stanno in due cartelle (regola del maintainer, 2026-11-10).** `docs/plans/` tiene i
+**piani**: lavoro definito, pronto o in corso, indice in `docs/plans/README.md`. `docs/plans/semi/`
+tiene i **semi**: le domande ancora da decidere, «poco più di un'idea», indice in
+`docs/plans/semi/README.md`. Richiesta del maintainer: «dividere i piani già pronti o in via di
+definizione dai semi, spostando questi ultimi in una cartella dedicata, così da avere anche io il colpo
+d'occhio su cosa sia poco più di una idea e cosa è attività in corso». Quando un seme diventa un
+piano, il file passa da `semi/` a `docs/plans/` (con `git mv`, i rimandi riscritti) e cambia tabella.
+
+**Un piano quasi finito si chiude, in uno dei due modi (regola del 2026-10-22, aggiornata il
+2026-11-10).** Quando di un piano restano **uno o due punti brevi**, ci sono due strade e nessuna
+terza: **concluderli subito** e archiviare, oppure **spostarli in un seme di `docs/plans/semi/`** —
+uno esistente se il tema c'è già, altrimenti uno nuovo — e archiviare lo stesso. Quello che non si fa
+è lasciare il piano vivo per quei due punti.
 
 Parole del maintainer: «se uno dei file in plan è quasi completo ma rimangono 1-2 punti brevi
-possiamo o concluderli subito e archiviarlo o spostarli in Appunti.txt e archiviare il piano». E
-per i piani grossi vale lo stesso dal lato opposto: «se sono plan enormi e c'è qualche dettaglio
-che va visto in futuro, lo sposti in Appunti.txt e chiudi+archivi il plan».
+possiamo o concluderli subito e archiviarlo o spostarli […] e archiviare il piano». E per i piani
+grossi vale lo stesso dal lato opposto: «se sono plan enormi e c'è qualche dettaglio che va visto in
+futuro, lo sposti […] e chiudi+archivi il plan». **Quando i piani vivi arrivano a zero, si analizzano
+i semi.**
 
-`Appunti.txt` è l'elenco delle sue piccole idee, «le cose che devono essere verificate e
-trasformate in plan da eseguire». **Quando i piani vivi arrivano a zero, si analizzano gli
-appunti.**
+Fino al 10-11-2026 quei residui andavano in `docs/plans/Appunti.txt`, l'elenco delle sue piccole idee.
+**Il file non esiste più e non si ricrea**, se non lo chiede il maintainer: «era una mia idea per
+tenere cose piccole da finire ma è cresciuto a dismisura e non è più utilizzabile» (451 righe). I suoi
+punti sono diventati nove file (sei semi e tre piani) e quattro aggiunte a file esistenti, elencati in
+`docs/plans/semi/README.md`. I documenti archiviati che dicono «è in Appunti.txt» rimandano a quel
+file: il punto sta oggi in uno di quei nove.
 
 Il motivo è dichiarato: «ho l'esigenza estrema di fare ordine e archiviare un po' di plan». Un
 piano tenuto vivo per due dettagli nasconde quello che è davvero in gioco, e l'elenco smette di
 servire a decidere cosa fare.
 
 **Il limite, che resta**: non vale quando il residuo è **lavoro vero** — un ramo da aprire,
-quattordici capitoli da scrivere, una fase di protocollo. Quello resta vivo, e spostarlo in
-Appunti sarebbe perderlo. La domanda da farsi è «questo è un punto breve o è lavoro?», non
-«quanto è lungo il file». Una riga in `Appunti.txt` deve bastare a sé stessa fra mesi: il
-contesto si scrive, non si presuppone.
+quattordici capitoli da scrivere, una fase di protocollo. Quello resta vivo, e spostarlo in un seme
+sarebbe perderlo. La domanda da farsi è «questo è un punto breve o è lavoro?», non «quanto è lungo
+il file». Un punto in un seme deve bastare a sé stesso fra mesi: il contesto si scrive, non si
+presuppone.
 
-**An open question is a plan file too (rule of 2026-09-18).** When something architectural comes up that the maintainer has to decide — the kind of thing that used to become a card in `docs/OPEN_QUESTIONS.md` — write a **short** plan file instead: the idea, what was measured in the code at the time, the options if they're already visible, and **this sentence, stated plainly: when this work starts, the first step is a dedicated, in-depth plan session to work out every detail.** Do not attempt the detailed design when the question is born: too much changes between the question and the work, and a design written months early is a design that lies. The maintainer's words: «genera un file sintetico di plan con l'idea e l'indicazione precisa che quando iniziamo quel lavoro dovrà essere avviata una sessione plan approfondita per sviscerarne tutti i dettagli». Add a row to `docs/plans/README.md` with «**seme — decisione**» as its state. `docs/OPEN_QUESTIONS.md` is frozen: it keeps the numbers already assigned and a one-line reference per card, and `check_documenti.sh` keeps verifying those; new questions don't get a Q-number.
+**An open question is a plan file too (rule of 2026-09-18).** When something architectural comes up that the maintainer has to decide — the kind of thing that used to become a card in `docs/OPEN_QUESTIONS.md` — write a **short** seed file in `docs/plans/semi/<date>-<slug>.md` instead: the idea, what was measured in the code at the time, the options if they're already visible, and **this sentence, stated plainly: when this work starts, the first step is a dedicated, in-depth plan session to work out every detail.** Do not attempt the detailed design when the question is born: too much changes between the question and the work, and a design written months early is a design that lies. The maintainer's words: «genera un file sintetico di plan con l'idea e l'indicazione precisa che quando iniziamo quel lavoro dovrà essere avviata una sessione plan approfondita per sviscerarne tutti i dettagli». Add a row to `docs/plans/semi/README.md` with «**seme — decisione**» as its state. `docs/OPEN_QUESTIONS.md` is frozen: it keeps the numbers already assigned and a one-line reference per card, and `check_documenti.sh` keeps verifying those; new questions don't get a Q-number.
 
 ## Session end — and whenever context is running low
 

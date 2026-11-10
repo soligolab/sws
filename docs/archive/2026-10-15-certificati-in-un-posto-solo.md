@@ -1,7 +1,7 @@
 # I certificati in un posto solo — le decisioni, dopo la sessione di plan
 
 > **FATTO il 25-10-2026, archiviato.** Le otto decisioni sono tutte costruite tranne la 6, che è un
-> protocollo a sé e vive nel seme [`2026-10-23-rinnovo-del-certificato-firmato.md`](../plans/2026-10-23-rinnovo-del-certificato-firmato.md).
+> protocollo a sé e vive nel seme [`2026-10-23-rinnovo-del-certificato-firmato.md`](../plans/semi/2026-10-23-rinnovo-del-certificato-firmato.md).
 > L'ultimo pezzo è la vista (decisioni 3, 4 e 8): Sicurezza → Certificati, ramo `feat/vista-certificati`.
 > Da collaudare sul pannello col quadlet 7.
 
@@ -353,7 +353,7 @@ Oggi è **«CN=rcgen self signed cert»**, uguale su ogni pannello: nessuno impo
 >
 > **Non si scrive qui**: è un protocollo di fiducia, e il punto duro è che l'archivio tiene solo
 > `sha256:<hex>` — da un'impronta non si verifica una firma. Seme dedicato:
-> [`2026-10-23-rinnovo-del-certificato-firmato.md`](../plans/2026-10-23-rinnovo-del-certificato-firmato.md),
+> [`2026-10-23-rinnovo-del-certificato-firmato.md`](../plans/semi/2026-10-23-rinnovo-del-certificato-firmato.md),
 > con le misure e i quattro punti duri. **La scadenza si mette dopo che il rinnovo esiste**:
 > metterla prima vuol dire un parco di pannelli che fra due anni scade senza che niente li
 > rinnovi.

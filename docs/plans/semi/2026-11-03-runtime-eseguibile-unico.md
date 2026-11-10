@@ -10,7 +10,7 @@
 
 Sui Tiny TY (RV1106, un Cortex-A7, 256 MB, Ubuntu 22.04 armhf, **niente podman**) SWS deve arrivare come **un file
 da copiare e lanciare**: niente container, niente cartelle di contorno da tenere allineate, un servizio systemd che
-punta a un binario. Il piano dei TY ([`2026-10-30-sws-lvgl-sul-tiny-ty.md`](2026-10-30-sws-lvgl-sul-tiny-ty.md))
+punta a un binario. Il piano dei TY ([`2026-10-30-sws-lvgl-sul-tiny-ty.md`](../2026-10-30-sws-lvgl-sul-tiny-ty.md))
 prevede già l'installazione senza container (passo 3) e gli aggiornamenti senza registry (passo 4): questo seme è
 il pezzo «un eseguibile» che li rende semplici, e vale anche fuori dai TY (un PC in reparto, un pannello senza
 podman).

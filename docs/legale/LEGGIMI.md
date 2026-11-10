@@ -33,7 +33,7 @@ resto il browser conserva in `localStorage` il gettone di sessione e alcune pref
 8. **Italiano e inglese**, due pagine pubbliche (`/condizioni`, `/privacy`) raggiungibili senza login; fa fede
    l'italiano. L'inglese si traduce dopo la revisione, per non rivedere due testi.
 9. **La licenza del software va cambiata** (oggi AGPL-3.0): decisione a parte, seme
-   [`2026-10-29-licenza-del-software.md`](../plans/2026-10-29-licenza-del-software.md). Il punto 11 delle condizioni è
+   [`2026-10-29-licenza-del-software.md`](../plans/semi/2026-10-29-licenza-del-software.md). Il punto 11 delle condizioni è
    un segnaposto finché non si decide.
 
 ## Punti da verificare con chi rivede

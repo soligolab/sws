@@ -223,7 +223,7 @@ card e rendere veri quei due helper. Conservare invece `input[autocomplete="user
 `current-password` e il pulsante `/Accedi|Log ?in/i` del login, che i test usano davvero.
 
 **6. Spezzare il file.** 1673 righe e sei componenti: i quattro modali escono in file propri.
-Questo serve anche al piano vivo `docs/plans/2026-09-22-riorganizzare-i-file-dell-editor.md`, che
+Questo serve anche al piano vivo `docs/plans/semi/2026-09-22-riorganizzare-i-file-dell-editor.md`, che
 va aggiornato di conseguenza. Attenzione: `tests/raggruppaProgetti.test.ts` importa `raggruppa` e
 `titoloGruppo` **da `@/components/WelcomeScreen`** — se si spostano, si aggiorna l'import.
 
@@ -463,3 +463,63 @@ Fatto il 05-11-2026, archiviando il tronco cloud: le tre cose sono scritte nella
 - l'SMTP d'installazione **non è più «un pezzo nuovo»**: esiste;
 - la **decisione 39** sulla porta 25 bloccata sui VPS OVH è **falsa su questa macchina** —
   misurato il 26-10, 25/587/465 tutte aperte in uscita.
+
+## Dal tronco cloud, due code (annotate il 10-11-2026 da `Appunti.txt`)
+
+> Trasferite qui il 10-11-2026 da `docs/plans/Appunti.txt` (due punti del 05-11-2026, scritti il giorno
+> in cui il tronco cloud è stato archiviato), quando il maintainer ha chiesto di trasformare gli appunti
+> in semi e piani e di eliminare il file. Stanno in questo piano perché sono le due cose del tronco cloud
+> che nessun ramo A-D copre e che un'istanza aperta a esterni rende concrete.
+
+### 1. La guardia del self-host non esiste (decisione 27 del tronco cloud) — piccolo, si estende una guardia
+
+**Cosa doveva esserci.** La decisione 27 del tronco cloud
+([`docs/archive/2026-10-05-cloud-utenti-aziende-spazi.md`](../archive/2026-10-05-cloud-utenti-aziende-spazi.md),
+sezione «Il vincolo del self-host, da tenere vivo») prevedeva una guardia `scripts/check_self_host.sh`:
+avviare l'IDE **senza gateway e senza azienda**, entrare con un utente dell'installazione e aprire un
+progetto. Se una dipendenza dal cloud entra nel nucleo, la guardia diventa rossa. Il tronco cloud la
+elencava anche fra le «guardie nuove, da provare rosse».
+
+**Cosa c'è, misurato il 05-11-2026 e riverificato il 10-11-2026.** `scripts/check_self_host.sh` **non
+esiste** (nessun file con quel nome, nessuna citazione fuori dall'archivio). Quasi tutto quello che
+doveva fare lo fa già `scripts/check_primo_utente.sh`, guardia **manuale**: sta nell'elenco `CON_STACK`
+di `scripts/check_static.sh` (riga 90 e seguenti), quindi non gira nel giro automatico. Quella guardia:
+
+- avvia un IDE con la sola `--admin-port` (riga 43 dello script), senza `--viewer-port`, quindi senza
+  gateway e senza azienda: è esattamente il self-host;
+- crea il primo amministratore dell'installazione (`primo_amministratore_ide` da
+  `scripts/accesso_guardie.sh`) ed entra con le sue credenziali;
+- apre il progetto «prova» con `prepara()` (righe 59-63): `POST /api/projects` con `{"name":"prova"}` e
+  `POST /api/projects/prova/open`.
+
+**Il buco**: `prepara()` butta via le risposte (`>/dev/null` su entrambe le `curl`) e **non controlla che
+l'apertura riesca**. Se l'apertura del progetto fallisse per una dipendenza dal cloud, la guardia
+resterebbe verde.
+
+**Cosa fare**: **basta estenderla**. In `prepara()` leggere il codice HTTP delle due chiamate (come fanno
+già `crea()` ed `elenca()` con `-o /dev/null -w '%{http_code}'`) e segnare `ko` se l'apertura non risponde
+2xx. Con questo la decisione 27 è coperta senza una guardia nuova; nel tronco cloud archiviato il nome
+`check_self_host.sh` resta come storia, e questa sezione dice dove sta la copertura.
+
+### 2. Backup e ripristino per azienda (Q44 punto 4) — non è piccolo: prima una sessione di plan
+
+**L'idea.** Oggi i backup sono **per progetto**: `sws-runtime/crates/sws-web/src/backups.rs` (653 righe
+il 10-11-2026) **non sa niente dell'azienda** — la parola non compare nel file. Nel cloud servirebbe
+salvare e ripristinare **insieme tutti i progetti di un'azienda**.
+
+**Da dove viene.** È il punto 4 della scheda Q44 («Ospitare l'editor come servizio, con aziende, utenti e
+quote»), il cui testo sta in
+[`docs/archive/2026-09-18-identita-utenti-istanze.md`](../archive/2026-09-18-identita-utenti-istanze.md):
+«**Backup e ripristino per azienda**, non per progetto come oggi.» L'intestazione del tronco cloud
+archiviato (05-11-2026) dice «Self-host e backup per azienda sono in `docs/plans/Appunti.txt`»: da oggi
+quel rimando vale per questa sezione.
+
+**Cosa resta da capire**, e non si decide qui: cosa entra nel backup di un'azienda oltre alle cartelle
+dei progetti (la riga in `aziende` con quote, marchio e stato; i membri; i pannelli abbinati; le
+anteprime `anteprima.png` che stanno fuori da Git e dal deploy); se il ripristino sovrascrive o affianca
+i progetti con lo stesso nome; dove il file viene scritto e letto nel cloud, dove il container del
+progetto e il gateway non condividono il filesystem se non per la cartella del progetto; e se il backup
+per azienda conta nella quota `max_byte`.
+
+**Non è piccolo: quando questo lavoro comincerà, il primo passo è una sessione di plan approfondita e
+dedicata, per sviscerarne tutti i dettagli.** Questo paragrafo è materiale, non un piano d'esecuzione.

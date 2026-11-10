@@ -228,11 +228,11 @@ Contiene:
 - Scrivi `docs/plans/<data>-revisione-<tipo>.md`, a fasi. Ogni fase sta in una sessione e
   finisce con qualcosa che il maintainer può provare.
 - Aggiungi la riga in `docs/plans/README.md`.
-- I temi che toccano **tutti** gli oggetti vanno in **semi separati** (`CLAUDE.md`, «Plans»), non
+- I temi che toccano **tutti** gli oggetti vanno in **semi separati** in `docs/plans/semi/` (`CLAUDE.md`, «Plans»), non
   dentro il piano dell'oggetto. Esempi: un tema ISA-101 di progetto, uno stato «in attesa» per
   tutte le scritture, l'avviso di connessione persa.
-- Se il piano copre una voce di `docs/plans/Appunti.txt`, proponi di toglierla e toglila solo
-  con l'ok.
+- Se il piano copre un seme di `docs/plans/semi/` o un punto di un altro piano, proponi di toglierlo e
+  toglilo solo con l'ok.
 - Commit meta su `main` con `-s`. Niente push senza richiesta.
 
 ## Regole fisse
@@ -258,4 +258,4 @@ Contiene:
   - CasaDomotica (`CLAUDE.md`), `CHANGELOG.md`, `NOVITA.yaml` in italiano e inglese.
 - **Gli effetti generici restano generici.** Blink, qualità, stale, allarme, ruolo vivono nel
   wrapper di pagina di `SvgCanvas.tsx` e in `effects.rs`. Non si rifanno dentro un oggetto.
-- **Una decisione architetturale non si prende qui.** Diventa un seme in `docs/plans/`.
+- **Una decisione architetturale non si prende qui.** Diventa un seme in `docs/plans/semi/`.

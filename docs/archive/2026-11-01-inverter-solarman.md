@@ -192,7 +192,7 @@ NOVITA). Corretti strada facendo: tipi interi dalle scale intere, nomi automatic
 foglie di una variabile strutturata, chiavi dei testi fra virgolette, rimando di una lettura Solarman muta. Nuovo
 simbolo `lib:building/house`. Uscito nella 2.24.0.
 
-Rimasti fuori: SunSpec e la scrittura nel seme [inverter SunSpec](../plans/2026-11-02-inverter-sunspec.md); i punti
+Rimasti fuori: SunSpec e la scrittura nel seme [inverter SunSpec](../plans/semi/2026-11-02-inverter-sunspec.md); i punti
 brevi (segni di giorno, allarme di produzione, discovery HA, 0x022B, storico dal catalogo, parità LVGL) in
 `docs/plans/Appunti.txt`.
 

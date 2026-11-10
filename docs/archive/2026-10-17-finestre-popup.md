@@ -2,7 +2,7 @@
 
 ## Context
 
-Il P1 dell'onda 1 del [piano prima fascia e CRA](docs/plans/2026-10-15-piano-prima-fascia-e-cra.md) è la mancanza HMI
+Il P1 dell'onda 1 del [piano prima fascia e CRA](../plans/2026-10-15-piano-prima-fascia-e-cra.md) è la mancanza HMI
 più visibile rispetto agli SCADA professionali. Il gesto da coprire: clic sulla pompa → si apre la sua finestra di
 dettaglio, la stessa finestra per pompa 1 e pompa 2 con parametri diversi.
 

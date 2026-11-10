@@ -37,5 +37,29 @@ progetto (viaggia col deploy) o della persona (preferenza dell'IDE)? Le emoji sp
 ## La misura delle icone nello stile VS Code — fatta
 
 Vista dal maintainer il 05-11-2026 e corretta lo stesso giorno: le due barre dello stile VS Code seguono la
-«Dimensione icone». Il dettaglio è nel [piano archiviato dello stile VS Code](../archive/2026-10-31-ide-stile-vscode.md),
+«Dimensione icone». Il dettaglio è nel [piano archiviato dello stile VS Code](../../archive/2026-10-31-ide-stile-vscode.md),
 sezione «Completamento». Quando lo stile sobrio rifarà le icone dell'IDE, la misura c'è già.
+
+## La disposizione «Stile VS Code», cose lasciate fuori (annotate il 10-11-2026 da `Appunti.txt`)
+
+> Punto di `Appunti.txt` del 31-10-2026, spostato qui il 10-11-2026 quando il maintainer ha chiesto di trasformare
+> gli appunti in semi e piani e di eliminare il file. Il piano da cui viene è in archivio:
+> [`2026-10-31-ide-stile-vscode.md`](../../archive/2026-10-31-ide-stile-vscode.md), sezione «Fuori da questo piano».
+
+La disposizione «Stile VS Code» dell'IDE è entrata il 31-10-2026 e ha lasciato fuori tre cose. Stanno in questo
+seme perché riguardano l'aspetto dell'IDE, la stessa metà che lo stile sobrio vuole rifare: la sessione di plan
+che aprirà questo seme decide anche se farle, e in che ordine.
+
+1. **Chat e log come voci della barra di attività.** In VS Code stanno in fondo alla barra e nel pannello in
+   basso. Da noi sono cassetti in `sws-editor/src/App.tsx` e funzionano: al 10-11-2026 la chat dell'assistente
+   (`ChatPanel`) è il cassetto a destra dentro `<main>`, il log (`LogPanel`) è il cassetto in basso, righe 1146-1157.
+2. **Una barra di stato in basso**, in stile VS Code. Oggi non c'è.
+3. **Altre disposizioni oltre a «Classica» e «VS Code».** L'elenco e la scheda sono già pronti ad accoglierne di
+   nuove: `DISPOSIZIONI_IDE = ["classica", "vscode"]` in `sws-editor/src/store/index.ts` (riga 295 al 10-11-2026;
+   il commento nel codice dice «un elenco e non un interruttore: le prossime ci entrano senza rifare niente»), e la
+   scheda Configurazione → IDE (`sws-editor/src/config/schede/IdePreferencesTab.tsx`) disegna un bottone per ogni
+   voce dell'elenco.
+
+**CasaDomotica:** la regola del `CLAUDE.md` («quando una funzione visibile entra in `main`, va messa anche in
+CasaDomotica», 16-10-2026) non si applica a queste tre cose, perché sono l'IDE e non il progetto. Lo si annota
+così com'è, come chiede la regola.

@@ -3,7 +3,7 @@
 > **Seme — decisione.** Quando questo lavoro comincia, il primo passo è una **sessione di plan dedicata e
 > approfondita** per sviscerarne tutti i dettagli. Quello che c'è qui è materiale, non un piano d'esecuzione.
 
-Nato chiudendo il [piano dei tag come oggetto unico](../archive/2026-09-21-gestione-tag-oggetto-unico.md) il
+Nato chiudendo il [piano dei tag come oggetto unico](../../archive/2026-09-21-gestione-tag-oggetto-unico.md) il
 25-10-2026. Quel piano ha portato i tag compositi (tipi riusabili e istanze, array) nel core, nell'editor, su
 **Modbus** (Fase 3) e su **OPC-UA** (Fase 4, server e client). Gli altri protocolli li teneva «in coda, non
 pianificati qui», e sono lavoro vero:

@@ -302,7 +302,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   - **il cambio password obbligatorio si può rimandare** (`POST /api/auth/rimanda-cambio-password`): «Più tardi» vale per
     la sessione (`Session.rimandato` in `sws-auth`), «Non chiedere più» toglie il segno ed è solo dell'Admin; tutti e
     due nell'audit. Sul viewer del pannello, non nell'IDE dell'installazione. Seme sul CRA:
-    `docs/plans/2026-11-07-credenziali-cra.md`;
+    `docs/plans/semi/2026-11-07-credenziali-cra.md`;
   - **il deploy avvisa se porta utenti col cambio password obbligatorio** (428 `utenti-da-cambiare`), nominando chi
     sostituiscono sul pannello;
   - **il momentaneo sul touch**: il bottone e il simbolo che comanda usano gli eventi pointer a runtime (più
@@ -1374,7 +1374,7 @@ e sul VPS resta la 2.25.1. Le sue voci di `NOVITA.yaml` sono riportate in «Unre
 
 - **`check_rotte_preauth.sh` leggeva solo il primo gruppo `open`**: quello della porta del viewer (7443) non era mai
   stato controllato. Ora li legge tutti; è comparso `/api/project`, dichiarato con il seme
-  `docs/plans/2026-10-26-progetto-letto-da-un-anonimo.md`.
+  `docs/plans/semi/2026-10-26-progetto-letto-da-un-anonimo.md`.
 
 ## [2.23.0] — 2026-10-26
 
@@ -3008,7 +3008,7 @@ e sul VPS resta la 2.25.1. Le sue voci di `NOVITA.yaml` sono riportate in «Unre
   Nessun falso rifiuto col banco a 20 client né aprendo IDE e viewer.
   **Nel cloud oggi non limita**: dietro Traefik rootless ogni visitatore arriva come `10.89.0.89`
   (rootlessport), quindi sul gateway un indirizzo privato non si conta, invece di mettere tutti nello stesso secchio.
-  Seme `docs/plans/2026-10-18-indirizzo-vero-dietro-traefik.md`.
+  Seme `docs/plans/semi/2026-10-18-indirizzo-vero-dietro-traefik.md`.
 - **La porta del viewer serviva la SPA senza `no-cache`**: il `fallback_service` era aggiunto dopo
   gli strati e non ne passava. Ora gli strati stanno sopra il fallback, come sul router di amministrazione.
 

@@ -47,7 +47,7 @@ prova di carico (il template ora è a 1 Hz).
        si chiude. Dopo 5 s compaiono la fascia «Dati in ritardo di N s» e gli oggetti grigi, e il numero sale di 1 al
        secondo. Al riavvio del runtime spariscono. Sul viewer web e sul viewer LVGL. *Non* staccando la rete: il socket
        resta aperto per minuti, nessuno dei due motori ha un battito, e un socket vivo e muto vale come impianto fermo
-       (il battito è in `docs/plans/Appunti.txt`).
+       (il battito è nel seme `docs/plans/semi/2026-11-10-viewer-prestazioni-e-protocollo.md`).
 6. [ ] Dati in ritardo, **aspetto** sul LVGL: `--ritardo-di-prova 8`. La fascia sta in alto, sopra la card
        dell'aggiornamento e sotto la schermata d'accesso; gli oggetti sono grigi.
 7. [ ] Dati in ritardo, **età vera**, sul banco (`tmp/viewer-leggero/banco`, solo su theobroma): con una SPA ricostruita
@@ -236,7 +236,7 @@ va rifatta anche la configurazione del servizio).
        compare l'avviso e `--verifica` non elenca il certificato, il `PathChanged` di `sws-fiducia.path` si è perso fra
        cancellazione e ricreazione (meno di un secondo). *(Corretto il 05-11-2026.)*
 5. [ ] **Rimuovi** il certificato: oggi il pannello **non** torna in chiaro — col marcatore `fiducia-browser` il
-       runtime ne genera subito uno nuovo. Difetto noto (in `Appunti.txt`, 05-11-2026): si riprova quando è corretto.
+       runtime ne genera subito uno nuovo. Difetto noto (05-11-2026, nel piano `docs/plans/2026-11-10-manutenzione-e-verifiche-rimandate.md`): si riprova quando è corretto.
 6. [ ] **Non misurato, da misurare qui**: dopo un cambio di certificato basta riavviare il solo
        kiosk, o serve tutto il pannello? Nella prova del 26-10 si era riavviato tutto.
 7. [ ] Su un dispositivo **senza `certutil`** (o fingendolo): l'installatore deve dirlo, il

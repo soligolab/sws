@@ -57,7 +57,7 @@ Il ciclo DRM del viewer (`sws-lvgl-viewer/src/main.rs`, intorno alla riga 1640) 
 16`), `sws_flush_cb` converte in un buffer RGB888, `copy_frame_rgb888` lo copia, e
 `DrmDisplay::flush_rgb888` lo riscrive in XRGB8888 un byte alla volta. Sul WP630 la copia costava
 già 23 ms su 35 per fotogramma ([dove se ne va il
-tempo](../archive/2026-10-26-dove-se-ne-va-il-tempo.md); il rimedio è in `Appunti.txt`).
+tempo](../archive/2026-10-26-dove-se-ne-va-il-tempo.md); il rimedio è nel seme [i viewer dopo il viewer leggero](semi/2026-11-10-viewer-prestazioni-e-protocollo.md)).
 
 Misura sul TY570 con un programma C `-O2`, 1024×600, media su 30 giri:
 
@@ -89,7 +89,7 @@ core, prima che LVGL disegni e prima del runtime e del PLC. Qui il rimedio non �
    Ne guadagnano anche il WP630 e gli altri pannelli LVGL. Misurare sul TY570 con CasaDomotica.
 
 3. **Installare con systemd, senza container.** (03-11-2026: il «come un file solo» è il seme
-   [runtime eseguibile unico](2026-11-03-runtime-eseguibile-unico.md).) Partire da `deploy/generic-linux/install.sh`,
+   [runtime eseguibile unico](semi/2026-11-03-runtime-eseguibile-unico.md).) Partire da `deploy/generic-linux/install.sh`,
    adattato ad armhf. Podman di Ubuntu 22.04 (3.4) non ha i quadlet e costerebbe RAM. Nelle unit:
    **il PLC deve vincere** — `CPUWeight` e `Nice` più bassi del PLC, `OOMScoreAdjust` più alto per
    SWS (sotto pressione si sacrifica SWS, non CODESYS), un `MemoryMax` per runtime e viewer.

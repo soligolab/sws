@@ -83,7 +83,7 @@ aggiunge capacità, e il rootless è una scelta di disegno.
 Il punto 1 era il solo che toccasse codice già in produzione. Dal 2 in poi si è aggiunto.
 
 **Quello che resta, e non è di questo piano**: il server Modbus di SWS — vedi il seme
-[server Modbus](2026-10-23-server-modbus.md) — e il tempo reale, che in rootless non si ha e che
+[server Modbus](../plans/semi/2026-10-23-server-modbus.md) — e il tempo reale, che in rootless non si ha e che
 qui non si è toccato.
 
 ---

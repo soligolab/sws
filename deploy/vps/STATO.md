@@ -292,7 +292,7 @@ vanno da metà pomeriggio al mattino dopo. La lettura semplice è che il pannell
 sue cinque interruzioni *brevi* hanno la stessa mediana di quelle del TC620, quindi il meccanismo
 di riconnessione si comporta uguale. **Ma dal lato del gateway le due cose non si distinguono**, e
 questo è un difetto: vedi il seme
-[il gateway non dice chi bussa](../../docs/plans/2026-10-24-il-gateway-non-dice-chi-bussa.md).
+[il gateway non dice chi bussa](../../docs/plans/semi/2026-10-24-il-gateway-non-dice-chi-bussa.md).
 
 ## Il tunnel dei pannelli (10-10-2026)
 
