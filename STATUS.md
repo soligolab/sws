@@ -12,6 +12,15 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+> **Collaudo 2.26.0-rc.11 del 10-11 sul WP630 (dal cloud e dal pannello, progetto Montagna): 5 passati, 1 non passato, 6
+> anomalie.** Passati: login dal pannello con l'occhio (piano approvato), l'occhio nell'IDE, le kpi in modifica, la conferma
+> dell'aggiornamento, l'assistente che compone una pagina con faceplate e sfondi. Non passato: «Dati in ritardo» col
+> runtime fermo (il viewer mostra «No active project»). Anomalie, tutte in correzione per la rc.12: banco della chat perso
+> alla riconnessione; la foto della pagina nel cloud (si rifà col motore del progetto: browser per il web, viewer LVGL
+> nell'immagine x86); sfondi invisibili nell'IDE prima/dopo il Salva; oggetti dell'assistente nelle fasce della cornice;
+> «No active project» a runtime fermo; anteprima di una foto in negativo (corretta, `ead792a0`). Da annotare: sul WP630
+> con Montagna a 10 Hz il browser resta pesante (renderer ~93 %, processo GPU ~100 % di un core), il pannello risponde.
+
 ## ▶ Riprendere da qui — la 2.26.0-rc.11 pubblicata e sul VPS; i semi separati dai piani, `Appunti.txt` sciolto (2026-11-10, theobroma)
 
 **Ramo aperto: `fix/collaudo-rc11`**, le anomalie del banco della rc.11, da squashare in un colpo solo per la rc.12 (come

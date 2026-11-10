@@ -32,9 +32,9 @@
 Dal piano [l'assistente disegna i simboli e compone il sinottico](archive/2026-11-03-assistente-genera-simboli-e-sinottici.md),
 sezione «Code annotate il 10-11-2026». Nell'IDE (cloud o 8460), con una chiave vera.
 
-1. [ ] **Faceplate proposti** (fatto il 06-11, `630a0f30`): in una chat, chiedere una pagina con tre macchine uguali. La
+1. [x] **Faceplate proposti** **Confermato dal maintainer il 10-11-2026** (rc.11). Nel cloud, Montagna, kimi-k3: pagina «Vallone — stazione di pompaggio» con `fp_pompa` e tre istanze.  (fatto il 06-11, `630a0f30`): in una chat, chiedere una pagina con tre macchine uguali. La
        proposta porta un faceplate e tre istanze, il diff li elenca, dopo «Salva» c'è `faceplates/<id>.yaml`.
-2. [ ] **La conversazione intera con gli sfondi** (non passata il 05-11, corretta il 06-11): `genera_sfondo` → «Usa come
+2. [ ] **10-11-2026, in parte**: «Usa come base» reagisce, `genera_sfondo` e `varia_sfondo` vanno, foto e dissolvenza sul pannello dopo il deploy. Non passa: il banco perso alla riconnessione della chat, l'istantanea che nel cloud non c'è, lo sfondo invisibile nell'IDE prima e dopo il Salva, gli oggetti nelle fasce della cornice — corretti per la rc.12, da ricollaudare lì. **La conversazione intera con gli sfondi** (non passata il 05-11, corretta il 06-11): `genera_sfondo` → «Usa come
        base» → `varia_sfondo` → proposta → Applica → Salva → le foto in `images/`, in una chat sola. «Usa come base»
        reagisce al primo clic o dice che è in coda; nessuna istantanea in timeout.
 3. [ ] **Il banco dei tubi** (F5): un giudizio da 1 a 5 sulle due pagine del 04-11 (`tmp/ai-misure/`, solo su
@@ -77,7 +77,7 @@ prova di carico (il template ora è a 1 Hz).
 2. [ ] CPU del renderer con `top` (prima si chiede l'accesso SSH). Resta piatta fra il minuto 5 e il minuto 30. La base
        era il 96%.
 3. [ ] Journal del runtime: non c'è «ws/tags subscriber lagged». Se c'è, si apre il passo facoltativo del §8 del piano.
-4. [ ] IDE 8460, Montagna in modifica: le kpi mostrano mini tendenza e variazione.
+4. [x] IDE 8460, Montagna in modifica: le kpi mostrano **Confermato dal maintainer il 10-11-2026** (rc.11).  mini tendenza e variazione.
 
 **I segnali decisi il 09-11**
 5. [ ] Dati in ritardo, **socket giù**: si ferma il runtime per 10 s (sul pannello serve SSH: chiederlo prima). Il socket
@@ -131,14 +131,14 @@ tocco la nasconde, chiusa la finestra riparte nascosta. L'icona è la stessa su 
 nascosta («toccami per vederla»), barrata quando si legge.
 
 **IDE 8460**
-1. [ ] Login: l'occhio a destra dentro il campo, parte nascosta, un clic mostra e uno nasconde, il fuoco resta nel campo
+1. [x] Login: l'occhio a destra dentro il campo **Confermato dal maintainer il 10-11-2026** (rc.11). , parte nascosta, un clic mostra e uno nasconde, il fuoco resta nel campo
        e Invio entra ancora. Un login sbagliato lascia la password nascosta anche se era in chiaro.
 2. [ ] Cambio password (tre campi) e Registrazione: occhi indipendenti, mostrarne uno non mostra gli altri; il testo si
        ferma prima dell'occhio.
 3. [ ] Configurazione → Utenti: la password iniziale del nuovo utente in chiaro, poi «Crea»: il campo si svuota e torna
        nascosto, e la password del prossimo utente parte nascosta. La password per riga nel reset ha l'occhio anche sui
        campi bassi (sporge sopra e sotto, senza fondo).
-4. [ ] Configurazione → Istanza → Device → Connessione, e Dispositivi: l'occhio c'è anche sui campi a larghezza fissa
+4. [x] Configurazione → Istanza → Device → Connessione, e Dispositivi: l'occhio **Confermato dal maintainer il 10-11-2026** (rc.11).  c'è anche sui campi a larghezza fissa
        (150-160 px) e il campo non esce più largo dei vicini. Notifiche → Twilio: «Auth token» salvato e mascherato dal
        server ha l'occhio spento; scrivendo un token nuovo si accende.
 
