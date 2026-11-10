@@ -3597,3 +3597,27 @@ useAppStore.subscribe((st, prima) => {
 });
 
 export type { AppState, SynopticObject, ObjectGroup };
+
+/** Le finestre staccate (la chat) seguono l'accesso fatto nell'editor
+ *  (10-11-2026). Leggono `sws.auth` solo all'avvio: un accesso fatto dopo,
+ *  nella finestra dell'editor, non lo vedevano, e il socket della chat restava
+ *  col token di prima. L'evento `storage` arriva alle **altre** finestre della
+ *  stessa origine quando una scrive la chiave; qui si applica allo store, e
+ *  `setAuthToken` fa rifare il socket. Restituisce la funzione che smette. */
+export function seguiAccessoDalleAltreFinestre(): () => void {
+  if (typeof window === "undefined") return () => {};
+  const h = (e: StorageEvent) => {
+    if (e.key !== null && e.key !== AUTH_KEY) return;
+    const p = readPersistedAuth();
+    const st = useAppStore.getState();
+    if (p) {
+      if (p.token === st.authToken) return;
+      const ruolo = isRole(p.role) ? p.role : st.authRole ?? "Viewer";
+      st.setAuth(p.token, p.username, ruolo, p.must_change_password ?? false, p.expires_at_ms ?? undefined);
+    } else if (st.authToken) {
+      st.clearAuth();
+    }
+  };
+  window.addEventListener("storage", h);
+  return () => window.removeEventListener("storage", h);
+}

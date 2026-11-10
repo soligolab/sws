@@ -21,6 +21,7 @@ vi.mock("@/ws/aiStream", () => ({
   chiedi: () => true,
   approvaSfondo: () => true,
   mandaFoto: (id: string, esito: unknown) => { fotoMandate.push({ id, ...(esito as object) }); return true; },
+  suConversazioneNuova: () => () => {},
 }));
 
 import { fotografa, simboliUsati, type RichiestaFoto } from "../src/ai/fotoDalBrowser";

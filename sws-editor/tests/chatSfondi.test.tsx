@@ -14,6 +14,7 @@ vi.mock("@/ws/aiStream", () => ({
   chiedi: (testo: string) => { inviati.push({ t: "chiedi", testo }); return true; },
   approvaSfondo: (id: string) => { inviati.push({ t: "approva_sfondo", id }); return true; },
   nuovaConversazione: () => {},
+  suConversazioneNuova: () => () => {},
 }));
 
 import { ChatPanel } from "../src/components/ChatPanel";

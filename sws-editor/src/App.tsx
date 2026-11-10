@@ -1,7 +1,8 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { azioneDi } from "@/scorciatoie/registro";
-import { api, AuthError, NoProjectError, PasswordChangeRequiredError, RuntimeUnavailableError } from "@/api/client";
+import { api, AuthError, NoProjectError, PasswordChangeRequiredError } from "@/api/client";
+import { RIPROVA_RUNTIME_MS, RuntimeInRiavvio, runtimeSiStaRiavviando } from "@/components/RuntimeInRiavvio";
 import { percorsoFinestra, prefissoGateway } from "@/api/prefisso";
 import { BarraAvviso } from "@/components/BarraAvviso";
 import { BannerProvaGit } from "@/components/BannerProvaGit";
@@ -361,6 +362,20 @@ export function App() {
   // Prevents LoginScreen from flashing before we know the auth state.
   const [bootstrapping, setBootstrapping] = useState(true);
 
+  // Il runtime non risponde (10-11-2026): si sta riavviando — un
+  // aggiornamento, un riavvio a mano, il container del progetto nel cloud che
+  // riparte. Prima l'IDE lo leggeva come «nessun progetto» e portava alla
+  // WelcomeScreen, da cui si doveva riaprire il progetto a mano. Ora si
+  // aspetta: una schermata lo dice, si riprova ogni 2 s (`tentativoAvvio`
+  // rifà il giro del montaggio) e al ritorno si riapre il progetto dov'eri.
+  const [runtimeInRiavvio, setRuntimeInRiavvio] = useState(false);
+  const [tentativoAvvio, setTentativoAvvio] = useState(0);
+  useEffect(() => {
+    if (!runtimeInRiavvio) return;
+    const id = window.setTimeout(() => setTentativoAvvio((n) => n + 1), RIPROVA_RUNTIME_MS);
+    return () => window.clearTimeout(id);
+  }, [runtimeInRiavvio, tentativoAvvio]);
+
   // Perché siamo finiti sulla schermata di accesso, quando non è ovvio: chiave
   // i18n, o `null`. Serve per il caso in cui l'autenticazione si **accende**
   // sotto i piedi (primo utente definito su un dispositivo), dove un login
@@ -469,7 +484,7 @@ export function App() {
   // Read once after the app becomes active (authenticated + project open).
   const deepLinkApplied = useRef(false);
   useEffect(() => {
-    if (!authToken || noActiveProject || deepLinkApplied.current) return;
+    if (!authToken || noActiveProject || runtimeInRiavvio || deepLinkApplied.current) return;
     deepLinkApplied.current = true;
     const hash = window.location.hash.slice(1);
     if (hash.startsWith("config/")) {
@@ -484,16 +499,18 @@ export function App() {
       setMode(hash as Mode);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authToken, noActiveProject]);
+  }, [authToken, noActiveProject, runtimeInRiavvio]);
 
   // Keep hash in sync whenever mode or configTab changes (for bookmarking).
   useEffect(() => {
-    if (!authToken || noActiveProject) return;
+    // Durante l'attesa del runtime l'indirizzo non si tocca: porta la scheda
+    // su cui riaprire.
+    if (!authToken || noActiveProject || runtimeInRiavvio) return;
     const hash = effectiveMode !== "config" ? effectiveMode
       : configFocus ? `config/${configTab}/${encodeURIComponent(configFocus)}`
       : `config/${configTab}`;
     history.replaceState(null, "", `#${hash}`);
-  }, [effectiveMode, configTab, configFocus, authToken, noActiveProject]);
+  }, [effectiveMode, configTab, configFocus, authToken, noActiveProject, runtimeInRiavvio]);
 
   // Listen for mid-session token expiry fired by api/client.ts
   //
@@ -553,13 +570,15 @@ export function App() {
   // schermata mostrare: con zero utenti la schermata di accesso sarebbe un
   // vicolo cieco — non c'è nessuno con cui accedere.
   const [servePrimoAmministratore, setServePrimoAmministratore] = useState(false);
+  // Si richiede quando il runtime torna: a runtime fermo la risposta non c'era.
   useEffect(() => {
+    if (runtimeInRiavvio) return;
     let vivo = true;
     api.identitaStato()
       .then((st) => { if (vivo) setServePrimoAmministratore(!!st.serve_primo_amministratore); })
       .catch(() => { /* runtime vecchio o non raggiungibile: si prosegue come prima */ });
     return () => { vivo = false; };
-  }, []);
+  }, [runtimeInRiavvio]);
 
   useEffect(() => {
     if (!authToken || noActiveProject) return;
@@ -577,11 +596,24 @@ export function App() {
   //      503 → WelcomeScreen (project was closed externally).
   useEffect(() => {
     if (mustChangePassword) return;
+    let vivo = true;
+    // Un giro dopo un'attesa del runtime: si riapre dov'eri.
+    const ripresa = tentativoAvvio > 0;
+    // Modifiche non salvate nello store (un nuovo accesso dopo la sessione
+    // scaduta, magari a runtime fermo, con lavoro in corso): il progetto e le
+    // pagine in memoria restano, ricaricarli butterebbe via il lavoro. Si
+    // guarda quando arriva la risposta, non prima: è allora che si scrive.
+    const tieniLoStore = () => {
+      const st = useAppStore.getState();
+      return !!st.project && selectIsDirty(st);
+    };
 
     api.getProject()
       .then(async (p) => {
+        if (!vivo) return;
+        setRuntimeInRiavvio(false);
         setNoActiveProject(false);
-        setProject(p);
+        if (!(tieniLoStore() && useAppStore.getState().project?.meta?.name === p.meta?.name)) setProject(p);
         // No token and project is open: we may be in no-auth mode.
         // Probe whoami; if it succeeds (synthetic admin), set a sentinel
         // token so the main app renders instead of LoginScreen.
@@ -594,17 +626,21 @@ export function App() {
         setBootstrapping(false);
       })
       .catch((e) => {
+        if (!vivo) return;
+        if (runtimeSiStaRiavviando(e, !!prefissoGateway())) {
+          // Il token resta: il runtime che non risponde non dice nulla su chi
+          // sei. E resta tutto lo store: si riprova fra 2 s.
+          setRuntimeInRiavvio(true);
+          setBootstrapping(false);
+          return;
+        }
+        setRuntimeInRiavvio(false);
         if (e instanceof NoProjectError) {
           // NON si cancella il token: dal 06-10-2026 la WelcomeScreen chiama
           // rotte autenticate (elenco e creazione dei progetti, i modelli, la
           // scelta della cartella). Prima erano pre-auth e buttare via il
           // token era innocuo; ora lascerebbe la schermata senza credenziali —
           // lista vuota, «Da modello» spento, cartelle non creabili.
-          setNoActiveProject(true);
-        } else if (e instanceof RuntimeUnavailableError) {
-          // Runtime non raggiungibile → WelcomeScreen; la WelcomeScreen
-          // gestirà il retry/errore quando l'utente interagisce. Anche qui il
-          // token resta: il runtime che non risponde non dice nulla su chi sei.
           setNoActiveProject(true);
         } else if (e instanceof AuthError) {
           clearAuth();
@@ -616,10 +652,11 @@ export function App() {
         setBootstrapping(false);
       });
 
-    if (!authToken) return;
+    if (!authToken) return () => { vivo = false; };
 
     api.loadAllPages()
       .then(async (loaded) => {
+        if (!vivo || tieniLoStore()) return;
         // Progetto senza pagine (es. appena creato vuoto): azzera le pagine,
         // altrimenti resterebbe in memoria il contenuto del progetto precedente.
         if (loaded.length === 0) { setPages([], ""); return; }
@@ -630,12 +667,18 @@ export function App() {
         // pickInitialPageId degrada al comportamento di oggi (prima pagina).
         // Se il progetto non c'è ancora, `setProject` riordinerà le pagine secondo l'albero.
         const layout = useAppStore.getState().project?.page_layout;
-        setPages(loaded, pickInitialPageId(ordinaPagine(loaded, layout?.page_tree), layout?.home_page_id));
+        // Dopo l'attesa del runtime, la pagina su cui eri, se c'è ancora.
+        const dovEri = ripresa ? useAppStore.getState().currentPageId : null;
+        setPages(loaded, dovEri && loaded.some((pg) => pg.id === dovEri)
+          ? dovEri
+          : pickInitialPageId(ordinaPagine(loaded, layout?.page_tree), layout?.home_page_id));
       })
       .catch((e) => {
+        if (!vivo) return;
         if (e instanceof AuthError) clearAuth();
         else if (e instanceof PasswordChangeRequiredError) setMustChangePassword(true);
       });
+    return () => { vivo = false; };
 
     // I faceplate arrivano con le pagine (`loadAllPages`, 29-10-2026): nell'IDE
     // sono pagine `kind: "faceplate"`, e lo store ne ricava `faceplates`.
@@ -646,7 +689,7 @@ export function App() {
     // che la sessione dell'installazione sopravvive all'apertura, il token
     // resta identico e senza questa dipendenza l'effetto non ripartiva mai:
     // progetto aperto, nessuna pagina caricata.
-  }, [authToken, mustChangePassword, noActiveProject]);
+  }, [authToken, mustChangePassword, noActiveProject, tentativoAvvio]);
 
   // resetDirty() before leaving: after a "close without saving" the store
   // still holds the modified pages, and a later F5 on the WelcomeScreen
@@ -802,6 +845,10 @@ export function App() {
 
   // Blank while the first getProject()+whoami() round-trip is in flight.
   if (bootstrapping) return null;
+
+  // Prima dell'accesso e della WelcomeScreen: con il runtime fermo nessuna
+  // delle due può funzionare.
+  if (runtimeInRiavvio) return <RuntimeInRiavvio />;
 
   // ── Prima di tutto: chi sei? ────────────────────────────────────────────
   //

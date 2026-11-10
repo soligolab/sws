@@ -11,6 +11,8 @@
     "dismiss": "Ignora",
     "newBuildAvailable": "È disponibile una versione aggiornata dell'interfaccia. Ricarica per applicarla.",
     "runtimeReachableReload": "Il runtime è di nuovo raggiungibile (certificato accettato o host tornato attivo). Ricarica la pagina per riconnetterti.",
+    "runtimeInRiavvio": "Il runtime si sta riavviando, riprovo…",
+    "runtimeInRiavvioHint": "Quando risponde riapro il progetto dove eri. Le modifiche non salvate restano.",
     "connectionFailed": "Connessione fallita",
     "loadingConfiguration": "Caricamento configurazione…",
     "clicPerChiudere": "(clic per chiudere)"
@@ -2030,7 +2032,7 @@
   "chatWindow": {
     "checking": "verifica dell'accesso…",
     "noAuth": "Accedi nella finestra dell'editor",
-    "noAuthHint": "Questa finestra usa la stessa sessione dell'IDE. Fai il login là, poi ricarica qui.",
+    "noAuthHint": "Questa finestra usa la stessa sessione dell'IDE. Fai il login là: questa si ricollega da sola.",
     "reload": "Ricarica",
     "noTarget": "Questa finestra va aperta dall'IDE (IA → Assistente → «Apri in una finestra»): da sola non sa a quale editor parlare.",
     "binding": "collegamento all'editor…",

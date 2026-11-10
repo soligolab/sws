@@ -260,6 +260,31 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   il salvataggio non è finito.
 
 ### Corretto
+- **La chat si ricollega da sola dopo l'accesso** (10-11-2026, collaudo della rc.11). Con la chat aperta prima
+  dell'accesso (sessione scaduta e nuovo login, o accesso dopo averla aperta) il pannello restava in ascolto sul socket
+  aperto col token vecchio e mostrava «…» per sempre al posto del modello, finché non si ricaricava la pagina.
+  `aiStream()` rifaceva il socket alla chiamata dopo, ma come istanza nuova **senza ascoltatori**. Ora `aiStream.ts`
+  segue token e utente nello store e la chat riapre la **stessa** istanza (`ReconnectingWs.riapri`, che riapre anche un
+  socket che si era arreso): stessi ascoltatori e token nuovo. L'ultimo «pronto» si ripete a chi si mette in ascolto
+  dopo. La chat staccata (`index-chat.html`) segue l'accesso fatto nell'editor con l'evento `storage`
+  (`seguiAccessoDalleAltreFinestre` nello store): prima leggeva `sws.auth` solo all'avvio. Tolto da
+  `e2e/fixtures.ts` (`apriChatDellIde`) il ricarico dopo l'accesso che aggirava il difetto.
+  - **Una conversazione non passa da una persona all'altra.** Lo stesso utente che rinnova la sessione o rientra tiene
+    lo stesso `?conv=<uuid>` e ritrova la conversazione sul server; l'uscita o un utente diverso scelgono un id nuovo e
+    svuotano la chat (`cambioDiAccesso`, `suConversazioneNuova`). Il server fa la stessa regola dal suo lato:
+    `ai/conversazioni.rs` lega la conversazione a chi l'ha aperta (l'utente della sessione, `nessuno` senza
+    autenticazione), e un socket di un altro utente con lo stesso id riceve una conversazione nuova e vuota, scritto nel
+    log a livello info senza contenuti. Quella del primo resta sua.
+  - Test `tests/chatCambioToken.test.ts` (token, stesso utente, utente diverso, uscita) e
+    `conversazioni::tests::la_conversazione_e_di_chi_l_ha_aperta`.
+- **L'IDE attende il runtime che si riavvia e riprende** (10-11-2026, collaudo della rc.11). Al montaggio un runtime che
+  non rispondeva portava alla WelcomeScreen come «nessun progetto», e il progetto andava riaperto a mano. Ora
+  l'IDE mostra «Il runtime si sta riavviando, riprovo…» (`RuntimeInRiavvio.tsx`, testo dell'IDE), riprova ogni 2 s e,
+  quando risponde, riapre il progetto: la scheda dell'indirizzo (`#config/<scheda>`) e la pagina su cui eri, se c'è
+  ancora. Un 503 vero (nessun progetto aperto) porta ancora alla WelcomeScreen, un 401 al login. Nel cloud
+  (`/p/<azienda>/<progetto>/`) anche il 503 è «si sta riavviando»: il container è il progetto e non lo chiude mai, il
+  503 lo scrive il gateway mentre riparte. Con modifiche non salvate nello store, progetto e pagine in memoria
+  restano e non si ricaricano dal runtime, anche a un nuovo accesso. Test `tests/runtimeInRiavvio.test.tsx`.
 - **La foto di una pagina dal browser è completa: widget in HTML e tubi** (10-11-2026, collaudo della foto web).
   Nella foto di «Indicatori» mancavano `data_log`, `alarm_bell`, il selettore di lingua e il tubo col riempimento.
   - **I widget in HTML.** Sono `<foreignObject>`, e `rasterizza.ts` li toglieva perché un SVG caricato come `blob:`

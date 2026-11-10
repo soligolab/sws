@@ -11,6 +11,8 @@
     "dismiss": "Dismiss",
     "newBuildAvailable": "An updated version of the interface is available. Reload to apply it.",
     "runtimeReachableReload": "The runtime is reachable again (certificate accepted or host back up). Reload the page to reconnect.",
+    "runtimeInRiavvio": "The runtime is restarting, retrying…",
+    "runtimeInRiavvioHint": "When it answers I reopen the project where you were. Unsaved changes are kept.",
     "connectionFailed": "Connection failed",
     "loadingConfiguration": "Loading configuration…",
     "clicPerChiudere": "(click to close)"
@@ -2030,7 +2032,7 @@
   "chatWindow": {
     "checking": "checking access…",
     "noAuth": "Sign in from the editor window",
-    "noAuthHint": "This window shares the IDE session. Log in there, then reload here.",
+    "noAuthHint": "This window shares the IDE session. Log in there: this one reconnects by itself.",
     "reload": "Reload",
     "noTarget": "Open this window from the IDE (AI → Assistant → «Open in a window»): on its own it does not know which editor to talk to.",
     "binding": "binding to the editor…",

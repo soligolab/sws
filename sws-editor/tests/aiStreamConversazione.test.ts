@@ -11,11 +11,13 @@ vi.mock("@/ws/reconnectingWs", () => ({
     riaperture = 0;
     constructor(readonly costruisciUrl: () => string) { istanze.push(this); }
     riapri() { this.riaperture += 1; }
+    on() {}
     destroy() {}
   },
 }));
 vi.mock("@/ws/wsUrl", () => ({ buildWsUrl: () => "wss://ide.example/ws/ai?token=abc" }));
 vi.mock("@/api/client", () => ({ getAuthToken: () => "tok" }));
+vi.mock("@/store", () => ({ useAppStore: { subscribe: () => () => {} } }));
 
 import { aiStream, chiudiAiStream, idConversazione, nuovaConversazione, urlConConversazione }
   from "../src/ws/aiStream";

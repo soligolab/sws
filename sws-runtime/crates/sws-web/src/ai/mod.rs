@@ -80,12 +80,25 @@ pub async fn ws_ai_handler(
     ws: WebSocketUpgrade,
     State(s): State<AppState>,
     Query(q): Query<std::collections::HashMap<String, String>>,
+    utente: Option<axum::Extension<crate::router::AuthUser>>,
 ) -> impl IntoResponse {
     let id = q.get("conv").cloned();
-    ws.on_upgrade(move |socket| sessione(socket, s, id))
+    // Di chi è la conversazione (`conversazioni`, «Di chi è»): l'utente della
+    // sessione, o «nessuno» senza autenticazione — dove c'è solo l'admin
+    // sintetico, che non è una persona.
+    let di = if crate::router::fonte_auth_corrente(&s).await
+        == crate::router::FonteAutenticazione::Nessuna
+    {
+        conversazioni::NESSUNO.to_string()
+    } else {
+        utente
+            .map(|axum::Extension(u)| u.username)
+            .unwrap_or_else(|| conversazioni::NESSUNO.to_string())
+    };
+    ws.on_upgrade(move |socket| sessione(socket, s, id, di))
 }
 
-async fn sessione(socket: WebSocket, s: AppState, id_conversazione: Option<String>) {
+async fn sessione(socket: WebSocket, s: AppState, id_conversazione: Option<String>, di: String) {
     let (mut ws_tx, mut ws_rx) = socket.split();
     let (tx, mut rx) = mpsc::unbounded_channel::<String>();
 
@@ -109,12 +122,22 @@ async fn sessione(socket: WebSocket, s: AppState, id_conversazione: Option<Strin
     let chiave = conversazioni::chiave(
         id_conversazione.as_deref(),
         active_dir(&s).await.ok().as_deref(),
+        &di,
     );
     let (conv, trovata) = match &chiave {
-        Some(k) => conversazioni::tutte()
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .prendi(k, std::time::Instant::now()),
+        Some(k) => {
+            let mut tutte = conversazioni::tutte()
+                .lock()
+                .unwrap_or_else(|e| e.into_inner());
+            if tutte.di_un_altro(k) {
+                // Niente contenuti nel log: solo che è successo.
+                tracing::info!(
+                    target: "sws_ai",
+                    "conversazione di un altro utente con lo stesso id: se ne apre una nuova e vuota"
+                );
+            }
+            tutte.prendi(k, std::time::Instant::now())
+        }
         None => (
             std::sync::Arc::new(tokio::sync::Mutex::new(
                 conversazioni::Conversazione::nuova(),

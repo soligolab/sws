@@ -133,11 +133,10 @@ export async function apriChatDellIde(
     await scheda.click();
     await page.waitForTimeout(2000);
   }
-  // Un ricarico a sessione fatta: il cassetto si monta col token già in mano.
-  // Senza, il socket della chat aperto prima dell'accesso viene rifatto col
-  // token nuovo e il pannello resta in ascolto su quello vecchio («…» per
-  // sempre al posto del modello).
-  await page.reload({ waitUntil: "networkidle" });
+  // Nessun ricarico dopo l'accesso, di proposito (10-11-2026): il cassetto è
+  // aperto da prima del login, e la chat deve rifarsi il socket col token
+  // nuovo da sola. Fino a quel giorno qui c'era un `page.reload()` che
+  // aggirava il «…» per sempre al posto del modello.
   return headers;
 }
 

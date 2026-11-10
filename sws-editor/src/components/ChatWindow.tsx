@@ -33,6 +33,7 @@ import { nuovoId, Ponte } from "@/ai/ponte";
 import { ChatPanel } from "@/components/ChatPanel";
 import { useAccessoSenzaUtenti } from "@/auth/useAccessoSenzaUtenti";
 import { SchermataSenzaAccesso, vuoto } from "@/components/finestraStaccata";
+import { seguiAccessoDalleAltreFinestre } from "@/store";
 
 /** L'id dell'editor a cui questa finestra è legata, da `#e=<id>`.
  *
@@ -57,6 +58,10 @@ export function ChatWindow() {
   const bersaglio = useRef(idEditoreDaUrl());
   const ponte = useMemo(() => new Ponte(nuovoId()), []);
   const editor = useMemo(() => editorViaPonte(ponte, () => bersaglio.current), [ponte]);
+
+  // L'accesso si fa nell'editor: qui si segue (10-11-2026). Con il token nuovo
+  // il socket si rifà da sé e ritrova la conversazione (`aiStream.ts`).
+  useEffect(() => seguiAccessoDalleAltreFinestre(), []);
 
   // Il ciclo di vita del legame con l'editor.
   useEffect(() => {

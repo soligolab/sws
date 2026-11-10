@@ -18,6 +18,16 @@
 //! Senza id (un client vecchio) la conversazione vive quanto il socket, come
 //! prima.
 //!
+//! # Di chi è (10-11-2026)
+//!
+//! Una conversazione è di chi l'ha aperta: la chiave porta anche l'utente
+//! della sessione (`nessuno` senza autenticazione). Un socket di un altro
+//! utente con lo stesso `?conv=` riceve una conversazione nuova e vuota, mai
+//! quella altrui, e la sua resta dov'è per quando torna. Lo stesso browser può
+//! passare di mano (uscita e accesso di un'altra persona): l'IDE sceglie un id
+//! nuovo quando cambia l'utente, e questa è la stessa regola dal lato che non
+//! si può aggirare.
+//!
 //! # Quanto dura, e quanta memoria
 //!
 //! Ventiquattro ore dall'ultimo uso, al massimo [`MAX_CONVERSAZIONI`] e
@@ -166,6 +176,20 @@ impl Conversazioni {
         }
     }
 
+    /// Lo stesso id c'è già, ma di un altro utente? Serve solo a dirlo nel log:
+    /// la chiave porta l'utente, quindi `prendi` non lo darebbe comunque.
+    pub fn di_un_altro(&self, chiave: &str) -> bool {
+        if self.voci.contains_key(chiave) {
+            return false;
+        }
+        let Some((base, _)) = chiave.rsplit_once('\u{0}') else {
+            return false;
+        };
+        self.voci
+            .keys()
+            .any(|k| k.rsplit_once('\u{0}').is_some_and(|(b, _)| b == base))
+    }
+
     #[cfg(test)]
     pub fn quante(&self) -> usize {
         self.voci.len()
@@ -178,10 +202,13 @@ pub(crate) fn tutte() -> &'static Mutex<Conversazioni> {
     TUTTE.get_or_init(|| Mutex::new(Conversazioni::nuove(DURATA, MAX_CONVERSAZIONI, MAX_BYTE)))
 }
 
-/// La chiave di una conversazione: progetto + id. `None` se l'id manca o non è
-/// un id (lettere, cifre, `-` e `_`, al più 64): si torna al comportamento di
-/// prima, una conversazione per socket.
-pub(crate) fn chiave(id: Option<&str>, progetto: Option<&Path>) -> Option<String> {
+/// Chi apre la conversazione quando non c'è autenticazione.
+pub(crate) const NESSUNO: &str = "nessuno";
+
+/// La chiave di una conversazione: progetto + id + utente (`di`, vedi «Di chi
+/// è»). `None` se l'id manca o non è un id (lettere, cifre, `-` e `_`, al più
+/// 64): si torna al comportamento di prima, una conversazione per socket.
+pub(crate) fn chiave(id: Option<&str>, progetto: Option<&Path>, di: &str) -> Option<String> {
     let id = id?.trim();
     let valido = !id.is_empty()
         && id.len() <= 64
@@ -194,7 +221,7 @@ pub(crate) fn chiave(id: Option<&str>, progetto: Option<&Path>) -> Option<String
     let progetto = progetto
         .map(|p| p.display().to_string())
         .unwrap_or_default();
-    Some(format!("{progetto}\u{0}{id}"))
+    Some(format!("{progetto}\u{0}{id}\u{0}{di}"))
 }
 
 #[cfg(test)]
@@ -247,8 +274,8 @@ mod tests {
         let (b, trovata) = cc.prendi("prj\u{0}c2", t0);
         assert!(!trovata);
         assert!(b.lock().await.vuota());
-        let k1 = chiave(Some("c1"), Some(Path::new("/p/montagna"))).unwrap();
-        let k2 = chiave(Some("c1"), Some(Path::new("/p/casa"))).unwrap();
+        let k1 = chiave(Some("c1"), Some(Path::new("/p/montagna")), "a").unwrap();
+        let k2 = chiave(Some("c1"), Some(Path::new("/p/casa")), "a").unwrap();
         assert_ne!(k1, k2);
     }
 
@@ -304,11 +331,50 @@ mod tests {
     #[test]
     fn chiave_solo_con_un_id_valido() {
         let p = Some(Path::new("/p/x"));
-        assert!(chiave(None, p).is_none());
-        assert!(chiave(Some(""), p).is_none());
-        assert!(chiave(Some("a/b"), p).is_none());
-        assert!(chiave(Some(&"x".repeat(65)), p).is_none());
-        assert!(chiave(Some("0b6f1c2e-9d1a-4c47-a7e3-5f0e8f3a1b2c"), p).is_some());
+        assert!(chiave(None, p, "a").is_none());
+        assert!(chiave(Some(""), p, "a").is_none());
+        assert!(chiave(Some("a/b"), p, "a").is_none());
+        assert!(chiave(Some(&"x".repeat(65)), p, "a").is_none());
+        assert!(chiave(Some("0b6f1c2e-9d1a-4c47-a7e3-5f0e8f3a1b2c"), p, "a").is_some());
+    }
+
+    /// Lo stesso utente ritrova la sua conversazione; un altro utente con lo
+    /// stesso id ne riceve una nuova e vuota, e quella del primo resta sua.
+    #[tokio::test]
+    async fn la_conversazione_e_di_chi_l_ha_aperta() {
+        let mut cc = Conversazioni::nuove(DURATA, MAX_CONVERSAZIONI, MAX_BYTE);
+        let t0 = Instant::now();
+        let p = Some(Path::new("/p/casa"));
+        let di_anna = chiave(Some("c1"), p, "anna").unwrap();
+        let di_bruno = chiave(Some("c1"), p, "bruno").unwrap();
+        let (a, _) = cc.prendi(&di_anna, t0);
+        a.lock()
+            .await
+            .messaggi
+            .push(serde_json::json!({"role": "user", "content": "segreto"}));
+        drop(a);
+
+        // Stesso utente: ritrovata.
+        assert!(!cc.di_un_altro(&di_anna));
+        let (a2, trovata) = cc.prendi(&di_anna, t0);
+        assert!(trovata);
+        assert_eq!(a2.lock().await.messaggi.len(), 1);
+        drop(a2);
+
+        // Utente diverso, stesso id: nuova e vuota, e il log lo sa.
+        assert!(cc.di_un_altro(&di_bruno));
+        let (b, trovata) = cc.prendi(&di_bruno, t0);
+        assert!(!trovata);
+        assert!(b.lock().await.vuota());
+        drop(b);
+
+        // Quella di Anna è ancora sua.
+        let (a3, trovata) = cc.prendi(&di_anna, t0);
+        assert!(trovata);
+        assert_eq!(a3.lock().await.messaggi.len(), 1);
+
+        // Senza autenticazione la conversazione è di «nessuno».
+        assert_ne!(chiave(Some("c1"), p, NESSUNO), Some(di_anna));
     }
 
     /// Il peso conta le immagini del banco.

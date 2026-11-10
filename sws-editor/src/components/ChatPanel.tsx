@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import i18n from "i18next";
 import { editorLocale, NESSUNA_CONFERMA, type EditorAi } from "@/ai/editor";
 import { useAppStore } from "@/store";
-import { approvaSfondo, ascolta, chiedi, mandaFoto, nuovaConversazione } from "@/ws/aiStream";
+import { approvaSfondo, ascolta, chiedi, mandaFoto, nuovaConversazione, suConversazioneNuova } from "@/ws/aiStream";
 import { blobInBase64 } from "@/ai/fotoDalBrowser";
 import type { MsgIn, Riga } from "@/types/ai";
 
@@ -113,6 +113,17 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
       setAttesa(true);
     }
   }
+
+  // Uscita o utente diverso (10-11-2026): conversazione nuova, e quello che
+  // era sullo schermo non resta a chi entra dopo. Anche a cassetto chiuso.
+  useEffect(() => suConversazioneNuova(() => {
+    setRighe([]);
+    setAttesa(false);
+    baseInCodaRef.current = null;
+    setBaseInCoda(null);
+    setRisorse({ input: 0, output: 0, cache: 0 });
+    setSpesa(null);
+  }), []);
 
   useEffect(() => {
     if (!open) return;

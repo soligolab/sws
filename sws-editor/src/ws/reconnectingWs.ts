@@ -158,9 +158,17 @@ export class ReconnectingWs {
   /** Chiude il socket di adesso e ne apre subito uno nuovo, **con gli stessi
    *  ascoltatori** (04-11-2026). Serve quando il server legge la configurazione
    *  all'apertura — la chat dell'assistente dopo un cambio di chiave o di
-   *  modello: `destroy()` lasciava chi ascoltava attaccato a un'istanza morta. */
+   *  modello: `destroy()` lasciava chi ascoltava attaccato a un'istanza morta.
+   *
+   *  Riapre anche un socket che si era arreso (10-11-2026): la chat aperta
+   *  prima dell'accesso fallisce sei volte senza token e smette; all'accesso
+   *  va riaperta lo stesso, col token nuovo. Uno chiuso con `destroy()` resta
+   *  chiuso. */
   riapri(): void {
-    if (this.destroyed) return;
+    if (this.distrutto) return;
+    this.destroyed = false;
+    this.motivoResa = null;
+    this.falliti = 0;
     if (this.timer !== null) {
       clearTimeout(this.timer);
       this.timer = null;
