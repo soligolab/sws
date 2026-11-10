@@ -210,6 +210,10 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   il salvataggio non è finito.
 
 ### Corretto
+- **L'anteprima di un'immagine nel pannello proprietà** (10-11-2026, collaudo di Montagna nel cloud): una foto del
+  progetto si vedeva come un negativo, perché il filtro che inverte le icone del catalogo (disegni neri su trasparente)
+  valeva per tutte le immagini; ora vale solo per `/images/…`. E un clic sull'anteprima apre l'immagine intera in
+  una scheda nuova.
 - **Mentre il pannello si riavvia per l'aggiornamento, l'IDE lo dice, in giallo** (10-11-2026, collaudo della rc.11 sul
   WP630 dal cloud). Riaprendo Connessione durante il riavvio la sezione «Aggiornamento del runtime» mostrava in rosso
   «Il dispositivo ha risposto 503 Service Unavailable: il pannello «…» non è collegato» — vero, ma letto come un guasto —

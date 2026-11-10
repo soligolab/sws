@@ -1,6 +1,6 @@
 import { avviso, chiedi, conferma, modulo } from "@/finestraAvviso/finestraAvviso";
 import { createContext, Fragment, lazy, Suspense, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ImgProgetto } from "@/canvas/ImmagineSvg";
+import { AnteprimaImmagine, ImgProgetto } from "@/canvas/ImmagineSvg";
 import { dimenticaImmagine } from "@/canvas/ImmagineSvg";
 import { ProprietaFinestra } from "@/finestre/ProprietaFinestra";
 import { azioneDi, righeDalRegistro } from "@/scorciatoie/registro";
@@ -5072,12 +5072,11 @@ export function ObjectProps({
         )}
         {obj.src && (
           <div style={{ marginTop: 4, textAlign: "center" }}>
-            <ImgProgetto
+            <AnteprimaImmagine
               src={obj.src}
-              alt=""
+              titolo={t("props.apriImmagine")}
               style={{
-                maxWidth: "100%", maxHeight: 80, objectFit: "contain",
-                filter: "invert(1) brightness(0.85)", borderRadius: 4,
+                maxWidth: "100%", maxHeight: 80, objectFit: "contain", borderRadius: 4,
                 border: "1px solid var(--brand-surface, #1e293b)",
               }}
             />

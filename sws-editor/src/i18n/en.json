@@ -849,6 +849,7 @@
     "rotationDeg": "Rotation (degrees)",
     "rotationDegSym": "Rotation (°)",
     "browseImages": "Browse image library",
+    "apriImmagine": "Open the full image in a new tab",
     "emptyBackground": "Empty background",
     "symbol": "Symbol",
     "faceplate": "Faceplate",

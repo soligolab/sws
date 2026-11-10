@@ -19,7 +19,7 @@
  *  sfondo generato dalla planimetria. Senza token (pannello, viewer anonimo,
  *  IDE senza utenti) l'URL resta com'è: lì funziona già. */
 import { useEffect, useState } from "react";
-import type { ImgHTMLAttributes, SVGProps } from "react";
+import type { CSSProperties, ImgHTMLAttributes, SVGProps } from "react";
 import { getAuthToken, getBaseUrl } from "@/api/client";
 import { prefissoGateway, prefissoSchermo } from "@/api/prefisso";
 
@@ -110,9 +110,40 @@ export function ImmagineSvg(props: SVGProps<SVGImageElement>) {
   return <image {...props} href={href} />;
 }
 
+/** Le icone del catalogo (`/images/…`) sono disegni neri su trasparente, e su
+ *  un fondo scuro si leggono solo invertite. Una foto del progetto invece no:
+ *  invertita diventava un negativo (10-11-2026, lo sfondo della notte di
+ *  Montagna nell'anteprima delle proprietà). */
+export function eIconaDelCatalogo(src: string | undefined): boolean {
+  return !!src && src.startsWith("/images/");
+}
+
 /** Lo stesso per un `<img>` dell'interfaccia (anteprime, icone dei simboli). */
 export function ImgProgetto(props: ImgHTMLAttributes<HTMLImageElement>) {
   const src = useHrefImmagine(typeof props.src === "string" ? props.src : undefined);
   if (!src) return null;
   return <img {...props} src={src} />;
+}
+
+/** L'anteprima di un'immagine nel pannello proprietà (10-11-2026). Un clic la
+ *  apre intera in una scheda nuova: prima si vedeva solo in miniatura, e una
+ *  foto generata dall'assistente non si poteva guardare per davvero. Nel cloud
+ *  l'immagine è un `blob:` di questa pagina, che una scheda nuova apre lo
+ *  stesso (stessa origine); fuori dal cloud è l'URL vero. */
+export function AnteprimaImmagine({ src, titolo, style }: { src: string; titolo: string; style?: CSSProperties }) {
+  const href = useHrefImmagine(src);
+  if (!href) return null;
+  const icona = eIconaDelCatalogo(src);
+  return (
+    <button
+      type="button"
+      data-testid="anteprima-immagine"
+      title={titolo}
+      aria-label={titolo}
+      onClick={() => window.open(href, "_blank", "noopener")}
+      style={{ padding: 0, margin: 0, border: "none", background: "none", cursor: "zoom-in", display: "inline-block" }}
+    >
+      <img src={href} alt="" style={{ ...style, ...(icona ? { filter: "invert(1) brightness(0.85)" } : {}) }} />
+    </button>
+  );
 }
