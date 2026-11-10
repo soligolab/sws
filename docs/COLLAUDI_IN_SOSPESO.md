@@ -121,6 +121,9 @@ prova di carico (il template ora è a 1 Hz).
 
 ## L'occhio sulle password (09-11-2026)
 
+> **Piano approvato dal maintainer il 10-11-2026**, dopo la prova sul WP630. Le voci qui sotto restano come controlli da fare
+> quando capita (IDE, console, LVGL); non tengono aperto niente.
+
 Piano `docs/archive/2026-11-09-occhio-sulle-password.md`, ramo `feat/occhio-password` annidato su `fix/ridisegno-mirato`,
 con le correzioni delle due revisioni del 09-11. Va nella 2.26.0-rc.10 insieme al viewer leggero: le voci del pannello
 vogliono quell'immagine. Regola unica su tutti gli ambienti: la password parte nascosta, l'occhio la mostra, un secondo
@@ -140,7 +143,7 @@ nascosta («toccami per vederla»), barrata quando si legge.
        server ha l'occhio spento; scrivendo un token nuovo si accende.
 
 **Viewer web sul pannello (TC620/WP630, touch e tastiera a schermo)**
-5. [ ] Login per l'aggiornamento: l'occhio è da dito (40×40), il tocco mostra la password senza chiudere la tastiera a
+5. [x] **Confermato dal maintainer il 10-11-2026 sul WP630 (rc.11)**, col login chiesto dal pulsante «Marcia» di Montagna: l'occhio mostra la password. Login per l'aggiornamento: l'occhio è da dito (40×40), il tocco mostra la password senza chiudere la tastiera a
        schermo, Invio dalla tastiera entra. Dopo l'invio la password torna nascosta.
 6. [ ] Password di un comando critico su CasaDomotica (`chiedi({ password: true })`): la stessa cosa nella Finestra di
        avviso; la volta dopo riparte nascosta.

@@ -106,3 +106,6 @@ schermo resta in `docs/COLLAUDI_IN_SOSPESO.md`, voci 1-7, sulla 2.26.0-rc.11 o s
   che arriverà — per esempio la password sui comandi critici, oggi solo sul web (piano
   [oggetti e template: parità LVGL](../plans/2026-11-10-oggetti-e-template-parita-lvgl.md)). Non si collauda.
 - **Il manuale**: `docs/manual/09_auth_rbac.md`, paragrafo «L'occhio» sotto «Password».
+
+**Approvato dal maintainer il 10-11-2026**: sul WP630 (2.26.0-rc.11), nel login chiesto da un comando con ruolo
+Operator, l'occhio mostra la password («se premo l'occhio si vede la password»).
