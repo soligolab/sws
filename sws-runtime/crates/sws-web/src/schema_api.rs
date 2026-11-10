@@ -292,7 +292,7 @@ async fn trasporti_catalogo(s: &AppState) -> std::collections::HashMap<String, S
 }
 
 /// Le cornici del progetto su disco; una illeggibile si salta.
-async fn carica_cornici(dir: &std::path::Path) -> Vec<crate::cornici::Cornice> {
+pub(crate) async fn carica_cornici(dir: &std::path::Path) -> Vec<crate::cornici::Cornice> {
     let mut out = Vec::new();
     let Ok(mut entries) = tokio::fs::read_dir(crate::router::cornici_dir_at(dir)).await else {
         return out;

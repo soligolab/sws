@@ -214,9 +214,14 @@ pub fn componi(pagina: &mut SynopticPage, cornice: &Cornice, progetto_nome: &str
 
 /// Il riquadro approssimato di un oggetto, per capire se due si coprono. Un
 /// testo senza riquadro ha `y` sulla linea di base: il suo corpo sta sopra, e
-/// la larghezza si stima dal contenuto.
+/// la larghezza si stima dal contenuto. Una linea va da `x,y` a `x2,y2`.
 fn riquadro(o: &SynopticObject) -> (f64, f64, f64, f64) {
     let (x, y) = (o.x, o.y);
+    if o.obj_type == "line" {
+        // Gli stessi predefiniti dell'editor (`SvgCanvas`).
+        let (x2, y2) = (o.x2.unwrap_or(x + 100.0), o.y2.unwrap_or(y));
+        return (x.min(x2), y.min(y2), x.max(x2), y.max(y2));
+    }
     match (o.width, o.height) {
         (Some(w), Some(h)) => (x, y, x + w, y + h),
         _ if o.obj_type == "text" => {
@@ -233,12 +238,60 @@ fn si_coprono(a: (f64, f64, f64, f64), b: (f64, f64, f64, f64)) -> bool {
     a.0 < b.2 && b.0 < a.2 && a.1 < b.3 && b.1 < a.3
 }
 
-/// Gli oggetti di una pagina che finiscono **sopra** un oggetto della cornice,
-/// dentro una fascia: la cornice ci sta sotto e resterebbe coperta a metà. Un
-/// oggetto della pagina nello spazio libero di una fascia (il titolo della
-/// pagina accanto all'orologio della testata) è legittimo e non si segnala
-/// (affinato il 17-10-2026: prima bastava entrare nella fascia).
-pub fn oggetti_nelle_fasce<'a>(pagina: &'a SynopticPage, cornice: &Cornice) -> Vec<&'a str> {
+/// Un rettangolo in pixel di pagina.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+pub struct Area {
+    pub x: f64,
+    pub y: f64,
+    pub w: f64,
+    pub h: f64,
+}
+
+/// L'**area libera** di una cornice (10-11-2026): quello che resta della
+/// pagina fra testata e piede, dove stanno gli oggetti della pagina. La dice
+/// il validatore quando un oggetto ne esce, e la danno gli strumenti
+/// dell'assistente prima che componga.
+pub fn area_libera(c: &Cornice) -> Area {
+    let t = c.testata.altezza.max(0.0);
+    let p = c.piede.altezza.max(0.0);
+    Area {
+        x: 0.0,
+        y: t,
+        w: c.larghezza.max(0.0),
+        h: (c.altezza - t - p).max(0.0),
+    }
+}
+
+/// Un oggetto della pagina che invade una fascia della cornice.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Invasione<'a> {
+    pub id: &'a str,
+    pub testata: bool,
+    pub piede: bool,
+    /// Copre un oggetto della cornice (il titolo, l'ora, il navigatore).
+    pub copre: bool,
+}
+
+/// Gli oggetti di una pagina che **invadono** una fascia della cornice.
+///
+/// Due casi si segnalano, uno no:
+/// - l'oggetto sta **a cavallo** del bordo di una fascia, metà sul contenuto e
+///   metà sulla testata o sul piede: i faceplate che scendono sui bottoni di
+///   navigazione (collaudo del 10-11-2026, pagina dell'assistente su
+///   Montagna). Non è mai voluto, e fino a ieri passava se non copriva un
+///   oggetto della cornice;
+/// - l'oggetto sta dentro una fascia e **copre** un oggetto della cornice: la
+///   cornice ci sta sotto e resterebbe coperta a metà;
+/// - un oggetto **tutto dentro** una fascia, nello spazio che la cornice lascia
+///   libero, è voluto e non si segnala: il sottotitolo di ogni pagina di
+///   `homeassistant-demo`, accanto al titolo della cornice. Deciso il
+///   17-10-2026: è l'unico modo che ha una pagina di scrivere qualcosa di suo
+///   in testata.
+///
+/// I tubi non si guardano: il percorso lo calcola SWS dagli oggetti a cui sono
+/// agganciati, e quelli si guardano già.
+pub fn oggetti_nelle_fasce<'a>(pagina: &'a SynopticPage, cornice: &Cornice) -> Vec<Invasione<'a>> {
+    const TOLLERANZA: f64 = 0.5;
     let (t, p) = (
         cornice.testata.altezza.max(0.0),
         cornice.piede.altezza.max(0.0),
@@ -248,12 +301,24 @@ pub fn oggetti_nelle_fasce<'a>(pagina: &'a SynopticPage, cornice: &Cornice) -> V
     pagina
         .objects
         .iter()
-        .filter(|o| {
+        .filter(|o| o.obj_type != "pipe")
+        .filter_map(|o| {
             let r = riquadro(o);
-            let nella_fascia = (t > 0.0 && r.1 < t) || (p > 0.0 && r.3 > inizio_piede);
-            nella_fascia && suoi.iter().any(|c| si_coprono(r, *c))
+            let in_testata = t > 0.0 && r.1 < t - TOLLERANZA;
+            let nel_piede = p > 0.0 && r.3 > inizio_piede + TOLLERANZA;
+            if !in_testata && !nel_piede {
+                return None;
+            }
+            let copre = suoi.iter().any(|c| si_coprono(r, *c));
+            let testata = in_testata && (copre || r.3 > t + TOLLERANZA);
+            let piede = nel_piede && (copre || r.1 < inizio_piede - TOLLERANZA);
+            (testata || piede).then_some(Invasione {
+                id: o.id.as_str(),
+                testata,
+                piede,
+                copre,
+            })
         })
-        .map(|o| o.id.as_str())
         .collect()
 }
 
@@ -449,11 +514,45 @@ oggetti:
             "id: p\nname: P\nobjects:\n- { id: alto, type: rect, x: 0, y: 10, width: 200, height: 40 }\n- { id: libero, type: rect, x: 600, y: 10, width: 100, height: 30 }\n- { id: giusto, type: rect, x: 0, y: 60, width: 100, height: 600 }\n- { id: basso, type: rect, x: 0, y: 700, width: 100, height: 60 }\n",
         );
         let c = cornice();
-        assert_eq!(oggetti_nelle_fasce(&p, &c), ["alto", "basso"]);
+        let ids: Vec<&str> = oggetti_nelle_fasce(&p, &c).iter().map(|i| i.id).collect();
+        assert_eq!(ids, ["alto", "basso"]);
         let mut c2 = cornice();
         c2.oggetti.push(
             serde_yaml::from_str("{ id: mezzo, type: rect, x: 0, y: 300, height: 20 }").unwrap(),
         );
         assert_eq!(oggetti_fuori_dalle_fasce(&c2), ["mezzo"]);
+    }
+
+    /// Collaudo del 10-11-2026 (Montagna): un oggetto a cavallo del bordo di
+    /// una fascia invade anche se non copre niente della cornice; uno tutto
+    /// dentro lo spazio libero di una fascia resta voluto; i tubi no.
+    #[test]
+    fn a_cavallo_di_una_fascia_si_invade_anche_senza_coprire() {
+        let p = pagina(
+            "id: p\nname: P\nobjects:\n\
+             - { id: pompa, type: faceplate, x: 600, y: 550, width: 200, height: 195 }\n\
+             - { id: scende, type: rect, x: 600, y: 30, width: 100, height: 100 }\n\
+             - { id: sotto, type: rect, x: 600, y: 10, width: 100, height: 30 }\n\
+             - { id: riga, type: line, x: 600, y: 300, x2: 600, y2: 790 }\n\
+             - { id: tubo, type: pipe, x: 0, y: 0, points: [{ x: 0, y: 0 }, { x: 10, y: 790 }] }\n",
+        );
+        let inv = oggetti_nelle_fasce(&p, &cornice());
+        let ids: Vec<&str> = inv.iter().map(|i| i.id).collect();
+        assert_eq!(ids, ["pompa", "scende", "riga"]);
+        assert!(inv[0].piede && !inv[0].testata && !inv[0].copre);
+        assert!(inv[1].testata && !inv[1].piede);
+    }
+
+    #[test]
+    fn l_area_libera_sta_fra_le_fasce() {
+        assert_eq!(
+            area_libera(&cornice()),
+            Area {
+                x: 0.0,
+                y: 56.0,
+                w: 1280.0,
+                h: 684.0
+            }
+        );
     }
 }

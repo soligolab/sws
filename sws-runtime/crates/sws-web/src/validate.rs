@@ -609,14 +609,40 @@ pub fn rilievi_cornici(
                 "una cornice si applica a pagine delle sue stesse misure: il piede finirebbe nel posto sbagliato",
             ));
         }
-        for o in crate::cornici::oggetti_nelle_fasce(p, c) {
-            out.push(Finding::warn(
-                format!("pages[{}].objects[{o}]", p.name),
-                format!(
-                    "l'oggetto `{o}` entra in una fascia della cornice `{}`",
-                    c.id
+        // Con i numeri veri (10-11-2026): «la parte libera della pagina» non
+        // diceva dove fosse, e l'assistente ha messo tre faceplate sul piede.
+        let a = crate::cornici::area_libera(c);
+        for i in crate::cornici::oggetti_nelle_fasce(p, c) {
+            let fascia = match (i.testata, i.piede) {
+                (true, true) => format!(
+                    "la testata (y da 0 a {}) e il piede (y da {} a {})",
+                    a.y,
+                    a.y + a.h,
+                    c.altezza
                 ),
-                "la cornice ci sta sotto: spostalo nella parte libera della pagina",
+                (true, false) => format!("la testata (y da 0 a {})", a.y),
+                _ => format!("il piede (y da {} a {})", a.y + a.h, c.altezza),
+            };
+            let copre = if i.copre {
+                "copre un oggetto della cornice, che ci sta sotto. "
+            } else {
+                ""
+            };
+            out.push(Finding::warn(
+                format!("pages[{}].objects[{}]", p.name, i.id),
+                format!(
+                    "l'oggetto `{}` invade {fascia} della cornice `{}`",
+                    i.id, c.id
+                ),
+                format!(
+                    "{copre}l'area libera è y da {} a {} (x da {} a {}): sposta o \
+                     rimpicciolisci l'oggetto lì dentro. Il titolo della pagina, la data e la \
+                     navigazione li mostra già la cornice",
+                    a.y,
+                    a.y + a.h,
+                    a.x,
+                    a.x + a.w
+                ),
             ));
         }
     }
@@ -3195,6 +3221,34 @@ global_scripts:
             avvisi.join("\n  ")
         );
     }
+
+    /// Nessun template ha oggetti di pagina che invadono le fasce della sua
+    /// cornice (10-11-2026). I sottotitoli in testata di `homeassistant-demo`
+    /// stanno tutti dentro lo spazio libero della fascia e restano voluti.
+    #[test]
+    fn nessun_template_invade_le_fasce_della_cornice() {
+        let mut invasioni = Vec::new();
+        for dir in templates() {
+            let nome = dir.file_name().unwrap().to_string_lossy().to_string();
+            let (project, pages) = carica(&dir);
+            let mut cornici = Vec::new();
+            if let Ok(rd) = std::fs::read_dir(dir.join("cornici")) {
+                for e in rd.filter_map(Result::ok) {
+                    let testo = std::fs::read_to_string(e.path()).unwrap();
+                    cornici.push(
+                        serde_yaml::from_str::<crate::cornici::Cornice>(&testo)
+                            .unwrap_or_else(|err| panic!("{}: {err}", e.path().display())),
+                    );
+                }
+            }
+            for f in rilievi_cornici(&project, &pages, &cornici) {
+                if f.message.contains("invade") {
+                    invasioni.push(format!("{nome}: {} — {}", f.path, f.message));
+                }
+            }
+        }
+        assert!(invasioni.is_empty(), "{}", invasioni.join("\n  "));
+    }
 }
 
 #[cfg(test)]
@@ -3439,6 +3493,52 @@ alarms: []
             "{rs2:?}"
         );
         assert!(!cita(&rs2, "«Info»"), "{rs2:?}");
+    }
+
+    /// Collaudo del 10-11-2026, Montagna: l'assistente ha messo il titolo
+    /// nella testata e tre faceplate sul piede, e niente gliel'ha detto. Un
+    /// rilievo per oggetto, con la fascia e l'area libera in numeri; niente
+    /// per chi sta nell'area libera, niente per una pagina senza cornice.
+    #[test]
+    fn gli_oggetti_della_pagina_stanno_nell_area_libera_della_cornice() {
+        let prog = "meta: { name: p, version: '1' }\npage_layout: { size_mode: fixed, cornice_predefinita: frame }\ntags: []\nsources: []\nalarms: []\n";
+        let p: Project = serde_yaml::from_str(prog).unwrap();
+        let cornice: crate::cornici::Cornice = serde_yaml::from_str(
+            "id: frame\nnome: Frame\nlarghezza: 1280\naltezza: 800\ntestata: { altezza: 56 }\npiede: { altezza: 60 }\noggetti:\n- { id: titolo, type: text, x: 20, y: 0, width: 700, height: 56, text: '{{pagina.nome}}' }\n- { id: nav, type: page_navigator, x: 10, y: 748, width: 1260, height: 44 }",
+        )
+        .unwrap();
+        let oggetti = "objects:\n\
+            - { id: titolo_pagina, type: text, x: 300, y: 10, width: 500, height: 36, text: Vallone }\n\
+            - { id: pompa1, type: faceplate, x: 40, y: 560, width: 300, height: 220 }\n\
+            - { id: pompa2, type: faceplate, x: 400, y: 100, width: 300, height: 220 }\n";
+        let vallone: SynopticPage = serde_yaml::from_str(&format!(
+            "id: v\nname: Vallone\nwidth: 1280\nheight: 800\n{oggetti}"
+        ))
+        .unwrap();
+        let senza: SynopticPage = serde_yaml::from_str(&format!(
+            "id: s\nname: Senza\nwidth: 1280\nheight: 800\ncornice: null\n{oggetti}"
+        ))
+        .unwrap();
+        let rs = rilievi_cornici(&p, &[vallone, senza], std::slice::from_ref(&cornice));
+        let invasioni: Vec<&Finding> = rs.iter().filter(|f| f.message.contains("invade")).collect();
+        assert_eq!(invasioni.len(), 2, "{rs:?}");
+
+        let t = invasioni[0];
+        assert_eq!(t.path, "pages[Vallone].objects[titolo_pagina]");
+        assert!(t.message.contains("la testata (y da 0 a 56)"), "{t:?}");
+        let h = t.hint.as_deref().unwrap();
+        assert!(h.contains("copre un oggetto della cornice"), "{h}");
+        assert!(
+            h.contains("l'area libera è y da 56 a 740 (x da 0 a 1280)"),
+            "{h}"
+        );
+
+        let b = invasioni[1];
+        assert_eq!(b.path, "pages[Vallone].objects[pompa1]");
+        assert!(b.message.contains("il piede (y da 740 a 800)"), "{b:?}");
+        assert_eq!(b.severity, Severity::Warning);
+        assert!(!cita(&rs, "pompa2"), "nell'area libera: {rs:?}");
+        assert!(!cita(&rs, "pages[Senza]"), "senza cornice: {rs:?}");
     }
 
     /// Il rilievo sulle finestre di LVGL **dice il contrario di ieri**

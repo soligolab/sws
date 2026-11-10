@@ -224,6 +224,21 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   vecchie fuori. Il tetto di spesa conta anche quello speso prima della riconnessione, e il «pronto» dice `ripresa`
   così il pannello non azzera i contatori. «Svuota la conversazione» (⌫) sceglie un id nuovo e riparte da vuoto
   anche sul server; un client senza id resta a una conversazione per socket.
+- **Gli oggetti di una pagina stanno nell'area libera della cornice** (10-11-2026, collaudo su sws.soligo.net,
+  progetto Montagna). L'assistente ha composto «Vallone — stazione di pompaggio» col titolo nella testata, accanto a
+  quello della cornice, e tre faceplate che scendevano sul piede, sopra i bottoni di navigazione: niente gli diceva
+  dove finisce la cornice. Ora:
+  - **il validatore** dà un avviso per ogni oggetto della pagina che sta a cavallo del bordo di una fascia, o che
+    dentro una fascia copre un oggetto della cornice, con la fascia e l'area libera in numeri («l'area libera è y da
+    56 a 740 (x da 0 a 1280)»). Lo vedono i rilievi dell'IDE e lo strumento `valida`. Prima si segnalava solo chi
+    copriva un oggetto della cornice, con «spostalo nella parte libera della pagina» e nessun numero. Un oggetto tutto
+    dentro lo spazio libero di una fascia resta voluto (il sottotitolo in testata di `homeassistant-demo`, scelta
+    del 17-10-2026); i tubi non si guardano, il loro percorso segue gli oggetti agganciati. Un test passa tutti i
+    template: nessuno invade;
+  - **l'assistente sa l'area libera prima di comporre**: `elenca_pagine` dà per ogni pagina con cornice `cornice` e
+    `area_libera` (x, y, w, h in pixel di pagina), `leggi_progetto` l'elenco `cornici` con testata, piede e area
+    libera (tolto di nuovo se il progetto torna in una proposta). Il prompt lo dice nel sinottico intero e fra le
+    cose che si sbagliano: titolo, data e navigazione li dà la cornice.
 - **Mentre il pannello si riavvia per l'aggiornamento, l'IDE lo dice, in giallo** (10-11-2026, collaudo della rc.11 sul
   WP630 dal cloud). Riaprendo Connessione durante il riavvio la sezione «Aggiornamento del runtime» mostrava in rosso
   «Il dispositivo ha risposto 503 Service Unavailable: il pannello «…» non è collegato» — vero, ma letto come un guasto —

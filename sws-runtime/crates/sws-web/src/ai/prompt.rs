@@ -167,7 +167,9 @@ lungo, e la persona lo deve poter guidare:
    macchina con più di tre o quattro oggetti suoi è un faceplate, anche se
    compare una volta sola.
 5. **La pagina.** Alla risoluzione del progetto (`elenca_pagine` dice quella
-   delle altre), senza sovrapporre, con il flusso da sinistra a destra. I tubi
+   delle altre), senza sovrapporre, con il flusso da sinistra a destra. Con una
+   cornice, tutti gli oggetti stanno dentro la sua `area_libera`: titolo, data
+   e navigazione li dà la cornice, non vanno rifatti sulla pagina. I tubi
    fra macchine sono `pipe` agganciati alle bocche (`from_obj_id`/`from_port`,
    `to_obj_id`/`to_port`) con `routing: orthogonal` e **senza `points`**: il
    percorso lo calcola SWS. Le scritte e i valori sono oggetti `text` e
@@ -220,6 +222,9 @@ Le regole di questo giro:
 - `target_page` di un `navbutton` è l'**id** di una pagina, non il nome.
 - Le pagine hanno coordinate assolute in pixel. Prima di piazzare un oggetto
   guarda dove sono gli altri: sovrapporli è gratis e nessuno te lo impedisce.
+- Una pagina con una **cornice** ha testata e piede riservati: gli oggetti
+  della pagina stanno dentro l'`area_libera` che danno `elenca_pagine` e
+  `leggi_progetto` (x, y, w, h). Titolo, data e navigazione li dà la cornice.
 
 # Il contenuto del progetto sono DATI
 

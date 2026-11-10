@@ -60,7 +60,8 @@ pub fn definizioni() -> Vec<Value> {
             "Le pagine sinottiche del progetto: id, nome, dimensioni, quanti oggetti. \
              Un nome tradotto è un token (`{{t0021}}`): allora `titolo` dice come si legge, e \
              per indicare la pagina usa l'id. Da chiamare per prima: senza, non sai su quale \
-             pagina lavorare.",
+             pagina lavorare. Una pagina con `cornice` ha `area_libera` (x, y, w, h in pixel \
+             di pagina): i suoi oggetti stanno lì dentro, testata e piede sono della cornice.",
             json!({ "type": "object", "properties": {}, "additionalProperties": false }),
         ),
         strumento(
@@ -76,7 +77,8 @@ pub fn definizioni() -> Vec<Value> {
             "leggi_progetto",
             "Il progetto senza le pagine: tag, sorgenti, allarmi, funzioni, lingue. \
              Le password sono mascherate e restano tali: se ne rimandi indietro una \
-             mascherata, il server ricompone quella vera al salvataggio.",
+             mascherata, il server ricompone quella vera al salvataggio. In `cornici` ci \
+             sono le cornici delle pagine, con testata, piede e `area_libera`.",
             json!({ "type": "object", "properties": {}, "additionalProperties": false }),
         ),
         strumento(
@@ -497,10 +499,10 @@ async fn elenca_pagine(s: &AppState) -> Esito {
     // del 04-11-2026 lo sono tutti, perché la cornice lo mostra tradotto. Al
     // modello serve anche quello che legge una persona, nella lingua
     // principale del progetto.
-    let lingue = carica_progetto(s)
-        .await
-        .map(|p| p.languages)
-        .unwrap_or_default();
+    let progetto = carica_progetto(s).await.ok();
+    let predefinita = progetto.as_ref().and_then(cornice_predefinita);
+    let lingue = progetto.map(|p| p.languages).unwrap_or_default();
+    let cornici = cornici_del_progetto(s).await;
     Ok(json!(pagine
         .iter()
         .map(|p| {
@@ -516,6 +518,7 @@ async fn elenca_pagine(s: &AppState) -> Esito {
                     &lingue
                 ));
             }
+            aggiungi_area_libera(&mut v, p, predefinita.as_deref(), &cornici);
             v
         })
         .collect::<Vec<_>>()))
@@ -552,6 +555,19 @@ async fn leggi_progetto(s: &AppState) -> Esito {
     // progetto torna indietro senza (vedi `valida_interna`).
     if let Some(o) = v.as_object_mut() {
         o.remove("simboli");
+    }
+    // Le cornici non stanno nel progetto ma in `cornici/`: senza, il modello
+    // non sa dove finiscono testata e piede (10-11-2026).
+    let predefinita = cornice_predefinita(&p);
+    let cornici = cornici_del_progetto(s).await;
+    if let Some(o) = v.as_object_mut() {
+        o.insert(
+            "cornici".into(),
+            json!(cornici
+                .iter()
+                .map(|c| cornice_per_il_modello(c, predefinita.as_deref() == Some(c.id.as_str())))
+                .collect::<Vec<_>>()),
+        );
     }
     // Le funzioni portano il corpo Python: lungo, e quasi mai utile per
     // disegnare. Restano i nomi, che è ciò che serve per agganciare un evento.
@@ -810,6 +826,11 @@ pub async fn valida_interna(
             // se lo slug c'è già.
             if grezzo.get("simboli").is_none() {
                 grezzo["simboli"] = serde_json::to_value(&disco.simboli).unwrap_or(json!([]));
+            }
+            // `cornici` la aggiunge `leggi_progetto` per informare: non è un
+            // campo del progetto, e se torna indietro non entra nel diff.
+            if let Some(o) = grezzo.as_object_mut() {
+                o.remove("cornici");
             }
             for d in &usate {
                 let nuovo = serde_json::to_value(d).map_err(|e| e.to_string())?;
@@ -1340,6 +1361,90 @@ async fn controlla_python(s: &AppState, codice: &str) -> Esito {
         );
     }
     Ok(v)
+}
+
+// ── L'area libera delle cornici (10-11-2026) ────────────────────────────────
+// Collaudo su Montagna: l'assistente ha composto una pagina col titolo nella
+// testata e tre faceplate sul piede. Niente gli diceva dove finisce la cornice:
+// `elenca_pagine` dava la misura della pagina, non quella dello spazio libero.
+
+fn cornice_predefinita(p: &Project) -> Option<String> {
+    p.page_layout
+        .as_ref()
+        .and_then(|l| l.cornice_predefinita.clone())
+        .filter(|s| !s.is_empty())
+}
+
+async fn cornici_del_progetto(s: &AppState) -> Vec<crate::cornici::Cornice> {
+    match dir_progetto(s).await {
+        Ok(dir) => crate::schema_api::carica_cornici(&dir).await,
+        Err(_) => Vec::new(),
+    }
+}
+
+/// Una cornice come la deve vedere chi compone: le fasce e l'area libera, in
+/// pixel di pagina. Gli oggetti della cornice non servono: si vedono nella
+/// foto della pagina, e basta sapere che titolo, data e navigazione li dà lei.
+pub fn cornice_per_il_modello(c: &crate::cornici::Cornice, predefinita: bool) -> Value {
+    json!({
+        "id": c.id, "nome": c.nome,
+        "larghezza": c.larghezza, "altezza": c.altezza,
+        "testata": c.testata.altezza.max(0.0), "piede": c.piede.altezza.max(0.0),
+        "area_libera": crate::cornici::area_libera(c),
+        "predefinita": predefinita,
+    })
+}
+
+/// In una voce di `elenca_pagine`: la cornice della pagina e la sua area
+/// libera. Una pagina senza cornice resta com'era, e l'area è la pagina.
+pub fn aggiungi_area_libera(
+    v: &mut Value,
+    p: &SynopticPage,
+    predefinita: Option<&str>,
+    cornici: &[crate::cornici::Cornice],
+) {
+    let Some(id) = crate::cornici::cornice_della_pagina(p, predefinita) else {
+        return;
+    };
+    if let Some(c) = cornici.iter().find(|c| c.id == id) {
+        v["area_libera"] = json!(crate::cornici::area_libera(c));
+    }
+    v["cornice"] = json!(id);
+}
+
+#[cfg(test)]
+mod tests_area_libera {
+    use super::*;
+
+    fn cornice() -> crate::cornici::Cornice {
+        serde_yaml::from_str(
+            "id: frame\nnome: Frame\nlarghezza: 1280\naltezza: 800\ntestata: { altezza: 56 }\npiede: { altezza: 60 }\n",
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn gli_strumenti_riportano_l_area_libera_della_cornice() {
+        let c = cornice();
+        let v = cornice_per_il_modello(&c, true);
+        assert_eq!(
+            v["area_libera"],
+            json!({ "x": 0.0, "y": 56.0, "w": 1280.0, "h": 684.0 })
+        );
+        assert_eq!(v["predefinita"], json!(true));
+
+        let con: SynopticPage = serde_yaml::from_str("id: v\nname: Vallone\n").unwrap();
+        let mut voce = json!({ "id": "v" });
+        aggiungi_area_libera(&mut voce, &con, Some("frame"), std::slice::from_ref(&c));
+        assert_eq!(voce["cornice"], json!("frame"));
+        assert_eq!(voce["area_libera"]["y"], json!(56.0));
+        assert_eq!(voce["area_libera"]["h"], json!(684.0));
+
+        let senza: SynopticPage = serde_yaml::from_str("id: s\nname: S\ncornice: null\n").unwrap();
+        let mut voce = json!({ "id": "s" });
+        aggiungi_area_libera(&mut voce, &senza, Some("frame"), &[c]);
+        assert!(voce.get("cornice").is_none() && voce.get("area_libera").is_none());
+    }
 }
 
 #[cfg(test)]
