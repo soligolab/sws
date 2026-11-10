@@ -10,6 +10,7 @@
 // nessun `t()`.
 
 import { uguale } from "@/ai/confronto";
+import { normalizzaOggetti } from "@/store/normalizzaOggetti";
 import { diffRighe } from "@/ai/diffRighe";
 import type { VoceDiff } from "@/types/ai";
 import type { FaceplateDef, ProjectInfo, SynopticPage } from "@/types";
@@ -23,6 +24,10 @@ export function riassumi(
   project: ProjectInfo | null,
   pages: SynopticPage[],
   propFaceplates?: FaceplateDef[] | null,
+  /** Le foto della proposta (sfondi generati): una voce ciascuna (10-11-2026).
+   *  Prima il diff non le elencava, e chi applicava non sapeva di scrivere
+   *  file in `images/`. */
+  propSfondi?: { file: string }[] | null,
 ): VoceDiff[] {
   const out: VoceDiff[] = [];
   // `uguale` e non `JSON.stringify`: l'ordine delle chiavi differisce fra
@@ -124,11 +129,18 @@ export function riassumi(
     }
   }
 
+  for (const f of propSfondi ?? []) {
+    out.push({ verso: "+", testo: i18n.t("riassunto.immagine", { file: `images/${f.file}` }) });
+  }
+
   // Il nome come lo legge una persona (04-11-2026): nei template i nomi delle
   // pagine sono token (`{{t0069}}`), e il diff mostrava la chiave.
   const lingue = (propProject ?? project)?.languages;
   const leggibile = (n: string) => (n.includes("{{") ? localizePageName(n, effectiveProjectLang(lingue), lingue) : n);
-  for (const pg of propPages ?? []) {
+  for (const grezza of propPages ?? []) {
+    // Come la normalizza l'editor quando la carica (`normalizzaOggetti`): il
+    // confronto è con lo store, che è già normalizzato.
+    const pg = { ...grezza, objects: normalizzaOggetti(grezza.objects ?? []) };
     const attuale = pages.find((p) => !p.kind && p.name === pg.name);
     const nome = leggibile(pg.name);
     if (!attuale) {

@@ -3,7 +3,8 @@ import { useTranslation } from "react-i18next";
 import i18n from "i18next";
 import { editorLocale, NESSUNA_CONFERMA, type EditorAi } from "@/ai/editor";
 import { useAppStore } from "@/store";
-import { approvaSfondo, ascolta, chiedi, nuovaConversazione } from "@/ws/aiStream";
+import { approvaSfondo, ascolta, chiedi, mandaFoto, nuovaConversazione } from "@/ws/aiStream";
+import { blobInBase64 } from "@/ai/fotoDalBrowser";
 import type { MsgIn, Riga } from "@/types/ai";
 
 /**
@@ -171,7 +172,7 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
           setRighe((r) => [...r, { tipo: "proposta", msg: m, diff: null }]);
           void editor
             .diff({ id: m.id, motivo: m.motivo, project: m.project, faceplates: m.faceplates,
-                    pages: m.pages, impronta: m.impronta })
+                    pages: m.pages, impronta: m.impronta, sfondi: m.sfondi })
             .then((diff) => {
               setRighe((r) => r.map((x) =>
                 x.tipo === "proposta" && x.msg.id === m.id ? { ...x, diff } : x));
@@ -195,6 +196,14 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
           break;
         case "immagine":
           setRighe((r) => [...r, { tipo: "immagine", png: m.png, testo: m.testo }]);
+          break;
+        case "fotografa":
+          // La foto di una pagina web (10-11-2026): la fa il browser, col
+          // canvas dell'editor. Nella finestra staccata la chiede all'editor.
+          traccia("fotografa", m.id);
+          void editor.fotografa(m)
+            .then(async (f) => mandaFoto(m.id, { png: await blobInBase64(f.png), avvisi: f.avvisi }))
+            .catch((e: unknown) => mandaFoto(m.id, { errore: String((e as Error)?.message ?? e) }));
           break;
         case "sfondo":
           // Una variante rifatta con la stessa luce prende il posto della vecchia.

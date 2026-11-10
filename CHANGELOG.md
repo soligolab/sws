@@ -108,6 +108,27 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   `esiti.json` fuori da git, da cui si spuntano `COLLAUDI_IN_SOSPESO.md`, i piani e `Appunti.txt`.
 
 ### Cambiato
+- **L'assistente fotografa la pagina col motore del progetto** (decisione del maintainer, 10-11-2026). Fino ad
+  oggi `istantanea_pagina` lanciava sempre il viewer LVGL, anche per i progetti web: il modello giudicava un disegno
+  che l'utente non avrebbe visto, e nel cloud (immagine x86_64 senza viewer) la foto non funzionava. Ora per un
+  progetto web (`target` assente o `web`) la foto la fa il **browser dell'IDE collegato alla chat**, con lo stesso
+  `SvgCanvas` dell'editor; per LVGL non cambia niente. Il server (`ai/foto_ide.rs`) compone quello che il modello vede
+  — la pagina intera (da `pagina`, dalla tavola delle bozze, o letta dal disco per nome o id; senza nome la pagina
+  iniziale), le bozze `prj:` già compilate, gli sfondi del banco che la pagina usa, i faceplate del disco e
+  predefiniti con sopra quelli proposti — e lo manda alla chat nel frame `fotografa`; il browser
+  (`ai/fotoDalBrowser.ts`) sovrappone le bozze alla libreria per il tempo della foto (`sovrapponiSimboli`), mette gli
+  sfondi nella mappa delle immagini in sospeso, precarica manifesto e SVG dei simboli, disegna con `rasterizzaPagina`
+  (che ora passa anche i faceplate) dentro la cornice della pagina e risponde `{t:"foto", png, avvisi}`. La chat
+  staccata la chiede all'editor via ponte (`fotografa`/`foto`/`foto-no`, il PNG come `Blob`), e se l'editor non
+  risponde la fa da sé. Il server aspetta al massimo 60 s: poi il modello riceve «nessun IDE collegato ha fotografato
+  la pagina»; fuori da una chat l'errore dice che serve l'IDE aperto. Perché la risposta arrivi mentre il turno è in
+  corso, in `sessione` il socket lo legge un compito a parte, che consegna i frame `foto` e passa il resto al ciclo;
+  l'IDE della conversazione arriva allo strumento con un `task_local` (nessuna firma cambiata). I tocchi col motore
+  web non si fanno, e il testo accanto all'immagine lo dice. Il prompt e la descrizione dello strumento dicono che la
+  foto è fatta col motore del progetto. L'agente finto sa chiamare `istantanea_pagina` (copione
+  `tests/ai/istantanea-web.json`, e2e `chat-istantanea-web.spec.ts`). Test: Rust `ai::foto_ide::tests` (richiesta,
+  attesa, scadenza, chiusura della chat, pagina del disco) e `web_chiede_all_ide_lvgl_resta_sul_viewer`; vitest
+  `tests/fotoDalBrowser.test.tsx`.
 - **Doppia licenza dalla 2.26.0: AGPL-3.0-only oppure commerciale** (decisione del maintainer, 10-11-2026). SWS resta
   open source (OSI) con l'AGPL; chi non vuole i suoi obblighi (pubblicare le modifiche, anche se offre SWS in rete)
   chiede una licenza commerciale, che è un contratto su richiesta. Le versioni fino alla 2.25.2 restano AGPL-3.0.
@@ -210,6 +231,34 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   il salvataggio non è finito.
 
 ### Corretto
+- **La foto di una pagina dal browser è completa: widget in HTML e tubi** (10-11-2026, collaudo della foto web).
+  Nella foto di «Indicatori» mancavano `data_log`, `alarm_bell`, il selettore di lingua e il tubo col riempimento.
+  - **I widget in HTML.** Sono `<foreignObject>`, e `rasterizza.ts` li toglieva perché un SVG caricato come `blob:`
+    macchia il canvas. Misurato col Chromium di playwright: come `data:` lo stesso SVG si disegna **senza** macchiare
+    (`blob:` macchiato, `data:` rosso pieno). Ora l'SVG va all'`Image` come `data:` con l'HTML dentro; se il browser
+    macchia lo stesso (Safari), `toBlob` lancia `SecurityError` e al posto di ogni widget va un segnaposto tratteggiato
+    col nome del tipo (il widget che contiene il riquadro), con l'avviso `boot.warnHtmlSegnaposto`. Vale per la foto
+    dell'assistente, le pagine di boot e la miniatura del progetto.
+  - **Il tubo.** Non era la foto: nei template `demo-items-web` e `demo-items-lvgl` la pipe `o_pipe` aveva i punti come
+    coppie (`- - 650`), una forma che nessuno dei due motori legge (`{x, y}`, `punti()` in `synoptic.rs`), quindi non si
+    vedeva nemmeno nell'editor. Riscritta con `x`/`y`.
+  - Test `tests/rasterizzaCompleta.test.tsx`: una pagina con un tubo esce col tubo; l'HTML resta nell'SVG; col canvas
+    macchiato i segnaposto `alarm_bell` e `data_log` e l'avviso.
+- **Gli e2e della chat aprono la chat dal menù IA, e accedono con l'email** (`e2e/chat-ai.spec.ts`,
+  `e2e/fixtures.ts`). Dal 04-11-2026 la chat non sta più nel ☰ e lo spec cercava «Assistente IA» lì; e un IDE con
+  l'archivio delle identità chiede l'email, non `autocomplete="username"`. Nuovo `apriChatDellIde` (progetto dal
+  template con il token, accesso, scheda del progetto, cassetto aperto con `sws.chatPanel.open`), usato dai due spec
+  della chat; `ensureLoggedIn` riempie il primo campo di testo del modulo.
+  Il giro vero ha trovato tre cose: il pannello aperto **prima** dell'accesso resta in ascolto sul socket col token
+  vecchio e mostra «…» per sempre al posto del modello (negli spec si ricarica dopo l'accesso; nel prodotto resta da
+  vedere); due «Applica» nella pagina (lo spec ora cerca nella chat); il pulsante di annullamento si chiama «↶» (lo
+  spec lo cerca per title). E un difetto vero, sotto:
+- **Il diff di una proposta non dichiara più «modificati» gli oggetti che hanno solo i predefiniti da scrivere**
+  (10-11-2026, dall'e2e della chat). Su «Indicatori» 14 oggetti su 40 risultavano `~` per una proposta che aggiungeva
+  un bottone: lo store normalizza le pagine quando le carica (`setPages`: predefiniti fissi scritti, colori, font,
+  trend e xy legacy) e la proposta arriva grezza dal disco. È il diff rumoroso del 2026-08-31 tornato da un'altra
+  porta. La normalizzazione sta ora in un posto solo, `store/normalizzaOggetti.ts`, e la usano `setPages`,
+  `applyAiProposal` (così l'oggetto uguale resta la stessa istanza) e `riassumi`. Test in `aiTransaction.test.ts`.
 - **L'anteprima di un'immagine nel pannello proprietà** (10-11-2026, collaudo di Montagna nel cloud): una foto del
   progetto si vedeva come un negativo, perché il filtro che inverte le icone del catalogo (disegni neri su trasparente)
   valeva per tutte le immagini; ora vale solo per `/images/…`. E un clic sull'anteprima apre l'immagine intera in
@@ -283,6 +332,18 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   `istantanea::scatta` sulle tre pagine di `montagna-rinnovabile`: 1280×800, ~1 s di parete, ~0,5 s di CPU, 119 MB
   di picco. Il messaggio d'errore di `istantanea.rs` non dice più che l'immagine x86_64 è senza viewer.
   Manuale, capitolo 18 §1.1.
+- **Gli sfondi di una proposta dell'assistente si vedono subito dopo «Applica», e dopo il Salva anche nel cloud**
+  (10-11-2026, collaudo della rc.11). Due difetti. Le foto di una proposta (`p.sfondi`, JPEG base64) si caricano in
+  `images/` solo al Salva (`ai:sfondi:<id>`), e fino ad allora la pagina puntava a un file che il server non aveva:
+  pagina senza sfondo, contro la regola WYSIWYG. E dopo il Salva, nell'IDE del cloud, lo sfondo continuava a mancare:
+  `useHrefImmagine` scarica l'immagine con la sessione solo quando l'URL cambia, il primo tentativo prima del Salva
+  aveva preso un 404 e nessuno la richiedeva più (in locale, senza sessione, il browser teneva l'`<image>` rotto con
+  lo stesso URL). Ora `canvas/immaginiInSospeso.ts` tiene le foto non ancora caricate (href → data URI): «Applica» le
+  mette lì e il canvas e `rasterizza.ts` le disegnano da lì; la voce della history le ricorda, quindi Ctrl+Z le toglie
+  e Ctrl+Y le rimette; il Salva, caricato il file, le toglie e dà al file una versione nuova, e l'URL da disegnare
+  porta `?v=<n>` — l'immagine si richiede. Vale per ogni immagine ricaricata con lo stesso nome
+  (`dimenticaImmagine`). Il diff della proposta ha una voce per foto (`+ immagine images/<file>`). Test
+  `tests/sfondiInSospeso.test.tsx`.
 - **Mentre il pannello si riavvia per l'aggiornamento, l'IDE lo dice, in giallo** (10-11-2026, collaudo della rc.11 sul
   WP630 dal cloud). Riaprendo Connessione durante il riavvio la sezione «Aggiornamento del runtime» mostrava in rosso
   «Il dispositivo ha risposto 503 Service Unavailable: il pannello «…» non è collegato» — vero, ma letto come un guasto —

@@ -86,6 +86,12 @@ export function approvaSfondo(id: string): boolean {
   return aiStream().send(JSON.stringify(msg));
 }
 
+/** La foto chiesta dal server (`fotografa`), o il motivo per cui non c'è. */
+export function mandaFoto(id: string, esito: { png: string; avvisi: string[] } | { errore: string }): boolean {
+  const msg: MsgOut = { t: "foto", id, ...esito };
+  return aiStream().send(JSON.stringify(msg));
+}
+
 export function ascolta(fn: (m: MsgIn) => void): () => void {
   const stream = aiStream();
   const onMessage = (ev: MessageEvent) => {

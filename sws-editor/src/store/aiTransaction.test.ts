@@ -39,6 +39,8 @@ vi.mock("@/api/client", () => ({
 
 import { api } from "@/api/client";
 import { useAppStore } from "@/store";
+import { normalizzaOggetti } from "@/store/normalizzaOggetti";
+import { riassumi } from "@/ai/riassunto";
 import type { AiProposta } from "@/store";
 import type { ProjectInfo, SynopticPage } from "@/types";
 
@@ -80,7 +82,9 @@ function proposta(): AiProposta {
 function reset() {
   useAppStore.setState({
     project: structuredClone(PROGETTO),
-    pages: [structuredClone(PAGINA)],
+    // Normalizzata come la carica l'editor (`setPages`): è lo stato vero
+    // contro cui una proposta si confronta.
+    pages: [{ ...structuredClone(PAGINA), objects: normalizzaOggetti(structuredClone(PAGINA).objects) }],
     currentPageId: "pg1",
     past: [], future: [],
     pagesRev: 0, savedPagesRev: 0,
@@ -201,6 +205,11 @@ describe("il diff non deve mentire", () => {
     }] as SynopticPage[];
 
     const primaDelGauge = useAppStore.getState().pages[0].objects[0];
+    // E il diff non lo dichiara cambiato: lo store è normalizzato (i predefiniti
+    // scritti), la proposta arriva grezza dal disco (10-11-2026, e2e chat-ai).
+    const st = useAppStore.getState();
+    const diff = riassumi(null, p.pages, st.project, st.pages);
+    expect(diff.filter((v) => v.verso === "~")).toEqual([]);
     await useAppStore.getState().applyAiProposal(p);
     const dopo = useAppStore.getState().pages[0];
 

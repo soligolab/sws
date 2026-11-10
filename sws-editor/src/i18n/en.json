@@ -2542,7 +2542,8 @@
     "funzioneRighe": "function `{{nome}}` ({{n}} lines)",
     "funzione": "function `{{nome}}`",
     "scriptRighe": "global script `{{id}}` ({{n}} lines)",
-    "script": "global script `{{id}}`"
+    "script": "global script `{{id}}`",
+    "immagine": "image {{file}}"
   },
   "errors": {
     "projectChangedWhileWorking": "the project changed while you were working"
@@ -3021,6 +3022,7 @@
     "generating": "Generating…",
     "download": "Download PNG",
     "warnForeignObject": "{{n}} non-static object(s) that cannot be drawn in the PNG (HTML inside the SVG) were left out.",
+    "warnHtmlSegnaposto": "{{n}} HTML object(s) ({{tipi}}) cannot be drawn in this browser: a placeholder with the type name stands in their place.",
     "warnExternalImage": "{{n}} image(s) with an external address that cannot be embedded were left out of the PNG.",
     "pngWithWarnings": "PNG updated, but: {{msg}}"
   },

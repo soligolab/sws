@@ -136,6 +136,7 @@ pnpm test:e2e:ui
 | `e2e/lang-table.spec.ts` | T-40: tabella delle lingue e risoluzione dei token `{{chiave}}` nel viewer |
 | `e2e/bugcheck.spec.ts` | Regressioni: un clic su un oggetto non svuota la pagina, un progetto nuovo ha il canvas vuoto |
 | `e2e/chat-ai.spec.ts` | T-50: si chiede un bottone MQTT in chat, si applica la proposta, si annulla, si salva |
+| `e2e/chat-istantanea-web.spec.ts` | la foto di una pagina web la fa il browser dell'IDE: copione `istantanea-web.json`, due foto in chat e in `tmp/istantanea-web/` |
 | `e2e/screenshots.spec.ts` | Cattura gli screenshot del manuale |
 
 `editor.spec.ts` vuole un runtime avviato con `SWS_ADMIN_USER`/`SWS_ADMIN_PASSWORD` (vedi l'intestazione dello spec).

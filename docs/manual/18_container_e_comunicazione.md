@@ -531,7 +531,7 @@ Admin (tutto il resto). Dettagli nel [capitolo 09](09_auth_rbac.md).
 | `/ws/tags` | 7443, 7444 | snapshot e variazioni dei tag sottoscritti; comandi | autenticato o anonimo (Viewer) |
 | `/ws/alarms` | 7443, 7444 | stato degli allarmi | idem |
 | `/ws/logs` | IDE; 7444 del pannello | il log del runtime (pannello: da INFO, DEBUG a richiesta) | Operator nell'IDE; Admin sul pannello |
-| `/ws/ai` | IDE | la chat dell'assistente | Admin |
+| `/ws/ai` | IDE | la chat dell'assistente; per un progetto web anche la foto della pagina (`fotografa` → `foto`), che fa il browser | Admin |
 | `/ws/remote/{tags,alarms,logs}` | IDE | relay verso il pannello collegato | Admin |
 | `/tunnel/v1` | gateway | il tunnel dei pannelli | token del pannello |
 

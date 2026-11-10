@@ -2542,7 +2542,8 @@
     "funzioneRighe": "funzione `{{nome}}` ({{n}} righe)",
     "funzione": "funzione `{{nome}}`",
     "scriptRighe": "script globale `{{id}}` ({{n}} righe)",
-    "script": "script globale `{{id}}`"
+    "script": "script globale `{{id}}`",
+    "immagine": "immagine {{file}}"
   },
   "errors": {
     "projectChangedWhileWorking": "il progetto è cambiato mentre lavoravi"
@@ -3021,6 +3022,7 @@
     "generating": "Genero…",
     "download": "Scarica PNG",
     "warnForeignObject": "{{n}} oggetto/i non statico/i non disegnabile/i nel PNG (HTML dentro l'SVG) sono stati tolti.",
+    "warnHtmlSegnaposto": "{{n}} oggetto/i in HTML ({{tipi}}) non disegnabile/i in questo browser: al loro posto c'è un segnaposto col nome del tipo.",
     "warnExternalImage": "{{n}} immagine/i con indirizzo esterno non incorporabile/i sono state tolte dal PNG.",
     "pngWithWarnings": "PNG aggiornato, ma: {{msg}}"
   },

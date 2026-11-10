@@ -70,6 +70,18 @@ export function impostaSimboliProgetto(compilati: readonly { voce: SimboloLib; s
   impostaProgetto(compilati.map((c) => c.voce.id + c.svg.length).join(","), compilati.map((c) => c.voce), file);
 }
 
+/** Simboli del progetto **sovrapposti** a quelli di adesso, per il tempo di una
+ *  foto (10-11-2026): le bozze dell'assistente, che la foto di un progetto web
+ *  deve disegnare e il progetto non ha ancora. Non avvisa nessuno, di proposito:
+ *  il canvas dell'editor non deve ridisegnarsi con delle bozze, la foto monta il
+ *  suo canvas dopo averle messe. Il valore restituito le toglie. */
+const sovrapposti = new Map<string, { voce: SimboloLib; svg: string }>();
+export function sovrapponiSimboli(compilati: readonly { voce: SimboloLib; svg: string }[]): () => void {
+  const messi = compilati.map((c) => c.voce.id);
+  for (const c of compilati) sovrapposti.set(c.voce.id, c);
+  return () => { for (const id of messi) sovrapposti.delete(id); };
+}
+
 /** Rilegge dal server i simboli del progetto (un altro progetto aperto, un
  *  salvataggio arrivato da fuori). */
 export function ricaricaSimboliProgetto() {
@@ -91,27 +103,51 @@ export function etichettaSimbolo(s: SimboloLib, t: (k: string) => string, lingua
   return t(s.label);
 }
 
+let manifestoInArrivo: Promise<void> = Promise.resolve();
+
 function caricaManifesto() {
   caricaManifestoProgetto();
   if (richiesto || typeof fetch === "undefined") return;
   richiesto = true;
-  fetch(`${BASE_LIB}manifest.json`, { cache: "no-cache" })
+  manifestoInArrivo = fetch(`${BASE_LIB}manifest.json`, { cache: "no-cache" })
     .then((r) => (r.ok ? r.json() : null))
     .then((m: ManifestLib | null) => { if (m?.symbols) { manifesto = m; avvisa(); } })
     .catch(() => { /* senza manifesto i `lib:` restano segnaposto */ });
 }
 
-function caricaSvg(s: SimboloLib) {
-  if (svgs.has(s.id) || inCorso.has(s.id) || !manifesto || typeof fetch === "undefined") return;
+const svgInArrivo = new Map<string, Promise<void>>();
+
+function caricaSvg(s: SimboloLib): Promise<void> {
+  if (svgs.has(s.id) || !manifesto || typeof fetch === "undefined") return Promise.resolve();
+  const gia = svgInArrivo.get(s.id);
+  if (gia || inCorso.has(s.id)) return gia ?? Promise.resolve();
   inCorso.add(s.id);
   const url = s.file.startsWith("prj/")
     ? `${BASE_PRJ}${s.file.slice(4)}?v=${encodeURIComponent(progetto.version)}`
     : `${BASE_LIB}${s.file}?v=${manifesto.version}`;
-  fetch(url, { credentials: "same-origin" })
+  const p = fetch(url, { credentials: "same-origin" })
     .then((r) => (r.ok ? r.text() : ""))
     .then((t) => { if (t.startsWith("<svg")) { svgs.set(s.id, t); avvisa(); } })
     .catch(() => { /* resta il segnaposto */ })
-    .finally(() => inCorso.delete(s.id));
+    .finally(() => { inCorso.delete(s.id); svgInArrivo.delete(s.id); });
+  svgInArrivo.set(s.id, p);
+  return p;
+}
+
+/** Il manifesto e i disegni di questi simboli **prima** di montare un canvas
+ *  che deve uscire completo al primo colpo (la foto dell'assistente,
+ *  10-11-2026): montati a freddo, i simboli si disegnano solo quando i loro SVG
+ *  arrivano, e una foto scattata prima li perderebbe. */
+export async function precaricaSimboli(ids: readonly string[]): Promise<void> {
+  caricaManifesto();
+  await manifestoInArrivo;
+  if (!manifesto) return;
+  const m = manifesto;
+  await Promise.all(ids
+    .filter((id) => !sovrapposti.has(id))
+    .map((id) => cercaSimbolo(m, id))
+    .filter((s): s is SimboloLib => !!s)
+    .map((s) => caricaSvg(s)));
 }
 
 /** Il manifesto, o `null` finché non è arrivato. */
@@ -124,8 +160,10 @@ export function useManifestoLib(): ManifestLib | null {
 /** Il simbolo e il suo SVG; `svg` è `undefined` finché non è arrivato. */
 export function useSimboloLib(id: string | undefined): { sim?: SimboloLib; svg?: string; manifesto: ManifestLib | null } {
   const m = useManifestoLib();
+  const sopra = id ? sovrapposti.get(id) : undefined;
+  if (sopra) return { sim: sopra.voce, svg: sopra.svg, manifesto: m };
   const sim = id && m ? cercaSimbolo(m, id) : undefined;
-  if (sim) caricaSvg(sim);
+  if (sim) void caricaSvg(sim);
   return { sim, svg: sim ? svgs.get(sim.id) : undefined, manifesto: m };
 }
 
@@ -196,7 +234,7 @@ export function prefissoIstanza(objId: string): string {
  *  un disegno della libreria sostituisce (`replaces`, M3 del piano). Così i
  *  progetti esistenti non cambiano e prendono il disegno nuovo. */
 export function cercaSimbolo(m: ManifestLib, id: string): SimboloLib | undefined {
-  if (id.startsWith("prj:")) return progetto.symbols.find((s) => s.id === id);
+  if (id.startsWith("prj:")) return sovrapposti.get(id)?.voce ?? progetto.symbols.find((s) => s.id === id);
   return m.symbols.find((s) => s.id === id) ?? m.symbols.find((s) => s.replaces === id);
 }
 
@@ -212,7 +250,7 @@ export function haSostituto(id: string): boolean {
 
 /** Lo SVG già caricato (anteprime): `undefined` se non è ancora arrivato. */
 export function svgLibCaricato(s: SimboloLib): string | undefined {
-  caricaSvg(s);
+  void caricaSvg(s);
   return svgs.get(s.id);
 }
 

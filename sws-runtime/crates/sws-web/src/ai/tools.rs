@@ -175,24 +175,25 @@ pub fn definizioni() -> Vec<Value> {
         ),
         strumento(
             "istantanea_pagina",
-            "GUARDA come il motore LVGL disegna una pagina: restituisce \
+            "GUARDA come il MOTORE DEL PROGETTO disegna una pagina: restituisce \
              un'IMMAGINE. E' l'unico modo di verificare quello che hai \
-             disegnato invece di dichiararlo fatto — il motore del pannello e \
-             quello del browser disegnano lo stesso progetto in modo diverso, e \
-             le differenze non danno nessun altro segnale. Fotografa il \
-             progetto COME STA SUL DISCO, quindi dopo che una proposta e' stata \
-             applicata. Due cose da sapere leggendo l'immagine: i colori tornano \
-             quantizzati in RGB565 (un #3b82f6 esce come rgb(57,129,246)), \
-             quindi NON concludere che il colore e' sbagliato per una \
-             differenza di uno o due; e un widget che disegna a piu' giri \
-             (gauge, grafici) vuole piu' millisecondi, altrimenti lo fotografi \
-             a meta'. \
-             IMPORTANTE: i tag valgono il loro valore INIZIALE, non quello del \
-             campo — il banco di prova non si collega alle sorgenti di \
-             proposito, perche' un secondo runtime collegato all'impianto \
-             manderebbe notifiche e disturberebbe il broker. Quindi questa \
-             immagine dice COM'E' FATTA la pagina (posizioni, dimensioni, \
-             colori, testi, quali widget LVGL disegna e quali no), NON cosa \
+             disegnato invece di dichiararlo fatto. Il motore e' quello che \
+             vedra' chi usa la pagina: per un progetto WEB la foto la fa il \
+             browser dell'IDE, con lo stesso canvas dell'editor (serve l'IDE \
+             aperto con la chat; i tocchi non si fanno); per un progetto LVGL \
+             la fa il viewer LVGL del pannello in un banco di prova. Il testo \
+             accanto all'immagine dice quale. Si fotografa la `pagina` che passi, \
+             o quella sul disco col `nome`, con le bozze di simbolo e gli sfondi \
+             di questa conversazione. Con LVGL: i colori tornano quantizzati in \
+             RGB565 (un #3b82f6 esce come rgb(57,129,246)), quindi NON \
+             concludere che il colore e' sbagliato per una differenza di uno o \
+             due; e un widget che disegna a piu' giri (gauge, grafici) vuole \
+             piu' millisecondi, altrimenti lo fotografi a meta'. \
+             IMPORTANTE: i valori dei tag NON sono quelli del campo (LVGL: il \
+             valore iniziale, perche' il banco di prova non si collega alle \
+             sorgenti; web: quelli che l'IDE ha in mano, spesso nessuno). Quindi \
+             questa immagine dice COM'E' FATTA la pagina (posizioni, dimensioni, \
+             colori, testi, quali widget si disegnano e quali no), NON cosa \
              mostra l'impianto adesso: non usarla per concludere niente sui \
              valori.",
             json!({ "type": "object", "additionalProperties": false, "properties": {
@@ -202,10 +203,11 @@ pub fn definizioni() -> Vec<Value> {
                     "description": "Tocchi prima dello scatto, `x,y` separati da `;` \
                                     (coordinate di pagina, le stesse dell'IDE). Serve a vedere \
                                     cosa succede DOPO un tocco: la finestra di conferma di un \
-                                    comando, un pulsante premuto. Con i tocchi alza `ms`." },
+                                    comando, un pulsante premuto. Con i tocchi alza `ms`. Solo LVGL: \
+                                    col motore web si ignorano." },
                 "ms": { "type": "integer",
                     "description": "Millisecondi di rendering prima dello scatto (default 500). \
-                                    Con i tocchi 800-1500." },
+                                    Con i tocchi 800-1500. Solo LVGL." },
                 "pagina": { "type": "object",
                     "description": "Una pagina INTERA non ancora proposta: si fotografa questa al \
                                     posto di quella sul disco con lo stesso nome. Le bozze di \
@@ -396,8 +398,9 @@ pub const SOLA_LETTURA: [&str; 14] = [
 /// il turno verso il browser, dove vivono il confronto, i due bottoni e il
 /// passo unico di annullamento. Fuori da quella finestra non ha destinazione.
 ///
-/// `istantanea_pagina` copia il progetto in una cartella temporanea e avvia un
-/// secondo runtime per fotografarlo col motore LVGL vero: il ciclo la intercetta
+/// `istantanea_pagina` fotografa col motore del progetto — il browser dell'IDE
+/// collegato alla chat per un progetto web (`ai/foto_ide.rs`), un secondo
+/// runtime col viewer LVGL vero per un progetto LVGL: il ciclo la intercetta
 /// perché il suo risultato è un blocco immagine, non un testo.
 ///
 /// `bozza_simbolo` scrive nel **banco della conversazione**, che vive nel ciclo

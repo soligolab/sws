@@ -22,6 +22,7 @@ import { LogPanel } from "@/components/LogPanel";
 import { apriFinestra, sorvegliaChiusura } from "@/apriFinestra";
 import { idEditore, Ponte } from "@/ai/ponte";
 import { riassumi } from "@/ai/riassunto";
+import { fotografa } from "@/ai/fotoDalBrowser";
 import { LoginScreen } from "@/components/LoginScreen";
 import { PrimoAmministratoreScreen } from "@/components/PrimoAmministratoreScreen";
 import { ReAuthModal } from "@/components/ReAuthModal";
@@ -234,7 +235,7 @@ export function App() {
           const st = useAppStore.getState();
           try {
             const diff = riassumi(m.proposta.project ?? null, m.proposta.pages ?? null,
-                                  st.project, st.pages, m.proposta.faceplates);
+                                  st.project, st.pages, m.proposta.faceplates, m.proposta.sfondi);
             ponte.manda({ t: "diff-ok", a: m.da, rid: m.rid, diff });
           } catch (e: any) {
             // Si **dice** che non si sa, invece di mandare un elenco vuoto: `[]`
@@ -242,6 +243,16 @@ export function App() {
             ponte.manda({ t: "diff-no", a: m.da, rid: m.rid,
                           errore: String(e?.message ?? e) });
           }
+          break;
+        }
+        case "fotografa": {
+          // La foto di una pagina web per l'assistente (10-11-2026): la chat
+          // staccata non ha lo store del progetto, questa finestra sì.
+          void fotografa(m.richiesta).then(
+            (foto) => ponte.manda({ t: "foto", a: m.da, rid: m.rid, foto }),
+            (e: unknown) => ponte.manda({ t: "foto-no", a: m.da, rid: m.rid,
+                                          errore: String((e as Error)?.message ?? e) }),
+          );
           break;
         }
         case "applica": {

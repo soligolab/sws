@@ -26,6 +26,7 @@
 // `applyAiProposal`.
 
 import { riassumi } from "@/ai/riassunto";
+import { fotografa, type Foto, type RichiestaFoto } from "@/ai/fotoDalBrowser";
 import { nuovoId, Ponte, type Messaggio } from "@/ai/ponte";
 import { useAppStore, type AiProposta, type EsitoProposta } from "@/store";
 import type { VoceDiff } from "@/types/ai";
@@ -36,18 +37,26 @@ export interface EditorAi {
    *  «nessuna modifica» da «non lo so», e per farlo serve un errore, non `[]`. */
   diff(p: AiProposta): Promise<VoceDiff[]>;
   applica(p: AiProposta): Promise<EsitoProposta>;
+  /** La foto di una pagina di un progetto web, per l'assistente (10-11-2026). */
+  fotografa(r: RichiestaFoto): Promise<Foto>;
 }
 
 /** Il caso dell'IDE: lo store è qui. */
 export const editorLocale: EditorAi = {
   async diff(p) {
     const s = useAppStore.getState();
-    return riassumi(p.project ?? null, p.pages ?? null, s.project, s.pages, p.faceplates);
+    return riassumi(p.project ?? null, p.pages ?? null, s.project, s.pages, p.faceplates, p.sfondi);
   },
   async applica(p) {
     return useAppStore.getState().applyAiProposal(p);
   },
+  fotografa,
 };
+
+/** La foto si aspetta più a lungo di un diff: cinque sfondi JPEG da
+ *  incorporare costano qualche secondo, e una scheda in secondo piano va più
+ *  piano. Resta sotto il minuto che concede il server. */
+const ATTESA_FOTO_MS = 40_000;
 
 /** Quanto si aspetta una risposta dall'editor prima di dichiararlo assente. */
 const ATTESA_MS = 8000;
@@ -72,6 +81,7 @@ export function editorViaPonte(ponte: Ponte, idEditore: () => string): EditorAi 
   const attendi = <T,>(
     invia: (rid: string) => boolean,
     prendi: (m: Messaggio, rid: string) => Preso<T>,
+    attesaMs?: number,
   ): Promise<T> =>
     new Promise<T>((risolvi, rifiuta) => {
       const rid = nuovoId();
@@ -87,7 +97,7 @@ export function editorViaPonte(ponte: Ponte, idEditore: () => string): EditorAi 
       orologio = setTimeout(() => {
         stop();
         rifiuta(new Error("timeout"));
-      }, ATTESA_MS);
+      }, attesaMs ?? ATTESA_MS);
       if (!invia(rid)) {
         clearTimeout(orologio);
         stop();
@@ -120,6 +130,25 @@ export function editorViaPonte(ponte: Ponte, idEditore: () => string): EditorAi 
         // applicata»: un timeout non dimostra la non-applicazione.
         motivo: NESSUNA_CONFERMA,
       }));
+    },
+
+    // La foto la fa l'editor, che ha lo store del progetto. Se non risponde
+    // (chiuso, o una versione che non conosce `fotografa`), la fa questa
+    // finestra da sé: senza cornice né valori, ma con la pagina, le bozze e
+    // gli sfondi del frame — meglio di nessuna foto.
+    fotografa(r) {
+      // Un «no» dell'editor è una risposta (la pagina non si disegna): passa.
+      // Il resto — nessuna risposta, ponte chiuso — vuol dire «editor assente».
+      let rifiutata = false;
+      return attendi<Foto>(
+        (rid) => ponte.manda({ t: "fotografa", a: idEditore(), rid, richiesta: r }),
+        (m, rid) => {
+          if (m.t === "foto" && m.rid === rid) return { ok: m.foto };
+          if (m.t === "foto-no" && m.rid === rid) { rifiutata = true; return { no: m.errore }; }
+          return undefined;
+        },
+        ATTESA_FOTO_MS,
+      ).catch((e: unknown) => (rifiutata ? Promise.reject(e) : fotografa(r)));
     },
   };
 }

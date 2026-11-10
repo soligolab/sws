@@ -407,11 +407,24 @@ LVGL è già interamente software, e SDL2/DRM servono solo a *mostrare* il buffe
 
 ### Lo sa fare anche l'assistente
 
-Dal 2026-09-04 l'assistente dell'IDE ha lo strumento `istantanea_pagina`: fa da sé
-tutto quello che c'è scritto qui sotto — copia il progetto, avvia un runtime usa e
-getta, scatta, converte in PNG — e **guarda** il risultato invece di dichiarare
-fatto. Serve `sws-lvgl-viewer` installato accanto al runtime: c'è nell'immagine
-arm64, **non** in quella x86_64.
+Dal 2026-09-04 l'assistente dell'IDE ha lo strumento `istantanea_pagina`, e **guarda**
+la pagina invece di dichiararla fatta. Dal 10-11-2026 la fotografa **col motore del
+progetto**, cioè come la vedrà chi la usa:
+
+- **progetto LVGL**: fa da sé tutto quello che c'è scritto qui sotto — copia il
+  progetto, avvia un runtime usa e getta, scatta, converte in PNG. Serve
+  `sws-lvgl-viewer` installato accanto al runtime;
+- **progetto web** (motore «Web (browser)»): la foto la fa il **browser dell'IDE**
+  dove la chat è aperta, con lo stesso canvas dell'editor (`ai/foto_ide.rs` e
+  `sws-editor/src/ai/fotoDalBrowser.ts`). Il server manda alla chat la pagina che il
+  modello vede, le bozze di simbolo e gli sfondi della conversazione; il browser
+  rimanda il PNG. Con la chat staccata la foto la fa la finestra dell'editor. Serve
+  quindi l'IDE aperto: senza risposta entro 60 s il modello riceve «nessun IDE
+  collegato ha fotografato la pagina». I tocchi (`tocca`) qui non si fanno.
+
+Per provarla senza il modello: il copione
+`sws-runtime/crates/sws-web/tests/ai/istantanea-web.json` con
+`e2e/chat-istantanea-web.spec.ts` (le due foto finiscono in `tmp/istantanea-web/`).
 
 A mano resta il modo di guardare quando si sta lavorando al rendering, e per
 questo la procedura sotto vale ancora.

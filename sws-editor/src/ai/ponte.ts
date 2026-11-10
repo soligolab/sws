@@ -32,6 +32,7 @@
 // di fraintendersi: il fallimento arriva dalla via rumorosa già prevista
 // («l'editor non risponde») invece che da un messaggio interpretato male.
 
+import type { Foto, RichiestaFoto } from "@/ai/fotoDalBrowser";
 import type { AiProposta } from "@/store";
 import type { VoceDiff } from "@/types/ai";
 
@@ -80,6 +81,9 @@ export type DaChat =
   | { t: "ciao"; da: string; a: string }
   | { t: "diff"; da: string; a: string; rid: string; proposta: AiProposta }
   | { t: "applica"; da: string; a: string; rid: string; proposta: AiProposta }
+  /** La foto di una pagina web chiesta dall'assistente (10-11-2026): la fa
+   *  l'editor, che ha lo store del progetto (cornici, lingue, valori). */
+  | { t: "fotografa"; da: string; a: string; rid: string; richiesta: RichiestaFoto }
   /** La finestra staccata si sta chiudendo: l'editor riabilita il pannello. */
   | { t: "chat-chiusa"; da: string; a: string };
 
@@ -92,6 +96,9 @@ export type DaEditore =
   | { t: "diff-ok"; da: string; a: string; rid: string; diff: VoceDiff[] }
   | { t: "diff-no"; da: string; a: string; rid: string; errore: string }
   | { t: "applicato"; da: string; a: string; rid: string; ok: boolean; motivo?: string; avviso?: string }
+  /** Il PNG viaggia come `Blob`, che `structuredClone` accetta. */
+  | { t: "foto"; da: string; a: string; rid: string; foto: Foto }
+  | { t: "foto-no"; da: string; a: string; rid: string; errore: string }
   /** Broadcast: la finestra dell'editor sta andando via. */
   | { t: "editore-chiuso"; da: string };
 

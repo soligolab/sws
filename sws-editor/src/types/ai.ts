@@ -3,6 +3,7 @@
 // devono restare d'accordo, e non c'è una guardia che lo verifichi.
 
 import type { FaceplateDef, ProjectInfo, SynopticPage } from "@/types";
+import type { RichiestaFoto } from "@/ai/fotoDalBrowser";
 
 /** Un rilievo della validazione, come lo produce `sws-web/src/validate.rs`. */
 export interface Rilievo {
@@ -46,6 +47,9 @@ export type MsgIn =
   | { t: "simbolo"; slug: string; it: string; en: string; svg: string }
   /** Un'istantanea del pannello che l'assistente ha scattato: la vede anche chi chatta. */
   | { t: "immagine"; png: string; testo?: string }
+  /** Il server chiede la foto di una pagina di un progetto web (10-11-2026):
+   *  la fa questo browser, e risponde con `foto`. */
+  | ({ t: "fotografa"; id: string } & RichiestaFoto)
   /** Uno sfondo generato (F6): una base candidata, o una variante di luce. */
   | { t: "sfondo"; id: string; base: boolean; luce?: string | null; approvata: boolean; jpg: string }
   | { t: "sfondo_approvato"; id: string; ok: boolean }
@@ -60,7 +64,11 @@ export type MsgIn =
   | { t: "fine" };
 
 /** Quello che si manda. */
-export type MsgOut = { t: "chiedi"; testo: string } | { t: "approva_sfondo"; id: string };
+export type MsgOut =
+  | { t: "chiedi"; testo: string }
+  | { t: "approva_sfondo"; id: string }
+  /** La risposta a `fotografa`: il PNG in base64, o l'errore. */
+  | { t: "foto"; id: string; png?: string; avvisi?: string[]; errore?: string };
 
 /** Una voce del diff leggibile: `+` aggiunto, `-` tolto, `~` modificato. */
 export interface VoceDiff {

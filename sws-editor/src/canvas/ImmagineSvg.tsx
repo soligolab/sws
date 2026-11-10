@@ -22,6 +22,7 @@ import { useEffect, useState } from "react";
 import type { CSSProperties, ImgHTMLAttributes, SVGProps } from "react";
 import { getAuthToken, getBaseUrl } from "@/api/client";
 import { prefissoGateway, prefissoSchermo } from "@/api/prefisso";
+import { hrefDaDisegnare, immagineCaricata, useGiroImmagini } from "@/canvas/immaginiInSospeso";
 
 const pronte = new Map<string, string>();
 const inVolo = new Map<string, Promise<string | null>>();
@@ -79,7 +80,9 @@ export function scaricaImmagine(href: string): Promise<string | null> {
   return p;
 }
 
-/** Un'immagine ricaricata con lo stesso nome: la copia in memoria non vale più. */
+/** Un'immagine ricaricata con lo stesso nome: la copia in memoria non vale più,
+ *  e chi la disegna la richiede con una versione nuova (10-11-2026: prima un
+ *  `<image>` che aveva preso un 404 non la richiedeva più). */
 export function dimenticaImmagine(href: string): void {
   const u = pronte.get(href);
   if (u) {
@@ -87,10 +90,14 @@ export function dimenticaImmagine(href: string): void {
     corpi.delete(u);
   }
   pronte.delete(href);
+  immagineCaricata(href);
 }
 
-/** L'URL da dare al disegno: quello vero, o il `blob:` nel cloud. */
-export function useHrefImmagine(href: string | undefined): string | undefined {
+/** L'URL da dare al disegno: la foto in sospeso (non ancora salvata), quello
+ *  vero con la sua versione, o il `blob:` nel cloud. */
+export function useHrefImmagine(hrefPagina: string | undefined): string | undefined {
+  useGiroImmagini();
+  const href = hrefPagina ? hrefDaDisegnare(hrefPagina) : undefined;
   const [v, setV] = useState<string | undefined>(() => (serveScaricare(href) ? pronte.get(href) : href));
   useEffect(() => {
     if (!serveScaricare(href)) { setV(href); return; }

@@ -63,7 +63,10 @@ export async function adminToken(request: APIRequestContext): Promise<string | n
 export async function ensureLoggedIn(page: import("@playwright/test").Page): Promise<void> {
   const pwd = page.locator('input[autocomplete="current-password"]');
   if (!(await pwd.isVisible({ timeout: 2_000 }).catch(() => false))) return;
-  await page.locator('input[autocomplete="username"]').fill(ADMIN_USER);
+  // Un IDE con l'archivio delle identità (dal 10-2026) chiede l'**email**, e il
+  // suo campo non è `autocomplete="username"`: si prende il primo campo di
+  // testo del modulo, che è l'uno o l'altro.
+  await page.locator('input:not([type=password]):not([type=checkbox])').first().fill(ADMIN_USER);
   await pwd.fill(ADMIN_PASS);
   await page.getByRole("button", { name: /Accedi|Log ?in/i }).click();
   await pwd.waitFor({ state: "hidden", timeout: 15_000 }).catch(() => {});
@@ -92,4 +95,55 @@ export async function vaiAllEditor(page: import("@playwright/test").Page): Promi
 export async function vaiInConfigurazione(page: import("@playwright/test").Page, id = "tags"): Promise<void> {
   await page.getByTestId(`foglia-config-${id}`).click();
   await page.waitForTimeout(800);
+}
+
+/**
+ * Prepara un progetto da un template, entra nell'IDE e apre la chat
+ * dell'assistente. Restituisce le intestazioni per le chiamate API.
+ *
+ * La chat dal 04-11-2026 si apre dal menù IA del pannello laterale, non più dal
+ * ☰: si parte col cassetto già aperto (`sws.chatPanel.open`, la stessa chiave
+ * che l'IDE usa per ricordarlo). Le intestazioni si chiedono **prima** di
+ * creare il progetto: con gli utenti, senza token la creazione prende 401.
+ */
+export async function apriChatDellIde(
+  page: import("@playwright/test").Page,
+  request: APIRequestContext,
+  progetto: string,
+  template = "demo-items-web",
+): Promise<Record<string, string>> {
+  let headers = await authHeaders(request);
+  // Da capo ogni volta: un giro precedente può aver salvato la sua modifica, e
+  // il secondo diff non la proporrebbe più.
+  await request.delete(`${ADMIN}/api/projects/${progetto}`, { headers });
+  await request.post(`${ADMIN}/api/projects`, { headers, data: { name: progetto, template } });
+  await request.post(`${ADMIN}/api/projects/${progetto}/open`, { headers });
+  // Aprire un progetto può invalidare le sessioni (vedi `authHeaders`).
+  headers = await authHeaders(request);
+
+  await page.addInitScript(() => {
+    try { localStorage.setItem("sws.chatPanel.open", "1"); } catch { /* storage negato */ }
+  });
+  await page.goto(`${ADMIN}/`, { waitUntil: "networkidle" });
+  await ensureLoggedIn(page);
+  await page.waitForTimeout(1500);
+  // Un'istanza IDE riparte dalla schermata dei progetti: si apre quello giusto.
+  const scheda = page.getByRole("button", { name: new RegExp(progetto) }).first();
+  if (await scheda.isVisible({ timeout: 2_000 }).catch(() => false)) {
+    await scheda.click();
+    await page.waitForTimeout(2000);
+  }
+  // Un ricarico a sessione fatta: il cassetto si monta col token già in mano.
+  // Senza, il socket della chat aperto prima dell'accesso viene rifatto col
+  // token nuovo e il pannello resta in ascolto su quello vecchio («…» per
+  // sempre al posto del modello).
+  await page.reload({ waitUntil: "networkidle" });
+  return headers;
+}
+
+/** Il modello che la chat dichiara, aspettando il suo «pronto» (finché non
+ *  arriva l'intestazione dice «…»). `finto` = runtime con `SWS_AI_FAKE`. */
+export async function modelloDellaChat(chat: import("@playwright/test").Locator): Promise<string> {
+  await expect(chat).toContainText(/finto|claude|kimi|moonshot|nessuna chiave/i, { timeout: 15_000 }).catch(() => {});
+  return chat.innerText();
 }

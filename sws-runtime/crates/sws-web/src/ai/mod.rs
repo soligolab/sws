@@ -26,6 +26,7 @@
 pub mod client;
 pub mod config_api;
 mod conversazioni;
+mod foto_ide;
 pub mod immagini;
 pub mod prompt;
 pub mod scopi;
@@ -189,9 +190,24 @@ async fn sessione(socket: WebSocket, s: AppState, id_conversazione: Option<Strin
     // l'elenco resta lo stesso per tutta la conversazione (la cache regge).
     let ctx = strumenti_scopi::Contesto::da(&s.config_dir);
 
-    while let Some(Ok(msg)) = ws_rx.next().await {
-        let Message::Text(testo) = msg else { continue };
-        traccia("←", &testo);
+    // Il socket lo legge un compito a parte: la foto di un progetto web
+    // (`foto_ide`) torna dal browser mentre il turno è in corso, cioè mentre
+    // questo ciclo è fermo dentro `vero_giro`. Tutto il resto passa al ciclo.
+    let ide = foto_ide::Ide::nuovo(tx.clone());
+    let (in_tx, mut in_rx) = mpsc::unbounded_channel::<String>();
+    let lettore_ide = ide.clone();
+    tokio::spawn(async move {
+        while let Some(Ok(msg)) = ws_rx.next().await {
+            let Message::Text(testo) = msg else { continue };
+            traccia("←", &testo);
+            if !lettore_ide.consegna_se_foto(&testo) && in_tx.send(testo).is_err() {
+                break;
+            }
+        }
+        lettore_ide.chiudi();
+    });
+
+    while let Some(testo) = in_rx.recv().await {
         let Ok(v): Result<Value, _> = serde_json::from_str(&testo) else {
             invia(
                 &tx,
@@ -229,10 +245,18 @@ async fn sessione(socket: WebSocket, s: AppState, id_conversazione: Option<Strin
         messaggi.push(json!({ "role": "user", "content": domanda }));
 
         let esito = match &finto {
-            Some(f) => finto_giro(&s, &tx, f, banco).await,
+            // La foto di un progetto web la chiede l'IDE di QUESTO socket: la
+            // conversazione può essere stata ritrovata dopo una riconnessione,
+            // ma il browser che risponde è quello collegato adesso.
+            Some(f) => {
+                foto_ide::IDE
+                    .scope(ide.clone(), finto_giro(&s, &tx, f, banco))
+                    .await
+            }
             None => match &scelta {
                 Some(sc) => {
-                    let r = vero_giro(&s, &tx, sc, &ctx, messaggi, misure, banco).await;
+                    let giro = vero_giro(&s, &tx, sc, &ctx, messaggi, misure, banco);
+                    let r = foto_ide::IDE.scope(ide.clone(), giro).await;
                     misure.scrivi(sc);
                     r
                 }
@@ -253,6 +277,8 @@ async fn sessione(socket: WebSocket, s: AppState, id_conversazione: Option<Strin
         invia(&tx, json!({ "t": "fine" }));
     }
 
+    // L'`Ide` tiene un mittente: finché vive, l'inoltratore non finisce.
+    drop(ide);
     drop(tx);
     let _ = inoltro.await;
 }
@@ -688,6 +714,11 @@ async fn istantanea_per_il_modello(
     let dir = crate::router::active_dir(s)
         .await
         .map_err(|_| "nessun progetto aperto: non c'è niente da fotografare".to_string())?;
+    // Il motore del progetto (10-11-2026): un progetto web lo fotografa il
+    // browser dell'IDE, non il viewer LVGL.
+    if foto_ide::motore_web(&dir) {
+        return foto_ide::istantanea(&dir, input, banco).await;
+    }
     // Una pagina in composizione si fotografa al posto di quella col suo nome;
     // senza pagina né nome, con delle bozze, si fotografa la loro tavola.
     let mut nome = input
@@ -1032,13 +1063,26 @@ async fn finto_giro(
                 tx,
                 json!({ "t": "strumento", "nome": nome, "stato": "eseguo" }),
             );
-            let esito = match nome {
-                "bozza_simbolo" => bozza(tx, banco, &input),
-                "valida" => tools::valida_interna(s, &input, &banco.simboli, false)
-                    .await
-                    .map(|(g, _)| g),
-                _ => tools::esegui(s, nome, &input).await,
-            };
+            let esito =
+                match nome {
+                    "bozza_simbolo" => bozza(tx, banco, &input),
+                    // La foto, come nel giro vero: serve all'e2e della chat e a
+                    // provare dal vivo la foto dal browser (10-11-2026).
+                    "istantanea_pagina" => istantanea_per_il_modello(s, tx, &input, banco)
+                        .await
+                        .map(|b| {
+                            invia(
+                                tx,
+                                json!({ "t": "immagine", "png": b[0]["source"]["data"],
+                                    "testo": b[1]["text"] }),
+                            );
+                            Value::Null
+                        }),
+                    "valida" => tools::valida_interna(s, &input, &banco.simboli, false)
+                        .await
+                        .map(|(g, _)| g),
+                    _ => tools::esegui(s, nome, &input).await,
+                };
             match esito {
                 Ok(_) => invia(
                     tx,
@@ -1203,6 +1247,46 @@ mod tests_istantanea {
         let b = blocchi_istantanea(&scatto(vec![]));
         let t = b[1]["text"].as_str().unwrap();
         assert!(t.contains("non ha segnalato nulla"), "{t}");
+    }
+
+    /// Il motore del progetto decide chi fotografa (10-11-2026): un progetto
+    /// web chiede la foto all'IDE, uno LVGL resta sul viewer e all'IDE non
+    /// chiede niente.
+    #[tokio::test]
+    async fn web_chiede_all_ide_lvgl_resta_sul_viewer() {
+        for (target, web) in [("", true), ("target:\n  kind: lvgl_wayland\n", false)] {
+            let d = tempfile::tempdir().unwrap();
+            std::fs::write(
+                d.path().join("project.yaml"),
+                format!("meta:\n  name: m\n  version: \"1\"\ntags: []\nsources: []\n{target}"),
+            )
+            .unwrap();
+            std::fs::create_dir_all(d.path().join("synoptics")).unwrap();
+            std::fs::write(
+                d.path().join("synoptics/P.yaml"),
+                "id: p\nname: P\nwidth: 320\nheight: 200\nobjects: []\n",
+            )
+            .unwrap();
+            let s = crate::router::stato_di_prova(d.path()).await;
+            *s.project_dir.write().await = Some(d.path().to_path_buf());
+            let (tx, mut rx) = mpsc::unbounded_channel::<String>();
+            let ide = foto_ide::Ide::nuovo(tx.clone());
+            // Nessuno risponde: il web scade, il LVGL va per la sua strada
+            // (riesce, o fallisce perché il viewer non è compilato).
+            let _ = tokio::time::timeout(
+                std::time::Duration::from_secs(3),
+                foto_ide::IDE.scope(
+                    ide,
+                    istantanea_per_il_modello(&s, &tx, &json!({ "nome": "P" }), &Banco::default()),
+                ),
+            )
+            .await;
+            let mut chiesta = false;
+            while let Ok(m) = rx.try_recv() {
+                chiesta |= m.contains("\"fotografa\"");
+            }
+            assert_eq!(chiesta, web, "target {target:?}");
+        }
     }
 }
 

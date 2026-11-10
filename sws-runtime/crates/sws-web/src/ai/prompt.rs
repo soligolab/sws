@@ -138,6 +138,14 @@ della pagina che li usa. Un faceplate non ne contiene un altro. Sul pannello
 LVGL un parametro cambia tag e testi, non numeri e colori: un fondo scala o un
 colore diverso per istanza resta fuori dal faceplate, sulla pagina.
 
+# La foto della pagina
+
+`istantanea_pagina` fotografa la pagina **col motore del progetto**, cioè come la
+vedrà chi la usa: un progetto web lo disegna il browser dell'IDE, con lo stesso
+canvas dell'editor; un progetto LVGL lo disegna il viewer LVGL del pannello. Il
+testo accanto all'immagine dice quale dei due. Col motore web i tocchi (`tocca`)
+non si fanno: la foto è della pagina ferma.
+
 # Quando ti chiedono un sinottico intero
 
 «Fammi il sinottico di un impianto di tubi d'acciaio», «la pianta di casa mia con

@@ -25,7 +25,8 @@ import { resolveMsg } from "@/i18n/projectI18n";
 import { useAppStore } from "@/store";
 import { oggettiComposti, oggettoSfondoArea } from "@/cornici/modello";
 import { blobDi, scaricaImmagine, serveScaricare } from "@/canvas/ImmagineSvg";
-import type { Cornice, CustomSymbol, SynopticObject, SynopticPage, TagState } from "@/types";
+import { hrefDaDisegnare } from "@/canvas/immaginiInSospeso";
+import type { Cornice, CustomSymbol, FaceplateDef, SynopticObject, SynopticPage, TagState } from "@/types";
 
 /** Tetto del PNG: gemello di `MAX_BOOT_PNG_BYTES` in `sws-web/src/boot.rs`. */
 export const MAX_PNG_BYTES = 5 * 1024 * 1024;
@@ -74,11 +75,24 @@ export async function incorporaImmagini(svg: string, leggi: (href: string) => Pr
  *  fuori dal documento. Non si possono disegnare comunque — quello che resta è un PNG
  *  senza quegli oggetti, e ogni cosa tolta è un avviso: meglio un PNG incompleto e
  *  detto che nessun PNG con un errore che non spiega niente. */
-export function neutralizzaNonStatico(svg: string): { svg: string; avvisi: string[] } {
+export function neutralizzaNonStatico(
+  svg: string,
+  opzioni: {
+    /** Tieni i `<foreignObject>`: si disegnano, se l'SVG arriva come `data:` (10-11-2026). */
+    tieniHtml?: boolean;
+    /** Al posto di ogni `<foreignObject>` tolto, il suo segnaposto (x, y, w, h). */
+    segnaposto?: (x: number, y: number, w: number, h: number) => string;
+  } = {},
+): { svg: string; avvisi: string[] } {
   const avvisi: string[] = [];
   let fuori = 0;
-  let out = svg.replace(/<foreignObject\b[\s\S]*?<\/foreignObject>/g, () => { fuori += 1; return ""; });
-  if (fuori > 0) avvisi.push(i18n.t("boot.warnForeignObject", { n: fuori }));
+  let out = opzioni.tieniHtml ? svg : svg.replace(/<foreignObject\b[\s\S]*?<\/foreignObject>/g, (tag) => {
+    fuori += 1;
+    if (!opzioni.segnaposto) return "";
+    const n = (a: string) => Number(new RegExp(`\\s${a}="([-\\d.]+)"`).exec(tag.slice(0, tag.indexOf(">")))?.[1] ?? 0);
+    return opzioni.segnaposto(n("x"), n("y"), n("width"), n("height"));
+  });
+  if (fuori > 0 && !opzioni.segnaposto) avvisi.push(i18n.t("boot.warnForeignObject", { n: fuori }));
   let esterne = 0;
   out = out.replace(/<image\b[^>]*>(?:\s*<\/image>)?/g, (tag) => {
     const m = tag.match(/\s(?:xlink:)?href=(["'])(.*?)\1/);
@@ -224,6 +238,7 @@ const attendi = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
  *  cornice, composta come la compone il runtime. */
 async function svgDellaPagina(
   page: SynopticPage, customSymbols: CustomSymbol[], cornice?: Cornice, valori?: Record<string, TagState>,
+  faceplates?: FaceplateDef[],
 ): Promise<string> {
   // La lingua dei contenuti è quella **predefinita del progetto**, non quella che chi salva sta
   // guardando: un'immagine di boot non deve cambiare a seconda di chi preme «Salva».
@@ -244,6 +259,9 @@ async function svgDellaPagina(
   // cache per URL, quindi il montaggio trova il blob gia' pronto.
   await Promise.all(
     [...objects.map((o) => o.bg_image ?? o.src), page.sfondo_immagine]
+      // Lo stesso href che disegnerà `ImmagineSvg`: la foto in sospeso o
+      // l'URL con la sua versione (10-11-2026).
+      .map((h) => (h ? hrefDaDisegnare(h) : h))
       .filter(serveScaricare)
       .map((href) => scaricaImmagine(href)),
   );
@@ -259,6 +277,9 @@ async function svgDellaPagina(
         // I valori che l'IDE ha in mano (la miniatura): senza, un indicatore
         // mostra il nome del suo tag al posto del numero.
         ...(valori ? { tagValues: valori } : {}),
+        // Le istanze di faceplate (la foto dell'assistente, 10-11-2026): senza
+        // le definizioni si disegnano vuote.
+        ...(faceplates ? { faceplates } : {}),
         background: page.background,
         customSymbols,
         pageWidth: w,
@@ -301,7 +322,7 @@ async function svgDellaPagina(
 export async function rasterizzaPagina(
   paginaOriginale: SynopticPage,
   customSymbols: CustomSymbol[] = [],
-  opzioni: { larghezza?: number; cornice?: Cornice; valori?: Record<string, TagState> } = {},
+  opzioni: { larghezza?: number; cornice?: Cornice; valori?: Record<string, TagState>; faceplates?: FaceplateDef[] } = {},
 ): Promise<{ png: Blob; avvisi: string[] }> {
   const w = opzioni.cornice?.larghezza ?? paginaOriginale.width ?? 1280;
   const h = opzioni.cornice?.altezza ?? paginaOriginale.height ?? 800;
@@ -310,43 +331,77 @@ export async function rasterizzaPagina(
     (font, testo) => { const c = document.createElement("canvas").getContext("2d"); if (!c) return testo.length * 8; c.font = font; return c.measureText(testo).width; },
     (t) => { const tab = useAppStore.getState().project?.languages; return resolveMsg(t, tab?.default ?? "", tab); },
   );
-  let svg = await svgDellaPagina(page, customSymbols, opzioni.cornice, opzioni.valori);
+  let svg = await svgDellaPagina(page, customSymbols, opzioni.cornice, opzioni.valori, opzioni.faceplates);
   const stile = getComputedStyle(document.documentElement);
   svg = sostituisciVarBrand(svg, (n) => stile.getPropertyValue(n));
   svg = await incorporaImmagini(svg, immagineComeDataUri);
-  const pulito = neutralizzaNonStatico(svg);
-  svg = pulito.svg;
-
-  const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml;charset=utf-8" }));
+  // Prima con l'HTML dentro (10-11-2026): i widget fatti in HTML — `data_log`,
+  // `alarm_bell`, selettori, slider — sono `<foreignObject>`, e un SVG caricato
+  // come `data:` li disegna **senza macchiare il canvas** (Chromium e Firefox;
+  // come `blob:` invece sì, ed è per questo che fino a oggi si toglievano e la
+  // foto dell'assistente usciva coi buchi). Se il browser macchia lo stesso
+  // (Safari), al loro posto va un segnaposto col nome del tipo, e lo si dice.
+  const conHtml = neutralizzaNonStatico(svg, { tieniHtml: true });
   try {
-    const img = new Image();
-    img.decoding = "sync";
-    // Un tetto di tempo: un SVG che il browser non carica né rifiuta lascerebbe
-    // «Salva» in sospeso per sempre.
-    await new Promise<void>((ok, ko) => {
-      const timer = setTimeout(() => ko(new Error("il browser non ha caricato l'SVG della pagina entro 15 secondi")), 15_000);
-      img.onload = () => { clearTimeout(timer); ok(); };
-      img.onerror = () => { clearTimeout(timer); ko(new Error("il browser non ha caricato l'SVG della pagina")); };
-      img.src = url;
-    });
-    const canvas = document.createElement("canvas");
-    const scala = opzioni.larghezza && opzioni.larghezza < w ? opzioni.larghezza / w : 1;
-    const cw = Math.max(1, Math.round(w * scala));
-    const ch = Math.max(1, Math.round(h * scala));
-    canvas.width = cw;
-    canvas.height = ch;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) throw new Error("canvas 2D non disponibile");
-    // Il foglio: lo sfondo della pagina, sotto l'SVG (un `background` sul
-    // `<svg>` radice non è affidabile fra i browser).
-    ctx.fillStyle = page.background || "#0f172a";
-    ctx.fillRect(0, 0, cw, ch);
-    ctx.imageSmoothingQuality = "high";
-    ctx.drawImage(img, 0, 0, cw, ch);
-    const png = await new Promise<Blob>((ok, ko) =>
-      canvas.toBlob((b) => (b ? ok(b) : ko(new Error("toBlob non ha prodotto il PNG"))), "image/png"));
-    return { png, avvisi: pulito.avvisi };
-  } finally {
-    URL.revokeObjectURL(url);
+    return { png: await disegnaSvg(conHtml.svg, w, h, page.background, opzioni.larghezza), avvisi: conHtml.avvisi };
+  } catch (e) {
+    if ((e as Error)?.name !== "SecurityError") throw e;
   }
+  const oggetti = [...(opzioni.cornice ? oggettiComposti(opzioni.cornice, { paginaNome: page.name, paginaId: page.id, progettoNome: "" }) : []), ...page.objects];
+  const tipi: string[] = [];
+  const pulito = neutralizzaNonStatico(svg, {
+    segnaposto: (x, y, sw, sh) => {
+      // Il widget che contiene il riquadro: alcuni mettono l'HTML un po'
+      // dentro il loro bordo (il `data_log` sotto il titolo). Il più piccolo vince.
+      const dentro = oggetti.filter((v) => x >= v.x - 1 && y >= v.y - 1
+        && x < v.x + (v.width ?? 0) + 1 && y < v.y + (v.height ?? 0) + 1);
+      const o = dentro.sort((a, b) => (a.width ?? 0) * (a.height ?? 0) - (b.width ?? 0) * (b.height ?? 0))[0];
+      const tipo = o?.type ?? "html";
+      tipi.push(tipo);
+      return segnapostoHtml(x, y, sw, sh, tipo);
+    },
+  });
+  if (tipi.length > 0) pulito.avvisi.unshift(i18n.t("boot.warnHtmlSegnaposto", { n: tipi.length, tipi: [...new Set(tipi)].join(", ") }));
+  return { png: await disegnaSvg(pulito.svg, w, h, page.background, opzioni.larghezza), avvisi: pulito.avvisi };
+}
+
+/** Un riquadro tratteggiato col nome del tipo, dove un widget in HTML non si
+ *  può disegnare: chi guarda la foto sa che lì c'è qualcosa, e cosa. */
+export function segnapostoHtml(x: number, y: number, w: number, h: number, tipo: string): string {
+  const t = tipo.replace(/[<>&"]/g, "");
+  return `<g><rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#1e293b" fill-opacity="0.6" stroke="#64748b" stroke-dasharray="6 4"/>`
+    + `<text x="${x + w / 2}" y="${y + h / 2 + 4}" fill="#cbd5e1" font-size="12" text-anchor="middle">${t}</text></g>`;
+}
+
+/** L'SVG sul canvas, e il PNG. Lancia `SecurityError` se il browser ha macchiato il canvas. */
+async function disegnaSvg(svg: string, w: number, h: number, sfondo: string | undefined, larghezza?: number): Promise<Blob> {
+  const url = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+  const img = new Image();
+  img.decoding = "sync";
+  // Un tetto di tempo: un SVG che il browser non carica né rifiuta lascerebbe
+  // «Salva» in sospeso per sempre.
+  await new Promise<void>((ok, ko) => {
+    const timer = setTimeout(() => ko(new Error("il browser non ha caricato l'SVG della pagina entro 15 secondi")), 15_000);
+    img.onload = () => { clearTimeout(timer); ok(); };
+    img.onerror = () => { clearTimeout(timer); ko(new Error("il browser non ha caricato l'SVG della pagina")); };
+    img.src = url;
+  });
+  const canvas = document.createElement("canvas");
+  const scala = larghezza && larghezza < w ? larghezza / w : 1;
+  const cw = Math.max(1, Math.round(w * scala));
+  const ch = Math.max(1, Math.round(h * scala));
+  canvas.width = cw;
+  canvas.height = ch;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("canvas 2D non disponibile");
+  // Il foglio: lo sfondo della pagina, sotto l'SVG (un `background` sul
+  // `<svg>` radice non è affidabile fra i browser).
+  ctx.fillStyle = sfondo || "#0f172a";
+  ctx.fillRect(0, 0, cw, ch);
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(img, 0, 0, cw, ch);
+  // `toBlob` su un canvas macchiato lancia subito (SecurityError): esce
+  // da qui e il chiamante ripiega sui segnaposto.
+  return await new Promise<Blob>((ok, ko) =>
+    canvas.toBlob((b) => (b ? ok(b) : ko(new Error("toBlob non ha prodotto il PNG"))), "image/png"));
 }

@@ -1,5 +1,5 @@
 import { expect } from "@playwright/test";
-import { test, authHeaders, ensureLoggedIn } from "./fixtures";
+import { test, apriChatDellIde, modelloDellaChat } from "./fixtures";
 import { ADMIN } from "./_env";
 
 /**
@@ -39,25 +39,16 @@ const BASE = `${ADMIN}/`;
 const PROGETTO = "e2e-chat-ai";
 
 test("dalla chat al bottone MQTT sul disco", async ({ page, request }) => {
-  // Progetto pulito da un template che ha la pagina «Indicatori».
-  await request.post(`${BASE}api/projects`, {
-    data: { name: PROGETTO, template: "demo-items-web" },
-  });
-  await request.post(`${BASE}api/projects/${PROGETTO}/open`);
-  const headers = await authHeaders(request);
-
-  await page.goto(BASE, { waitUntil: "networkidle" });
-  await ensureLoggedIn(page);
-  await page.waitForTimeout(1000);
+  // Progetto pulito da un template che ha la pagina «Indicatori», e la chat
+  // aperta: dal 04-11-2026 non sta più nel ☰ (`apriChatDellIde`).
+  const headers = await apriChatDellIde(page, request, PROGETTO);
 
   // ── La chat è accesa? ──────────────────────────────────────────────────
-  await page.getByRole("button", { name: "☰" }).click();
-  await page.getByRole("button", { name: /Assistente IA/ }).click();
   const composizione = page.getByPlaceholder(/Scrivi qui/);
   await expect(composizione).toBeVisible();
 
-  const intestazione = page.locator("aside").last();
-  if (!(await intestazione.innerText()).includes("finto")) {
+  const intestazione = page.locator("aside").filter({ has: page.getByPlaceholder(/Scrivi qui/) }).last();
+  if (!(await modelloDellaChat(intestazione)).includes("finto")) {
     test.skip(true, "runtime avviato senza SWS_AI_FAKE: il copione non c'è");
   }
 
@@ -67,7 +58,7 @@ test("dalla chat al bottone MQTT sul disco", async ({ page, request }) => {
     "del salotto — è su MQTT, broker 192.168.1.50");
   await composizione.press("Enter");
 
-  const applica = page.getByRole("button", { name: "Applica", exact: true });
+  const applica = intestazione.getByRole("button", { name: "Applica", exact: true });
   await applica.waitFor({ state: "visible", timeout: 30_000 });
 
   // ── Il diff dice le tre cose, e SOLO quelle ────────────────────────────
@@ -102,7 +93,8 @@ test("dalla chat al bottone MQTT sul disco", async ({ page, request }) => {
   expect(await suDisco()).toEqual({ tag: true, sorgente: true, bottone: true });
 
   // ── Un solo annullamento riporta indietro tutto ────────────────────────
-  await page.getByRole("button", { name: /Annulla/ }).first().click();
+  // Il pulsante della barra si chiama «↶»: il nome che si legge è nel title.
+  await page.getByTitle("Annulla (Ctrl+Z)").first().click();
   await page.waitForTimeout(500);
   await expect(page.locator("text=Luce salotto")).toHaveCount(0);
 });

@@ -50,7 +50,12 @@ svg = open("sws-editor/src/canvas/SvgCanvas.tsx").read().split("\n")
 print("\n\033[1mPredefiniti dei campi: una tabella, e i motori che non la contraddicono\033[0m")
 
 print("=== 1. la tabella si scrive davvero nei file ===")
-if re.search(r"riempiPredefinitiOggetti\(", store):
+# Dal 10-11-2026 la catena di apertura sta in `store/normalizzaOggetti.ts`
+# (la usano setPages, le proposte dell'assistente e il loro diff): vale la
+# chiamata diretta o quella che passa da lì.
+normalizza = open("sws-editor/src/store/normalizzaOggetti.ts").read()
+if re.search(r"riempiPredefinitiOggetti\(", store) or (
+        re.search(r"normalizzaOggetti\(", store) and re.search(r"riempiPredefinitiOggetti\(", normalizza)):
     ok("setPages riempie i predefiniti all'apertura")
 else:
     ko("store/index.ts non chiama riempiPredefinitiOggetti: i progetti vecchi restano muti")

@@ -12,11 +12,9 @@ import { applyAppearance, getStoredMode, type ThemeMode } from "@/theme";
 import type { AppConfigTab } from "@/config/schede";
 import { genId } from "@/id";
 import { getStoredProjectLang, setStoredProjectLang, getStoredEditorPreviewLang, setStoredEditorPreviewLang } from "@/i18n/projectI18n";
-import { normalizeTrendObjects } from "@/canvas/trendModel";
-import { normalizeXyObjects } from "@/canvas/xyModel";
-import { normalizzaColoriOggetti, togliColoriDiProgetto } from "@/coloriPredefiniti";
-import { normalizzaFontOggetti } from "@/font/famiglie";
-import { riempiPredefinitiOggetti } from "@/predefinitiCampi";
+import { hrefImmagineProgetto, mettiInSospeso, togliDaSospeso } from "@/canvas/immaginiInSospeso";
+import { dimenticaImmagine } from "@/canvas/ImmagineSvg";
+import { normalizzaOggetti } from "@/store/normalizzaOggetti";
 import { pianoCreazione } from "@/tag/riconciliaTag";
 import { motivoIdNonValido, rinomina, type EsitoRinomina } from "@/tag/rinominaTag";
 import type { SegmentoScelto, WaypointScelto } from "@/canvas/percorsoMovimento";
@@ -108,6 +106,11 @@ export interface HistoryEntry {
    *  Stessa regola di `project`: `undefined` = questa voce non tocca l'albero,
    *  e quello in vigore è della voce più vicina che ne porta uno. */
   pageTree?: PageTreeNode[];
+  /** Le foto **in sospeso** che una proposta dell'assistente ha portato
+   *  (href → data URI, 10-11-2026): si vedono subito dopo «Applica», prima del
+   *  Salva (`canvas/immaginiInSospeso.ts`). Annullando la voce si tolgono;
+   *  rifacendola tornano. La controparte nell'altra pila porta le stesse. */
+  immagini?: Record<string, string>;
 }
 
 /** Una proposta dell'assistente, come arriva da `/ws/ai`. */
@@ -1483,9 +1486,7 @@ export const useAppStore = create<AppState>((set, get) => {
           // riempimento aveva scritto: tolti, seguono lo stile del progetto (M6).
           // E i `font_family` scritti a mano (`monospace`, `Arial`…) → l'id
           // dell'elenco dei font (18-10-2026), che anche il pannello conosce.
-          const objs = normalizzaFontOggetti(riempiPredefinitiOggetti(
-            togliColoriDiProgetto(normalizzaColoriOggetti(normalizeXyObjects(normalizeTrendObjects(p.objects)))),
-          ));
+          const objs = normalizzaOggetti(p.objects);
           return objs === p.objects ? p : { ...p, objects: objs };
       });
       // Se la normalizzazione ha cambiato qualcosa, quello che l'IDE mostra non
@@ -2537,6 +2538,10 @@ export const useAppStore = create<AppState>((set, get) => {
       // pagine e non il loro ordine, cioè metà annullamento.
       if (prev.pageTree !== undefined) controparte.pageTree = project?.page_layout?.page_tree ?? [];
       if (prev.functions !== undefined) controparte.functions = project?.functions ?? [];
+      if (prev.immagini) {
+        controparte.immagini = prev.immagini;
+        for (const href of Object.keys(prev.immagini)) togliDaSospeso(href);
+      }
       set({
         past: past.slice(0, past.length - 1),
         future: [controparte, ...future].slice(0, HISTORY_LIMIT),
@@ -2566,6 +2571,10 @@ export const useAppStore = create<AppState>((set, get) => {
       // pagine e non il loro ordine, cioè metà annullamento.
       if (next.pageTree !== undefined) controparte.pageTree = project?.page_layout?.page_tree ?? [];
       if (next.functions !== undefined) controparte.functions = project?.functions ?? [];
+      if (next.immagini) {
+        controparte.immagini = next.immagini;
+        for (const [href, dati] of Object.entries(next.immagini)) mettiInSospeso(href, dati);
+      }
       set({
         past: [...past, controparte].slice(-HISTORY_LIMIT),
         future: future.slice(1),
@@ -2738,7 +2747,12 @@ export const useAppStore = create<AppState>((set, get) => {
       //
       // Tenendo l'istanza esistente dove è semanticamente uguale, una proposta
       // può cambiare solo quello che cambia davvero.
-      const proposte = p.pages ?? [];
+      // Normalizzate come quelle che l'editor ha già (`setPages`): senza, ogni
+      // oggetto coi predefiniti da scrivere risultava «cambiato» (10-11-2026).
+      const proposte = (p.pages ?? []).map((pg) => {
+        const objects = normalizzaOggetti(pg.objects ?? []);
+        return objects === pg.objects ? pg : { ...pg, objects };
+      });
       const fondi = (attuale: SynopticPage, proposta: SynopticPage): SynopticPage => {
         const perId = new Map(attuale.objects.map((o) => [o.id, o]));
         const objects = proposta.objects.map((o) => {
@@ -2773,6 +2787,16 @@ export const useAppStore = create<AppState>((set, get) => {
 
       // ── 3. Un solo passo, con dentro anche il progetto ────────────────────
       pushHistoryUnconditional("history.assistant", prima, { motivo: p.motivo });
+      // Le foto della proposta si vedono **subito** (10-11-2026), non dopo il
+      // Salva che le carica: fino ad allora la pagina puntava a un file che il
+      // server non aveva, ed era senza sfondo. La voce appena spinta le ricorda,
+      // così Ctrl+Z le toglie.
+      if (p.sfondi?.length) {
+        const immagini: Record<string, string> = {};
+        for (const f of p.sfondi) immagini[hrefImmagineProgetto(f.file)] = `data:image/jpeg;base64,${f.jpg}`;
+        for (const [href, dati] of Object.entries(immagini)) mettiInSospeso(href, dati);
+        set((st) => ({ past: st.past.map((e, i) => (i === st.past.length - 1 ? { ...e, immagini } : e)) }));
+      }
       // Se la modifica è su un'altra pagina, ci si va: applicare qualcosa che
       // non si vede è il modo più veloce per smettere di guardare il diff.
       const toccata = proposte[0]
@@ -2838,6 +2862,9 @@ export const useAppStore = create<AppState>((set, get) => {
           for (const f of sfondi) {
             const byte = Uint8Array.from(atob(f.jpg), (c) => c.charCodeAt(0));
             await api.uploadProjectImage(f.file, new Blob([byte], { type: "image/jpeg" }));
+            // Sul server adesso c'è: si disegna da lì, con una versione nuova
+            // dell'URL — chi l'aveva chiesto prima del Salva aveva preso un 404.
+            dimenticaImmagine(hrefImmagineProgetto(f.file));
           }
         });
       }
