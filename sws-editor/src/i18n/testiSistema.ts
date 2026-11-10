@@ -69,7 +69,10 @@ export type VoceSistema =
   | "conf_utente"
   | "conf_password"
   | "accesso_lento"
-  | "accesso_senza_risposta";
+  | "accesso_senza_risposta"
+  // Il viewer aperto mentre il runtime non risponde (10-11-2026): al posto di
+  // «No active project», che non era vero.
+  | "pannello_in_riavvio";
 
 export const LINGUE_SISTEMA = ["it", "de", "fr", "es", "en"] as const;
 export type LinguaSistema = (typeof LINGUE_SISTEMA)[number];
@@ -207,6 +210,13 @@ export const TESTI_SISTEMA: Record<VoceSistema, Record<LinguaSistema, string>> =
     fr: "Pas de réponse, réessayez",
     es: "Sin respuesta, inténtalo de nuevo",
     en: "No response, try again",
+  },
+  pannello_in_riavvio: {
+    it: "Il pannello si sta riavviando, riprovo…",
+    de: "Das Panel startet neu, neuer Versuch…",
+    fr: "Le panneau redémarre, nouvelle tentative…",
+    es: "El panel se está reiniciando, reintentando…",
+    en: "The panel is restarting, retrying…",
   },
   allarme_attivo: {
     it: "🔴 ALLARME ATTIVO", de: "🔴 ALARM AKTIV", fr: "🔴 ALARME ACTIVE", es: "🔴 ALARMA ACTIVA", en: "🔴 ALARM ACTIVE",

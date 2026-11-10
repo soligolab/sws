@@ -50,6 +50,8 @@ export class ReconnectingWs {
   private delay = INITIAL_DELAY_MS;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private destroyed = false;
+  /** Chiuso da chi lo usa (`destroy()`), non per resa: non si riapre più. */
+  private distrutto = false;
   private apertoIl = 0;
   private falliti = 0;
   /** Motivo per cui si è smesso di ritentare, se è successo. */
@@ -170,9 +172,38 @@ export class ReconnectingWs {
     this.open();
   }
 
+  /** Il runtime è di nuovo raggiungibile (10-11-2026): si riprova **adesso**,
+   *  senza aspettare il prossimo giro dell'attesa crescente, e anche se ci si
+   *  era arresi.
+   *
+   *  Il caso che l'ha chiesto: sul WP630 il runtime è stato fermato 15 s. Il
+   *  socket ha fallito a 1, 3, 7 e 15 s, e il giro dopo era a 31 s: per un
+   *  quarto di minuto, con il runtime già in piedi, la pagina è rimasta con la
+   *  fascia «Dati in ritardo». E un fermo oltre il minuto (un aggiornamento)
+   *  faceva arrendere il socket: la pagina restava ferma per sempre.
+   *
+   *  Chi lo chiama sa che il runtime risponde (il sorvegliante del progetto ha
+   *  appena avuto una risposta); un socket aperto o in apertura non si tocca, e
+   *  uno chiuso con `destroy()` resta chiuso. */
+  riprovaSubito(): void {
+    if (this.distrutto) return;
+    const stato = this.ws?.readyState;
+    if (stato === WebSocket.OPEN || stato === WebSocket.CONNECTING) return;
+    if (this.timer !== null) {
+      clearTimeout(this.timer);
+      this.timer = null;
+    }
+    this.destroyed = false;
+    this.motivoResa = null;
+    this.falliti = 0;
+    this.delay = INITIAL_DELAY_MS;
+    this.open();
+  }
+
   /** Permanently close. Cancels any pending reconnect timer. */
   destroy(): void {
     this.destroyed = true;
+    this.distrutto = true;
     if (this.timer !== null) {
       clearTimeout(this.timer);
       this.timer = null;

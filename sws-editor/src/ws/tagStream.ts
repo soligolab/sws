@@ -54,6 +54,12 @@ function accodaVoci(voci: TagEntry[], origine: "delta" | "snapshot"): void {
   }] as const), origine);
 }
 
+/** Il runtime ha risposto di nuovo dopo un fermo: il socket dei tag, se è giù,
+ *  si riapre adesso invece che al prossimo giro dell'attesa (fino a 30 s). */
+export function riprovaFlussoTag(): void {
+  socket.riprova();
+}
+
 /**
  * Send a tag write through the live /ws/tags socket if it's open.
  */

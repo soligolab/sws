@@ -239,6 +239,34 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
     `area_libera` (x, y, w, h in pixel di pagina), `leggi_progetto` l'elenco `cornici` con testata, piede e area
     libera (tolto di nuovo se il progetto torna in una proposta). Il prompt lo dice nel sinottico intero e fra le
     cose che si sbagliano: titolo, data e navigazione li dà la cornice.
+- **Col runtime fermo il viewer non perde la pagina** (10-11-2026, collaudo della rc.11 sul WP630, viewer leggero voce
+  5; ramo `fix/viewer-runtime-fermo`).
+  - **Il difetto:** fermato il runtime 15 s con Montagna a schermo, il pannello ha mostrato «No active project», poi
+    la pagina è tornata con la fascia gialla accesa per un po'. Nessuno aveva ricaricato la pagina (Chromium e il suo
+    servizio giravano da 8 h, l'URL era lo stesso; `display_target` al riavvio ha fatto `StartUnit` su un browser già
+    attivo, cioè niente). Era il sorvegliante del progetto (`ws/projectWatcher.ts`): un errore di rete su
+    `/api/project/fingerprint` valeva `null` come il 503 di «nessun progetto», e il viewer lo traduceva in
+    `RuntimeIdleScreen`. Al ritorno l'impronta riappariva, il viewer ricaricava il progetto e rimontava la pagina; la
+    fascia gialla era «Dati in ritardo» con l'età contata dalla caduta del socket, che era ancora nel suo giro di
+    attesa (falliti a 1, 3, 7 e 15 s, il prossimo a 31 s) con il runtime già in piedi. L'età si azzera all'apertura
+    del socket, come vuole il piano: è il socket che si apriva tardi.
+  - **Ora:** un runtime che non risponde non è un cambio di progetto: l'impronta resta, la pagina resta, la fascia e
+    gli oggetti grigi fanno il loro lavoro. Al ritorno il sorvegliante chiama `onRitorno`, e il viewer riapre subito i
+    socket di tag e allarmi (`ReconnectingWs.riprovaSubito`, che riapre anche un socket che si era arreso: oltre il
+    minuto di fermo la pagina restava ferma per sempre) e rilegge gli allarmi. Un ricarico del progetto che fallisce
+    perché il runtime è ricaduto non si dà per visto: si richiama al giro dopo. Anche l'IDE non dice più «il progetto
+    sul runtime è cambiato» dopo un riavvio del runtime.
+  - **Caricato col runtime fermo**, il viewer web mostra «Il pannello si sta riavviando, riprovo…» (testo di sistema
+    `pannello_in_riavvio`, cinque lingue) e riprova ogni 2 s; «No active project» resta per il 503 vero. Il viewer
+    LVGL, partito col runtime non in ascolto, usciva e `Restart=always` lo rilanciava ogni 5 s a schermo vuoto: ora
+    mostra la stessa frase (`riavvio.rs`) e riparte da sé quando il runtime risponde; un certificato cambiato (Q49)
+    resta il suo errore. A pagina aperta il viewer LVGL faceva già la cosa giusta.
+  - **Non cambiato, proposta:** l'IDE che si apre col runtime irraggiungibile va ancora alla WelcomeScreen
+    (`App.tsx`, montaggio): lì è voluto («la WelcomeScreen gestirà il retry»), e cambiarlo tocca il flusso di login e
+    di apertura dei progetti. Una schermata «runtime non raggiungibile, riprovo…» come quella del viewer è il passo
+    naturale.
+  - Test: `tests/viewerRuntimeFermo.test.tsx` (nuovo), `projectWatcher.test.ts`, `reconnectingWs.test.ts`;
+    `riavvio.rs` in `sws-lvgl-viewer`.
 - **Mentre il pannello si riavvia per l'aggiornamento, l'IDE lo dice, in giallo** (10-11-2026, collaudo della rc.11 sul
   WP630 dal cloud). Riaprendo Connessione durante il riavvio la sezione «Aggiornamento del runtime» mostrava in rosso
   «Il dispositivo ha risposto 503 Service Unavailable: il pannello «…» non è collegato» — vero, ma letto come un guasto —

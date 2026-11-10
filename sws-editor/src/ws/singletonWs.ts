@@ -20,6 +20,9 @@ export interface SocketCondiviso {
   corrente(): ReconnectingWs | null;
   /** Chiude e dimentica: al logout, o quando il canale non serve più. */
   chiudi(): void;
+  /** Il runtime è tornato: se il socket è giù, lo si riapre adesso
+   *  (`ReconnectingWs.riprovaSubito`). */
+  riprova(): void;
 }
 
 export function socketCondiviso(costruisciUrl: () => string): SocketCondiviso {
@@ -46,6 +49,9 @@ export function socketCondiviso(costruisciUrl: () => string): SocketCondiviso {
       rws?.destroy();
       rws = null;
       chiave = null;
+    },
+    riprova() {
+      rws?.riprovaSubito();
     },
   };
 }

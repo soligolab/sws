@@ -85,6 +85,12 @@ prova di carico (il template ora è a 1 Hz).
        secondo. Al riavvio del runtime spariscono. Sul viewer web e sul viewer LVGL. *Non* staccando la rete: il socket
        resta aperto per minuti, nessuno dei due motori ha un battito, e un socket vivo e muto vale come impianto fermo
        (il battito è nel seme `docs/plans/semi/2026-11-10-viewer-prestazioni-e-protocollo.md`).
+       10-11-2026: non passa — durante lo stop il viewer ha mostrato "No active project"; corretto in
+       `fix/viewer-runtime-fermo`, da ricollaudare sulla rc.12. Da guardare anche: al ritorno la fascia sparisce entro
+       ~3 s dal riavvio (prima restava fino al giro del socket, fino a 16 s dopo); ricaricando la pagina (F5 o
+       `systemctl --user stop sws-runtime` e poi aprire `https://127.0.0.1:7443`) col runtime fermo compare «Il
+       pannello si sta riavviando, riprovo…» e la pagina arriva da sola. Sul LVGL: riavviando il viewer col runtime
+       fermo compare la stessa frase, e il viewer riparte da sé quando il runtime risponde.
 6. [ ] Dati in ritardo, **aspetto** sul LVGL: `--ritardo-di-prova 8`. La fascia sta in alto, sopra la card
        dell'aggiornamento e sotto la schermata d'accesso; gli oggetti sono grigi.
 7. [ ] Dati in ritardo, **età vera**, sul banco (`tmp/viewer-leggero/banco`, solo su theobroma): con una SPA ricostruita

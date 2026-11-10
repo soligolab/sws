@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook } from "@testing-library/react";
 import { useProjectWatcher } from "../src/ws/projectWatcher";
-import { api, AuthError, PasswordChangeRequiredError } from "../src/api/client";
+import { api, AuthError, NoProjectError, PasswordChangeRequiredError, RuntimeUnavailableError } from "../src/api/client";
 
 // Il sorvegliante del progetto, e il falso allarme che rendeva rumoroso l'IDE.
 //
@@ -187,5 +187,73 @@ describe("sorvegliante del progetto", () => {
     spy.mockResolvedValue({ sha256: "C", computed_at_ms: 0 } as never);
     await tick(1000);
     expect(onChange).toHaveBeenCalledTimes(1);
+  });
+});
+
+// Il runtime fermato 15 s sul WP630 (10-11-2026): un errore di rete valeva
+// «progetto chiuso», e il viewer mostrava «No active project».
+describe("sorvegliante del progetto — runtime che non risponde", () => {
+  beforeEach(() => { vi.useFakeTimers(); });
+  afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
+
+  it("un runtime fermo non è un cambio, e al ritorno chiama onRitorno", async () => {
+    const spia = impronta("aaa");
+    const avvisato = vi.fn();
+    const tornato = vi.fn();
+    renderHook(() => useProjectWatcher(avvisato, 3_000, tornato));
+    await tick(0);
+
+    spia.mockRejectedValue(new RuntimeUnavailableError());
+    await tick(15_000);
+    expect(avvisato).not.toHaveBeenCalled();
+    expect(tornato).not.toHaveBeenCalled();
+
+    spia.mockResolvedValue({ sha256: "aaa", computed_at_ms: 0 } as never);
+    await tick(3_000);
+    expect(avvisato).not.toHaveBeenCalled();
+    expect(tornato).toHaveBeenCalledTimes(1);
+    await tick(9_000);
+    expect(tornato).toHaveBeenCalledTimes(1);
+  });
+
+  it("un progetto cambiato durante il fermo si vede al ritorno", async () => {
+    const spia = impronta("aaa");
+    const avvisato = vi.fn();
+    renderHook(() => useProjectWatcher(avvisato, 3_000));
+    await tick(0);
+    spia.mockRejectedValue(new RuntimeUnavailableError());
+    await tick(6_000);
+    spia.mockResolvedValue({ sha256: "bbb", computed_at_ms: 0 } as never);
+    await tick(3_000);
+    expect(avvisato).toHaveBeenCalledTimes(1);
+    expect(avvisato).toHaveBeenCalledWith("bbb");
+  });
+
+  it("il 503 resta un cambio a null: nessun progetto aperto", async () => {
+    const spia = impronta("aaa");
+    const avvisato = vi.fn();
+    renderHook(() => useProjectWatcher(avvisato, 3_000));
+    await tick(0);
+    spia.mockRejectedValue(new NoProjectError());
+    await tick(3_000);
+    expect(avvisato).toHaveBeenCalledTimes(1);
+    expect(avvisato).toHaveBeenCalledWith(null);
+  });
+
+  it("un ricarico fallito non si dà per visto: si richiama al giro dopo", async () => {
+    const spia = impronta("aaa");
+    let prima = true;
+    const avvisato = vi.fn(() => {
+      if (prima) { prima = false; return Promise.reject(new RuntimeUnavailableError()); }
+      return Promise.resolve();
+    });
+    renderHook(() => useProjectWatcher(avvisato, 3_000));
+    await tick(0);
+    spia.mockResolvedValue({ sha256: "bbb", computed_at_ms: 0 } as never);
+    await tick(3_000);
+    await tick(3_000);
+    expect(avvisato).toHaveBeenCalledTimes(2);
+    await tick(3_000);
+    expect(avvisato).toHaveBeenCalledTimes(2);
   });
 });

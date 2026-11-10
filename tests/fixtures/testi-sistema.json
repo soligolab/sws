@@ -447,6 +447,13 @@
       "fr": "Pas de réponse, réessayez",
       "es": "Sin respuesta, inténtalo de nuevo",
       "en": "No response, try again"
+    },
+    "pannello_in_riavvio": {
+      "it": "Il pannello si sta riavviando, riprovo…",
+      "de": "Das Panel startet neu, neuer Versuch…",
+      "fr": "Le panneau redémarre, nouvelle tentative…",
+      "es": "El panel se está reiniciando, reintentando…",
+      "en": "The panel is restarting, retrying…"
     }
   }
 }

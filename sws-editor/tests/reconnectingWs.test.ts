@@ -14,6 +14,11 @@ i18n.changeLanguage("it");
 class FintoWs {
   static ultimo: FintoWs | null = null;
   static aperti = 0;
+  // Le costanti del WebSocket vero: `riprovaSubito` le legge.
+  static CONNECTING = 0;
+  static OPEN = 1;
+  static CLOSING = 2;
+  static CLOSED = 3;
   readyState = 0;
   private listeners = new Map<string, Set<(ev: unknown) => void>>();
   constructor(public url: string) { FintoWs.ultimo = this; FintoWs.aperti += 1; }
@@ -105,5 +110,56 @@ describe("ReconnectingWs — riapri", () => {
     vecchio.fallisci(1000);
     vi.advanceTimersByTime(60_000);
     expect(FintoWs.aperti).toBe(2);
+  });
+});
+
+// Il runtime fermato 15 s sul WP630 (10-11-2026): col runtime già in piedi il
+// socket aspettava il suo giro (fino a 30 s), e oltre il minuto si arrendeva
+// per sempre. Chi sa che il runtime è tornato lo fa riprovare subito.
+describe("ReconnectingWs — riprovaSubito", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    FintoWs.aperti = 0; FintoWs.ultimo = null;
+    vi.stubGlobal("WebSocket", FintoWs as unknown as typeof WebSocket);
+  });
+
+  it("non aspetta il giro dell'attesa", () => {
+    const r = new ReconnectingWs(() => "ws://x/ws/tags");
+    for (let i = 0; i < 3; i++) {
+      FintoWs.ultimo!.fallisci(1006);
+      vi.advanceTimersByTime(10_000);
+    }
+    FintoWs.ultimo!.fallisci(1006);   // il prossimo giro sarebbe fra ~8 s
+    FintoWs.ultimo!.readyState = 3;
+    const prima = FintoWs.aperti;
+    r.riprovaSubito();
+    expect(FintoWs.aperti).toBe(prima + 1);
+    // Il giro vecchio non apre un secondo socket.
+    vi.advanceTimersByTime(20_000);
+    expect(FintoWs.aperti).toBe(prima + 1);
+  });
+
+  it("riapre un socket che si era arreso", () => {
+    const r = new ReconnectingWs(() => "ws://x/ws/tags");
+    for (let i = 0; i < 12; i++) {
+      FintoWs.ultimo!.fallisci(1006);
+      vi.advanceTimersByTime(60_000);
+    }
+    expect(r.resa).not.toBeNull();
+    FintoWs.ultimo!.readyState = 3;
+    const prima = FintoWs.aperti;
+    r.riprovaSubito();
+    expect(FintoWs.aperti).toBe(prima + 1);
+    expect(r.resa).toBeNull();
+  });
+
+  it("non tocca un socket aperto, né uno chiuso con destroy()", () => {
+    const r = new ReconnectingWs(() => "ws://x/ws/tags");
+    FintoWs.ultimo!.readyState = 1;
+    r.riprovaSubito();
+    expect(FintoWs.aperti).toBe(1);
+    r.destroy();
+    r.riprovaSubito();
+    expect(FintoWs.aperti).toBe(1);
   });
 });

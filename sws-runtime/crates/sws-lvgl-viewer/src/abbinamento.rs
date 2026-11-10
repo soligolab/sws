@@ -166,7 +166,8 @@ pub fn avvia_attesa(rt: tokio::runtime::Handle, base_url: String, mostrata: Sche
     });
 }
 
-fn riavvia() -> ! {
+/// Il viewer riparte da sé, stessi argomenti. Lo usa anche `riavvio.rs`.
+pub(crate) fn riavvia() -> ! {
     use std::os::unix::process::CommandExt as _;
     let exe = std::env::current_exe().unwrap_or_else(|_| "sws-lvgl-viewer".into());
     let errore = std::process::Command::new(exe)

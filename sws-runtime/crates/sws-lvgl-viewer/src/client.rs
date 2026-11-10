@@ -52,6 +52,33 @@ pub async fn risponde(base_url: &str, timeout: std::time::Duration) -> bool {
     matches!(client.get(url).send().await, Ok(r) if r.status().is_success())
 }
 
+/// La stessa sonda di [`risponde`], con l'errore (10-11-2026): chi deve
+/// distinguere un runtime fermo da uno che risponde male (`riavvio.rs`) lo
+/// legge da lì. `Ok` = qualcuno ha risposto, qualunque stato HTTP. Un
+/// indirizzo o una configurazione TLS non validi non sono un runtime fermo:
+/// `Ok` anche lì, e l'errore lo dirà la strada di sempre.
+pub async fn sonda_health(
+    base_url: &str,
+    timeout: std::time::Duration,
+) -> Result<(), reqwest::Error> {
+    let Ok(mut url) = reqwest::Url::parse(base_url) else {
+        return Ok(());
+    };
+    let Ok(mut seg) = url.path_segments_mut() else {
+        return Ok(());
+    };
+    seg.push("health");
+    drop(seg);
+    let Ok(tls) = pinned_client_config(base_url) else {
+        return Ok(());
+    };
+    let client = reqwest::Client::builder()
+        .use_preconfigured_tls(tls)
+        .timeout(timeout)
+        .build()?;
+    client.get(url).send().await.map(|_| ())
+}
+
 /// `GET /api/prestazioni/richiesta` — qualcuno sta guardando le prestazioni?
 pub async fn prestazioni_richiesta(base_url: &str) -> anyhow::Result<bool> {
     let url = format!(
@@ -1950,6 +1977,15 @@ pub async fn ack_alarm(base_url: &str, alarm_id: &str, token: Option<&str>) -> a
 // sopra dice di non voler far succedere.
 fn percorso_lingua() -> Option<std::path::PathBuf> {
     Some(crate::cartella_stato()?.join("lvgl_lang"))
+}
+
+/// La lingua salvata, così com'è, senza tabella con cui controllarla: serve
+/// alla schermata «si sta riavviando» (`riavvio.rs`), che parla prima di
+/// avere un progetto.
+pub fn lingua_salvata_grezza() -> Option<String> {
+    let l = std::fs::read_to_string(percorso_lingua()?).ok()?;
+    let l = l.trim().to_string();
+    (!l.is_empty()).then_some(l)
 }
 
 /// La lingua salvata, se c'è ed è ancora una di quelle del progetto.

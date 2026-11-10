@@ -3,7 +3,6 @@ import { useTranslation } from "react-i18next";
 import {
   api,
   AuthError,
-  NoProjectError,
   PasswordChangeRequiredError,
   RuntimeUnavailableError,
 } from "@/api/client";
@@ -14,13 +13,20 @@ import { ordinaPagine } from "@/pageTree";
 import { pickInitialPageId } from "@/pageLayout";
 import { useProjectWatcher } from "@/ws/projectWatcher";
 import { useBuildWatcher } from "@/ws/buildWatcher";
+import { riprovaFlussoTag } from "@/ws/tagStream";
+import { riprovaFlussoAllarmi } from "@/ws/alarmStream";
+import { testoSistema } from "@/i18n/testiSistema";
+import { effectiveProjectLang, getStoredProjectLang } from "@/i18n/projectI18n";
+
+/** Ogni quanto la schermata «si sta riavviando» richiede il progetto. */
+export const RIPROVA_RIAVVIO_MS = 2_000;
 
 // ── Idle screen (no active project on this runtime) ───────────────────────────
 
 function RuntimeIdleScreen() {
   const { t } = useTranslation();
   return (
-    <div style={{
+    <div data-testid="nessun-progetto" style={{
       display: "flex", flexDirection: "column", alignItems: "center",
       justifyContent: "center", height: "100vh",
       background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)", gap: 16,
@@ -48,6 +54,44 @@ function RuntimeIdleScreen() {
   );
 }
 
+// ── Il runtime non risponde (10-11-2026) ──────────────────────────────────────
+//
+// La pagina del viewer caricata (o ricaricata) mentre il runtime è fermo: un
+// riavvio, un aggiornamento. Fino a oggi finiva su «No active project», che non
+// era vero — il progetto c'è, è il runtime che non risponde ancora — e non se ne
+// andava da solo. Ora la schermata lo dice e riprova da sé; «No active project»
+// resta per il 503 vero.
+//
+// È un testo di sistema, nella lingua dei contenuti: quella del progetto se lo
+// si era già letto, se no quella scelta l'ultima volta su questo schermo, se no
+// quella del browser (il progetto, per definizione, non si può ancora leggere).
+
+function linguaSenzaProgetto(): string {
+  const tabella = useAppStore.getState().project?.languages;
+  return effectiveProjectLang(tabella)
+    || getStoredProjectLang()
+    || (typeof navigator !== "undefined" ? (navigator.language ?? "").slice(0, 2) : "");
+}
+
+function RuntimeRestartingScreen() {
+  return (
+    <div data-testid="pannello-in-riavvio" style={{
+      display: "flex", flexDirection: "column", alignItems: "center",
+      justifyContent: "center", height: "100vh",
+      background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)", gap: 16,
+      fontFamily: "system-ui, sans-serif, 'SWS Emoji'",
+    }}>
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none"
+           stroke="var(--brand-primary, #3b82f6)" strokeWidth="1.5">
+        <path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/>
+      </svg>
+      <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>
+        {testoSistema("pannello_in_riavvio", linguaSenzaProgetto())}
+      </h2>
+    </div>
+  );
+}
+
 // ── RuntimeViewer — top-level SPA for port 7443 ───────────────────────────────
 //
 // Anonymous access via optional_auth on 7443 (Viewer role by default).
@@ -59,6 +103,9 @@ export function RuntimeViewer() {
   const noticeTimer = useRef<number | null>(null);
   useEffect(() => () => { if (noticeTimer.current) window.clearTimeout(noticeTimer.current); }, []);
   const noActiveProject     = useAppStore((s) => s.noActiveProject);
+  // Il runtime non ha ancora risposto al caricamento della pagina: si mostra
+  // «si sta riavviando» e si riprova (10-11-2026).
+  const [inRiavvio, setInRiavvio] = useState(false);
   const setNoActiveProject  = useAppStore((s) => s.setNoActiveProject);
   const setProject          = useAppStore((s) => s.setProject);
   const setPages            = useAppStore((s) => s.setPages);
@@ -96,10 +143,17 @@ export function RuntimeViewer() {
   // Il runtime ricarica il progetto da solo a ogni open/deploy, ma non lo dice
   // ai client: senza questo, dopo un deploy il pannello continua a mostrare la
   // versione precedente finché non lo si ricarica a mano.
+  //
+  // Un runtime che non risponde **non** passa di qui (10-11-2026): il
+  // sorvegliante tiene l'impronta di prima, la pagina resta, e la fascia «Dati
+  // in ritardo» con gli oggetti grigi dice che i valori sono vecchi. Prima un
+  // errore di rete valeva «progetto chiuso», e il WP630 col runtime fermo 15 s
+  // ha mostrato «No active project». Al ritorno i socket giù si riaprono subito
+  // (`onRitorno`), senza aspettare il loro giro di attesa fino a 30 s.
   useProjectWatcher((fp) => {
     if (fp === null) { setNoActiveProject(true); return; }
     const current = useAppStore.getState().currentPageId;
-    void loadProjectData(current)
+    return loadProjectData(current)
       .then(() => {
         // **Chi sono, adesso?** (22-10-2026, piano
         // `docs/plans/2026-10-22-sessione-che-non-sopravvive-al-deploy.md`).
@@ -129,7 +183,15 @@ export function RuntimeViewer() {
         if (noticeTimer.current) window.clearTimeout(noticeTimer.current);
         noticeTimer.current = window.setTimeout(() => setUpdatedNotice(false), 4000);
       })
-      .catch(() => setNoActiveProject(true));
+      .catch((e) => {
+        // Il runtime è caduto a metà del ricarico: la pagina di prima resta, e
+        // il sorvegliante richiama al prossimo giro (la promessa fallita).
+        if (e instanceof RuntimeUnavailableError) throw e;
+        setNoActiveProject(true);
+      });
+  }, undefined, () => {
+    riprovaFlussoTag();
+    riprovaFlussoAllarmi();
   });
 
   // Frontend nuovo distribuito → ricarica. Un bundle nuovo si carica solo
@@ -138,52 +200,53 @@ export function RuntimeViewer() {
   useBuildWatcher(() => window.location.reload());
 
   // On mount: detect whether a project is active and load its data.
+  //
+  // Se il runtime non risponde (fermo, in riavvio, in aggiornamento) non è
+  // «nessun progetto»: si mostra «Il pannello si sta riavviando, riprovo…» e si
+  // riprova ogni 2 s finché risponde (10-11-2026). Il 503 vero resta
+  // `RuntimeIdleScreen`.
   useEffect(() => {
-    // Initialize authToken so useTagStream() can open the WebSocket.
-    // In no-auth mode whoami() returns 200 with a synthetic admin — we use
-    // the "no-auth" sentinel token (ignored by optional_auth on the server).
-    // Una sessione vera salvata invece si **tiene** (`tokenDelViewer`): prima
-    // la si sostituiva col sentinella, e l'operatore perdeva il login.
-    api.whoami()
-      .then((me) => setAuth(tokenDelViewer(useAppStore.getState().authToken, me.username), me.username, me.role))
-      .catch(() => { /* anonymous viewer — reads work, writes need auth */ });
+    let vivo = true;
+    let timer: number | null = null;
 
-    api.getProject()
-      .then(async (p) => {
-        setNoActiveProject(false);
-        setProject(p);
+    const prova = () => {
+      // Initialize authToken so useTagStream() can open the WebSocket.
+      // In no-auth mode whoami() returns 200 with a synthetic admin — we use
+      // the "no-auth" sentinel token (ignored by optional_auth on the server).
+      // Una sessione vera salvata invece si **tiene** (`tokenDelViewer`): prima
+      // la si sostituiva col sentinella, e l'operatore perdeva il login.
+      // A ogni tentativo: col runtime fermo anche questa fallisce.
+      api.whoami()
+        .then((me) => { if (vivo) setAuth(tokenDelViewer(useAppStore.getState().authToken, me.username), me.username, me.role); })
+        .catch(() => { /* anonymous viewer — reads work, writes need auth */ });
 
-        const names = await api.listSynoptics();
-        if (names.length > 0) {
-          const pages = await Promise.all(names.map((n) => api.getPaginaComposta(n)));
-          // Prima pagina = la home, o la prima **dell'albero** (non dell'alfabeto).
-          setPages(pages, pickInitialPageId(ordinaPagine(pages, p.page_layout?.page_tree), p.page_layout?.home_page_id));
-        }
-
-        const ids = await api.listFaceplates().catch(() => [] as string[]);
-        if (ids.length > 0) {
-          const loaded = await Promise.all(ids.map((id) => api.getFaceplate(id)));
-          setFaceplates(loaded);
-        }
-      })
-      .catch((e) => {
-        if (
-          e instanceof NoProjectError ||
-          e instanceof RuntimeUnavailableError
-        ) {
+      loadProjectData()
+        .then(() => { if (vivo) setInRiavvio(false); })
+        .catch((e) => {
+          if (!vivo) return;
+          if (e instanceof RuntimeUnavailableError) {
+            setInRiavvio(true);
+            timer = window.setTimeout(prova, RIPROVA_RIAVVIO_MS);
+            return;
+          }
+          setInRiavvio(false);
+          if (e instanceof AuthError) {
+            clearAuth();
+          } else if (e instanceof PasswordChangeRequiredError) {
+            setMustChangePassword(true);
+          }
+          // NoProjectError (503) e il resto: nessun progetto da mostrare.
           setNoActiveProject(true);
-        } else if (e instanceof AuthError) {
-          clearAuth();
-          setNoActiveProject(true);
-        } else if (e instanceof PasswordChangeRequiredError) {
-          setMustChangePassword(true);
-          setNoActiveProject(true);
-        } else {
-          setNoActiveProject(true);
-        }
-      });
+        });
+    };
+    prova();
+    return () => {
+      vivo = false;
+      if (timer !== null) window.clearTimeout(timer);
+    };
   }, []);
 
+  if (inRiavvio) return <RuntimeRestartingScreen />;
   if (noActiveProject) return <RuntimeIdleScreen />;
 
   return (

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { api, AuthError, PasswordChangeRequiredError } from "@/api/client";
+import { api, AuthError, PasswordChangeRequiredError, RuntimeUnavailableError } from "@/api/client";
 
 /**
  * Sorveglia il progetto attivo sul runtime e segnala quando cambia.
@@ -27,22 +27,39 @@ import { api, AuthError, PasswordChangeRequiredError } from "@/api/client";
  * creare un progetto — veniva letta come un deploy esterno e faceva comparire
  * l'avviso appena si entrava nel progetto nuovo.
  *
+ * **Un runtime che non risponde non è un progetto chiuso** (10-11-2026). Fino
+ * a oggi un errore di rete valeva `null`, come il 503 di «nessun progetto»: sul
+ * WP630, fermato il runtime per 15 s, il viewer ha mostrato «No active project»
+ * al primo giro, e l'IDE avrebbe detto «il progetto sul runtime è cambiato».
+ * Ora l'impronta resta quella di prima finché il runtime non risponde; al
+ * ritorno si confronta come sempre (un progetto davvero cambiato nel frattempo
+ * si vede lì) e si chiama `onRitorno`, perché chi ha dei socket giù li riapra.
+ *
  * @param onChange invocato ai cambi successivi al primo rilevamento, mai al
- *                 primo (che serve solo a fissare la baseline).
+ *                 primo (che serve solo a fissare la baseline). Se restituisce
+ *                 una promessa che fallisce, il cambio non si dà per visto: al
+ *                 giro dopo si richiama (il runtime caduto a metà del ricarico).
  * @param intervalMs periodo di polling (default 3 s, scelto dal maintainer:
  *                   dopo un deploy il pannello si aggiorna quasi subito e il
  *                   traffico — un hash per richiesta — resta trascurabile in LAN);
  *                   0/negativo disattiva il watcher.
+ * @param onRitorno invocato quando il runtime risponde di nuovo dopo almeno un
+ *                  giro in cui non rispondeva.
  */
 export function useProjectWatcher(
-  onChange: (fingerprint: string | null) => void,
+  onChange: (fingerprint: string | null) => void | Promise<unknown>,
   intervalMs = 3_000,
+  onRitorno?: () => void,
 ) {
   // In una ref, non nello stato: cambiarlo non deve ri-renderizzare nulla.
   const lastFp = useRef<string | null | undefined>(undefined);
   // Così il timer non va ricreato quando il chiamante passa una closure nuova.
   const cb = useRef(onChange);
   cb.current = onChange;
+  const ritorno = useRef(onRitorno);
+  ritorno.current = onRitorno;
+  /** Vero dopo un giro in cui il runtime non ha risposto. */
+  const irraggiungibile = useRef(false);
   // Generazione della baseline: un tick partito **prima** di un nostro cambio e
   // finito dopo vedrebbe l'impronta vecchia, la fisserebbe come baseline e al
   // tick successivo scambierebbe il nostro salvataggio per un cambio esterno.
@@ -76,18 +93,37 @@ export function useProjectWatcher(
         if (e instanceof AuthError || e instanceof PasswordChangeRequiredError) {
           return;
         }
-        // Nessun progetto attivo (503), runtime in riavvio o rete giù: si
-        // normalizza a null, così anche "progetto chiuso" è un cambio.
+        // Runtime in riavvio o rete giù: non è un fatto sul progetto. La
+        // baseline resta quella di prima (10-11-2026, vedi sopra).
+        if (e instanceof RuntimeUnavailableError) {
+          irraggiungibile.current = true;
+          return;
+        }
+        // Nessun progetto attivo (503) o un errore del runtime: si normalizza
+        // a null, così anche "progetto chiuso" è un cambio.
         fp = null;
       }
       if (!alive || gen !== generazione.current) return;
+      if (irraggiungibile.current) {
+        irraggiungibile.current = false;
+        ritorno.current?.();
+      }
       if (lastFp.current === undefined) {
         lastFp.current = fp;          // baseline, nessuna notifica
         return;
       }
       if (fp !== lastFp.current) {
+        const prima = lastFp.current;
         lastFp.current = fp;
-        cb.current(fp);
+        const esito = cb.current(fp);
+        if (esito && typeof (esito as Promise<unknown>).catch === "function") {
+          // Il ricarico non è riuscito: il cambio non si dà per visto, e il
+          // giro dopo lo richiama — a meno che nel frattempo non sia cambiato
+          // altro (un nostro cambio di progetto, un'impronta ancora diversa).
+          (esito as Promise<unknown>).catch(() => {
+            if (alive && gen === generazione.current && lastFp.current === fp) lastFp.current = prima;
+          });
+        }
       }
     };
 

@@ -124,6 +124,7 @@ mod mini_serie;
 mod model;
 mod net_worker;
 mod parametri;
+mod riavvio;
 mod ritardo;
 mod session;
 mod simbolo_lib;
@@ -517,8 +518,32 @@ fn main() -> anyhow::Result<()> {
     if let Some(schermata) = in_attesa.clone() {
         abbinamento::avvia_attesa(rt.handle().clone(), args.base_url.clone(), schermata);
     }
+    // Il runtime non è in ascolto (10-11-2026): al boot prima di lui, o durante
+    // un suo riavvio. Invece di uscire e lasciare lo schermo vuoto fra un
+    // rilancio e l'altro, si dice «si sta riavviando» e si riparte quando
+    // risponde (`riavvio.rs`). Nessun `--istantanea`: lì serve la pagina vera.
+    let in_riavvio = in_attesa.is_none()
+        && args.istantanea.is_none()
+        && rt.block_on(riavvio::runtime_fermo(&args.base_url));
+    if in_riavvio {
+        eprintln!(
+            "[riavvio] {} non risponde: mostro «si sta riavviando» e riprovo",
+            args.base_url
+        );
+        riavvio::avvia_attesa(rt.handle().clone(), args.base_url.clone());
+    }
     let (page, shared_tags, reload_flag, shared_alarms, lang_table, auth_required) =
         rt.block_on(async {
+            if in_riavvio {
+                return anyhow::Ok((
+                    riavvio::pagina(&riavvio::lingua())?,
+                    std::sync::Arc::new(std::sync::Mutex::new(client::TagSnapshot::default())),
+                    std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+                    std::sync::Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
+                    model::LanguageTable::default(),
+                    false,
+                ));
+            }
             if let Some(schermata) = &in_attesa {
                 eprintln!("[abbinamento] pannello in attesa: {schermata:?}");
                 return anyhow::Ok((

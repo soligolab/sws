@@ -66,8 +66,8 @@ versioni:
         en: "Faster, quieter log: cleared on deploy, on-screen messages, panel lines in the cloud too; «Update now» says «starting…» until it starts, never starts twice, and during the restart the IDE says so, no error."
       - it: "L'elenco allarmi ha «ACK tutti» e «metti a tacere»; un allarme con ritardo scatta anche se la variabile poi non cambia più; un comando critico senza accesso dice di accedere."
         en: "The alarm list has «ACK all» and «shelve»; an alarm with a delay fires even if the variable then stops changing; a critical command without access asks you to log in."
-      - it: "Pannello più leggero: ridisegna solo ciò che cambia e le mini tendenze non lo rallentano più; oltre 5 s di ritardo compare «Dati in ritardo di N s» e tutto si fa grigio; un login lento lo dice a 10 s e si ferma a 60 s."
-        en: "Lighter panel: it redraws only what changes and mini-trends no longer slow it down; past 5 s of delay «Data delayed by N s» appears and everything turns grey; a slow login says so at 10 s and stops at 60 s."
+      - it: "Pannello più leggero: ridisegna solo ciò che cambia, mini tendenze comprese; oltre 5 s «Dati in ritardo di N s» e tutto grigio, anche a runtime fermo, senza perdere la pagina; login lento: avviso a 10 s, stop a 60 s."
+        en: "Lighter panel: it redraws only what changes, mini-trends included; past 5 s «Data delayed by N s» and all grey, even with the runtime stopped, keeping the page; slow login: notice at 10 s, stop at 60 s."
   - versione: "2.25.2"
     voci:
       - it: "Nel cloud la chat e il registro in una finestra a parte si aprono davvero: nella 2.25.1 davano l'errore 401."

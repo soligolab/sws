@@ -116,6 +116,8 @@ pub enum Testo {
     // senza risposta, e a 60 s, quando si rinuncia.
     AccessoLento,
     AccessoSenzaRisposta,
+    /// Il viewer partito mentre il runtime non risponde (10-11-2026).
+    PannelloInRiavvio,
 }
 
 /// Tutte le voci, per i test che devono iterarle senza ripetere l'elenco a
@@ -179,6 +181,7 @@ pub const TUTTI: &[Testo] = &[
     Testo::ConfPassword,
     Testo::AccessoLento,
     Testo::AccessoSenzaRisposta,
+    Testo::PannelloInRiavvio,
 ];
 
 /// Dal nome nella fixture alla voce. `None` = la fixture ha una voce che
@@ -243,6 +246,7 @@ pub fn da_nome(nome: &str) -> Option<Testo> {
         "conf_password" => Testo::ConfPassword,
         "accesso_lento" => Testo::AccessoLento,
         "accesso_senza_risposta" => Testo::AccessoSenzaRisposta,
+        "pannello_in_riavvio" => Testo::PannelloInRiavvio,
         _ => return None,
     })
 }
@@ -583,6 +587,12 @@ pub fn testo(t: Testo, lingua: &str) -> &'static str {
         (AccessoSenzaRisposta, "fr") => "Pas de réponse, réessayez",
         (AccessoSenzaRisposta, "es") => "Sin respuesta, inténtalo de nuevo",
         (AccessoSenzaRisposta, _) => "No response, try again",
+
+        (PannelloInRiavvio, "it") => "Il pannello si sta riavviando, riprovo…",
+        (PannelloInRiavvio, "de") => "Das Panel startet neu, neuer Versuch…",
+        (PannelloInRiavvio, "fr") => "Le panneau redémarre, nouvelle tentative…",
+        (PannelloInRiavvio, "es") => "El panel se está reiniciando, reintentando…",
+        (PannelloInRiavvio, _) => "The panel is restarting, retrying…",
     }
 }
 
