@@ -21,6 +21,34 @@
 > `passive.timeout` (minuti, a batteria) — nomi da riscontrare sulla versione installata. In SWS non c'è niente da
 > cambiare: l'allarme scatta un minuto dopo che Zigbee2MQTT dice offline, come deve.
 
+## ▶ Riprendere da qui — SQLite in main, «Aggiorna ora» su un ramo aperto, banco rc.10 da cominciare (2026-11-10, ufficio)
+
+**Ramo aperto, pushato: `fix/aggiornamento-in-corso`** (`0a0a6ccb`), per decisione del maintainer: è il ramo delle
+correzioni del collaudo della rc.10. Le prossime anomalie del banco si aggiungono lì, poi uno squash solo e la rc.11.
+Riprenderlo con `git checkout fix/aggiornamento-in-corso`.
+
+- **In `main` e su origin**: `5539e708`, `rusqlite` da 0.32 a 0.41.1 (SQLite 3.54.1) per RUSTSEC-2026-0459. Il codice
+  non cambia, e `cargo audit` è verde senza nuove eccezioni.
+- **Sul ramo**: «Aggiorna ora» non parte due volte.
+  - **Il difetto**, visto dal maintainer anche nelle rc precedenti. Durante la copia dei dati (minuti con
+    CasaDomotica), cambiando pagina e tornando, la scheda diceva «disponibile» col pulsante, e un secondo clic
+    partiva in parallelo.
+  - **Nel runtime**: `aggiornamento::prenota` tiene il posto fino alla consegna a systemd e risponde 409 a chi arriva
+    secondo; lo stato riporta `in_corso` anche durante la copia.
+  - **Nell'IDE**: con `in_corso` resta solo la riga dell'attesa, riletta ogni 15 s.
+  - **Verifiche**: test Rust e vitest nuovi, definition of done verde (manca la conferma del maintainer); CHANGELOG
+    e NOVITA (voce «Registro…» allungata, il blocco è a 15) sul ramo.
+  - **Quando si collauda**: si vede per intero solo da un pannello già sulla rc.11, che si aggiorna alla versione
+    dopo.
+- **Il banco della rc.10** non è cominciato: `python3 scripts/banco_collaudo/server.py`, porta 8471.
+  - Si parte da r10-agg, il TC620 alla rc.10. **Un clic solo su «Aggiorna ora»**: il difetto c'è ancora nella rc.10.
+  - Il target ssh va riconfermato dal maintainer.
+- **Zigbee2MQTT**: soglia di offline per i dispositivi a rete portata al default di 10 minuti (maintainer, 10-11).
+  Il promemoria qui sotto è fatto.
+- **`Rele_Laghetto_Pompa` è un Sonoff BASICZBR3** (CC2530, radio debole), router come la presa della piastra
+  (NEO NAS-WR01B) che gli sta accanto. L'LQI 17 viene probabilmente dal relè stesso: controllare la mappa di rete,
+  ed eventualmente sostituirlo (es. ZBMINI R2).
+
 ## ▶ Riprendere da qui — la 2.26.0-rc.10: il viewer leggero e l'occhio sulle password, da collaudare sul TC620 (2026-11-09 sera, theobroma)
 
 **`main` e il tag `2.26.0-rc.10` su origin** (push con `/finalizza-giornata`), nessun ramo aperto. Immagini
