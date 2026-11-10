@@ -6,7 +6,7 @@
 // applicata, un annulla — il runtime le ricompila e lo strato del progetto della
 // libreria si aggiorna. Così una proposta si disegna prima di essere salvata.
 //
-// Piano: docs/plans/2026-11-03-assistente-genera-simboli-e-sinottici.md (F2).
+// Piano: docs/archive/2026-11-03-assistente-genera-simboli-e-sinottici.md (F2).
 
 import { api } from "@/api/client";
 import { useAppStore } from "@/store";

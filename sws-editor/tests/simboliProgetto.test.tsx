@@ -1,6 +1,6 @@
 /** I simboli disegnati nel progetto (`prj:`) sul web: lo strato del progetto
  *  sopra la libreria li rende uguali a quelli di libreria — strati, bocche dei
- *  tubi, etichette (piano docs/plans/2026-11-03-assistente-genera-simboli-e-sinottici.md, F2). */
+ *  tubi, etichette (piano docs/archive/2026-11-03-assistente-genera-simboli-e-sinottici.md, F2). */
 import { render, act } from "@testing-library/react";
 import { describe, it, expect, beforeEach } from "vitest";
 import { readFileSync } from "node:fs";

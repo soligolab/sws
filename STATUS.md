@@ -542,7 +542,7 @@ Kimi risponde 429), poi F5–F7 del piano. Per avere `main` verde in CI: il coll
 
 **Un ramo aperto, su origin: `feat/assistente-sinottici`** (scelta del maintainer: «push del ramo, niente merge»).
 Dall'altra macchina: `./scripts/session_start.sh`, poi `git checkout feat/assistente-sinottici`. Il piano è
-[`docs/plans/2026-11-03-assistente-genera-simboli-e-sinottici.md`](docs/plans/2026-11-03-assistente-genera-simboli-e-sinottici.md)
+[`docs/archive/2026-11-03-assistente-genera-simboli-e-sinottici.md`](docs/archive/2026-11-03-assistente-genera-simboli-e-sinottici.md)
 (la sezione «Avanzamento» in fondo dice fase per fase cosa c'è).
 
 **Fatto** (definition of done verde su ogni commit, nessun collaudo del maintainer ancora):
@@ -606,7 +606,7 @@ cambio password obbligatorio sul viewer. Sul WP630 la logica e le credenziali di
 **Piani nuovi su `main`**:
 - `docs/plans/2026-11-03-manuale-pubblico.md` — **piano d'esecuzione**, il prossimo lavoro naturale: manuale su
   `sws.soligo.net/manuale/`, crawler IA bloccati, letture contate in console, link nel login e menù Aiuto nell'IDE;
-- `docs/plans/2026-11-03-assistente-genera-simboli-e-sinottici.md` — seme: l'assistente IA che disegna i simboli del
+- `docs/archive/2026-11-03-assistente-genera-simboli-e-sinottici.md` — seme: l'assistente IA che disegna i simboli del
   progetto e compone una pagina;
 - semi del ramo del manuale: LVGL 9.3 e runtime come eseguibile unico.
 

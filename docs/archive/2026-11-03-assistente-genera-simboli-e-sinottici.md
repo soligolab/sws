@@ -1,5 +1,7 @@
 # L'assistente disegna i simboli del progetto e compone il sinottico intero
 
+> **Chiuso e archiviato il 10-11-2026**: F0–F4 fatte (2.25.0), F5 misurata a mano il 04-11; F6, F7, il secondo protocollo e le immagini passano al piano [l'assistente, secondo giro](../plans/2026-11-10-assistente-secondo-giro.md); i collaudi in `docs/COLLAUDI_IN_SOSPESO.md`.
+>
 > **Stato: piano d'esecuzione — in corso** sul ramo `feat/assistente-sinottici`, dal 03-11-2026. Nato come seme lo stesso
 > giorno («va migliorato l'assistente IA per poter generare oggetti grafici svg per adattarsi al progetto al di là della
 > libreria standard»), preso in mano dopo la sessione di plan del 03-11-2026: «il cliente medio vuole usare
@@ -9,7 +11,7 @@
 ## Contesto
 
 Il maintainer riferisce che il cliente medio, in fabbrica come in casa, ormai vuole che sia l'assistente a creare i
-sinottici e gli oggetti grafici del suo caso d'uso. Il seme `docs/plans/2026-11-03-assistente-genera-simboli-e-sinottici.md`
+sinottici e gli oggetti grafici del suo caso d'uso. Il seme `docs/archive/2026-11-03-assistente-genera-simboli-e-sinottici.md`
 diventa un piano d'esecuzione.
 
 **Obiettivo**: da un prompt semplice («il sinottico di un impianto di tubi d'acciaio», «la planimetria di casa mia con
@@ -215,7 +217,7 @@ Ramo `feat/assistente-sinottici`, una fase per commit, e ogni fase verde sulla d
 - **Collaudo del maintainer**:
   - accettare una pagina generata, salvarla, vederla nel viewer web e sul pannello LVGL;
   - collegare le istanze in Comunicazione.
-- **All'avvio del ramo**: questo piano sostituisce il seme in `docs/plans/2026-11-03-assistente-genera-simboli-e-sinottici.md`,
+- **All'avvio del ramo**: questo piano sostituisce il seme in `docs/archive/2026-11-03-assistente-genera-simboli-e-sinottici.md`,
   con la riga aggiornata in `docs/plans/README.md`. Prima di chiudere, la funzione va anche in CasaDomotica (regola del
   progetto di riferimento).
 
@@ -234,7 +236,7 @@ Ramo `feat/assistente-sinottici`, una fase per commit, e ogni fase verde sulla d
   `ai:tags`, e `ai:simboli`. Il bottone «Procedi» sotto il piano non c'è (era facoltativo): si risponde scrivendo.
 - **Revisione delle prime bozze col maintainer (03-11-2026)**, un punto alla volta:
   1. *dettaglio*: le bozze sono semplici quanto la libreria (mediana 16 operazioni). Decisione: **alzare la libreria**,
-     seme [`2026-11-03-libreria-simboli-piu-ricca.md`](semi/2026-11-03-libreria-simboli-piu-ricca.md); qui la regola di
+     seme [`2026-11-03-libreria-simboli-piu-ricca.md`](../plans/semi/2026-11-03-libreria-simboli-piu-ricca.md); qui la regola di
      `schema_simbolo` dice «lo stesso livello della libreria» invece di «forme semplici»;
   2. *modello*: default Anthropic `claude-opus-5-5`; il banco si rifà con `kimi-k3.1-pro`;
   3. *formato*: **tutti e due** — vocabolario più largo (nel seme della libreria) e SVG libero (F7, ora richiesta).
@@ -247,14 +249,14 @@ Ramo `feat/assistente-sinottici`, una fase per commit, e ogni fase verde sulla d
 > Sezione nata il 10-11-2026 da `Appunti.txt` (punti del 04-11-2026 e del 05-11-2026, più una nota senza data sul MCP
 > che stava in testa al file), quando il maintainer ha chiesto di trasformare gli appunti in semi e piani e di
 > eliminare il file. Il resto di questo piano non è stato toccato. I quattro punti del 04-11 erano i residui del piano
-> archiviato [un modello per ogni scopo](../archive/2026-11-04-un-modello-per-ogni-scopo.md), chiuso il 04-11-2026.
+> archiviato [un modello per ogni scopo](2026-11-04-un-modello-per-ogni-scopo.md), chiuso il 04-11-2026.
 > Lo stato di ogni punto è quello misurato nel codice il 10-11-2026.
 
 ### 1. L'assistente che propone faceplate (regola R8) — fatto il 06-11-2026, resta il collaudo
 
 **Da dove viene.** 04-11-2026, dalla sessione T1 della serie coordinata (`feat/template-regole`). La regola R8 dei
 template — «gli aggregati di oggetti in un faceplate»; parole del maintainer: «quando puoi gli aggregati di oggetti
-falli in un faceplates» — sta in `examples/templates/README.md` e nel [README dei piani](README.md), §Regole dei
+falli in un faceplates» — sta in `examples/templates/README.md` e nel [README dei piani](../plans/README.md), §Regole dei
 template. Varrebbe anche per il sinottico intero composto dall'IA, ma il 04-11 `proponi_modifica` non portava
 faceplate: né `ai/tools.rs` né `applyAiProposal` (`sws-editor/src/store/index.ts`) li conoscevano. Serviva una
 sezione nuova della proposta (i faceplate, che su disco stanno in `faceplates/<id>.yaml`) e le istanze nella pagina,
@@ -351,7 +353,7 @@ del 05-11» in `CHANGELOG.md`):
 ### Nota a parte: se MCP debba un giorno anche scrivere (oggi no)
 
 Dal 22-10-2026 `sws-runtime --mcp` espone undici strumenti di lettura e nessuno che scrive (piano archiviato
-[un server MCP per far editare il progetto all'IA](../archive/2026-09-18-mcp-editing-con-ia.md), che misurava 13
+[un server MCP per far editare il progetto all'IA](2026-09-18-mcp-editing-con-ia.md), che misurava 13
 strumenti in tutto). Il 10-11-2026 i soli-lettura sono **14** (`tools::SOLA_LETTURA` in
 `sws-runtime/crates/sws-web/src/ai/tools.rs`, riga 374: si sono aggiunti `cerca_simboli`, `schema_simbolo` e
 `leggi_faceplate`) e sei restano fuori (`tools::FUORI_DA_ESEGUI`: `proponi_modifica`, `istantanea_pagina`,
@@ -363,7 +365,7 @@ Il no di oggi non è un ostacolo tecnico: scrivere vorrebbe dire riprodurre fuor
 lì c'è già — il confronto, i due bottoni, il controllo dell'impronta del progetto su disco, l'annullamento in un
 passo. Fuori da quella finestra una proposta non ha nessuno che la guardi prima che arrivi sul disco. Da riaprire solo
 se emerge un bisogno vero: il piano archiviato del 31-08
-([la chat IA nell'editor](../archive/2026-08-31-chat-ai-nelleditor.md), Fase 4, §8) lo diceva già («fuori scope
+([la chat IA nell'editor](2026-08-31-chat-ai-nelleditor.md), Fase 4, §8) lo diceva già («fuori scope
 finché non emerge un bisogno reale») e in otto settimane non è emerso. Non è un punto di questo piano: resta qui come
 promemoria. Se un giorno diventa una domanda, nasce un seme in `semi/`.
 

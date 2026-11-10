@@ -1,6 +1,6 @@
 //! I simboli disegnati nel progetto (`prj:<slug>`), sulle rotte.
 //!
-//! Piano: `docs/plans/2026-11-03-assistente-genera-simboli-e-sinottici.md` (F2).
+//! Piano: `docs/archive/2026-11-03-assistente-genera-simboli-e-sinottici.md` (F2).
 //!
 //! Il progetto tiene solo le **descrizioni** (`Project.simboli`); SVG e manifesto
 //! si compilano a ogni richiesta con `sws_core::simboli_prj`, e hanno la stessa

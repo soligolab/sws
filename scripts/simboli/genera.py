@@ -198,7 +198,7 @@ class Simbolo:
     che il compilatore Rust (`sws-core/src/simboli_prj.rs`) trasforma negli stessi
     byte. `--descrizioni` la scrive in `tests/fixtures/simboli-descrizioni.json`, e
     il test Rust ricompila tutta la libreria da lì (piano
-    `docs/plans/2026-11-03-assistente-genera-simboli-e-sinottici.md`).
+    `docs/archive/2026-11-03-assistente-genera-simboli-e-sinottici.md`).
     """
 
     def __init__(self, family, slug, w, h, *, tipo, body, it, en, replaces=None):

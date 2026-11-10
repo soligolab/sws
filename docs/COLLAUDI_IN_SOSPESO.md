@@ -27,6 +27,19 @@
 
 ---
 
+## L'assistente: faceplate e sfondi (dal piano archiviato il 10-11-2026)
+
+Dal piano [l'assistente disegna i simboli e compone il sinottico](archive/2026-11-03-assistente-genera-simboli-e-sinottici.md),
+sezione «Code annotate il 10-11-2026». Nell'IDE (cloud o 8460), con una chiave vera.
+
+1. [ ] **Faceplate proposti** (fatto il 06-11, `630a0f30`): in una chat, chiedere una pagina con tre macchine uguali. La
+       proposta porta un faceplate e tre istanze, il diff li elenca, dopo «Salva» c'è `faceplates/<id>.yaml`.
+2. [ ] **La conversazione intera con gli sfondi** (non passata il 05-11, corretta il 06-11): `genera_sfondo` → «Usa come
+       base» → `varia_sfondo` → proposta → Applica → Salva → le foto in `images/`, in una chat sola. «Usa come base»
+       reagisce al primo clic o dice che è in coda; nessuna istantanea in timeout.
+3. [ ] **Il banco dei tubi** (F5): un giudizio da 1 a 5 sulle due pagine del 04-11 (`tmp/ai-misure/`, solo su
+       theobroma). È l'ingresso del piano «secondo giro».
+
 ## «Aggiorna ora» non parte due volte (10-11-2026)
 
 Fatto a casa il 10-11 (`fix/aggiornamento-in-corso`, squash `80114595`), nella **2.26.0-rc.11**. Si vede per intero solo

@@ -1,7 +1,7 @@
 //! I simboli disegnati nel progetto: una **descrizione** che diventa lo stesso SVG
 //! della libreria.
 //!
-//! Piano: `docs/plans/2026-11-03-assistente-genera-simboli-e-sinottici.md` (F1).
+//! Piano: `docs/archive/2026-11-03-assistente-genera-simboli-e-sinottici.md` (F1).
 //!
 //! # Perché una descrizione e non un SVG
 //!

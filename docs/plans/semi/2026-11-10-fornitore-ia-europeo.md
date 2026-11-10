@@ -20,7 +20,7 @@ differenza fra poter usare l'assistente o no.
 
 - **Il protocollo**: Mistral e gli altri parlano un'API in stile OpenAI («chat completions», strumenti con un formato
   diverso), non «Messages». È lo stesso lavoro della voce «OpenAI o altri come fornitore di testo» nel piano
-  [dell'assistente](../2026-11-03-assistente-genera-simboli-e-sinottici.md) (sezione «Code annotate il 10-11-2026»): un
+  [dell'assistente](../../archive/2026-11-03-assistente-genera-simboli-e-sinottici.md) (sezione «Code annotate il 10-11-2026»): un
   secondo protocollo di chiamata e di strumenti, fatto una volta, apre tutti e due.
 - **La qualità** con i nostri strumenti (proposte di sinottico, simboli `prj:`): misurarla sui due banchi del piano
   dell'assistente prima di proporlo come scelta.

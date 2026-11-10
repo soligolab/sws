@@ -1,7 +1,7 @@
 # La libreria dei simboli, più ricca di dettaglio — seme
 
 > **Stato: seme — decisione.** Nato il 03-11-2026 guardando le prime bozze dell'assistente che disegna i simboli
-> (piano [`2026-11-03-assistente-genera-simboli-e-sinottici.md`](../2026-11-03-assistente-genera-simboli-e-sinottici.md)):
+> (piano [`2026-11-03-assistente-genera-simboli-e-sinottici.md`](../../archive/2026-11-03-assistente-genera-simboli-e-sinottici.md)):
 > il maintainer le ha trovate «molto semplificate e prive di dettaglio», e alla domanda su quale livello volesse ha
 > risposto «alzare anche la libreria».
 >

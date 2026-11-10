@@ -25,7 +25,7 @@
 #   ./scripts/check_simboli_lvgl.sh --simboli <file>   # i simboli disegnati in un progetto
 #
 # Con `--simboli` la prova passa sui simboli `prj:` invece che sulla libreria
-# (piano docs/plans/2026-11-03-assistente-genera-simboli-e-sinottici.md, F2): il
+# (piano docs/archive/2026-11-03-assistente-genera-simboli-e-sinottici.md, F2): il
 # file è un `project.yaml` con la sua sezione `simboli`, oppure un JSON con una
 # descrizione o un elenco di descrizioni (come tests/fixtures/simboli-prj/).
 # Sono disegni nati fuori dal generatore — scritti dall'assistente — ed è lì che
