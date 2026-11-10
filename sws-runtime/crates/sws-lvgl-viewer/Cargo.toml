@@ -2,7 +2,7 @@
 # Nel workspace dal 2026-08-25 (vedi sws-runtime/Cargo.toml): la licenza la eredita
 # da [workspace.package] dal 10-11-2026. La versione resta scritta a mano.
 name    = "sws-lvgl-viewer"
-version = "2.26.0-rc.11"
+version = "2.26.0-rc.12"
 edition = "2021"
 license.workspace = true
 
