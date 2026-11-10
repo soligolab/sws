@@ -1,26 +1,26 @@
 {
-  "titolo": "Collaudo della 2.26.0-rc.10 — da casa: il TC620 con CasaDomotica, l'IDE nel cloud, e l'occhio sulle password",
+  "titolo": "Collaudo della 2.26.0-rc.11 — il TC620 (casa) o il WP630 (ufficio) con CasaDomotica, l'IDE nel cloud, e l'occhio sulle password",
   "prove": [
     {
       "id": "r10-agg",
       "n": 1,
-      "dove": "0 · TC620 · aggiornamento alla rc.10 dal viewer",
-      "titolo": "Il TC620 alla rc.10, da «Aggiorna ora» del viewer",
+      "dove": "0 · TC620 · aggiornamento alla rc.11 dal viewer",
+      "titolo": "Il TC620 alla rc.11, da «Aggiorna ora» del viewer — un clic solo",
       "rif": "Viewer leggero 9 (parte web) — «Aggiornamento in avvio…»; r6-agg superata (il TC620 è sulla rc.9)",
-      "scopo": "La rc.10 porta il viewer leggero (rami A e B) e l'occhio sulle password. L'aggiornamento stesso è la prima prova: dal tocco fino alla partenza il pulsante deve dire «Aggiornamento in avvio…», anche mentre chiede l'accesso, e un «Accesso in corso…» non deve restare lì. Il pilota automatico del TC620 è spento: l'aggiornamento parte solo da qui.",
-      "prima": "Ricarica la pagina dell'IDE nel cloud: in Informazioni deve dire 2.26.0-rc.10. Il TC620 è sulla rc.9. Tieni sotto mano la password dell'Admin di CasaDomotica.",
+      "scopo": "La rc.11 porta il viewer leggero (rami A e B), l'occhio sulle password e «Aggiorna ora» che non parte due volte (quest'ultima si vede solo da un pannello già sulla rc.11: qui il pannello è sulla rc.9, quindi UN CLIC SOLO). L'aggiornamento stesso è la prima prova: dal tocco fino alla partenza il pulsante deve dire «Aggiornamento in avvio…», anche mentre chiede l'accesso, e un «Accesso in corso…» non deve restare lì. Il pilota automatico del TC620 è spento: l'aggiornamento parte solo da qui.",
+      "prima": "Ricarica la pagina dell'IDE nel cloud: in Informazioni deve dire 2.26.0-rc.11. Il TC620 è sulla rc.9. Tieni sotto mano la password dell'Admin di CasaDomotica.",
       "passi": [
-        "Sullo schermo del TC620 (o nel browser del PC, link sotto) c'è la card «Versione nuova 2.26.0-rc.10».",
+        "Sullo schermo del TC620 (o nel browser del PC, link sotto) c'è la card «Versione nuova 2.26.0-rc.11».",
         "Tocca «Aggiorna ora». Quando chiede l'accesso, entra come Admin (qui vedi già l'occhio sulla password: gruppo 4).",
-        "Guarda il testo del pulsante dal tocco fino a quando il pannello si ferma. Prova un secondo tocco mentre è in corso.",
+        "Guarda il testo del pulsante dal tocco fino a quando il pannello si ferma. NON toccare una seconda volta: sulla rc.9 un secondo tocco fa partire un secondo aggiornamento in parallelo (corretto nella rc.11, si prova al prossimo salto).",
         "Dopo il riavvio: IDE nel cloud → Istanza → Device → Connessione → «Dopo l'aggiornamento» (compare dopo circa due minuti) → «Conferma e pulisci». Se il pallino non è verde, prima «Connetti»."
       ],
       "atteso": [
         "Dal tocco alla partenza si legge «Aggiornamento in avvio…», anche durante l'accesso. Nessun «Accesso in corso…» / «Logging in…» che resta fermo.",
-        "Con l'aggiornamento in corso il pulsante è spento: il secondo tocco non fa niente.",
-        "Il TC620 riparte sulla 2.26.0-rc.10 (riga della versione in Connessione) e la domanda di conferma compare; dopo «Conferma e pulisci» sparisce."
+        "Con l'aggiornamento in corso il pulsante è spento (sulla rc.9 può tornare «disponibile» cambiando pagina: è il difetto corretto nella rc.11, da provare al salto successivo).",
+        "Il TC620 riparte sulla 2.26.0-rc.11 (riga della versione in Connessione) e la domanda di conferma compare; dopo «Conferma e pulisci» sparisce."
       ],
-      "sblocca": "Viewer leggero 9 (parte web); il pannello è sulla rc.10 per tutto il resto del banco",
+      "sblocca": "Viewer leggero 9 (parte web); il pannello è sulla rc.11 per tutto il resto del banco",
       "link": [
         {
           "testo": "viewer TC620",

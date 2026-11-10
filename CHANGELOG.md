@@ -74,6 +74,11 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   `esiti.json` fuori da git, da cui si spuntano `COLLAUDI_IN_SOSPESO.md`, i piani e `Appunti.txt`.
 
 ### Cambiato
+- **I semi separati dai piani, e niente più `Appunti.txt`** (10-11-2026, richiesta del maintainer). I 22 semi — le
+  domande ancora da decidere — stanno in `docs/plans/semi/` con un indice loro; `docs/plans/README.md` tiene solo i
+  piani. `Appunti.txt` (451 righe) è diventato sei semi e tre piani nuovi più quattro aggiunte a file esistenti, ed è
+  stato eliminato: i residui di un piano quasi finito vanno in un seme (`CLAUDE.md`, «Plans»). 40 file con i rimandi
+  riscritti, 15 link dell'archivio che erano già rotti corretti.
 - **Un progetto vuoto nasce impostato** (sessione I1 del piano dell'impostazione iniziale, 08-11-2026): «Nuovo
   progetto» non chiede più il motore; il progetto nasce col segnale `impostazione_iniziale` e l'IDE apre da sé la
   finestra «Impostazioni progetto» (motore, formato, sfondi, cornice). Alla chiusura il formato va su «Pagina 1» e sul

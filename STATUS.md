@@ -12,14 +12,33 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-> **Promemoria per casa (chiesto dal maintainer il 09-11-2026, da dire appena una sessione gira su `ufficio` col TC620
-> che risponde):** cambiare in **Zigbee2MQTT** il tempo dopo cui un dispositivo è dato offline. Il 09-11, fra le 10:04 e
-> le 11:03 UTC, sono arrivati su Telegram sei allarmi «non risponde da un minuto» di CasaDomotica per dispositivi a rete
-> elettrica (`presa.TelevisioneSoggiorno`, `presa.PiastraElettrica`, `Tapparella.PianoTerra.Soggiorno.SX`/`.DX`,
-> `Tapparella.PianoTerra.Bagno` due volte): la soglia di Zigbee2MQTT è più corta del loro ritmo vero. Si cambia nel
-> `configuration.yaml` di Zigbee2MQTT, `availability` → `active.timeout` (minuti, dispositivi a rete) e
-> `passive.timeout` (minuti, a batteria) — nomi da riscontrare sulla versione installata. In SWS non c'è niente da
-> cambiare: l'allarme scatta un minuto dopo che Zigbee2MQTT dice offline, come deve.
+## ▶ Riprendere da qui — la 2.26.0-rc.11 pubblicata e sul VPS; i semi separati dai piani, `Appunti.txt` sciolto (2026-11-10, theobroma)
+
+**Nessun ramo aperto.** `main` è avanti su origin di quattro commit, **da pushare** (il maintainer non l'ha ancora
+chiesto): `80114595` lo squash di `fix/aggiornamento-in-corso` («Aggiorna ora» non parte due volte, fatto a casa la
+mattina, DoD e controlli CI riverificati qui), `e5f58031` la **2.26.0-rc.11** (tag solo locale), `594aeab6` il riordino dei
+piani, più il commit di chiusura. Al push va cancellato anche il ramo remoto `origin/fix/aggiornamento-in-corso`.
+
+- **La rc.11.** Immagini `e5f58031-arm64`/`-amd64`, `2.26.0-rc.11-*` e i canali `rc-arm64`/`rc-amd64` pubblicate alle
+  10:08. **VPS**: gateway e CasaDomotica su `e5f58031-amd64` dalle 10:10 (`healthy`, radice 200, tunnel di `tc620-garage` e
+  `wp630-ufficio` riaperti da soli), ripiego `be8066eb-amd64` (rc.10), tolta la rc.9; dettagli in `deploy/vps/STATO.md`.
+  **IDE 8460** ricompilato da `main` (rc.11) con `start_editor.sh --brand pixsys`, in ascolto dalle 10:18, brand Pixsys. `cargo audit` verde (rusqlite 0.41 da casa);
+  `check_release_coerente` rosso solo finché il tag rc.11 non è su origin.
+- **I pannelli.** Il TC620 di casa e il WP630 dell'ufficio (acceso, tunnel aperto) sono sulla **rc.9**. Il banco parte
+  dall'aggiornamento alla rc.11 dal viewer, **con un clic solo** su «Aggiorna ora»: il difetto del doppio clic c'è ancora
+  nella rc.9 e nella rc.10, la correzione si vede per intero solo da un pannello già sulla rc.11 che sale alla successiva.
+- **Il banco della rc.10 non è cominciato e vale per la rc.11** (che contiene tutto quello della rc.10 più «Aggiorna ora»):
+  `python3 scripts/banco_collaudo/server.py`, porta 8471 (acceso su theobroma). Il target ssh va riconfermato dal
+  maintainer; da qui si raggiunge il WP630, il TC620 solo dal viewer via gateway.
+- **Il riordino dei piani** (richiesta del maintainer, 10-11): i **22 semi** in `docs/plans/semi/` con un README loro,
+  `docs/plans/README.md` con i soli piani (8 di prima + 3 nuovi); **`Appunti.txt` sciolto** in sei semi e tre piani
+  nuovi più quattro aggiunte a file esistenti, ed eliminato — non si ricrea, se non lo chiede lui (`CLAUDE.md`, «Plans»:
+  i residui di un piano quasi finito vanno in un seme). Tredici agenti hanno scritto i file e un critico ha controllato
+  punto per punto (tre imprecisioni di stile, corrette); 40 file con i rimandi riscritti, 15 link dell'archivio che
+  erano già rotti ora puntano giusto. Le otto code del §13 del piano «viewer leggero» che non erano mai arrivate in
+  Appunti stanno nel seme `semi/2026-11-10-viewer-prestazioni-e-protocollo.md`.
+- **Prossimo passo**: il push (`main` e il tag `2.26.0-rc.11`), poi `/test-changes` dal viewer del TC620 o del WP630,
+  dalla rc.9 alla rc.11.
 
 ## ▶ Riprendere da qui — SQLite in main, «Aggiorna ora» su un ramo aperto, banco rc.10 da cominciare (2026-11-10, ufficio)
 

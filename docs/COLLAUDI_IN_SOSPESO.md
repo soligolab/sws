@@ -27,6 +27,19 @@
 
 ---
 
+## «Aggiorna ora» non parte due volte (10-11-2026)
+
+Fatto a casa il 10-11 (`fix/aggiornamento-in-corso`, squash `80114595`), nella **2.26.0-rc.11**. Si vede per intero solo
+da un pannello **già sulla rc.11** che sale alla versione dopo: fra il clic e `in_corso` c'è l'istantanea dei dati
+(minuti con lo storico di CasaDomotica), e prima la card tornava «disponibile» con il pulsante attivo.
+
+1. [ ] Da un pannello sulla rc.11, «Aggiorna ora» verso la rc successiva, con CasaDomotica (storico grande). Durante la
+       copia dei dati: cambia pagina e torna, ricarica il viewer, apri l'IDE nel cloud. Ovunque la card dice che
+       l'aggiornamento è **in corso** e il pulsante resta spento; nessun secondo aggiornamento parte. Nell'IDE resta
+       solo la riga dell'attesa, riletta ogni 15 s, finché il pannello non riparte.
+2. [ ] Un secondo `POST` dell'aggiornamento mentre il primo è prenotato risponde **409** (si vede nel journal del pannello
+       o con `curl`); dopo il riavvio lo stato torna normale e la conferma «Dopo l'aggiornamento» compare come sempre.
+
 ## Il viewer leggero (09-11-2026)
 
 Rami A e B del piano `docs/plans/2026-11-09-viewer-leggero.md` (§10): `fix/mini-tendenze-leggere` e, annidato sopra,
@@ -57,7 +70,7 @@ prova di carico (il template ora è a 1 Hz).
 8. [ ] Login lento, viewer web: dopo 10 s il pulsante dice «Il pannello risponde lentamente…»; a 60 s compare «Nessuna
        risposta, riprova» e il pulsante torna attivo. Si vede solo con un pannello lento. Sull'IDE lo stesso testo dice
        «Il server risponde lentamente…». Sul LVGL le stesse attese sono la voce 14.
-9. [ ] «Aggiorna ora» dal viewer, web e LVGL, aggiornando il WP630 alla rc.10: dal tocco fino alla partenza si legge
+9. [ ] «Aggiorna ora» dal viewer, web e LVGL, aggiornando il WP630 alla rc.11: dal tocco fino alla partenza si legge
        «Aggiornamento in avvio…», anche quando in mezzo chiede l'accesso. Con un aggiornamento già in corso il pulsante
        è spento. Sul LVGL, dopo l'accesso chiesto per aggiornare, la card non torna con «Aggiorna ora» attivo.
 10. [ ] LVGL: Montagna sul viewer LVGL per 30 minuti. CPU del viewer **e del runtime** piatte (fino alla revisione la
