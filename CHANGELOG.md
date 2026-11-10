@@ -267,6 +267,22 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
     naturale.
   - Test: `tests/viewerRuntimeFermo.test.tsx` (nuovo), `projectWatcher.test.ts`, `reconnectingWs.test.ts`;
     `riavvio.rs` in `sws-lvgl-viewer`.
+- **L'istantanea anche nel cloud** (collaudo del 10-11-2026 su `sws.soligo.net`, progetto Montagna). L'assistente
+  chiamava `istantanea_pagina` e riceveva «non trovo `sws-runtime` e `sws-lvgl-viewer` nella stessa directory»:
+  gateway e container dei progetti girano sull'immagine x86_64, che portava il solo runtime. Ora
+  `scripts/build_container_x86_64.sh` compila anche `sws-lvgl-viewer` (release, nel builder, stessa target-dir del
+  runtime ma con un'invocazione a parte, perché le feature unificate non cambino il runtime) e lo mette in `bin/`
+  accanto al runtime; `--with-lvgl`/`--no-lvgl` non sono più ignorate. Il viewer x86_64 si compila con la feature
+  nuova `sdl-statico` (`sdl2/bundled` + `sdl2/static-link`): la `libsdl2-2.0-0` di Ubuntu tira dentro libgbm →
+  mesa-libgallium → libllvm20, e la prima prova misurava **+270 MB** d'immagine per una libreria che `--istantanea`
+  non inizializza mai; statico, SDL carica i suoi backend con dlopen e il binario chiede solo `libdrm2` e
+  `libfreetype6`. Il pannello resta col SDL di sistema. `Containerfile.x86_64.builder` prende `clang`,
+  `libclang-dev`, `cmake`, `libdrm-dev`, `libfreetype-dev`; `Containerfile.x86_64` copia l'intera `bin/`, i font
+  extra in `/etc/sws/fonts/` e, sotto `WITH_LVGL`, `libdrm2`, `libfreetype6`, `fonts-dejavu-core`. Immagine
+  **283,5 → 311,2 MB (+27,7 MB)**. Provato in un container dell'immagine con 2 CPU (come il VPS) e il vero
+  `istantanea::scatta` sulle tre pagine di `montagna-rinnovabile`: 1280×800, ~1 s di parete, ~0,5 s di CPU, 119 MB
+  di picco. Il messaggio d'errore di `istantanea.rs` non dice più che l'immagine x86_64 è senza viewer.
+  Manuale, capitolo 18 §1.1.
 - **Mentre il pannello si riavvia per l'aggiornamento, l'IDE lo dice, in giallo** (10-11-2026, collaudo della rc.11 sul
   WP630 dal cloud). Riaprendo Connessione durante il riavvio la sezione «Aggiornamento del runtime» mostrava in rosso
   «Il dispositivo ha risposto 503 Service Unavailable: il pannello «…» non è collegato» — vero, ma letto come un guasto —

@@ -338,9 +338,11 @@ pub async fn scatta(r: Richiesta) -> Result<Scatto, String> {
 /// stessa ragione si prova anche la directory **padre**: `cargo test` esegue da
 /// `target/debug/deps/`, e i binari sono un livello sopra.
 ///
-/// **Il viewer non c'è in tutte le immagini**: `Containerfile.x86_64` copia solo
-/// `bin/sws-runtime`, quindi sull'immagine amd64 questo strumento non funziona.
-/// Meglio dirlo con un messaggio che nominare un file misterioso.
+/// **Il viewer c'è in tutte e due le immagini** dal 10-11-2026: fino a quel
+/// giorno `Containerfile.x86_64` copiava il solo runtime, e nel cloud (gateway e
+/// container dei progetti sono amd64) lo strumento rispondeva solo che il viewer
+/// mancava. Resta fuori da un'immagine costruita con `--no-lvgl`, e allora il
+/// messaggio lo dice invece di nominare un file misterioso.
 fn binari() -> Result<(PathBuf, PathBuf), String> {
     let mio =
         std::env::current_exe().map_err(|e| format!("non trovo il mio stesso binario: {e}"))?;
@@ -358,8 +360,8 @@ fn binari() -> Result<(PathBuf, PathBuf), String> {
     }
     Err(format!(
         "non trovo `sws-runtime` e `sws-lvgl-viewer` nella stessa directory \
-         (cercati in: {}). L'immagine container x86_64 non porta il viewer; \
-         quella arm64 sì. In sviluppo: `cargo build -p sws-lvgl-viewer`.",
+         (cercati in: {}). Le immagini container li portano tutti e due, tranne \
+         una costruita con `--no-lvgl`. In sviluppo: `cargo build -p sws-lvgl-viewer`.",
         cercate.join(", ")
     ))
 }
@@ -1004,8 +1006,8 @@ navigazione richiesta: pagina 'demo_p2'\n\
             Err(e) => {
                 assert!(e.contains("cercati in"), "{e}");
                 assert!(
-                    e.contains("x86_64"),
-                    "il messaggio deve dire dell'immagine: {e}"
+                    e.contains("--no-lvgl"),
+                    "il messaggio deve dire quale immagine non ha il viewer: {e}"
                 );
                 eprintln!("(salto: {e})");
             }

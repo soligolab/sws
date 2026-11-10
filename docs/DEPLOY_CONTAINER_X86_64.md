@@ -97,7 +97,15 @@ verso Docker Hub per `ubuntu:24.04`.
 ./scripts/build_container_x86_64.sh --push       # ...e pubblica sul registry
 ./scripts/build_container_x86_64.sh --no-rust    # riusa il binario x86_64 esistente
 ./scripts/build_container_x86_64.sh --no-save    # solo immagine, niente archivio
+./scripts/build_container_x86_64.sh --no-lvgl    # senza sws-lvgl-viewer
 ```
+
+Dal 10-11-2026 l'immagine porta anche `sws-lvgl-viewer`, accanto al runtime in
+`/usr/local/bin/`. Non disegna su uno schermo: serve all'istantanea che
+l'assistente dell'IDE chiede con `istantanea_pagina`, e nel cloud gateway e
+container dei progetti girano su questa immagine. SDL2 è linkato statico
+(feature `sdl-statico` del viewer): il pacchetto di Ubuntu avrebbe portato Mesa
+e LLVM, +270 MB. Con lo statico l'immagine cresce di ~28 MB.
 
 Produce **un solo** artefatto, come il percorso aarch64:
 

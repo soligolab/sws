@@ -2,7 +2,7 @@
 # esperienza del percorso aarch64 (Containerfile.aarch64), su una macchina di
 # sviluppo/device x86_64 qualunque.
 #
-# NON compila nulla: il binario arriva già compilato da
+# NON compila nulla: i binari arrivano già compilati da
 # `scripts/build_container_x86_64.sh`, che lo produce dentro l'immagine
 # `Containerfile.x86_64.builder`. Nessun cross-compile — l'architettura di build
 # e quella target coincidono — ma nemmeno una compilazione sull'host, che
@@ -40,6 +40,18 @@ FROM ubuntu:24.04
 # python3-pip + RestrictedPython: senza, il motore script parte NON sandboxato
 #   con un warning all'avvio. L'immagine legacy aveva esattamente questo buco.
 # curl: usato dall'HEALTHCHECK qui sotto.
+#
+# Il viewer LVGL (10-11-2026), sotto WITH_LVGL come nel gemello aarch64: qui
+# serve SOLO a `--istantanea`, la foto di una pagina che l'assistente dell'IDE
+# nel cloud chiede con `istantanea_pagina`. Nessuno schermo, quindi niente di
+# quello che sul pannello serve a disegnare (EGL, GLES, Mesa, Wayland): le sole
+# librerie che il binario chiede per partire (NEEDED) e i font.
+# Niente libsdl2-2.0-0: qui SDL2 è statico nel viewer (feature `sdl-statico`),
+#   perché il pacchetto di Ubuntu tira dentro libgbm → Mesa → LLVM, 270 MB per
+#   una libreria che `--istantanea` non inizializza mai.
+# libdrm2: il viewer la chiede per partire (percorso DRM/KMS diretto).
+# libfreetype6 + fonts-dejavu-core: il testo, come sul pannello (Q24).
+ARG WITH_LVGL=0
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         ca-certificates \
@@ -48,12 +60,15 @@ RUN apt-get update && \
         libpython3.12t64 \
         git \
         openssh-client \
-        python3-pip && \
+        python3-pip \
+        $( [ "$WITH_LVGL" = "1" ] && echo libdrm2 libfreetype6 fonts-dejavu-core ) && \
     pip install --no-cache-dir --break-system-packages "RestrictedPython>=7.0" && \
     apt-get purge -y python3-pip && apt-get autoremove -y && \
     rm -rf /var/lib/apt/lists/*
 
-COPY bin/sws-runtime /usr/local/bin/sws-runtime
+# L'intera bin/: con il viewer (default di build_container_x86_64.sh) ci sono
+# sws-runtime e sws-lvgl-viewer, che istantanea.rs cerca nella stessa cartella.
+COPY bin/             /usr/local/bin/
 COPY templates/      /var/sws/templates/
 COPY catalogo/       /var/sws/catalogo/
 # git nei progetti (15-10-2026, docs/plans/2026-10-15-git-nel-cloud.md): git e
@@ -67,6 +82,10 @@ COPY ssh_known_hosts  /etc/ssh/ssh_known_hosts
 # distribuzione, e l'etichetta qui sotto da sola non basta. Cambiano di rado:
 # per questo stanno prima della SPA e non dopo.
 COPY licenza/         /usr/share/sws/licenza/
+
+# I font che apt non porta (emoji, segmenti, matrice di punti), per il viewer:
+# vuota con --no-lvgl. Percorso atteso da lvgl_font.rs.
+COPY fonts/           /etc/sws/fonts/
 
 # La SPA sta DENTRO l'immagine, come nel percorso aarch64 e per le stesse
 # ragioni (vedi il commento esteso in Containerfile.aarch64): col registry i

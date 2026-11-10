@@ -5,8 +5,15 @@
 # (aarch64): stesso flusso, nessun SDK di cross-compile, qui l'architettura di
 # build e quella target coincidono e basta un `cargo build --release` nativo.
 #
-# L'immagine NON compila nulla: incarta il binario già buildato e la SPA già
+# L'immagine NON compila nulla: incarta i binari già buildati e la SPA già
 # buildata.
+#
+# Dal 10-11-2026 porta anche `sws-lvgl-viewer`, come quella arm64. Non per uno
+# schermo — un IDE nel cloud non ne ha — ma per `istantanea_pagina`: la foto di
+# una pagina disegnata dallo stesso motore LVGL del pannello, che l'assistente
+# dell'IDE usa per guardare quello che compone. Senza viewer, nel cloud
+# (gateway e container dei progetti girano su questa immagine) lo strumento
+# rispondeva soltanto che il viewer mancava.
 #
 # La SPA è DENTRO l'immagine dal 2026-07-30, come nel percorso aarch64: col
 # registry i layer si deduplicano, quindi un frontend nuovo trasferisce il solo
@@ -29,6 +36,7 @@
 #   ./scripts/build_container_x86_64.sh --no-save --push # solo pubblicazione
 #   ./scripts/build_container_x86_64.sh --no-rust       # riusa il binario x86_64 esistente
 #   ./scripts/build_container_x86_64.sh --no-spa        # riusa sws-editor/dist così com'è
+#   ./scripts/build_container_x86_64.sh --no-lvgl       # senza sws-lvgl-viewer (niente istantanee)
 #   ./scripts/build_container_x86_64.sh --registry REF  # altro repository di destinazione
 #   ./scripts/build_container_x86_64.sh --out DIR       # directory di output (default dist/)
 #
@@ -42,10 +50,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 usage() {
-    sed -n '2,37p' "${BASH_SOURCE[0]}" | sed 's/^#//; s/^ //'
+    sed -n '2,45p' "${BASH_SOURCE[0]}" | sed 's/^#//; s/^ //'
 }
 
 BUILD_RUST=1
+WITH_LVGL=1
 BUILD_SPA=1
 SAVE=1
 PUSH=0
@@ -53,6 +62,9 @@ REGISTRY="ghcr.io/soligolab/sws-runtime"
 OUT_DIR="$REPO/dist"
 # Non `target/release/`: quella è la build dell'host, con un'altra libpython.
 BIN="$REPO/sws-runtime/target-container-x86_64/release/sws-runtime"
+# Stessa target-dir del runtime: il viewer è nel workspace, e le dipendenze in
+# comune (tokio, serde, reqwest…) si compilano una volta sola.
+LVGL_BIN="$REPO/sws-runtime/target-container-x86_64/release/sws-lvgl-viewer"
 SPA_DIST="$REPO/sws-editor/dist"
 BUILDER_IMAGE="sws-runtime-builder:x86_64"
 # Python della base `ubuntu:24.04`, che builder e immagine finale condividono.
@@ -66,14 +78,12 @@ while [ $# -gt 0 ]; do
         --no-spa)   BUILD_SPA=0;  shift ;;
         --no-save)  SAVE=0;       shift ;;
         --push)     PUSH=1;       shift ;;
-        # Accettate e ignorate: LVGL riguarda i dispositivi aarch64, e questa
-        # immagine non porta il viewer. Servono perché build_containers_all.sh
-        # inoltra gli argomenti IDENTICI a tutti e tre gli script: senza queste
-        # due righe, `build_containers_all.sh --no-lvgl` morirebbe qui in fondo
-        # dopo aver già costruito le altre due immagini. Era già così per
-        # --with-lvgl, che docs/HOWTO.md documentava in un comando che quindi
-        # non poteva funzionare.
-        --with-lvgl|--no-lvgl) shift ;;
+        # Con lo stesso significato del gemello aarch64 dal 10-11-2026, quando
+        # anche questa immagine ha preso il viewer (per le istantanee). Fino a
+        # quel giorno erano accettate e ignorate, perché build_containers_all.sh
+        # inoltra gli argomenti IDENTICI a tutti gli script.
+        --with-lvgl) WITH_LVGL=1; shift ;;
+        --no-lvgl)   WITH_LVGL=0; shift ;;
         # Idem: --sdk riguarda solo l'immagine aarch64 (build_container.sh).
         --sdk) shift ;;
         --registry) REGISTRY="$2"; shift 2 ;;
@@ -162,27 +172,62 @@ if [ "$BUILD_RUST" -eq 1 ]; then
         -e CARGO_TARGET_DIR=/src/sws-runtime/target-container-x86_64 \
         "$BUILDER_IMAGE" \
         cargo build --release --bin sws-runtime
+
+    if [ "$WITH_LVGL" -eq 1 ]; then
+        # Come nel gemello aarch64: le patch al codice LVGL vendorizzato
+        # devono esserci, perché cargo non si accorge se qualcuno le toglie (Q22).
+        echo "==> [1b/4] verifica delle patch al codice vendorizzato"
+        "$REPO/scripts/check_vendor_patches.sh" || {
+            echo "ERRORE: patch al codice vendorizzato mancanti — build interrotta." >&2
+            echo "        Riapplica con: ./scripts/check_vendor_patches.sh --apply" >&2
+            exit 1
+        }
+        # Una invocazione a parte e non `--bin sws-runtime --bin sws-lvgl-viewer`
+        # in una sola: compilati insieme, le feature delle dipendenze in comune
+        # si unificano fra i due, e il runtime uscirebbe diverso da quello
+        # costruito da solo. Da `sws-runtime/` e non dalla cartella del crate:
+        # DEP_LV_CONFIG_PATH e FreeType li dà il config del workspace.
+        # `sdl-statico`: SDL2 dentro il binario, non la libsdl2 di Ubuntu, che
+        # nell'immagine si porterebbe dietro Mesa e LLVM (+270 MB misurati) per
+        # una libreria che `--istantanea` non inizializza mai. Vedi il Cargo.toml
+        # del viewer.
+        echo "==> [1c/4] cargo build --release -p sws-lvgl-viewer --features sdl-statico (dentro il builder)"
+        podman run --rm \
+            --platform linux/amd64 \
+            --network host \
+            -v "$REPO":/src:Z \
+            -w /src/sws-runtime \
+            -e CARGO_HOME=/src/.cargo-container-x86_64 \
+            -e CARGO_TARGET_DIR=/src/sws-runtime/target-container-x86_64 \
+            "$BUILDER_IMAGE" \
+            cargo build --release -p sws-lvgl-viewer --features sdl-statico
+    fi
 else
     echo "==> [1/4] skipped (--no-rust)"
 fi
 
 if [ "$BUILD_SPA" -eq 1 ]; then
-    echo "==> [1b/4] pnpm build (SPA)"
+    echo "==> [1d/4] pnpm build (SPA)"
     (cd "$REPO/sws-editor" && pnpm build)
 else
-    echo "==> [1b/4] skipped (--no-spa)"
+    echo "==> [1d/4] skipped (--no-spa)"
 fi
 
 [ -f "$BIN" ]                || { echo "ERROR: missing $BIN — togli --no-rust" >&2; exit 1; }
 [ -f "$SPA_DIST/index.html" ] || { echo "ERROR: missing SPA at $SPA_DIST (drop --no-spa)" >&2; exit 1; }
+if [ "$WITH_LVGL" -eq 1 ]; then
+    [ -f "$LVGL_BIN" ] || { echo "ERROR: missing $LVGL_BIN — togli --no-rust, o usa --no-lvgl" >&2; exit 1; }
+fi
 
 # Guard against the classic mistake of feeding a foreign-arch binary to an
 # amd64 image — same principle as build_container.sh's aarch64 check.
-if ! file "$BIN" | grep -q "x86-64"; then
-    echo "ERROR: $BIN is not an x86_64 binary:" >&2
-    file "$BIN" >&2
-    exit 1
-fi
+for b in "$BIN" $( [ "$WITH_LVGL" -eq 1 ] && echo "$LVGL_BIN" ); do
+    if ! file "$b" | grep -q "x86-64"; then
+        echo "ERROR: $b is not an x86_64 binary:" >&2
+        file "$b" >&2
+        exit 1
+    fi
+done
 
 # La verifica readelf non è sparita col builder: è passata da "ricordarsi di
 # rifarla a mano" a "lo script si ferma da solo". Se un giorno il builder o la
@@ -204,8 +249,20 @@ echo "    binario: libpython$NEEDED_PY, $NEEDED_GLIBC — combacia con la base"
 CTX="$OUT_DIR/container-context-x86_64"
 echo "==> [2/4] staging build context in $CTX"
 rm -rf "$CTX"
-mkdir -p "$CTX/bin" "$CTX/templates" "$CTX/catalogo" "$CTX/www"
+mkdir -p "$CTX/bin" "$CTX/templates" "$CTX/catalogo" "$CTX/www" "$CTX/fonts"
 install -m 755 "$BIN" "$CTX/bin/sws-runtime"
+if [ "$WITH_LVGL" -eq 1 ]; then
+    # Accanto al runtime: istantanea.rs cerca i due binari nella stessa cartella.
+    install -m 755 "$LVGL_BIN" "$CTX/bin/sws-lvgl-viewer"
+    # I font che apt non porta, come nel gemello aarch64: l'istantanea deve
+    # disegnare emoji, segmenti e matrice di punti come il pannello, o la foto
+    # mentirebbe proprio su quegli oggetti. fonts/ resta vuota con --no-lvgl.
+    install -m 644 \
+        "$REPO/sws-runtime/crates/sws-lvgl-viewer/assets/fonts/NotoEmoji-Regular.ttf" \
+        "$REPO"/sws-runtime/crates/sws-lvgl-viewer/assets/fonts/DSEG*.ttf \
+        "$REPO"/sws-runtime/crates/sws-lvgl-viewer/assets/fonts/DotGothic16-Regular.ttf \
+        "$REPO"/sws-runtime/crates/sws-lvgl-viewer/assets/fonts/*.txt "$CTX/fonts/"
+fi
 cp -r "$REPO/examples/templates/." "$CTX/templates/"
 cp -r "$REPO/catalogo/." "$CTX/catalogo/"
 cp "$REPO/deploy/container/ssh_known_hosts" "$CTX/ssh_known_hosts"
@@ -244,6 +301,7 @@ podman build --platform linux/amd64 --format docker \
     --build-arg "SWS_COMPAT_IT=$COMPAT_IT" \
     --build-arg "SWS_COMPAT_EN=$COMPAT_EN" \
     --build-arg "SWS_QUADLET=$QUADLET" \
+    --build-arg "WITH_LVGL=$WITH_LVGL" \
     -t "$IMAGE" \
     -f "$REPO/deploy/container/Containerfile.x86_64" \
     "$CTX"

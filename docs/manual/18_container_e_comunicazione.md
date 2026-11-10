@@ -67,11 +67,17 @@ flowchart LR
 | | aarch64 (pannelli) | x86_64 (server, cloud) |
 |---|---|---|
 | Base | Ubuntu 24.04 | Ubuntu 24.04 |
-| Binari | `sws-runtime`, e con `WITH_LVGL=1` anche `sws-lvgl-viewer` | solo `sws-runtime` |
+| Binari | `sws-runtime`, e con `WITH_LVGL=1` anche `sws-lvgl-viewer` | idem (dal 10-11-2026) |
 | Python | `python3` + `RestrictedPython` (la sandbox degli script, obbligatoria) | idem |
 | Strumenti | `git`, `openssh-client`, `curl`, `ca-certificates` | idem |
-| Grafica (solo con LVGL) | SDL2, EGL/GLES, Mesa, DRM, GBM, FreeType, `fonts-dejavu-core` | — |
-| Font extra | `/etc/sws/fonts/`: Noto Emoji, DSEG7/DSEG14, DotGothic16 (licenze OFL accanto) | — |
+| Grafica (solo con LVGL) | SDL2, EGL/GLES, Mesa, DRM, GBM, FreeType, `fonts-dejavu-core` | DRM, FreeType, `fonts-dejavu-core`: il minimo per far partire il viewer. SDL2 è statico nel binario, niente EGL né Mesa |
+| Font extra | `/etc/sws/fonts/`: Noto Emoji, DSEG7/DSEG14, DotGothic16 (licenze OFL accanto) | idem |
+
+Sull'x86_64 il viewer non disegna su uno schermo: serve all'**istantanea** (`--istantanea`), la foto di una pagina
+fatta dallo stesso motore LVGL del pannello. L'assistente dell'IDE la chiede con lo strumento `istantanea_pagina` per
+guardare le pagine che compone, e nel cloud gateway e container dei progetti girano su questa immagine. Fino al
+10-11-2026 l'immagine x86_64 portava il solo runtime e lo strumento, nel cloud, rispondeva che il viewer mancava.
+`build_container_x86_64.sh --no-lvgl` costruisce l'immagine senza.
 
 Le immagini si pubblicano con un tag per architettura: `latest-arm64` / `latest-amd64` (canale stabile),
 `rc-arm64` (canale di prova), più un tag per ogni commit (`<hash>-arm64`) e per ogni versione.

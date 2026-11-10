@@ -82,6 +82,17 @@ cstr_core      = "0.2"
 # diretto contro libdrm invece di quella, vedi build.rs).
 libc           = "0.2"
 
+[features]
+# SDL2 compilato dal sorgente (incluso nel crate `sdl2-sys`) e linkato
+# statico. Lo accende solo `scripts/build_container_x86_64.sh` (10-11-2026):
+# nell'immagine x86_64 il viewer serve soltanto a `--istantanea`, che non apre
+# nessuna finestra, e la `libsdl2-2.0-0` di Ubuntu si porta dietro libgbm →
+# mesa-libgallium → libllvm20: 270 MB in più nell'immagine, misurati, per una
+# libreria che lì non si inizializza mai. Statico, SDL carica i suoi backend
+# (X11, Wayland, KMS) con dlopen solo se servono, e il binario non ne chiede
+# nessuno per partire. Il pannello resta col SDL2 di sistema, come prima.
+sdl-statico = ["sdl2/bundled", "sdl2/static-link"]
+
 [build-dependencies]
 # Genera i binding libdrm per src/drm_display.rs (percorso di rendering
 # DRM/KMS diretto, alternativo a SDL2 — vedi build.rs per il perché). Stessa

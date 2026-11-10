@@ -28,11 +28,32 @@ FROM ubuntu:24.04
 # pkg-config: richiesto da alcuni build script del workspace.
 # Niente libssl-dev: reqwest usa `rustls-tls` e non OpenSSL (scelta congelata in
 #   docs/CONTEXT.md §5), quindi installarlo sarebbe superficie in più per niente.
+#
+# Il viewer LVGL (10-11-2026, «l'istantanea anche nel cloud»): fino a questa data
+# l'immagine x86_64 portava il solo runtime, e l'assistente dell'IDE nel cloud
+# chiamava `istantanea_pagina` per sentirsi dire che il viewer non c'era. Il
+# viewer serve lì non per uno schermo — nel cloud non ce n'è — ma per la foto
+# della pagina disegnata dallo stesso motore del pannello. Servono le stesse
+# cose che la cross-build aarch64 mette nel suo sysroot, qui native:
+# clang + libclang-dev: bindgen, per `lvgl-sys` (LVGL vendorizzato) e per i
+#   binding libdrm del viewer (build.rs).
+# cmake: SDL2 si compila dal sorgente e si linka statico (feature
+#   `sdl-statico` del viewer, il perché sta lì). Per questo NON c'è libsdl2-dev:
+#   SDL di sistema qui non serve, e senza i suoi header -dev (X11, Wayland,
+#   PulseAudio…) l'SDL statico esce più piccolo.
+# libdrm-dev: header per bindgen e `-ldrm` (il percorso DRM/KMS diretto).
+# libfreetype-dev: LVGL disegna il testo con FreeType (`LVGL_EXTRA_LINK`).
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         build-essential \
         ca-certificates \
+        clang \
+        cmake \
         curl \
+        file \
+        libclang-dev \
+        libdrm-dev \
+        libfreetype-dev \
         pkg-config \
         python3 \
         python3-dev && \
