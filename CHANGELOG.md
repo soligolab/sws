@@ -12,6 +12,21 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Aggiunto
+- **I suggerimenti mentre si scrive la logica, e «Nuovo da modello»** (piano
+  `docs/archive/2026-11-04-logica-unificata.md`, sessioni L2 e L3, 10-11-2026). L'editor delle funzioni e degli script
+  completa: dentro `tags.read("` e `tags.write("` i tag del catalogo, foglie comprese, con tipo, unità, descrizione
+  e valore live (per `write` niente tag calcolati né di sola lettura della sorgente); i nomi forniti dal runtime
+  (`GET /api/script/nomi`), i builtin della sandbox e i parametri della funzione al posto del completamento generico
+  di `lang-python`, che proponeva `import` e `class`; dentro `functions.run("` le funzioni e poi i loro parametri,
+  solo negli script; dentro `tr("` le chiavi lingua. Gli avvisi arrivano mentre si scrive: `POST /api/script/check`
+  600 ms dopo l'ultima battuta, più un avviso dell'IDE su un tag che il progetto non ha o su un tag calcolato che si
+  prova a scrivere (`logica/completamento.ts`, `logica/avvisi.ts`; `@codemirror/autocomplete` e `@codemirror/lint`
+  in `package.json`). «+ Nuovo da modello…» nella sezione Logica apre un modulo della Finestra di avviso: si sceglie
+  uno dei dieci modelli (contaore, contapezzi, isteresi, filtro, TON, comando a orario, azzeramento a mezzanotte,
+  alternanza pompe, valore con limiti, avviso Telegram con antirimbalzo), poi i tag con `TagInput`, e funzioni e
+  script nascono coi tag veri e nella lingua dell'IDE. Un file `.py` per modello in `sws-editor/src/logica/modelli/`;
+  il test Rust `i_modelli_dell_ide_girano` (`sws-pyscript`) li compila col controllo di `/api/script/check` e li
+  esegue due volte ciascuno. Tolti i sei frammenti in inglese dell'editor delle funzioni.
 - **La posta dell'azienda** (piano `docs/archive/2026-10-26-aprire-sws-soligo-net.md`, punto 4; decisione del
   maintainer del 10-11-2026). Ogni azienda può avere il suo SMTP, e la catena è progetto → azienda →
   installazione: i container dei progetti nel cloud senza una posta propria usano quella dell'azienda, e senza

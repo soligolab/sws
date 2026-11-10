@@ -1,11 +1,13 @@
 # La logica in un posto solo: funzioni, script e ricette — piano d'esecuzione
 
-> **Stato: piano d'esecuzione, sessioni L0–L3 della [serie coordinata](README.md#-la-serie-coordinata-del-04-11-2026--lordine-delle-sessioni).**
+> **Chiuso e archiviato il 10-11-2026**: L0–L3 fatte (L2 e L3 nella 2.26.0-rc.12). Il cron in UTC è il seme [cron in ora locale](../plans/semi/2026-11-10-cron-in-ora-locale.md); il viewer LVGL che esegue `on_press_fn` è nel piano [oggetti e template](../plans/2026-11-10-oggetti-e-template-parita-lvgl.md); il capitolo del manuale lo scrive M5.
+>
+> **Stato: piano d'esecuzione, sessioni L0–L3 della [serie coordinata](../plans/README.md#-la-serie-coordinata-del-04-11-2026--lordine-delle-sessioni).**
 > Nato come seme il 04-11-2026 da una richiesta del maintainer: «La sezione LOGIC è un po' confusa, ci sono le funzioni
 > che sono python e poi un sotto menù "Python" in cui ci sono delle funzioni… unificherei script e funzioni in un
 > contesto unico nel ramo principale assieme alle Ricette. Rivedrei meglio i suggerimenti di codice e i template per
 > renderli più utili». Diventato piano lo stesso giorno, con la misura del codice (`tmp/piani-misure/logica.md`, solo su
-> theobroma). **L1 e L3 dipendono da** [la Finestra di avviso](../archive/2026-11-04-finestra-di-avviso.md) (le conferme sulle
+> theobroma). **L1 e L3 dipendono da** [la Finestra di avviso](2026-11-04-finestra-di-avviso.md) (le conferme sulle
 > cancellazioni e il `modulo` per «Nuovo da modello»); L0 non dipende da niente.
 
 ## Decisioni del maintainer (04-11-2026)
@@ -83,7 +85,7 @@
 
 *Fatta l'08-11-2026 sul ramo `feat/logica-un-ramo`, annidato su I2.* Decisioni del maintainer quel giorno: **l'editor
 si apre al centro** (come le funzioni), quindi anche gli script escono dalla Configurazione; **l'avviso LVGL** sul
-bottone, e il viewer LVGL che esegue `on_press_fn` nel piano [oggetti e template](2026-11-10-oggetti-e-template-parita-lvgl.md) (dal 10-11-2026). Fatto: `editor/LogicaEditor.tsx` (funzioni e
+bottone, e il viewer LVGL che esegue `on_press_fn` nel piano [oggetti e template](../plans/2026-11-10-oggetti-e-template-parita-lvgl.md) (dal 10-11-2026). Fatto: `editor/LogicaEditor.tsx` (funzioni e
 script, Controlla, Prova con conferma, i rilievi cliccabili portano alla riga), la sezione Logica nei due stili
 (Funzioni, Script, Ricette; cancellazioni con conferma), gli script nello store (`selectedScriptId`, scritti dal Salva
 unico solo se cambiati: `scriptCambiati`), `description?` su `GlobalScriptDef`, la rinomina di una funzione che
@@ -101,6 +103,18 @@ id restano, decisione L1.1), i commenti sbagliati. `FunctionEditor.tsx` e `Funct
   non dichiarati (la regex `EXPR_RE` c'è già).
 - Test vitest sulle sorgenti di completamento.
 
+*Fatta il 10-11-2026 sul ramo `feat/logica-l2-l3` (insieme a L3, 8e3380cd).* Decisioni del maintainer quel giorno
+(«ok» alle proposte): il valore live **sì**, nel riquadro della voce («ora: 21.5»; `TagInput` in realtà non lo mostra,
+l'ha preso da `tagValues`); gli avvisi **600 ms** dopo l'ultima battuta. Fatto: `logica/completamento.ts` (tre
+sorgenti più `localCompletionSource` di `lang-python`, in `autocompletion({ override })`, quindi niente più
+`globalCompletion`), `logica/avvisi.ts` (un linter solo: i rilievi di `/api/script/check` come errori sulla riga, e
+gli avvisi dell'IDE sui tag che il progetto non ha o calcolati e scritti, con `EXPR_RE` esportata da `tagUsage.ts`),
+`PythonEditor` con `estensioni`, `api.nomiScript()` (chiesta una volta per sessione; anche l'aiuto «Nomi già pronti»
+ora la legge, invece del suo elenco a mano). «Non scrivibili» per `tags.write` vuol dire: `expression`, `generator`
+attivo, registri Modbus `input`/`discrete`, tag S7/EtherNet-IP e metriche Sparkplug con `writable: false`. Dopo
+`tags.`, `state.`, `functions.` si propongono i metodi; le parole di Python proposte sono quelle utili (niente
+`import`, `class`, `try`, `with`). Test: `tests/logicaCompletamento.test.ts`.
+
 **L3 — `feat/logica-modelli`: «Nuovo da modello».**
 - «Nuovo da modello» con un `modulo` della Finestra di avviso: si sceglie il modello, poi i tag del progetto con
   `TagInput`; il codice nasce coi tag veri. Nella lingua dell'IDE.
@@ -112,6 +126,28 @@ id restano, decisione L1.1), i commenti sbagliati. `FunctionEditor.tsx` e `Funct
 - Il piano si archivia; il capitolo del manuale sulla Logica lo scrive M5.
 - **Immagine.**
 
+*Fatta il 10-11-2026 sul ramo `feat/logica-l2-l3` (8e3380cd).* Decisioni: **tutti e dieci** i modelli;
+`recipes.apply(id)` da Python **no**; un file per modello. Fatto: `sws-editor/src/logica/modelli/*.py` (Python che
+compila già così, con quattro segnaposto: `{{tag:x}}` il tag scelto, `{{nome:k}}` il nome di funzione o script reso
+unico nel progetto, `{{id:k}}` i nomi Python e `{{t:k}}` i commenti nella lingua dell'IDE, da
+`logicaModelli.<modello>` di it/en.json; le righe `#@` dicono cosa nasce: `tag`, `funzione`, `script`, `parametro`,
+`trigger`), `modelli/index.ts` (lettura e `istanzia`), `logica/NuovoDaModello.tsx` (il `modulo` in due passi: il
+modello, poi i tag con `TagInput`), «+ Nuovo da modello…» in fondo ai gruppi della sezione Logica,
+`aggiungiDaModello` nello store (le funzioni si scrivono subito come con «+ Nuova funzione», gli script col Salva). Un
+modello può far nascere più pezzi: il comando a orario è due script (accensione e spegnimento), l'azzeramento a
+mezzanotte una funzione e lo script cron che la chiama. Tolti i sei `SNIPPETS` e le loro chiavi.
+**La prova che girano** non chiede uno stack acceso: `i_modelli_dell_ide_girano` in `sws-pyscript` legge i file,
+li passa a `Engine::check` (lo stesso di `/api/script/check`) e li **esegue** due volte ciascuno, coi tag letti a 1 e
+le funzioni nel registro; verde anche con RestrictedPython vero (`PYTHONPATH` su un venv, come dice
+`tests_sandbox_l0`). **Trovato**: il cron degli script è in **UTC** (`cron.rs:300`), e niente nell'IDE lo dice; i
+modelli col cron lo scrivono in un commento. Non corretto qui: se va detto nel campo del trigger, o se il cron deve
+passare all'ora locale, è una scelta del maintainer.
+
+**CasaDomotica** (la fa il maintainer, sul VPS): ci vanno il **contaore** (una pompa o la caldaia), il **comando a
+orario** (una luce o l'irrigazione) e l'**avviso Telegram con antirimbalzo** (un allarme vero). Il **contapezzi**, il
+**ritardo all'inserzione (TON)** e l'**alternanza pompe** non hanno un posto in un impianto domestico: sono logica da
+macchina e da centrale di pompaggio, che dice per chi sono davvero.
+
 ## Da decidere all'inizio di ogni sessione
 
 La proposta vale se il maintainer non dice altro.
@@ -121,13 +157,13 @@ La proposta vale se il maintainer non dice altro.
    `all`, `sorted`* (nessuno tocca file, rete o interprete).
 2. Dove va il testo di `print`: *proposta: nel log del runtime col nome della funzione o dello script, e per una funzione
    anche nella risposta HTTP (la vede «Prova»).*
-3. Le espressioni dei tag senza sandbox: *proposta: nel seme [la sandbox, secondo giro](semi/2026-11-10-sandbox-degli-script-secondo-giro.md),
+3. Le espressioni dei tag senza sandbox: *proposta: nel seme [la sandbox, secondo giro](../plans/semi/2026-11-10-sandbox-degli-script-secondo-giro.md),
    con la misura; non è logica che si scrive nell'editor del codice.*
 
 **L1**
 1. Gli id delle schede `scripts` e `recipes`: *proposta: restano* (deep link, test, l'aiuto per schermata di M4).
 2. LVGL che non esegue `on_press_fn`: *proposta: un avviso nell'editor sul bottone, quando il progetto è LVGL; il viewer
-   LVGL nel piano [oggetti e template](2026-11-10-oggetti-e-template-parita-lvgl.md).*
+   LVGL nel piano [oggetti e template](../plans/2026-11-10-oggetti-e-template-parita-lvgl.md).*
 
 **L2**
 1. Il completamento mostra il valore live del tag? *Proposta: sì, se c'è, come `TagInput`.*

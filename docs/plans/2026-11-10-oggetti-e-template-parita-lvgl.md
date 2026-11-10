@@ -18,7 +18,7 @@ Da `Appunti.txt`, 10-11-2026. I punti sono di cinque date:
   sciogliere.
 - **05-11-2026, sessione F3** della [Finestra di avviso](../archive/2026-11-04-finestra-di-avviso.md): la
   decisione 2 (password anche su LVGL) è rimasta fuori.
-- **08-11-2026, sessione L1** della [Logica unificata](2026-11-04-logica-unificata.md), decisione del
+- **08-11-2026, sessione L1** della [Logica unificata](../archive/2026-11-04-logica-unificata.md), decisione del
   maintainer: il viewer LVGL non esegue le funzioni dei bottoni.
 - **09-11-2026, revisione del ramo A** del [viewer leggero](2026-11-09-viewer-leggero.md)
   (`fix/mini-tendenze-leggere`, in `main` con la 2.26.0-rc.10): due differenze fra le mini tendenze dei

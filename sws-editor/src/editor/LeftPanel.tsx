@@ -30,6 +30,7 @@ import { impostaBootAbilitata } from "@/boot/abilitata";
 import { useNomePagina } from "@/i18n/nomePagina";
 import { discendentiDi, riconcilia, righe, spostaRispettoA, type ZonaRilascio } from "@/pageTree";
 import { avviso, chiedi, conferma } from "@/finestraAvviso/finestraAvviso";
+import { nuovoDaModello } from "@/logica/NuovoDaModello";
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 
@@ -2095,6 +2096,13 @@ function SezioneLogica({ onFunctionsChanged }: { onFunctionsChanged: () => void 
     deleteFunction(id);
     onFunctionsChanged();
   };
+  const aggiungiDaModello = useAppStore((s) => s.aggiungiDaModello);
+  const daModello = async () => {
+    const nuovi = await nuovoDaModello();
+    if (!nuovi) return;
+    aggiungiDaModello(nuovi);
+    if (nuovi.funzioni.length > 0) onFunctionsChanged();
+  };
   const cancellaScript = async (id: string) => {
     if (!(await conferma({ testo: t("logica.cancellaScript", { nome: id }), si: t("editor.delete"), pericolo: true }))) return;
     deleteScript(id);
@@ -2234,6 +2242,10 @@ function SezioneLogica({ onFunctionsChanged }: { onFunctionsChanged: () => void 
         ))}
         <div style={{ padding: "4px 8px" }}>
           <button onClick={() => addScript()} data-testid="logica-nuovo-script" style={bottoneNuovo}>{t("logica.nuovoScript")}</button>
+        </div>
+        {/* L3 (10-11-2026): funzioni e script che nascono da un modello, coi tag veri. */}
+        <div style={{ padding: "0 8px 4px" }}>
+          <button onClick={() => void daModello()} data-testid="logica-nuovo-da-modello" style={bottoneNuovo}>{t("logica.nuovoDaModello")}</button>
         </div>
 
         {/* Le ricette restano la loro scheda: un editor di setpoint, non di codice. */}

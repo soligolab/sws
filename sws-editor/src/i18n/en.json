@@ -2057,13 +2057,6 @@
     "title": "Python function",
     "noName": "(unnamed)",
     "unsaved": "● unsaved changes",
-    "snippetPlaceholder": "Insert template…",
-    "snippetIncrement": "Increment tag",
-    "snippetToggle": "Boolean toggle",
-    "snippetConditional": "Conditional write",
-    "snippetResetMany": "Reset multiple tags",
-    "snippetDiagnostic": "Diagnostic (print)",
-    "snippetSkeleton": "Skeleton with parameters",
     "saving": "Saving…",
     "save": "Save functions",
     "closeTitle": "Close (back to the canvas)",
@@ -4669,6 +4662,223 @@
     "vietato": "forbidden:",
     "nessunaUscita": "(no output)",
     "scriptSpostati": "Scripts are written in the Logic section of the left panel, together with functions: they open in place of the synoptic.",
-    "lvglNonEsegue": "On the LVGL panel this function does not run: only the web viewer runs it."
+    "lvglNonEsegue": "On the LVGL panel this function does not run: only the web viewer runs it.",
+    "nuovoDaModello": "+ New from template…",
+    "modelloTitolo": "New from template",
+    "modelloScegli": "Choose what it should do. The code is created with the project's tags, and you can change it afterwards.",
+    "modelloTagAiuto": "Choose the project tags the code will use.",
+    "modelloLetto": "read",
+    "modelloScritto": "written",
+    "modelloCrea": "Create",
+    "modelloIndietro": "Back",
+    "modelloNasce": "This will create:",
+    "modelloFunzione": "the function «{{nome}}»",
+    "modelloScript": "the script «{{nome}}»",
+    "modelloSalva": "New scripts only start after Save.",
+    "avvisoTagNonDichiarato": "«{{id}}» is not a project tag: tags.read will return None.",
+    "avvisoTagNonScrivibile": "«{{id}}» is computed or read-only: the write will be refused.",
+    "suggValore": "now: {{v}}",
+    "suggParametro": "parameter",
+    "suggParametroDefault": "parameter, default {{v}}",
+    "suggBuiltin": "Python built-in",
+    "suggChiave": "language key",
+    "suggFunzione": "project function",
+    "suggParola": "Python keyword",
+    "firmaWrite": "(id, value)",
+    "firmaGet": "(key, default=None)",
+    "firmaSet": "(key, value)",
+    "firmaRun": "(name, **params)"
+  },
+  "logicaModelli": {
+    "contaore": {
+      "titolo": "Running hours counter",
+      "descrizione": "Every second, while the machine runs, adds the elapsed time to an hours tag.",
+      "tag": {
+        "marcia": "Running (true/false)",
+        "ore": "Running hours (decimal number)"
+      },
+      "nomi": {
+        "principale": "run_hours"
+      },
+      "id": {
+        "ore": "hours"
+      },
+      "t": {
+        "c1": "Hour counter: every second, while the machine runs, adds the time since the last round.",
+        "c2": "delta_ms() is 0 on the first round; the total lives in the tag, which must be a decimal (float)."
+      }
+    },
+    "contapezzi": {
+      "titolo": "Piece counter",
+      "descrizione": "Adds one piece to the counter on every rising edge of the sensor.",
+      "tag": {
+        "sensore": "Piece sensor",
+        "pezzi": "Piece counter"
+      },
+      "nomi": {
+        "principale": "piece_counter"
+      },
+      "id": {
+        "pezzi": "pieces"
+      },
+      "t": {
+        "c1": "Piece counter: runs on every rising edge of the sensor and adds one piece.",
+        "c2": "To reset it, write 0 into the tag (a button, or the «Reset at midnight» template)."
+      }
+    },
+    "isteresi": {
+      "titolo": "Output with hysteresis",
+      "descrizione": "Switches an output on below one threshold and off above another, like a thermostat.",
+      "tag": {
+        "misura": "Measurement",
+        "uscita": "Output to drive"
+      },
+      "nomi": {
+        "principale": "hysteresis"
+      },
+      "id": {
+        "accendi_sotto": "ON_BELOW",
+        "spegni_sopra": "OFF_ABOVE",
+        "misura": "value",
+        "acceso": "is_on"
+      },
+      "t": {
+        "c1": "Hysteresis: on below the first threshold, off above the second; in between nothing changes.",
+        "c2": "It only writes when the output must change. For cooling, swap the two thresholds."
+      }
+    },
+    "filtro": {
+      "titolo": "Measurement filter",
+      "descrizione": "Smooths a jumpy measurement (exponential moving average) and writes it to another tag.",
+      "tag": {
+        "misura": "Measurement to filter",
+        "filtrata": "Filtered measurement"
+      },
+      "nomi": {
+        "principale": "filter"
+      },
+      "id": {
+        "alfa": "ALPHA",
+        "misura": "value",
+        "filtrato": "filtered"
+      },
+      "t": {
+        "c1": "Filter: every second it moves towards the measurement by a fraction ALPHA of the difference.",
+        "c2": "Small ALPHA = slower and smoother; 1 = no filter. After a restart it starts from the measurement."
+      }
+    },
+    "ritardo_inserzione": {
+      "titolo": "On-delay timer (TON)",
+      "descrizione": "The output turns true only if the input stays true for a few seconds.",
+      "tag": {
+        "ingresso": "Input",
+        "uscita": "Delayed output"
+      },
+      "nomi": {
+        "principale": "on_delay"
+      },
+      "id": {
+        "ritardo_ms": "DELAY_MS",
+        "attiva": "active",
+        "dal": "since"
+      },
+      "t": {
+        "c1": "TON: the output turns on when the input has been true for at least DELAY_MS milliseconds.",
+        "c2": "It runs every 200 ms, so the delay is accurate to one round. If the input drops, it starts again."
+      }
+    },
+    "comando_orario": {
+      "titolo": "Timed command",
+      "descrizione": "Two scripts: one switches an output on in the morning, the other switches it off in the evening.",
+      "tag": {
+        "uscita": "Output to drive"
+      },
+      "nomi": {
+        "accensione": "switch_on",
+        "spegnimento": "switch_off"
+      },
+      "t": {
+        "c1": "Switches the output on at the trigger time (cron).",
+        "c2": "Switches the output off at the trigger time (cron).",
+        "utc": "The cron time is UTC, not local time: adjust the hour to your time zone."
+      }
+    },
+    "azzeramento_mezzanotte": {
+      "titolo": "Reset at midnight",
+      "descrizione": "A function that resets a counter, called every night by a script and, if you like, by a button.",
+      "tag": {
+        "contatore": "Counter to reset"
+      },
+      "nomi": {
+        "azzera": "reset_counter",
+        "mezzanotte": "nightly_reset"
+      },
+      "t": {
+        "c1": "Resets the counter.",
+        "c2": "The same function can be attached to a button (On click → Function) to reset by hand.",
+        "c3": "Every night it calls the function that resets the counter.",
+        "utc": "The cron time is UTC, not local time: adjust the hour to your time zone."
+      }
+    },
+    "alternanza_pompe": {
+      "titolo": "Two-pump alternation",
+      "descrizione": "On each request the pump that rested last time starts, so they wear evenly.",
+      "tag": {
+        "richiesta": "Pumping request",
+        "pompa1": "Pump 1 command",
+        "pompa2": "Pump 2 command"
+      },
+      "nomi": {
+        "principale": "pump_alternation"
+      },
+      "id": {
+        "turno": "turn"
+      },
+      "t": {
+        "c1": "Alternation: when the request arrives the pump on duty starts; when it ends, the duty passes to the other.",
+        "c2": "The duty lives in state: after a runtime restart it starts again from pump 1."
+      }
+    },
+    "valore_limitato": {
+      "titolo": "Value with limits",
+      "descrizione": "A function for + and − buttons: changes a value by one step without leaving its limits.",
+      "tag": {
+        "valore": "Value to adjust"
+      },
+      "nomi": {
+        "principale": "adjust_value"
+      },
+      "id": {
+        "passo": "step",
+        "minimo": "MINIMUM",
+        "massimo": "MAXIMUM",
+        "nuovo": "new_value"
+      },
+      "t": {
+        "c1": "Adds the step to the value, without going below the minimum or above the maximum.",
+        "c2": "Two buttons call the same function: one with step 1, one with step -1."
+      }
+    },
+    "avviso_telegram": {
+      "titolo": "Telegram alert with debounce",
+      "descrizione": "Sends a message if the alarm lasts more than a few seconds, and no more than one every ten minutes.",
+      "tag": {
+        "allarme": "Alarm condition"
+      },
+      "nomi": {
+        "principale": "telegram_alert"
+      },
+      "id": {
+        "attesa_ms": "WAIT_MS",
+        "pausa_ms": "PAUSE_MS",
+        "dal": "since",
+        "inviato": "sent"
+      },
+      "t": {
+        "c1": "Alert: if the condition stays true for WAIT_MS, sends a Telegram message.",
+        "c2": "Then it stays quiet for PAUSE_MS. The Telegram channel must be set in the project notifications.",
+        "messaggio": "Alarm active:"
+      }
+    }
   }
 }

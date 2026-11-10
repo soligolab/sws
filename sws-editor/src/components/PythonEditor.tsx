@@ -1,6 +1,6 @@
 import { useEffect, useImperativeHandle, useRef, forwardRef } from "react";
 import { EditorView, keymap, lineNumbers, highlightActiveLine } from "@codemirror/view";
-import { EditorState, Compartment } from "@codemirror/state";
+import { EditorState, Compartment, type Extension } from "@codemirror/state";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { python } from "@codemirror/lang-python";
 import { oneDark } from "@codemirror/theme-one-dark";
@@ -23,6 +23,10 @@ interface PythonEditorProps {
   indentTab?: boolean;
   /** Read-only mode for preview. */
   readOnly?: boolean;
+  /** Estensioni in più, lette solo alla creazione: il completamento e gli
+   *  avvisi dell'editor della logica (L2, 10-11-2026). Leggono il loro
+   *  contesto da un ref, perché l'editor non si ricrea. */
+  estensioni?: Extension[];
 }
 
 /**
@@ -35,7 +39,7 @@ interface PythonEditorProps {
  * doesn't trigger a round-trip back through React state.
  */
 export const PythonEditor = forwardRef<PythonEditorHandle, PythonEditorProps>(
-  function PythonEditor({ value, onChange, height = "100%", indentTab = true, readOnly = false }, ref) {
+  function PythonEditor({ value, onChange, height = "100%", indentTab = true, readOnly = false, estensioni = [] }, ref) {
     const hostRef     = useRef<HTMLDivElement | null>(null);
     const viewRef     = useRef<EditorView | null>(null);
     // Hold the latest onChange in a ref so the listener doesn't capture a stale closure.
@@ -59,6 +63,7 @@ export const PythonEditor = forwardRef<PythonEditorHandle, PythonEditorProps>(
           ]),
           python(),
           oneDark,
+          ...estensioni,
           readOnlyComp.current.of(EditorState.readOnly.of(readOnly)),
           EditorView.lineWrapping,
           EditorView.theme({

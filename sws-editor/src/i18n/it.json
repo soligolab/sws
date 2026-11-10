@@ -2057,13 +2057,6 @@
     "title": "Funzione Python",
     "noName": "(senza nome)",
     "unsaved": "● modifiche non salvate",
-    "snippetPlaceholder": "Inserisci template…",
-    "snippetIncrement": "Incremento tag",
-    "snippetToggle": "Toggle booleano",
-    "snippetConditional": "Scrittura condizionale",
-    "snippetResetMany": "Reset multi-tag",
-    "snippetDiagnostic": "Diagnostico (print)",
-    "snippetSkeleton": "Scheletro con parametri",
     "saving": "Salvataggio…",
     "save": "Salva funzioni",
     "closeTitle": "Chiudi (torna al canvas)",
@@ -4669,6 +4662,223 @@
     "vietato": "vietato:",
     "nessunaUscita": "(nessuna uscita)",
     "scriptSpostati": "Gli script si scrivono nella sezione Logica del pannello a sinistra, insieme alle funzioni: si aprono al posto del sinottico.",
-    "lvglNonEsegue": "Sul pannello LVGL questa funzione non parte: la esegue solo il viewer web."
+    "lvglNonEsegue": "Sul pannello LVGL questa funzione non parte: la esegue solo il viewer web.",
+    "nuovoDaModello": "+ Nuovo da modello…",
+    "modelloTitolo": "Nuovo da modello",
+    "modelloScegli": "Scegli cosa deve fare. Il codice nasce coi tag del progetto, e lo puoi cambiare dopo.",
+    "modelloTagAiuto": "Scegli i tag del progetto che il codice userà.",
+    "modelloLetto": "letto",
+    "modelloScritto": "scritto",
+    "modelloCrea": "Crea",
+    "modelloIndietro": "Indietro",
+    "modelloNasce": "Nasceranno:",
+    "modelloFunzione": "la funzione «{{nome}}»",
+    "modelloScript": "lo script «{{nome}}»",
+    "modelloSalva": "Gli script nuovi partono solo dopo il Salva.",
+    "avvisoTagNonDichiarato": "«{{id}}» non è un tag del progetto: tags.read darà None.",
+    "avvisoTagNonScrivibile": "«{{id}}» è calcolato o di sola lettura: la scrittura sarà rifiutata.",
+    "suggValore": "ora: {{v}}",
+    "suggParametro": "parametro",
+    "suggParametroDefault": "parametro, predefinito {{v}}",
+    "suggBuiltin": "funzione di Python",
+    "suggChiave": "chiave lingua",
+    "suggFunzione": "funzione del progetto",
+    "suggParola": "parola di Python",
+    "firmaWrite": "(id, valore)",
+    "firmaGet": "(chiave, default=None)",
+    "firmaSet": "(chiave, valore)",
+    "firmaRun": "(nome, **parametri)"
+  },
+  "logicaModelli": {
+    "contaore": {
+      "titolo": "Contaore di marcia",
+      "descrizione": "Ogni secondo, se la macchina è in marcia, aggiunge il tempo passato a un tag di ore.",
+      "tag": {
+        "marcia": "In marcia (vero/falso)",
+        "ore": "Ore di marcia (numero decimale)"
+      },
+      "nomi": {
+        "principale": "contaore"
+      },
+      "id": {
+        "ore": "ore"
+      },
+      "t": {
+        "c1": "Contaore: ogni secondo, se la macchina è in marcia, aggiunge il tempo passato dall'ultimo giro.",
+        "c2": "delta_ms() vale 0 al primo giro; il totale vive nel tag, che va dichiarato decimale (float)."
+      }
+    },
+    "contapezzi": {
+      "titolo": "Contapezzi",
+      "descrizione": "A ogni fronte di salita del sensore aggiunge un pezzo al contatore.",
+      "tag": {
+        "sensore": "Sensore del pezzo",
+        "pezzi": "Contatore dei pezzi"
+      },
+      "nomi": {
+        "principale": "contapezzi"
+      },
+      "id": {
+        "pezzi": "pezzi"
+      },
+      "t": {
+        "c1": "Contapezzi: parte a ogni fronte di salita del sensore e aggiunge un pezzo.",
+        "c2": "Per azzerarlo basta scrivere 0 nel tag (un pulsante, o il modello «Azzeramento a mezzanotte»)."
+      }
+    },
+    "isteresi": {
+      "titolo": "Uscita con isteresi",
+      "descrizione": "Accende un'uscita sotto una soglia e la spegne sopra un'altra, come un termostato.",
+      "tag": {
+        "misura": "Misura",
+        "uscita": "Uscita da comandare"
+      },
+      "nomi": {
+        "principale": "isteresi"
+      },
+      "id": {
+        "accendi_sotto": "ACCENDI_SOTTO",
+        "spegni_sopra": "SPEGNI_SOPRA",
+        "misura": "misura",
+        "acceso": "acceso"
+      },
+      "t": {
+        "c1": "Isteresi: accende sotto la prima soglia, spegne sopra la seconda; fra le due non cambia niente.",
+        "c2": "Scrive solo quando l'uscita deve cambiare. Per un raffrescamento, scambia le due soglie."
+      }
+    },
+    "filtro": {
+      "titolo": "Filtro di una misura",
+      "descrizione": "Smorza una misura che salta (media mobile esponenziale) e la scrive in un altro tag.",
+      "tag": {
+        "misura": "Misura da filtrare",
+        "filtrata": "Misura filtrata"
+      },
+      "nomi": {
+        "principale": "filtro"
+      },
+      "id": {
+        "alfa": "ALFA",
+        "misura": "misura",
+        "filtrato": "filtrato"
+      },
+      "t": {
+        "c1": "Filtro: ogni secondo si avvicina alla misura di una frazione ALFA della differenza.",
+        "c2": "ALFA piccolo = più lento e più liscio; 1 = nessun filtro. Al riavvio riparte dalla misura."
+      }
+    },
+    "ritardo_inserzione": {
+      "titolo": "Ritardo all'inserzione (TON)",
+      "descrizione": "L'uscita diventa vera solo se l'ingresso resta vero per alcuni secondi.",
+      "tag": {
+        "ingresso": "Ingresso",
+        "uscita": "Uscita ritardata"
+      },
+      "nomi": {
+        "principale": "ritardo_inserzione"
+      },
+      "id": {
+        "ritardo_ms": "RITARDO_MS",
+        "attiva": "attiva",
+        "dal": "dal"
+      },
+      "t": {
+        "c1": "TON: l'uscita si accende quando l'ingresso è vero da almeno RITARDO_MS millisecondi.",
+        "c2": "Gira ogni 200 ms, quindi il ritardo è preciso a un giro. Se l'ingresso cade, si riparte da zero."
+      }
+    },
+    "comando_orario": {
+      "titolo": "Comando a orario",
+      "descrizione": "Due script: uno accende un'uscita la mattina, l'altro la spegne la sera.",
+      "tag": {
+        "uscita": "Uscita da comandare"
+      },
+      "nomi": {
+        "accensione": "accensione",
+        "spegnimento": "spegnimento"
+      },
+      "t": {
+        "c1": "Accende l'uscita all'orario del trigger (cron).",
+        "c2": "Spegne l'uscita all'orario del trigger (cron).",
+        "utc": "L'orario del cron è in UTC, non nell'ora locale: l'ora italiana è avanti di una d'inverno, di due d'estate."
+      }
+    },
+    "azzeramento_mezzanotte": {
+      "titolo": "Azzeramento a mezzanotte",
+      "descrizione": "Una funzione che azzera un contatore, chiamata ogni notte da uno script e, se vuoi, da un pulsante.",
+      "tag": {
+        "contatore": "Contatore da azzerare"
+      },
+      "nomi": {
+        "azzera": "azzera_contatore",
+        "mezzanotte": "azzeramento_notturno"
+      },
+      "t": {
+        "c1": "Azzera il contatore.",
+        "c2": "La stessa funzione si collega a un pulsante (Al clic → Funzione) per azzerare a mano.",
+        "c3": "Ogni notte chiama la funzione che azzera il contatore.",
+        "utc": "L'orario del cron è in UTC, non nell'ora locale: l'ora italiana è avanti di una d'inverno, di due d'estate."
+      }
+    },
+    "alternanza_pompe": {
+      "titolo": "Alternanza di due pompe",
+      "descrizione": "A ogni richiesta parte la pompa che ha riposato l'ultima volta, così si consumano uguale.",
+      "tag": {
+        "richiesta": "Richiesta di pompaggio",
+        "pompa1": "Comando pompa 1",
+        "pompa2": "Comando pompa 2"
+      },
+      "nomi": {
+        "principale": "alternanza_pompe"
+      },
+      "id": {
+        "turno": "turno"
+      },
+      "t": {
+        "c1": "Alternanza: quando arriva la richiesta parte la pompa di turno; quando cessa, il turno passa all'altra.",
+        "c2": "Il turno vive in state: dopo un riavvio del runtime si riparte dalla pompa 1."
+      }
+    },
+    "valore_limitato": {
+      "titolo": "Valore con limiti",
+      "descrizione": "Una funzione per i pulsanti + e −: cambia un valore di un passo senza uscire dai limiti.",
+      "tag": {
+        "valore": "Valore da regolare"
+      },
+      "nomi": {
+        "principale": "regola_valore"
+      },
+      "id": {
+        "passo": "passo",
+        "minimo": "MINIMO",
+        "massimo": "MASSIMO",
+        "nuovo": "nuovo"
+      },
+      "t": {
+        "c1": "Aggiunge il passo al valore, senza scendere sotto il minimo né salire sopra il massimo.",
+        "c2": "Due pulsanti chiamano la stessa funzione: uno col passo 1, uno col passo -1."
+      }
+    },
+    "avviso_telegram": {
+      "titolo": "Avviso Telegram con antirimbalzo",
+      "descrizione": "Manda un messaggio se l'allarme dura più di qualche secondo, e non più di uno ogni dieci minuti.",
+      "tag": {
+        "allarme": "Condizione di allarme"
+      },
+      "nomi": {
+        "principale": "avviso_telegram"
+      },
+      "id": {
+        "attesa_ms": "ATTESA_MS",
+        "pausa_ms": "PAUSA_MS",
+        "dal": "dal",
+        "inviato": "inviato"
+      },
+      "t": {
+        "c1": "Avviso: se la condizione resta vera per ATTESA_MS, manda un messaggio Telegram.",
+        "c2": "Poi tace per PAUSA_MS. Serve il canale Telegram nelle notifiche del progetto.",
+        "messaggio": "Allarme attivo:"
+      }
+    }
   }
 }

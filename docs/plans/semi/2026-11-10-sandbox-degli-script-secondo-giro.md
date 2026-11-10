@@ -10,7 +10,7 @@
 
 ## Da dove nasce
 
-La sessione L0 del piano [Logica unificata](../2026-11-04-logica-unificata.md) (ramo `fix/sandbox-python`,
+La sessione L0 del piano [Logica unificata](../../archive/2026-11-04-logica-unificata.md) (ramo `fix/sandbox-python`,
 05-11-2026) ha dato alla sandbox Python quello che RestrictedPython riscrive: `print`, `for`, `+=`,
 `a, b = …`, le comprensioni, e i builtin `min`, `max`, `sum`, `abs`, `round`, `len`, `list`, `dict`,
 `enumerate`, `range`, `any`, `all`, `sorted` (`BUILTIN_AGGIUNTI` in `sws-runtime/crates/sws-pyscript/src/lib.rs`).

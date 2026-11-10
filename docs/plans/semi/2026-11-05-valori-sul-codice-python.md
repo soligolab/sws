@@ -50,7 +50,7 @@ I pezzi però ci sono:
 ## La proposta del 05-11 (da decidere)
 
 Ordine **B → A0 → A**, C no: B fa senza toccare il pannello i due pezzi che servono ad A (raccoglitore e widget), e si
-innesta dopo L1 della [logica unificata](../2026-11-04-logica-unificata.md) (il «Prova» c'è solo per le funzioni); A0 sta
+innesta dopo L1 della [logica unificata](../../archive/2026-11-04-logica-unificata.md) (il «Prova» c'è solo per le funzioni); A0 sta
 bene accanto a L2; A è un ramo suo, prima sull'IDE 8460 e poi sul pannello con la misura sul WP630.
 
 Domande per il maintainer: l'ordine (A, cioè l'impianto che gira, prima?); quale copia mostrare quando l'IDE è

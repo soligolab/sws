@@ -79,7 +79,7 @@ export interface TagUsageInput {
  *  apici singoli (`homeassistant-demo`, `enip-demo`) non risultavano usare
  *  nessun tag. Solo letterali fra apici: una variabile (`tags.read(tag)`) non
  *  combacia, e va bene — cercarla per sottostringa darebbe falsi positivi. */
-const EXPR_RE = /tags\[(['"])([^'"]+)\1\]|tags\.(?:read|write)\(\s*(['"])([^'"]+)\3/g;
+export const EXPR_RE = /tags\[(['"])([^'"]+)\1\]|tags\.(?:read|write)\(\s*(['"])([^'"]+)\3/g;
 
 /** Costruisce la mappa tagId → elenco dei punti che lo usano. */
 export function buildTagUsage({

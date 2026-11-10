@@ -2103,6 +2103,11 @@ export const api = {
       body: JSON.stringify({ code }),
     }),
 
+  /** I nomi che uno script trova già pronti (`GET /api/script/nomi`, L0):
+   *  l'elenco unico del runtime, per il completamento dell'editor (L2). */
+  nomiScript: () =>
+    request<{ forniti: { nome: string; uso: string }[]; builtin_aggiunti: string[]; sandbox_attiva: boolean }>("/api/script/nomi"),
+
   runFunction: (name: string, args?: Record<string, string | number | boolean>) =>
     request<{
       ok: boolean;

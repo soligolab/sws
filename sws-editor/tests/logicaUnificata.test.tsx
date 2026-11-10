@@ -1,4 +1,4 @@
-/** La logica in un ramo solo (piano `docs/plans/2026-11-04-logica-unificata.md`,
+/** La logica in un ramo solo (piano `docs/archive/2026-11-04-logica-unificata.md`,
  *  sessione L1, 08-11-2026): funzioni e script nello stesso editor al centro,
  *  la rinomina di una funzione che segue chi la chiama, il codice delle
  *  funzioni nella ricerca degli usi e nella rinomina dei tag, le cancellazioni
@@ -27,6 +27,7 @@ import { rinomina } from "../src/tag/rinominaTag";
 import { LogicaEditor } from "../src/editor/LogicaEditor";
 import { LeftPanel } from "../src/editor/LeftPanel";
 import type { FunctionDef, GlobalScriptDef, ProjectInfo, SynopticPage } from "../src/types";
+import type { Richiesta } from "../src/finestraAvviso/finestraAvviso";
 
 beforeAll(async () => { await i18n.changeLanguage("it"); });
 
@@ -180,5 +181,40 @@ describe("Ctrl+Z dopo una rinomina", () => {
     st = useAppStore.getState();
     expect(st.project?.functions?.[0].name).toBe("luce_on");
     expect(JSON.stringify(st.pages)).toContain("\"luce_on\"");
+  });
+});
+
+describe("Nuovo da modello (L3, 10-11-2026)", () => {
+  it("si sceglie il modello, poi i tag; il codice nasce coi tag veri e la funzione si scrive", async () => {
+    const { rispondi } = await import("../src/finestraAvviso/finestraAvviso");
+    let corpo: ((fine: (v: unknown) => void) => React.ReactNode) | null = null;
+    const auto = rispondi((r: Richiesta) => { if (r.tipo === "modulo") corpo = r.corpo as typeof corpo; return null; });
+    render(<LeftPanel />);
+    fireEvent.click(screen.getByText(i18n.t("leftPanel.logica") as string));
+    fireEvent.click(screen.getByTestId("logica-nuovo-da-modello"));
+    auto.ferma();
+    await waitFor(() => expect(corpo).not.toBeNull());
+
+    // Il modulo vero, disegnato a parte: la risposta la prende `fine`.
+    const fine = vi.fn();
+    render(<>{corpo!(fine)}</>);
+    fireEvent.click(screen.getByTestId("modello-azzeramento_mezzanotte"));
+    const crea = screen.getByTestId("modello-crea") as HTMLButtonElement;
+    expect(crea.disabled).toBe(true);
+    fireEvent.change(screen.getByTestId("modello-tag-contatore").querySelector("input")!, { target: { value: "luce" } });
+    fireEvent.click(crea);
+    const nuovi = fine.mock.calls[0][0];
+    expect(nuovi.funzioni[0].code).toContain('tags.write("luce", 0)');
+    expect(nuovi.script[0].code).toContain(`functions.run("${nuovi.funzioni[0].name}")`);
+
+    // E dal pannello: con la risposta, la funzione e lo script entrano nel progetto.
+    const auto2 = rispondi(nuovi);
+    fireEvent.click(screen.getAllByTestId("logica-nuovo-da-modello")[0]);
+    auto2.ferma();
+    await waitFor(() => expect(api.updateFunctions).toHaveBeenCalled());
+    const st = useAppStore.getState();
+    expect(st.project?.functions?.map((f) => f.name)).toContain(nuovi.funzioni[0].name);
+    expect(st.project?.global_scripts?.map((g) => g.id)).toContain(nuovi.script[0].id);
+    expect(st.selectedFunctionId).toBe(nuovi.funzioni[0].id);
   });
 });

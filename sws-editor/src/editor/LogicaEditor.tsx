@@ -1,5 +1,5 @@
 // L'editor della logica: funzioni e script in un editor solo (08-11-2026,
-// piano `docs/plans/2026-11-04-logica-unificata.md`, sessione L1). Prende il
+// piano `docs/archive/2026-11-04-logica-unificata.md`, sessione L1). Prende il
 // posto del sinottico, come faceva l'editor delle funzioni: a sinistra nome,
 // descrizione e parametri (funzione) o abilitato e trigger (script), a destra
 // il codice. Prima gli script avevano un editor loro in una scheda della
@@ -13,14 +13,19 @@
 // «Controlla» compila senza eseguire (`POST /api/script/check`). «Prova»
 // esegue davvero una funzione salvata: sul pannello scrive i tag, e lo dice.
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { autocompletion } from "@codemirror/autocomplete";
+import { linter } from "@codemirror/lint";
+import { localCompletionSource } from "@codemirror/lang-python";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { PythonEditor, type PythonEditorHandle } from "@/components/PythonEditor";
-import { TagInput } from "@/components/TagInput";
+import { statoTag, TagInput } from "@/components/TagInput";
 import { CampoNumero } from "@/components/CampoNumero";
 import { conferma } from "@/finestraAvviso/finestraAvviso";
 import { scriptCambiati, useAppStore } from "@/store";
+import { sorgentiLogica, tagNonScrivibili, vociTag, type ContestoLogica } from "@/logica/completamento";
+import { avvisiSandbox, avvisiTag, RITARDO_AVVISI_MS } from "@/logica/avvisi";
 import type { FunctionDef, GlobalScriptDef, ScriptTriggerKind } from "@/types";
 
 export type VoceLogica = { tipo: "funzione"; fn: FunctionDef } | { tipo: "script"; script: GlobalScriptDef };
@@ -53,6 +58,55 @@ export function LogicaEditor({ voce, onClose }: { voce: VoceLogica; onClose: () 
   const [errore, setErrore] = useState<string | null>(null);
   const [esito, setEsito] = useState<Esito | null>(null);
   const [nomeBozza, setNomeBozza] = useState(nome);
+  const nomi = useNomiForniti();
+
+  // Il contesto del completamento e degli avvisi (L2, 10-11-2026). L'editor si
+  // costruisce una volta: le sorgenti leggono da qui a ogni battuta, così
+  // vedono i tag, i valori live e i parametri di adesso. I valori live si
+  // leggono solo quando si apre l'elenco: abbonarsi a `tagValues` ridisegnerebbe
+  // l'editor a ogni aggiornamento dei tag.
+  const project = useAppStore((s) => s.project);
+  const inAttesa = useAppStore((s) => s.tagInAttesa);
+  const tagVoci = useMemo(() => vociTag(project, {}), [project]);
+  const conosciuto = useMemo(() => {
+    const catalogo = new Set(tagVoci.map((v) => v.id));
+    const dichiarati = new Set((project?.tags ?? []).map((x) => x.id));
+    const attesa = new Set(inAttesa.map((x) => x.id));
+    const radici = (project?.tags ?? []).filter((x) => x.type_ref || x.array).map((x) => x.id);
+    const sorgenti = (project?.sources ?? []).map((x) => x.id);
+    return (id: string) => catalogo.has(id) || statoTag(id, dichiarati, attesa, radici, sorgenti) !== "nuovo";
+  }, [tagVoci, project, inAttesa]);
+  const contesto = useRef<ContestoLogica & { conosciuto: (id: string) => boolean; nonScrivibili: Set<string> }>(null!);
+  contesto.current = {
+    tipo: voce.tipo,
+    parametri: funzione ? voce.fn.params : [],
+    forniti: nomi?.forniti ?? [],
+    builtin: nomi?.builtin_aggiunti ?? [],
+    tag: tagVoci,
+    funzioni: funzioni.map((f) => ({ name: f.name, params: f.params, description: f.description })),
+    chiavi: (project?.languages?.entries ?? []).map((e) => ({ key: e.key, testo: e.values[project?.languages?.default ?? ""] })),
+    conosciuto,
+    nonScrivibili: tagNonScrivibili(project),
+  };
+  const estensioni = useMemo(() => [
+    autocompletion({ override: [...sorgentiLogica(() => {
+      const valori = useAppStore.getState().tagValues;
+      return { ...contesto.current, tag: contesto.current.tag.map((v) => ({ ...v, valore: valori[v.id]?.value })) };
+    }), localCompletionSource] }),
+    linter(async (view) => {
+      const codice = view.state.doc.toString();
+      const c = contesto.current;
+      const lato = avvisiTag(codice, c.conosciuto, c.nonScrivibili);
+      if (codice.trim() === "") return lato;
+      try {
+        const r = await api.checkScript(codice);
+        return [...avvisiSandbox(view.state.doc, r), ...lato];
+      } catch {
+        // Il runtime non risponde: restano gli avvisi dell'IDE, e «Controlla» lo dirà.
+        return lato;
+      }
+    }, { delay: RITARDO_AVVISI_MS }),
+  ], []);
 
   useEffect(() => {
     setNomeBozza(nome);
@@ -148,21 +202,6 @@ export function LogicaEditor({ voce, onClose }: { voce: VoceLogica; onClose: () 
         <code style={{ color: "var(--brand-success, #22c55e)", fontSize: 12 }}>{nome || t("functionEditor.noName")}</code>
         {modificato && <span style={{ color: "var(--brand-warning-soft, #fbbf24)", fontSize: 11, fontWeight: 600 }}>{t("functionEditor.unsaved")}</span>}
         <div style={{ flex: 1 }} />
-        {funzione && (
-          <select style={SELECT_STYLE} value="" onChange={(e) => {
-            const k = e.target.value as keyof typeof SNIPPETS | "";
-            if (k) editorRef.current?.insertAtCursor(SNIPPETS[k]);
-            e.target.value = "";
-          }}>
-            <option value="">{t("functionEditor.snippetPlaceholder")}</option>
-            <option value="increment">{t("functionEditor.snippetIncrement")}</option>
-            <option value="toggle">{t("functionEditor.snippetToggle")}</option>
-            <option value="conditional">{t("functionEditor.snippetConditional")}</option>
-            <option value="reset_many">{t("functionEditor.snippetResetMany")}</option>
-            <option value="diagnostic">{t("functionEditor.snippetDiagnostic")}</option>
-            <option value="skeleton">{t("functionEditor.snippetSkeleton")}</option>
-          </select>
-        )}
         <button type="button" data-testid="logica-controlla" onClick={() => void controlla()} title={t("logica.controllaAiuto")} style={bottone(true)}>
           {t("logica.controlla")}
         </button>
@@ -209,9 +248,9 @@ export function LogicaEditor({ voce, onClose }: { voce: VoceLogica; onClose: () 
             ? <Parametri fn={voce.fn} onPatch={patch} />
             : <ScriptAvvio script={voce.script} onPatch={patch} />}
           <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "8px 0 0" }}>
-            {t("logica.nomiForniti")} <code>tags.read(id)</code>, <code>tags.write(id, value)</code>, <code>print(...)</code>,{" "}
-            <code>send_telegram(msg)</code>, <code>now_ms()</code>/<code>uptime_ms()</code>/<code>delta_ms()</code>,{" "}
-            <code>state.get(k, default)</code>/<code>state.set(k, v)</code>, <code>functions.run(nome, **kwargs)</code>, <code>tr(key)</code>.
+            {/* L'elenco viene dal runtime (`GET /api/script/nomi`), non da qui. */}
+            {t("logica.nomiForniti")}{" "}
+            {(nomi?.forniti ?? []).map((n, i) => <span key={n.nome}>{i > 0 && ", "}<code>{n.uso}</code></span>)}.
             {funzione && <>{" "}{t("functionEditor.bindingsParams")}<code>on_press_args</code>{t("functionEditor.bindingsOrRest")}<code>POST /api/script/run/:name</code>{t("functionEditor.bindingsOrScript")}<code>functions.run(nome, **kwargs)</code>{t("functionEditor.bindingsHowto")}</>}
           </p>
         </aside>
@@ -219,7 +258,7 @@ export function LogicaEditor({ voce, onClose }: { voce: VoceLogica; onClose: () 
         <div style={{ flex: 1, padding: 14, display: "flex", flexDirection: "column", minWidth: 0, gap: 8 }}>
           <label style={{ ...LABEL_STYLE, marginBottom: 0 }}>{t("functionEditor.codeLabel")}</label>
           <div style={{ flex: 1, minHeight: 0 }}>
-            <PythonEditor ref={editorRef} value={codice} onChange={(next) => patch({ code: next })} />
+            <PythonEditor ref={editorRef} value={codice} onChange={(next) => patch({ code: next })} estensioni={estensioni} />
           </div>
           {esito && <PannelloEsito esito={esito} onRiga={(r) => editorRef.current?.vaiARiga(r)} onChiudi={() => setEsito(null)} />}
         </div>
@@ -359,44 +398,20 @@ const INPUT_STYLE: React.CSSProperties = {
   width: "100%", background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)",
   border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "5px 8px", fontSize: 13, boxSizing: "border-box",
 };
-const SELECT_STYLE: React.CSSProperties = { ...INPUT_STYLE, width: "auto", padding: "4px 8px", cursor: "pointer", fontSize: 12 };
 
-/** Frammenti da inserire al cursore, per le funzioni. Li sostituiscono i
- *  modelli coi tag del progetto nella sessione L3. */
-const SNIPPETS = {
-  increment:
-`# Increment a numeric tag by 1.
-v = tags.read("counter") or 0
-tags.write("counter", v + 1)
-`,
-  toggle:
-`# Toggle a boolean tag.
-tags.write("light", not (tags.read("light") or False))
-`,
-  conditional:
-`# Write B only when A is over the threshold.
-a = tags.read("input_a") or 0
-if a > 50:
-    tags.write("alarm_active", True)
-else:
-    tags.write("alarm_active", False)
-`,
-  reset_many:
-`# Reset a list of tags to 0.
-for t in ("counter", "errors", "downtime_min"):
-    tags.write(t, 0)
-`,
-  diagnostic:
-`# Diagnostic: print current values to the runtime stdout / browser console.
-for t in ("counter", "pump.running"):
-    print(t, "=", tags.read(t))
-`,
-  skeleton:
-`# Function skeleton with declared parameters.
-# Declare params in the left panel (e.g. tag="counter", step=1) and they
-# show up as plain Python globals here.
-v = tags.read(tag) or 0
-tags.write(tag, v + step)
-print(f"{tag}: {v} -> {v + step}")
-`,
-};
+/** I nomi forniti dal runtime, chiesti una volta per sessione dell'IDE: non
+ *  cambiano finché non cambia il runtime. `null` finché non arrivano, o se il
+ *  runtime non li dà (uno di prima di L0): allora il completamento propone solo
+ *  parametri, builtin e parole di Python. */
+type NomiForniti = Awaited<ReturnType<typeof api.nomiScript>>;
+let nomiInArrivo: Promise<NomiForniti | null> | null = null;
+function useNomiForniti(): NomiForniti | null {
+  const [nomi, setNomi] = useState<NomiForniti | null>(null);
+  useEffect(() => {
+    let vivo = true;
+    nomiInArrivo ??= api.nomiScript().catch(() => { nomiInArrivo = null; return null; });
+    void nomiInArrivo.then((n) => { if (vivo) setNomi(n); });
+    return () => { vivo = false; };
+  }, []);
+  return nomi;
+}

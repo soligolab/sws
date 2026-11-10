@@ -590,6 +590,10 @@ interface AppState {
   selectScript: (id: string | null) => void;
   /** Uno script nuovo, aperto nell'editor; restituisce il suo id. */
   addScript: () => string;
+  /** Le funzioni e gli script nati da un modello (L3, 10-11-2026): si
+   *  aggiungono insieme, e si apre il primo. Le funzioni le persiste chi
+   *  chiama, come per `addFunction`; gli script aspettano il Salva. */
+  aggiungiDaModello: (nuovi: { funzioni: FunctionDef[]; script: GlobalScriptDef[] }) => void;
   /** Cambia uno script; con `patch.id` lo rinomina, e la selezione lo segue. */
   updateScript: (id: string, patch: Partial<GlobalScriptDef>) => void;
   deleteScript: (id: string) => void;
@@ -2086,6 +2090,20 @@ export const useAppStore = create<AppState>((set, get) => {
       }));
       return id;
     },
+
+    aggiungiDaModello: ({ funzioni, script }) =>
+      set((s) => ({
+        project: s.project
+          ? {
+              ...s.project,
+              functions: [...(s.project.functions ?? []), ...funzioni],
+              global_scripts: [...(s.project.global_scripts ?? []), ...script],
+            }
+          : s.project,
+        selectedFunctionId: funzioni[0]?.id ?? null,
+        selectedScriptId: funzioni[0] ? null : script[0]?.id ?? null,
+        planimetriaAperta: null, selectedObjectId: null, selectedObjectIds: [],
+      })),
 
     updateScript: (id, patch) =>
       set((s) => ({

@@ -2282,3 +2282,160 @@ tags.write('ok', ok)
         assert!(lungo.ends_with("byte)"), "{lungo}");
     }
 }
+
+/// I modelli di «Nuovo da modello» dell'IDE (L3, 10-11-2026): i file
+/// `sws-editor/src/logica/modelli/*.py`, letti da qui così come li legge
+/// l'IDE. Ognuno deve passare il controllo di `/api/script/check` **e girare**:
+/// un modello che nasce rotto insegna a non fidarsi dei modelli.
+///
+/// I segnaposto si sostituiscono come farebbe l'IDE, con valori qualsiasi ma
+/// coerenti: `{{tag:x}}` → `modello.x`, `{{nome:k}}` e `{{id:k}}` → `k`,
+/// `{{t:k}}` → un testo. I tag letti partono a 1 (vero e numerico insieme),
+/// così i rami `if tags.read(...)` girano davvero; ogni pezzo gira due volte,
+/// perché il secondo giro è quello che trova lo `state` del primo.
+///
+/// Senza RestrictedPython (il PC di sviluppo) il controllo fa solo il passo
+/// sull'AST: vedi `tests_sandbox_l0` per come accendere l'altro ramo.
+#[cfg(test)]
+mod tests_modelli_ide {
+    use super::*;
+
+    struct Pezzo {
+        funzione: bool,
+        nome: String,
+        parametri: Vec<(String, serde_json::Value)>,
+        codice: String,
+    }
+
+    fn sostituisci(s: &str) -> String {
+        let mut out = String::new();
+        let mut resto = s;
+        while let Some(i) = resto.find("{{") {
+            out.push_str(&resto[..i]);
+            let j = resto[i..].find("}}").expect("segnaposto non chiuso") + i;
+            let (tipo, chiave) = resto[i + 2..j]
+                .split_once(':')
+                .expect("segnaposto senza tipo");
+            out.push_str(&match tipo {
+                "tag" => format!("modello.{chiave}"),
+                "nome" | "id" => chiave.to_string(),
+                "t" => "un testo".to_string(),
+                altro => panic!("segnaposto `{altro}` sconosciuto"),
+            });
+            resto = &resto[j + 2..];
+        }
+        out.push_str(resto);
+        out
+    }
+
+    /// `(tag letti, pezzi)` di un file di modello.
+    fn leggi(testo: &str) -> (Vec<String>, Vec<Pezzo>) {
+        let mut letti = Vec::new();
+        let mut pezzi: Vec<Pezzo> = Vec::new();
+        for riga in sostituisci(testo).lines() {
+            let Some(h) = riga.strip_prefix("#@ ") else {
+                let p = pezzi.last_mut().expect("codice prima del primo pezzo");
+                p.codice.push_str(riga);
+                p.codice.push('\n');
+                continue;
+            };
+            let parole: Vec<&str> = h.split_whitespace().collect();
+            match parole[0] {
+                "tag" if parole[2] == "lettura" => letti.push(format!("modello.{}", parole[1])),
+                "funzione" | "script" => pezzi.push(Pezzo {
+                    funzione: parole[0] == "funzione",
+                    nome: parole[1].to_string(),
+                    parametri: Vec::new(),
+                    codice: String::new(),
+                }),
+                "parametro" => {
+                    let v = serde_json::from_str(&parole[2..].join(" ")).expect("predefinito JSON");
+                    pezzi
+                        .last_mut()
+                        .unwrap()
+                        .parametri
+                        .push((parole[1].to_string(), v));
+                }
+                _ => {}
+            }
+        }
+        (letti, pezzi)
+    }
+
+    #[tokio::test]
+    async fn i_modelli_dell_ide_girano() {
+        let cartella = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../sws-editor/src/logica/modelli");
+        let mut file: Vec<_> = std::fs::read_dir(&cartella)
+            .unwrap_or_else(|e| panic!("{}: {e}", cartella.display()))
+            .filter_map(|e| e.ok().map(|e| e.path()))
+            .filter(|p| p.extension().is_some_and(|x| x == "py"))
+            .collect();
+        file.sort();
+        assert_eq!(file.len(), 10, "i dieci modelli del piano: {file:?}");
+
+        for percorso in file {
+            let nome_file = percorso.file_name().unwrap().to_string_lossy().to_string();
+            let (letti, pezzi) = leggi(&std::fs::read_to_string(&percorso).unwrap());
+            assert!(!pezzi.is_empty(), "{nome_file}: nessun pezzo");
+
+            let db = Arc::new(TagDb::new(64));
+            for id in &letti {
+                db.set(id.clone(), TagValue::Int(1), sws_core::TagQuality::Good)
+                    .await;
+            }
+            let e = Engine::new(db.clone(), Arc::new(TagWriteBus::new()));
+            let (tx, _rx) = mpsc::unbounded_channel();
+            e.set_telegram_sink(Some(tx));
+            let registro: std::collections::HashMap<String, sws_core::FunctionDef> = pezzi
+                .iter()
+                .filter(|p| p.funzione)
+                .map(|p| {
+                    let def = sws_core::FunctionDef {
+                        id: p.nome.clone(),
+                        name: p.nome.clone(),
+                        description: None,
+                        code: p.codice.clone(),
+                        params: p
+                            .parametri
+                            .iter()
+                            .map(|(n, v)| sws_core::FunctionParam {
+                                name: n.clone(),
+                                default: Some(v.clone()),
+                            })
+                            .collect(),
+                    };
+                    (p.nome.clone(), def)
+                })
+                .collect();
+            e.set_functions_registry(Some(Arc::new(tokio::sync::RwLock::new(registro))));
+
+            for p in &pezzi {
+                let out = e.check(p.codice.clone()).await;
+                assert!(
+                    out.ok && out.rilievi.is_empty(),
+                    "{nome_file} / {}: il controllo lo rifiuta: {:?}\n{}",
+                    p.nome,
+                    out.rilievi,
+                    p.codice
+                );
+                let argomenti: serde_json::Map<String, serde_json::Value> =
+                    p.parametri.iter().cloned().collect();
+                for giro in 1..=2 {
+                    let r = if p.funzione {
+                        e.execute_with_args(p.codice.clone(), argomenti.clone(), &p.nome)
+                            .await
+                    } else {
+                        e.execute(p.codice.clone(), &p.nome).await
+                    };
+                    if let Err(errore) = r {
+                        panic!(
+                            "{nome_file} / {} (giro {giro}): {errore}\n{}",
+                            p.nome, p.codice
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
