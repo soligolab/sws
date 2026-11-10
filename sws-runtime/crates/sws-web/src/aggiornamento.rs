@@ -14,6 +14,7 @@
 
 use serde::Serialize;
 use std::cmp::Ordering;
+use std::sync::atomic::{AtomicBool, Ordering as AtomicOrdering};
 
 /// La versione di questo runtime.
 pub const VERSIONE: &str = env!("CARGO_PKG_VERSION");
@@ -454,7 +455,7 @@ pub async fn stato_con_esito(config_dir: &std::path::Path) -> StatoAggiornamento
         .evento
         .filter(|e| riguarda_questa_versione(e, VERSIONE))
         .filter(|e| !esito_gia_visto(e, p.esito_visto));
-    st.in_corso = p.in_corso.is_some();
+    st.in_corso = p.in_corso.is_some() || in_preparazione();
     st.versione_ignorata = p.versione_ignorata.clone();
     if st.evento.is_some() {
         st.novita_installata = novita_di_questa().await;
@@ -629,9 +630,49 @@ pub async fn prepara_e_avvia(
     da: &str,
     a: Option<String>,
 ) -> Result<(), String> {
+    let _preparazione = prenota(config_dir).await?;
     crate::istantanea_dati::prendi(da).await?;
     crate::aggiornamento_esito::segna_in_corso(config_dir, da, a).await;
     avvia().await
+}
+
+/// L'aggiornamento chiesto in questo processo e non ancora consegnato a
+/// systemd (10-11-2026). Fra «Aggiorna ora» e `in_corso` c'è l'istantanea dei
+/// dati, che con uno storico grande dura minuti: senza questo segnale lo stato
+/// diceva «disponibile» e un secondo «Aggiorna ora» partiva in parallelo al primo.
+static PREPARAZIONE: AtomicBool = AtomicBool::new(false);
+
+/// Il messaggio di chi arriva secondo.
+pub const GIA_IN_CORSO: &str =
+    "Un aggiornamento è già in corso sul pannello: l'esito arriva fra qualche minuto.";
+
+/// Tiene acceso [`PREPARAZIONE`]; si spegne quando esce di scena, anche per un errore.
+pub struct Preparazione(());
+
+impl Drop for Preparazione {
+    fn drop(&mut self) {
+        PREPARAZIONE.store(false, AtomicOrdering::SeqCst);
+    }
+}
+
+pub fn in_preparazione() -> bool {
+    PREPARAZIONE.load(AtomicOrdering::SeqCst)
+}
+
+/// Il posto per un aggiornamento, o [`GIA_IN_CORSO`] se uno è già in
+/// preparazione qui o già consegnato a systemd (`in_corso`, che scade da sé).
+pub async fn prenota(config_dir: &std::path::Path) -> Result<Preparazione, String> {
+    if crate::aggiornamento_finestra::carica(config_dir)
+        .await
+        .in_corso
+        .is_some()
+    {
+        return Err(GIA_IN_CORSO.to_string());
+    }
+    PREPARAZIONE
+        .compare_exchange(false, true, AtomicOrdering::SeqCst, AtomicOrdering::SeqCst)
+        .map(|_| Preparazione(()))
+        .map_err(|_| GIA_IN_CORSO.to_string())
 }
 
 /// Avvia `podman-auto-update.service` sul bus utente. Il chiamante deve aver
@@ -654,6 +695,26 @@ pub async fn avvia() -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
+    #[tokio::test]
+    async fn un_secondo_aggiornamento_aspetta_il_primo() {
+        let dir = tempfile::tempdir().unwrap();
+        let primo = prenota(dir.path()).await.expect("il primo passa");
+        assert!(in_preparazione());
+        assert_eq!(
+            prenota(dir.path()).await.err().as_deref(),
+            Some(GIA_IN_CORSO)
+        );
+        drop(primo);
+        assert!(!in_preparazione());
+        // Consegnato a systemd: vale `in_corso`, finché non scade.
+        crate::aggiornamento_esito::segna_in_corso(dir.path(), "1.0.0", None).await;
+        assert_eq!(
+            prenota(dir.path()).await.err().as_deref(),
+            Some(GIA_IN_CORSO)
+        );
+        assert!(stato_con_esito(dir.path()).await.in_corso);
+    }
+
     #[test]
     fn la_nota_del_quadlet_solo_se_la_versione_nuova_lo_alza() {
         assert!(nota_quadlet(Some(1), 2).is_some());

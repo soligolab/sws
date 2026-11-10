@@ -10,6 +10,8 @@ import { conferma } from "@/finestraAvviso/finestraAvviso";
 // scheda di configurazione, non lo schermo di un impianto.
 import { testoSistema, testoSistemaCon } from "@/i18n/testiSistema";
 
+const RILEGGI_IN_CORSO_MS = 15_000;
+
 /** L'aggiornamento del runtime collegato (piano 2026-09-27, Fase 1): che
  *  versione gira, su quale canale, e se nel canale ce n'è una più nuova. «Aggiorna
  *  ora» lo chiede al dispositivo, che avvia `podman-auto-update` via bus utente:
@@ -31,6 +33,18 @@ export function AggiornamentoRuntime() {
       .catch((e) => { if (vivo) { setStato(null); setErrore(e instanceof Error ? e.message : String(e)); } });
     return () => { vivo = false; };
   }, []);
+
+  // Con un aggiornamento già in corso si rilegge finché non arriva l'esito,
+  // come fa il viewer. Un errore qui è il pannello che si riavvia: si riprova.
+  const giaPartito = !!stato?.in_corso && !avviato;
+  useEffect(() => {
+    if (!giaPartito) return;
+    let vivo = true;
+    const id = window.setTimeout(() => {
+      api.remoteStatoAggiornamento().then((s) => { if (vivo) setStato(s); }).catch(() => { if (vivo) setStato((s) => (s ? { ...s } : s)); });
+    }, RILEGGI_IN_CORSO_MS);
+    return () => { vivo = false; window.clearTimeout(id); };
+  }, [giaPartito, stato]);
 
   // Le conferme valgono uguali per «Aggiorna ora» e per «Programma» (Fase 2).
   const confermaAggiornamento = async (): Promise<boolean> => {
@@ -67,6 +81,9 @@ export function AggiornamentoRuntime() {
   else if (stato === undefined) riga = t("aggiornamento.carico");
   else if (stato === null) riga = t("aggiornamento.illeggibile");
   else if (avviato) { riga = t("aggiornamento.avviato", { a: stato.disponibile }); tono = "var(--brand-warning, #f59e0b)"; }
+  // Già chiesto, da qui o da un'altra scheda: niente «disponibile» né pulsante,
+  // che un secondo clic farebbe partire un'altra copia dei dati (10-11-2026).
+  else if (giaPartito) { riga = t("aggiornamento.inCorsoSulPannello"); tono = "var(--brand-warning, #f59e0b)"; }
   else {
     const canale = t(`aggiornamento.canale.${stato.canale}`);
     if (stato.canale === "archivio" || stato.canale === "fissata" || stato.canale === "sconosciuto") {
@@ -118,9 +135,6 @@ export function AggiornamentoRuntime() {
       {inCorso && (
         <div style={{ marginBottom: 8, fontSize: 12, color: "var(--brand-warning, #f59e0b)" }}>{t("aggiornamento.istantaneaInCorso")}</div>
       )}
-      {stato?.in_corso && !avviato && (
-        <div style={{ marginBottom: 8, fontSize: 12, color: "var(--brand-warning, #f59e0b)" }}>{t("aggiornamento.inCorsoSulPannello")}</div>
-      )}
       <span style={{ fontSize: 12, color: tono }}>{riga}</span>
       {/* Il percorso scritto non bastava (02-11-2026): nelle due disposizioni
           dell'IDE i menù si chiamano in modo diverso. Un bottone porta lì. */}
@@ -136,7 +150,7 @@ export function AggiornamentoRuntime() {
           leggono anche quelle in mezzo, che è il punto. Gli avvisi di
           compatibilità stanno in cima a ogni versione e in rosso — sono
           l'unica parte per cui vale la pena fermarsi. */}
-      {!avviato && !errore && (stato?.novita?.length ?? 0) > 0 && (
+      {!avviato && !giaPartito && !errore && (stato?.novita?.length ?? 0) > 0 && (
         <div style={{ marginTop: 8, borderLeft: "2px solid var(--brand-surface-2, #334155)", paddingLeft: 8 }}>
           {stato!.novita!.map((n) => (
             <div key={n.versione} style={{ marginBottom: 8 }}>
@@ -162,7 +176,7 @@ export function AggiornamentoRuntime() {
         </div>
       )}
 
-      {stato?.disponibile && !avviato && !errore && (
+      {stato?.disponibile && !avviato && !giaPartito && !errore && (
         <div style={{ marginTop: 8 }}>
           <button type="button" onClick={aggiorna} disabled={inCorso}>
             {inCorso ? t("aggiornamento.inCorso") : t("aggiornamento.pulsante", { a: stato.disponibile })}
@@ -171,7 +185,7 @@ export function AggiornamentoRuntime() {
       )}
 
       {/* La finestra (Fase 2): solo per chi segue un canale del registry. */}
-      {stato && !avviato && !errore && (stato.canale === "stabile" || stato.canale === "prova") && (
+      {stato && !avviato && !giaPartito && !errore && (stato.canale === "stabile" || stato.canale === "prova") && (
         <FinestraAggiornamento stato={stato} conferma={confermaAggiornamento} />
       )}
     </section>

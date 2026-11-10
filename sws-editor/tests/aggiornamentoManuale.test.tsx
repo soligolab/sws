@@ -31,3 +31,17 @@ describe("aggiornamento di un pannello installato da archivio", () => {
     expect(screen.queryByText(/SSH host|Host SSH/i)).toBeNull();
   });
 });
+
+/** 10-11-2026: tornando nella scheda durante l'istantanea dei dati, l'IDE
+ *  diceva «disponibile» col pulsante, e un secondo clic partiva in parallelo. */
+describe("un aggiornamento già in corso sul pannello", () => {
+  it("niente pulsante né «disponibile», solo la riga dell'attesa", async () => {
+    vi.spyOn(api, "remoteStatoAggiornamento").mockResolvedValue({
+      versione: "2.26.0-rc.9", immagine: "ghcr.io/soligolab/sws-runtime:rc-arm64", canale: "prova",
+      disponibile: "2.26.0-rc.10", errore: null, in_corso: true,
+    } as StatoAggiornamento);
+    render(<AggiornamentoRuntime />);
+    expect(await screen.findByText(i18n.t("aggiornamento.inCorsoSulPannello"))).toBeTruthy();
+    expect(screen.queryByText(i18n.t("aggiornamento.pulsante", { a: "2.26.0-rc.10" }))).toBeNull();
+  });
+});

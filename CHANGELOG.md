@@ -158,6 +158,17 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   il salvataggio non è finito.
 
 ### Corretto
+- **«Aggiorna ora» non parte due volte** (dal banco della rc.10, 10-11-2026; visto dal maintainer anche nelle rc
+  precedenti).
+  - **Il difetto:** fra il clic e `in_corso` il pannello copia i dati per il ritorno indietro, e con lo storico di
+    CasaDomotica sono minuti. Chi cambiava pagina e tornava nella scheda leggeva «disponibile» col pulsante. Anche con
+    `in_corso` l'IDE lasciava pulsante e Novità, e il server non rifiutava una seconda richiesta, che partiva in
+    parallelo alla prima.
+  - **Nel runtime:** `aggiornamento::prenota` tiene il posto dall'inizio della copia fino alla consegna a systemd (un
+    segnale in memoria che si spegne anche su errore). Lo stato lo riporta come `in_corso`. Una seconda richiesta, da
+    «Aggiorna ora», dalla finestra o dal pilota, riceve 409 «Un aggiornamento è già in corso».
+  - **Nell'IDE:** con `in_corso` resta solo la riga dell'attesa, e lo stato si rilegge ogni 15 s finché non arriva
+    l'esito, come fa il viewer.
 - **SQLite 3.54.1, per l'avviso RUSTSEC-2026-0459** (CVE-2026-119375 nello SQLite in C, gravità 6,8, 09-11-2026).
   `rusqlite` sale da 0.32 a 0.41 e `libsqlite3-sys` da 0.30 a 0.39 (bundled). Il codice di `sws-historian`,
   `sws-identita` e `sws-web` compila senza modifiche e i test passano tutti. `cargo audit` torna verde senza nuove

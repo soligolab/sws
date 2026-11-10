@@ -4674,6 +4674,10 @@ async fn aggiornamento_avvia(
         )
             .into_response();
     }
+    let preparazione = match crate::aggiornamento::prenota(&s.config_dir).await {
+        Ok(p) => p,
+        Err(e) => return (StatusCode::CONFLICT, e).into_response(),
+    };
     s.audit.log(
         "update.apply",
         Some(user.username),
@@ -4689,7 +4693,9 @@ async fn aggiornamento_avvia(
     }
     crate::aggiornamento_esito::segna_in_corso(&s.config_dir, &st.versione, st.disponibile.clone())
         .await;
-    tokio::spawn(async {
+    // Il posto si libera dopo la consegna a systemd: da lì vale `in_corso`.
+    tokio::spawn(async move {
+        let _preparazione = preparazione;
         tokio::time::sleep(std::time::Duration::from_millis(800)).await;
         match crate::aggiornamento::avvia().await {
             Ok(()) => {
