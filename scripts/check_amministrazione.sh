@@ -62,9 +62,17 @@ fi
 # 2. ogni rotta del modulo sta in UNO DEI DUE gruppi
 #
 #    Dal 08-10-2026 (Fase 3c) la console non e piu della sola piattaforma:
-#    `rotte_di_piattaforma()` tiene cio che non e di nessuna azienda (posta,
-#    catalogo marchi, creazione di un'azienda), `rotte_di_azienda()` cio che
-#    ogni handler confina a quel che chi guarda amministra.
+#    `rotte_di_piattaforma()` tiene cio che non e di nessuna azienda (la posta
+#    DELL'INSTALLAZIONE, il catalogo marchi, la creazione di un'azienda),
+#    `rotte_di_azienda()` cio che ogni handler confina a quel che chi guarda
+#    amministra.
+#
+#    La posta DELL'AZIENDA viaggia nel PATCH dell'azienda e nella sua prova
+#    (`/api/amministrazione/aziende/:id/smtp/prova`), che stanno in
+#    `rotte_di_azienda()` perche e dell'azienda, non una cosa concordata con
+#    la piattaforma come stato, marchio e quote: e il confine che si sposta di
+#    proposito (decisione del maintainer, 10-11-2026). Lo tiene fermo il test
+#    `prove_confine` in amministrazione.rs.
 #
 #    Prima qui bastava «il router monta `rotte()`». Con due gruppi quella
 #    domanda non basta piu: una rotta nuova scritta nel modulo ma dimenticata

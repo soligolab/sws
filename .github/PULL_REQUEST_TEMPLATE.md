@@ -20,4 +20,5 @@ Closes #
 - [ ] I have added an entry to `CHANGELOG.md` under `[Unreleased]`
 - [ ] All CI checks pass (`cargo test`, `pnpm test`, lint, audit)
 - [ ] Every commit in this PR has `Signed-off-by:` (DCO) — use `git commit -s`
+- [ ] I have signed the [CLA](https://github.com/soligolab/sws/blob/main/CLA.md) (first contribution only — see `CONTRIBUTING.md`)
 - [ ] At least one maintainer has approved this PR

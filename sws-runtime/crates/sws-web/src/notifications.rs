@@ -29,6 +29,33 @@ use tokio::sync::{broadcast, mpsc, RwLock};
 use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
 
+/// La posta con cui un progetto spedisce (10-11-2026): quella **del progetto**
+/// se ce l'ha, altrimenti `smtp.yaml` della configurazione dell'istanza.
+///
+/// È la catena progetto → azienda → installazione vista da dentro il
+/// progetto. Nel cloud `smtp.yaml` lo scrive il gateway quando apre il
+/// container, con la posta dell'azienda o quella dell'installazione
+/// (`gateway::progetti::scrivi_posta_del_container`). Sul pannello quel file
+/// non c'è (il PUT della posta d'installazione vuole identità e piattaforma):
+/// `None`, cioè il comportamento di prima.
+///
+/// Misurato il 10-11-2026: nel cloud il supervisore delle notifiche non parte
+/// (`ide_only`, `projects.rs` e `riavvia_notifiche`), e report e telefono
+/// girano solo con il ruolo d'impianto. Per gli allarmi il ripiego è
+/// predisposto per il giorno in cui il cloud farà girare impianti; oggi lo
+/// usa davvero la prova delle Notifiche (`test_email`). Il supervisore
+/// fotografa la posta quando parte: un cambio vale dal suo prossimo avvio,
+/// mentre eventi di sistema, report e prova la rileggono a ogni invio.
+pub(crate) async fn smtp_effettivo(
+    s: &crate::router::AppState,
+    del_progetto: Option<&SmtpConfig>,
+) -> Option<SmtpConfig> {
+    match del_progetto {
+        Some(c) if !c.host.trim().is_empty() => Some(c.clone()),
+        _ => crate::amministrazione::leggi_smtp(s).await,
+    }
+}
+
 /// Build a lettre `SmtpTransport` from the project's `SmtpConfig`.
 pub(crate) fn build_transport(cfg: &SmtpConfig) -> anyhow::Result<SmtpTransport> {
     let port = cfg.port.unwrap_or(587);
@@ -400,7 +427,7 @@ pub async fn invia_sistema(
         }
     }
     if riga.email && !cfg.destinatari_email.is_empty() {
-        if let Some(smtp) = cfg.smtp.clone().map(Arc::new) {
+        if let Some(smtp) = smtp_effettivo(s, cfg.smtp.as_ref()).await.map(Arc::new) {
             let lingua = cfg.lingua_per(sws_core::CanaleNotifica::Email, &ripiego);
             spedisci_email(
                 &smtp,
@@ -843,5 +870,50 @@ mod destinatari_tests {
         );
         assert_eq!(g.get("de").unwrap(), &vec!["hans@y.de".to_string()]);
         assert_eq!(g.len(), 2, "un indirizzo vuoto non è un destinatario");
+    }
+}
+
+/// La catena progetto → posta dell'istanza → niente (10-11-2026).
+#[cfg(test)]
+mod ripiego_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn il_ripiego_va_dal_progetto_al_file_a_niente() {
+        let dir = tempfile::tempdir().unwrap();
+        let s = crate::router::stato_di_prova(dir.path()).await;
+        let del_progetto = SmtpConfig {
+            host: "mail.progetto.it".into(),
+            port: None,
+            from: "p@progetto.it".into(),
+            username: None,
+            password: None,
+            starttls: None,
+        };
+
+        // Né l'uno né l'altro: come sul pannello di prima.
+        assert!(smtp_effettivo(&s, None).await.is_none());
+
+        std::fs::write(
+            s.config_dir.join("smtp.yaml"),
+            "host: mail.acme.it\nfrom: a@acme.it\n",
+        )
+        .unwrap();
+        // Quella del progetto viene prima…
+        assert_eq!(
+            smtp_effettivo(&s, Some(&del_progetto)).await.unwrap().host,
+            "mail.progetto.it"
+        );
+        // …senza, quella che il gateway ha consegnato al container.
+        assert_eq!(smtp_effettivo(&s, None).await.unwrap().host, "mail.acme.it");
+        // Un progetto con il server vuoto non ha una posta sua.
+        let vuota = SmtpConfig {
+            host: " ".into(),
+            ..del_progetto
+        };
+        assert_eq!(
+            smtp_effettivo(&s, Some(&vuota)).await.unwrap().host,
+            "mail.acme.it"
+        );
     }
 }

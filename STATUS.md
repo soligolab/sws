@@ -14,8 +14,10 @@
 
 ## ▶ Riprendere da qui — la 2.26.0-rc.11 pubblicata e sul VPS; i semi separati dai piani, `Appunti.txt` sciolto (2026-11-10, theobroma)
 
-**Nessun ramo aperto.** `main` è avanti su origin di quattro commit, **da pushare** (il maintainer non l'ha ancora
-chiesto): `80114595` lo squash di `fix/aggiornamento-in-corso` («Aggiorna ora» non parte due volte, fatto a casa la
+**Ramo aperto: `fix/collaudo-rc11`**, le anomalie del banco della rc.11, da squashare in un colpo solo per la rc.12 (come
+deciso a casa per la rc.11). Dentro, la prima: durante il riavvio del pannello l'IDE diceva in rosso «503: il pannello non è
+collegato», ora dice «si sta riavviando» per dieci minuti (`AggiornamentoRuntime.tsx`, `ConfigurazioneServizio.tsx`, test
+`riavvioDopoAggiornamento.test.tsx`). `main` è su origin fino a `efaf1b54` (push delle 10:30): `80114595` lo squash di `fix/aggiornamento-in-corso` («Aggiorna ora» non parte due volte, fatto a casa la
 mattina, DoD e controlli CI riverificati qui), `e5f58031` la **2.26.0-rc.11** (tag solo locale), `594aeab6` il riordino dei
 piani, più il commit di chiusura. Al push va cancellato anche il ramo remoto `origin/fix/aggiornamento-in-corso`.
 
@@ -24,9 +26,11 @@ piani, più il commit di chiusura. Al push va cancellato anche il ramo remoto `o
   `wp630-ufficio` riaperti da soli), ripiego `be8066eb-amd64` (rc.10), tolta la rc.9; dettagli in `deploy/vps/STATO.md`.
   **IDE 8460** ricompilato da `main` (rc.11) con `start_editor.sh --brand pixsys`, in ascolto dalle 10:18, brand Pixsys. `cargo audit` verde (rusqlite 0.41 da casa);
   `check_release_coerente` rosso solo finché il tag rc.11 non è su origin.
-- **I pannelli.** Il TC620 di casa e il WP630 dell'ufficio (acceso, tunnel aperto) sono sulla **rc.9**. Il banco parte
-  dall'aggiornamento alla rc.11 dal viewer, **con un clic solo** su «Aggiorna ora»: il difetto del doppio clic c'è ancora
-  nella rc.9 e nella rc.10, la correzione si vede per intero solo da un pannello già sulla rc.11 che sale alla successiva.
+- **I pannelli.** Il **WP630** (ufficio) è passato **dalla rc.10 alla rc.11** alle 11:16 dal cloud, un minuto di fermo,
+  verificato dal journal e dalle etichette dell'immagine (la prova 0 del banco, fatta dall'IDE invece che dal viewer);
+  resta da dare «Conferma e pulisci». Il **TC620** di casa è sulla rc.9: per lui la prova 0 vale ancora, **con un clic
+  solo** su «Aggiorna ora» (il doppio clic parte ancora nella rc.9 e nella rc.10; la correzione si vede per intero solo da
+  un pannello già sulla rc.11 che sale alla successiva).
 - **Il banco della rc.10 non è cominciato e vale per la rc.11** (che contiene tutto quello della rc.10 più «Aggiorna ora»):
   `python3 scripts/banco_collaudo/server.py`, porta 8471 (acceso su theobroma). Il target ssh va riconfermato dal
   maintainer; da qui si raggiunge il WP630, il TC620 solo dal viewer via gateway.
@@ -91,7 +95,7 @@ in ritardo di minuti e i valori a schermo vecchi di mezzo minuto senza avviso. D
   partenza; LVGL: la sparkline non accumula poller né campioni e chiede lo storico una volta.
 - **Ramo B**: le dipendenze di ogni oggetto in un posto solo, ogni oggetto si ridisegna solo quando cambia un suo tag,
   il filtro di pagina non si perde a riconnessione e login; LVGL: un login lento non trattiene le scritture.
-- **L'occhio sulle password** ([piano](docs/plans/2026-11-09-occhio-sulle-password.md)): `CampoPassword` nei 36 campi
+- **L'occhio sulle password** ([piano](docs/archive/2026-11-09-occhio-sulle-password.md)): `CampoPassword` nei 36 campi
   di 22 file e nella Finestra di avviso, guardia `check_campi_password.sh`, la stessa icona su LVGL (tastiera e login).
 - **Banco** (`tmp/viewer-leggero/`, solo theobroma; copia di Montagna a 10 Hz, CPU ×6, 15 min): prima dal 43% al 99%
   con 21.708 punti e risposte fino a 7,2 s; ora piatto fra 27% e 60% con ~500 punti e risposte entro ~20 ms; a velocità
@@ -896,7 +900,7 @@ cambiano il runtime).
 0. **Fatto dopo**: la miniatura della pagina iniziale nell'elenco dei progetti (ramo D, approvata a schermo, squash
    `adc65fc9`); i piani della disponibilità e delle card in archivio; la **bozza di condizioni d'uso e informativa
    privacy** in `docs/legale/` — seconda versione: strumento in sviluppo, gratis, a scopo di test — da far rivedere a
-   un professionista; la licenza è il seme `2026-10-29-licenza-del-software.md`. **Twilio**: due errori nuovi annotati
+   un professionista; la licenza è il seme `2026-10-29-licenza-del-software.md` (deciso il 10-11-2026, ora in `docs/archive/`). **Twilio**: due errori nuovi annotati
    nel piano SMS, da vedere dopo.
 1. **Collaudi rimasti**: `docs/COLLAUDI_IN_SOSPESO.md` §A-septies (la disponibilità dal vivo), §A-octies (card),
    §A-nonies (faceplate) — il maintainer li ha visti nell'IDE, le caselle restano da spuntare.

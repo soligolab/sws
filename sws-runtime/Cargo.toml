@@ -26,10 +26,13 @@ edition      = "2021"
 # ferma con un messaggio chiaro invece di fallire a metà. La CI gira sulla
 # versione delle macchine di sviluppo (1.94), non su questa: vedi ci.yml.
 rust-version = "1.88"
-license      = "AGPL-3.0-only"
-authors      = ["Soligo Lab <hello@soligolab.example>"]
+# Doppia licenza dalla 2.26.0 (decisione del maintainer, 10-11-2026): AGPL-3.0-only
+# oppure licenza commerciale su contratto. Le due vie sono in LICENSING.md;
+# fino alla 2.25.2 la licenza era solo AGPL-3.0-only.
+license      = "AGPL-3.0-only OR LicenseRef-SWS-Commercial"
+authors      = ["Mauro Soligo <mauro@soligo.net>"]
 repository   = "https://github.com/soligolab/sws"
-homepage     = "https://soligolab.example"
+homepage     = "https://sws.soligo.net"
 
 [workspace.dependencies]
 # D-Bus, per parlare col launcher del pannello dal **container** (24-09-2026).

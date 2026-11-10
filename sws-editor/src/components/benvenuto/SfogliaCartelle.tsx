@@ -1,5 +1,5 @@
 // Pezzo della schermata di scelta progetto, uscito da `WelcomeScreen.tsx` il
-// 28-10-2026 (piano docs/plans/2026-10-26-aprire-sws-soligo-net.md, ramo B
+// 28-10-2026 (piano docs/archive/2026-10-26-aprire-sws-soligo-net.md, ramo B
 // punto 6). Era un file di 1673 righe con sei componenti dentro: si leggeva
 // solo cercando, e ogni modifica a un modale ricompilava la schermata intera
 // nella testa di chi la faceva. Il codice e spostato, non riscritto.

@@ -1,5 +1,5 @@
 // Le icone dell'interfaccia (28-10-2026, piano
-// docs/plans/2026-10-26-aprire-sws-soligo-net.md, ramo B punto 3).
+// docs/archive/2026-10-26-aprire-sws-soligo-net.md, ramo B punto 3).
 //
 // Stessa famiglia delle icone degli strumenti (`editor/iconeStrumenti.ts`):
 // tratto su viewBox 24×24, estremi arrotondati, colore dal tema

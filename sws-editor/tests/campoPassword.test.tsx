@@ -1,5 +1,5 @@
 /** L'occhio sui campi password (09-11-2026, piano
- *  docs/plans/2026-11-09-occhio-sulle-password.md): il componente da solo.
+ *  docs/archive/2026-11-09-occhio-sulle-password.md): il componente da solo.
  *
  *  Le regole del maintainer, una per prova: parte nascosta; l'occhio mostra e
  *  il secondo tocco nasconde, senza rubare il fuoco; Invio invia ancora il
@@ -196,5 +196,27 @@ describe("CampoPassword", () => {
     expect(r.campo.style.boxSizing).toBe("border-box");
     // Il padding dell'autore resta, salvo il lato destro, che è dell'occhio.
     expect(r.campo.style.padding).toBe(`4px ${OCCHIO_PX}px 4px 8px`);
+  });
+});
+
+/** 10-11-2026, chiudendo il piano: da tastiera, dopo la password, Tab andava
+ *  sull'occhio e Invio lì la mostrava invece di entrare. Ora Tab lo salta. */
+describe("CampoPassword e la tastiera", () => {
+  it("Tab salta l'occhio: dal campo si va al pulsante del modulo", async () => {
+    const r = render(
+      <form>
+        <CampoPassword value="segreta" onChange={() => {}} />
+        <button type="submit">Accedi</button>
+      </form>,
+    );
+    const campo = r.container.querySelector("input") as HTMLInputElement;
+    const occhio = r.getByTestId("occhio-password") as HTMLButtonElement;
+    expect(occhio.tabIndex).toBe(-1);
+    campo.focus();
+    await userEvent.tab();
+    expect(document.activeElement).toBe(r.getByText("Accedi"));
+    // Resta un bottone vero per il mouse e per il dito.
+    fireEvent.click(occhio);
+    expect(campo.type).toBe("text");
   });
 });

@@ -1,5 +1,5 @@
 /** Chiudere il proprio account (30-10-2026, ramo C di
- *  `docs/plans/2026-10-26-aprire-sws-soligo-net.md`). Solo per chi si è
+ *  `docs/archive/2026-10-26-aprire-sws-soligo-net.md`). Solo per chi si è
  *  registrato da sé: fuori subito, cancellato fra 30 giorni, e la piattaforma
  *  lo può riattivare prima. La password conferma che a chiudere è davvero lui. */
 import { CampoPassword } from "@/components/CampoPassword";

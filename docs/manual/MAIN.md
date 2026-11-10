@@ -2,7 +2,7 @@
 
 **Soligo Web SCADA** è una piattaforma SCADA open-source, web-based, progettata per hardware industriale embedded ARM64. Questo manuale copre installazione, configurazione, utilizzo operativo e deploy.
 
-> **Licenza**: AGPL-3.0 — © Soligo Lab
+> **Licenza**: dalla 2.26.0 doppia, AGPL-3.0 oppure commerciale ([`LICENSING.md`](../../LICENSING.md)) — © Mauro Soligo (Soligonet)
 >
 > Ogni capitolo dice in testa per chi è e quando è stato misurato sul codice: è quel timbro, non un numero di
 > versione qui, a dire quanto è aggiornato.

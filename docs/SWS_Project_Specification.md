@@ -2,7 +2,7 @@
 
 **Document version:** 1.0 (initial draft)
 **Date:** May 2026
-**Owner:** Mauro Soligo (Soligo Lab)
+**Owner:** Mauro Soligo (Soligonet)
 **Status:** Draft for team review
 **Audience:** Internal development team, contributors, stakeholders
 
@@ -25,7 +25,7 @@
 
 ## 1. Executive Summary
 
-Soligo Web SCADA (SWS) is an open-source, web-based SCADA platform designed from the ground up to run on embedded industrial hardware inside an OCI container, with a strong focus on EU Cyber Resilience Act (CRA) compliance, plugin extensibility, and a modern WYSIWYG web editor.
+Soligo Web SCADA (SWS) is an open-source (dual licensed: AGPL-3.0 or commercial), web-based SCADA platform designed from the ground up to run on embedded industrial hardware inside an OCI container, with a strong focus on EU Cyber Resilience Act (CRA) compliance, plugin extensibility, and a modern WYSIWYG web editor.
 
 ### What SWS is not
 
@@ -51,7 +51,7 @@ A general-purpose Web SCADA composed of:
 - Provide a complete WYSIWYG editor experience comparable to commercial SCADAs (animations, faceplates, scripting, live preview, multi-user editing).
 - Be vendor-neutral and protocol-agnostic via a stable plugin API.
 - Be auditable and Git-friendly: project files are human-readable YAML, diff-able, mergeable.
-- Be a credible open-source alternative (AGPL-3.0) for industrial automation in the EU market.
+- Be a credible open-source alternative (AGPL-3.0, with a commercial license on request) for industrial automation in the EU market.
 
 ### 2.2 Non-Goals (for v1.x)
 
@@ -274,7 +274,7 @@ Symbols are implemented as **parametric, reusable components** (analogous to UDT
 #### M3 — First public release (kickoff + 3 months) — **`2026.08`**
 - All M1 + M2 features hardened.
 - Documentation site (Docusaurus) live with getting-started, operator guide, project format reference.
-- Public AGPL-3.0 release, DCO required on PRs.
+- Public release under the dual license (AGPL-3.0 or commercial), DCO + CLA required on PRs.
 - Reference deployment on PX30 + RK3399 documented and benchmarked.
 - Vulnerability disclosure policy and security advisory feed online.
 
@@ -308,12 +308,12 @@ Symbols are implemented as **parametric, reusable components** (analogous to UDT
 
 ## 9. Governance & Contribution
 
-- **License**: AGPL-3.0 for the initial public release. The author reserves the right to relicense in the future.
-- **Contributor agreement**: DCO (Developer Certificate of Origin) — every commit must carry a `Signed-off-by:` trailer. This is the lightweight protection that preserves future relicensing options if all contributors sign off.
+- **License**: AGPL-3.0 for the initial public release, up to 2.25.2. **From 2.26.0, dual license**: `AGPL-3.0-only OR LicenseRef-SWS-Commercial` (decided 2026-11-10; `LICENSING.md`). The holder is Mauro Soligo, publishing as "Soligonet".
+- **Contributor agreement**: DCO (Developer Certificate of Origin) — every commit must carry a `Signed-off-by:` trailer — **plus** an individual CLA (`CLA.md`) for external contributors, from 2026-11-10. The DCO alone does not let the holder offer contributions under the commercial license; the CLA does.
 - **Branching**: trunk-based development. `main` is always releasable; feature branches are short-lived and merged via PR with required CI checks.
 - **Commit style**: free-form, but each PR must update the `CHANGELOG.md` under the `[Unreleased]` section. CalVer versions are tagged from `main`.
 - **Code review**: every PR requires at least one approving review from a maintainer.
-- **CI/CD**: primary CI on GitHub Actions; mirrored to GitLab CI for internal pipelines (Pixsys / Soligo Lab).
+- **CI/CD**: primary CI on GitHub Actions; mirrored to GitLab CI for internal pipelines (Pixsys / Soligonet).
 
 ---
 

@@ -20,7 +20,7 @@
 #   nominano `known_projects.touch` con una chiave nuova — nomina **tutte e
 #   due** le quote: `rifiuta_se_piena` (lo spazio) e `rifiuta_se_troppi` (il
 #   numero di progetti, dal 28-10-2026). La seconda e nata per le aziende
-#   personali di `docs/plans/2026-10-26-aprire-sws-soligo-net.md`, e la prima
+#   personali di `docs/archive/2026-10-26-aprire-sws-soligo-net.md`, e la prima
 #   stesura la metteva solo su `create_project`: esattamente il difetto che
 #   questa guardia esiste per prendere.
 #

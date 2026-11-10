@@ -1,10 +1,10 @@
 [package]
-# Escluso dal workspace principale (vedi sws-runtime/Cargo.toml), quindi non può
-# ereditare da [workspace.package] come fanno gli altri crate — stesso motivo/pattern di sws-kiosk.
+# Nel workspace dal 2026-08-25 (vedi sws-runtime/Cargo.toml): la licenza la eredita
+# da [workspace.package] dal 10-11-2026. La versione resta scritta a mano.
 name    = "sws-lvgl-viewer"
 version = "2.26.0-rc.11"
 edition = "2021"
-license = "AGPL-3.0-only"
+license.workspace = true
 
 [[bin]]
 name = "sws-lvgl-viewer"

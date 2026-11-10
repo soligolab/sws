@@ -2491,7 +2491,7 @@
     "condizioni": "condizioni d'uso",
     "accettoE": "e ho letto",
     "informativa": "l'informativa sulla privacy",
-    "approvoClausole": "Approvo in modo specifico le clausole elencate al punto 14 delle condizioni d'uso (artt. 1341-1342 c.c.)",
+    "approvoClausole": "Approvo in modo specifico, ai sensi degli artt. 1341 e 1342 c.c., le clausole 1 e 4 (servizio in sviluppo, senza garanzie, interrompibile e azzerabile), 6 (uso delle segnalazioni), 7 (nessuna garanzia di conservazione dei progetti), 8 (esclusione di responsabilità e manleva), 9 (servizi di terzi), 11 (fine della fase di sviluppo), 12 (sospensione, chiusura e cancellazione), 13 (modifiche e foro esclusivo) delle condizioni d'uso.",
     "registrati": "Registrati",
     "registrazioneRifiutata": "Registrazione non riuscita: controlla l'indirizzo e la password.",
     "hoGiaUnAccount": "← Ho già un account",
@@ -3274,6 +3274,7 @@
     "avviato": "Aggiornamento alla {{a}} avviato: il runtime si sta riavviando. Riconnettiti fra un minuto per vedere la versione nuova.",
     "tornatoAlla": "il pannello è tornato alla {{da}}",
     "inCorsoSulPannello": "Un aggiornamento è in corso sul pannello: l'esito compare qui fra un paio di minuti.",
+    "riavvioInCorso": "Il pannello si sta riavviando per l'aggiornamento: per qualche minuto non è raggiungibile, poi torna da solo. L'esito compare qui.",
     "apriInstallazione": "Apri Installazione",
     "istantaneaInCorso": "Il pannello sta copiando i suoi dati prima di aggiornarsi (servono per tornare indietro): con molto storico può volerci qualche minuto."
   },
@@ -3324,6 +3325,7 @@
     "titolo": "Configurazione del servizio",
     "carico": "Leggo lo stato dal dispositivo…",
     "nonApplicabile": "Non applicabile: il runtime non gira in un container con i quadlet.",
+    "nonRaggiunto": "Pannello non raggiungibile: stato non disponibile.",
     "aggiornata": "Aggiornata (versione {{v}}).",
     "daAggiornare": "Da aggiornare: il pannello ha la versione {{da}}, questa immagine vuole la {{a}}. Le righe nuove (fuso orario, riavvio del viewer…) non valgono finché non la si aggiorna.",
     "aggiorna": "Aggiorna",
@@ -3618,7 +3620,11 @@
       "salvataggio": "Salvataggio…",
       "annulla": "Annulla",
       "abbandona": "Ci sono modifiche non salvate su questa azienda. Abbandonarle?",
-      "soloLettura": "Stato, marchio, versione e risorse li decide chi amministra la piattaforma: qui li vedi, non li cambi. Di tuo puoi cambiare il nome."
+      "soloLettura": "Stato, marchio, versione e risorse li decide chi amministra la piattaforma: qui li vedi, non li cambi. Di tuo puoi cambiare il nome e la posta dell'azienda.",
+      "posta": "Posta dell'azienda",
+      "postaNota": "I progetti di quest'azienda nel cloud che non hanno una posta propria usano questa; se è vuota, quella dell'installazione. Codice di registrazione e PIN usano sempre la posta dell'installazione.",
+      "postaNessuna": "L'azienda non ha una posta sua: si usa quella dell'installazione.",
+      "postaProvaNota": "La prova usa la posta salvata: salva prima di provare."
     },
     "persone": {
       "email": "Email",

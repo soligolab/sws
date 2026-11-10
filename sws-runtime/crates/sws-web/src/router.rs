@@ -1440,11 +1440,13 @@ pub fn build(
     // oppure «non entri». Ora ci entra anche chi amministra **un'azienda**, e
     // le rotte si dividono per chi le può chiamare:
     //
-    // - `rotte_di_piattaforma`: posta, catalogo dei marchi, creazione di
-    //   un'azienda. Non sono di nessuna azienda.
+    // - `rotte_di_piattaforma`: la posta dell'installazione, il catalogo dei
+    //   marchi, la creazione di un'azienda. Non sono di nessuna azienda.
     // - `rotte_di_azienda`: aziende e persone, che ogni handler **confina**
     //   a ciò che chi guarda amministra. Il filtro sta nell'handler perché a
-    //   essere filtrato è il contenuto, non il diritto di chiamare.
+    //   essere filtrato è il contenuto, non il diritto di chiamare. Dal
+    //   10-11-2026 anche la posta dell'azienda, che è sua (nel PATCH
+    //   dell'azienda, con la sua prova).
     //
     // `scripts/check_amministrazione.sh` verifica che ogni rotta dichiarata in
     // `amministrazione.rs` arrivi in uno dei due: la protezione non dipende
@@ -11528,7 +11530,9 @@ async fn riavvia_notifiche(s: &AppState, config: Option<sws_core::NotificationCo
         // salvare le notifiche non le accende.
         return;
     }
-    if let Some(cfg) = config {
+    if let Some(mut cfg) = config {
+        // Senza una posta del progetto, quella dell'istanza (10-11-2026).
+        cfg.smtp = crate::notifications::smtp_effettivo(s, cfg.smtp.as_ref()).await;
         // La tabella lingue si rilegge dal progetto aperto: cambiare le
         // notifiche non deve far ripartire il supervisore con una tabella
         // vuota, che manderebbe token grezzi.
@@ -12300,6 +12304,17 @@ async fn test_email(State(s): State<AppState>, Json(req): Json<TestEmailRequest>
             .and_then(|n| n.smtp.as_ref())
             .and_then(|s| s.password.clone());
     }
+    // Senza un server del progetto, la posta di ripiego dell'istanza
+    // (10-11-2026): nel cloud quella dell'azienda o dell'installazione, che il
+    // gateway ha scritto all'apertura. È la sola email che un container del
+    // cloud spedisce oggi, e il modo di provare la catena.
+    let mut di_ripiego = false;
+    if smtp.host.trim().is_empty() {
+        if let Some(r) = crate::notifications::smtp_effettivo(&s, None).await {
+            smtp = r;
+            di_ripiego = true;
+        }
+    }
     if smtp.host.trim().is_empty() || smtp.from.trim().is_empty() {
         return (
             StatusCode::BAD_REQUEST,
@@ -12328,9 +12343,17 @@ async fn test_email(State(s): State<AppState>, Json(req): Json<TestEmailRequest>
         to = vec![smtp.from.clone()];
     }
     let elenco = to.join(", ");
+    // Il corpo dice quale posta ha usato: con il ripiego, chi riceve deve
+    // sapere che non era quella del progetto.
+    let quale = if di_ripiego {
+        "il server di posta dell'azienda (o dell'installazione), usato perché il progetto non ne \
+         ha uno suo,"
+    } else {
+        "il server di posta configurato nel progetto"
+    };
     let corpo = format!(
-        "Prova di invio da SWS.\n\nSe leggi questo messaggio, il server di posta configurato nel \
-         progetto funziona: host {}, porta {}, mittente {}.",
+        "Prova di invio da SWS.\n\nSe leggi questo messaggio, {quale} funziona: host {}, porta {}, \
+         mittente {}.",
         smtp.host,
         smtp.port.unwrap_or(587),
         smtp.from
@@ -14657,5 +14680,47 @@ mod riga_schermo_tests {
                 .count(),
             2
         );
+    }
+}
+
+/// La prova delle Notifiche senza un server del progetto (10-11-2026): nel
+/// cloud usa la posta che il gateway ha consegnato al container.
+#[cfg(test)]
+mod prove_email_di_ripiego {
+    use super::*;
+
+    fn richiesta() -> TestEmailRequest {
+        TestEmailRequest {
+            smtp: sws_core::project::SmtpConfig {
+                host: String::new(),
+                port: None,
+                from: String::new(),
+                username: None,
+                password: None,
+                starttls: None,
+            },
+            to: vec!["anna@acme.it".into()],
+        }
+    }
+
+    #[tokio::test]
+    async fn senza_posta_del_progetto_si_prova_quella_di_ripiego() {
+        let dir = tempfile::tempdir().unwrap();
+        let s = stato_di_prova(dir.path()).await;
+
+        // Niente di niente: il 400 di sempre.
+        let r = test_email(State(s.clone()), Json(richiesta())).await;
+        assert_eq!(r.status(), StatusCode::BAD_REQUEST);
+
+        // Con la posta di ripiego si prova quella. Il server non risponde (la
+        // porta 9 è chiusa): l'errore viene da lettre, non dalla richiesta.
+        std::fs::write(
+            s.config_dir.join("smtp.yaml"),
+            "host: 127.0.0.1\nport: 9\nfrom: sws@prova.it\nstarttls: false\n",
+        )
+        .unwrap();
+        let r = test_email(State(s.clone()), Json(richiesta())).await;
+        assert_ne!(r.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(r.status(), StatusCode::BAD_GATEWAY);
     }
 }

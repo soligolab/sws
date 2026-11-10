@@ -12,7 +12,26 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Aggiunto
-- **L'occhio sui campi password, in tutti gli ambienti** (piano `docs/plans/2026-11-09-occhio-sulle-password.md`,
+- **La posta dell'azienda** (piano `docs/archive/2026-10-26-aprire-sws-soligo-net.md`, punto 4; decisione del
+  maintainer del 10-11-2026). Ogni azienda può avere il suo SMTP, e la catena è progetto → azienda →
+  installazione: i container dei progetti nel cloud senza una posta propria usano quella dell'azienda, e senza
+  quella la posta dell'installazione. PIN e registrazione restano sulla posta dell'installazione. Schema 7 di
+  `identita.db`: sei colonne nullable su `aziende` (`smtp_host`, `smtp_porta`, `smtp_da`, `smtp_utente`,
+  `smtp_password`, `smtp_starttls`), migrazione additiva. **Il confine della console si sposta di proposito**: la
+  posta la imposta l'amministratore d'azienda dalla scheda dell'azienda, perché è sua e non una cosa concordata con
+  la piattaforma come stato, marchio e quote; il test `prove_confine` (`amministrazione.rs`, il primo sul confine)
+  lo tiene fermo insieme al 403 sui campi riservati e al 404 sull'azienda altrui. La password non esce mai dal JSON
+  (`smtp_password_impostata`), si rilegge come `********` e un PATCH col segnaposto tiene quella di prima; il registro
+  dice che la posta è cambiata, mai il contenuto. Pulsante «Prova» per azienda
+  (`POST /api/amministrazione/aziende/:id/smtp/prova`). Il gateway scrive la posta di ripiego in `smtp.yaml` nella
+  configurazione del container (`<radice>/.sws-config/<azienda>/<progetto>/`, 0600, fuori da git, backup e deploy,
+  come la chiave dell'IA) quando lo apre, e la riscrive nei container già aperti quando cambia la posta
+  dell'azienda o dell'installazione; dentro il container la legge `smtp_effettivo` (`notifications.rs`) per allarmi,
+  eventi di sistema, report e la prova delle Notifiche con il server vuoto. Misurato oggi: nel cloud il
+  supervisore degli allarmi non parte (istanza IDE), quindi per gli allarmi il ripiego è predisposto e la prova
+  vera è la «Prova e-mail» delle Notifiche di un progetto senza SMTP. I campi SMTP della console sono un componente
+  solo (`CampiSmtp.tsx`) per la posta dell'installazione e per quella dell'azienda.
+- **L'occhio sui campi password, in tutti gli ambienti** (piano `docs/archive/2026-11-09-occhio-sulle-password.md`,
   richiesta del maintainer del 09-11-2026; 6017a2cb, a833caec, 6b152483, poi le revisioni 0bfa610b, 5a109698,
   dfba9833). Sul pannello, col touch e la tastiera a schermo, una password si sbaglia e non si vede dove: «è l'utente
   che fa show quando è in condizioni di sicurezza». `CampoPassword` (`sws-editor/src/components/`) è un `<input>`
@@ -74,6 +93,19 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   `esiti.json` fuori da git, da cui si spuntano `COLLAUDI_IN_SOSPESO.md`, i piani e `Appunti.txt`.
 
 ### Cambiato
+- **Doppia licenza dalla 2.26.0: AGPL-3.0-only oppure commerciale** (decisione del maintainer, 10-11-2026). SWS resta
+  open source (OSI) con l'AGPL; chi non vuole i suoi obblighi (pubblicare le modifiche, anche se offre SWS in rete)
+  chiede una licenza commerciale, che è un contratto su richiesta. Le versioni fino alla 2.25.2 restano AGPL-3.0.
+  `LICENSE` resta il testo AGPL; nuovi `LICENSING.md` (le due vie, it+en) e `CLA.md` (accordo individuale, **bozza** da
+  far rivedere); `CONTRIBUTING.md` passa da DCO a DCO + CLA. SPDX `AGPL-3.0-only OR LicenseRef-SWS-Commercial` nel
+  workspace Cargo (anche `sws-lvgl-viewer`, ora `license.workspace`, e `sws-kiosk`, che non l'aveva), in
+  `sws-editor/package.json` e nell'etichetta `org.opencontainers.image.licenses` delle due immagini, che da ora portano
+  `LICENSE` e `LICENSING.md` in `/usr/share/sws/licenza/`. Titolare unico Mauro Soligo («Soligonet»): via «Soligo Lab» e
+  gli indirizzi `.example` (Cargo `authors`/`homepage`, contatti in README e CODE_OF_CONDUCT). Aggiornati README,
+  manuale (MAIN, 01, 17, 18), CONTEXT, specifica, regole degli asset (niente copyleft: bloccherebbe la commerciale) e il
+  §10 delle condizioni d'uso, che al posto del segnaposto dice le due licenze e dove sta il sorgente. Il seme
+  `2026-10-29-licenza-del-software.md` è deciso e archiviato; gli avvisi delle dipendenze, che valgono con qualunque
+  licenza, sono nel seme nuovo `docs/plans/semi/2026-11-10-avvisi-delle-dipendenze.md`.
 - **I semi separati dai piani, e niente più `Appunti.txt`** (10-11-2026, richiesta del maintainer). I 22 semi — le
   domande ancora da decidere — stanno in `docs/plans/semi/` con un indice loro; `docs/plans/README.md` tiene solo i
   piani. `Appunti.txt` (451 righe) è diventato sei semi e tre piani nuovi più quattro aggiunte a file esistenti, ed è
@@ -163,6 +195,13 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   il salvataggio non è finito.
 
 ### Corretto
+- **Mentre il pannello si riavvia per l'aggiornamento, l'IDE lo dice, in giallo** (10-11-2026, collaudo della rc.11 sul
+  WP630 dal cloud). Riaprendo Connessione durante il riavvio la sezione «Aggiornamento del runtime» mostrava in rosso
+  «Il dispositivo ha risposto 503 Service Unavailable: il pannello «…» non è collegato» — vero, ma letto come un guasto —
+  e «Configurazione del servizio» diceva «Non applicabile». Ora l'IDE ricorda per dieci minuti che l'aggiornamento è
+  partito (dal clic o da `in_corso` visto in un'altra scheda, `localStorage` legato al pannello collegato): finché il
+  pannello non risponde dice «si sta riavviando…» e rilegge ogni 15 s; oltre dieci minuti torna l'errore vero. La
+  configurazione del servizio con un pannello che non risponde dice «non raggiungibile», non «non applicabile».
 - **«Aggiorna ora» non parte due volte** (dal banco della rc.10, 10-11-2026; visto dal maintainer anche nelle rc
   precedenti).
   - **Il difetto:** fra il clic e `in_corso` il pannello copia i dati per il ritorno indietro, e con lo storico di
@@ -776,7 +815,7 @@ e sul VPS resta la 2.25.1. Le sue voci di `NOVITA.yaml` sono riportate in «Unre
   «Installa anche OpenPLC» in Installazione, nel benvenuto e nella guida del cloud. Il quadlet è tolto da template,
   immagini, conto delle versioni e guardie; l'installer toglie quello vecchio dove c'è.
 
-- **Registrazione, PIN e «ricordami»** (ramo C del piano `docs/plans/2026-10-26-aprire-sws-soligo-net.md`).
+- **Registrazione, PIN e «ricordami»** (ramo C del piano `docs/archive/2026-10-26-aprire-sws-soligo-net.md`).
   `sws-identita`, schema 5: `sessioni.durata_ms` (il rinnovo scorrevole usa la durata della riga, «ricordami» = 30
   giorni), `utenti.da_confermare`, `condizioni_versione`/`condizioni_ms`, `ultimo_accesso_ms`; `emetti_accesso` è
   ora l'unico posto che apre una sessione (password, PIN, conferma). Modulo nuovo `registrazione.rs`: codici Crockford
@@ -815,7 +854,7 @@ e sul VPS resta la 2.25.1. Le sue voci di `NOVITA.yaml` sono riportate in «Unre
   (senza testata e piede della cornice, dove `sfondo_immagine` si disegna), non della pagina intera.
 
 - **Il ciclo di vita degli account registrati e il registro di 12 mesi** (ramo C di
-  `docs/plans/2026-10-26-aprire-sws-soligo-net.md`, decisioni del maintainer del 30-10-2026). Schema identità 6:
+  `docs/archive/2026-10-26-aprire-sws-soligo-net.md`, decisioni del maintainer del 30-10-2026). Schema identità 6:
   `utenti.da_se`, `avviso_inattivita_ms`, `chiuso_ms` (gli account registrati prima si riconoscono dalle
   condizioni accettate). `sws-identita/ciclo_di_vita.rs`: `da_avvisare`, `segna_avvisato`, `chiudi_account`,
   `chiudibile`, `cancella_scaduti` — solo per chi si è registrato da sé, mai un amministratore di piattaforma; un
@@ -1016,7 +1055,7 @@ e sul VPS resta la 2.25.1. Le sue voci di `NOVITA.yaml` sono riportate in «Unre
 ### Added
 
 - **La miniatura della pagina iniziale nell'elenco dei progetti** (ramo D di
-  `docs/plans/2026-10-26-aprire-sws-soligo-net.md`): l'IDE la disegna dopo ogni salvataggio in cui la pagina iniziale
+  `docs/archive/2026-10-26-aprire-sws-soligo-net.md`): l'IDE la disegna dopo ogni salvataggio in cui la pagina iniziale
   o la sua cornice cambiano (`progetto/anteprima.ts`, con la catena delle pagine di boot, che ora sa rimpicciolire e
   disegnare la cornice), larga 400 px e al massimo 256 KB; il runtime la tiene in `anteprima.png` nella cartella del
   progetto (fuori da Git e dal deploy), l'elenco dice `anteprima_ms`, e le schede la mostrano al posto dell'icona.
@@ -1090,7 +1129,7 @@ e sul VPS resta la 2.25.1. Le sue voci di `NOVITA.yaml` sono riportate in «Unre
   risponde non si scrive niente, perché una versione falsa è peggio di nessuna versione.
   **Nella schermata di accesso non c'è, ed è una scelta**: dirla prima del login la dice anche a chi non è entrato,
   cioè a chi sta cercando quali difetti noti provare, e su un'istanza aperta a esterni è un regalo gratuito.
-- **Un'azienda a testa** (ramo A di `docs/plans/2026-10-26-aprire-sws-soligo-net.md`): `crea_azienda_personale`
+- **Un'azienda a testa** (ramo A di `docs/archive/2026-10-26-aprire-sws-soligo-net.md`): `crea_azienda_personale`
   in `sws-identita` fa nascere chi si registrerà con un'azienda sua, di cui è Sviluppatore — nome uguale
   all'indirizzo, cartella `u<id>` e non derivata dal nome, perché due indirizzi che normalizzano uguale si
   prenderebbero un `-2` dal ciclo di disambiguazione, cioè la cartella di una persona dipenderebbe da chi si è

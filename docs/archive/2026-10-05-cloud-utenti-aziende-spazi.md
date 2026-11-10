@@ -1,7 +1,7 @@
 # Il tronco cloud: utenti, aziende, spazi di lavoro — e la catena fino al pannello
 
 > **Archiviato il 05-11-2026.** Il testo si ferma al 09-10: dopo sono state fatte anche le fasi 3b, 3c, 4 e 6, ognuna col
-> suo piano in archivio; la Fase 5 è il piano vivo `docs/plans/2026-10-26-aprire-sws-soligo-net.md`. Tre cose qui sotto non
+> suo piano in archivio; la Fase 5 è il piano vivo `docs/archive/2026-10-26-aprire-sws-soligo-net.md`. Tre cose qui sotto non
 > sono più vere: lo squash `9fc2a391` non è un commit (è un albero); l'SMTP d'installazione esiste; la **decisione 39**
 > sulla porta 25 è falsa su questa macchina (il 26-10 25, 587 e 465 erano aperte in uscita). Self-host e backup per
 > azienda sono in `docs/plans/Appunti.txt`.

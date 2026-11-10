@@ -198,9 +198,18 @@ Qualsiasi browser moderno con supporto SVG e WebSocket:
 
 ## Licenza e governance
 
-SWS è rilasciato sotto **GNU Affero General Public License v3.0 (AGPL-3.0)**.
+SWS è di **Mauro Soligo**, che lo pubblica con il nome «Soligonet». **Dalla versione 2.26.0 ha una doppia licenza**,
+a scelta di chi lo usa:
 
-- Tutti i contributi richiedono `Signed-off-by:` (DCO)
+- **GNU Affero General Public License v3.0** (`AGPL-3.0-only`): gratis, open source. Chi distribuisce SWS (per esempio
+  installato sui pannelli che vende), o offre in rete una versione modificata, deve dare il codice sorgente con le sue
+  modifiche. Chi lo usa sui propri impianti senza modificarlo non ha altri obblighi;
+- **licenza commerciale**: un contratto su richiesta, per chi non vuole o non può rispettare gli obblighi dell'AGPL.
+
+Le due vie, in italiano e in inglese, sono in [`LICENSING.md`](../../LICENSING.md). Le versioni fino alla 2.25.2
+restano solo AGPL-3.0. Il servizio cloud lo offre il titolare, con le sue condizioni d'uso.
+
+- Tutti i contributi richiedono `Signed-off-by:` (DCO) e, per chi contribuisce da fuori, l'accordo [`CLA.md`](../../CLA.md)
 - Repository pubblico: [github.com/soligolab/sws](https://github.com/soligolab/sws)
 - Stato attuale: **Proof of Concept**. Fabbricante, contatti di sicurezza, periodo di supporto e procedura di
   segnalazione sono nel [capitolo 17](17_sicurezza.md): prima di metterlo su un impianto, leggere

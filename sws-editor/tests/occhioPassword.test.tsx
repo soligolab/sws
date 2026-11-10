@@ -1,5 +1,5 @@
 /** L'occhio sui campi password dove la password si scrive davvero (09-11-2026,
- *  piano docs/plans/2026-11-09-occhio-sulle-password.md): il login — lo stesso
+ *  piano docs/archive/2026-11-09-occhio-sulle-password.md): il login — lo stesso
  *  componente sta davanti al pannello, per l'aggiornamento — e la password di
  *  un comando critico, chiesta con `chiedi({ password: true })`.
  *

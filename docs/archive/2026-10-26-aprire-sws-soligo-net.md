@@ -328,9 +328,18 @@ PIN in volo, accettabile su una finestra di 10 minuti, e si risparmia una tabell
 `confronto_costante` (`router.rs:2151`) per il confronto; il blocco a 5 tentativi / 5 minuti per
 e-mail, **esteso anche alla via del PIN**, altrimenti il PIN si prova a forza bruta.
 
-**4. SMTP per azienda.** Sei colonne su `aziende` — `smtp_host`, `smtp_porta`, `smtp_da`,
+**4. SMTP per azienda — FATTO il 10-11-2026** (402cf536, ramo `feat/smtp-per-azienda` annidato su
+`feat/chiusura-piani`; da collaudare sul VPS). Schema 7 di `identita.db`; la sezione «Posta
+dell'azienda» nella scheda dell'azienda, con «Invia» per la prova; il gateway scrive la posta di
+ripiego in `smtp.yaml` nella configurazione del container (`gateway/progetti.rs`,
+`scrivi_posta_del_container`) e la riscrive nei container aperti quando cambia; dentro il
+container la legge `notifications::smtp_effettivo`. Il confine spostato lo tiene fermo il test
+`prove_confine` in `amministrazione.rs`. Nel cloud gli allarmi oggi non partono (istanza IDE): la
+prova vera è «Prova e-mail» nelle Notifiche di un progetto senza SMTP proprio.
+
+Sei colonne su `aziende` — `smtp_host`, `smtp_porta`, `smtp_da`,
 `smtp_utente`, `smtp_password`, `smtp_starttls` — che rispecchiano `SmtpConfig`
-(`sws-core/src/project.rs:1507-1521`). Si modificano dalla scheda dell'azienda nella console.
+(`sws-core/src/project.rs:1963-1978`). Si modificano dalla scheda dell'azienda nella console.
 
 Chi manda cosa, deciso il 26-10:
 
@@ -340,9 +349,16 @@ Chi manda cosa, deciso il 26-10:
 - **La posta dell'azienda** (inviti, allarmi, report dal cloud): la sua, con ripiego su quella
   d'installazione.
 
-**Un punto che attraversa il confine esistente**: oggi `amministrazione.rs:263-280` riserva alla
+**Chi lo usa, deciso il 10-11-2026** (misurato prima: oggi nessun codice legge un SMTP d'azienda — registrazione, PIN e
+ciclo account usano quello d'installazione, i container dei progetti quello del progetto): **catena progetto → azienda →
+installazione**. I container dei progetti nel cloud, quando il progetto non ha un suo SMTP, usano quello dell'azienda, che il
+gateway consegna al container all'avvio; in mancanza, quello d'installazione del gateway. Lo imposta l'amministratore
+d'azienda dalla scheda dell'azienda nella console. PIN e registrazione restano sull'SMTP d'installazione. Fatto sul
+ramo `feat/smtp-per-azienda` (10-11-2026, 402cf536).
+
+**Un punto che attraversa il confine esistente**: `amministrazione.rs` (in `modifica_azienda`) riserva alla
 piattaforma stato, marchio e quote, e l'SMTP d'installazione è in `SOLO_PIATTAFORMA`
-(`Console.tsx:31-35`). L'SMTP **dell'azienda** è affare suo: lo imposta **l'amministratore
+(`Console.tsx:31-37`). L'SMTP **dell'azienda** è affare suo: lo imposta **l'amministratore
 d'azienda**. È l'unica cosa che sposta quel confine, quindi va spostata di proposito —
 `scripts/check_amministrazione.sh` e il test del confine vanno aggiornati con una motivazione
 scritta. La password si rilegge **mascherata**, come già fa `leggi_smtp`.
@@ -375,7 +391,8 @@ la decisione 17 del piano cloud li vuole già. Serve il testo — anche breve �
 > inglese) e i punti da far verificare. **Va rivista da una persona competente** prima di pubblicarla. Il `LEGGIMI`
 > elenca anche quello che il codice del ramo C deve fare perché i testi siano veri (le due caselle alla registrazione,
 > l'avviso di inattività, la chiusura dell'account, le pagine pubbliche). La licenza del software, che il maintainer
-> vuole cambiare, è un seme a parte.
+> voleva cambiare, è stata decisa il 10-11-2026 (doppia, AGPL-3.0 o commerciale, `LICENSING.md`): il punto 10 delle
+> condizioni ha il testo vero.
 
 **Schermate** (nello stile del ramo B): registrazione, conferma del codice, «accedi con un PIN»
 accanto a «accedi con la password», e la casella «ricordami per 30 giorni».
@@ -501,25 +518,12 @@ già `crea()` ed `elenca()` con `-o /dev/null -w '%{http_code}'`) e segnare `ko`
 2xx. Con questo la decisione 27 è coperta senza una guardia nuova; nel tronco cloud archiviato il nome
 `check_self_host.sh` resta come storia, e questa sezione dice dove sta la copertura.
 
-### 2. Backup e ripristino per azienda (Q44 punto 4) — non è piccolo: prima una sessione di plan
+> **Fatto il 10-11-2026** (ramo `feat/chiusura-piani`): `prepara()` legge i due codici HTTP e segna `ko` se la creazione
+> o l'apertura non rispondono 2xx; con l'esito `ok` dice «il self-host crea e apre un progetto senza gateway né azienda».
+> Guardia manuale, elenco `CON_STACK` di `check_static.sh`.
 
-**L'idea.** Oggi i backup sono **per progetto**: `sws-runtime/crates/sws-web/src/backups.rs` (653 righe
-il 10-11-2026) **non sa niente dell'azienda** — la parola non compare nel file. Nel cloud servirebbe
-salvare e ripristinare **insieme tutti i progetti di un'azienda**.
+### 2. Backup e ripristino per azienda (Q44 punto 4) — è un seme
 
-**Da dove viene.** È il punto 4 della scheda Q44 («Ospitare l'editor come servizio, con aziende, utenti e
-quote»), il cui testo sta in
-[`docs/archive/2026-09-18-identita-utenti-istanze.md`](../archive/2026-09-18-identita-utenti-istanze.md):
-«**Backup e ripristino per azienda**, non per progetto come oggi.» L'intestazione del tronco cloud
-archiviato (05-11-2026) dice «Self-host e backup per azienda sono in `docs/plans/Appunti.txt`»: da oggi
-quel rimando vale per questa sezione.
-
-**Cosa resta da capire**, e non si decide qui: cosa entra nel backup di un'azienda oltre alle cartelle
-dei progetti (la riga in `aziende` con quote, marchio e stato; i membri; i pannelli abbinati; le
-anteprime `anteprima.png` che stanno fuori da Git e dal deploy); se il ripristino sovrascrive o affianca
-i progetti con lo stesso nome; dove il file viene scritto e letto nel cloud, dove il container del
-progetto e il gateway non condividono il filesystem se non per la cartella del progetto; e se il backup
-per azienda conta nella quota `max_byte`.
-
-**Non è piccolo: quando questo lavoro comincerà, il primo passo è una sessione di plan approfondita e
-dedicata, per sviscerarne tutti i dettagli.** Questo paragrafo è materiale, non un piano d'esecuzione.
+Dal 10-11-2026 il testo sta nel seme [backup per azienda](semi/2026-11-10-backup-per-azienda.md): non è piccolo, e quando
+quel lavoro comincerà il primo passo è una sessione di plan dedicata. L'intestazione del tronco cloud archiviato che dice
+«Self-host e backup per azienda sono in `docs/plans/Appunti.txt`» vale oggi per la sezione 1 qui sopra e per quel seme.

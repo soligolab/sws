@@ -1,5 +1,5 @@
 /** Registrarsi da soli, con la conferma dell'indirizzo per posta (30-10-2026,
- *  ramo C di `docs/plans/2026-10-26-aprire-sws-soligo-net.md`).
+ *  ramo C di `docs/archive/2026-10-26-aprire-sws-soligo-net.md`).
  *
  *  Due passi: il modulo, poi il codice. Il secondo passo si raggiunge anche dal
  *  login, quando la password è giusta ma l'indirizzo non è ancora confermato

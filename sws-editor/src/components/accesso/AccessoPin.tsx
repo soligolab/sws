@@ -1,5 +1,5 @@
 /** Entrare con un PIN per posta, in aggiunta alla password (30-10-2026, ramo C
- *  di `docs/plans/2026-10-26-aprire-sws-soligo-net.md`).
+ *  di `docs/archive/2026-10-26-aprire-sws-soligo-net.md`).
  *
  *  Due passi: l'indirizzo, poi il PIN. Il server risponde allo stesso modo per
  *  qualunque indirizzo, e questa schermata fa lo stesso: «se l'indirizzo è

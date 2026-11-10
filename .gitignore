@@ -77,3 +77,4 @@ __pycache__/
 # sviluppo non lo vede. Ignorata: e' materiale di una sessione, non del
 # progetto — quello che merita di restare va in docs/.
 /tmp/
+/.claude/worktrees/

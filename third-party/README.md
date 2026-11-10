@@ -21,6 +21,9 @@ For the vendored process-engineering *symbols* used by the Symbol widget
 
 1. Confirm the license is permissive (MIT, Apache 2.0, CC0, CC-BY, BSD).
    Reject CC-BY-NC, CC-BY-ND, GPL, AGPL, and "free for personal use" terms.
+   Why GPL and AGPL too: from 2.26.0 SWS is dual licensed, AGPL-3.0 or a
+   commercial license (`LICENSING.md`). A copyleft asset would fit the AGPL
+   copy but block the commercial one; a permissive asset fits both.
 2. Create a `third-party/<library>.md` file following the structure of the
    existing ones.
 3. Copy the license text to `third-party/licenses/<SPDX-ID>.txt` if not

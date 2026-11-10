@@ -180,7 +180,7 @@ pub struct Regia {
     /// Chiunque puo registrarsi da solo (`--gateway-registrazione`, 30-10-2026).
     /// Spenta di default: un gateway e aperto agli sconosciuti solo quando
     /// lo si decide — condizioni d'uso riviste, posta che non finisce nello
-    /// spam (`docs/plans/2026-10-26-aprire-sws-soligo-net.md`, ramo C).
+    /// spam (`docs/archive/2026-10-26-aprire-sws-soligo-net.md`, ramo C).
     registrazione_aperta: bool,
     /// Il segreto che il figlio pretende a ogni richiesta (`--auth-delegata`).
     /// Uno solo per tutto il gateway: i figli non si parlano fra loro, e un
@@ -395,6 +395,36 @@ impl Regia {
         self.aperti.read().await.values().cloned().collect()
     }
 
+    /// La posta di un'azienda e cambiata (10-11-2026): si riscrive
+    /// `smtp.yaml` nei container gia accesi di quell'azienda, cosi la prova
+    /// e i prossimi invii usano quella nuova senza riaprire il progetto.
+    /// `azienda` e il segmento dell'URL, come in [`Aperto::azienda`]: `-` per
+    /// l'implicita, che ha la cartella vuota.
+    pub async fn aggiorna_posta(&self, azienda: &str, posta: Option<&sws_core::SmtpConfig>) {
+        let cartella = if azienda == crate::project_registry::AZIENDA_IMPLICITA {
+            ""
+        } else {
+            azienda
+        };
+        let progetti: Vec<String> = self
+            .aperti
+            .read()
+            .await
+            .values()
+            .filter(|a| a.azienda == azienda)
+            .map(|a| a.nome_progetto.clone())
+            .collect();
+        for nome in progetti {
+            let config = cartella_config(&self.radice, cartella, &nome);
+            if !config.is_dir() {
+                continue;
+            }
+            if let Err(e) = scrivi_posta_del_container(&config, posta) {
+                tracing::warn!(cartella = %config.display(), "posta del progetto non aggiornata: {e}");
+            }
+        }
+    }
+
     /// Quanti progetti di quell'azienda sono aperti adesso.
     pub async fn aperti_di(&self, azienda: &str) -> usize {
         self.aperti
@@ -458,12 +488,22 @@ impl Regia {
     /// Al tetto si **rifiuta** (decisione del maintainer): non si spegne il
     /// piu vecchio per far posto, perche chi sta lavorando non deve ritrovarsi
     /// il progetto chiuso.
+    ///
+    /// `posta` e la posta che il container usa quando il progetto non ne ha
+    /// una sua: quella dell'azienda, o in mancanza quella dell'installazione
+    /// (10-11-2026). Anche questa la passa chi chiama, per lo stesso motivo
+    /// del tetto. Si scrive in `smtp.yaml` nella configurazione del figlio
+    /// (vedi [`scrivi_posta_del_container`]) solo quando il container nasce, e
+    /// per questo arriva come un `async` da aspettare: `apri` si chiama a ogni
+    /// richiesta inoltrata, e un progetto gia aperto non deve rileggere la
+    /// posta ogni volta.
     pub async fn apri(
         &self,
         azienda: &str,
         nome: &str,
         cartella_azienda: &str,
         tetto: Option<i64>,
+        posta: impl std::future::Future<Output = Option<sws_core::SmtpConfig>>,
     ) -> Result<Aperto, Apertura> {
         let riferimento = format!("{azienda}/{nome}");
 
@@ -534,6 +574,15 @@ impl Regia {
                 false
             }
         };
+        // La posta dell'azienda o dell'installazione (10-11-2026). Un errore
+        // non ferma l'apertura: il progetto si apre lo stesso, senza una posta
+        // di ripiego.
+        if config_ok {
+            let posta = posta.await;
+            if let Err(e) = scrivi_posta_del_container(&config, posta.as_ref()) {
+                tracing::warn!(cartella = %config.display(), "posta del progetto non scritta: {e}");
+            }
+        }
 
         let contenitore = nome_container(azienda, nome);
         // Un avanzo di un giro precedente occuperebbe il nome.
@@ -766,10 +815,43 @@ impl std::fmt::Display for Apertura {
     }
 }
 
+/// La posta di ripiego del container (10-11-2026): `smtp.yaml` nella sua
+/// configurazione, che il container legge con `leggi_smtp` come un'istanza
+/// qualunque legge la sua. La scrive il gateway, non il progetto: dentro il
+/// container nessuno la riscrive via API, perche `PUT /api/amministrazione/smtp`
+/// e della piattaforma e l'utente delegato dal gateway non lo e mai.
+///
+/// `None` toglie il file: un'azienda che toglie la sua posta, senza una
+/// dell'installazione, non deve continuare a usare quella di prima. Permessi
+/// 0600, come `smtp.yaml` dell'installazione: dentro c'e una password.
+pub(crate) fn scrivi_posta_del_container(
+    config: &std::path::Path,
+    posta: Option<&sws_core::SmtpConfig>,
+) -> std::io::Result<()> {
+    let file = config.join("smtp.yaml");
+    let Some(posta) = posta else {
+        return match std::fs::remove_file(&file) {
+            Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(e),
+            _ => Ok(()),
+        };
+    };
+    let testo = serde_yaml::to_string(posta).map_err(std::io::Error::other)?;
+    std::fs::write(&file, testo)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o600))?;
+    }
+    Ok(())
+}
+
 /// Dove vive la configurazione persistente del container di un progetto:
 /// `<radice>/.sws-config/<azienda>/<progetto>`. Il punto la tiene fuori
 /// dall'elenco dei progetti (`list_projects` salta le cartelle nascoste); l'azienda
 /// implicita, che ha la cartella vuota, va sotto `_`.
+///
+/// Dal 10-11-2026 ci vive anche `smtp.yaml`, la posta di ripiego del container:
+/// la scrive il gateway, la legge il container, il progetto non la vede mai.
 pub(crate) fn cartella_config(
     radice: &std::path::Path,
     cartella_azienda: &str,
@@ -920,6 +1002,7 @@ mod tests {
         std::fs::create_dir_all(&cfg).unwrap();
         std::fs::write(cfg.join("anthropic.key"), "k").unwrap();
         std::fs::write(cfg.join("dispositivo.yaml"), "url: x").unwrap();
+        std::fs::write(cfg.join("smtp.yaml"), "host: x\nfrom: a@x\n").unwrap();
 
         let nuovo = radice.join("acme").join("impianto2");
         segui_rinomina(radice, &vecchio, &nuovo).await;
@@ -927,6 +1010,10 @@ mod tests {
         assert!(
             cfg2.join("anthropic.key").exists(),
             "la chiave segue il nome nuovo"
+        );
+        assert!(
+            cfg2.join("smtp.yaml").exists(),
+            "la posta di ripiego segue il nome nuovo (10-11-2026)"
         );
         assert!(!cfg.exists());
 
@@ -947,6 +1034,39 @@ mod tests {
             config_di_progetto(radice, &radice.join("casa")),
             Some(cartella_config(radice, "", "casa"))
         );
+    }
+
+    /// La posta di ripiego del container (10-11-2026): si scrive leggibile
+    /// solo dal proprietario, si rilegge uguale, e `None` la toglie.
+    #[test]
+    fn la_posta_del_container_si_scrive_a_0600_e_si_toglie() {
+        let d = tempfile::tempdir().unwrap();
+        let cfg = sws_core::SmtpConfig {
+            host: "mail.acme.it".into(),
+            port: Some(465),
+            from: "allarmi@acme.it".into(),
+            username: Some("allarmi".into()),
+            password: Some("segreta".into()),
+            starttls: Some(false),
+        };
+        scrivi_posta_del_container(d.path(), Some(&cfg)).unwrap();
+        let file = d.path().join("smtp.yaml");
+        let letta: sws_core::SmtpConfig =
+            serde_yaml::from_str(&std::fs::read_to_string(&file).unwrap()).unwrap();
+        assert_eq!(letta.host, "mail.acme.it");
+        assert_eq!(letta.port, Some(465));
+        assert_eq!(letta.password.as_deref(), Some("segreta"));
+        assert_eq!(letta.starttls, Some(false));
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt as _;
+            let modo = std::fs::metadata(&file).unwrap().permissions().mode() & 0o777;
+            assert_eq!(modo, 0o600, "dentro c'e una password");
+        }
+        scrivi_posta_del_container(d.path(), None).unwrap();
+        assert!(!file.exists(), "senza posta il file non resta");
+        // Togliere quello che non c'e non e un errore.
+        scrivi_posta_del_container(d.path(), None).unwrap();
     }
 
     /// Un riavvio del container cambia l'IP, non il nome (25-10-2026).
@@ -1081,12 +1201,18 @@ mod tests {
         );
 
         // Il tetto si rispetta PRIMA di avviare qualunque cosa.
-        match regia.apri("acme", "impianto", "acme", Some(0)).await {
+        match regia
+            .apri("acme", "impianto", "acme", Some(0), async { None })
+            .await
+        {
             Err(Apertura::TettoPieno { .. }) => {}
             altro => panic!("un tetto a zero doveva fermarlo: {altro:?}"),
         }
 
-        let aperto = match regia.apri("acme", "impianto", "acme", Some(3)).await {
+        let aperto = match regia
+            .apri("acme", "impianto", "acme", Some(3), async { None })
+            .await
+        {
             Ok(a) => a,
             Err(e) => panic!("apertura fallita: {e}"),
         };
@@ -1132,7 +1258,7 @@ mod tests {
 
         // Riaprire non crea un secondo container.
         let di_nuovo = regia
-            .apri("acme", "impianto", "acme", Some(3))
+            .apri("acme", "impianto", "acme", Some(3), async { None })
             .await
             .unwrap();
         assert_eq!(di_nuovo.contenitore, aperto.contenitore);
@@ -1175,7 +1301,10 @@ mod tests {
             "segretolungoabbastanza0123",
         );
 
-        let primo = regia.apri("acme", "impianto", "acme", None).await.unwrap();
+        let primo = regia
+            .apri("acme", "impianto", "acme", None, async { None })
+            .await
+            .unwrap();
         assert!(
             regia.verifica_vivo(&primo.riferimento).await,
             "appena aperto è vivo"
@@ -1188,7 +1317,10 @@ mod tests {
         assert!(!regia.verifica_vivo(&primo.riferimento).await, "sparito");
         assert_eq!(regia.aperti_di("acme").await, 0, "dimenticato");
 
-        let secondo = regia.apri("acme", "impianto", "acme", None).await.unwrap();
+        let secondo = regia
+            .apri("acme", "impianto", "acme", None, async { None })
+            .await
+            .unwrap();
         let mut risponde = false;
         for _ in 0..40 {
             tokio::time::sleep(Duration::from_millis(500)).await;

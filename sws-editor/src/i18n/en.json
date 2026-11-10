@@ -2491,7 +2491,7 @@
     "condizioni": "terms of use",
     "accettoE": "and I have read",
     "informativa": "the privacy notice",
-    "approvoClausole": "I specifically approve the clauses listed in section 14 of the terms of use (Articles 1341-1342 of the Italian Civil Code)",
+    "approvoClausole": "I specifically approve, under Articles 1341 and 1342 of the Italian Civil Code, clauses 1 and 4 (service under development, without warranties, may be interrupted and reset), 6 (use of reports), 7 (no guarantee that projects are kept), 8 (exclusion of liability and indemnity), 9 (third-party services), 11 (end of the development phase), 12 (suspension, closure and deletion), 13 (changes and exclusive jurisdiction) of the terms of use.",
     "registrati": "Sign up",
     "registrazioneRifiutata": "Sign-up failed: check the address and the password.",
     "hoGiaUnAccount": "← I already have an account",
@@ -3274,6 +3274,7 @@
     "avviato": "Update to {{a}} started: the runtime is restarting. Reconnect in a minute to see the new version.",
     "tornatoAlla": "the panel went back to {{da}}",
     "inCorsoSulPannello": "An update is in progress on the panel: the outcome shows here in a couple of minutes.",
+    "riavvioInCorso": "The panel is restarting for the update: it is unreachable for a few minutes, then it comes back on its own. The outcome shows here.",
     "apriInstallazione": "Open Install",
     "istantaneaInCorso": "The panel is copying its data before updating (it is what a rollback needs): with a lot of history this can take a few minutes."
   },
@@ -3324,6 +3325,7 @@
     "titolo": "Service configuration",
     "carico": "Reading the device state…",
     "nonApplicabile": "Not applicable: the runtime does not run in a container with quadlets.",
+    "nonRaggiunto": "Panel unreachable: state not available.",
     "aggiornata": "Up to date (version {{v}}).",
     "daAggiornare": "Needs updating: the panel has version {{da}}, this image wants {{a}}. New lines (time zone, viewer restart…) do not apply until it is updated.",
     "aggiorna": "Update",
@@ -3618,7 +3620,11 @@
       "salvataggio": "Saving…",
       "annulla": "Cancel",
       "abbandona": "There are unsaved changes on this company. Discard them?",
-      "soloLettura": "State, brand, version and resources are decided by whoever administers the platform: here you see them, you do not change them. You can change the name."
+      "soloLettura": "State, brand, version and resources are decided by whoever administers the platform: here you see them, you do not change them. You can change the name and the company e-mail.",
+      "posta": "Company e-mail",
+      "postaNota": "This company's cloud projects that have no e-mail of their own use this one; if it is empty, the installation's. Registration codes and PINs always use the installation's e-mail.",
+      "postaNessuna": "The company has no e-mail of its own: the installation's is used.",
+      "postaProvaNota": "The test uses the saved e-mail: save before testing."
     },
     "persone": {
       "email": "Email",

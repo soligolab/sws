@@ -1,0 +1,7 @@
+[Unit]
+Description=Copia giornaliera dei dati di account e progetti (30 giorni)
+[Service]
+Type=oneshot
+Nice=10
+IOSchedulingClass=idle
+ExecStart=%h/sws-vps/backup-dati.sh

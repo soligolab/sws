@@ -13,7 +13,7 @@
 # `type={…}` che decidevano al volo. Un campo nuovo scritto a mano fra sei
 # mesi sarebbe l'unico senza occhio, e nessuno se ne accorgerebbe finché un
 # operatore non sbaglia la password davanti al pannello.
-# Piano: docs/plans/2026-11-09-occhio-sulle-password.md
+# Piano: docs/archive/2026-11-09-occhio-sulle-password.md
 #
 # COSA PRETENDE
 #

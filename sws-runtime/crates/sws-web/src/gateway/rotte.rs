@@ -95,15 +95,17 @@ async fn assicura_aperto(s: &AppState, azienda: &str, progetto: &str) -> Result<
         .expect("chiamata solo con il gateway acceso");
 
     // `cartella` vuota = azienda implicita, cioè i progetti in radice.
-    let (cartella, tetto) = if azienda == crate::project_registry::AZIENDA_IMPLICITA {
-        (String::new(), None)
+    // `scheda` è l'azienda, per la sua posta: l'implicita la si cerca dopo,
+    // solo se serve.
+    let (cartella, tetto, scheda) = if azienda == crate::project_registry::AZIENDA_IMPLICITA {
+        (String::new(), None, None)
     } else {
         let aziende = match s.identita.as_ref() {
             Some(i) => i.elenca_aziende().await.unwrap_or_default(),
             None => vec![],
         };
         match aziende.into_iter().find(|a| a.cartella == azienda) {
-            Some(a) => (a.cartella.clone(), a.max_progetti_aperti),
+            Some(a) => (a.cartella.clone(), a.max_progetti_aperti, Some(a)),
             // L'azienda non c'è più ma la cartella sì: non si inventa un
             // tetto, si rifiuta. Aprire un container per un'azienda che non
             // esiste vuol dire un container che nessuna quota conta.
@@ -113,7 +115,32 @@ async fn assicura_aperto(s: &AppState, azienda: &str, progetto: &str) -> Result<
         }
     };
 
-    match regia.apri(azienda, progetto, &cartella, tetto).await {
+    // La catena progetto → azienda → installazione (10-11-2026): il gateway
+    // consegna al container la posta dell'azienda, o quella dell'installazione;
+    // quella del progetto la sceglie il progetto. È un `async` che `apri` aspetta
+    // solo quando il container nasce: un progetto già aperto non rilegge la
+    // posta a ogni richiesta.
+    let posta = async {
+        // Anche l'implicita è un'azienda della console, e può avere una posta
+        // sua: la si cerca qui, solo quando serve.
+        let scheda = match scheda {
+            Some(a) => Some(a),
+            None => match s.identita.as_ref() {
+                Some(i) => i
+                    .elenca_aziende()
+                    .await
+                    .unwrap_or_default()
+                    .into_iter()
+                    .find(|a| a.implicita),
+                None => None,
+            },
+        };
+        match &scheda {
+            Some(a) => crate::amministrazione::posta_per_azienda(s, a).await,
+            None => crate::amministrazione::leggi_smtp(s).await,
+        }
+    };
+    match regia.apri(azienda, progetto, &cartella, tetto, posta).await {
         Ok(a) => Ok(a),
         // Il messaggio del tetto si legge: dice quanti sono e quanti ne
         // spettano, perché chi lo riceve deve sapere cosa chiudere.

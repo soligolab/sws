@@ -31,7 +31,7 @@ const LOGIN_MAX_MS = 60_000;
  * Calls POST /api/auth/login, stores the returned token, and the App
  * unmounts/remounts to render the authenticated UI.
  *
- * Dal 30-10-2026 (ramo C di `docs/plans/2026-10-26-aprire-sws-soligo-net.md`)
+ * Dal 30-10-2026 (ramo C di `docs/archive/2026-10-26-aprire-sws-soligo-net.md`)
  * le strade per entrare, sugli utenti dell'installazione, sono tre: password
  * (con «ricordami» 30 giorni), PIN per posta, registrazione con il codice di
  * conferma. Le ultime due compaiono solo se `/api/identita/stato` le offre.

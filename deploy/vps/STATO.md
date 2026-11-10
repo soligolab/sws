@@ -370,6 +370,26 @@ mai dai file.
   dell'informativa che il gateway non può fare da sé; l'altra metà, il registro di SWS, si pota nel
   giro quotidiano del gateway. Le due righe per applicarlo stanno in testa al file.
 
+## La copia giornaliera dei dati (10-11-2026)
+
+**Ogni giorno alle 03:15 UTC** `backup-dati.timer` lancia `~/sws-vps/backup-dati.sh` (in git: `deploy/vps/backup-dati.sh` e
+`deploy/vps/sistema/backup-dati.*`): copia `gateway-config` (account, audit, posta, pannelli) e `progetti` in
+`~/sws-vps/backup-dati/AAAA-MM-GG/`, e **tiene 30 giorni**. Decisione del maintainer del 10-11-2026, dichiarata
+nell'informativa privacy. Prima c'era solo `salva-stato.sh` (certificati e Portainer, 14 giorni), che resta.
+
+- I file non cambiati sono link fisici al giorno prima (`rsync --link-dest`). Misurato il 10-11: la prima copia 2,3 GB in
+  13 s, la seconda **138 MB** in più (i database vivi). Trenta giorni ≈ 6,5 GB su 27 liberi.
+- I 19 database SQLite vivi (quelli col `-wal`: `identita.db` e gli storici dei progetti) si copiano con l'API di backup di
+  SQLite (python3), non col file: un'istantanea coerente senza fermare nessuno. `identita.db` copiato: `integrity_check` ok.
+- Si scrive in `AAAA-MM-GG.parziale` e si rinomina alla fine; via le cartelle più vecchie di 30 giorni, per nome.
+- **Ripristinare**: fermare il gateway (`systemctl --user stop sws-gateway`), copiare la cartella del giorno scelto al posto
+  di `gateway-config` o del singolo progetto (`cp -a`), riavviare. Un progetto solo si ripristina anche da fermo il suo
+  container.
+- **Verifica**: `journalctl --user -u backup-dati.service -o cat | tail -1` dice giorni tenuti e spazio;
+  `systemctl --user list-timers | grep backup`.
+- La copia sta **sulla stessa macchina**: protegge da errori e cancellazioni, non dalla perdita del VPS. La seconda copia
+  remota è il seme `docs/plans/semi/2026-11-10-backup-su-un-secondo-server.md`.
+
 ## La posta in uscita (26-10-2026)
 
 Configurata dal maintainer dalla console, **Posta**. Vive in
@@ -384,7 +404,7 @@ Configurata dal maintainer dalla console, **Posta**. Vive in
 
 È l'SMTP **dell'installazione**, cioè quello che manderà il PIN monouso e la verifica della
 registrazione quando ci saranno — vedi
-[aprire sws.soligo.net a utenti esterni](../../docs/plans/2026-10-26-aprire-sws-soligo-net.md).
+[aprire sws.soligo.net a utenti esterni](../../docs/archive/2026-10-26-aprire-sws-soligo-net.md).
 Mittente e utente differiscono, e va bene: sono lo stesso dominio, quindi l'allineamento DMARC
 regge.
 

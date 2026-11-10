@@ -12,6 +12,38 @@ import { testoSistema, testoSistemaCon } from "@/i18n/testiSistema";
 
 const RILEGGI_IN_CORSO_MS = 15_000;
 
+/** Quanto a lungo un pannello che non risponde è «si sta riavviando» e non
+ *  «errore». Un aggiornamento vero dura un minuto (WP630, 10-11-2026: fermo
+ *  dalle 11:13:58 alle 11:14:56), con l'istantanea dei dati qualche minuto in
+ *  più; oltre dieci è un guasto, e va detto come tale. */
+const RIAVVIO_ATTESA_MS = 10 * 60_000;
+const CHIAVE_PARTITO = "sws.ide.aggiornamento.partito";
+
+/** L'IDE ricorda che l'aggiornamento è partito (10-11-2026). Il componente
+ *  rinasce a ogni apertura della scheda e il pannello, mentre si riavvia, non
+ *  risponde: senza memoria il gateway rispondeva «503: il pannello non è
+ *  collegato» e la scheda lo mostrava in rosso — formalmente vero, ma il
+ *  cliente lo legge come un guasto. Il segno sta in `localStorage`, legato
+ *  all'indirizzo del pannello collegato, e vale `RIAVVIO_ATTESA_MS`. */
+type Partito = { ts: number; url: string | null };
+function segnaPartito(): void {
+  const url = useAppStore.getState().remoteUrl;
+  try { localStorage.setItem(CHIAVE_PARTITO, JSON.stringify({ ts: Date.now(), url } satisfies Partito)); } catch { /* storage negato */ }
+}
+function dimenticaPartito(): void {
+  try { localStorage.removeItem(CHIAVE_PARTITO); } catch { /* storage negato */ }
+}
+function partitoDiRecente(): boolean {
+  try {
+    const grezzo = localStorage.getItem(CHIAVE_PARTITO);
+    if (!grezzo) return false;
+    const p = JSON.parse(grezzo) as Partito;
+    const url = useAppStore.getState().remoteUrl;
+    if (p.url !== url) return false;
+    return Date.now() - p.ts < RIAVVIO_ATTESA_MS;
+  } catch { return false; }
+}
+
 /** L'aggiornamento del runtime collegato (piano 2026-09-27, Fase 1): che
  *  versione gira, su quale canale, e se nel canale ce n'è una più nuova. «Aggiorna
  *  ora» lo chiede al dispositivo, che avvia `podman-auto-update` via bus utente:
@@ -25,26 +57,50 @@ export function AggiornamentoRuntime() {
   const [avviato, setAvviato] = useState(false);
   const [inCorso, setInCorso] = useState(false);
   const [esitoChiusoOra, setEsitoChiusoOra] = useState(false);
+  // Il pannello non risponde, ma l'aggiornamento era partito da poco: si sta
+  // riavviando. `tentativi` cresce a ogni lettura fallita e fa ripartire l'attesa.
+  const [riavvio, setRiavvio] = useState(false);
+  const [tentativi, setTentativi] = useState(0);
+
+  const letturaFallita = (e: unknown) => {
+    if (partitoDiRecente()) { setRiavvio(true); setErrore(null); setTentativi((n) => n + 1); return; }
+    setRiavvio(false);
+    setStato(null);
+    setErrore(e instanceof Error ? e.message : String(e));
+  };
+  const letturaRiuscita = (s: StatoAggiornamento) => {
+    // Visto partire da qui o da un'altra scheda: lo si ricorda per quando il
+    // pannello sparirà. Tornato a rispondere dopo il riavvio: il segno ha finito.
+    if (s.in_corso) segnaPartito();
+    else if (riavvio) dimenticaPartito();
+    setRiavvio(false);
+    setStato(s);
+    setErrore(null);
+  };
 
   useEffect(() => {
     let vivo = true;
     api.remoteStatoAggiornamento()
-      .then((s) => { if (vivo) { setStato(s); setErrore(null); } })
-      .catch((e) => { if (vivo) { setStato(null); setErrore(e instanceof Error ? e.message : String(e)); } });
+      .then((s) => { if (vivo) letturaRiuscita(s); })
+      .catch((e) => { if (vivo) letturaFallita(e); });
     return () => { vivo = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- solo al montaggio
   }, []);
 
-  // Con un aggiornamento già in corso si rilegge finché non arriva l'esito,
-  // come fa il viewer. Un errore qui è il pannello che si riavvia: si riprova.
+  // Con un aggiornamento già in corso, o col pannello che si riavvia, si rilegge
+  // finché non arriva l'esito, come fa il viewer.
   const giaPartito = !!stato?.in_corso && !avviato;
   useEffect(() => {
-    if (!giaPartito) return;
+    if (!giaPartito && !riavvio) return;
     let vivo = true;
     const id = window.setTimeout(() => {
-      api.remoteStatoAggiornamento().then((s) => { if (vivo) setStato(s); }).catch(() => { if (vivo) setStato((s) => (s ? { ...s } : s)); });
+      api.remoteStatoAggiornamento()
+        .then((s) => { if (vivo) letturaRiuscita(s); })
+        .catch((e) => { if (vivo) letturaFallita(e); });
     }, RILEGGI_IN_CORSO_MS);
     return () => { vivo = false; window.clearTimeout(id); };
-  }, [giaPartito, stato]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- rilegge a ogni stato nuovo o tentativo fallito
+  }, [giaPartito, riavvio, stato, tentativi]);
 
   // Le conferme valgono uguali per «Aggiorna ora» e per «Programma» (Fase 2).
   const confermaAggiornamento = async (): Promise<boolean> => {
@@ -65,6 +121,7 @@ export function AggiornamentoRuntime() {
     setInCorso(true);
     try {
       await api.remoteAvviaAggiornamento();
+      segnaPartito();
       setAvviato(true);
     } catch (e) {
       setErrore(e instanceof Error ? e.message : String(e));
@@ -78,6 +135,9 @@ export function AggiornamentoRuntime() {
   const manuale = !errore && !avviato && !!stato
     && (stato.canale === "archivio" || stato.canale === "fissata" || stato.canale === "sconosciuto");
   if (errore) { riga = errore; tono = "var(--brand-danger, #ef4444)"; }
+  // Il pannello non risponde perché si sta riavviando per l'aggiornamento
+  // (10-11-2026): giallo, non rosso, e si continua a rileggere.
+  else if (riavvio) { riga = t("aggiornamento.riavvioInCorso"); tono = "var(--brand-warning, #f59e0b)"; }
   else if (stato === undefined) riga = t("aggiornamento.carico");
   else if (stato === null) riga = t("aggiornamento.illeggibile");
   else if (avviato) { riga = t("aggiornamento.avviato", { a: stato.disponibile }); tono = "var(--brand-warning, #f59e0b)"; }

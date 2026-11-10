@@ -262,7 +262,7 @@ async fn modifica_azienda(
     State(s): State<AppState>,
     Extension(chi): Extension<AuthUser>,
     Path(azienda_id): Path<i64>,
-    Json(m): Json<ModificaAzienda>,
+    Json(mut m): Json<ModificaAzienda>,
 ) -> Response {
     let id = match identita(&s) {
         Ok(i) => i,
@@ -281,6 +281,13 @@ async fn modifica_azienda(
         // E dentro la **sua** azienda non puo toccare tutto: approvazione,
         // marchio e quote sono della piattaforma — sono cio che l'azienda ha
         // *concordato*, e una parte che rinegozia da sola non e un accordo.
+        //
+        // **La posta dell'azienda no** (campi `smtp_*`, 10-11-2026): e
+        // dell'azienda, non una cosa concordata con la piattaforma come stato,
+        // marchio e quote. E l'unico campo che sposta il confine della 3c, e lo
+        // sposta di proposito: deciso dal maintainer il 10-11-2026 (piano
+        // 2026-10-26-aprire-sws-soligo-net, punto 4). Il test `prove_confine`
+        // in fondo al file lo tiene fermo.
         let riservati = m.stato.is_some()
             || m.marchio.is_some()
             || m.versione_predefinita.is_some()
@@ -299,19 +306,111 @@ async fn modifica_azienda(
                 .into_response();
         }
     }
+    // La posta dell'azienda: la password uguale al segnaposto vuol dire «tieni
+    // quella di prima», come in `scrivi_posta`; un campo di testo vuoto vuol
+    // dire «svuota», non «salva una stringa vuota».
+    if let Err(r) = normalizza_posta(&mut m) {
+        return r;
+    }
+    let posta_toccata = m.smtp_host.is_some()
+        || m.smtp_porta.is_some()
+        || m.smtp_da.is_some()
+        || m.smtp_utente.is_some()
+        || m.smtp_password.is_some()
+        || m.smtp_starttls.is_some();
     // Lo stato di un'azienda è la cosa che decide se può avere pannelli e VPN
     // (decisione 17): va nel registro, non solo nel log.
     let stato = m.stato.map(|v| v.come_testo());
     match id.aggiorna_azienda(azienda_id, m).await {
         Ok(()) => {
+            // Della posta va nel registro CHE è cambiata, mai cosa: dentro
+            // c'è una password (stessa regola di `scrivi_posta`).
             s.audit.log(
                 "amministrazione.azienda_modificata",
                 Some(chi.username.clone()),
-                serde_json::json!({"id": azienda_id, "stato": stato}),
+                serde_json::json!({"id": azienda_id, "stato": stato, "smtp": posta_toccata}),
             );
+            // Sul gateway, i progetti di quest'azienda già aperti prendono
+            // subito la posta nuova (o tornano a quella dell'installazione).
+            if posta_toccata {
+                if let Some(regia) = &s.regia {
+                    let tutte = id.elenca_aziende().await.unwrap_or_default();
+                    if let Some(a) = tutte.iter().find(|a| a.id == azienda_id) {
+                        let posta = posta_per_azienda(&s, a).await;
+                        regia.aggiorna_posta(&segmento_di(a), posta.as_ref()).await;
+                    }
+                }
+            }
             StatusCode::NO_CONTENT.into_response()
         }
         Err(e) => errore(e),
+    }
+}
+
+/// Le regole della posta dell'azienda prima di scriverla (10-11-2026).
+///
+/// - la password uguale a [`MASCHERA`] non tocca quella salvata: chi cambia il
+///   server non deve ridigitare una password che non ha mai visto;
+/// - un testo vuoto (o di soli spazi) è `null`: «nessun server» si scrive
+///   così, e un `smtp_host` vuoto ma non nullo sembrerebbe una posta che c'è;
+/// - la porta deve essere una porta.
+#[allow(clippy::result_large_err)]
+fn normalizza_posta(m: &mut ModificaAzienda) -> Result<(), Response> {
+    if matches!(&m.smtp_password, Some(Some(p)) if p == MASCHERA) {
+        m.smtp_password = None;
+    }
+    for campo in [
+        &mut m.smtp_host,
+        &mut m.smtp_da,
+        &mut m.smtp_utente,
+        &mut m.smtp_password,
+    ] {
+        if matches!(campo, Some(Some(v)) if v.trim().is_empty()) {
+            *campo = Some(None);
+        }
+    }
+    if let Some(Some(h)) = &mut m.smtp_host {
+        *h = h.trim().to_string();
+    }
+    if let Some(Some(p)) = m.smtp_porta {
+        if !(1..=65535).contains(&p) {
+            return Err(errore(format!("la porta {p} non è una porta (1-65535)")));
+        }
+    }
+    Ok(())
+}
+
+/// La posta di un'azienda come la vuole il mailer, o `None` se l'azienda non
+/// ne ha una sua (10-11-2026). Servono il server **e** il mittente: senza
+/// mittente non parte niente, e un mezzo SMTP non deve nascondere quello
+/// dell'installazione. La porta assente resta assente: la mette
+/// `build_transport` (587).
+pub(crate) fn smtp_di(a: &sws_identita::Azienda) -> Option<sws_core::SmtpConfig> {
+    let pieno = |v: &Option<String>| v.clone().filter(|t| !t.trim().is_empty());
+    let host = pieno(&a.smtp_host)?;
+    let from = pieno(&a.smtp_da)?;
+    Some(sws_core::SmtpConfig {
+        host,
+        port: a.smtp_porta.and_then(|p| u16::try_from(p).ok()),
+        from,
+        username: pieno(&a.smtp_utente),
+        password: pieno(&a.smtp_password),
+        starttls: a.smtp_starttls,
+    })
+}
+
+/// La catena azienda → installazione (10-11-2026): la posta dell'azienda se
+/// ce l'ha, altrimenti quella dell'installazione. Quella del progetto viene
+/// prima di tutte e due, ma la sceglie il progetto nel suo container
+/// (`notifications::smtp_effettivo`). PIN e registrazione non passano da qui:
+/// usano sempre la posta dell'installazione.
+pub(crate) async fn posta_per_azienda(
+    s: &AppState,
+    a: &sws_identita::Azienda,
+) -> Option<sws_core::SmtpConfig> {
+    match smtp_di(a) {
+        Some(c) => Some(c),
+        None => leggi_smtp(s).await,
     }
 }
 
@@ -686,6 +785,15 @@ async fn scrivi_posta(
         Some(chi.username.clone()),
         serde_json::json!({"host": nuova.host}),
     );
+    // Sul gateway, i progetti già aperti delle aziende senza una posta loro
+    // usano quella dell'installazione (10-11-2026): prendono subito la nuova.
+    if let (Some(regia), Some(id)) = (&s.regia, &s.identita) {
+        for a in id.elenca_aziende().await.unwrap_or_default() {
+            if smtp_di(&a).is_none() {
+                regia.aggiorna_posta(&segmento_di(&a), Some(&nuova)).await;
+            }
+        }
+    }
     StatusCode::NO_CONTENT.into_response()
 }
 
@@ -740,6 +848,65 @@ async fn prova_posta(
     }
 }
 
+/// `POST /api/amministrazione/aziende/:id/smtp/prova` — un'email di prova con
+/// la posta **dell'azienda** (10-11-2026), quella salvata.
+///
+/// La apre chi amministra l'azienda, non solo la piattaforma: la posta
+/// dell'azienda è sua, e una configurazione che non si può provare si scopre
+/// sbagliata il giorno dell'allarme.
+async fn prova_posta_azienda(
+    State(s): State<AppState>,
+    Extension(chi): Extension<AuthUser>,
+    Path(azienda_id): Path<i64>,
+    Json(req): Json<Prova>,
+) -> Response {
+    let id = match identita(&s) {
+        Ok(i) => i,
+        Err(r) => return r,
+    };
+    // Lo stesso confine di `modifica_azienda`: 404, perché che quell'azienda
+    // esista non è cosa sua.
+    if let Some(mie) = confine(&s, &chi).await {
+        if !mie.contains(&azienda_id) {
+            return (StatusCode::NOT_FOUND, "nessuna azienda con questo id").into_response();
+        }
+    }
+    let tutte = id.elenca_aziende().await.unwrap_or_default();
+    let Some(a) = tutte.into_iter().find(|a| a.id == azienda_id) else {
+        return (StatusCode::NOT_FOUND, "nessuna azienda con questo id").into_response();
+    };
+    let Some(cfg) = smtp_di(&a) else {
+        return (
+            StatusCode::PRECONDITION_FAILED,
+            "l'azienda non ha una posta sua (servono server e mittente)",
+        )
+            .into_response();
+    };
+    let destinatari = vec![req.a.clone()];
+    let esito = tokio::task::spawn_blocking(move || {
+        crate::notifications::invia_una_prova(
+            &cfg,
+            &destinatari,
+            "SWS — prova di invio",
+            "Se leggi questo messaggio, la posta della tua azienda su SWS funziona.",
+        )
+    })
+    .await;
+    match esito {
+        Ok(Ok(())) => {
+            s.audit.log(
+                "amministrazione.smtp_azienda_prova",
+                Some(chi.username.clone()),
+                serde_json::json!({"azienda": azienda_id, "a": req.a, "esito": "ok"}),
+            );
+            StatusCode::NO_CONTENT.into_response()
+        }
+        // Per intero, come in `prova_posta`: l'errore di lettre dice cosa non va.
+        Ok(Err(e)) => (StatusCode::BAD_GATEWAY, e.to_string()).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
 // ── Il router ────────────────────────────────────────────────────────────────
 
 /// Tutte le rotte della console, **senza** il livello di autenticazione: lo
@@ -752,6 +919,10 @@ async fn prova_posta(
 /// Il confinamento sta **nell'handler** e non in un filtro attorno, perché
 /// quello che va filtrato è il contenuto della risposta, non il diritto di
 /// fare la chiamata.
+///
+/// **La posta dell'azienda** sta qui (10-11-2026): viaggia nel PATCH
+/// dell'azienda e ha la sua prova, perché è dell'azienda. La posta
+/// dell'**installazione** resta in [`rotte_di_piattaforma`].
 pub fn rotte_di_azienda() -> Router<AppState> {
     Router::new()
         .route("/api/amministrazione/risorse", get(risorse))
@@ -764,6 +935,10 @@ pub fn rotte_di_azienda() -> Router<AppState> {
         )
         .route("/api/amministrazione/aziende", get(elenca_aziende))
         .route("/api/amministrazione/aziende/:id", patch(modifica_azienda))
+        .route(
+            "/api/amministrazione/aziende/:id/smtp/prova",
+            axum::routing::post(prova_posta_azienda),
+        )
         .route(
             "/api/amministrazione/utenti",
             get(elenca_utenti).post(crea_utente),
@@ -780,6 +955,10 @@ pub fn rotte_di_azienda() -> Router<AppState> {
 /// Non sono di nessuna azienda: la posta è dell'installazione, i marchi sono
 /// un catalogo comune, e creare un'azienda è l'atto con cui la piattaforma
 /// accetta un cliente nuovo.
+///
+/// La posta dell'installazione è quella di PIN, registrazione e ciclo degli
+/// account, e il ripiego delle aziende senza una posta loro. Quella di
+/// un'azienda sta in [`rotte_di_azienda`] (10-11-2026).
 pub fn rotte_di_piattaforma() -> Router<AppState> {
     Router::new()
         .route(
@@ -992,4 +1171,275 @@ async fn risorse(State(s): State<AppState>, Extension(chi): Extension<AuthUser>)
         "pannelli_si_contano": s.pannelli_abbinati.is_some(),
     }))
     .into_response()
+}
+
+/// **Il confine della console** messo alla prova (10-11-2026). Fino a oggi non
+/// c'era un test: il confine si reggeva sulla lettura del codice. Nasce con la
+/// posta dell'azienda, l'unico campo che lo sposta di proposito — e un
+/// confine spostato di proposito si distingue da uno spostato per omissione
+/// solo se qualcosa lo tiene fermo.
+#[cfg(test)]
+mod prove_confine {
+    use super::*;
+    use axum::body::to_bytes;
+
+    struct Banco {
+        s: AppState,
+        acme: i64,
+        rossi: i64,
+        _dir: tempfile::TempDir,
+    }
+
+    async fn banco() -> Banco {
+        let dir = tempfile::tempdir().unwrap();
+        let mut s = crate::router::stato_di_prova(dir.path()).await;
+        let id = Identita::apri(dir.path().join("identita.db"))
+            .await
+            .unwrap();
+        let anna = id
+            .crea_utente(
+                "anna@acme.it",
+                "Anna",
+                "password-lunga",
+                Ruolo::Amministratore,
+                false,
+            )
+            .await
+            .unwrap();
+        let acme = id.crea_azienda("Acme").await.unwrap().id;
+        let rossi = id.crea_azienda("Rossi").await.unwrap().id;
+        id.iscrivi(acme, anna.id, Ruolo::Amministratore)
+            .await
+            .unwrap();
+        s.identita = Some(id);
+        Banco {
+            s,
+            acme,
+            rossi,
+            _dir: dir,
+        }
+    }
+
+    fn utente(email: &str, piattaforma: bool) -> AuthUser {
+        AuthUser {
+            username: email.to_string(),
+            role: sws_auth::Role::Admin,
+            must_change_password: false,
+            allowed_zones: vec![],
+            amministratore_piattaforma: piattaforma,
+        }
+    }
+
+    fn amministratrice() -> AuthUser {
+        utente("anna@acme.it", false)
+    }
+
+    async fn modifica(b: &Banco, chi: AuthUser, id: i64, corpo: serde_json::Value) -> Response {
+        let m: ModificaAzienda = serde_json::from_value(corpo).unwrap();
+        modifica_azienda(State(b.s.clone()), Extension(chi), Path(id), Json(m)).await
+    }
+
+    async fn azienda(b: &Banco, id: i64) -> sws_identita::Azienda {
+        b.s.identita
+            .as_ref()
+            .unwrap()
+            .elenca_aziende()
+            .await
+            .unwrap()
+            .into_iter()
+            .find(|a| a.id == id)
+            .unwrap()
+    }
+
+    async fn testo(r: Response) -> String {
+        String::from_utf8(to_bytes(r.into_body(), 1 << 20).await.unwrap().to_vec()).unwrap()
+    }
+
+    /// La posta è dell'azienda: chi la amministra la imposta da sé.
+    #[tokio::test]
+    async fn l_amministratore_d_azienda_imposta_la_sua_posta() {
+        let b = banco().await;
+        let r = modifica(
+            &b,
+            amministratrice(),
+            b.acme,
+            serde_json::json!({"smtp_host": "mail.acme.it", "smtp_da": "allarmi@acme.it"}),
+        )
+        .await;
+        assert_eq!(r.status(), StatusCode::NO_CONTENT);
+        let a = azienda(&b, b.acme).await;
+        assert_eq!(a.smtp_host.as_deref(), Some("mail.acme.it"));
+        assert_eq!(a.smtp_da.as_deref(), Some("allarmi@acme.it"));
+    }
+
+    /// Lo stato, il marchio e le quote restano della piattaforma.
+    #[tokio::test]
+    async fn lo_stato_resta_della_piattaforma() {
+        let b = banco().await;
+        let r = modifica(
+            &b,
+            amministratrice(),
+            b.acme,
+            serde_json::json!({"stato": "approvata"}),
+        )
+        .await;
+        assert_eq!(r.status(), StatusCode::FORBIDDEN);
+        assert!(testo(r).await.contains("riservato_alla_piattaforma"));
+        // La piattaforma sì, e insieme alla posta.
+        let r = modifica(
+            &b,
+            utente("root@sws.it", true),
+            b.acme,
+            serde_json::json!({"stato": "approvata", "smtp_host": "mail.acme.it"}),
+        )
+        .await;
+        assert_eq!(r.status(), StatusCode::NO_CONTENT);
+    }
+
+    /// L'azienda di un altro non esiste, nemmeno per la sua posta.
+    #[tokio::test]
+    async fn l_azienda_di_un_altro_e_un_404() {
+        let b = banco().await;
+        let r = modifica(
+            &b,
+            amministratrice(),
+            b.rossi,
+            serde_json::json!({"smtp_host": "mail.rossi.it"}),
+        )
+        .await;
+        assert_eq!(r.status(), StatusCode::NOT_FOUND);
+        assert_eq!(azienda(&b, b.rossi).await.smtp_host, None);
+    }
+
+    /// Il segnaposto tiene la password di prima, il campo vuoto la toglie, e
+    /// la password non esce mai dall'elenco.
+    #[tokio::test]
+    async fn la_maschera_tiene_la_password_e_l_elenco_non_la_mostra() {
+        let b = banco().await;
+        let r = modifica(
+            &b,
+            amministratrice(),
+            b.acme,
+            serde_json::json!({"smtp_host": "mail.acme.it", "smtp_password": "segreta"}),
+        )
+        .await;
+        assert_eq!(r.status(), StatusCode::NO_CONTENT);
+        let r = modifica(
+            &b,
+            amministratrice(),
+            b.acme,
+            serde_json::json!({"smtp_host": "altro.acme.it", "smtp_password": MASCHERA}),
+        )
+        .await;
+        assert_eq!(r.status(), StatusCode::NO_CONTENT);
+        let a = azienda(&b, b.acme).await;
+        assert_eq!(a.smtp_host.as_deref(), Some("altro.acme.it"));
+        assert_eq!(a.smtp_password.as_deref(), Some("segreta"));
+
+        let corpo =
+            testo(elenca_aziende(State(b.s.clone()), Extension(amministratrice())).await).await;
+        assert!(!corpo.contains("segreta"), "la password e uscita: {corpo}");
+        assert!(!corpo.contains("\"smtp_password\""), "{corpo}");
+        assert!(
+            corpo.contains("\"smtp_password_impostata\":true"),
+            "{corpo}"
+        );
+
+        // Vuota = toglila; un host di soli spazi = nessun server.
+        let r = modifica(
+            &b,
+            amministratrice(),
+            b.acme,
+            serde_json::json!({"smtp_host": " ", "smtp_password": ""}),
+        )
+        .await;
+        assert_eq!(r.status(), StatusCode::NO_CONTENT);
+        let a = azienda(&b, b.acme).await;
+        assert_eq!(a.smtp_host, None);
+        assert_eq!(a.smtp_password, None);
+    }
+
+    #[tokio::test]
+    async fn una_porta_fuori_misura_si_rifiuta() {
+        let b = banco().await;
+        let r = modifica(
+            &b,
+            amministratrice(),
+            b.acme,
+            serde_json::json!({"smtp_porta": 70000}),
+        )
+        .await;
+        assert_eq!(r.status(), StatusCode::BAD_REQUEST);
+    }
+
+    /// La prova: 412 senza una posta dell'azienda, 404 su un'azienda altrui.
+    #[tokio::test]
+    async fn la_prova_vuole_la_posta_e_il_confine() {
+        let b = banco().await;
+        for (id, atteso) in [
+            (b.acme, StatusCode::PRECONDITION_FAILED),
+            (b.rossi, StatusCode::NOT_FOUND),
+        ] {
+            let r = prova_posta_azienda(
+                State(b.s.clone()),
+                Extension(amministratrice()),
+                Path(id),
+                Json(Prova {
+                    a: "anna@acme.it".into(),
+                }),
+            )
+            .await;
+            assert_eq!(r.status(), atteso);
+        }
+    }
+
+    /// La catena azienda → installazione → niente.
+    #[tokio::test]
+    async fn la_posta_va_dall_azienda_all_installazione() {
+        let b = banco().await;
+        let a = azienda(&b, b.acme).await;
+        assert!(smtp_di(&a).is_none());
+        assert!(
+            posta_per_azienda(&b.s, &a).await.is_none(),
+            "né l'una né l'altra"
+        );
+
+        std::fs::write(
+            b.s.config_dir.join("smtp.yaml"),
+            "host: mail.sws.it\nfrom: sws@sws.it\n",
+        )
+        .unwrap();
+        assert_eq!(
+            posta_per_azienda(&b.s, &a).await.map(|c| c.host).as_deref(),
+            Some("mail.sws.it"),
+            "senza la sua, quella dell'installazione"
+        );
+
+        modifica(
+            &b,
+            amministratrice(),
+            b.acme,
+            serde_json::json!({"smtp_host": "mail.acme.it", "smtp_da": "a@acme.it"}),
+        )
+        .await;
+        let a = azienda(&b, b.acme).await;
+        let c = posta_per_azienda(&b.s, &a).await.unwrap();
+        assert_eq!(c.host, "mail.acme.it", "la sua viene prima");
+        assert_eq!(c.port, None, "la porta assente la mette build_transport");
+    }
+
+    /// Un server senza mittente non è una posta: non nasconde quella
+    /// dell'installazione.
+    #[tokio::test]
+    async fn senza_mittente_non_e_una_posta() {
+        let b = banco().await;
+        modifica(
+            &b,
+            amministratrice(),
+            b.acme,
+            serde_json::json!({"smtp_host": "mail.acme.it"}),
+        )
+        .await;
+        assert!(smtp_di(&azienda(&b, b.acme).await).is_none());
+    }
 }

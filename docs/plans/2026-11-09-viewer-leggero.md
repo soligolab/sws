@@ -4,7 +4,7 @@
 > Si parte dal ramo `fix/mini-tendenze-leggere`, che è uguale a `main` 258103bd (2.26.0-rc.9). I commit 82fbb7c7 e 284cc731 cambiano solo documenti, quindi le righe citate valgono anche a HEAD.
 > Questo piano assorbe il seme [2026-10-17-tag-uguali-ritrasmessi](../archive/2026-10-17-tag-uguali-ritrasmessi.md) (§8). Il banco e le misure stanno in `tmp/viewer-leggero/` (solo su theobroma).
 > Scritto da un'analisi a più voci (quattro mappe del codice, un banco di misura, due progetti indipendenti e un giudizio), poi completato con le decisioni prese dal maintainer lo stesso giorno (§4).
-> **Va tutto nella 2.26.0-rc.10**, insieme all'[occhio sulle password](2026-11-09-occhio-sulle-password.md) (scelta del maintainer, 09-11).
+> **Va tutto nella 2.26.0-rc.10**, insieme all'[occhio sulle password](../archive/2026-11-09-occhio-sulle-password.md) (scelta del maintainer, 09-11).
 
 ## 1. Il problema, misurato
 

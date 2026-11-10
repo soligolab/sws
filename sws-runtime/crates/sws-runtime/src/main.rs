@@ -233,7 +233,7 @@ struct Args {
     ///
     /// Spenta di default, e va accesa di proposito: prima servono le condizioni
     /// d'uso riviste e una posta d'installazione che non finisca nello spam.
-    /// Vedi `docs/plans/2026-10-26-aprire-sws-soligo-net.md`, ramo C.
+    /// Vedi `docs/archive/2026-10-26-aprire-sws-soligo-net.md`, ramo C.
     #[arg(long, env = "SWS_GATEWAY_REGISTRAZIONE")]
     gateway_registrazione: bool,
 

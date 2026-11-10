@@ -40,7 +40,7 @@ before the Phase 5 public demo.
 
 - Repo is **public but silent**: no announcements, no marketing, no community building until the public demo (Phase 5).
 - README explicitly states "early proof-of-concept, not for production use."
-- License (AGPL-3.0) and DCO are already in place.
+- License and contributor rules are in place: dual license from 2.26.0 (AGPL-3.0-only or commercial, `LICENSING.md`), DCO + CLA for external contributions.
 
 ---
 
@@ -226,8 +226,8 @@ These were settled in the spec design rounds and confirmed at bootstrap. **Not u
 | Architectures | `linux/arm64` (Yocto native binary — preferred); `linux/amd64` (dev) | — |
 | Repository layout | **Monorepo** with `sws-runtime/` and `sws-editor/` subdirectories | — |
 | Editor / runtime | **Same binary**, role chosen by `--viewer-port` (absent → IDE-only). Not a deliberate decision — recorded after the fact in `adr/0003`; two processes = Q8-E, product phase | — |
-| License | AGPL-3.0 (full text in `LICENSE`, verified 2026-05-12) | — |
-| Contributor agreement | DCO (`Signed-off-by:` on every commit) | — |
+| License | **Dual, from 2.26.0**: `AGPL-3.0-only OR LicenseRef-SWS-Commercial` — the AGPL text in `LICENSE`, the two paths in `LICENSING.md`, the commercial one a contract on request. Up to 2.25.2: AGPL-3.0-only. Holder: Mauro Soligo (Soligonet). Decided 2026-11-10, [`archive/2026-10-29-licenza-del-software.md`](archive/2026-10-29-licenza-del-software.md) | — |
+| Contributor agreement | DCO (`Signed-off-by:` on every commit) **+ CLA** (`CLA.md`) for external contributors from 2026-11-10: the dual license needs it | — |
 | Branching | `feat/T-XX-short-desc` branches → squash merge to main | — |
 | Versioning | SemVer `MAJOR.MINOR.PATCH` dal 2026-08-11 (`2.0.0`); CalVer `YYYY.M.PATCH` prima (`2026.7.0` → `0.1.0-dev`) | — |
 | Reference hardware | Rockchip PX30, RK3399, RK3588 | — |

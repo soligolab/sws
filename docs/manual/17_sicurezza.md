@@ -15,7 +15,7 @@
 
 | | |
 |---|---|
-| Fabbricante | **Soligonet** |
+| Fabbricante | **Mauro Soligo**, che pubblica SWS con il nome «Soligonet» |
 | Segnalazioni | segnalazione privata di GitHub (preferita) o `security@soligo.net`, in italiano o in inglese |
 | Contatti leggibili dalle macchine | ogni runtime serve `/.well-known/security.txt` (RFC 9116), senza credenziali |
 | Tempi | conferma entro 3 giorni lavorativi, prima valutazione entro 10, correzione entro 90 |

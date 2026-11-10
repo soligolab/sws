@@ -1,5 +1,5 @@
 //! Registrazione da sé e accesso con un PIN per posta (30-10-2026, ramo C di
-//! `docs/plans/2026-10-26-aprire-sws-soligo-net.md`).
+//! `docs/archive/2026-10-26-aprire-sws-soligo-net.md`).
 //!
 //! Qui sta tutto quello che riguarda i **codici monouso**: quello che conferma
 //! l'indirizzo di chi si registra e il PIN che sostituisce la password per un

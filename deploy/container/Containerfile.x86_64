@@ -62,6 +62,12 @@ COPY catalogo/       /var/sws/catalogo/
 # Si rigenera con scripts/known_hosts_git.sh.
 COPY ssh_known_hosts  /etc/ssh/ssh_known_hosts
 
+# La licenza viaggia con l'immagine (10-11-2026): LICENSE (il testo AGPL-3.0) e
+# LICENSING.md (le due vie, AGPL o commerciale). Un'immagine pubblica è una
+# distribuzione, e l'etichetta qui sotto da sola non basta. Cambiano di rado:
+# per questo stanno prima della SPA e non dopo.
+COPY licenza/         /usr/share/sws/licenza/
+
 # La SPA sta DENTRO l'immagine, come nel percorso aarch64 e per le stesse
 # ragioni (vedi il commento esteso in Containerfile.aarch64): col registry i
 # layer si deduplicano, quindi un frontend nuovo trasferisce il solo layer
@@ -156,7 +162,7 @@ LABEL org.opencontainers.image.source="https://github.com/soligolab/sws" \
       org.opencontainers.image.version="$SWS_VERSION" \
       org.opencontainers.image.title="sws-runtime" \
       org.opencontainers.image.description="SWS runtime (x86_64) — viewer 7443, IDE/admin 7444, SPA inclusa. Montare i dati su /var/sws/{config,projects,logs}." \
-      org.opencontainers.image.licenses="AGPL-3.0-only" \
+      org.opencontainers.image.licenses="AGPL-3.0-only OR LicenseRef-SWS-Commercial" \
       net.soligo.sws.novita.it="$SWS_NOVITA_IT" \
       net.soligo.sws.novita.en="$SWS_NOVITA_EN" \
       net.soligo.sws.compat.it="$SWS_COMPAT_IT" \

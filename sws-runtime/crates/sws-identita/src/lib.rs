@@ -146,6 +146,24 @@ pub struct Azienda {
     /// Serve alla console a distinguere un curioso da un cliente.
     pub personale: bool,
     pub creata_ms: u64,
+    /// **La posta dell'azienda** (schema 7, 10-11-2026). I progetti
+    /// dell'azienda nel cloud che non hanno un SMTP proprio usano questo; se
+    /// manca, quello dell'installazione. La catena e progetto → azienda →
+    /// installazione (piano 2026-10-26-aprire-sws-soligo-net, punto 4).
+    /// `None` su `smtp_host` = l'azienda non ha una posta sua.
+    pub smtp_host: Option<String>,
+    pub smtp_porta: Option<i64>,
+    pub smtp_da: Option<String>,
+    pub smtp_utente: Option<String>,
+    /// La password non esce MAI nel JSON: la console la rilegge solo come
+    /// `smtp_password_impostata`, e chi la deve usare (il gateway) la prende
+    /// dalla struct. `Azienda` deriva solo `Serialize`, quindi saltarla in
+    /// serializzazione basta.
+    #[serde(skip_serializing)]
+    pub smtp_password: Option<String>,
+    /// Derivato, non una colonna: c'e una password non vuota.
+    pub smtp_password_impostata: bool,
+    pub smtp_starttls: Option<bool>,
 }
 
 /// Distingue «campo assente» da «campo a `null`».
@@ -186,6 +204,20 @@ pub struct ModificaAzienda {
     pub max_pannelli: Option<Option<i64>>,
     #[serde(default, deserialize_with = "doppia_opzione")]
     pub max_byte: Option<Option<i64>>,
+    // La posta dell'azienda (schema 7, 10-11-2026). Stessa regola degli altri:
+    // assente = non toccare, `null` = svuota.
+    #[serde(default, deserialize_with = "doppia_opzione")]
+    pub smtp_host: Option<Option<String>>,
+    #[serde(default, deserialize_with = "doppia_opzione")]
+    pub smtp_porta: Option<Option<i64>>,
+    #[serde(default, deserialize_with = "doppia_opzione")]
+    pub smtp_da: Option<Option<String>>,
+    #[serde(default, deserialize_with = "doppia_opzione")]
+    pub smtp_utente: Option<Option<String>>,
+    #[serde(default, deserialize_with = "doppia_opzione")]
+    pub smtp_password: Option<Option<String>>,
+    #[serde(default, deserialize_with = "doppia_opzione")]
+    pub smtp_starttls: Option<Option<bool>>,
 }
 
 /// Un utente, senza la sua password. Il tipo pubblico non porta l'hash: così non può finire in
@@ -225,7 +257,7 @@ pub enum Rifiuto {
     },
     UtenteDisattivato,
     /// Si e registrato da solo e non ha ancora confermato l'indirizzo
-    /// (30-10-2026, ramo C di `docs/plans/2026-10-26-aprire-sws-soligo-net.md`).
+    /// (30-10-2026, ramo C di `docs/archive/2026-10-26-aprire-sws-soligo-net.md`).
     /// Distinto da `UtenteDisattivato` perche la risposta e diversa: «guarda
     /// la posta», non «chiedi all'amministratore». Si dice solo **dopo** una
     /// password giusta, quindi non rivela chi e iscritto.
@@ -428,7 +460,7 @@ CREATE TABLE IF NOT EXISTS aziende (
     -- su un'istanza aperta nasce con un'azienda sua, di cui e Sviluppatore:
     -- cosi «vede solo i suoi progetti», «niente console» e «non invita
     -- nessuno» sono conseguenze di regole che esistono gia, invece di tre
-    -- concetti nuovi. Vedi docs/plans/2026-10-26-aprire-sws-soligo-net.md.
+    -- concetti nuovi. Vedi docs/archive/2026-10-26-aprire-sws-soligo-net.md.
     --
     -- NON si riusa `implicita`: quella e l'azienda singola condivisa di
     -- un'installazione locale, e il codice la confronta in piu punti. Questa
@@ -444,6 +476,18 @@ CREATE TABLE IF NOT EXISTS aziende (
     max_progetti_totali INTEGER,
     max_pannelli     INTEGER,
     max_byte         INTEGER,
+    -- La posta dell'azienda (schema 7, 10-11-2026): i progetti dell'azienda
+    -- nel cloud senza un SMTP proprio usano questa, e senza questa quella
+    -- dell'installazione (catena progetto → azienda → installazione, piano
+    -- 2026-10-26-aprire-sws-soligo-net, punto 4). Tutte nullable: smtp_host
+    -- NULL vuol dire «nessuna posta sua». PIN e registrazione restano sulla
+    -- posta dell'installazione.
+    smtp_host        TEXT,
+    smtp_porta       INTEGER,
+    smtp_da          TEXT,
+    smtp_utente      TEXT,
+    smtp_password    TEXT,
+    smtp_starttls    INTEGER,
     creata_ms        INTEGER NOT NULL,
     aggiornata_ms    INTEGER NOT NULL
 );
@@ -555,6 +599,28 @@ const COLONNE_V6: &[(&str, &str)] = &[
     ("utenti", "ALTER TABLE utenti ADD COLUMN chiuso_ms INTEGER"),
 ];
 
+/// Schema 7 (10-11-2026): la posta dell'azienda. Sei colonne nullable su
+/// `aziende`, nessun dato si muove: un archivio esistente resta com'era e
+/// ogni azienda continua a usare la posta dell'installazione finche
+/// l'amministratore d'azienda non ne imposta una sua.
+const COLONNE_V7: &[(&str, &str)] = &[
+    ("aziende", "ALTER TABLE aziende ADD COLUMN smtp_host TEXT"),
+    (
+        "aziende",
+        "ALTER TABLE aziende ADD COLUMN smtp_porta INTEGER",
+    ),
+    ("aziende", "ALTER TABLE aziende ADD COLUMN smtp_da TEXT"),
+    ("aziende", "ALTER TABLE aziende ADD COLUMN smtp_utente TEXT"),
+    (
+        "aziende",
+        "ALTER TABLE aziende ADD COLUMN smtp_password TEXT",
+    ),
+    (
+        "aziende",
+        "ALTER TABLE aziende ADD COLUMN smtp_starttls INTEGER",
+    ),
+];
+
 impl Identita {
     /// Apre (o crea) l'archivio in `percorso`, di solito `<config_dir>/identita.db`.
     pub async fn apri(percorso: impl AsRef<Path>) -> anyhow::Result<Self> {
@@ -619,7 +685,12 @@ impl Identita {
                     }
                 }
             }
-            conn.pragma_update(None, "user_version", 6)?;
+            for (tabella, sql) in COLONNE_V7 {
+                if !colonna_presente(&conn, tabella, sql) {
+                    conn.execute(sql, [])?;
+                }
+            }
+            conn.pragma_update(None, "user_version", 7)?;
             // Il file contiene hash di password e sessioni: non deve essere leggibile da altri.
             #[cfg(unix)]
             {
@@ -1502,6 +1573,13 @@ impl Identita {
                 max_byte: None,
                 personale: false,
                 creata_ms: adesso,
+                smtp_host: None,
+                smtp_porta: None,
+                smtp_da: None,
+                smtp_utente: None,
+                smtp_password: None,
+                smtp_password_impostata: false,
+                smtp_starttls: None,
             })
         })
         .await?
@@ -1509,7 +1587,7 @@ impl Identita {
 
     /// **Un'azienda a testa**: l'azienda personale di chi si registra da solo.
     ///
-    /// E il cardine di `docs/plans/2026-10-26-aprire-sws-soligo-net.md`. Tutto
+    /// E il cardine di `docs/archive/2026-10-26-aprire-sws-soligo-net.md`. Tutto
     /// quello che un utente esterno deve poter fare — vedere solo i propri
     /// progetti, non aprire la console, non invitare nessuno, avere un marchio
     /// assegnabile, abbinare un pannello — **il modello per azienda lo fa
@@ -1592,6 +1670,13 @@ impl Identita {
                 max_byte: None,
                 personale: true,
                 creata_ms: adesso,
+                smtp_host: None,
+                smtp_porta: None,
+                smtp_da: None,
+                smtp_utente: None,
+                smtp_password: None,
+                smtp_password_impostata: false,
+                smtp_starttls: None,
             })
         })
         .await?
@@ -1604,7 +1689,9 @@ impl Identita {
             let mut q = c.prepare(
                 "SELECT id, nome, stato, marchio, versione_predefinita, implicita,
                         max_progetti_aperti, max_pannelli, max_byte, creata_ms, cartella,
-                        max_progetti_totali, personale
+                        max_progetti_totali, personale,
+                        smtp_host, smtp_porta, smtp_da, smtp_utente, smtp_password,
+                        smtp_starttls
                  FROM aziende ORDER BY implicita DESC, nome",
             )?;
             let righe = q
@@ -1623,6 +1710,15 @@ impl Identita {
                         cartella: r.get(10)?,
                         max_progetti_totali: r.get(11)?,
                         personale: r.get::<_, i64>(12)? != 0,
+                        smtp_host: r.get(13)?,
+                        smtp_porta: r.get(14)?,
+                        smtp_da: r.get(15)?,
+                        smtp_utente: r.get(16)?,
+                        smtp_password_impostata: r
+                            .get::<_, Option<String>>(17)?
+                            .is_some_and(|p| !p.is_empty()),
+                        smtp_password: r.get(17)?,
+                        smtp_starttls: r.get::<_, Option<i64>>(18)?.map(|v| v != 0),
                     })
                 })?
                 .collect::<Result<Vec<_>, _>>()?;
@@ -1704,6 +1800,7 @@ impl Identita {
                 ("max_progetti_totali", m.max_progetti_totali),
                 ("max_pannelli", m.max_pannelli),
                 ("max_byte", m.max_byte),
+                ("smtp_porta", m.smtp_porta),
             ] {
                 if let Some(v) = valore {
                     c.execute(
@@ -1711,6 +1808,27 @@ impl Identita {
                         params![v, id],
                     )?;
                 }
+            }
+            // La posta dell'azienda (schema 7): un secondo ciclo per le colonne
+            // di testo, perche il primo e tipato sugli interi.
+            for (campo, valore) in [
+                ("smtp_host", m.smtp_host),
+                ("smtp_da", m.smtp_da),
+                ("smtp_utente", m.smtp_utente),
+                ("smtp_password", m.smtp_password),
+            ] {
+                if let Some(v) = valore {
+                    c.execute(
+                        &format!("UPDATE aziende SET {campo} = ?1 WHERE id = ?2"),
+                        params![v, id],
+                    )?;
+                }
+            }
+            if let Some(v) = m.smtp_starttls {
+                c.execute(
+                    "UPDATE aziende SET smtp_starttls = ?1 WHERE id = ?2",
+                    params![v.map(i64::from), id],
+                )?;
             }
             c.execute(
                 "UPDATE aziende SET aggiornata_ms = ?1 WHERE id = ?2",
@@ -2131,9 +2249,18 @@ mod test {
                 .unwrap()
         };
         assert_eq!(
-            versione, 6,
-            "lo schema 6: il ciclo di vita degli account registrati (30-10-2026)"
+            versione, 7,
+            "lo schema 7: la posta dell'azienda (10-11-2026)"
         );
+        // Lo schema 7 aggiunge la posta dell'azienda anche a un archivio v2,
+        // vuota: l'azienda continua a usare la posta dell'installazione.
+        {
+            let c = id.conn.lock().unwrap();
+            assert!(ha_colonna(&c, "aziende", "smtp_host"));
+            assert!(ha_colonna(&c, "aziende", "smtp_starttls"));
+        }
+        assert_eq!(acme.smtp_host, None);
+        assert!(!acme.smtp_password_impostata);
 
         // E le colonne dello schema 4 ci sono, con i valori che lasciano
         // l'archivio com'era: nessuna azienda di prima e personale, e nessuna
@@ -2143,7 +2270,7 @@ mod test {
     }
 
     /// **Un'azienda a testa**, il cardine di
-    /// `docs/plans/2026-10-26-aprire-sws-soligo-net.md`.
+    /// `docs/archive/2026-10-26-aprire-sws-soligo-net.md`.
     #[tokio::test]
     async fn chi_si_registra_nasce_con_un_azienda_sua() {
         let (id, _d) = archivio().await;
@@ -2975,6 +3102,98 @@ mod test {
 
         let pieno: ModificaAzienda = serde_json::from_str(r#"{"marchio":"pixsys"}"#).unwrap();
         assert_eq!(pieno.marchio, Some(Some("pixsys".into())));
+
+        // La posta dell'azienda (schema 7) segue la stessa regola.
+        let posta_vuota: ModificaAzienda = serde_json::from_str(r#"{"smtp_host":null}"#).unwrap();
+        assert_eq!(posta_vuota.smtp_host, Some(None));
+        let niente: ModificaAzienda = serde_json::from_str("{}").unwrap();
+        assert_eq!(niente.smtp_host, None);
+        assert_eq!(niente.smtp_password, None);
+    }
+
+    /// La posta dell'azienda (schema 7, 10-11-2026): si salva, si rilegge,
+    /// e `null` la svuota senza toccare il resto.
+    #[tokio::test]
+    async fn la_posta_dell_azienda_si_salva_e_si_svuota() {
+        let (id, _d) = archivio().await;
+        let a = id.crea_azienda("Acme").await.unwrap();
+        id.aggiorna_azienda(
+            a.id,
+            ModificaAzienda {
+                smtp_host: Some(Some("mail.acme.it".into())),
+                smtp_porta: Some(Some(465)),
+                smtp_da: Some(Some("allarmi@acme.it".into())),
+                smtp_utente: Some(Some("allarmi".into())),
+                smtp_password: Some(Some("segreta".into())),
+                smtp_starttls: Some(Some(false)),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        let letta = |v: Vec<Azienda>| v.into_iter().find(|x| x.id == a.id).unwrap();
+        let dopo = letta(id.elenca_aziende().await.unwrap());
+        assert_eq!(dopo.smtp_host.as_deref(), Some("mail.acme.it"));
+        assert_eq!(dopo.smtp_porta, Some(465));
+        assert_eq!(dopo.smtp_da.as_deref(), Some("allarmi@acme.it"));
+        assert_eq!(dopo.smtp_utente.as_deref(), Some("allarmi"));
+        assert_eq!(dopo.smtp_password.as_deref(), Some("segreta"));
+        assert!(dopo.smtp_password_impostata);
+        assert_eq!(dopo.smtp_starttls, Some(false));
+
+        // Una modifica vuota non tocca la posta.
+        id.aggiorna_azienda(a.id, ModificaAzienda::default())
+            .await
+            .unwrap();
+        let ancora = letta(id.elenca_aziende().await.unwrap());
+        assert_eq!(ancora.smtp_host.as_deref(), Some("mail.acme.it"));
+
+        // `Some(None)` svuota solo il campo nominato.
+        id.aggiorna_azienda(
+            a.id,
+            ModificaAzienda {
+                smtp_host: Some(None),
+                smtp_password: Some(None),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        let svuotata = letta(id.elenca_aziende().await.unwrap());
+        assert_eq!(svuotata.smtp_host, None);
+        assert!(!svuotata.smtp_password_impostata);
+        assert_eq!(svuotata.smtp_da.as_deref(), Some("allarmi@acme.it"));
+    }
+
+    /// La password della posta dell'azienda non esce nel JSON: la console
+    /// sa solo che c'e.
+    #[tokio::test]
+    async fn la_password_smtp_non_esce_dal_json() {
+        let (id, _d) = archivio().await;
+        let a = id.crea_azienda("Acme").await.unwrap();
+        id.aggiorna_azienda(
+            a.id,
+            ModificaAzienda {
+                smtp_password: Some(Some("segreta".into())),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        let a = id
+            .elenca_aziende()
+            .await
+            .unwrap()
+            .into_iter()
+            .find(|x| x.id == a.id)
+            .unwrap();
+        let v = serde_json::to_value(&a).unwrap();
+        assert!(
+            v.get("smtp_password").is_none(),
+            "la password e uscita: {v}"
+        );
+        assert_eq!(v["smtp_password_impostata"], serde_json::json!(true));
+        assert!(!v.to_string().contains("segreta"));
     }
 
     #[tokio::test]

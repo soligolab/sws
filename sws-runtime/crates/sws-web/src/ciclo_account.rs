@@ -1,5 +1,5 @@
 //! Il giro quotidiano del gateway sugli account e sul registro delle attività
-//! (30-10-2026, ramo C di `docs/plans/2026-10-26-aprire-sws-soligo-net.md`).
+//! (30-10-2026, ramo C di `docs/archive/2026-10-26-aprire-sws-soligo-net.md`).
 //!
 //! Tre cose, una volta al giorno, solo sul gateway (`--gateway`):
 //!

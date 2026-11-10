@@ -220,7 +220,12 @@ pub async fn genera(s: &AppState, def: &ReportDef, a_ms: u64) -> anyhow::Result<
     let _ = tokio::task::spawn_blocking(move || pota(&c, conserva)).await;
 
     if !def.email.is_empty() {
-        match progetto.notifications.as_ref().and_then(|n| n.smtp.clone()) {
+        // Senza una posta del progetto, quella dell'istanza (10-11-2026).
+        let del_progetto = progetto
+            .notifications
+            .as_ref()
+            .and_then(|n| n.smtp.as_ref());
+        match crate::notifications::smtp_effettivo(s, del_progetto).await {
             Some(smtp) => {
                 let to: Vec<String> = def.email.iter().map(|d| d.indirizzo.clone()).collect();
                 let oggetto = format!("[SWS] {titolo} — {}", d.periodo);
@@ -236,7 +241,7 @@ pub async fn genera(s: &AppState, def: &ReportDef, a_ms: u64) -> anyhow::Result<
                 }
             }
             None => {
-                warn!(report = %def.id, "report: ha destinatari email ma il progetto non ha l'SMTP configurato (Notifiche)")
+                warn!(report = %def.id, "report: ha destinatari email ma né il progetto (Notifiche) né l'azienda o l'installazione hanno l'SMTP configurato")
             }
         }
     }

@@ -100,6 +100,8 @@ Sul pannello i volumi stanno in `/data/user/sws/{config,projects,logs}`; nel clo
 - **Healthcheck**: ogni 30 s, `curl /health` sulla 7443 o sulla 7444. Con `Notify=healthy` nel quadlet, systemd
   considera il servizio avviato solo quando il container è *healthy*: è quello che permette a un aggiornamento
   difettoso di tornare indietro da solo.
+- **Licenza**: `LICENSE` e `LICENSING.md` in `/usr/share/sws/licenza/`; l'etichetta dice
+  `AGPL-3.0-only OR LicenseRef-SWS-Commercial` (doppia licenza dalla 2.26.0).
 - **Etichette**: versione, licenza, e `net.soligo.sws.novita.{it,en}` / `compat.{it,en}` (le Novità e gli avvisi di
   compatibilità che il pannello mostra **prima** di aggiornare), `net.soligo.sws.quadlet` (la versione dei quadlet).
 - **Variabile `SWS_TUNNEL_URL`** già impostata a `wss://tunnel.soligo.net/tunnel/v1`: un pannello nuovo collegato a

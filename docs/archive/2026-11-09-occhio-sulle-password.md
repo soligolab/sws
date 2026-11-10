@@ -1,6 +1,7 @@
 # L'occhio sui campi password, in tutti gli ambienti
 
-> **Stato: fatto il 09-11-2026, in collaudo nella 2.26.0-rc.10** (sezione «Stato» in fondo). Era
+> **Stato: fatto il 09-11-2026, chiuso e archiviato il 10-11-2026** (sezione «Stato» in fondo; il collaudo sull'immagine
+> resta in `docs/COLLAUDI_IN_SOSPESO.md`, «L'occhio sulle password»). Era
 > previsto **dopo** il [viewer leggero](2026-11-09-viewer-leggero.md), che passava davanti per la
 > regola «un'anomalia che rovina l'uso passa davanti» (`CLAUDE.md`); il ramo è annidato su quello.
 
@@ -89,3 +90,19 @@ sotto senza fondo; il testo si ferma prima dell'occhio; su LVGL un fondo scuro m
 - Un campo nuovo senza `width` nello stile esce ~32 px più largo dei vicini (il contenitore si
   stringe sul campo, che ha 40 px di padding a destra): oggi non succede, tutti i 36 hanno `width`
   o `flex: 1`, ed è scritto nel docstring del componente.
+
+## Chiusura (10-11-2026)
+
+Decisioni del maintainer sui punti aperti, e il piano si archivia (regola dei piani quasi finiti): il collaudo a
+schermo resta in `docs/COLLAUDI_IN_SOSPESO.md`, voci 1-7, sulla 2.26.0-rc.11 o successiva.
+
+- **Tab salta l'occhio** (`tabIndex={-1}` sul bottone, ramo `feat/chiusura-piani`): da tastiera, dopo la password,
+  Tab va al pulsante del modulo e Invio entra; l'occhio resta per il mouse e per il dito. Test
+  «Tab salta l'occhio» in `tests/campoPassword.test.tsx`.
+- **La sentinella «********»** resta: è la stessa convenzione del server, una password vera di otto asterischi è il
+  caso di confine che il server ha già. Documentato nel docstring di `CampoPassword`.
+- **I campi senza `width`** restano come sono: tutti i 36 ce l'hanno, la regola è nel docstring.
+- **L'occhio sulla tastiera LVGL** (voce 8 del collaudo) resta nel codice, pronto per il primo campo password LVGL
+  che arriverà — per esempio la password sui comandi critici, oggi solo sul web (piano
+  [oggetti e template: parità LVGL](../plans/2026-11-10-oggetti-e-template-parita-lvgl.md)). Non si collauda.
+- **Il manuale**: `docs/manual/09_auth_rbac.md`, paragrafo «L'occhio» sotto «Password».

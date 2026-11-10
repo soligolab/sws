@@ -1,5 +1,5 @@
 //! La miniatura della pagina iniziale di un progetto (29-10-2026, ramo D del
-//! piano `docs/plans/2026-10-26-aprire-sws-soligo-net.md`).
+//! piano `docs/archive/2026-10-26-aprire-sws-soligo-net.md`).
 //!
 //! La disegna **l'IDE**, al salvataggio, con la stessa catena delle pagine di
 //! boot (`sws-editor/src/progetto/anteprima.ts`): il runtime non sa disegnare

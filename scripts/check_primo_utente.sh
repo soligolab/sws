@@ -56,10 +56,20 @@ ko() { echo "  ✗ $1"; ESITO=1; }
 
 . "$REPO/scripts/accesso_guardie.sh"
 
-prepara() { # $1 = porta, $2 = token
-  curl -s -X POST "http://localhost:$1/api/projects" -H "Authorization: Bearer $2" \
-    -H 'Content-Type: application/json' -d '{"name":"prova"}' >/dev/null
-  curl -s -X POST "http://localhost:$1/api/projects/prova/open" -H "Authorization: Bearer $2" >/dev/null
+prepara() { # $1 = porta, $2 = token, $3 = nome dell'istanza (per il messaggio)
+  # Il self-host (decisione 27 del tronco cloud, docs/archive/2026-10-05-cloud-utenti-aziende-spazi.md):
+  # un IDE senza gateway e senza azienda deve creare e aprire un progetto. Fino al
+  # 10-11-2026 le due risposte finivano in /dev/null e una dipendenza dal cloud nel
+  # nucleo sarebbe passata verde: ora i codici HTTP si leggono e un'apertura non 2xx
+  # e' un ko (piano docs/archive/2026-10-26-aprire-sws-soligo-net.md, «due code», punto 1).
+  local creato aperto
+  creato=$(curl -s -o /dev/null -w '%{http_code}' -X POST "http://localhost:$1/api/projects" \
+    -H "Authorization: Bearer $2" -H 'Content-Type: application/json' -d '{"name":"prova"}')
+  aperto=$(curl -s -o /dev/null -w '%{http_code}' -X POST "http://localhost:$1/api/projects/prova/open" \
+    -H "Authorization: Bearer $2")
+  case "$creato" in 2*) ;; *) ko "${3:-istanza}: creare il progetto «prova» senza gateway risponde $creato" ;; esac
+  case "$aperto" in 2*) ok "${3:-istanza}: il self-host crea e apre un progetto senza gateway né azienda ($creato/$aperto)" ;;
+                    *) ko "${3:-istanza}: aprire il progetto «prova» senza gateway risponde $aperto" ;; esac
   sleep 1
 }
 crea() { # $1 = porta, $2 = utente, $3 = ruolo, $4 = token (facoltativo) → codice HTTP

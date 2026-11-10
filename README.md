@@ -1,13 +1,14 @@
 # Soligo Web SCADA (SWS)
 
 [![CI](https://github.com/soligolab/sws/actions/workflows/ci.yml/badge.svg)](https://github.com/soligolab/sws/actions/workflows/ci.yml)
-[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
+[![License: AGPL-3.0 or commercial](https://img.shields.io/badge/License-AGPL--3.0%20or%20commercial-blue.svg)](LICENSING.md)
 [![Container: GHCR](https://img.shields.io/badge/Container-GHCR-green.svg)](https://github.com/soligolab/sws/pkgs/container/sws-runtime)
 
 **SWS is an open-source, web-based SCADA platform for industrial embedded hardware.** A single
 Rust binary talks to real PLCs and field devices over a vendor-neutral protocol layer, holds a
 live in-memory tag database, and serves both a browser-based WYSIWYG synoptic editor and an
-operator viewer — no separate engineering software, no per-seat license. The reference target is
+operator viewer — no separate engineering software to install, free to use under the AGPL-3.0 (a commercial
+license is available for those who cannot meet its obligations, see [License](#license)). The reference target is
 the **Pixsys** line of industrial Rockchip HMI/edge panels (PX30, RK3399, RK3588), alongside
 generic Linux and x86_64 hosts for development and evaluation.
 
@@ -364,13 +365,13 @@ regardless of which renderer is attached — only the widget catalog differs.
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). All contributors must sign off commits with
-`git commit -s` (DCO). Please read our [Code of Conduct](CODE_OF_CONDUCT.md).
+`git commit -s` (DCO) and sign the [Contributor License Agreement](CLA.md) once. Please read our [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ---
 
 ## Security
 
-Report vulnerabilities via GitHub Security Advisories or `security@soligolab.example`.
+Report vulnerabilities via GitHub Security Advisories or `security@soligo.net`.
 See [SECURITY.md](SECURITY.md) for the full disclosure policy.
 
 > ⚠️ In no-auth + plain-HTTP mode (the PoC default) the IDE and admin API are fully open and
@@ -380,4 +381,12 @@ See [SECURITY.md](SECURITY.md) for the full disclosure policy.
 
 ## License
 
-[GNU Affero General Public License v3.0](LICENSE) — © Soligo Lab
+© Mauro Soligo (Soligonet). **From version 2.26.0 SWS is dual licensed**: you choose between
+
+- the [GNU Affero General Public License v3.0](LICENSE) (`AGPL-3.0-only`) — free of charge, open source (OSI): if you
+  distribute SWS, or offer a modified SWS over a network, you must provide the source code, including your changes;
+- a **commercial license**, a contract on request, for those who cannot or do not want to meet the AGPL obligations.
+
+[LICENSING.md](LICENSING.md) explains both, in Italian and English, and how to ask for the commercial license.
+Versions up to 2.25.2 remain AGPL-3.0-only. Third-party components keep their own licenses
+([`third-party/`](third-party/README.md)). External contributions need the DCO sign-off **and** the [CLA](CLA.md).

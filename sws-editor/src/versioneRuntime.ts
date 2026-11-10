@@ -8,7 +8,7 @@ import { api } from "@/api/client";
  *  prima** — la versione esatta mostrata a chi non è ancora entrato la dice
  *  anche a chi sta cercando quali difetti noti provare, e su un'istanza aperta
  *  a esterni è un regalo gratuito.
- *  Piano: docs/plans/2026-10-26-aprire-sws-soligo-net.md, ramo B punto 8.
+ *  Piano: docs/archive/2026-10-26-aprire-sws-soligo-net.md, ramo B punto 8.
  *
  *  Una fetch sola, e il valore vive nel modulo: la versione di un processo non
  *  cambia mentre quel processo gira, e se cambia è perché il runtime è

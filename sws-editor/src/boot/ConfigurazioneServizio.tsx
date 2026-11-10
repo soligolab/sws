@@ -14,12 +14,15 @@ export function ConfigurazioneServizio() {
   const [errore, setErrore] = useState<string | null>(null);
   const [avviato, setAvviato] = useState(false);
   const [inCorso, setInCorso] = useState(false);
+  // Una lettura fallita non è «non applicabile»: è il pannello che non
+  // risponde (si riavvia, o il tunnel è giù). Si dice quello (10-11-2026).
+  const [nonRaggiunto, setNonRaggiunto] = useState(false);
 
   useEffect(() => {
     let vivo = true;
     const leggi = () => api.remoteGetSystemStatus()
-      .then((s) => { if (vivo) setStato(s.quadlet ?? null); })
-      .catch(() => { if (vivo) setStato(null); });
+      .then((s) => { if (vivo) { setStato(s.quadlet ?? null); setNonRaggiunto(false); } })
+      .catch(() => { if (vivo) { setStato(null); setNonRaggiunto(true); } });
     leggi();
     const id = window.setInterval(leggi, 15000);
     return () => { vivo = false; window.clearInterval(id); };
@@ -48,6 +51,7 @@ export function ConfigurazioneServizio() {
   let tono = "var(--brand-text-subtle, #64748b)";
   if (errore) { riga = errore; tono = "var(--brand-danger, #ef4444)"; }
   else if (stato === undefined) riga = t("configurazioneServizio.carico");
+  else if (nonRaggiunto) riga = t("configurazioneServizio.nonRaggiunto");
   else if (stato === null || stato.attesa === null) riga = t("configurazioneServizio.nonApplicabile");
   else if (avviato) { riga = t("configurazioneServizio.avviato"); tono = "var(--brand-warning, #f59e0b)"; }
   else if (stato.da_aggiornare) {

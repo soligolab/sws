@@ -1,9 +1,8 @@
-import { CampoPassword } from "@/components/CampoPassword";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
-import { avviso, campo, errore as stileErrore, pulsante, riga, scheda, titoletto } from "@/ui/base";
-import { CampoNumero } from "@/components/CampoNumero";
+import { avviso, campo, errore as stileErrore, pulsante, scheda, titoletto } from "@/ui/base";
+import { CampiSmtp } from "./CampiSmtp";
 
 /**
  * La posta dell'**installazione**, distinta da quella del progetto.
@@ -16,6 +15,10 @@ import { CampoNumero } from "@/components/CampoNumero";
  * **La password non si rilegge**: il server manda un segnaposto, e rimandarlo
  * indietro significa «tieni quella di prima». Così si può cambiare l'indirizzo
  * del server senza ridigitare una password che non si è mai vista.
+ *
+ * Resta della piattaforma: è quella di PIN e registrazione, e il ripiego delle
+ * aziende che non hanno una posta loro (quella sta nella scheda dell'azienda,
+ * 10-11-2026).
  */
 export function Posta() {
   const { t } = useTranslation();
@@ -64,25 +67,13 @@ export function Posta() {
   return (
     <div style={{ maxWidth: 560, display: "flex", flexDirection: "column", gap: 14 }}>
       <div style={scheda}>
-        <Campo etichetta={t("console.posta.host")}>
-          <input value={cfg.host} onChange={(e) => setCfg({ ...cfg, host: e.target.value })} style={campo} />
-        </Campo>
-        <Campo etichetta={t("console.posta.porta")}>
-          <CampoNumero value={cfg.port} onTesto={(e) => setCfg({ ...cfg, port: Number(e) })} style={campo} />
-        </Campo>
-        <Campo etichetta={t("console.posta.mittente")}>
-          <input value={cfg.from} onChange={(e) => setCfg({ ...cfg, from: e.target.value })} placeholder="SWS &lt;noreply@soligo.net&gt;" style={campo} />
-        </Campo>
-        <Campo etichetta={t("console.posta.utente")}>
-          <input value={cfg.username} onChange={(e) => setCfg({ ...cfg, username: e.target.value })} autoComplete="off" style={campo} />
-        </Campo>
-        <Campo etichetta={t("console.posta.password")}>
-          <CampoPassword value={cfg.password} onChange={(e) => setCfg({ ...cfg, password: e.target.value })} autoComplete="new-password" style={campo} />
-        </Campo>
-        <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13, marginBottom: 12 }}>
-          <input type="checkbox" checked={cfg.starttls} onChange={(e) => setCfg({ ...cfg, starttls: e.target.checked })} />
-          {t("console.posta.starttls")}
-        </label>
+        {/* I campi sono gli stessi della posta dell'azienda (`CampiSmtp`,
+            10-11-2026); caricare, salvare e provare restano qui. */}
+        <CampiSmtp
+          valore={{ ...cfg, port: String(cfg.port) }}
+          onChange={(v) => setCfg({ ...v, port: Number(v.port) })}
+          segnapostoMittente="SWS &lt;noreply@soligo.net&gt;"
+        />
         <button onClick={salva} style={pulsante(!!cfg.host && !!cfg.from)} disabled={!cfg.host || !cfg.from}>
           {t("console.posta.salva")}
         </button>
@@ -107,15 +98,6 @@ export function Posta() {
 
       {err && <div style={stileErrore}>{err}</div>}
       {esito && <div style={{ ...avviso, color: "var(--brand-success-soft, #86efac)", background: "#14532d33" }}>{esito}</div>}
-    </div>
-  );
-}
-
-function Campo({ etichetta, children }: { etichetta: string; children: React.ReactNode }) {
-  return (
-    <div style={riga}>
-      <label style={titoletto}>{etichetta}</label>
-      {children}
     </div>
   );
 }

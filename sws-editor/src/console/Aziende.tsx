@@ -7,6 +7,8 @@ import {
   pulsante, riga, rigaElenco, scheda, titoletto,
 } from "@/ui/base";
 import { CampoNumero } from "@/components/CampoNumero";
+import { MASCHERA_SERVER } from "@/components/CampoPassword";
+import { CampiSmtp, type ValoreSmtp } from "./CampiSmtp";
 
 /**
  * Le aziende: approvarle, dar loro un marchio, fissare la versione predefinita.
@@ -37,6 +39,9 @@ type Bozza = {
   spazio_gb: string;
   progetti_aperti: string;
   progetti_totali: string;
+  /** La posta dell'azienda (10-11-2026). La password parte dal segnaposto
+   *  del server se ce n'e una: lasciarlo vuol dire «tieni quella di prima». */
+  smtp: ValoreSmtp;
 };
 
 const GB = 1_073_741_824;
@@ -50,6 +55,29 @@ function bozzaDa(a: Azienda): Bozza {
     spazio_gb: a.max_byte !== null ? String(a.max_byte / GB) : "",
     progetti_aperti: a.max_progetti_aperti !== null ? String(a.max_progetti_aperti) : "",
     progetti_totali: a.max_progetti_totali !== null ? String(a.max_progetti_totali) : "",
+    smtp: {
+      host: a.smtp_host ?? "",
+      port: a.smtp_porta != null ? String(a.smtp_porta) : "",
+      from: a.smtp_da ?? "",
+      username: a.smtp_utente ?? "",
+      password: a.smtp_password_impostata ? MASCHERA_SERVER : "",
+      starttls: a.smtp_starttls ?? true,
+    },
+  };
+}
+
+/** La posta della bozza come la vuole il PATCH: vuoto = `null` (svuota), e
+ *  la password solo se e cambiata — il segnaposto non si manda, cosi resta
+ *  quella di prima. */
+function postaDa(s: ValoreSmtp): Record<string, unknown> {
+  const porta = s.port.trim();
+  return {
+    smtp_host: s.host.trim() || null,
+    smtp_porta: porta === "" ? null : Math.round(Number(porta)),
+    smtp_da: s.from.trim() || null,
+    smtp_utente: s.username.trim() || null,
+    smtp_starttls: s.starttls,
+    ...(s.password === MASCHERA_SERVER ? {} : { smtp_password: s.password || null }),
   };
 }
 
@@ -89,6 +117,10 @@ export function Aziende({ piattaforma = true }: { piattaforma?: boolean }) {
   }, [ricarica]);
 
   const scelta = aziende.find((a) => a.id === sceltaId) ?? null;
+  // La prova della posta dell'azienda (10-11-2026): usa quella salvata, quindi
+  // si accende solo con la scheda salvata e una posta che c'e.
+  const [provaA, setProvaA] = useState("");
+  const [esitoProva, setEsitoProva] = useState<string | null>(null);
 
   const crea = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -111,11 +143,26 @@ export function Aziende({ piattaforma = true }: { piattaforma?: boolean }) {
   // dal server dopo un salvataggio riuscito.
   useEffect(() => {
     setBozza(scelta ? bozzaDa(scelta) : null);
+    setEsitoProva(null);
   }, [scelta]);
 
   const originale = scelta ? bozzaDa(scelta) : null;
   const sporca =
     !!bozza && !!originale && JSON.stringify(bozza) !== JSON.stringify(originale);
+
+  const provaPossibile = !!scelta?.smtp_host && !sporca && provaA.includes("@");
+
+  const prova = async () => {
+    if (!scelta || !provaPossibile) return;
+    setErr(null);
+    setEsitoProva(null);
+    try {
+      await api.amministrazioneProvaSmtpAzienda(scelta.id, provaA);
+      setEsitoProva(t("console.posta.inviata", { a: provaA }));
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : String(e));
+    }
+  };
 
   /** Cambiare azienda con modifiche non salvate le butterebbe via in silenzio. */
   const scegli = async (id: number) => {
@@ -150,6 +197,13 @@ export function Aziende({ piattaforma = true }: { piattaforma?: boolean }) {
               max_progetti_aperti: pa === "" ? null : Math.round(Number(pa)),
               max_progetti_totali: pt === "" ? null : Math.round(Number(pt)),
             }
+          : {}),
+        // La posta e dell'azienda, non della piattaforma (decisione del
+        // maintainer, 10-11-2026): la manda anche chi amministra l'azienda.
+        // Solo se e cambiata: il registro deve dire che la posta e cambiata
+        // quando e cambiata davvero.
+        ...(originale && JSON.stringify(bozza.smtp) !== JSON.stringify(originale.smtp)
+          ? postaDa(bozza.smtp)
           : {}),
       });
       await ricarica();
@@ -352,6 +406,42 @@ export function Aziende({ piattaforma = true }: { piattaforma?: boolean }) {
               />
             </div>
             <div style={avviso}>{t("console.aziende.progettiTotaliAvviso")}</div>
+
+            {/* La posta dell'azienda (10-11-2026). Al contrario di stato,
+                marchio e quote la cambia anche chi amministra l'azienda: e
+                sua, non una cosa concordata con la piattaforma. Si salva col
+                «Salva» della scheda, come tutto il resto. */}
+            <div style={{ ...titoletto, marginTop: 16 }}>{t("console.aziende.posta")}</div>
+            <p style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", margin: "0 0 8px", lineHeight: 1.4 }}>
+              {t("console.aziende.postaNota")}
+            </p>
+            <CampiSmtp valore={bozza.smtp} onChange={(smtp) => setBozza({ ...bozza, smtp })} />
+            {!scelta.smtp_host && (
+              <div style={avviso}>{t("console.aziende.postaNessuna")}</div>
+            )}
+            <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+              <input
+                value={provaA}
+                onChange={(e) => setProvaA(e.target.value)}
+                placeholder={t("console.posta.indirizzo")}
+                type="email"
+                style={campo}
+              />
+              <button
+                onClick={prova}
+                disabled={!provaPossibile}
+                style={pulsante(provaPossibile)}
+              >
+                {t("console.posta.invia")}
+              </button>
+            </div>
+            <p style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", margin: "4px 0 0", lineHeight: 1.4 }}>
+              {t("console.aziende.postaProvaNota")}
+            </p>
+            {esitoProva && (
+              <div style={{ ...avviso, color: "var(--brand-success-soft, #86efac)", background: "#14532d33" }}>{esitoProva}</div>
+            )}
+
             {!piattaforma && (
               <div style={{ ...avviso, marginTop: 8 }}>{t("console.aziende.soloLettura")}</div>
             )}

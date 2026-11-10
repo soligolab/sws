@@ -39,7 +39,9 @@ e la Logica hanno cambiato l'interfaccia. Il sito si rigenera a ogni release, qu
   «← →», che si spezzano), **31** con àncora nello stile di GitHub (5 con lettere accentate, una da un titolo con emoji),
   2 a GitHub. Il 18 ha 8 diagrammi Mermaid.
 - Nome e licenza in testa: `MAIN.md:3` dice «Soligo Web SCADA», il marchio «SWS — SCADA Web Studio»; `MAIN.md:5` e
-  `01:199-204` dicono AGPL-3.0, e il seme `2026-10-29-licenza-del-software.md` la vuole cambiare.
+  `01:199-204` dicevano AGPL-3.0; dal 10-11-2026 dicono la doppia licenza (AGPL-3.0 o commerciale, seme archiviato
+  `docs/archive/2026-10-29-licenza-del-software.md`) e rimandano a `LICENSING.md` e `CLA.md`, due link in più verso
+  file del repo.
 - Schermate: le 11 di `screenshots/` sono del 20-09 (prima dello stile VS Code), 5 citate e 6 no; le 37 del tutorial
   sono del 03-11, **e gli script che le hanno scattate non esistono più** (`tmp/tutorial/` sparita, niente nel repo).
   `e2e/screenshots.spec.ts` scrive tre file che la cartella non ha.

@@ -1,5 +1,5 @@
 /** Le strade per entrare (30-10-2026, ramo C di
- *  docs/plans/2026-10-26-aprire-sws-soligo-net.md): password con «ricordami»,
+ *  docs/archive/2026-10-26-aprire-sws-soligo-net.md): password con «ricordami»,
  *  PIN per posta, registrazione con il codice di conferma. */
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, afterEach, vi } from "vitest";

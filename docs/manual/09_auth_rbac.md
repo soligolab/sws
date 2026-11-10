@@ -170,6 +170,14 @@ nasce con `must_change_password`: al primo accesso l'API lo obbliga a cambiarla 
 lasciargli fare altro. Ogni utente cambia la propria da **Utente → Cambia password**; un Admin
 può reimpostare quella di chiunque.
 
+**L'occhio.** Ogni campo password — nell'IDE, nella console, nel viewer web del pannello e sul
+pannello LVGL — ha a destra un'icona a forma di occhio: un tocco mostra quello che si sta
+scrivendo, un secondo lo nasconde. La password parte sempre nascosta e torna nascosta quando il
+modulo si invia o la finestra si chiude; un valore già salvato e mascherato dal server resta
+mascherato. Serve soprattutto col touch e la tastiera a schermo, dove una password si sbaglia
+senza vedere dove: è chi scrive a decidere quando mostrarla, in condizioni di sicurezza. Da
+tastiera Tab salta l'occhio e va al pulsante.
+
 ### Login
 
 ```bash
@@ -315,6 +323,15 @@ Un utente dell'installazione entra con email e password. Dalla 2.23.8, nella ste
 
 I tentativi sbagliati di password e di PIN si contano **insieme**: cinque in cinque minuti
 bloccano quell'indirizzo per cinque minuti, e il PIN in volo si butta.
+
+### La posta dell'azienda (gateway)
+
+Ogni azienda può avere la sua posta: console → Aziende → la scheda dell'azienda → «Posta
+dell'azienda». La imposta anche chi amministra l'azienda, non solo la piattaforma, e il pulsante
+«Invia» manda una prova con la posta salvata. La usano i progetti dell'azienda nel cloud che non
+hanno una posta propria nelle Notifiche; se l'azienda non ne ha una, si usa quella
+dell'installazione (console → Posta). Il PIN e il codice della registrazione partono sempre dalla
+posta dell'installazione.
 
 ### Registrarsi da soli (gateway)
 

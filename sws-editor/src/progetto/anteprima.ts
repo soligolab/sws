@@ -1,5 +1,5 @@
 // La miniatura della pagina iniziale nell'elenco dei progetti (29-10-2026,
-// ramo D del piano docs/plans/2026-10-26-aprire-sws-soligo-net.md).
+// ramo D del piano docs/archive/2026-10-26-aprire-sws-soligo-net.md).
 //
 // La si disegna al salvataggio, con la stessa catena delle pagine di boot
 // (`boot/rasterizza.ts`), e la si manda al runtime, che la tiene nella cartella

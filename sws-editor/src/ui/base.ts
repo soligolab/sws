@@ -13,7 +13,7 @@
  * # Da dove viene, e dove va (28-10-2026)
  *
  * Era `console/stile.ts` e serviva la sola console. Il ramo B del piano
- * `docs/plans/2026-10-26-aprire-sws-soligo-net.md` chiedeva un modulo di
+ * `docs/archive/2026-10-26-aprire-sws-soligo-net.md` chiedeva un modulo di
  * primitive per le schermate di accesso e scelta progetto, che non usavano
  * **nessuno** dei sistemi esistenti e avevano le loro costanti locali.
  *

@@ -2,6 +2,9 @@
 name    = "sws-kiosk"
 version = "2.26.0-rc.11"
 edition = "2021"
+# Fuori dal workspace come sws-lvgl-viewer, quindi scritta a mano: la stessa
+# doppia licenza del resto di SWS (LICENSING.md).
+license = "AGPL-3.0-only OR LicenseRef-SWS-Commercial"
 
 [[bin]]
 name = "sws-kiosk"

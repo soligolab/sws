@@ -40,6 +40,17 @@ da un pannello **già sulla rc.11** che sale alla versione dopo: fra il clic e `
 2. [ ] Un secondo `POST` dell'aggiornamento mentre il primo è prenotato risponde **409** (si vede nel journal del pannello
        o con `curl`); dopo il riavvio lo stato torna normale e la conferma «Dopo l'aggiornamento» compare come sempre.
 
+**Visto il 10-11-2026 sul WP630, dalla rc.10 alla rc.11 (dall'IDE nel cloud):** istantanea 1,1 MB alle 11:13:57, runtime
+nuovo alle 11:14:56, «Aggiornamento completato» alle 11:16:56. Cambiando scheda e tornando, l'IDE diceva «aggiornamento in
+corso» (bene); **durante il riavvio** diceva in rosso «Il dispositivo ha risposto 503 Service Unavailable: il pannello
+«wp630-ufficio» non è collegato» e «Configurazione del servizio: non applicabile» — formalmente vero, ma allarma il
+cliente (parole del maintainer). Corretto sul ramo `fix/collaudo-rc11`: per dieci minuti dal clic l'IDE dice «si sta
+riavviando» in giallo e rilegge ogni 15 s; da collaudare al salto rc.11 → rc.12 (voce 3).
+
+3. [ ] Dal cloud, aggiornando un pannello sulla rc.11 alla rc.12: durante il riavvio, riaprendo Connessione, la sezione
+       «Aggiornamento del runtime» dice in giallo «Il pannello si sta riavviando per l'aggiornamento…» e «Configurazione
+       del servizio» dice «Pannello non raggiungibile»; niente righe rosse. Al ritorno del pannello compare l'esito.
+
 ## Il viewer leggero (09-11-2026)
 
 Rami A e B del piano `docs/plans/2026-11-09-viewer-leggero.md` (§10): `fix/mini-tendenze-leggere` e, annidato sopra,
@@ -97,7 +108,7 @@ prova di carico (il template ora è a 1 Hz).
 
 ## L'occhio sulle password (09-11-2026)
 
-Piano `docs/plans/2026-11-09-occhio-sulle-password.md`, ramo `feat/occhio-password` annidato su `fix/ridisegno-mirato`,
+Piano `docs/archive/2026-11-09-occhio-sulle-password.md`, ramo `feat/occhio-password` annidato su `fix/ridisegno-mirato`,
 con le correzioni delle due revisioni del 09-11. Va nella 2.26.0-rc.10 insieme al viewer leggero: le voci del pannello
 vogliono quell'immagine. Regola unica su tutti gli ambienti: la password parte nascosta, l'occhio la mostra, un secondo
 tocco la nasconde, chiusa la finestra riparte nascosta. L'icona è la stessa su web e LVGL: aperta quando la password è
@@ -126,9 +137,9 @@ nascosta («toccami per vederla»), barrata quando si legge.
        dito preme; il tocco mostra il testo in chiaro, un secondo lo nasconde; «Annulla» e un login riuscito la rimettono
        nascosta, alla prossima apertura parte nascosta. Aprire e chiudere il login dieci volte non fa crescere la
        memoria del viewer (dalla revisione i raster dell'occhio sono condivisi).
-8. [ ] Tastiera LVGL in modalità password: oggi nessuna schermata la apre con `password = true`, quindi l'occhio della
-       tastiera dal pannello non si vede. Si prende atto e si segna qui l'esito: se resta senza chiamanti, si toglie o
-       si tiene come pronto per il primo campo che lo userà.
+8. [x] Tastiera LVGL in modalità password: oggi nessuna schermata la apre con `password = true`, quindi l'occhio della
+       tastiera dal pannello non si vede. **Deciso dal maintainer il 10-11-2026: si tiene, pronto** per il primo campo password
+       LVGL (es. i comandi critici, piano della parità). Niente da collaudare.
 
 ## La serie L0 → F2 → F3 (05-11-2026) — la sandbox Python e la Finestra di avviso dappertutto
 
@@ -384,7 +395,7 @@ faceplate (il dimostrativo ha `tank_level`).
 
 ## A-decies. La miniatura nell'elenco dei progetti (29-10-2026)
 
-Ramo D del piano `docs/plans/2026-10-26-aprire-sws-soligo-net.md`.
+Ramo D del piano `docs/archive/2026-10-26-aprire-sws-soligo-net.md`.
 
 1. [x] Aprire un progetto, cambiare qualcosa nella pagina iniziale, salvare, chiudere il progetto: la sua scheda
        mostra la miniatura, con la cornice, nelle due viste (griglia ed elenco) — **approvata a schermo il 29-10-2026**

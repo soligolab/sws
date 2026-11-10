@@ -101,6 +101,12 @@ COPY catalogo/       /var/sws/catalogo/
 # Si rigenera con scripts/known_hosts_git.sh.
 COPY ssh_known_hosts  /etc/ssh/ssh_known_hosts
 
+# La licenza viaggia con l'immagine (10-11-2026): LICENSE (il testo AGPL-3.0) e
+# LICENSING.md (le due vie, AGPL o commerciale). Un'immagine pubblica è una
+# distribuzione, e l'etichetta qui sotto da sola non basta. Cambiano di rado:
+# per questo stanno prima della SPA e non dopo.
+COPY licenza/         /usr/share/sws/licenza/
+
 # Font emoji (T-71), solo con --with-lvgl: scripts/build_container.sh popola
 # fonts/ solo in quel caso, quindi con --no-lvgl questo layer è vuoto — un
 # COPY su una cartella assente romperebbe la build, un COPY su una cartella
@@ -187,8 +193,9 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
 # l'immagine servirebbe solo l'IDE (era il difetto del Dockerfile legacy).
 # Metadati OCI. `image.source` non è decorativo: è il campo con cui GHCR collega
 # il package al repository, quindi la pagina del package mostra README e licenza
-# invece di essere un artefatto anonimo. `image.licenses` dichiara l'AGPL, che è
-# la licenza del progetto e viaggia con un'immagine pubblica.
+# invece di essere un artefatto anonimo. `image.licenses` dichiara la doppia
+# licenza (dalla 2.26.0: AGPL-3.0-only oppure commerciale, LICENSING.md), che
+# viaggia con un'immagine pubblica; i testi sono in /usr/share/sws/licenza/.
 #
 # In fondo e non dopo il FROM, ed è una differenza da 15 minuti: una LABEL in
 # testa invalida la cache di tutto ciò che segue, quindi il layer apt (~60 MB,
@@ -223,7 +230,7 @@ LABEL org.opencontainers.image.source="https://github.com/soligolab/sws" \
       org.opencontainers.image.version="$SWS_VERSION" \
       org.opencontainers.image.title="sws-runtime" \
       org.opencontainers.image.description="SWS runtime (aarch64) — viewer 7443, IDE/admin 7444, SPA inclusa. Montare i dati su /var/sws/{config,projects,logs}." \
-      org.opencontainers.image.licenses="AGPL-3.0-only" \
+      org.opencontainers.image.licenses="AGPL-3.0-only OR LicenseRef-SWS-Commercial" \
       net.soligo.sws.novita.it="$SWS_NOVITA_IT" \
       net.soligo.sws.novita.en="$SWS_NOVITA_EN" \
       net.soligo.sws.compat.it="$SWS_COMPAT_IT" \

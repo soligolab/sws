@@ -1,5 +1,5 @@
 /** Il campo password con l'occhio (09-11-2026, piano
- *  `docs/plans/2026-11-09-occhio-sulle-password.md`).
+ *  `docs/archive/2026-11-09-occhio-sulle-password.md`).
  *
  *  Sul pannello, col touch e la tastiera a schermo, una password si sbaglia
  *  facilmente e non si vede dove. L'occhio dentro il campo, a destra, mostra
@@ -19,6 +19,10 @@
  *    pannello non si chiude;
  *  - il bersaglio è 40×40 px, da dito, anche quando il campo è più basso: il
  *    bottone sporge sopra e sotto, trasparente;
+ *  - **Tab lo salta** (`tabIndex={-1}`, decisione del maintainer del 10-11-2026):
+ *    da tastiera, dopo la password, Tab va al pulsante del modulo e Invio
+ *    entra; prima andava sull'occhio, e Invio lì mostrava la password invece
+ *    di inviare. L'occhio resta per il mouse e per il dito;
  *  - lo stato lo dice l'etichetta che cambia («Mostra» / «Nascondi»), senza
  *    `aria-pressed`: col lettore di schermo le due cose insieme si
  *    contraddicono («Nascondi la password, premuto»).
@@ -117,6 +121,7 @@ export function CampoPassword({ style, value, disabled, ref, ...resto }: CampoPa
       <button
         type="button"
         data-testid="occhio-password"
+        tabIndex={-1}
         aria-label={etichetta}
         title={etichetta}
         disabled={spento}

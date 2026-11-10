@@ -209,6 +209,9 @@ install -m 755 "$BIN" "$CTX/bin/sws-runtime"
 cp -r "$REPO/examples/templates/." "$CTX/templates/"
 cp -r "$REPO/catalogo/." "$CTX/catalogo/"
 cp "$REPO/deploy/container/ssh_known_hosts" "$CTX/ssh_known_hosts"
+# La licenza nell'immagine (10-11-2026): Containerfile → /usr/share/sws/licenza/.
+mkdir -p "$CTX/licenza"
+install -m 644 "$REPO/LICENSE" "$REPO/LICENSING.md" "$CTX/licenza/"
 cp -r "$SPA_DIST/." "$CTX/www/"
 # I quadlet e l'installer viaggiano dentro l'immagine (02-10-2026, piano del
 # quadlet che viaggia): dopo un `podman auto-update` il runtime sa qual è il

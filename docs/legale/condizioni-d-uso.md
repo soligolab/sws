@@ -1,12 +1,6 @@
 # Condizioni d'uso di SWS in cloud — fase di sviluppo e test
 
-> **Bozza di partenza, da far rivedere a un professionista prima della pubblicazione.** Seconda versione, del
-> 29-10-2026: il servizio è presentato come **strumento in sviluppo, offerto gratis a chi vuole aiutare a provarlo**.
-> La prima versione («prova gratuita») è nella storia di Git. Le parti fra parentesi quadre sono segnaposto; le note
-> per chi rivede stanno in [`LEGGIMI.md`](LEGGIMI.md). Fa fede la versione italiana; quella inglese si prepara dopo la
-> revisione.
-
-Versione [N] — in vigore dal [DATA]
+Versione del [DATA]
 
 ## 1. In breve
 
@@ -24,8 +18,8 @@ Chi non è d'accordo con queste condizioni non deve usare il servizio.
 
 ## 2. Chi lo offre
 
-Il servizio è offerto da **[RAGIONE SOCIALE]**, con sede in [SEDE], partita IVA [P.IVA] («**Soligonet**», «noi»).
-Per scriverci: [EMAIL DI CONTATTO]. Per la privacy: **privacy@soligo.net**.
+Il servizio è offerto da **Mauro Soligo**, [RECAPITO POSTALE], che pubblica SWS con il nome «**Soligonet**»
+(«Soligonet», «noi»). Per scriverci, anche per la privacy: **privacy@soligo.net**.
 
 ## 3. Chi può usarlo
 
@@ -47,6 +41,9 @@ Possiamo in qualunque momento, anche senza preavviso: aggiornarlo, cambiarne le 
 progetti e account** quando lo sviluppo lo richiede, o chiudere il servizio. Quando possiamo, avvisiamo prima via
 e-mail.
 
+Azzerare un progetto cancella anche i dati personali che contiene: con queste condizioni l'utente, che ne è titolare,
+ci istruisce a farlo e si impegna a tenerne una copia (punto 7).
+
 ## 5. Uso consentito
 
 L'utente usa il servizio per provarlo, nel rispetto della legge e di queste condizioni. In particolare **non** deve:
@@ -57,20 +54,23 @@ L'utente usa il servizio per provarlo, nel rispetto della legge e di queste cond
 2. usarlo per attività illecite, o per conservare o diffondere contenuti illeciti;
 3. tentare di accedere a dati, progetti o account di altri, o di aggirare i limiti e le protezioni del servizio;
 4. sottoporlo a prove di carico, di intrusione o di vulnerabilità senza il nostro consenso scritto (le vulnerabilità
-   trovate per caso vanno segnalate a [EMAIL SICUREZZA], senza sfruttarle);
+   trovate per caso vanno segnalate a **security@soligo.net**, senza sfruttarle);
 5. inserire nei progetti categorie particolari di dati personali (art. 9 GDPR) o dati giudiziari;
 6. collegarlo a impianti o dispositivi su cui non ha titolo ad agire.
 
-Ogni account ha dei limiti — un numero massimo di progetti ([3]) e uno spazio su disco ([QUOTA]) — che possono cambiare.
+Ogni account ha un numero massimo di progetti (**3**). Potremo introdurre altri limiti, per esempio sullo spazio su
+disco, e lo diremo nel servizio.
 
 ## 6. Le segnalazioni
 
 Il motivo per cui il servizio è aperto è **trovare i difetti**. L'utente può mandarci segnalazioni, suggerimenti,
 descrizioni di errori, schermate e progetti di esempio («**segnalazioni**»).
 
-Mandando una segnalazione, l'utente ci permette di usarla liberamente e gratuitamente per sviluppare e correggere SWS,
-senza obblighi verso di lui. Una segnalazione non deve contenere dati personali di altri né informazioni riservate di
-terzi; se contiene un progetto, l'utente dichiara di poterlo condividere.
+Mandando una segnalazione, l'utente ci concede il diritto, gratuito, non esclusivo, irrevocabile e senza limiti di
+territorio, di usarla, modificarla e incorporarla in SWS e nella sua documentazione, con la licenza con cui SWS è
+distribuito, senza obblighi verso di lui. L'utente resta titolare di quello che ha scritto. Una segnalazione non deve
+contenere dati personali di altri né informazioni riservate di terzi; se contiene un progetto, l'utente dichiara di
+poterlo condividere.
 
 Non c'è nessun obbligo di risposta né di correzione, e nessun compenso.
 
@@ -82,12 +82,18 @@ serve a far funzionare il servizio per lui; non li usiamo per altro, salvo quell
 un archivio ZIP, e durante lo sviluppo i dati possono andare persi.
 
 Se un progetto contiene dati personali (destinatari di e-mail, numeri dei reperibili, utenti dei pannelli),
-**l'utente ne è titolare** e Soligonet li tratta **per suo conto, come responsabile** (art. 28 GDPR). In questo ruolo
-Soligonet li tratta solo per far funzionare il servizio e secondo le impostazioni che l'utente sceglie; vincola alla
-riservatezza chi li tratta; adotta le misure di sicurezza descritte nell'informativa privacy; si avvale dei
-sub-responsabili lì elencati, comunicando prima ogni cambiamento; aiuta l'utente a rispondere agli interessati;
-comunica senza ingiustificato ritardo le violazioni dei dati; li cancella alla chiusura dell'account; fornisce le
-informazioni necessarie a dimostrare il rispetto di questi obblighi.
+**l'utente ne è titolare** e Soligonet li tratta **per suo conto, come responsabile** (art. 28 GDPR). Oggetto del
+trattamento sono i dati che l'utente inserisce nei progetti; durata, quella dell'account; natura e finalità, la
+conservazione e l'elaborazione necessarie a far funzionare il servizio (notifiche, reperibilità, accessi ai pannelli);
+interessati, le persone che l'utente indica nei progetti.
+
+In questo ruolo Soligonet li tratta solo per far funzionare il servizio e secondo le impostazioni che l'utente
+sceglie; vincola alla riservatezza chi li tratta; adotta le misure di sicurezza descritte nell'informativa privacy; si
+avvale dei sub-responsabili elencati nell'informativa privacy e comunica via e-mail ogni cambiamento con almeno 15
+giorni di anticipo, così che l'utente che non è d'accordo possa chiudere l'account prima che il cambiamento abbia
+effetto; aiuta l'utente a rispondere agli interessati; comunica senza ingiustificato ritardo le violazioni dei dati;
+li cancella con l'account, 30 giorni dopo la chiusura, e nei casi del punto 4; fornisce le informazioni necessarie a
+dimostrare il rispetto di questi obblighi.
 
 ## 8. Responsabilità
 
@@ -95,7 +101,8 @@ SWS è offerto gratis e in fase di sviluppo, a scopo di test. Per questo, **nei 
 Soligonet non risponde** di alcun danno derivante dall'uso o dall'impossibilità di usare il servizio, né dal suo
 funzionamento o mancato funzionamento: in particolare di perdite o danneggiamenti di dati e progetti, fermi di
 produzione, mancati guadagni, danni causati da comandi mandati a impianti o dispositivi, da allarmi o notifiche non
-arrivati, o da servizi di terzi.
+arrivati, o da servizi di terzi. Il servizio non è destinato a impianti in esercizio (punto 5): chi lo usa ugualmente
+a quello scopo lo fa a proprio esclusivo rischio.
 
 Questo non vale per i danni causati da **dolo o colpa grave** di Soligonet, né negli altri casi in cui la legge non
 permette di escludere la responsabilità (art. 1229 del codice civile).
@@ -105,17 +112,29 @@ derivino dalla violazione di queste condizioni o dall'uso illecito del servizio.
 
 ## 9. Servizi di terzi che l'utente attiva
 
-Alcune funzioni usano servizi di terzi **che l'utente sceglie e configura con le proprie credenziali**: per esempio
-Twilio (SMS e chiamate), Telegram (messaggi), Google Cloud Translation (traduzione), Anthropic o Moonshot/Kimi
-(assistente IA), broker MQTT, server OPC-UA e altri sistemi dell'utente. Il rapporto è **fra l'utente e il
-fornitore**, alle condizioni di quel fornitore; il servizio trasmette solo i dati che servono alla funzione scelta.
+Alcune funzioni usano servizi di terzi **che l'utente sceglie e configura**: Twilio (SMS e chiamate), Telegram
+(messaggi), il suo server di posta (SMTP, per le notifiche del progetto), la traduzione automatica (MyMemory,
+LibreTranslate o Google Cloud Translation), l'assistente IA (Anthropic o Moonshot/Kimi), broker MQTT, server OPC-UA e
+altri sistemi dell'utente. Alcuni richiedono le credenziali dell'utente; la traduzione con MyMemory o con l'istanza
+pubblica di LibreTranslate no, ma anche lì i testi da tradurre escono verso quel fornitore. Il rapporto è **fra
+l'utente e il fornitore**, alle condizioni di quel fornitore; il servizio trasmette solo i dati che servono alla
+funzione scelta.
 
-## 10. Software e marchi
+Per Twilio, le risposte dei reperibili (il tasto premuto in una chiamata, l'SMS di conferma) arrivano al nostro
+server, che le inoltra al pannello collegato senza conservarle: per questi dati valgono le regole del punto 7.
 
-[SEGNAPOSTO — LICENZA. La licenza del software SWS è in corso di revisione (vedi `LEGGIMI.md`). Finché resta la
-AGPL-3.0, qui va scritto dove e come si ottiene il codice sorgente.]
+## 10. Software e nomi
 
-I nomi e i marchi «SWS» e «Soligonet» sono di [TITOLARE DEI MARCHI].
+Il software SWS è distribuito, a scelta di chi lo usa, con la licenza **GNU AGPL-3.0** (`AGPL-3.0-only`) oppure con una
+**licenza commerciale** concordata con Soligonet. Il codice sorgente è pubblico su
+**github.com/soligolab/sws**; il file `LICENSING.md` del repository spiega le due licenze e come chiedere quella
+commerciale. Le versioni fino alla 2.25.2 sono distribuite solo con la AGPL-3.0.
+
+Il servizio su sws.soligo.net lo offre Soligonet, che è il titolare del software e non un suo licenziatario: l'uso del
+servizio è regolato da queste condizioni, non dalle licenze del software. Chi installa SWS sui propri dispositivi, o
+lo scarica dal repository, lo riceve con le licenze del software.
+
+I nomi «SWS» e «Soligonet» sono di Mauro Soligo.
 
 ## 11. Fine della fase di sviluppo
 
@@ -126,7 +145,8 @@ passa alle condizioni nuove senza che l'utente le abbia accettate.
 
 ## 12. Chiusura e account inattivi
 
-- L'utente può chiudere il proprio account in ogni momento; account e progetti si cancellano entro 30 giorni.
+- L'utente può chiudere il proprio account in ogni momento, con la sua password: l'account si disattiva subito e, con
+  i progetti, si cancella 30 giorni dopo. Entro quei 30 giorni può chiederci di riattivarlo.
 - Possiamo sospendere o chiudere un account, anche senza preavviso, se viola queste condizioni o mette a rischio il
   servizio o altri.
 - Dopo **12 mesi** senza accessi mandiamo un avviso; se nei **30 giorni** successivi nessuno accede, account e progetti
@@ -134,14 +154,15 @@ passa alle condizioni nuove senza che l'utente le abbia accettate.
 
 ## 13. Modifiche, comunicazioni, legge e foro
 
-Durante la fase di sviluppo queste condizioni possono cambiare; le modifiche si comunicano via e-mail e nel servizio, e
-valgono dal primo accesso successivo. Le comunicazioni avvengono via e-mail. Si applica la **legge italiana**; per ogni
-controversia è competente in via esclusiva il **foro di [CITTÀ DELLA SEDE DEL TITOLARE]**.
+Durante la fase di sviluppo queste condizioni possono cambiare. Le modifiche si comunicano via e-mail e nel servizio, e
+valgono dalla data indicata in testa; chi non le accetta può chiudere l'account. Le comunicazioni avvengono via
+e-mail. Si applica la **legge italiana**; per ogni controversia è competente in via esclusiva il **foro del luogo in
+cui il titolare ha il domicilio**.
 
 ## 14. Approvazione specifica
 
 Ai sensi degli artt. 1341 e 1342 del codice civile, l'utente approva specificamente le clausole: 1 e 4 (servizio in
-sviluppo, senza garanzie, che può essere interrotto, azzerato o chiuso), 6 (uso libero delle segnalazioni), 7 (nessuna
+sviluppo, senza garanzie, che può essere interrotto, azzerato o chiuso), 6 (uso delle segnalazioni), 7 (nessuna
 garanzia di conservazione dei progetti), 8 (esclusione di responsabilità e manleva), 9 (servizi di terzi), 11 (fine
 della fase di sviluppo), 12 (sospensione, chiusura e cancellazione degli account inattivi), 13 (modifiche e foro
 esclusivo).

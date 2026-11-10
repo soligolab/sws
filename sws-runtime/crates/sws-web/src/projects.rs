@@ -147,7 +147,9 @@ pub async fn start_project_services(
     // escalation, niente Telegram — l'editor non è l'impianto (26-09-2026).
     if s.ide_only {
         info!("istanza IDE: notifiche (Telegram, email, escalation) NON avviate");
-    } else if let Some(notif) = notifications {
+    } else if let Some(mut notif) = notifications {
+        // Senza una posta del progetto, quella dell'istanza (10-11-2026).
+        notif.smtp = crate::notifications::smtp_effettivo(s, notif.smtp.as_ref()).await;
         let ns = NotificationSupervisor::start(
             s.alarms.clone(),
             notif,
@@ -3820,6 +3822,13 @@ mod tests {
                 max_pannelli: None,
                 max_byte: None,
                 personale: false,
+                smtp_host: None,
+                smtp_porta: None,
+                smtp_da: None,
+                smtp_utente: None,
+                smtp_password: None,
+                smtp_password_impostata: false,
+                smtp_starttls: None,
                 creata_ms: 0,
             }
         }

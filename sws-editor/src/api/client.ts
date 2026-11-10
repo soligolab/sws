@@ -1008,6 +1008,16 @@ export type Azienda = {
   /** L'azienda di una persona sola, nata con lei alla registrazione. */
   personale?: boolean;
   creata_ms: number;
+  /** La posta dell'azienda (10-11-2026): la usano i suoi progetti nel cloud
+   *  che non ne hanno una propria; `smtp_host` a null = nessuna, si usa
+   *  quella dell'installazione. La password non arriva mai: si sa solo se
+   *  c'e (`smtp_password_impostata`). */
+  smtp_host: string | null;
+  smtp_porta: number | null;
+  smtp_da: string | null;
+  smtp_utente: string | null;
+  smtp_password_impostata: boolean;
+  smtp_starttls: boolean | null;
 };
 
 /** Un utente **dell'installazione**: chi apre l'IDE. Distinto dagli utenti del
@@ -1269,7 +1279,10 @@ export const api = {
 
   /// Campo **assente** = non toccare, campo a **`null`** = metti a vuoto. La
   /// distinzione la regge `doppia_opzione` lato Rust: qui basta non mandare
-  /// cio che non si sta cambiando.
+  /// cio che non si sta cambiando. Per `smtp_password` (10-11-2026): assente
+  /// = tieni quella di prima, `null` = toglila; anche il segnaposto
+  /// `********` vuol dire «tieni quella di prima», come per la posta
+  /// dell'installazione.
   amministrazioneModificaAzienda: (id: number, m: Record<string, unknown>) =>
     request<void>(`/api/amministrazione/aziende/${id}`, {
       method: "PATCH",
@@ -1311,6 +1324,14 @@ export const api = {
 
   amministrazioneProvaSmtp: (a: string) =>
     request<void>("/api/amministrazione/smtp/prova", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ a }),
+    }),
+
+  /// La prova con la posta **dell'azienda** salvata (10-11-2026).
+  amministrazioneProvaSmtpAzienda: (id: number, a: string) =>
+    request<void>(`/api/amministrazione/aziende/${id}/smtp/prova`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ a }),

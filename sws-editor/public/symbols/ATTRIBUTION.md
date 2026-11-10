@@ -45,10 +45,13 @@ lands here again, vendored, with a row below.
 
 When importing from Wikimedia Commons or similar repositories:
 
-1. **Confirm the file's licence** is one of the AGPL-3.0-compatible set:
+1. **Confirm the file's licence** is one of the permissive set:
    CC0, CC-BY (any version, attribution required), Apache-2.0, MIT, BSD,
    the WTFPL, or public-domain dedications. Reject CC-BY-NC, CC-BY-ND,
-   "free for personal use", and anything proprietary.
+   "free for personal use", anything proprietary, and copyleft licences
+   (GPL, AGPL). Why: from 2.26.0 SWS is dual licensed, AGPL-3.0 or a
+   commercial license (`LICENSING.md`). A permissive asset fits both; a
+   copyleft one would fit the AGPL copy but block the commercial one.
 2. **Record the source URL, the author, and the licence** in the table
    above. CC-BY requires attribution to be ship-with-the-binary — that's
    why this file exists in `public/` and not in `docs/`.
