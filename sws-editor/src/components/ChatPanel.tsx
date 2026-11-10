@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import i18n from "i18next";
 import { editorLocale, NESSUNA_CONFERMA, type EditorAi } from "@/ai/editor";
 import { useAppStore } from "@/store";
-import { approvaSfondo, ascolta, chiedi } from "@/ws/aiStream";
+import { approvaSfondo, ascolta, chiedi, nuovaConversazione } from "@/ws/aiStream";
 import type { MsgIn, Riga } from "@/types/ai";
 
 /**
@@ -119,10 +119,18 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
       switch (m.t) {
         case "pronto":
           setStato({ attivo: m.attivo, modello: m.modello, motivo: m.motivo });
-          // Socket nuovo = conversazione nuova: i contatori ripartono (il
-          // server dice «la conversazione vive quanto il socket»).
-          setRisorse({ input: 0, output: 0, cache: 0 });
-          setSpesa(null);
+          // Una riconnessione con lo stesso id ritrova la conversazione sul
+          // server (10-11-2026): i contatori restano, e la spesa è quella che
+          // il tetto sta già contando. Socket nuovo e conversazione nuova:
+          // ripartono da zero.
+          if (m.ripresa) {
+            if (m.speso !== undefined && m.tetto != null) {
+              setSpesa((s) => ({ speso: m.speso!, tetto: m.tetto!, stimata: s?.stimata ?? false }));
+            }
+          } else {
+            setRisorse({ input: 0, output: 0, cache: 0 });
+            setSpesa(null);
+          }
           break;
         case "risorse":
           setRisorse((r) => ({
@@ -275,7 +283,7 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
         <div style={{ flex: 1 }} />
         <button style={BTN} onClick={toggleRisorse}
                 title={mostraRisorse ? t("chat.risorseHide") : t("chat.risorseShow")}>◔</button>
-        <button style={BTN} onClick={() => setRighe([])} title={t("chat.clear")}>⌫</button>
+        <button style={BTN} onClick={() => { setRighe([]); setAttesa(false); nuovaConversazione(); }} title={t("chat.clear")}>⌫</button>
         <button style={BTN} onClick={onClose} title={t("chat.close")}>✕</button>
       </div>
 

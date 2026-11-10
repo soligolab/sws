@@ -13,6 +13,7 @@ vi.mock("@/ws/aiStream", () => ({
   ascolta: (fn: (m: MsgIn) => void) => { ascoltatore = fn; return () => { ascoltatore = null; }; },
   chiedi: (testo: string) => { inviati.push({ t: "chiedi", testo }); return true; },
   approvaSfondo: (id: string) => { inviati.push({ t: "approva_sfondo", id }); return true; },
+  nuovaConversazione: () => {},
 }));
 
 import { ChatPanel } from "../src/components/ChatPanel";

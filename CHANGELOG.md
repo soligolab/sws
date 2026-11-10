@@ -214,6 +214,16 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   progetto si vedeva come un negativo, perché il filtro che inverte le icone del catalogo (disegni neri su trasparente)
   valeva per tutte le immagini; ora vale solo per `/images/…`. E un clic sull'anteprima apre l'immagine intera in
   una scheda nuova.
+- **La chat dell'assistente ritrova sfondi, bozze e spesa dopo una riconnessione** (10-11-2026, collaudo su
+  sws.soligo.net, progetto Montagna, chat staccata). Due basi generate con `genera_sfondo`, «Usa come base» su
+  `sfondo-d09e24`, mezz'ora fuori dalla finestra: `varia_sfondo` rispondeva «la base non c'è». Storia, misure e
+  `Banco` nascevano a ogni connessione di `/ws/ai`, e la finestra che si ricollegava trovava il server vuoto (il
+  container non si era riavviato): immagini già pagate da rigenerare. Ora il browser apre il socket con
+  `?conv=<uuid>`, lo stesso a ogni riconnessione, e il server tiene storia, spesa e banco per progetto + id
+  (`sws-web/src/ai/conversazioni.rs`): 24 ore dall'ultimo uso, al massimo 20 conversazioni e 128 MB stimati, le più
+  vecchie fuori. Il tetto di spesa conta anche quello speso prima della riconnessione, e il «pronto» dice `ripresa`
+  così il pannello non azzera i contatori. «Svuota la conversazione» (⌫) sceglie un id nuovo e riparte da vuoto
+  anche sul server; un client senza id resta a una conversazione per socket.
 - **Mentre il pannello si riavvia per l'aggiornamento, l'IDE lo dice, in giallo** (10-11-2026, collaudo della rc.11 sul
   WP630 dal cloud). Riaprendo Connessione durante il riavvio la sezione «Aggiornamento del runtime» mostrava in rosso
   «Il dispositivo ha risposto 503 Service Unavailable: il pannello «…» non è collegato» — vero, ma letto come un guasto —

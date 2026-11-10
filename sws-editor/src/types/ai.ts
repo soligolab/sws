@@ -24,7 +24,10 @@ export interface Giudizio {
 
 /** Quello che arriva dal runtime. */
 export type MsgIn =
-  | { t: "pronto"; modello: string; attivo: boolean; motivo?: string | null }
+  | { t: "pronto"; modello: string; attivo: boolean; motivo?: string | null;
+      /** Lo stesso id della conversazione ritrovata sul server dopo una
+       *  riconnessione (10-11-2026): storia, spesa e banco ci sono ancora. */
+      ripresa?: boolean; speso?: number; tetto?: number | null }
   | { t: "testo"; delta: string }
   | { t: "pensiero"; delta: string }
   | { t: "strumento"; nome: string; stato: "inizio" | "eseguo" | "fatto" | "errore"; messaggio?: string }

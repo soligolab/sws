@@ -25,6 +25,7 @@
 
 pub mod client;
 pub mod config_api;
+mod conversazioni;
 pub mod immagini;
 pub mod prompt;
 pub mod scopi;
@@ -32,7 +33,7 @@ mod strumenti_scopi;
 pub mod tools;
 
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
-use axum::extract::State;
+use axum::extract::{Query, State};
 use axum::response::IntoResponse;
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{json, Value};
@@ -69,12 +70,21 @@ pub fn mapping_di(kind: &str) -> &'static [sch::Field] {
     }
 }
 
-/// `GET /ws/ai` — Admin.
-pub async fn ws_ai_handler(ws: WebSocketUpgrade, State(s): State<AppState>) -> impl IntoResponse {
-    ws.on_upgrade(move |socket| sessione(socket, s))
+/// `GET /ws/ai?conv=<id>` — Admin.
+///
+/// L'id lega storia, spesa e banco alla conversazione invece che al socket
+/// (10-11-2026, vedi `conversazioni`): una finestra che si ricollega ritrova
+/// basi, varianti e bozze. Senza id, una conversazione per socket come prima.
+pub async fn ws_ai_handler(
+    ws: WebSocketUpgrade,
+    State(s): State<AppState>,
+    Query(q): Query<std::collections::HashMap<String, String>>,
+) -> impl IntoResponse {
+    let id = q.get("conv").cloned();
+    ws.on_upgrade(move |socket| sessione(socket, s, id))
 }
 
-async fn sessione(socket: WebSocket, s: AppState) {
+async fn sessione(socket: WebSocket, s: AppState, id_conversazione: Option<String>) {
     let (mut ws_tx, mut ws_rx) = socket.split();
     let (tx, mut rx) = mpsc::unbounded_channel::<String>();
 
@@ -91,10 +101,43 @@ async fn sessione(socket: WebSocket, s: AppState) {
 
     let finto = std::env::var("SWS_AI_FAKE").ok();
     let scelta = client::carica(&s.config_dir);
+
+    // La conversazione: ritrovata se lo stesso id c'era già (riconnessione),
+    // nuova altrimenti. `try_lock` perché un socket fantasma a metà turno non
+    // deve far aspettare il «pronto»: in quel caso si dice solo che c'era.
+    let chiave = conversazioni::chiave(
+        id_conversazione.as_deref(),
+        active_dir(&s).await.ok().as_deref(),
+    );
+    let (conv, trovata) = match &chiave {
+        Some(k) => conversazioni::tutte()
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .prendi(k, std::time::Instant::now()),
+        None => (
+            std::sync::Arc::new(tokio::sync::Mutex::new(
+                conversazioni::Conversazione::nuova(),
+            )),
+            false,
+        ),
+    };
+    let (ripresa, speso) = match conv.try_lock() {
+        Ok(g) => (!g.vuota(), g.misure.costo_usd),
+        Err(_) => (trovata, 0.0),
+    };
+    if ripresa {
+        tracing::info!(target: "sws_ai", speso, "conversazione ripresa dopo una riconnessione");
+    }
+
     invia(
         &tx,
         json!({
             "t": "pronto",
+            // Il socket è nuovo ma la conversazione no: il pannello non azzera
+            // i contatori, e mostra la spesa che il tetto sta già contando.
+            "ripresa": ripresa,
+            "speso": speso,
+            "tetto": scelta.as_ref().map(|sc| sc.tetto_usd),
             "modello": match (&finto, &scelta) {
                 (Some(_), _) => "finto".to_string(),
                 (None, Some(sc)) => sc.modello.clone(),
@@ -142,10 +185,6 @@ async fn sessione(socket: WebSocket, s: AppState) {
         });
     }
 
-    // La conversazione vive quanto il socket, e con lei quanto è costata.
-    let mut messaggi: Vec<Value> = Vec::new();
-    let mut misure = Misure::nuove();
-    let mut banco = Banco::default();
     // Gli scopi configurati decidono gli strumenti in più: una volta, qui, così
     // l'elenco resta lo stesso per tutta la conversazione (la cache regge).
     let ctx = strumenti_scopi::Contesto::da(&s.config_dir);
@@ -164,7 +203,7 @@ async fn sessione(socket: WebSocket, s: AppState) {
         // la dà la persona, e passa da qui, non dal modello.
         if v.get("t").and_then(Value::as_str) == Some("approva_sfondo") {
             let id = v.get("id").and_then(Value::as_str).unwrap_or("");
-            let ok = strumenti_scopi::approva(&mut banco, id);
+            let ok = strumenti_scopi::approva(&mut conv.lock().await.banco, id);
             invia(&tx, json!({ "t": "sfondo_approvato", "id": id, "ok": ok }));
             continue;
         }
@@ -180,20 +219,34 @@ async fn sessione(socket: WebSocket, s: AppState) {
             continue;
         }
 
+        // Il lucchetto per tutto il turno: storia, spesa e banco cambiano insieme.
+        let mut g = conv.lock().await;
+        let conversazioni::Conversazione {
+            messaggi,
+            misure,
+            banco,
+        } = &mut *g;
         messaggi.push(json!({ "role": "user", "content": domanda }));
 
         let esito = match &finto {
-            Some(f) => finto_giro(&s, &tx, f, &mut banco).await,
+            Some(f) => finto_giro(&s, &tx, f, banco).await,
             None => match &scelta {
                 Some(sc) => {
-                    let r =
-                        vero_giro(&s, &tx, sc, &ctx, &mut messaggi, &mut misure, &mut banco).await;
+                    let r = vero_giro(&s, &tx, sc, &ctx, messaggi, misure, banco).await;
                     misure.scrivi(sc);
                     r
                 }
                 None => Err("nessuna chiave API configurata".to_string()),
             },
         };
+        if let Some(k) = &chiave {
+            let peso = g.peso();
+            conversazioni::tutte()
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .tocca(k, std::time::Instant::now(), peso);
+        }
+        drop(g);
         if let Err(e) = esito {
             invia(&tx, json!({ "t": "errore", "messaggio": e }));
         }
@@ -820,7 +873,8 @@ fn simboli_della_proposta(input: &Value, bozze: &[sws_core::simboli_prj::Descriz
 
 /// Le bozze di simbolo della conversazione: disegnate con `bozza_simbolo`,
 /// viste da `valida` e `istantanea_pagina`, portate nel progetto da
-/// `proponi_modifica`. Vivono quanto il socket, come la conversazione.
+/// `proponi_modifica`. Vivono quanto la conversazione, non quanto il socket
+/// (10-11-2026): vedi `conversazioni`.
 #[derive(Default)]
 pub(crate) struct Banco {
     pub simboli: Vec<sws_core::simboli_prj::Descrizione>,
