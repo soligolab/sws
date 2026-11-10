@@ -84,10 +84,15 @@ c'entra niente. Vedi Q58 in [`docs/OPEN_QUESTIONS.md`](../../docs/OPEN_QUESTIONS
 `page_layout.cornice_predefinita` è dichiarata e il suo file sta in `cornici/`. Ogni pagina normale la usa: nessuna
 `cornice: null`. Restano fuori le pagine-finestra e le pagine speciali (`kind`), che una cornice non l'hanno mai.
 
-La cornice si disegna **sotto** la pagina e non sposta niente (`componi` in `sws-web/src/cornici.rs`). Quindi un oggetto
-della pagina dentro una fascia è lecito nello spazio libero — il titolo accanto all'orologio — e sbagliato quando copre
-un oggetto della cornice, che resterebbe nascosto a metà. È la stessa regola di `oggetti_nelle_fasce`, che l'IDE
-segnala. Il contenuto vero sta nell'area attiva, fra testata e piede.
+La cornice si disegna **sotto** la pagina e non sposta niente (`componi` in `sws-web/src/cornici.rs`). Testata e piede
+sono **riservati alla cornice**: nessun oggetto della pagina ci entra, nemmeno in parte e nemmeno nello spazio vuoto
+accanto al titolo. Tutto il contenuto della pagina sta nell'area attiva, fra testata e piede. È la regola di
+`oggetti_nelle_fasce`, che il validatore segnala e l'IDE colora di arancio in modifica; il test
+`nessun_template_invade_le_fasce_della_cornice` la tiene a zero sul parco.
+
+*Fino al 10-11-2026 un oggetto tutto dentro lo spazio libero di una fascia era lecito: i sottotitoli di
+`homeassistant-demo` stavano in testata accanto al nome della pagina. Il maintainer ha deciso che le fasce sono della
+cornice, e i sottotitoli sono scesi nella prima riga dell'area attiva.*
 
 Una cornice nuova parte dal modello di `openplc-laboratorio`: testata con il nome della pagina (`{{pagina.nome}}`), data
 e ora; piede con la navigazione. Con una pagina sola il piede non serve. I colori sono quelli del template.

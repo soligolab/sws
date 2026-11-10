@@ -6,13 +6,15 @@ height: 800
 
 objects:
 
-# ── Sottotitolo, nella testata accanto al nome della pagina ──────────────────
+# ── Sottotitolo, la prima riga dell'area libera sotto la testata ─────────────
+# Fino al 10-11-2026 stava in testata accanto al nome della pagina: da quel
+# giorno le fasce sono riservate alla cornice (R6).
 - id: ha3_sub
   type: text
-  x: 240
-  y: 8
-  width: 660
-  height: 40
+  x: 40
+  y: 60
+  width: 1200
+  height: 24
   text: "{{t0048}}"
   font_size: 14
   text_wrap: true
@@ -25,7 +27,7 @@ objects:
 - id: ha3_deriv_box
   type: rect
   x: 40
-  y: 66
+  y: 88
   width: 1200
   height: 150
   fill: "#1e293b"
@@ -36,7 +38,7 @@ objects:
 - id: ha3_deriv_hdr
   type: text
   x: 56
-  y: 74
+  y: 96
   width: 1168
   height: 26
   text: "{{t0050}}"
@@ -51,7 +53,7 @@ objects:
 - id: ha3_costo_lbl
   type: text
   x: 60
-  y: 106
+  y: 128
   width: 330
   height: 30
   text: "{{t0051}}"
@@ -63,7 +65,7 @@ objects:
 - id: ha3_costo_val
   type: text
   x: 400
-  y: 106
+  y: 128
   width: 210
   height: 30
   tag: energia.costo_ora_eur
@@ -77,7 +79,7 @@ objects:
 - id: ha3_costo_expr
   type: text
   x: 620
-  y: 106
+  y: 128
   width: 600
   height: 30
   text: "{{t0052}}"
@@ -90,7 +92,7 @@ objects:
 - id: ha3_delta_lbl
   type: text
   x: 60
-  y: 140
+  y: 162
   width: 330
   height: 30
   text: "{{t0053}}"
@@ -102,7 +104,7 @@ objects:
 - id: ha3_delta_val
   type: text
   x: 400
-  y: 140
+  y: 162
   width: 210
   height: 30
   tag: clima.delta_interno_esterno
@@ -116,7 +118,7 @@ objects:
 - id: ha3_delta_expr
   type: text
   x: 620
-  y: 140
+  y: 162
   width: 600
   height: 30
   text: "{{t0054}}"
@@ -129,7 +131,7 @@ objects:
 - id: ha3_comf_lbl
   type: text
   x: 60
-  y: 174
+  y: 196
   width: 330
   height: 30
   text: "{{t0055}}"
@@ -141,7 +143,7 @@ objects:
 - id: ha3_comf_val
   type: text
   x: 400
-  y: 174
+  y: 196
   width: 210
   height: 30
   tag: clima.comfort_soggiorno
@@ -155,7 +157,7 @@ objects:
 - id: ha3_comf_expr
   type: text
   x: 620
-  y: 174
+  y: 196
   width: 600
   height: 30
   text: "{{t0056}}"
@@ -168,7 +170,7 @@ objects:
 - id: ha3_live_hdr
   type: text
   x: 40
-  y: 228
+  y: 250
   width: 1200
   height: 26
   text: "{{t0057}}"
@@ -187,7 +189,7 @@ objects:
     stanza: sala
     titolo: "{{t0058}}"
   x: 40
-  y: 262
+  y: 284
   width: 380
   height: 160
 
@@ -198,7 +200,7 @@ objects:
     stanza: esterno
     titolo: "{{t0060}}"
   x: 450
-  y: 262
+  y: 284
   width: 380
   height: 160
 
@@ -206,7 +208,7 @@ objects:
 - id: ha3_en_box
   type: rect
   x: 860
-  y: 262
+  y: 284
   width: 380
   height: 160
   fill: "#1e293b"
@@ -217,7 +219,7 @@ objects:
 - id: ha3_en_lbl
   type: text
   x: 876
-  y: 272
+  y: 294
   width: 348
   height: 24
   text: "{{t0061}}"
@@ -231,7 +233,7 @@ objects:
 - id: ha3_en_val
   type: text
   x: 876
-  y: 302
+  y: 324
   width: 348
   height: 50
   tag: energia.potenza_w
@@ -246,7 +248,7 @@ objects:
 - id: ha3_en_prog
   type: progress_bar
   x: 890
-  y: 360
+  y: 382
   width: 320
   height: 20
   tag: energia.potenza_w
@@ -258,7 +260,7 @@ objects:
 - id: ha3_en_hint
   type: text
   x: 876
-  y: 388
+  y: 410
   width: 348
   height: 24
   text: "{{t0059}}"
@@ -272,9 +274,9 @@ objects:
 - id: ha3_info_box
   type: rect
   x: 40
-  y: 438
+  y: 456
   width: 1200
-  height: 290
+  height: 274
   fill: "#1e293b"
   stroke: "#334155"
   stroke_width: 1
@@ -283,7 +285,7 @@ objects:
 - id: ha3_info_hdr
   type: text
   x: 56
-  y: 448
+  y: 466
   width: 1168
   height: 28
   text: "{{t0062}}"
@@ -297,7 +299,7 @@ objects:
 - id: ha3_info1
   type: text
   x: 60
-  y: 486
+  y: 504
   width: 1160
   height: 28
   text: "{{t0063}}"
@@ -309,7 +311,7 @@ objects:
 - id: ha3_info2
   type: text
   x: 60
-  y: 518
+  y: 536
   width: 1160
   height: 28
   text: "{{t0064}}"
@@ -321,7 +323,7 @@ objects:
 - id: ha3_info3
   type: text
   x: 60
-  y: 550
+  y: 568
   width: 1160
   height: 28
   text: "{{t0065}}"
@@ -333,7 +335,7 @@ objects:
 - id: ha3_info4
   type: text
   x: 60
-  y: 582
+  y: 600
   width: 1160
   height: 28
   text: "{{t0066}}"
@@ -345,7 +347,7 @@ objects:
 - id: ha3_info5
   type: text
   x: 60
-  y: 630
+  y: 648
   width: 1160
   height: 28
   text: "{{t0067}}"
@@ -357,7 +359,7 @@ objects:
 - id: ha3_info6
   type: text
   x: 60
-  y: 662
+  y: 680
   width: 1160
   height: 28
   text: "{{t0068}}"

@@ -777,6 +777,14 @@ export function EditorShell() {
     const pc = id ? pages.find((p) => eCornice(p) && idCornice(p) === id) : undefined;
     return oggettoSfondoArea(currentPage, pc ? paginaACornice(pc) : undefined);
   }, [currentPage, pages, project?.page_layout?.cornice_predefinita]);
+  // La cornice della pagina aperta, per segnarne le fasce in modifica e
+  // colorare in arancio chi ci entra (10-11-2026): testata e piede sono suoi.
+  const corniceDellaPaginaAperta = useMemo(() => {
+    if (!currentPage || eCornice(currentPage)) return undefined;
+    const id = corniceDellaPagina(currentPage, project?.page_layout?.cornice_predefinita);
+    const pc = id ? pages.find((p) => eCornice(p) && idCornice(p) === id) : undefined;
+    return pc ? paginaACornice(pc) : undefined;
+  }, [currentPage, pages, project?.page_layout?.cornice_predefinita]);
   const fasceCornice = currentPage && eCornice(currentPage)
     ? {
         testata: currentPage.cornice_testata?.altezza ?? 0, piede: currentPage.cornice_piede?.altezza ?? 0,
@@ -1222,6 +1230,7 @@ export function EditorShell() {
           fitPageSize={fitPageSize}
           sottofondo={sottofondo}
           fasceCornice={fasceCornice}
+          corniceDellaPagina={corniceDellaPaginaAperta}
           sfondoArea={sfondoArea}
           // Un faceplate si lascia su una pagina o una cornice; non su un
           // altro faceplate né su un'immagine di boot.

@@ -459,9 +459,14 @@ ovunque.
   in eccesso. La compone il server (`cornici::sfondo_area`), quindi il viewer web la vede uguale all'editor. Dalla
   2.23.3 il pannello LVGL disegna anche PNG e JPEG (prima solo SVG), quindi uno sfondo generato da una planimetria
   si vede anche lì.
-- **Sotto, non sopra.** La cornice si disegna sotto il contenuto della pagina. Un oggetto della pagina nello spazio
-  libero di una fascia va bene (il titolo della pagina accanto all'orologio); il validatore avvisa solo quando un
-  oggetto della pagina copre un oggetto della cornice.
+- **Le fasce sono della cornice.** La cornice si disegna sotto il contenuto della pagina, e testata e piede sono
+  suoi: gli oggetti della pagina stanno **fra le due fasce**. Il validatore avvisa per qualunque oggetto della pagina
+  che entra anche solo in parte in testata o nel piede, anche in uno spazio vuoto (i tubi no: seguono gli oggetti a
+  cui sono agganciati). Fino al 10-11-2026 un oggetto tutto dentro lo spazio libero di una fascia era ammesso, per
+  esempio un sottotitolo accanto al titolo: ora va nell'area libera, sotto la testata.
+- **Le fasce in modifica.** Aprendo una pagina con cornice, testata e piede hanno un bordo tratteggiato e un velo
+  leggero; un oggetto della pagina che ci sta, o ci viene trascinato, ha il contorno **arancio**. È solo una guida
+  dell'editor, come la griglia: il viewer, il pannello e la foto della pagina non la mostrano.
 - **Segnaposti.** Nei testi della cornice: `{{pagina.nome}}`, `{{pagina.id}}`, `{{progetto.nome}}`. Il nome della
   pagina non si traduce: un titolo tradotto resta sulla pagina, come nel template `tc620-sistema`.
 - **Dove arriva.** Le cornici viaggiano con il progetto (esportazione, deploy, istantanea) e si vedono uguali nel

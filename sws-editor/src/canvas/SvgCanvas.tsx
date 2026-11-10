@@ -52,13 +52,14 @@ import {
 } from "@/pageLayout";
 import { faceplateDefBBox, normalizeFaceplateParams } from "@/faceplate/definizione";
 import { effectiveFaceplateParams, figliDelFaceplate, substituteFaceplateParams } from "./parametriFaceplate";
-import type { AlarmSeverity, AlarmState, CustomSymbol, FaceplateDef, GridCell, PageSizeMode, PipePoint, Sample, SynopticObject, SynopticObjectType, TableRow, TagDef, TagState, TypeDef } from "@/types";
+import type { AlarmSeverity, AlarmState, Cornice, CustomSymbol, FaceplateDef, GridCell, PageSizeMode, PipePoint, Sample, SynopticObject, SynopticObjectType, TableRow, TagDef, TagState, TypeDef } from "@/types";
 import { fattoreFondoRespiro, luminositaValida, parametriLuminosita } from "./luce";
 import { puntiSvg, verticiPoligono } from "./forme";
 import { aggancioSu, bersagli, calamita, diametriCapi, instrada, percorsoTubo, type Bersaglio } from "./tubazioni";
 import { ancoreInMoto, scostamentoMoto, useSegueIlMoto } from "./motoVivo";
 import { aggiungiOggetto, registraCentroVista } from "@/editor/azioniEditor";
 import { TRASCINA_FACEPLATE } from "@/faceplate/modello";
+import { oggettiNelleFasce } from "@/cornici/fasce";
 import { larghezzaTubo, stileTubo, svgTubo } from "./stiliTubo";
 import { useManifestoLib } from "@/symbols/lib/libreria";
 import { cssFamiglia } from "@/font/famiglie";
@@ -184,6 +185,11 @@ interface SvgCanvasProps {
   sottofondo?: SynopticObject[];
   /** Editor, cornice aperta sul canvas: le altezze delle due fasce da segnare. */
   fasceCornice?: { testata: number; piede: number; sfondoTestata?: string; sfondoPiede?: string };
+  /** Editor, pagina con cornice (10-11-2026): testata e piede sono riservati
+   *  alla cornice. In modifica si segnano con un bordo tratteggiato e un velo,
+   *  e un oggetto della pagina che ci entra si colora di arancio. Solo guida
+   *  d'editor: senza `onMove` (viewer, miniature) non si disegna niente. */
+  corniceDellaPagina?: Cornice;
   /** Editor: l'immagine di sfondo dell'area attiva (25-10-2026), già composta
    *  (`oggettoSfondoArea`). Piena, non attenuata come la cornice: è quella che
    *  si vedrà dal vivo. */
@@ -772,6 +778,7 @@ export function SvgCanvas({
   fitScale = 1,
   sottofondo,
   fasceCornice,
+  corniceDellaPagina,
   sfondoArea,
   accettaFaceplate = false,
   nonAggiornato = false,
@@ -790,7 +797,17 @@ export function SvgCanvas({
   );
   // L'ordine di disegno cambia solo con gli oggetti, non a ogni messaggio.
   const ordinati = useMemo(() => sortByZ(objects), [objects]);
-  const inSospeso = useRef<Record<string, Partial<SynopticObject>>>({});
+  // Gli oggetti della pagina dentro testata o piede della cornice (10-11-2026),
+  // con la geometria del validatore: in modifica si colorano di arancio, anche
+  // mentre si trascinano (`objects` porta già l'anteprima del trascinamento).
+  const corniceInModifica = onMove ? corniceDellaPagina : undefined;
+  const inFascia = useMemo(
+    () => (corniceInModifica
+      ? new Set(oggettiNelleFasce(objects, corniceInModifica).map((i) => i.id))
+      : null),
+    [corniceInModifica, objects],
+  );
+  const inSospeso =useRef<Record<string, Partial<SynopticObject>>>({});
   const timerScrittura = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onMoveCorrente = useRef(onMove);
   onMoveCorrente.current = onMove;
@@ -2062,6 +2079,29 @@ export function SvgCanvas({
           ))}
         </g>
       )}
+      {/* Le fasce della cornice sulla pagina (10-11-2026): sono della cornice,
+          la pagina sta fra le due. Una guida d'editor come la griglia: un velo
+          leggero e il bordo tratteggiato, sopra la cornice attenuata e sotto
+          gli oggetti; il viewer e la foto della pagina non la vedono. */}
+      {corniceInModifica && (() => {
+        const w = corniceInModifica.larghezza;
+        const h = corniceInModifica.altezza;
+        const t = Math.max(0, corniceInModifica.testata.altezza);
+        const p = Math.max(0, corniceInModifica.piede.altezza);
+        const z = viewT.zoom;
+        const fascia = (quale: string, y: number, alta: number) => (
+          <rect data-testid={`fascia-${quale}`} x={0} y={y} width={w} height={alta}
+            fill="var(--brand-text-muted, #94a3b8)" fillOpacity={0.08}
+            stroke="var(--brand-text-muted, #94a3b8)" strokeOpacity={0.7}
+            strokeWidth={1 / z} strokeDasharray={`${6 / z} ${4 / z}`} />
+        );
+        return (
+          <g style={{ pointerEvents: "none" }} data-testid="fasce-pagina">
+            {t > 0 && fascia("testata", 0, t)}
+            {p > 0 && fascia("piede", h - p, p)}
+          </g>
+        );
+      })()}
       {ordinati.map((obj) => {
         // Visibility: in view mode, skip non-visible objects entirely.
         // In edit mode, always render so the designer can still select them
@@ -2254,15 +2294,21 @@ export function SvgCanvas({
             )}
             {inEdit && (() => {
               const bb = objBBox(obj);
+              // In una fascia della cornice (10-11-2026) il contorno d'editor
+              // diventa arancio e pieno: il validatore lo segnalerebbe.
+              const fuoriPosto = inFascia?.has(obj.id) ?? false;
               return (
                 <rect
                   x={bb.x1} y={bb.y1}
                   width={bb.x2 - bb.x1} height={bb.y2 - bb.y1}
-                  fill="none"
-                  stroke="#475569"
-                  strokeWidth={1}
-                  strokeDasharray="4 3"
-                  opacity={0.5}
+                  fill={fuoriPosto ? "var(--brand-warning, #f59e0b)" : "none"}
+                  fillOpacity={fuoriPosto ? 0.12 : undefined}
+                  stroke={fuoriPosto ? "var(--brand-warning, #f59e0b)" : "#475569"}
+                  strokeWidth={fuoriPosto ? 2 : 1}
+                  strokeDasharray={fuoriPosto ? undefined : "4 3"}
+                  opacity={fuoriPosto ? 1 : 0.5}
+                  className={fuoriPosto ? "sws-in-fascia" : undefined}
+                  data-in-fascia={fuoriPosto ? obj.id : undefined}
                   style={{ pointerEvents: "none" }}
                 />
               );

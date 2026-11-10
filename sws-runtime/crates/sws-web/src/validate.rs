@@ -3223,8 +3223,9 @@ global_scripts:
     }
 
     /// Nessun template ha oggetti di pagina che invadono le fasce della sua
-    /// cornice (10-11-2026). I sottotitoli in testata di `homeassistant-demo`
-    /// stanno tutti dentro lo spazio libero della fascia e restano voluti.
+    /// cornice (10-11-2026). Le fasce sono riservate alla cornice: anche i
+    /// sottotitoli che `homeassistant-demo` teneva in testata sono scesi
+    /// nell'area libera.
     #[test]
     fn nessun_template_invade_le_fasce_della_cornice() {
         let mut invasioni = Vec::new();

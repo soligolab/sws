@@ -274,22 +274,19 @@ pub struct Invasione<'a> {
 
 /// Gli oggetti di una pagina che **invadono** una fascia della cornice.
 ///
-/// Due casi si segnalano, uno no:
-/// - l'oggetto sta **a cavallo** del bordo di una fascia, metà sul contenuto e
-///   metà sulla testata o sul piede: i faceplate che scendono sui bottoni di
-///   navigazione (collaudo del 10-11-2026, pagina dell'assistente su
-///   Montagna). Non è mai voluto, e fino a ieri passava se non copriva un
-///   oggetto della cornice;
-/// - l'oggetto sta dentro una fascia e **copre** un oggetto della cornice: la
-///   cornice ci sta sotto e resterebbe coperta a metà;
-/// - un oggetto **tutto dentro** una fascia, nello spazio che la cornice lascia
-///   libero, è voluto e non si segnala: il sottotitolo di ogni pagina di
-///   `homeassistant-demo`, accanto al titolo della cornice. Deciso il
-///   17-10-2026: è l'unico modo che ha una pagina di scrivere qualcosa di suo
-///   in testata.
+/// Testata e piede sono **riservati alla cornice** (decisione del maintainer,
+/// 10-11-2026): si segnala qualunque oggetto della pagina che ci sta anche solo
+/// in parte, a cavallo del bordo o tutto dentro. Fino a quel giorno un oggetto
+/// tutto dentro lo spazio vuoto di una fascia era ammesso (manuale del
+/// 17-10-2026, i sottotitoli in testata di `homeassistant-demo`): non lo è
+/// più, e quei sottotitoli sono scesi nell'area libera. `copre` dice in più se
+/// l'oggetto copre un oggetto della cornice (il titolo, l'ora, il navigatore).
 ///
 /// I tubi non si guardano: il percorso lo calcola SWS dagli oggetti a cui sono
 /// agganciati, e quelli si guardano già.
+///
+/// La stessa geometria la usa l'editor per colorare in arancio, in modifica,
+/// l'oggetto che sta in una fascia (`sws-editor/src/cornici/fasce.ts`).
 pub fn oggetti_nelle_fasce<'a>(pagina: &'a SynopticPage, cornice: &Cornice) -> Vec<Invasione<'a>> {
     const TOLLERANZA: f64 = 0.5;
     let (t, p) = (
@@ -309,14 +306,11 @@ pub fn oggetti_nelle_fasce<'a>(pagina: &'a SynopticPage, cornice: &Cornice) -> V
             if !in_testata && !nel_piede {
                 return None;
             }
-            let copre = suoi.iter().any(|c| si_coprono(r, *c));
-            let testata = in_testata && (copre || r.3 > t + TOLLERANZA);
-            let piede = nel_piede && (copre || r.1 < inizio_piede - TOLLERANZA);
-            (testata || piede).then_some(Invasione {
+            Some(Invasione {
                 id: o.id.as_str(),
-                testata,
-                piede,
-                copre,
+                testata: in_testata,
+                piede: nel_piede,
+                copre: suoi.iter().any(|c| si_coprono(r, *c)),
             })
         })
         .collect()
@@ -509,13 +503,14 @@ oggetti:
     #[test]
     fn oggetti_della_pagina_nelle_fasce_e_della_cornice_fuori() {
         // «alto» copre il titolo della cornice, «basso» il navigatore; «libero»
-        // sta in testata ma lontano da tutto; «giusto» fra le due fasce.
+        // sta in testata lontano da tutto e invade lo stesso (10-11-2026);
+        // «giusto» fra le due fasce.
         let p = pagina(
             "id: p\nname: P\nobjects:\n- { id: alto, type: rect, x: 0, y: 10, width: 200, height: 40 }\n- { id: libero, type: rect, x: 600, y: 10, width: 100, height: 30 }\n- { id: giusto, type: rect, x: 0, y: 60, width: 100, height: 600 }\n- { id: basso, type: rect, x: 0, y: 700, width: 100, height: 60 }\n",
         );
         let c = cornice();
         let ids: Vec<&str> = oggetti_nelle_fasce(&p, &c).iter().map(|i| i.id).collect();
-        assert_eq!(ids, ["alto", "basso"]);
+        assert_eq!(ids, ["alto", "libero", "basso"]);
         let mut c2 = cornice();
         c2.oggetti.push(
             serde_yaml::from_str("{ id: mezzo, type: rect, x: 0, y: 300, height: 20 }").unwrap(),
@@ -524,8 +519,8 @@ oggetti:
     }
 
     /// Collaudo del 10-11-2026 (Montagna): un oggetto a cavallo del bordo di
-    /// una fascia invade anche se non copre niente della cornice; uno tutto
-    /// dentro lo spazio libero di una fascia resta voluto; i tubi no.
+    /// una fascia invade anche se non copre niente della cornice; da quel
+    /// giorno anche uno tutto dentro lo spazio vuoto di una fascia; i tubi no.
     #[test]
     fn a_cavallo_di_una_fascia_si_invade_anche_senza_coprire() {
         let p = pagina(
@@ -538,9 +533,25 @@ oggetti:
         );
         let inv = oggetti_nelle_fasce(&p, &cornice());
         let ids: Vec<&str> = inv.iter().map(|i| i.id).collect();
-        assert_eq!(ids, ["pompa", "scende", "riga"]);
+        assert_eq!(ids, ["pompa", "scende", "sotto", "riga"]);
         assert!(inv[0].piede && !inv[0].testata && !inv[0].copre);
         assert!(inv[1].testata && !inv[1].piede);
+    }
+
+    /// Le fasce sono riservate alla cornice (10-11-2026): un oggetto tutto
+    /// dentro lo spazio vuoto della testata, che non copre niente, ora invade.
+    /// Fino a quel giorno era il sottotitolo ammesso di `homeassistant-demo`.
+    #[test]
+    fn tutto_dentro_lo_spazio_vuoto_della_testata_invade() {
+        let p = pagina(
+            "id: p\nname: P\nobjects:\n\
+             - { id: sottotitolo, type: rect, x: 600, y: 10, width: 200, height: 30 }\n\
+             - { id: contenuto, type: rect, x: 600, y: 100, width: 200, height: 30 }\n",
+        );
+        let inv = oggetti_nelle_fasce(&p, &cornice());
+        assert_eq!(inv.len(), 1, "{inv:?}");
+        assert_eq!(inv[0].id, "sottotitolo");
+        assert!(inv[0].testata && !inv[0].piede && !inv[0].copre);
     }
 
     #[test]

@@ -128,6 +128,15 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
     `/etc/timezone`; se manca si vede solo lo scostamento.
   - I modelli «Comando a orario» e «Azzeramento a mezzanotte» dicono «le 7 di casa tutto l'anno» invece di avvisare
     dell'UTC; il manuale (capitolo 04) descrive il trigger cron e il cambio d'ora.
+- **Testata e piede sono riservati alla cornice, e l'editor li mostra** (decisioni del maintainer, 10-11-2026). Il
+  validatore (`cornici::oggetti_nelle_fasce`) avvisa per **qualunque** oggetto della pagina che sta anche solo in
+  parte in testata o nel piede; fino a oggi un oggetto tutto dentro uno spazio vuoto di una fascia era ammesso
+  (manuale del 17-10-2026). I tubi restano esclusi. I sottotitoli delle tre pagine di `homeassistant-demo`, che
+  stavano in testata accanto al nome della pagina, sono scesi nella prima riga dell'area libera, e il contenuto si
+  è spostato di 16-22 px (README dei template, R6). Nell'editor, su una pagina con cornice, testata e piede hanno un
+  bordo tratteggiato e un velo leggero, e l'oggetto della pagina che ci sta o ci viene trascinato ha il contorno
+  **arancio** (`--brand-warning`), con la stessa geometria del validatore portata in TS (`cornici/fasce.ts`). Solo
+  in modifica: viewer, pannello e foto della pagina non cambiano.
 - **L'assistente fotografa la pagina col motore del progetto** (decisione del maintainer, 10-11-2026). Fino ad
   oggi `istantanea_pagina` lanciava sempre il viewer LVGL, anche per i progetti web: il modello giudicava un disegno
   che l'utente non avrebbe visto, e nel cloud (immagine x86_64 senza viewer) la foto non funzionava. Ora per un
