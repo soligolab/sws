@@ -142,23 +142,45 @@ async fn run_script_task(
                 return;
             };
 
+            // L'ora è quella del pannello (10-11-2026): il cron si legge sul
+            // quadrante di `chrono::Local`, cambio d'ora compreso (vedi
+            // `cron.rs`). Fino alla 2.26.0-rc.11 era UTC.
+            let mut obiettivo = cron.prossimo(&chrono::Local::now());
+            if obiettivo.is_none() {
+                warn!(script = %id, schedule = %schedule,
+                    "l'espressione cron non ha nessuna esecuzione: lo script non partirà");
+            }
             loop {
-                // `None` = nessun istante nelle prossime 24 ore. È legittimo
-                // (`0 0 29 2 *` esiste), quindi si ricontrolla fra un'ora
-                // invece di rinunciare — ma qui è una scelta, non il residuo di
-                // un insieme vuoto.
-                let attesa = match cron.secondi_al_prossimo(adesso_unix()) {
-                    Some(s) => s,
-                    None => {
-                        debug!(script = %id, schedule = %schedule,
-                            "nessuna occorrenza nelle prossime 24 ore, ricontrollo fra un'ora");
-                        3600
+                let adesso = chrono::Utc::now();
+                let attesa = match obiettivo {
+                    Some(t) if t <= adesso => {
+                        let ritardo = (adesso - t).num_seconds();
+                        if ritardo <= RITARDO_MASSIMO_S {
+                            exec_once(&id, &code, &py, &mut throttle).await;
+                        } else {
+                            warn!(script = %id, schedule = %schedule, ritardo_s = ritardo,
+                                "esecuzione saltata: l'orologio è andato avanti oltre l'ora prevista");
+                        }
+                        // Dopo `t`, non dopo adesso: se `exec_once` è durato a
+                        // lungo, la prossima la si cerca comunque da lì, e quelle
+                        // già passate cadono nel ramo qui sopra (e si saltano se
+                        // troppo vecchie).
+                        obiettivo = cron.prossimo(&t.with_timezone(&chrono::Local));
+                        continue;
                     }
+                    Some(t) => (t - adesso).to_std().unwrap_or_default().min(SONNO_MASSIMO),
+                    None => SONNO_MASSIMO,
                 };
                 tokio::select! {
                     _ = cancel.cancelled() => break,
-                    _ = sleep(Duration::from_secs(attesa)) => {
-                        exec_once(&id, &code, &py, &mut throttle).await;
+                    _ = sleep(attesa) => {
+                        // L'orologio può essere tornato indietro mentre si
+                        // dormiva: ci si rifà da adesso, e se l'obiettivo è
+                        // ancora quello niente cambia.
+                        let ora = chrono::Local::now();
+                        if obiettivo.is_none_or(|t| t > ora.with_timezone(&chrono::Utc)) {
+                            obiettivo = cron.prossimo(&ora);
+                        }
                     }
                 }
             }
@@ -324,14 +346,16 @@ fn is_falsy(v: &TagValue) -> bool {
 // diceva «questo cron non capisce `*/n`», vero allora e falso appena il parser
 // li ha imparati. Ora la sintassi è definita in un posto solo.
 
-/// L'istante di adesso in secondi dall'epoca. Isolato perché è l'unico pezzo
-/// non deterministico del ciclo cron, e nei test del parser non serve.
-fn adesso_unix() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs()
-}
+/// Il ciclo non dorme più di così, anche se la prossima esecuzione è lontana:
+/// l'orologio del pannello può cambiare sotto (NTP all'avvio, l'ora rimessa a
+/// mano), e un sonno lungo calcolato sull'orologio di prima partirebbe all'ora
+/// sbagliata. Un ricalcolo al minuto costa niente.
+const SONNO_MASSIMO: Duration = Duration::from_secs(60);
+
+/// Un'esecuzione mancata da più di così non si recupera: succede quando
+/// l'orologio salta avanti (il pannello si accende col 1970 e NTP lo porta a
+/// oggi), e far partire «alle 7» un comando alle 11 è peggio che saltarlo.
+const RITARDO_MASSIMO_S: i64 = 120;
 
 // ─────────────────────────────────────────────────────────────────────────────
 

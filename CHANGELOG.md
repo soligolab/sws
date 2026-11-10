@@ -108,6 +108,26 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   `esiti.json` fuori da git, da cui si spuntano `COLLAUDI_IN_SOSPESO.md`, i piani e `Appunti.txt`.
 
 ### Cambiato
+- **Il cron degli script gira nell'ora del pannello, non più in UTC** (decisione del maintainer, 10-11-2026; seme
+  archiviato in `docs/archive/2026-11-10-cron-in-ora-locale.md`). Chi scriveva `0 7 * * *` pensando alle 7 di casa
+  accendeva l'uscita alle 8 d'inverno e alle 9 d'estate, e l'IDE non lo diceva. Ora `cron.rs` legge l'espressione sul
+  quadrante di `chrono::Local` (il fuso del sistema; nel container `Timezone=local`, già nel quadlet: niente da
+  cambiare lì, nessuna dipendenza nuova). Nel cambio d'ora un'ora che non esiste si **salta**, un'ora ripetuta parte
+  **una volta sola**; un cron a tutte le ore (`*/5 * * * *`) segue il tempo vero e gira anche nell'ora ripetuta. Il
+  ciclo degli script non dorme più di 60 s e ricalcola, e un'esecuzione mancata da più di due minuti (l'orologio che
+  salta avanti all'avvio) si salta invece di partire all'ora sbagliata. **Compatibilità**: un progetto con un cron
+  scritto pensando a UTC cambia ora (avviso in `NOVITA.yaml`, `compatibilita` della 2.26.0).
+  - **I report programmati** erano già nell'ora locale, ma sommando lo scarto del fuso all'istante: nell'ora ripetuta
+    di ottobre un report delle 2:30 partiva due volte. Ora usano la stessa regola degli script (`Cron::scatta`).
+  - **La finestra dell'aggiornamento** era già nell'ora del pannello (decisione 47) e non cambia: lì un'ora che non
+    esiste va alla prima valida dopo, perché un aggiornamento approvato non deve sparire.
+  - **L'IDE dice fuso e prossime esecuzioni** sotto il campo del trigger cron (`logica/ProssimeCron.tsx`): le calcola
+    il runtime con `GET /api/cron/prossime?espressione=…` (tre esecuzioni, fuso, scostamento, avvisi; 400 col perché
+    se l'espressione non vale), e col dispositivo connesso `GET /api/remote/cron/prossime`, che chiede al pannello.
+    Il nome del fuso (`aggiornamento_finestra::nome_fuso`) viene da `TZ`, dal collegamento `/etc/localtime` o da
+    `/etc/timezone`; se manca si vede solo lo scostamento.
+  - I modelli «Comando a orario» e «Azzeramento a mezzanotte» dicono «le 7 di casa tutto l'anno» invece di avvisare
+    dell'UTC; il manuale (capitolo 04) descrive il trigger cron e il cambio d'ora.
 - **L'assistente fotografa la pagina col motore del progetto** (decisione del maintainer, 10-11-2026). Fino ad
   oggi `istantanea_pagina` lanciava sempre il viewer LVGL, anche per i progetti web: il modello giudicava un disegno
   che l'utente non avrebbe visto, e nel cloud (immagine x86_64 senza viewer) la foto non funzionava. Ora per un

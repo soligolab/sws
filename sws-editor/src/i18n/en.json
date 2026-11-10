@@ -2935,7 +2935,7 @@
     "intervalloSecondi": "Interval (seconds)",
     "cronCinqueCampi": "Cron (5 fields)",
     "cronCampi": "minute hour day month day-of-week",
-    "cronAiuto": "*/5      every 5 (step)\n9-17     from 9 to 17 (range)\n9-17/2   from 9 to 17, every 2\n0,30     list\n\nExamples: */5 * * * * = every 5 minutes; 30 4 * * * = every day at 4:30",
+    "cronAiuto": "*/5      every 5 (step)\n9-17     from 9 to 17 (range)\n9-17/2   from 9 to 17, every 2\n0,30     list\n\nExamples: */5 * * * * = every 5 minutes; 30 4 * * * = every day at 4:30, panel time (daylight saving included)",
     "ereditaDalRuntime": "inherit from runtime",
     "backupDaTenere": "Backups to keep",
     "caricatiMb": "✓ Uploaded {{mb}} MB.",
@@ -4657,6 +4657,11 @@
     "salvaScript": "Save scripts",
     "nomiForniti": "Names ready to use:",
     "controlloOk": "No problems.",
+    "cronOraPannello": "Panel time: {{fuso}}.",
+    "cronOraMacchina": "This machine's time: {{fuso}}. The panel uses its own time zone: connect it to see it.",
+    "cronRemotoVecchio": "The connected device can't compute them (runtime older than 2.26): these are this machine's.",
+    "cronProssime": "Next:",
+    "cronMai": "This expression never matches: the script will not run.",
     "controlloKo": "To fix:",
     "provaOk": "Done.",
     "provaKo": "Failed:",
@@ -4803,7 +4808,7 @@
       "t": {
         "c1": "Switches the output on at the trigger time (cron).",
         "c2": "Switches the output off at the trigger time (cron).",
-        "utc": "The cron time is UTC, not local time: adjust the hour to your time zone."
+        "ora": "The time is the panel's, daylight saving included: «0 7» is 7 o'clock local time all year round."
       }
     },
     "azzeramento_mezzanotte": {
@@ -4820,7 +4825,7 @@
         "c1": "Resets the counter.",
         "c2": "The same function can be attached to a button (On click → Function) to reset by hand.",
         "c3": "Every night it calls the function that resets the counter.",
-        "utc": "The cron time is UTC, not local time: adjust the hour to your time zone."
+        "ora": "The time is the panel's, daylight saving included: «0 0» is local midnight all year round."
       }
     },
     "alternanza_pompe": {

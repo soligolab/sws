@@ -26,6 +26,7 @@ import { conferma } from "@/finestraAvviso/finestraAvviso";
 import { scriptCambiati, useAppStore } from "@/store";
 import { sorgentiLogica, tagNonScrivibili, vociTag, type ContestoLogica } from "@/logica/completamento";
 import { avvisiSandbox, avvisiTag, RITARDO_AVVISI_MS } from "@/logica/avvisi";
+import { ProssimeCron } from "@/logica/ProssimeCron";
 import type { FunctionDef, GlobalScriptDef, ScriptTriggerKind } from "@/types";
 
 export type VoceLogica = { tipo: "funzione"; fn: FunctionDef } | { tipo: "script"; script: GlobalScriptDef };
@@ -340,10 +341,14 @@ function ScriptAvvio({ script, onPatch }: { script: GlobalScriptDef; onPatch: (p
         </>
       )}
       {trig.kind === "cron" && (
-        // Q34: la sintassi accettata la dice il campo.
-        <input value={trig.schedule} placeholder="0 * * * *" style={INPUT_STYLE}
-          title={t("cfgUi.cronCampi") + "\n\n" + t("cfgUi.everyValue") + t("cfgUi.cronAiuto")}
-          onChange={(e) => aggiorna({ schedule: e.target.value })} />
+        <div>
+          {/* Q34: la sintassi accettata la dice il campo. */}
+          <input value={trig.schedule} placeholder="0 * * * *" style={INPUT_STYLE} data-testid="logica-cron"
+            title={t("cfgUi.cronCampi") + "\n\n" + t("cfgUi.everyValue") + t("cfgUi.cronAiuto")}
+            onChange={(e) => aggiorna({ schedule: e.target.value })} />
+          {/* Il fuso e le prossime esecuzioni, dal runtime (10-11-2026). */}
+          <ProssimeCron espressione={trig.schedule} />
+        </div>
       )}
       {trig.kind === "tag_change" && (
         <>

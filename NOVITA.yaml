@@ -37,13 +37,18 @@ versioni:
   # registrata (tag e push) senza costruire l'immagine, per scelta del maintainer il
   # 05-11-2026, quindi non stanno nell'etichetta di nessuna immagine. Le vedrà la prossima.
   - versione: "2.26.0"
+    # Il cron in ora del pannello (10-11-2026): un orario scritto pensando a UTC
+    # cambia ora, ed è proprio ciò che il pannello deve dire prima di aggiornare.
+    compatibilita:
+      - it: "Gli script a orario ora seguono l'ora del pannello, ora legale compresa: controlla gli orari scritti pensando a UTC."
+        en: "Scheduled scripts now follow the panel's time, daylight saving included: check schedules written with UTC in mind."
     voci:
       - it: "MQTT: una sorgente sola per molti dispositivi, ognuno col suo topic di disponibilità. Se una presa sparisce diventano Bad solo i suoi valori, e ha il suo allarme."
         en: "MQTT: one source for many devices, each with its own availability topic. When a plug disappears only its values go Bad, and it has its own alarm."
       - it: "Pannello di destra con una voce per gruppo; impostazioni del progetto in una finestra, da sola su un progetto nuovo o da Progetto → Impostazioni; nello stile VS Code le barre di icone seguono la dimensione scelta."
         en: "Right panel with one entry per group; project settings in a window, by itself on a new project or from Project → Settings; in the VS Code style the icon bars follow the chosen icon size."
-      - it: "Funzioni e script nel ramo Logica, con «Controlla» e «Prova»; mentre scrivi suggerisce tag e nomi e segnala gli errori; «Nuovo da modello» crea dieci logiche coi tuoi tag; rinominare una funzione aggiorna i pulsanti."
-        en: "Functions and scripts in the Logic branch, with «Check» and «Try»; while you type it suggests tags and names and flags errors; «New from template» makes ten logics with your tags; renaming a function updates buttons."
+      - it: "Ramo Logica per funzioni e script: «Controlla», «Prova», suggerimenti ed errori mentre scrivi, dieci modelli coi tuoi tag, rinomina che aggiorna i pulsanti; il cron segue l'ora del pannello e dice quando parte."
+        en: "Logic branch for functions and scripts: «Check», «Try», hints and errors as you type, ten templates with your tags, renames that update buttons; cron follows the panel's time and says when it runs next."
       - it: "Conferme e avvisi compaiono in una finestra dell'IDE invece che nei pop-up del browser; sul pannello web anche conferme, password dei comandi critici e motivi."
         en: "Confirmations and notices appear in an IDE window instead of browser pop-ups; on the web panel, command confirmations, critical-command passwords and reasons too."
       - it: "«Applica a tutte le pagine…» porta misura e sfondi del progetto sulle pagine che scegli, anche dove ne avevano di propri."

@@ -284,7 +284,7 @@ fn manda(
 
 /// Questo processo fa girare l'impianto? Né IDE, né gateway, né container di
 /// progetto nel cloud: lì lo storico non c'è.
-fn ruolo_impianto(s: &AppState) -> bool {
+pub(crate) fn ruolo_impianto(s: &AppState) -> bool {
     !s.ide_only && s.segreto_gateway.is_none() && s.regia.is_none()
 }
 
@@ -322,14 +322,15 @@ async fn giro(s: &AppState, minuto_ms: u64) {
     if p.reports.is_empty() {
         return;
     }
-    // L'ora locale come la vede il cron: lo spostamento del fuso sull'istante.
-    let scarto = locale(minuto_ms).offset().local_minus_utc() as i64;
-    let locale_s = (minuto_ms / 1000) as i64 + scarto;
+    // L'ora del pannello, con le stesse regole degli script globali (10-11-2026):
+    // prima si sommava lo scarto del fuso e si confrontava, e nell'ora ripetuta
+    // di ottobre un report delle 2:30 partiva due volte.
+    let istante = locale(minuto_ms);
     for def in &p.reports {
         let (Some(cron), _) = crate::cron::analizza(def.cron()) else {
             continue;
         };
-        if locale_s >= 0 && cron.combacia(locale_s as u64) {
+        if cron.scatta(&istante) {
             if let Err(e) = genera(s, def, minuto_ms).await {
                 warn!(report = %def.id, "report non generato: {e}");
             }

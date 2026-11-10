@@ -1,6 +1,6 @@
 # La logica in un posto solo: funzioni, script e ricette — piano d'esecuzione
 
-> **Chiuso e archiviato il 10-11-2026**: L0–L3 fatte (L2 e L3 nella 2.26.0-rc.12). Il cron in UTC è il seme [cron in ora locale](../plans/semi/2026-11-10-cron-in-ora-locale.md); il viewer LVGL che esegue `on_press_fn` è nel piano [oggetti e template](../plans/2026-11-10-oggetti-e-template-parita-lvgl.md); il capitolo del manuale lo scrive M5.
+> **Chiuso e archiviato il 10-11-2026**: L0–L3 fatte (L2 e L3 nella 2.26.0-rc.12). Il cron in UTC era il seme [cron in ora locale](2026-11-10-cron-in-ora-locale.md), fatto e archiviato lo stesso giorno; il viewer LVGL che esegue `on_press_fn` è nel piano [oggetti e template](../plans/2026-11-10-oggetti-e-template-parita-lvgl.md); il capitolo del manuale lo scrive M5.
 >
 > **Stato: piano d'esecuzione, sessioni L0–L3 della [serie coordinata](../plans/README.md#-la-serie-coordinata-del-04-11-2026--lordine-delle-sessioni).**
 > Nato come seme il 04-11-2026 da una richiesta del maintainer: «La sezione LOGIC è un po' confusa, ci sono le funzioni

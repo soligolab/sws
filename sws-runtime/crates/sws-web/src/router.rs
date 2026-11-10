@@ -912,6 +912,12 @@ pub fn build(
             "/api/remote/host/catalog",
             get(crate::remote::remote_host_catalog),
         )
+        // Le prossime esecuzioni di un cron nel fuso del dispositivo connesso:
+        // gli script partono lì, non su questa macchina (10-11-2026).
+        .route(
+            "/api/remote/cron/prossime",
+            get(crate::remote::remote_cron_prossime),
+        )
         .route(
             "/api/remote/host/seriali",
             get(crate::remote::remote_porte_seriali),
@@ -1108,6 +1114,9 @@ pub fn build(
             "/api/project/findings",
             get(crate::schema_api::project_findings),
         )
+        // Le prossime esecuzioni di un cron nel fuso di questa macchina
+        // (10-11-2026): l'editor della Logica le mostra sotto il trigger.
+        .route("/api/cron/prossime", get(crate::cron::prossime_handler))
         // Tag REST (reads)
         .route("/api/tags", get(get_all_tags))
         // La scrittura di un tag sta con le letture (25-10-2026): il ruolo lo decide
@@ -1848,6 +1857,8 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
         // Lo stato delle sorgenti e dei dispositivi (04-10-2026): l'IDE connesso
         // colora i pallini dell'albero con quello del pannello, non del PC.
         .route("/api/sources/stato", get(stato_sorgenti_handler))
+        // Le prossime esecuzioni di un cron nel fuso del pannello (10-11-2026).
+        .route("/api/cron/prossime", get(crate::cron::prossime_handler))
         // ── L'impianto lo tocca il dispositivo (25-10-2026) ────────────────
         // Le scoperte dei protocolli e le prove di collegamento girano QUI,
         // sul pannello che vede l'impianto, non sulla macchina dell'IDE: dal

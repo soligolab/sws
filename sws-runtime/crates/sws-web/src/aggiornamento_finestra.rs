@@ -241,6 +241,51 @@ pub fn orologio() -> Orologio {
     }
 }
 
+/// Il nome del fuso del pannello (`Europe/Rome`), per dirlo nell'IDE accanto
+/// alle ore del cron (10-11-2026). `chrono::Local` converte ma non dà il nome:
+/// lo si cerca dove lo cerca la libc — `TZ`, poi il collegamento
+/// `/etc/localtime → …/zoneinfo/Europe/Rome`, poi `/etc/timezone` (Debian). Nel
+/// container `Timezone=local` può copiare il file invece di collegarlo, e allora
+/// il nome non c'è: l'IDE mostra lo scostamento, che c'è sempre.
+pub fn nome_fuso() -> Option<String> {
+    nome_fuso_da(
+        std::env::var("TZ").ok().as_deref(),
+        std::fs::read_link("/etc/localtime").ok().as_deref(),
+        std::fs::read_to_string("/etc/timezone").ok().as_deref(),
+    )
+}
+
+fn nome_fuso_da(
+    tz: Option<&str>,
+    collegamento: Option<&Path>,
+    etc_timezone: Option<&str>,
+) -> Option<String> {
+    fn dopo_zoneinfo(p: &str) -> Option<String> {
+        p.split_once("zoneinfo/")
+            .map(|(_, n)| n.trim_start_matches("posix/").trim_start_matches("right/"))
+            .filter(|n| !n.is_empty())
+            .map(str::to_string)
+    }
+    if let Some(t) = tz
+        .map(|t| t.trim().trim_start_matches(':'))
+        .filter(|t| !t.is_empty())
+    {
+        return if t.starts_with('/') {
+            dopo_zoneinfo(t)
+        } else {
+            Some(t.to_string())
+        };
+    }
+    if let Some(n) = collegamento.and_then(|p| dopo_zoneinfo(&p.to_string_lossy())) {
+        return Some(n);
+    }
+    etc_timezone
+        .and_then(|t| t.lines().next())
+        .map(str::trim)
+        .filter(|t| !t.is_empty())
+        .map(str::to_string)
+}
+
 /// Un istante UTC mostrato come l'orologio: locale del pannello e UTC.
 pub fn come_orologio(ms: i64) -> Option<Orologio> {
     let u = Utc.timestamp_millis_opt(ms).single()?;
@@ -413,6 +458,44 @@ mod tests {
             "una versione più nuova sì"
         );
         assert!(!e_scartata(&p, None));
+    }
+
+    #[test]
+    fn il_nome_del_fuso_dove_lo_cerca_la_libc() {
+        let link = Path::new("/usr/share/zoneinfo/Europe/Rome");
+        assert_eq!(
+            nome_fuso_da(Some("Europe/Rome"), None, None).as_deref(),
+            Some("Europe/Rome")
+        );
+        assert_eq!(
+            nome_fuso_da(
+                Some(":/usr/share/zoneinfo/America/New_York"),
+                Some(link),
+                None
+            )
+            .as_deref(),
+            Some("America/New_York"),
+            "TZ vince sul collegamento"
+        );
+        assert_eq!(
+            nome_fuso_da(None, Some(link), None).as_deref(),
+            Some("Europe/Rome")
+        );
+        assert_eq!(
+            nome_fuso_da(
+                None,
+                Some(Path::new("../usr/share/zoneinfo/posix/Europe/Rome")),
+                None
+            )
+            .as_deref(),
+            Some("Europe/Rome")
+        );
+        assert_eq!(
+            nome_fuso_da(Some(""), None, Some("Europe/Rome\n")).as_deref(),
+            Some("Europe/Rome")
+        );
+        // Il file copiato da podman, senza collegamento né /etc/timezone.
+        assert_eq!(nome_fuso_da(None, None, None), None);
     }
 
     #[test]

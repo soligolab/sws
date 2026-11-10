@@ -6,5 +6,5 @@ tags.write("{{tag:contatore}}", 0)
 #@ script mezzanotte
 #@ trigger cron 0 0 * * *
 # {{t:c3}}
-# {{t:utc}}
+# {{t:ora}}
 functions.run("{{nome:azzera}}")

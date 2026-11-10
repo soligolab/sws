@@ -61,6 +61,10 @@ impl Problema {
     }
 }
 
+use chrono::{
+    DateTime, Datelike, Duration, LocalResult, NaiveDate, NaiveDateTime, TimeZone, Timelike, Utc,
+};
+
 /// I cinque insiemi di istanti che l'espressione ammette.
 #[derive(Debug, Clone)]
 pub struct Cron {
@@ -296,55 +300,231 @@ fn numero(s: &str, nome: &'static str, pezzo: &str) -> Result<u8, Problema> {
     })
 }
 
+/// Quanto avanti si cerca la prossima esecuzione. Ventotto anni: il 29 febbraio
+/// che cade di lunedì (`0 0 29 2 1`) torna ogni 28 anni, e un giorno costa tre
+/// confronti, quindi cercare lontano non costa niente.
+const ORIZZONTE_GIORNI: i64 = 366 * 28;
+
+// # L'ora è quella del pannello (10-11-2026)
+//
+// Fino alla 2.26.0-rc.11 il cron girava in **UTC**, e nell'IDE niente lo diceva: chi
+// scriveva `0 7 * * *` pensando alle 7 di casa accendeva l'uscita alle 8
+// d'inverno e alle 9 d'estate. Ora l'espressione si legge sul quadrante del
+// fuso del pannello (`chrono::Local`, che legge `/etc/localtime`: nel container
+// lo riempie `Timezone=local` del quadlet), lo stesso dei report programmati e
+// della finestra dell'aggiornamento.
 impl Cron {
-    /// L'istante `unix_s` (UTC) combacia con l'espressione?
-    pub(crate) fn combacia(&self, unix_s: u64) -> bool {
-        const GIORNO: u64 = 86_400;
-        const ORA: u64 = 3_600;
-        const MINUTO: u64 = 60;
-
-        let minuto = ((unix_s % ORA) / MINUTO) as u8;
-        let ora = ((unix_s % GIORNO) / ORA) as u8;
-        let giorni = unix_s / GIORNO;
-        // 1970-01-01 era un giovedì, che con la domenica a 0 è il 4.
-        let settimana = ((giorni + 4) % 7) as u8;
-        let (_, mese, giorno) = giorno_del_calendario(giorni);
-
-        self.minute.contains(&minuto)
-            && self.hour.contains(&ora)
-            && self.day.contains(&(giorno as u8))
-            && self.month.contains(&(mese as u8))
-            && self.weekday.contains(&settimana)
+    /// L'ora **sul quadrante** combacia con l'espressione?
+    fn combacia_quadrante(&self, t: &NaiveDateTime) -> bool {
+        self.minute.contains(&(t.minute() as u8))
+            && self.hour.contains(&(t.hour() as u8))
+            && self.giorno_ammesso(t.date())
     }
 
-    /// Quanti secondi mancano al prossimo istante utile, cercando minuto per
-    /// minuto nelle prossime 24 ore. `None` se in 24 ore non ce n'è nessuno —
-    /// che è legittimo (`0 0 29 2 *` esiste), e chi chiama decide cosa farne.
-    pub fn secondi_al_prossimo(&self, adesso: u64) -> Option<u64> {
-        for offset in 1u64..=1440 {
-            let candidato = ((adesso + offset * 60) / 60) * 60;
-            if self.combacia(candidato) {
-                return Some(candidato.saturating_sub(adesso).max(1));
+    fn giorno_ammesso(&self, d: NaiveDate) -> bool {
+        self.day.contains(&(d.day() as u8))
+            && self.month.contains(&(d.month() as u8))
+            && self
+                .weekday
+                .contains(&(d.weekday().num_days_from_sunday() as u8))
+    }
+
+    /// Un cron con tutte le ventiquattro ore (`*/5 * * * *`, `0 * * * *`) conta il
+    /// tempo vero, non l'ora sul quadrante: nell'ora ripetuta di ottobre gira
+    /// anche la seconda volta, altrimenti «ogni cinque minuti» resterebbe fermo
+    /// un'ora intera. Un cron con un'ora scelta (`30 2 * * *`) è un appuntamento,
+    /// e un appuntamento si tiene una volta sola. È la regola di Vixie cron.
+    fn conta_il_tempo_vero(&self) -> bool {
+        self.hour.len() == 24
+    }
+
+    /// Gli istanti in cui lo script parte nel giorno `d` del fuso `tz`, in ordine.
+    ///
+    /// Il cambio d'ora, deciso dal maintainer il 10-11-2026:
+    /// - un'ora che **non esiste** (le 2:30 dell'ultima domenica di marzo) si
+    ///   **salta**: quel giorno lo script non parte, né prima né dopo;
+    /// - un'ora **ripetuta** (le 2:30 dell'ultima domenica di ottobre) parte
+    ///   **una volta sola**, la prima — salvo i cron a tutte le ore, vedi
+    ///   [`Cron::conta_il_tempo_vero`].
+    fn istanti_del_giorno<Tz: TimeZone>(&self, tz: &Tz, d: NaiveDate) -> Vec<DateTime<Utc>> {
+        let mut v = Vec::new();
+        if !self.giorno_ammesso(d) {
+            return v;
+        }
+        for &h in &self.hour {
+            for &m in &self.minute {
+                let Some(quadrante) = d.and_hms_opt(h as u32, m as u32, 0) else {
+                    continue;
+                };
+                match tz.from_local_datetime(&quadrante) {
+                    LocalResult::Single(t) => v.push(t.with_timezone(&Utc)),
+                    LocalResult::Ambiguous(prima, seconda) => {
+                        v.push(prima.with_timezone(&Utc));
+                        if self.conta_il_tempo_vero() {
+                            v.push(seconda.with_timezone(&Utc));
+                        }
+                    }
+                    LocalResult::None => {}
+                }
             }
         }
-        None
+        v.sort_unstable();
+        v
+    }
+
+    /// Le prossime `n` esecuzioni dopo `adesso` (escluso), lette nel fuso di
+    /// `adesso`. Meno di `n` se in ventotto anni non ce ne sono abbastanza
+    /// (`0 0 30 2 *` non ne ha nessuna).
+    pub fn prossimi<Tz: TimeZone>(&self, adesso: &DateTime<Tz>, n: usize) -> Vec<DateTime<Utc>> {
+        let tz = adesso.timezone();
+        let da = adesso.with_timezone(&Utc);
+        // Dal giorno prima: un istante di un giorno di calendario può cadere,
+        // col cambio d'ora, a cavallo della mezzanotte di quello dopo.
+        let mut giorno = adesso.date_naive() - Duration::days(1);
+        let mut out = Vec::with_capacity(n);
+        for _ in 0..ORIZZONTE_GIORNI {
+            for t in self.istanti_del_giorno(&tz, giorno) {
+                if t > da {
+                    out.push(t);
+                    if out.len() == n {
+                        return out;
+                    }
+                }
+            }
+            giorno += Duration::days(1);
+        }
+        out
+    }
+
+    /// La prossima esecuzione dopo `adesso`.
+    pub fn prossimo<Tz: TimeZone>(&self, adesso: &DateTime<Tz>) -> Option<DateTime<Utc>> {
+        self.prossimi(adesso, 1).into_iter().next()
+    }
+
+    /// Il minuto `istante` è un'esecuzione? Per chi controlla minuto per minuto
+    /// (i report): stesse regole di [`Cron::prossimi`], ora saltata e ora
+    /// ripetuta comprese.
+    pub fn scatta<Tz: TimeZone>(&self, istante: &DateTime<Tz>) -> bool {
+        let quadrante = istante.naive_local();
+        if istante.second() != 0 || !self.combacia_quadrante(&quadrante) {
+            return false;
+        }
+        match istante.timezone().from_local_datetime(&quadrante) {
+            LocalResult::Ambiguous(prima, _) => {
+                self.conta_il_tempo_vero()
+                    || prima.with_timezone(&Utc) == istante.with_timezone(&Utc)
+            }
+            _ => true,
+        }
     }
 }
 
-/// Da giorni-dall'epoca a (anno, mese, giorno). Algoritmo del calendario civile
-/// di Howard Hinnant, dominio pubblico.
-fn giorno_del_calendario(z: u64) -> (i32, u32, u32) {
-    let z = z as i64 + 719_468;
-    let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
-    let doe = z - era * 146_097;
-    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
-    let y = yoe + era * 400;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let d = doy - (153 * mp + 2) / 5 + 1;
-    let m = if mp < 10 { mp + 3 } else { mp - 9 };
-    let y = if m <= 2 { y + 1 } else { y };
-    (y as i32, m as u32, d as u32)
+// ── L'anteprima per l'IDE ───────────────────────────────────────────────────
+
+/// Quante esecuzioni mostra l'IDE accanto al campo del trigger.
+pub const ANTEPRIMA: usize = 3;
+
+/// Il corpo di `GET /api/cron/prossime`: il fuso in cui il cron si legge e le
+/// prossime esecuzioni, calcolate da chi le farà partire.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct Anteprima {
+    /// Il nome del fuso (`Europe/Rome`), se la macchina lo dice; vedi
+    /// [`crate::aggiornamento_finestra::nome_fuso`].
+    pub fuso: Option<String>,
+    /// Lo scostamento da UTC adesso, `+01:00`: c'è anche quando il nome no.
+    pub scostamento: String,
+    pub prossime: Vec<Esecuzione>,
+    /// Gli avvisi del parser (un campo che manca vale `*`, …).
+    pub avvisi: Vec<String>,
+    /// Questa macchina è quella che fa partire gli script (un pannello), o è
+    /// un IDE che li calcola nel fuso suo? L'IDE lo dice accanto alle ore.
+    pub pannello: bool,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct Esecuzione {
+    /// Sul quadrante del fuso, `2026-11-11 07:00`.
+    pub locale: String,
+    pub utc: String,
+    /// Lo scostamento di **quell'**istante: a cavallo del cambio d'ora non è
+    /// quello di adesso.
+    pub scostamento: String,
+}
+
+fn spiega(p: &Problema) -> String {
+    format!("{}: {} — {}", p.campo, p.messaggio, p.suggerimento)
+}
+
+/// Le prossime [`ANTEPRIMA`] esecuzioni di `expr` dopo `adesso`, o il perché no.
+pub fn anteprima<Tz: TimeZone>(
+    expr: &str,
+    adesso: &DateTime<Tz>,
+    fuso: Option<String>,
+) -> Result<Anteprima, String>
+where
+    Tz::Offset: std::fmt::Display,
+{
+    let (cron, problemi) = analizza(expr);
+    let Some(cron) = cron else {
+        let errori: Vec<String> = problemi
+            .iter()
+            .filter(|p| p.gravita == Gravita::Errore)
+            .map(spiega)
+            .collect();
+        return Err(errori.join("; "));
+    };
+    let tz = adesso.timezone();
+    Ok(Anteprima {
+        fuso,
+        scostamento: adesso.format("%:z").to_string(),
+        prossime: cron
+            .prossimi(adesso, ANTEPRIMA)
+            .into_iter()
+            .map(|u| {
+                let l = u.with_timezone(&tz);
+                Esecuzione {
+                    locale: l.format("%Y-%m-%d %H:%M").to_string(),
+                    utc: u.format("%Y-%m-%d %H:%M").to_string(),
+                    scostamento: l.format("%:z").to_string(),
+                }
+            })
+            .collect(),
+        avvisi: problemi
+            .iter()
+            .filter(|p| p.gravita == Gravita::Avviso)
+            .map(spiega)
+            .collect(),
+        pannello: false,
+    })
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct Domanda {
+    #[serde(default)]
+    pub espressione: String,
+}
+
+/// `GET /api/cron/prossime?espressione=0+7+*+*+*` — le prossime esecuzioni nel
+/// fuso di **questa** macchina. Sul pannello è il fuso del pannello; l'IDE
+/// collegato a un dispositivo chiede `/api/remote/cron/prossime`, che gira la
+/// domanda al dispositivo. Un'espressione che non si capisce è un 400 col
+/// perché, in italiano, come lo direbbe il validatore.
+pub async fn prossime_handler(
+    axum::extract::State(s): axum::extract::State<crate::router::AppState>,
+    axum::extract::Query(q): axum::extract::Query<Domanda>,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+    match anteprima(
+        &q.espressione,
+        &chrono::Local::now(),
+        crate::aggiornamento_finestra::nome_fuso(),
+    ) {
+        Ok(mut a) => {
+            a.pannello = crate::report::ruolo_impianto(&s);
+            axum::Json(a).into_response()
+        }
+        Err(e) => (axum::http::StatusCode::BAD_REQUEST, e).into_response(),
+    }
 }
 
 #[cfg(test)]
@@ -450,28 +630,231 @@ mod tests {
         assert!(p.iter().any(|p| p.messaggio.contains("sesto in poi")));
     }
 
-    /// `secondi_al_prossimo` su un istante noto: 2026-01-01 00:00:00 UTC è un
-    /// giovedì (weekday 4).
+    /// L'ora di Roma con le regole europee del cambio d'ora: +01:00, e +02:00
+    /// dall'ultima domenica di marzo all'ultima di ottobre, sempre alle 01:00
+    /// UTC. Scritta qui perché i test non dipendano dal fuso della macchina che
+    /// li esegue, e senza tirare dentro un database dei fusi per un fuso solo.
+    #[derive(Debug, Clone, Copy)]
+    struct Roma;
+
+    fn ultima_domenica(anno: i32, mese: u32) -> NaiveDate {
+        let mut d = NaiveDate::from_ymd_opt(anno, mese, 31).unwrap();
+        while d.weekday() != chrono::Weekday::Sun {
+            d = d.pred_opt().unwrap();
+        }
+        d
+    }
+
+    impl Roma {
+        fn scarto_utc(utc: &NaiveDateTime) -> chrono::FixedOffset {
+            let anno = utc.date().year();
+            let inizio = ultima_domenica(anno, 3).and_hms_opt(1, 0, 0).unwrap();
+            let fine = ultima_domenica(anno, 10).and_hms_opt(1, 0, 0).unwrap();
+            let ore = if *utc >= inizio && *utc < fine { 2 } else { 1 };
+            chrono::FixedOffset::east_opt(ore * 3600).unwrap()
+        }
+    }
+
+    impl TimeZone for Roma {
+        type Offset = chrono::FixedOffset;
+        fn from_offset(_: &chrono::FixedOffset) -> Self {
+            Roma
+        }
+        fn offset_from_local_date(&self, d: &NaiveDate) -> LocalResult<chrono::FixedOffset> {
+            self.offset_from_local_datetime(&d.and_hms_opt(12, 0, 0).unwrap())
+        }
+        fn offset_from_local_datetime(
+            &self,
+            l: &NaiveDateTime,
+        ) -> LocalResult<chrono::FixedOffset> {
+            // Le due letture possibili, inverno e estate: valgono quelle che,
+            // riportate a UTC, danno davvero quello scarto.
+            let valide: Vec<chrono::FixedOffset> = [1, 2]
+                .into_iter()
+                .map(|h| chrono::FixedOffset::east_opt(h * 3600).unwrap())
+                .filter(|o| {
+                    Self::scarto_utc(&(*l - Duration::seconds(o.local_minus_utc() as i64))) == *o
+                })
+                .collect();
+            match valide.as_slice() {
+                [] => LocalResult::None,
+                [o] => LocalResult::Single(*o),
+                // La prima delle due è quella d'estate (+02:00, prima del ritorno).
+                [inverno, estate] => LocalResult::Ambiguous(*estate, *inverno),
+                _ => unreachable!(),
+            }
+        }
+        fn offset_from_utc_date(&self, d: &NaiveDate) -> chrono::FixedOffset {
+            Self::scarto_utc(&d.and_hms_opt(12, 0, 0).unwrap())
+        }
+        fn offset_from_utc_datetime(&self, u: &NaiveDateTime) -> chrono::FixedOffset {
+            Self::scarto_utc(u)
+        }
+    }
+
+    /// Un istante scritto in ora di Roma, `2026-11-10 12:00`.
+    fn a_roma(s: &str) -> DateTime<Roma> {
+        let n = NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M").unwrap();
+        Roma.from_local_datetime(&n).earliest().unwrap()
+    }
+
+    fn utc(v: &[DateTime<Utc>]) -> Vec<String> {
+        v.iter()
+            .map(|t| t.format("%Y-%m-%d %H:%M").to_string())
+            .collect()
+    }
+
+    /// Prima di tutto la regola di prova deve dire la verità.
     #[test]
-    fn quanto_manca_al_prossimo() {
-        let capodanno_2026 = 1_767_225_600u64;
-        // Ogni 5 minuti: dal minuto 0 il prossimo è a 5 minuti.
+    fn la_roma_dei_test_cambia_ora_quando_deve() {
+        assert_eq!(a_roma("2026-01-15 12:00").offset().local_minus_utc(), 3600);
+        assert_eq!(a_roma("2026-07-15 12:00").offset().local_minus_utc(), 7200);
+        // 29-03-2026 e 25-10-2026 sono le ultime domeniche.
+        assert!(Roma
+            .from_local_datetime(
+                &NaiveDate::from_ymd_opt(2026, 3, 29)
+                    .unwrap()
+                    .and_hms_opt(2, 30, 0)
+                    .unwrap()
+            )
+            .single()
+            .is_none());
+        assert!(matches!(
+            Roma.from_local_datetime(
+                &NaiveDate::from_ymd_opt(2026, 10, 25)
+                    .unwrap()
+                    .and_hms_opt(2, 30, 0)
+                    .unwrap()
+            ),
+            LocalResult::Ambiguous(_, _)
+        ));
+    }
+
+    /// **Il difetto del seme.** `0 7 * * *` sono le 7 di casa tutto l'anno: le
+    /// 06:00 UTC d'inverno, le 05:00 UTC d'estate.
+    #[test]
+    fn le_sette_di_casa_d_inverno_e_d_estate() {
+        let c = ok("0 7 * * *");
         assert_eq!(
-            ok("*/5 * * * *").secondi_al_prossimo(capodanno_2026),
-            Some(300)
+            utc(&c.prossimi(&a_roma("2026-11-10 12:00"), 3)),
+            ["2026-11-11 06:00", "2026-11-12 06:00", "2026-11-13 06:00"]
         );
-        // Ogni minuto: 60 secondi.
         assert_eq!(
-            ok("* * * * *").secondi_al_prossimo(capodanno_2026),
-            Some(60)
+            utc(&c.prossimi(&a_roma("2026-07-10 12:00"), 2)),
+            ["2026-07-11 05:00", "2026-07-12 05:00"]
         );
-        // Alle 4:30: 4 ore e mezza.
+        // A cavallo del cambio d'ora: sabato 24-10 è ancora estate, lunedì 26 no.
         assert_eq!(
-            ok("30 4 * * *").secondi_al_prossimo(capodanno_2026),
-            Some(4 * 3600 + 30 * 60)
+            utc(&c.prossimi(&a_roma("2026-10-24 08:00"), 2)),
+            ["2026-10-25 06:00", "2026-10-26 06:00"]
         );
-        // Il 29 febbraio non cade nelle prossime 24 ore: `None`, non un'attesa
-        // inventata.
-        assert_eq!(ok("0 0 29 2 *").secondi_al_prossimo(capodanno_2026), None);
+        // E l'istante cade in quello in cui il cron lo legge.
+        assert!(c.scatta(&a_roma("2026-11-11 07:00")));
+        assert!(!c.scatta(&a_roma("2026-11-11 08:00")));
+    }
+
+    #[test]
+    fn la_prossima_e_dopo_adesso_non_adesso() {
+        let c = ok("*/5 * * * *");
+        assert_eq!(
+            utc(&c.prossimi(&a_roma("2026-01-01 00:00"), 2)),
+            ["2025-12-31 23:05", "2025-12-31 23:10"]
+        );
+        // Il 29 febbraio di lunedì torna nel 2044: l'orizzonte ci arriva.
+        let bisestile = ok("0 0 29 2 1").prossimo(&a_roma("2026-01-01 00:00"));
+        assert_eq!(bisestile.unwrap().format("%Y").to_string(), "2044");
+        // Il 30 febbraio non esiste: nessuna esecuzione, non un'attesa inventata.
+        assert!(ok("0 0 30 2 *")
+            .prossimi(&a_roma("2026-01-01 00:00"), 3)
+            .is_empty());
+    }
+
+    /// Un'ora che il cambio d'ora salta **si salta**: le 2:30 del 29-03-2026 non
+    /// esistono, e quel giorno lo script non parte.
+    #[test]
+    fn l_ora_che_non_esiste_si_salta() {
+        let c = ok("30 2 * * *");
+        assert_eq!(
+            utc(&c.prossimi(&a_roma("2026-03-28 12:00"), 2)),
+            // 30-03 alle 02:30 d'estate = 00:30 UTC; il 29 manca.
+            ["2026-03-30 00:30", "2026-03-31 00:30"]
+        );
+        // «Ogni cinque minuti» non perde niente: il tempo vero non ha buchi.
+        let ogni5 = ok("*/5 * * * *").prossimi(&a_roma("2026-03-29 01:50"), 3);
+        assert_eq!(
+            utc(&ogni5),
+            ["2026-03-29 00:55", "2026-03-29 01:00", "2026-03-29 01:05"]
+        );
+    }
+
+    /// Un'ora ripetuta parte **una volta sola**: le 2:30 del 25-10-2026 tornano
+    /// due volte sul quadrante, lo script parte alla prima.
+    #[test]
+    fn l_ora_ripetuta_parte_una_volta() {
+        let c = ok("30 2 * * *");
+        assert_eq!(
+            utc(&c.prossimi(&a_roma("2026-10-24 12:00"), 3)),
+            // 25-10 02:30 estate = 00:30 UTC; la seconda (01:30 UTC) no.
+            ["2026-10-25 00:30", "2026-10-26 01:30", "2026-10-27 01:30"]
+        );
+        // Lo stesso per chi controlla minuto per minuto (i report).
+        let prima = Utc
+            .with_ymd_and_hms(2026, 10, 25, 0, 30, 0)
+            .unwrap()
+            .with_timezone(&Roma);
+        let seconda = Utc
+            .with_ymd_and_hms(2026, 10, 25, 1, 30, 0)
+            .unwrap()
+            .with_timezone(&Roma);
+        assert_eq!(
+            prima.naive_local(),
+            seconda.naive_local(),
+            "stessa ora sul quadrante"
+        );
+        assert!(c.scatta(&prima));
+        assert!(!c.scatta(&seconda));
+        // Un cron a tutte le ore conta il tempo vero: gira anche nella seconda.
+        let ogni_ora = ok("30 * * * *");
+        assert!(ogni_ora.scatta(&prima) && ogni_ora.scatta(&seconda));
+        assert_eq!(
+            utc(&ogni_ora.prossimi(&a_roma("2026-10-25 01:00"), 3)),
+            ["2026-10-24 23:30", "2026-10-25 00:30", "2026-10-25 01:30"]
+        );
+    }
+
+    /// Quello che l'IDE mostra: fuso, e le tre prossime nell'ora del pannello,
+    /// ognuna col suo scostamento (a cavallo del cambio d'ora cambia).
+    #[test]
+    fn l_anteprima_per_l_ide() {
+        let a = anteprima(
+            "0 7 * * *",
+            &a_roma("2026-10-24 12:00"),
+            Some("Europe/Rome".into()),
+        )
+        .unwrap();
+        assert_eq!(a.fuso.as_deref(), Some("Europe/Rome"));
+        assert_eq!(a.scostamento, "+02:00");
+        let locali: Vec<_> = a.prossime.iter().map(|e| e.locale.as_str()).collect();
+        assert_eq!(
+            locali,
+            ["2026-10-25 07:00", "2026-10-26 07:00", "2026-10-27 07:00"]
+        );
+        assert_eq!(a.prossime[0].utc, "2026-10-25 06:00");
+        assert_eq!(a.prossime[1].scostamento, "+01:00");
+        assert!(a.avvisi.is_empty());
+        // Un'espressione corta passa, con l'avviso.
+        let corta = anteprima("30 4", &a_roma("2026-10-24 12:00"), None).unwrap();
+        assert_eq!(corta.avvisi.len(), 1);
+    }
+
+    /// Un'espressione che non si capisce: un errore che si legge, col campo e il
+    /// rimedio, non un elenco vuoto.
+    #[test]
+    fn l_anteprima_di_un_espressione_non_valida() {
+        let e = anteprima("70 7 * * *", &a_roma("2026-10-24 12:00"), None).unwrap_err();
+        assert!(e.starts_with("minuto: "), "{e}");
+        assert!(e.contains("fuori dall'intervallo 0-59"), "{e}");
+        assert!(e.contains("vanno da 0 a 59"), "{e}");
+        assert!(anteprima("", &a_roma("2026-10-24 12:00"), None).is_err());
     }
 }

@@ -1324,7 +1324,9 @@ fn schema_python(sandbox_attiva: bool) -> Esito {
                     sempre." } },
             { "kind": "cron", "campi": { "schedule": "cron a CINQUE campi: \
                 `min ora giorno mese giorno-settimana`. `*/5 * * * *` = ogni cinque \
-                minuti. Un solo campo (`*/5`) NON è valido." } },
+                minuti. Un solo campo (`*/5`) NON è valido. Le ore sono quelle \
+                del pannello, ora legale compresa, non UTC: `0 7 * * *` = le 7 \
+                di casa tutto l'anno." } },
             { "kind": "tag_change", "campi": { "tag": "id del tag",
                 "edge": "\"rising\" | \"falling\" | \"any\" (default)" } },
         ],

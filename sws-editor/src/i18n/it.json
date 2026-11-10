@@ -2935,7 +2935,7 @@
     "intervalloSecondi": "Intervallo (secondi)",
     "cronCinqueCampi": "Cron (5 campi)",
     "cronCampi": "minuto ora giorno mese giorno-settimana",
-    "cronAiuto": "*/5      ogni 5 (passo)\n9-17     da 9 a 17 (intervallo)\n9-17/2   da 9 a 17, ogni 2\n0,30     elenco\n\nEsempi: */5 * * * * = ogni 5 minuti; 30 4 * * * = ogni giorno alle 4:30",
+    "cronAiuto": "*/5      ogni 5 (passo)\n9-17     da 9 a 17 (intervallo)\n9-17/2   da 9 a 17, ogni 2\n0,30     elenco\n\nEsempi: */5 * * * * = ogni 5 minuti; 30 4 * * * = ogni giorno alle 4:30, ora del pannello (ora legale compresa)",
     "ereditaDalRuntime": "eredita dal runtime",
     "backupDaTenere": "Backup da tenere",
     "caricatiMb": "✓ Caricati {{mb}} MB.",
@@ -4657,6 +4657,11 @@
     "salvaScript": "Salva script",
     "nomiForniti": "Nomi già pronti:",
     "controlloOk": "Nessun problema.",
+    "cronOraPannello": "Ora del pannello: {{fuso}}.",
+    "cronOraMacchina": "Ora di questa macchina: {{fuso}}. Sul pannello conta il suo fuso: collegalo per vederlo.",
+    "cronRemotoVecchio": "Il dispositivo connesso non sa calcolarle (runtime precedente alla 2.26): sono quelle di questa macchina.",
+    "cronProssime": "Prossime:",
+    "cronMai": "Questa espressione non cade mai: lo script non partirà.",
     "controlloKo": "Da correggere:",
     "provaOk": "Eseguita.",
     "provaKo": "Non riuscita:",
@@ -4803,7 +4808,7 @@
       "t": {
         "c1": "Accende l'uscita all'orario del trigger (cron).",
         "c2": "Spegne l'uscita all'orario del trigger (cron).",
-        "utc": "L'orario del cron è in UTC, non nell'ora locale: l'ora italiana è avanti di una d'inverno, di due d'estate."
+        "ora": "L'orario è quello del pannello, ora legale compresa: «0 7» sono le 7 di casa tutto l'anno."
       }
     },
     "azzeramento_mezzanotte": {
@@ -4820,7 +4825,7 @@
         "c1": "Azzera il contatore.",
         "c2": "La stessa funzione si collega a un pulsante (Al clic → Funzione) per azzerare a mano.",
         "c3": "Ogni notte chiama la funzione che azzera il contatore.",
-        "utc": "L'orario del cron è in UTC, non nell'ora locale: l'ora italiana è avanti di una d'inverno, di due d'estate."
+        "ora": "L'orario è quello del pannello, ora legale compresa: «0 0» è la mezzanotte di casa tutto l'anno."
       }
     },
     "alternanza_pompe": {

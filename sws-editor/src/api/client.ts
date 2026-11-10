@@ -826,6 +826,19 @@ function baseDi(path: string): string {
   return getBaseUrl();
 }
 
+/** Le prossime esecuzioni di un cron, calcolate dal runtime (`cron.rs`). */
+export interface AnteprimaCron {
+  /** `Europe/Rome`, se la macchina lo dice; altrimenti c'è solo lo scostamento. */
+  fuso: string | null;
+  /** Lo scostamento da UTC adesso, `+01:00`. */
+  scostamento: string;
+  /** Sul quadrante del fuso (`2026-11-11 07:00`), in UTC, e lo scostamento di quell'istante. */
+  prossime: { locale: string; utc: string; scostamento: string }[];
+  avvisi: string[];
+  /** Chi ha risposto è la macchina che fa partire gli script. */
+  pannello: boolean;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers);
   if (TOKEN) headers.set("Authorization", `Bearer ${TOKEN}`);
@@ -3094,6 +3107,17 @@ export const api = {
    *  con un runtime anteriore al 21-09-2026, che non ha la rotta. */
   remoteHostCatalog: () =>
     request<{ temperature: string[]; mount: string[]; interfacce: string[]; core: number }>("/api/remote/host/catalog"),
+
+  /** GET /api/cron/prossime — le prossime esecuzioni di un cron nel fuso di
+   *  **questa** macchina (10-11-2026). Un'espressione non valida è un 400 col
+   *  perché nel testo. */
+  cronProssime: (espressione: string) =>
+    request<AnteprimaCron>(`/api/cron/prossime?espressione=${encodeURIComponent(espressione)}`),
+
+  /** GET /api/remote/cron/prossime — lo stesso, nel fuso del **dispositivo
+   *  connesso**, dove gli script partono davvero. */
+  remoteCronProssime: (espressione: string) =>
+    request<AnteprimaCron>(`/api/remote/cron/prossime?espressione=${encodeURIComponent(espressione)}`),
 
   /** GET /api/host/seriali — le porte seriali che il runtime di **questa**
    *  macchina vede e può aprire (04-10-2026). */

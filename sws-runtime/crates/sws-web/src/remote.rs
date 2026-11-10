@@ -2297,6 +2297,56 @@ pub async fn remote_host_catalog(State(s): State<AppState>) -> Response {
     proxy_get_json(&s, "/api/host/catalog").await
 }
 
+/// `GET /api/remote/cron/prossime?espressione=…` — le prossime esecuzioni di un
+/// cron nel fuso **del dispositivo connesso** (10-11-2026): gli script partono
+/// lì, e il fuso del PC di chi disegna non dice niente su quello del pannello.
+/// Il 400 di un'espressione non valida passa così com'è, col suo perché.
+pub async fn remote_cron_prossime(
+    State(s): State<AppState>,
+    Query(q): Query<crate::cron::Domanda>,
+) -> Response {
+    ripristina_se_serve(&s).await;
+    let target = match s.remote_target.read().await.clone() {
+        Some(t) => t,
+        None => return (StatusCode::BAD_REQUEST, "No remote runtime connected").into_response(),
+    };
+    let client = match costruisci_client(&s, &target.url, 10) {
+        Ok(c) => c,
+        Err(e) => return (StatusCode::BAD_GATEWAY, e.to_string()).into_response(),
+    };
+    let base = target.url.trim_end_matches('/');
+    let mut req = client.get(format!(
+        "{base}/api/cron/prossime?espressione={}",
+        percent_encoding::utf8_percent_encode(&q.espressione, percent_encoding::NON_ALPHANUMERIC)
+    ));
+    if !target.token.is_empty() {
+        req = req.header("Authorization", format!("Bearer {}", target.token));
+    }
+    match req.send().await {
+        Ok(r) if r.status().is_success() => {
+            let body: serde_json::Value = r.json().await.unwrap_or_default();
+            (StatusCode::OK, Json(body)).into_response()
+        }
+        Ok(r) if r.status() == reqwest::StatusCode::BAD_REQUEST => {
+            (StatusCode::BAD_REQUEST, r.text().await.unwrap_or_default()).into_response()
+        }
+        Ok(r) => {
+            let code = r.status();
+            let body = r.text().await.unwrap_or_default();
+            (
+                StatusCode::BAD_GATEWAY,
+                format!("Il dispositivo ha risposto {code}: {body}"),
+            )
+                .into_response()
+        }
+        Err(e) => (
+            StatusCode::BAD_GATEWAY,
+            format!("Richiesta al dispositivo fallita: {e}"),
+        )
+            .into_response(),
+    }
+}
+
 /// `GET /api/remote/host/seriali` — le porte seriali **del dispositivo
 /// connesso**, viste dal suo runtime (dentro il container, se ci gira).
 pub async fn remote_porte_seriali(State(s): State<AppState>) -> Response {

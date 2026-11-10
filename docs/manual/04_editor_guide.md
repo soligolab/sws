@@ -766,8 +766,20 @@ tags.write(tag, current + step)
 ```
 
 Per contare o commutare non serve una funzione: bastano i modi del bottone (`increment`, `decrement`, `toggle`), che
-funzionano anche sul pannello LVGL e per chi non ha accesso. Gli script globali, con i loro trigger, stanno in
-Configurazione → Progetto → Python.
+funzionano anche sul pannello LVGL e per chi non ha accesso. Gli script globali, con i loro trigger, stanno nel ramo
+**Logica**, accanto alle funzioni.
+
+Il trigger **cron** ha cinque campi (`minuto ora giorno mese giorno-settimana`) e si legge **nell'ora del pannello**,
+ora legale compresa: `0 7 * * *` sono le 7 di casa tutto l'anno (fino alla 2.26.0-rc.11 era UTC). Sotto il campo
+l'IDE mostra il fuso («Ora del pannello: Europe/Rome, UTC+01:00») e le prossime tre esecuzioni, calcolate dal runtime
+del pannello connesso; senza pannello le calcola la macchina dell'IDE, e lo dice. Nel cambio d'ora:
+
+- un'ora che **non esiste** (le 2:30 dell'ultima domenica di marzo) si **salta**: quel giorno lo script non parte;
+- un'ora **ripetuta** (le 2:30 dell'ultima domenica di ottobre) parte **una volta sola**, la prima;
+- un cron a tutte le ore (`*/5 * * * *`, `30 * * * *`) segue il tempo vero e gira anche nell'ora ripetuta.
+
+Le stesse regole valgono per i report programmati. Il fuso è quello del sistema del pannello: nel container lo passa
+`Timezone=local` del quadlet.
 
 ### Timer e transizioni
 
