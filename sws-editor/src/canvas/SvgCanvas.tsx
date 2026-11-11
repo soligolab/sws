@@ -52,7 +52,9 @@ import {
 } from "@/pageLayout";
 import { faceplateDefBBox, normalizeFaceplateParams } from "@/faceplate/definizione";
 import { effectiveFaceplateParams, figliDelFaceplate, substituteFaceplateParams } from "./parametriFaceplate";
-import type { AlarmSeverity, AlarmState, Cornice, CustomSymbol, FaceplateDef, GridCell, PageSizeMode, PipePoint, Sample, SynopticObject, SynopticObjectType, TableRow, TagDef, TagState, TypeDef } from "@/types";
+import { bboxDelGruppo, espandiAlGruppo, gruppoIntero } from "@/editor/gruppiSelezione";
+import { idsNelRiquadro } from "@/canvas/selezioneRiquadro";
+import type { AlarmSeverity, AlarmState, Cornice, CustomSymbol, FaceplateDef, GridCell, ObjectGroup, PageSizeMode, PipePoint, Sample, SynopticObject, SynopticObjectType, TableRow, TagDef, TagState, TypeDef } from "@/types";
 import { fattoreFondoRespiro, luminositaValida, parametriLuminosita } from "./luce";
 import { puntiSvg, verticiPoligono } from "./forme";
 import { aggancioSu, bersagli, calamita, diametriCapi, instrada, percorsoTubo, type Bersaglio } from "./tubazioni";
@@ -150,8 +152,16 @@ interface SvgCanvasProps {
   selectedSubCell?: { objectId: string; row: number; col: number; path: ("a" | "b")[] } | null;
   /** Single-select (replace) when shift is false; toggle into the set when true. */
   onSelect?: (id: string | null, shift?: boolean) => void;
-  /** Called with the full set of ids enclosed by a drag-selection rectangle. */
-  onSelectMany?: (ids: string[]) => void;
+  /** Called with the full set of ids enclosed by a drag-selection rectangle.
+   *  `aggiungi`: Shift premuto, si aggiunge alla selezione invece di sostituirla. */
+  onSelectMany?: (ids: string[], aggiungi?: boolean) => void;
+  /** Il gruppo aperto col doppio clic (piano 2026-11-11-selezione-e-gruppi):
+   *  lì il riquadro e il trascinamento lavorano sul singolo oggetto. */
+  gruppoAperto?: string | null;
+  /** I gruppi della pagina, per il nome sul riquadro tratteggiato. */
+  gruppi?: ObjectGroup[];
+  /** Doppio clic su un membro di un gruppo: apre il gruppo e seleziona l'oggetto. */
+  onApriGruppo?: (id: string) => void;
   onMove?: (id: string, patch: Partial<SynopticObject>) => void;
   onWriteTag?: (tagId: string, value: string | number | boolean) => void;
   /** View-mode dispatcher for on_press / on_release function bindings. */
@@ -308,6 +318,8 @@ interface SelRect {
   startY: number;
   curX: number;
   curY: number;
+  /** Shift alla pressione: il riquadro aggiunge alla selezione. */
+  aggiungi?: boolean;
 }
 
 // ── SVG geometry helpers ──────────────────────────────────────────────────────
@@ -775,6 +787,9 @@ export function SvgCanvas({
   selectedSubCell,
   onSelect,
   onSelectMany,
+  gruppoAperto,
+  gruppi,
+  onApriGruppo,
   onMove,
   onWriteTag,
   onScript,
@@ -1237,7 +1252,7 @@ export function SvgCanvas({
     // because child handlers fire before parent handlers in React).
     if (dragRef.current) return;
     const pt = toSvg(e.clientX - svgRect.left, e.clientY - svgRect.top);
-    selDragRef.current = { startX: pt.x, startY: pt.y, curX: pt.x, curY: pt.y };
+    selDragRef.current = { startX: pt.x, startY: pt.y, curX: pt.x, curY: pt.y, aggiungi: e.shiftKey };
   };
 
   const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
@@ -1730,21 +1745,26 @@ export function SvgCanvas({
     const x2 = Math.max(rect.startX, rect.curX);
     const y2 = Math.max(rect.startY, rect.curY);
 
-    const ids = objects
-      .filter((obj) => {
-        const bb = objBBox(obj);
-        // Intersection: rect overlaps bounding box (not just touch)
-        return bb.x2 > x1 && bb.x1 < x2 && bb.y2 > y1 && bb.y1 < y2;
-      })
-      .map((o) => o.id);
+    // Dentro per intero, bloccati esclusi, gruppi interi (`idsNelRiquadro`).
+    const ids = idsNelRiquadro(objects, { x1, y1, x2, y2 }, objBBox, gruppoAperto ?? null);
 
     if (ids.length > 0) {
       suppressClick.current = true;
-      onSelectMany(ids);
+      onSelectMany(ids, rect.aggiungi);
     }
   };
 
-  const startDrag = (e: React.MouseEvent<SVGElement>, obj: SynopticObject) => {
+  /** `apriGruppo`: doppio clic su un membro di un gruppo. Il gruppo si apre e
+   *  si trascina il solo oggetto: la selezione nelle prop è ancora quella del
+   *  primo clic (il gruppo intero), e non va seguita. */
+  const startDrag = (e: React.MouseEvent<SVGElement>, obj: SynopticObject, apriGruppo = false) => {
+    if (apriGruppo) onApriGruppo?.(obj.id);
+    // Chi si muove insieme: la selezione se l'oggetto ne fa parte, altrimenti
+    // lui solo; in tutti e due i casi col suo gruppo, se non è quello aperto.
+    // Le prop sono di prima del clic: un clic su un membro non ancora
+    // selezionato ha appena chiesto il gruppo intero, che qui non c'è ancora.
+    const insieme = apriGruppo ? new Set([obj.id])
+      : new Set(espandiAlGruppo(selSet.has(obj.id) ? selIds : [obj.id], objects, gruppoAperto ?? null));
     // Object drag wins: cancel any pending selection rect / pan.
     selDragRef.current = null;
     panDragRef.current = null;
@@ -1779,9 +1799,9 @@ export function SvgCanvas({
     // rigid delta (computed from the anchor's snapped/clamped position each
     // tick) can be applied to the whole group, not just the object under
     // the cursor.
-    if (selIds.length > 1 && selSet.has(obj.id)) {
+    if (insieme.size > 1) {
       ds.groupStart = objects
-        .filter((o) => o.id !== obj.id && selSet.has(o.id))
+        .filter((o) => o.id !== obj.id && insieme.has(o.id))
         .map((o) => ({
           id: o.id,
           x: o.x ?? 0,
@@ -1836,7 +1856,8 @@ export function SvgCanvas({
   const ultime = useRef({ onSelect, onWriteTag, onScript, onNavigate, onSelectCell, onSelectCellChild, onSelectCellRange, onSelectSubCell, startDrag });
   ultime.current = { onSelect, onWriteTag, onScript, onNavigate, onSelectCell, onSelectCellChild, onSelectCellRange, onSelectSubCell, startDrag };
   const [stabili] = useState(() => ({
-    startDrag: (e: React.MouseEvent<SVGElement>, obj: SynopticObject) => ultime.current.startDrag(e, obj),
+    startDrag: (e: React.MouseEvent<SVGElement>, obj: SynopticObject, apriGruppo?: boolean) =>
+      ultime.current.startDrag(e, obj, apriGruppo),
     chiudiPopup: () => setPopupFaceplate(null),
     onSelect: (id: string | null, shift?: boolean) => ultime.current.onSelect?.(id, shift),
     onWriteTag: (tagId: string, value: ValoreScritto) => ultime.current.onWriteTag?.(tagId, value),
@@ -2371,6 +2392,34 @@ export function SvgCanvas({
             })()}
           </g>
         );
+      })()}
+
+      {/* I gruppi (piano 2026-11-11-selezione-e-gruppi): un riquadro
+          tratteggiato attorno al gruppo selezionato intero, col suo nome; uno
+          più tenue attorno al gruppo aperto, dove si lavora sul singolo. Come
+          il percorso qui sotto, sta fuori dal gruppo degli oggetti. */}
+      {onMove && (() => {
+        const intero = gruppoIntero(selIds, objects);
+        const riquadri: { id: string; aperto: boolean }[] = [];
+        if (intero) riquadri.push({ id: intero, aperto: false });
+        if (gruppoAperto && gruppoAperto !== intero) riquadri.push({ id: gruppoAperto, aperto: true });
+        return riquadri.map(({ id, aperto }) => {
+          const bb = bboxDelGruppo(id, objects);
+          if (!bb) return null;
+          const nome = gruppi?.find((g) => g.id === id)?.name ?? "";
+          return (
+            <g key={`gruppo-${id}`} style={{ pointerEvents: "none" }} data-testid={aperto ? "gruppo-aperto" : "gruppo-selezionato"}>
+              <rect x={bb.x1 - 6} y={bb.y1 - 6} width={bb.x2 - bb.x1 + 12} height={bb.y2 - bb.y1 + 12}
+                    fill="none" stroke="#38bdf8" strokeWidth={aperto ? 1 : 1.5}
+                    strokeDasharray={aperto ? "2 4" : "6 3"} opacity={aperto ? 0.6 : 1} />
+              {nome && (
+                <text x={bb.x1 - 6} y={bb.y1 - 10} fontSize={11} fill="#38bdf8" opacity={aperto ? 0.7 : 1}>
+                  {nome}
+                </text>
+              )}
+            </g>
+          );
+        });
       })()}
 
       {/* ── T-53 · il percorso di MOVIMENTO, modificabile qui ─────────────────
@@ -3143,7 +3192,8 @@ export interface ObjProps {
   selectedCellRange?: { objectId: string; r1: number; c1: number; r2: number; c2: number } | null;
   selectedSubCell?: { objectId: string; row: number; col: number; path: ("a" | "b")[] } | null;
   onSelect?: (id: string | null, shift?: boolean) => void;
-  onStartDrag?: (e: React.MouseEvent<SVGElement>, obj: SynopticObject) => void;
+  /** `apriGruppo`: doppio clic su un membro di un gruppo (vedi `startDrag`). */
+  onStartDrag?: (e: React.MouseEvent<SVGElement>, obj: SynopticObject, apriGruppo?: boolean) => void;
   onWriteTag?: (tagId: string, value: string | number | boolean) => void;
   onScript?: (fn: string, args: Record<string, string | number | boolean>) => void;
   onNavigate?: (pageId: string) => void;
@@ -4040,6 +4090,14 @@ function SvgObjectCorpo(p: ObjProps) {
   const handleMouseDown = (e: React.MouseEvent<SVGElement>) => {
     if (obj.locked && isEditMode) return;
     e.stopPropagation();
+    // Doppio clic su un membro di un gruppo: si entra nel gruppo, e il gesto
+    // prende il solo oggetto. `detail` conta i clic ravvicinati: un secondo
+    // gestore `onDoubleClick` arriverebbe dopo il mousedown, a trascinamento
+    // del gruppo già partito.
+    if (e.detail >= 2 && obj.group_id && !e.shiftKey) {
+      onStartDrag?.(e, obj, true);
+      return;
+    }
     // Plain click on an object that's already part of a multi-selection:
     // don't collapse the selection down to just this object — preserve it
     // so the upcoming drag moves the whole group. Shift-click (toggle) and

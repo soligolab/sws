@@ -1333,6 +1333,7 @@ function ObjectsSection() {
   const selectedId          = useAppStore((s) => s.selectedObjectId);
   const selectedIds         = useAppStore((s) => s.selectedObjectIds);
   const selectObject        = useAppStore((s) => s.selectObject);
+  const setGruppoAperto     = useAppStore((s) => s.setGruppoAperto);
   const selectMany          = useAppStore((s) => s.selectMany);
   const updateObject        = useAppStore((s) => s.updateObject);
   const duplicateObject     = useAppStore((s) => s.duplicateObject);
@@ -1609,7 +1610,9 @@ function ObjectsSection() {
           onDragEnd={() => { setDragItem(null); setDropTarget(null); }}
           onDrop={onDropObject}
           onContextMenu={(e) => { e.preventDefault(); setMenu({ kind: "object", id: o.id, x: e.clientX, y: e.clientY }); }}
-          onClick={() => !isRen && selectObject(o.id)}
+          // Dall'elenco si sceglie il singolo: un oggetto di un gruppo apre il
+          // gruppo, così sul canvas resta preso lui solo e si può spostare.
+          onClick={() => { if (isRen) return; selectObject(o.id); setGruppoAperto(o.group_id ?? null); }}
           style={{
             ...S.row(isSel), gap: 4, paddingRight: 4, paddingLeft: 4 + indent,
             // Un oggetto sciolto è figlio del ramo; dentro un gruppo, figlio
@@ -1631,9 +1634,17 @@ function ObjectsSection() {
           ) : (
             <span style={{ width: 14, flexShrink: 0 }} />
           )}
-          {o.locked && (
-            <span title={t("editor.locked")} style={{ fontSize: 10, flexShrink: 0, opacity: 0.7 }}>🔒</span>
-          )}
+          {/* Il lucchetto si mette da qui (11-11-2026): uno sfondo a tutta
+              area si blocca senza doverlo prima selezionare sul canvas, che è
+              proprio quello che il blocco serve a evitare. */}
+          <button
+            style={{ ...S.iconBtn, width: 14, fontSize: 10, flexShrink: 0, opacity: o.locked ? 0.8 : 0.25 }}
+            title={o.locked ? t("editor.sblocca") : t("editor.blocca")}
+            data-testid={`blocca-${o.id}`}
+            onClick={(e) => { e.stopPropagation(); updateObject(o.id, { locked: o.locked ? undefined : true }); }}
+          >
+            {o.locked ? "🔒" : "🔓"}
+          </button>
           <span style={{ fontSize: 9, color: "var(--brand-text-subtle, #94a3b8)", width: 34, flexShrink: 0, textTransform: "uppercase", letterSpacing: 0.5 }}>
             {o.type.slice(0, 5)}
           </span>
@@ -1762,7 +1773,7 @@ function ObjectsSection() {
             onClick={() => groupObjects(selectedIds)}
             style={{ ...S.objBtn, flex: "none", width: "100%", borderStyle: "dashed", color: "#38bdf8", borderColor: "#0ea5e9", fontSize: 11 }}
           >
-            + Raggruppa selezionati ({selectedIds.length})
+            {t("editor.raggruppaSelezionati", { n: selectedIds.length })}
           </button>
         </div>
       )}

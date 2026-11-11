@@ -9,6 +9,7 @@ import { DialogoRisoluzione } from "@/scala/DialogoRisoluzione";
 import { ProprietaFasce, SceltaCornice } from "@/cornici/ProprietaCornice";
 import { corniceDellaPagina, eCornice, idCornice, oggettiComposti, oggettoSfondoArea, paginaACornice } from "@/cornici/modello";
 import { CampoSfondoArea } from "@/editor/CampoSfondoArea";
+import { espandiAlGruppo, gruppoIntero } from "@/editor/gruppiSelezione";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { QDOT_BUILTIN_TYPES, SvgCanvas, faceplateDefBBox, normalizeFaceplateParams, substituteFaceplateParams, type CanvasViewApi } from "@/canvas/SvgCanvas";
@@ -739,6 +740,9 @@ export function EditorShell() {
   const setClipboard    = useAppStore((s) => s.setClipboard);
   const alignSelection  = useAppStore((s) => s.alignSelection);
   const groupObjects    = useAppStore((s) => s.groupObjects);
+  const ungroupObjects  = useAppStore((s) => s.ungroupObjects);
+  const gruppoAperto    = useAppStore((s) => s.gruppoAperto);
+  const setGruppoAperto = useAppStore((s) => s.setGruppoAperto);
   const undo            = useAppStore((s) => s.undo);
   const redo            = useAppStore((s) => s.redo);
   const updateObjects    = useAppStore((s) => s.updateObjects);
@@ -914,10 +918,39 @@ export function EditorShell() {
     onFine: (l) => { setRightPanelWidth(l); localStorage.setItem(RIGHT_PANEL_WIDTH_KEY, String(l)); },
   });
 
+  // Il canvas seleziona per gruppi (piano 2026-11-11-selezione-e-gruppi): un
+  // clic su un membro prende tutto il gruppo, tranne in quello aperto col
+  // doppio clic; un clic fuori dal gruppo aperto lo chiude. L'elenco Oggetti
+  // non passa di qui: lì si sceglie il singolo.
   const handleSelect = (id: string | null, shift?: boolean) => {
-    if (id === null) { selectObject(null); return; }
-    if (shift) toggleSelection(id);
-    else       selectObject(id);
+    const st = useAppStore.getState();
+    const oggetti = st.pages.find((p) => p.id === st.currentPageId)?.objects ?? [];
+    if (id === null) { selectObject(null); setGruppoAperto(null); return; }
+    const membri = espandiAlGruppo([id], oggetti, st.gruppoAperto);
+    if (st.gruppoAperto && oggetti.find((o) => o.id === id)?.group_id !== st.gruppoAperto) {
+      setGruppoAperto(null);
+    }
+    if (membri.length === 1) {
+      if (shift) toggleSelection(id);
+      else       selectObject(id);
+      return;
+    }
+    if (!shift) { selectMany(membri); return; }
+    const gia = st.selectedObjectIds;
+    const tutti = membri.every((m) => gia.includes(m));
+    selectMany(tutti ? gia.filter((x) => !membri.includes(x)) : [...gia, ...membri.filter((m) => !gia.includes(m))]);
+  };
+  const handleSelectMany = (ids: string[], aggiungi?: boolean) => {
+    if (!aggiungi) { selectMany(ids); return; }
+    const gia = useAppStore.getState().selectedObjectIds;
+    selectMany([...gia, ...ids.filter((x) => !gia.includes(x))]);
+  };
+  const apriGruppo = (id: string) => {
+    const st = useAppStore.getState();
+    const g = st.pages.find((p) => p.id === st.currentPageId)?.objects.find((o) => o.id === id)?.group_id;
+    if (!g) return;
+    setGruppoAperto(g);
+    selectObject(id);
   };
 
   // Document-level keyboard shortcuts. Skipped when typing in a form field
@@ -933,6 +966,10 @@ export function EditorShell() {
       // e la può cambiare l'utente nelle Preferenze IDE. Restano scritte qui
       // solo le frecce, che sono un gesto e non una combinazione.
       const az = azioneDi(e, "editor");
+      // Esc chiude il gruppo aperto, se c'è; il resto di Esc non cambia.
+      if (e.key === "Escape" && useAppStore.getState().gruppoAperto) {
+        useAppStore.getState().setGruppoAperto(null);
+      }
       if (az === "elimina" || az === "eliminaAlt") {
         if (cancellaWaypointScelto()) { e.preventDefault(); return; }
         if (ids.length === 0) return;
@@ -1021,9 +1058,14 @@ export function EditorShell() {
         e.preventDefault();
         const state = useAppStore.getState();
         const page = state.pages.find((p) => p.id === state.currentPageId);
-        if (page && page.objects.length > 0) selectMany(page.objects.map((o) => o.id));
-      } else if (az === "raggruppa" && ids.length >= 2) {
-        e.preventDefault(); groupObjects(ids);
+        // I bloccati restano fuori, come dal riquadro: uno sfondo bloccato
+        // non deve entrare in un «seleziona tutto» seguito da un trascinamento.
+        if (page && page.objects.length > 0) selectMany(page.objects.filter((o) => !o.locked).map((o) => o.id));
+      } else if (az === "raggruppa") {
+        // Sempre, anche con meno di due oggetti: Ctrl+G nel browser è «trova
+        // successivo», e apriva la barra di ricerca sopra l'editor (11-11-2026).
+        e.preventDefault();
+        if (ids.length >= 2) groupObjects(ids);
       } else if ((az === "avanti" || az === "inPrimoPiano") && ids.length === 1) {
         e.preventDefault(); reorderObject(ids[0], az === "inPrimoPiano" ? "front" : "forward");
       } else if ((az === "indietro" || az === "inFondo") && ids.length === 1) {
@@ -1217,7 +1259,10 @@ export function EditorShell() {
           selectedCellRange={selectedCellRange}
           selectedSubCell={selectedSubCell}
           onSelect={handleSelect}
-          onSelectMany={selectMany}
+          onSelectMany={handleSelectMany}
+          gruppoAperto={gruppoAperto}
+          gruppi={currentPage?.groups}
+          onApriGruppo={apriGruppo}
           onMove={currentPage?.locked ? () => {} : (id, patch) => updateObject(id, patch)}
           onSelectCell={(objectId, row, col) => setSelectedCell({ objectId, row, col })}
           onSelectCellChild={(objectId, row, col) => setSelectedCellChild({ objectId, row, col })}
@@ -1273,6 +1318,9 @@ export function EditorShell() {
               onDelete={deleteSelection}
               onBatchChange={batchChange}
               onCreaFaceplate={creaFaceplate}
+              gruppo={gruppoIntero(selectedIds, currentPage?.objects ?? [])}
+              onRaggruppa={() => groupObjects(selectedIds)}
+              onSepara={(g) => { ungroupObjects(g); if (gruppoAperto === g) setGruppoAperto(null); }}
             />
           </>
         ) : selected ? (() => {
@@ -3025,6 +3073,9 @@ function MultiSelectionProps({
   onDelete,
   onBatchChange,
   onCreaFaceplate,
+  gruppo,
+  onRaggruppa,
+  onSepara,
 }: {
   count: number;
   selectedObjects: SynopticObject[];
@@ -3038,6 +3089,10 @@ function MultiSelectionProps({
   onDelete: () => void;
   onBatchChange: (patch: Partial<SynopticObject>) => void;
   onCreaFaceplate: () => void;
+  /** Il gruppo di cui la selezione è esattamente tutti i membri, o `null`. */
+  gruppo: string | null;
+  onRaggruppa: () => void;
+  onSepara: (gruppo: string) => void;
 }) {
   const { t } = useTranslation();
   const btn: React.CSSProperties = {
@@ -3103,6 +3158,13 @@ function MultiSelectionProps({
         data-testid="crea-faceplate" onClick={onCreaFaceplate}>
         {t("shell.creaFaceplate")}
       </button>
+      {/* Il gruppo semplice (11-11-2026): oggetti che si selezionano e si
+          spostano insieme, senza diventare un faceplate. */}
+      {gruppo
+        ? <button style={{ ...btn, marginTop: 4, width: "100%" }} title={t("shell.separaHint")}
+            data-testid="separa-gruppo" onClick={() => onSepara(gruppo)}>{t("shell.separa")}</button>
+        : <button style={{ ...btn, marginTop: 4, width: "100%" }} title={t("shell.raggruppaHint")}
+            data-testid="raggruppa" onClick={onRaggruppa}>{t("shell.raggruppa")}</button>}
 
       <div style={{ height: 1, background: "var(--brand-surface-2, #334155)", margin: "8px 0" }} />
 

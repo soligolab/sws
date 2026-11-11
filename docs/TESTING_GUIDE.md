@@ -235,6 +235,11 @@ Open any project. Switch to **edit mode** (the toggle is in the top header).
 - [ ] **4.21** Drag a 📁 group row onto another group → groups reorder.
 - [ ] **4.22** **Right-click** an object row → context menu (Rinomina / Duplica / Sposta in gruppo → / Raggruppa selezione [if 2+ selected and clicked-row is part of it] / Elimina). Click outside / Esc closes.
 - [ ] **4.23** Right-click a group row → menu (Rinomina gruppo / Separa gruppo).
+- [ ] **4.24** (11-11-2026) On the canvas, click one member of a group → the whole group is selected, with a dashed blue outline and the group name. Dragging moves the whole group.
+- [ ] **4.25** Double-click a member → the group opens (faint outline), only that object is selected and dragged. Esc, or a click outside the group, closes it.
+- [ ] **4.26** Selection rectangle: only objects **fully inside** are taken; locked objects never; a group only if all its members are inside. Shift+rectangle adds to the selection.
+- [ ] **4.27** 🔒/🔓 on each object row locks/unlocks it; a locked full-area image is skipped by clicks, the rectangle and Ctrl+A.
+- [ ] **4.28** Duplicate or copy/paste a whole group → the copy is a **new** group («… (copia)»), not part of the original one. The multi-selection panel shows **Raggruppa**, or **Separa il gruppo** when the selection is exactly one group.
 
 #### Grid sub-tree
 

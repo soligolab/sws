@@ -12,6 +12,16 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Aggiunto
+- **Gruppi veri sul canvas, e un riquadro di selezione che non prende lo sfondo** (piano
+  `docs/plans/2026-11-11-selezione-e-gruppi.md`, collaudo dell'11-11-2026 su Montagna). Un clic su un membro di un
+  gruppo seleziona tutto il gruppo, con un riquadro tratteggiato e il suo nome, e il trascinamento lo sposta intero;
+  il doppio clic entra nel gruppo e lavora sul singolo oggetto, Esc o un clic fuori lo chiude. Il riquadro di
+  selezione prende solo gli oggetti **dentro per intero**, mai quelli bloccati, e un gruppo solo intero; con Shift
+  aggiunge. Ctrl+A salta i bloccati. Nell'elenco Oggetti ogni riga ha il lucchetto; nel pannello della
+  multiselezione ci sono «Raggruppa» e «Separa il gruppo». Duplicare o incollare un gruppo intero ne crea uno nuovo
+  invece di allargare l'originale (`editor/gruppiSelezione.ts`, `canvas/selezioneRiquadro.ts`). L'assistente mette
+  `locked: true` sulle immagini a tutta area. La chat mostra «sta pensando · m:ss» mentre il modello ragiona, e un
+  puntino che pulsa accanto allo strumento in corso.
 - **I suggerimenti mentre si scrive la logica, e «Nuovo da modello»** (piano
   `docs/archive/2026-11-04-logica-unificata.md`, sessioni L2 e L3, 10-11-2026). L'editor delle funzioni e degli script
   completa: dentro `tags.read("` e `tags.write("` i tag del catalogo, foglie comprese, con tipo, unità, descrizione
@@ -272,6 +282,15 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   va nell'angolo opposto. *La chat staccata*: dopo uscita, rientro e progetto riaperto restava su «No project open in
   the editor» col compositore spento, perché l'editor diceva il progetto solo in risposta al `ciao`; ora lo annuncia
   a ogni cambio (`ai/progettoAllaChat.ts`). Test `progettoAllaChat.test.ts`, `pallinoTesto.test.ts`.
+- **Il collaudo dell'IDE 8460, stesso giorno** (11-11-2026, Montagna). *La chat dopo un'uscita*: il logout locale
+  lascia il progetto nello store con `noActiveProject`, e la chat restava «legata a specchio-prova» davanti all'elenco;
+  ora `progettoAperto` ne tiene conto. *Una domanda dopo una proposta*: tornava «400 Bad Request: tool_call_ids did
+  not have response messages», perché `proponi_modifica` chiude il turno senza `tool_result`; ora la domanda porta le
+  risposte agli strumenti rimasti aperti (`domanda_dopo` in `ai/mod.rs`). *La chat sembrava morta* mentre il modello
+  scriveva una proposta lunga: ora mostra «scrivo · 38 kB · 2:14», aggiornato ogni secondo (`Evento::StrumentoScrive`).
+  *«Applica comunque»*: una proposta rifiutata perché il progetto su disco è cambiato si può applicare lo stesso,
+  con l'avviso che le modifiche esterne andranno perse al Salva. *Ctrl+G* apriva la ricerca del browser con meno di
+  due oggetti selezionati.
 - **Gli script Python costano meno** (11-11-2026, seme «sandbox degli script, secondo giro», voci B1 e B2; misura sul
   WP630 con Montagna: due script a 1 s valevano ~6,5 % di un core, metà del runtime). Il controllo del timeout
   (`sys.settrace`) si accende subito prima di `exec` e non più prima di `compile_restricted`, che tracciava ~19 000

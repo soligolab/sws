@@ -76,6 +76,18 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
   const [righe, setRighe]     = useState<Riga[]>([]);
   const [bozza, setBozza]     = useState("");
   const [attesa, setAttesa]   = useState(false);
+  // Da quando si aspetta, e da quando il modello ragiona (11-11-2026): fra uno
+  // strumento e l'altro la chat mostrava «…» immobili, e sembrava morta. Il
+  // ragionamento non si mostra (vedi `pensiero`), ma che ci sia sì.
+  const attesaDa = useRef<number | null>(null);
+  const pensaDa = useRef<number | null>(null);
+  const [, battito] = useState(0);
+  useEffect(() => {
+    if (!attesa) { attesaDa.current = null; pensaDa.current = null; return; }
+    attesaDa.current ??= Date.now();
+    const timer = setInterval(() => battito((n) => n + 1), 1000);
+    return () => clearInterval(timer);
+  }, [attesa]);
   const [stato, setStato]     = useState<{ attivo: boolean; modello: string; motivo?: string | null } | null>(null);
   // Q41 — token della conversazione e saldo dell'account, con la preferenza
   // «nascondi» per-utente nel browser (è una preferenza di chi guarda, non
@@ -161,13 +173,16 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
           setSaldo(m.disponibile);
           break;
         case "testo":
+          pensaDa.current = null;
           setRighe((r) => appendiTesto(r, m.delta));
           break;
         case "pensiero":
           // Il ragionamento non si mostra: è rumore per chi sta disegnando, e
-          // mostrarlo invita a leggerlo invece del diff.
+          // mostrarlo invita a leggerlo invece del diff. Si mostra **che** c'è.
+          pensaDa.current ??= Date.now();
           break;
         case "strumento":
+          pensaDa.current = null;
           setRighe((r) => aggiornaStrumento(r, m.nome, m.stato, m.messaggio, m.byte, m.secondi));
           break;
         case "proposta": {
@@ -446,7 +461,8 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
             );
           }
           if (r.tipo === "strumento") {
-            const icona = r.stato === "errore" ? "✗" : r.stato === "fatto" ? "✓" : "…";
+            const icona = r.stato === "errore" ? "✗" : r.stato === "fatto" ? "✓"
+              : <span style={PUNTINO_VIVO}>●</span>;
             return (
               <div key={i} style={{ ...RIGA_STRUMENTO,
                     color: r.stato === "errore" ? "var(--brand-danger, #ef4444)"
@@ -463,7 +479,20 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
                       onScarta={() => scarta(i)} />
           );
         })}
-        {attesa && <div style={RIGA_STRUMENTO}>…</div>}
+        {attesa && (() => {
+          const ora = Date.now();
+          const secondi = (da: number | null) => Math.floor((ora - (da ?? ora)) / 1000);
+          const tempo = (da: number | null) => avanzamento(0, secondi(da)).tempo;
+          return (
+            <div style={RIGA_STRUMENTO} data-testid="chat-attesa">
+              <span style={PUNTINO_VIVO}>●</span>{" "}
+              {pensaDa.current != null
+                ? t("chat.thinking", { tempo: tempo(pensaDa.current) })
+                : t("chat.waitingModel", { tempo: tempo(attesaDa.current) })}
+            </div>
+          );
+        })()}
+        <style>{`@keyframes sws-pulsa { 0%, 100% { opacity: 0.25; } 50% { opacity: 1; } }`}</style>
         <div ref={fondo} />
       </div>
 
@@ -730,6 +759,11 @@ const BOLLA_ASSISTENTE: React.CSSProperties = {
 const BOLLA_ERRORE: React.CSSProperties = {
   fontSize: 12, lineHeight: 1.5, color: "var(--brand-danger, #ef4444)",
   border: "1px solid var(--brand-danger, #ef4444)", borderRadius: 6, padding: "6px 8px",
+};
+
+/** Il puntino che pulsa: la chat è viva anche quando i kB crescono piano. */
+const PUNTINO_VIVO: React.CSSProperties = {
+  color: "var(--brand-accent, #38bdf8)", animation: "sws-pulsa 1.2s ease-in-out infinite",
 };
 
 const RIGA_STRUMENTO: React.CSSProperties = {

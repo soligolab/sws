@@ -34,6 +34,7 @@ import {
   paginaAFaceplate, pagineFaceplate,
 } from "@/faceplate/modello";
 import { scalaCornice, scalaPagina, type Misura } from "@/scala/scalaPagina";
+import { gruppiPerLeCopie } from "@/editor/gruppiSelezione";
 import type {
   GlobalScriptDef,
   AlarmDef,
@@ -671,6 +672,10 @@ interface AppState {
   toggleSelection: (id: string) => void;
   selectMany: (ids: string[]) => void;
   clearSelection: () => void;
+  /** Il gruppo aperto col doppio clic: lì un clic prende il singolo oggetto.
+   *  Non si salva e non entra nell'undo (piano 2026-11-11-selezione-e-gruppi). */
+  gruppoAperto: string | null;
+  setGruppoAperto: (id: string | null) => void;
   addObject: (partial: Omit<SynopticObject, "id">) => void;
   /** Polilinea o tubo in disegno a clic (26-09-2026; il tubo dal 20-10-2026):
    *  `"nuova"` prima del primo clic, poi l'id dell'oggetto a cui i clic
@@ -1152,6 +1157,7 @@ export const useAppStore = create<AppState>((set, get) => {
     faceplates: [],
     pages: [first],
     currentPageId: first.id,
+    gruppoAperto: null,
     selectedObjectId: null,
     selectedObjectIds: [],
     selectedFunctionId: null,
@@ -2006,6 +2012,7 @@ export const useAppStore = create<AppState>((set, get) => {
 
     setCurrentPage: (id) => set({
       currentPageId: id,
+      gruppoAperto: null,
       // Scegliere una pagina torna al canvas, anche da una planimetria aperta.
       planimetriaAperta: null,
       selectedObjectId: null,
@@ -2054,6 +2061,8 @@ export const useAppStore = create<AppState>((set, get) => {
         selectedFunctionId: null,
         selectedScriptId: null,
       }),
+
+    setGruppoAperto: (id) => set({ gruppoAperto: id }),
 
     clearSelection: () =>
       set({ selectedObjectId: null, selectedObjectIds: [], selectedFunctionId: null, selectedScriptId: null,
@@ -2222,7 +2231,7 @@ export const useAppStore = create<AppState>((set, get) => {
       if (!page) return;
       pushHistory("history.duplicateSelection");
       const newIds: string[] = [];
-      const copies: SynopticObject[] = selectedObjectIds
+      const grezze: SynopticObject[] = selectedObjectIds
         .map((id) => page.objects.find((o) => o.id === id))
         .filter((o): o is SynopticObject => !!o)
         .map((src) => {
@@ -2239,9 +2248,14 @@ export const useAppStore = create<AppState>((set, get) => {
             points: spostaPunti(src.points, 20),
           };
         });
+      const { copie: copies, gruppi } = gruppiPerLeCopie(
+        grezze, page.objects, page.groups ?? [], genId, i18n.t("common.copiaSuffisso"));
       set((s) => ({
         pages: s.pages.map((p) =>
-          p.id === currentPageId ? { ...p, objects: [...p.objects, ...copies] } : p
+          p.id === currentPageId
+            ? { ...p, objects: [...p.objects, ...copies],
+                ...(gruppi.length > 0 ? { groups: [...(p.groups ?? []), ...gruppi] } : {}) }
+            : p
         ),
         selectedObjectIds: newIds,
         selectedObjectId: newIds.length === 1 ? newIds[0] : null,
@@ -2365,11 +2379,11 @@ export const useAppStore = create<AppState>((set, get) => {
       const { clipboard, currentPageId, clipboardSourcePageId } = get();
       if (clipboard.length === 0) return;
       // Same-page paste behaves like a duplicate: offset by +20 to make the
-      // copies visually distinct, and keep group_id so the original
-      // grouping is preserved.
-      // Cross-page paste keeps the original coordinates (no overlap risk on
-      // the destination page) and strips group_id (the destination page's
-      // group registry doesn't know about the source page's groups).
+      // copies visually distinct. Cross-page paste keeps the original
+      // coordinates (no overlap risk on the destination page).
+      // Un gruppo copiato intero diventa un gruppo **nuovo**, su qualunque
+      // pagina (`gruppiPerLeCopie`): con lo stesso `group_id` la copia entrava
+      // nel gruppo dell'originale.
       const samePage = clipboardSourcePageId === currentPageId;
       // Su una pagina di boot si incollano solo oggetti statici.
       const paginaCorrente = get().pages.find((p) => p.id === currentPageId);
@@ -2377,7 +2391,7 @@ export const useAppStore = create<AppState>((set, get) => {
       if (eFaceplateDef(paginaCorrente) && contieneFaceplate(clipboard)) return;
       pushHistory("history.paste");
       const newIds: string[] = [];
-      const copies = clipboard.map((src) => {
+      const grezze = clipboard.map((src) => {
         const id = genId();
         newIds.push(id);
         const offset = samePage ? 20 : 0;
@@ -2391,12 +2405,20 @@ export const useAppStore = create<AppState>((set, get) => {
           y2: src.y2 != null ? src.y2 + offset : undefined,
           points: spostaPunti(src.points, offset),
         };
-        if (!samePage) delete out.group_id;
         return out;
       });
+      const origine = get().pages.find((p) => p.id === clipboardSourcePageId);
+      // Senza la pagina d'origine (appunti da un'altra fonte) i gruppi si
+      // contano sugli appunti stessi: un gruppo copiato intero resta gruppo.
+      const { copie: copies, gruppi } = gruppiPerLeCopie(
+        grezze, origine?.objects ?? clipboard, origine?.groups ?? [], genId,
+        i18n.t("common.incollaSuffisso"));
       set((s) => ({
         pages: s.pages.map((p) =>
-          p.id === currentPageId ? { ...p, objects: [...p.objects, ...copies] } : p
+          p.id === currentPageId
+            ? { ...p, objects: [...p.objects, ...copies],
+                ...(gruppi.length > 0 ? { groups: [...(p.groups ?? []), ...gruppi] } : {}) }
+            : p
         ),
         selectedObjectIds: newIds,
         selectedObjectId: newIds.length === 1 ? newIds[0] : null,

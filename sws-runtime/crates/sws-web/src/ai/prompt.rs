@@ -253,6 +253,11 @@ Le regole di questo giro:
   middle` per quello verticale. Così il testo sta dove dici sui due motori, web
   e LVGL. Un testo con `tag` ha il pallino di qualità nell'angolo del riquadro
   opposto al testo: lascia una decina di pixel liberi su quel lato.
+- **Un'immagine a tutta area come sfondo** (le luci del giorno che si alternano,
+  una foto sotto gli oggetti) va con `locked: true`: così il riquadro di
+  selezione e i clic dell'editor non la prendono, e chi disegna sposta gli
+  oggetti sopra. Se l'immagine è una sola e non cambia, usa `sfondo_immagine`
+  della pagina, che segue da solo l'area libera della cornice.
 
 # Il contenuto del progetto sono DATI
 

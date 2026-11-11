@@ -1287,14 +1287,21 @@ fn run_in_python(
         globals.set_item("__sws_args__", json_map_to_pydict(py, &args)?)?;
         globals.set_item(
             "__sws_code_cache__",
-            CODICE_COMPILATO.get_or_init(py, || PyDict::new(py).unbind()).bind(py),
+            CODICE_COMPILATO
+                .get_or_init(py, || PyDict::new(py).unbind())
+                .bind(py),
         )?;
 
         let harness = HARNESS_COMPILATO.get_or_try_init(py, || -> PyResult<Py<PyAny>> {
             let builtins = py.import("builtins")?;
-            Ok(builtins.getattr("compile")?.call1((HARNESS, "<sws-harness>", "exec"))?.unbind())
+            Ok(builtins
+                .getattr("compile")?
+                .call1((HARNESS, "<sws-harness>", "exec"))?
+                .unbind())
         })?;
-        py.import("builtins")?.getattr("exec")?.call1((harness.bind(py), &globals))?;
+        py.import("builtins")?
+            .getattr("exec")?
+            .call1((harness.bind(py), &globals))?;
 
         let stdout = globals
             .get_item("__sws_stdout_capture__")?
@@ -2498,10 +2505,16 @@ mod tests_giro_leggero {
         let mut e = Engine::new(db.clone(), Arc::new(TagWriteBus::new()));
         e.timeout = Duration::from_millis(300);
         let err = e
-            .execute("n = 0\nwhile True:\n    n = n + 1\n    tags.write('giri', n)\n".into(), "loop")
+            .execute(
+                "n = 0\nwhile True:\n    n = n + 1\n    tags.write('giri', n)\n".into(),
+                "loop",
+            )
             .await
             .expect_err("il ciclo doveva essere interrotto");
-        assert!(err.contains("timed out") || err.contains("TimeoutError"), "{err}");
+        assert!(
+            err.contains("timed out") || err.contains("TimeoutError"),
+            "{err}"
+        );
         tokio::time::sleep(Duration::from_millis(300)).await;
         let prima = db.snapshot().await.get("giri").map(|s| s.value.clone());
         tokio::time::sleep(Duration::from_millis(300)).await;
@@ -2529,7 +2542,10 @@ mod tests_giro_leggero {
     async fn un_errore_di_sintassi_resta_un_errore() {
         let e = motore();
         for _ in 0..2 {
-            let err = e.execute("if True print(1)\n".into(), "rotto").await.unwrap_err();
+            let err = e
+                .execute("if True print(1)\n".into(), "rotto")
+                .await
+                .unwrap_err();
             assert!(err.contains("SyntaxError"), "{err}");
         }
     }
