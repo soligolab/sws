@@ -270,6 +270,12 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   il salvataggio non è finito.
 
 ### Corretto
+- **«Aggiorna ora» non si perde chiudendo il progetto** (collaudo della rc.13 sul TC620, 11-11-2026). Sul pannello
+  copia dei dati, `in_corso` e avvio giravano dentro la richiesta HTTP. Chiudere il progetto nell'IDE durante la copia
+  (877 MB, circa un minuto) faceva cadere la richiesta, e il lavoro si fermava appena finita la copia: niente
+  `in_corso`, nessun avvio, il posto liberato, e l'IDE che riproponeva «disponibile». Ora
+  `aggiornamento::prepara_e_avvia_staccato` fa tutto in un task a parte, che continua anche senza nessuno ad aspettare;
+  chi resta collegato riceve l'esito della copia, e anche l'errore.
 - **Le anomalie del collaudo della rc.12** (11-11-2026, WP630, Montagna; `docs/COLLAUDI_IN_SOSPESO.md`, «Collaudo
   2.26.0-rc.12»). *L'assistente e le finestre*: chiesta una pagina popup, faceva una pagina normale con un
   `navbutton`, che finiva fra i pulsanti della cornice, perché né il prompt né gli strumenti nominavano `finestra` e

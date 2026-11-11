@@ -675,6 +675,48 @@ pub async fn prenota(config_dir: &std::path::Path) -> Result<Preparazione, Strin
         .map_err(|_| GIA_IN_CORSO.to_string())
 }
 
+/// Copia dei dati, `in_corso` e avvio in un task che non dipende da chi l'ha
+/// chiesto (11-11-2026). Dentro la richiesta HTTP, chiudere il progetto
+/// nell'IDE durante la copia interrompeva tutto appena finita: niente
+/// `in_corso`, niente avvio, il posto liberato, e l'IDE che riproponeva
+/// «disponibile». Il ricevitore dà l'esito della copia a chi è rimasto ad
+/// aspettarlo; se nessuno aspetta, si va avanti lo stesso.
+pub fn prepara_e_avvia_staccato<P, A>(
+    preparazione: Preparazione,
+    config_dir: std::path::PathBuf,
+    da: String,
+    a: Option<String>,
+    prendi: P,
+    avvia: A,
+) -> tokio::sync::oneshot::Receiver<Result<(), String>>
+where
+    P: std::future::Future<Output = Result<(), String>> + Send + 'static,
+    A: std::future::Future<Output = Result<(), String>> + Send + 'static,
+{
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    tokio::spawn(async move {
+        // Il posto si libera dopo la consegna a systemd: da lì vale `in_corso`.
+        let _preparazione = preparazione;
+        if let Err(e) = prendi.await {
+            tracing::warn!("aggiornamento non avviato: {e}");
+            let _ = tx.send(Err(e));
+            return;
+        }
+        crate::aggiornamento_esito::segna_in_corso(&config_dir, &da, a).await;
+        let _ = tx.send(Ok(()));
+        // Il tempo perché la risposta parta: se l'aggiornamento c'è, questo
+        // processo viene fermato.
+        tokio::time::sleep(std::time::Duration::from_millis(800)).await;
+        match avvia.await {
+            Ok(()) => {
+                tracing::info!("aggiornamento del runtime avviato (podman-auto-update.service)")
+            }
+            Err(e) => tracing::warn!("aggiornamento del runtime non avviato: {e}"),
+        }
+    });
+    rx
+}
+
 /// Avvia `podman-auto-update.service` sul bus utente. Il chiamante deve aver
 /// **già risposto**: se l'aggiornamento c'è, questo processo verrà fermato.
 pub async fn avvia() -> Result<(), String> {
@@ -695,8 +737,72 @@ pub async fn avvia() -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
+    /// `PREPARAZIONE` è una sola per il processo: i test che la toccano non
+    /// girano insieme.
+    static UNO_ALLA_VOLTA: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
+    #[tokio::test]
+    async fn chi_preme_e_se_ne_va_non_ferma_l_aggiornamento() {
+        let _uno = UNO_ALLA_VOLTA.lock().await;
+        let dir = tempfile::tempdir().unwrap();
+        let avviato = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let segno = avviato.clone();
+        let rx = prepara_e_avvia_staccato(
+            prenota(dir.path()).await.unwrap(),
+            dir.path().to_path_buf(),
+            "1.0.0".into(),
+            Some("1.0.1".into()),
+            async {
+                tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+                Ok(())
+            },
+            async move {
+                segno.store(true, AtomicOrdering::SeqCst);
+                Ok(())
+            },
+        );
+        // Il progetto chiuso nell'IDE: nessuno aspetta più la risposta.
+        drop(rx);
+        assert!(
+            stato_con_esito(dir.path()).await.in_corso,
+            "durante la copia è in corso"
+        );
+        tokio::time::sleep(std::time::Duration::from_millis(1200)).await;
+        assert!(
+            avviato.load(AtomicOrdering::SeqCst),
+            "l'aggiornamento parte lo stesso"
+        );
+        assert!(crate::aggiornamento_finestra::carica(dir.path())
+            .await
+            .in_corso
+            .is_some());
+        assert!(!in_preparazione());
+    }
+
+    #[tokio::test]
+    async fn una_copia_che_fallisce_lo_dice_e_libera_il_posto() {
+        let _uno = UNO_ALLA_VOLTA.lock().await;
+        let dir = tempfile::tempdir().unwrap();
+        let rx = prepara_e_avvia_staccato(
+            prenota(dir.path()).await.unwrap(),
+            dir.path().to_path_buf(),
+            "1.0.0".into(),
+            None,
+            async { Err("spazio insufficiente".to_string()) },
+            async { panic!("non deve partire") },
+        );
+        assert_eq!(rx.await.unwrap(), Err("spazio insufficiente".to_string()));
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        assert!(!in_preparazione());
+        assert!(crate::aggiornamento_finestra::carica(dir.path())
+            .await
+            .in_corso
+            .is_none());
+    }
+
     #[tokio::test]
     async fn un_secondo_aggiornamento_aspetta_il_primo() {
+        let _uno = UNO_ALLA_VOLTA.lock().await;
         let dir = tempfile::tempdir().unwrap();
         let primo = prenota(dir.path()).await.expect("il primo passa");
         assert!(in_preparazione());

@@ -4700,23 +4700,31 @@ async fn aggiornamento_avvia(
     // esserlo (03-10-2026).
     crate::aggiornamento_finestra::scarta_versione(&s.config_dir, None).await;
     // L'istantanea dei dati prima di rispondere: se non si può prendere, chi ha
-    // premuto deve leggerne il perché.
-    if let Err(e) = crate::istantanea_dati::prendi(&st.versione).await {
-        return (StatusCode::CONFLICT, e).into_response();
-    }
-    crate::aggiornamento_esito::segna_in_corso(&s.config_dir, &st.versione, st.disponibile.clone())
-        .await;
-    // Il posto si libera dopo la consegna a systemd: da lì vale `in_corso`.
-    tokio::spawn(async move {
-        let _preparazione = preparazione;
-        tokio::time::sleep(std::time::Duration::from_millis(800)).await;
-        match crate::aggiornamento::avvia().await {
-            Ok(()) => {
-                tracing::info!("aggiornamento del runtime avviato (podman-auto-update.service)")
-            }
-            Err(e) => tracing::warn!("aggiornamento del runtime non avviato: {e}"),
+    // premuto deve leggerne il perché. Gira in un task a parte (11-11-2026): se
+    // chi ha premuto se ne va (progetto chiuso nell'IDE, tunnel caduto) la
+    // richiesta si interrompe, ma l'aggiornamento continua.
+    let esito = crate::aggiornamento::prepara_e_avvia_staccato(
+        preparazione,
+        s.config_dir.as_ref().clone(),
+        st.versione.clone(),
+        st.disponibile.clone(),
+        {
+            let versione = st.versione.clone();
+            async move { crate::istantanea_dati::prendi(&versione).await.map(|_| ()) }
+        },
+        crate::aggiornamento::avvia(),
+    );
+    match esito.await {
+        Ok(Ok(())) => {}
+        Ok(Err(e)) => return (StatusCode::CONFLICT, e).into_response(),
+        Err(_) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "aggiornamento interrotto",
+            )
+                .into_response()
         }
-    });
+    }
     (StatusCode::ACCEPTED, Json(st)).into_response()
 }
 
