@@ -28,7 +28,7 @@ bytes.workspace          = true
 # hand (file manager, `zip`, Windows) is Deflate, and without the codec the
 # import said «Compression method not supported» (30-10-2026). xz / zstd /
 # bzip2 stay out: no archiver uses them by default.
-zip = { version = "2", default-features = false, features = ["deflate"] }
+zip = { version = "9", default-features = false, features = ["deflate"] }
 sws-core          = { path = "../sws-core" }
 sws-historian     = { path = "../sws-historian" }
 sws-pyscript      = { path = "../sws-pyscript" }

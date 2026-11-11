@@ -351,7 +351,10 @@ pub async fn sincronizza_da_zip(
     archive: &mut zip::ZipArchive<std::io::Cursor<&[u8]>>,
     target_dir: &FsPath,
 ) -> std::io::Result<()> {
-    let names: Vec<String> = archive.file_names().map(|s| s.to_string()).collect();
+    let names: Vec<String> = archive
+        .file_names()
+        .filter_map(|s| s.ok().map(|s| s.into_owned()))
+        .collect();
     let mut kept = std::collections::HashSet::<String>::new();
     for name in &names {
         let Some(fname) = name.strip_prefix("boot/") else {

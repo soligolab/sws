@@ -16,5 +16,5 @@ serde.workspace = true
 serde_json.workspace = true
 clap.workspace = true
 anyhow.workspace = true
-zip = { version = "2", default-features = false }
+zip = { version = "9", default-features = false }
 sws-auth = { path = "../sws-auth" }

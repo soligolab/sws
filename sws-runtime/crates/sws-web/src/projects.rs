@@ -3135,7 +3135,10 @@ pub async fn upload_project_zip(
     // 4. Extract every file from the ZIP into the project folder.
     //    We trust the manifest.json name and skip it; everything else lands at
     //    its relative path under `target`. We refuse `..` components.
-    let file_names: Vec<String> = archive.file_names().map(|n| n.to_string()).collect();
+    let file_names: Vec<String> = archive
+        .file_names()
+        .filter_map(|n| n.ok().map(|n| n.into_owned()))
+        .collect();
     // Rollback: solo per una cartella creata da noi adesso. In deploy la cartella
     // conteneva già `history/` & co. e cancellarla vanificherebbe tutto il fix.
     let rollback = |target: std::path::PathBuf, deploy: bool| async move {

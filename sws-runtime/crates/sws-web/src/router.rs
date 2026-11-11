@@ -7329,7 +7329,10 @@ async fn import_project_zip(
 
     // 4. Read every synoptics/*.yaml in the archive.
     let mut pages: Vec<SynopticPage> = Vec::new();
-    let file_names: Vec<String> = archive.file_names().map(|s| s.to_string()).collect();
+    let file_names: Vec<String> = archive
+        .file_names()
+        .filter_map(|s| s.ok().map(|s| s.into_owned()))
+        .collect();
     for name in file_names {
         if !name.starts_with("synoptics/") || !name.ends_with(".yaml") {
             continue;
@@ -7590,7 +7593,10 @@ async fn sync_yaml_dir_from_zip(
     target_dir: &std::path::Path,
 ) -> std::io::Result<()> {
     tokio::fs::create_dir_all(target_dir).await?;
-    let file_names: Vec<String> = archive.file_names().map(|s| s.to_string()).collect();
+    let file_names: Vec<String> = archive
+        .file_names()
+        .filter_map(|s| s.ok().map(|s| s.into_owned()))
+        .collect();
     let bundle_prefix = format!("{prefix}/");
     let mut kept: std::collections::HashSet<String> = std::collections::HashSet::new();
     for name in &file_names {

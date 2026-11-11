@@ -159,7 +159,10 @@ pub async fn sincronizza_da_zip(
     archive: &mut zip::ZipArchive<std::io::Cursor<&[u8]>>,
     target_dir: &FsPath,
 ) -> std::io::Result<()> {
-    let nomi: Vec<String> = archive.file_names().map(|s| s.to_string()).collect();
+    let nomi: Vec<String> = archive
+        .file_names()
+        .filter_map(|s| s.ok().map(|s| s.into_owned()))
+        .collect();
     let prefisso = format!("{CARTELLA}/");
     if !nomi.iter().any(|n| n.starts_with(&prefisso)) {
         return Ok(());
@@ -390,7 +393,10 @@ pub async fn carica(State(s): State<crate::router::AppState>, body: axum::body::
     // bundle di progetto; qui lo zip è la cartella nuda. Si riusa lo stesso
     // codice passando la radice come destinazione e aggiungendo il prefisso ai
     // nomi — così la regola dei percorsi sicuri resta una sola.
-    let nomi: Vec<String> = archivio.file_names().map(|s| s.to_string()).collect();
+    let nomi: Vec<String> = archivio
+        .file_names()
+        .filter_map(|s| s.ok().map(|s| s.into_owned()))
+        .collect();
     let testa = cartella_in_testa(&nomi).unwrap_or_default();
     let mut tenuti = std::collections::HashSet::<PathBuf>::new();
     let destinazione = dir_at(&dir);
@@ -590,7 +596,10 @@ mod prove {
 
         // E la parte di `carica`: scrive quello che c'è e pota il resto.
         let mut a = zip::ZipArchive::new(Cursor::new(zip_bytes.as_slice())).unwrap();
-        let nomi: Vec<String> = a.file_names().map(|s| s.to_string()).collect();
+        let nomi: Vec<String> = a
+            .file_names()
+            .filter_map(|s| s.ok().map(|s| s.into_owned()))
+            .collect();
         let mut tenuti = std::collections::HashSet::<PathBuf>::new();
         for nome in &nomi {
             let sicuro = percorso_sicuro(nome).unwrap();

@@ -29,6 +29,11 @@ Il punto su `rusqlite` che stava negli stessi appunti (righe 448-451) non è qui
 
 ### 1. Aggiornare `zip` da 2.4 a 9.x in `sws-runtime`
 
+> **Fatto l'11-11-2026** (ramo `fix/zip-9`, nella 2.26.0-rc.14). `zip` è passato a 9.5.1 nei due crate. L'unica
+> differenza d'API che ci tocca: `file_names()` e `name()` danno un `Result`. Un nome illeggibile si salta: tutto
+> il codice legge le voci per nome. Le quattro righe sono tolte da `audit.toml` e `cargo audit` resta verde. Passano
+> 52 test su backup, xlsx, boot, logica PLC e import. Il collaudo qui sotto resta da fare sul pannello e nel cloud.
+
 **Contesto (04-11-2026).** Quattro avvisi RustSec sull'estrazione degli archivi — RUSTSEC-2026-0367,
 0368, 0369 e 0429 — sono ignorati in `sws-runtime/.cargo/audit.toml`, perché SWS non chiama mai
 `extract()`: legge le voci per nome e ne scrive il contenuto da sé (`ZipArchive::extract` e

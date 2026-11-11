@@ -275,6 +275,9 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   il salvataggio non è finito.
 
 ### Corretto
+- **`zip` 9.5.1**, dalla 2.4 (piano `docs/plans/2026-11-10-manutenzione-e-verifiche-rimandate.md` §1). Via da
+  `audit.toml` le quattro eccezioni RUSTSEC-2026-0367/0368/0369/0429 sull'estrazione, che SWS non usa.
+  `file_names()` e `name()` ora danno un `Result`, e un nome illeggibile si salta.
 - **Il pannello LVGL disegna come il web** (piano `docs/plans/2026-11-10-oggetti-e-template-parita-lvgl.md`, decisioni
   dell'11-11-2026, verificato col banco `tmp/parita-lvgl/`, che fotografa la stessa pagina coi due viewer).
   - **Testo senza riquadro**: `y` è la linea di base come nell'`<text>` SVG, mentre prima era il bordo alto, circa un
