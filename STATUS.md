@@ -12,6 +12,29 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — la 2.26.0-rc.14 costruita senza collaudo: «Aggiorna ora» staccato, parità LVGL, zip 9 (2026-11-11 sera, ufficio)
+
+**Il collaudo di domattina** è in `docs/COLLAUDI_IN_SOSPESO.md`, sezione «Collaudo 2.26.0-rc.14». Per scelta del
+maintainer la rc si costruisce prima del collaudo, e le anomalie faranno la rc.15. Nessun ramo aperto.
+
+Fatto la sera dell'11-11, sul TC620 di casa:
+- **La rc.13** pubblicata e sul VPS. Il TC620 era già sulla rc.12, e l'aggiornamento alla rc.13 ha mostrato il difetto
+  nuovo: chiudendo il progetto durante la copia dei dati l'aggiornamento si perdeva. Corretto in `b4ea39be`, con la
+  prenotazione e un task staccato dalla richiesta. Il secondo tentativo, restando collegato, ha portato il TC620 alla
+  rc.13.
+- **Parità LVGL** (`3b0f590e`): le sei decisioni del maintainer sono scritte nel piano. Fatto:
+  - §1.1, il testo sulla linea di base;
+  - parte di §1.2, il disegno di celle, kpi, led, gauge, campanella, selettore lingua e ricette;
+  - §2.1, le funzioni dei bottoni;
+  - §3.1, la mini tendenza a metà;
+  - §4, le finestre tradotte prima dei parametri;
+  - la scelta 3, i bottoni del nebulizzatore.
+
+  Il banco di confronto è in `tmp/parita-lvgl/foto.sh`. Il resto del piano è scritto nella sua sezione «Fatto
+  l'11-11-2026 sera».
+- **`zip` 9.5.1** (`f87f52d7`): via quattro eccezioni da `audit.toml`. È il §1 del piano di manutenzione.
+- **SQLite 3.54.1** (`rusqlite` 0.41) era già nella rc.11.
+
 ## ▶ Riprendere da qui — collaudo della rc.12, due rami aperti da collaudare (2026-11-11, theobroma)
 
 **Due rami aperti, pushati su origin, NON mergiati** (scelta del maintainer a fine giornata): la catena si mergia in

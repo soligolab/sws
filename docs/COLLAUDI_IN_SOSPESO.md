@@ -40,6 +40,30 @@ sezione «Code annotate il 10-11-2026». Nell'IDE (cloud o 8460), con una chiave
 3. [ ] **Il banco dei tubi** (F5): un giudizio da 1 a 5 sulle due pagine del 04-11 (`tmp/ai-misure/`, solo su
        theobroma). È l'ingresso del piano «secondo giro».
 
+## Collaudo 2.26.0-rc.14 (11-11-2026 sera, da fare il 12-11)
+
+Costruita senza collaudo, su richiesta del maintainer («le rc possono permettere questa eccezione»): il collaudo
+si fa su questa immagine, e le anomalie diventano la rc successiva. **Sul TC620** dalla rc.13, oppure con un
+progetto LVGL. Le foto di confronto della sera sono in `tmp/parita-lvgl/` (solo `ufficio`).
+
+1. [ ] **«Aggiorna ora» e progetto chiuso**: avviare l'aggiornamento dall'IDE nel cloud, chiudere subito il progetto,
+       riaprirlo. Il pannello si aggiorna lo stesso, e la scheda dice «in corso» fino all'esito. Nella rc.13
+       l'aggiornamento si perdeva. La prova vale dalla rc.14 alla versione dopo, perché la protezione gira sul
+       pannello che si aggiorna.
+2. [ ] **Testi liberi su LVGL**: un `text` senza riquadro poggia sulla sua `y` come sul web. Su un progetto LVGL
+       esistente i testi liberi salgono di circa un corpo, e l'avviso compare fra le Novità prima di aggiornare.
+3. [ ] **Disegno LVGL**: celle colorate senza bordo bianco, valore della kpi chiaro, led spento grigio e non nero,
+       gauge con l'arco grigio, campanella con icona e scritta centrate, freccia del selettore lingua, pannello
+       ricette leggibile con «Applica» intero (`demo-items-lvgl`, `grid-playground`).
+4. [ ] **Bottone con funzione su LVGL**: un bottone con `on_press_fn` la esegue (registro del runtime); una
+       funzione che fallisce apre «Comando non eseguito». Questo avviso non si poteva fotografare.
+5. [ ] **Finestra con parametri**: la «Finestra pompa» dei gemelli, aperta dal bottone, dice «Pompa P-101» e
+       «Dettaglio di P-101», sul web e su LVGL.
+6. [ ] **Mini tendenza ferma**: una kpi con valore fermo ha la linea a metà, sui due motori.
+7. [ ] **`zip` 9**: un backup del progetto esportato e reimportato, un report xlsx aperto, un deploy dal cloud di
+       un progetto con logica PLC, una pagina di boot caricata.
+8. [ ] **Nebulizzatore Sandokan**, se lo si usa: «Accendi» e «Spegni» comandano la presa.
+
 ## Collaudo 2.26.0-rc.12 (11-11-2026)
 
 Sul WP630 dalla rc.11, dal cloud e via ssh, progetto Montagna. Le voci passate sono spuntate nelle loro sezioni
