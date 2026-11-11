@@ -12,6 +12,39 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — collaudo della rc.12, due rami aperti da collaudare (2026-11-11, theobroma)
+
+**Due rami aperti, pushati su origin, NON mergiati** (scelta del maintainer a fine giornata): la catena si mergia in
+ordine dopo il collaudo.
+1. `fix/collaudo-rc12` (da `main` dopo `42f7ebd5`): le 4 anomalie del collaudo della rc.12 (`0d769d17`: assistente e
+   finestre, assistente e geometria del testo, pallino di qualità, chat staccata dopo il rientro), script Python più
+   leggeri (B1+B2 del seme sandbox: niente thread per giro, trace solo attorno all'exec, codice compilato tenuto da
+   parte; 4,5 → 2,3 ms a giro su x86), poi dal collaudo sull'IDE 8460: chat «nessun progetto» dopo un'uscita
+   (`2285d309`), 400 alla domanda dopo una proposta (`c563fa2f`), «scrivo · kB · tempo» e «Applica comunque»
+   (`d00ad765`).
+2. `feat/selezione-e-gruppi`, **annidato** sul primo: piano `docs/plans/2026-11-11-selezione-e-gruppi.md`. Riquadro di
+   selezione «dentro per intero», bloccati esclusi; gruppi veri sul canvas (clic = gruppo, doppio clic entra, Esc
+   esce), lucchetto per riga, Raggruppa/Separa nel pannello, copie con gruppi nuovi; l'assistente blocca le immagini a
+   tutta area; la chat «sta pensando · m:ss» (`18da18b5`); Ctrl+G non apre la ricerca del browser (`642da262`);
+   `cargo fmt` (`8ac3c9ba`), CHANGELOG.
+
+Definition of done verde sulla punta del secondo ramo (cargo check, cargo test, pnpm build, vitest 2407, check_static
+56/56, guardia Playwright della multiselezione) e i controlli della CI (fmt, clippy, audit, lint, type-check). Manca la
+**conferma del maintainer**. IDE 8460 su `feat/selezione-e-gruppi`, Pixsys. Progetto di prova: `~/sws_projects/montagna`,
+copia di Montagna dal WP630 con le immagini (si può cancellare dopo il collaudo).
+
+**Già confermato oggi sull'IDE 8460**: chat staccata dopo uscita e rientro; pallino a destra dei valori allineati a
+destra; l'assistente fa la finestra con `open_popup` e i testi con `text_wrap`; la riga «scrivo · kB».
+
+**Prossimo passo** (`/test-changes` sull'IDE 8460, poi merge della catena):
+- nel Viewer, «Dettagli» apre la finestra sopra «Impianto di risalita», «Chiudi ✕» la chiude;
+- selezione e gruppi: i sei punti della «Verifica» nel piano (anche `docs/TESTING_GUIDE.md` 4.24-4.28);
+- un faceplate fatto da una selezione con un titolo senza riquadro («Inverter»): riquadro tratteggiato grigio spostato e
+  più largo della scritta, che non si stringe. Probabile causa: testo senza `text_wrap` (`y` = linea di base, `width`
+  ignorata); da ricreare, **salvare**, e leggere il file prima di correggere `faceplateDaSelezione.ts`;
+- dopo il merge: rc.13 e rimisura della CPU degli script sul WP630 con Montagna (era 12-13 % di un core per il runtime).
+- `NOVITA.yaml` non toccato: il blocco 2.26.0 è a 15 voci; i gruppi meritano una voce, in un blocco successivo.
+
 ## ▶ Riprendere da qui — la 2.26.0-rc.12 pubblicata e sul VPS, con le correzioni del collaudo della rc.11 (2026-11-10 sera, theobroma)
 
 **Nessun ramo aperto.** `main` e il tag `2.26.0-rc.12` (`847ccd3f`) su origin con questa chiusura. Immagini
@@ -398,8 +431,10 @@ solo del più interno** (`feat/finestra-avviso-3` contiene gli altri due), poi s
 - **F3**: viewer (`guardedWrites` subito o con la Promise della risposta), console, le otto finestre fatte a mano sulla
   `Cornice`, guardia a zero e `no-alert` in ESLint. Le note su LVGL (password dei comandi critici, momentaneo critico)
   in `Appunti.txt`.
-- I test di `sws-pyscript` con la sandbox vera si lanciano con un venv: `PYTHONPATH=tmp/venv-rp/lib/python3.11/site-packages
-  cargo test -p sws-pyscript` (il venv è in `sws/tmp/`, si rifà con `python3 -m venv` + `pip install RestrictedPython`).
+- I test di `sws-pyscript` con la sandbox vera si lanciano con un venv, e il percorso va **assoluto**:
+  `PYTHONPATH=$PWD/tmp/venv-rp/lib/python3.11/site-packages cargo test -p sws-pyscript` dalla radice del repo (il venv è
+  in `sws/tmp/`, si rifà con `python3 -m venv` + `pip install RestrictedPython`). Con quello relativo `cargo test`, che
+  gira nella cartella del crate, non trova il venv e i test passano **senza** sandbox, senza dirlo (11-11-2026).
 
 - **IDE 8460** ricompilato su `feat/finestra-avviso-3` (`2.25.2-12-g9af62644`, marchio Pixsys) e avviato **con la
   sandbox vera**: `PYTHONPATH=tmp/venv-rp/lib/python3.11/site-packages ./scripts/start_editor.sh`. Le voci L0 1–3 si
