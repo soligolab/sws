@@ -1,6 +1,6 @@
 [package]
 name    = "sws-kiosk"
-version = "2.26.0-rc.13"
+version = "2.26.0-rc.14"
 edition = "2021"
 # Fuori dal workspace come sws-lvgl-viewer, quindi scritta a mano: la stessa
 # doppia licenza del resto di SWS (LICENSING.md).
