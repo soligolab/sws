@@ -168,7 +168,14 @@ con la pagina dentro, perché `ServeDir` serviva il guscio della SPA come rispos
 Ora una rotta della SPA (una richiesta di navigazione) ha 200, mentre un file davvero mancante
 resta 404: così un bundle che manca non torna come HTML con stato 200.
 
-**Versione in esecuzione: `847ccd3f-amd64` (2.26.0-rc.12)** dal 10-11-2026 sera (gateway riavviato alle 21:16 UTC): le
+**Versione in esecuzione: `125cec0f-amd64` (2.26.0-rc.13)** dal 11-11-2026 sera: le anomalie del collaudo della rc.12
+(assistente con finestre e testi, pallino di qualità, chat staccata), script Python più leggeri, la chat che pensa,
+selezione e gruppi sul canvas, Ctrl+G. Sequenza: copia del quadlet (`.prima-rc13-…`), `podman pull`, `sed` del sha
+(`Image=` e `--gateway-immagine` insieme), `daemon-reload`, `restart sws-gateway`; nessun container di progetto
+attivo. Verificato: gateway `healthy`, radice 200, copia del quadlet uguale al repo (`md5sum`). Ripiego
+`847ccd3f-amd64` (rc.12); tolta la rc.11 `e5f58031-amd64`.
+
+Prima: **Versione in esecuzione: `847ccd3f-amd64` (2.26.0-rc.12)** dal 10-11-2026 sera (gateway riavviato alle 21:16 UTC): le
 correzioni del collaudo della rc.11 (banco della chat per conversazione, foto della pagina col motore del progetto e
 viewer LVGL nell'immagine x86_64 — +28 MB, fasce della cornice, viewer e IDE che aspettano il runtime, anteprima delle
 foto), il cron nell'ora del pannello, la posta per azienda, la licenza doppia. Stessa sequenza della rc.11 (pull, `scp`
