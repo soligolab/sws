@@ -3981,6 +3981,50 @@ fn apply_font_size_con_ripiego(
     Ok(())
 }
 
+/// Quanto il carattere sale sopra la linea di base, in pixel: `line_height`
+/// meno `base_line` (che in LVGL è la parte sotto la linea).
+fn ascesa(line_height: i16, base_line: i16) -> i16 {
+    (line_height - base_line).max(0)
+}
+
+/// Un testo senza riquadro ha `y` sulla **linea di base**, come l'`<text>`
+/// dell'SVG nel web (11-11-2026, piano parità LVGL §1.1). LVGL invece mette
+/// l'etichetta col bordo alto in `y`, e lo scarto era circa un corpo: un titolo
+/// a 22 stava 22 px più in basso che sul web. Si alza l'etichetta (o la sua
+/// ancora, per `middle`/`end`) dell'ascesa del carattere scelto.
+///
+/// Solo per l'oggetto `text` della pagina: la `kpi_tile` riusa [`render_text`]
+/// per il suo valore, con coordinate che sono già il bordo alto.
+fn alla_linea_di_base(binding: &LiveBinding, obj: &SynopticObject) {
+    if obj.text_wrap == Some(true) {
+        return;
+    }
+    let LiveKind::Text { ptr, .. } = &binding.kind else {
+        return;
+    };
+    let lp = ptr.as_ptr();
+    unsafe {
+        let font = lvgl_sys::lv_obj_get_style_prop(
+            lp,
+            lvgl_sys::LV_PART_MAIN,
+            lvgl_sys::lv_style_prop_t_LV_STYLE_TEXT_FONT,
+        )
+        .ptr as *const lvgl_sys::lv_font_t;
+        if font.is_null() {
+            return;
+        }
+        let su = ascesa((*font).line_height, (*font).base_line);
+        let y = obj.y.unwrap_or(0.0).round() as i16 - su;
+        // Con `middle`/`end` l'etichetta sta dentro un'ancora larga zero, che è
+        // quella posta in (x, y).
+        let bersaglio = match obj.text_anchor.as_deref() {
+            Some("middle") | Some("end") => lvgl_sys::lv_obj_get_parent(lp),
+            _ => lp,
+        };
+        lvgl_sys::lv_obj_set_y(bersaglio, y);
+    }
+}
+
 fn render_text(
     screen: &mut lvgl::Obj,
     obj: &SynopticObject,
@@ -4614,12 +4658,15 @@ pub fn apri_finestra(
     ))
 }
 
+#[allow(clippy::too_many_arguments)] // i canali e il contesto di rete, come `render_grid_slot`
 fn render_button(
     screen: &mut lvgl::Obj,
     obj: &SynopticObject,
     styles: &mut Vec<Style>,
     tx: &mpsc::Sender<TagCommand>,
     nav_tx: &mpsc::Sender<Navigazione>,
+    base_url: &str,
+    shared_session: &SharedSession,
     live: &mut Vec<LiveBinding>,
 ) -> anyhow::Result<()> {
     let mut btn = Btn::create(screen).map_err(|e| anyhow::anyhow!("Btn::create: {e:?}"))?;
@@ -4664,6 +4711,9 @@ fn render_button(
     }
 
     let ptr = btn.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+    // Le funzioni Python del bottone, prima delle altre callback così, come sul
+    // web, partono prima della navigazione (11-11-2026, piano parità LVGL §2.1).
+    collega_funzioni(ptr.as_ptr(), obj, base_url, shared_session);
     if let Some(azione) = azione_del_bottone(obj) {
         let ctx = leak_ctx(NavClickCtx {
             target_page: azione,
@@ -4681,6 +4731,88 @@ fn render_button(
     }
     collega_comando(ptr, comando_del_bottone(obj), obj, tx, live);
     Ok(())
+}
+
+/// Il contesto di `on_press_fn`/`on_release_fn`: cosa chiamare e con quale
+/// sessione. La sessione si legge al tocco, non al disegno: è quella di chi preme.
+struct FunzioneCtx {
+    base_url: String,
+    nome: String,
+    args: serde_json::Value,
+    shared_session: SharedSession,
+}
+
+/// Quando un bottone chiama la sua funzione al tocco: mai per login e logout,
+/// come sul web (`onPress` in `SvgCanvas.tsx`), che lì esce prima.
+fn funzione_al_tocco(obj: &SynopticObject) -> Option<&str> {
+    if matches!(
+        obj.button_action
+            .as_ref()
+            .and_then(|a| a.get("type"))
+            .and_then(|t| t.as_str()),
+        Some("login" | "logout")
+    ) {
+        return None;
+    }
+    obj.on_press_fn.as_deref().filter(|n| !n.trim().is_empty())
+}
+
+/// Aggancia al bottone le sue funzioni: `on_press_fn` al clic, `on_release_fn`
+/// al rilascio. Prima il pannello LVGL non le eseguiva («semplificazione
+/// dichiarata»): un bottone che chiamava una funzione funzionava solo sul web.
+fn collega_funzioni(
+    p: *mut lvgl_sys::lv_obj_t,
+    obj: &SynopticObject,
+    base_url: &str,
+    shared_session: &SharedSession,
+) {
+    let aggancia = |nome: &str, args: Option<&serde_json::Value>, evento| {
+        let ctx = leak_ctx(FunzioneCtx {
+            base_url: base_url.to_string(),
+            nome: nome.to_string(),
+            args: args.cloned().unwrap_or_else(|| serde_json::json!({})),
+            shared_session: shared_session.clone(),
+        });
+        unsafe { lvgl_sys::lv_obj_add_event_cb(p, Some(sws_funzione_cb), evento, ctx) };
+    };
+    if let Some(nome) = funzione_al_tocco(obj) {
+        aggancia(
+            nome,
+            obj.on_press_args.as_ref(),
+            lvgl_sys::lv_event_code_t_LV_EVENT_CLICKED,
+        );
+    }
+    if let Some(nome) = obj
+        .on_release_fn
+        .as_deref()
+        .filter(|n| !n.trim().is_empty())
+    {
+        aggancia(
+            nome,
+            obj.on_release_args.as_ref(),
+            lvgl_sys::lv_event_code_t_LV_EVENT_RELEASED,
+        );
+    }
+}
+
+unsafe extern "C" fn sws_funzione_cb(e: *mut lvgl_sys::lv_event_t) {
+    let user_data = unsafe { lvgl_sys::lv_event_get_user_data(e) };
+    if user_data.is_null() {
+        return;
+    }
+    let ctx = unsafe { &*(user_data as *const FunzioneCtx) };
+    let token = ctx
+        .shared_session
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .token
+        .clone();
+    crate::net_worker::invia(crate::net_worker::Comando::EseguiFunzione {
+        base_url: ctx.base_url.clone(),
+        nome: ctx.nome.clone(),
+        args: ctx.args.clone(),
+        token,
+    });
 }
 
 /// Bottone di navigazione — stessa forma del bottone normale ma sempre
@@ -4984,6 +5116,23 @@ fn render_page_navigator(
 }
 
 /// Colore + stato on/off del LED, condiviso tra creazione e aggiornamento.
+/// Il led sempre a piena luce, col colore che dice lo stato (11-11-2026, piano
+/// parità LVGL §1.2). `lv_led_off` lo abbassava al minimo, e un `off_color`
+/// grigio diventava quasi nero: il web invece disegna `off_color` com'è. Spento,
+/// niente alone.
+unsafe fn luce_del_led(p: *mut lvgl_sys::lv_obj_t, acceso: bool) {
+    lvgl_sys::lv_led_on(p);
+    if acceso {
+        lvgl_sys::lv_obj_remove_local_style_prop(
+            p,
+            lvgl_sys::lv_style_prop_t_LV_STYLE_SHADOW_WIDTH,
+            lvgl_sys::LV_PART_MAIN,
+        );
+    } else {
+        lvgl_sys::lv_obj_set_style_shadow_width(p, 0, lvgl_sys::LV_PART_MAIN);
+    }
+}
+
 fn led_state(
     tv: Option<&TagSnapshotValue>,
     on_value: &OnValue,
@@ -5080,11 +5229,7 @@ fn render_led(
     if let Some(rgb) = parse_hex_color(&color_hex) {
         unsafe { lvgl_sys::lv_led_set_color(ptr.as_ptr(), Color::from_rgb(rgb).into()) };
     }
-    if tv.is_some() && (is_on || bad_quality) {
-        led.on().map_err(|e| anyhow::anyhow!("led on: {e:?}"))?;
-    } else {
-        led.off().map_err(|e| anyhow::anyhow!("led off: {e:?}"))?;
-    }
+    unsafe { luce_del_led(ptr.as_ptr(), tv.is_some() && (is_on || bad_quality)) };
 
     Ok(LiveBinding {
         kind: LiveKind::Led {
@@ -7363,6 +7508,19 @@ fn render_gauge(
         // (`SvgCanvas.tsx`: fondo, zone, arco valore). Zone fuori scala non
         // filtrate: `lv_meter_set_indicator_*_value` le clampa da sé,
         // coerente con `raw` sopra.
+        // Il fondo della scala, l'arco grigio intero del web (`#334155`, 10 px):
+        // senza, un gauge a zero mostrava solo la lancetta (piano parità LVGL
+        // §1.2, 11-11-2026). Primo, così resta sotto zone e valore.
+        let fondo = lvgl_sys::lv_meter_add_arc(
+            ptr.as_ptr(),
+            scale,
+            10,
+            Color::from_rgb((0x33, 0x41, 0x55)).into(),
+            0,
+        );
+        lvgl_sys::lv_meter_set_indicator_start_value(ptr.as_ptr(), fondo, min.round() as i32);
+        lvgl_sys::lv_meter_set_indicator_end_value(ptr.as_ptr(), fondo, max.round() as i32);
+
         for zone in obj.gauge_zones.iter().flatten() {
             let Some(rgb) = parse_hex_color(&zone.color) else {
                 continue;
@@ -11217,11 +11375,21 @@ fn render_alarm_bell(
             .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
             .as_ptr();
         crate::lvgl_font::restore_symbols_on(ip);
+        // Icona e scritta centrate insieme, come «🔔 Allarmi» sul web: la
+        // scritta restava nell'angolo in alto a sinistra del pulsante, sotto
+        // l'icona (piano parità LVGL §1.2, 11-11-2026).
         unsafe {
-            lvgl_sys::lv_obj_align(
+            let bp = bell_lbl
+                .raw()
+                .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
+                .as_ptr();
+            lvgl_sys::lv_obj_align(bp, lvgl_sys::LV_ALIGN_CENTER as lvgl_sys::lv_align_t, 9, 0);
+            lvgl_sys::lv_obj_update_layout(bp);
+            lvgl_sys::lv_obj_align_to(
                 ip,
-                lvgl_sys::LV_ALIGN_LEFT_MID as lvgl_sys::lv_align_t,
-                2,
+                bp,
+                lvgl_sys::LV_ALIGN_OUT_LEFT_MID as lvgl_sys::lv_align_t,
+                -6,
                 0,
             );
         }
@@ -11842,7 +12010,10 @@ fn render_kpi_tile(
         warn_low: obj.warn_low,
         warn_high: obj.warn_high,
         alarm_high: obj.alarm_high,
-        color: obj.color.clone(),
+        // Senza `color` il web usa `--synoptic-text` (#e2e8f0); qui restava il
+        // testo scuro del tema, illeggibile sul fondo della tessera (piano
+        // parità LVGL §1.2, 11-11-2026).
+        color: obj.color.clone().or_else(|| Some("#e2e8f0".into())),
         ..Default::default()
     };
     // Valore e unità in una riga flessibile (25-10-2026): l'unità segue il
@@ -13205,12 +13376,7 @@ fn render_grid(
         }
 
         if let Some(bg) = &cell.bg_color {
-            let mut rect = create_child_obj(screen)?;
-            rect.set_pos(cell_x.round() as i16, cell_y.round() as i16)
-                .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
-            rect.set_size(cell_w.round() as i16, cell_h.round() as i16)
-                .map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
-            apply_bg_color(&mut rect, bg, styles)?;
+            fondo_di_cella(screen, cell_x, cell_y, cell_w, cell_h, bg)?;
         }
         if let Some(border) = &cell.border_color {
             render_cell_border(screen, cell_x, cell_y, cell_w, cell_h, border, styles)?;
@@ -13238,6 +13404,46 @@ fn render_grid(
             own_page_id,
             live,
         )?;
+    }
+    Ok(())
+}
+
+/// Il fondo di una cella con `bg_color`: solo il colore, come il `<rect>` del
+/// web. Con lo stile del tema di `lv_obj` aveva un bordo chiaro arrotondato e
+/// il padding (piano parità LVGL §1.2, 11-11-2026).
+fn fondo_di_cella(
+    screen: &mut lvgl::Obj,
+    x: f64,
+    y: f64,
+    w: f64,
+    h: f64,
+    bg: &str,
+) -> anyhow::Result<()> {
+    let Some(rgb) = parse_hex_color(bg) else {
+        return Ok(());
+    };
+    let mut rect = create_child_obj(screen)?;
+    let rp = rect
+        .raw()
+        .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
+        .as_ptr();
+    unsafe {
+        lvgl_sys::lv_obj_remove_style(
+            rp,
+            core::ptr::null_mut(),
+            (lvgl_sys::LV_PART_ANY | lvgl_sys::LV_STATE_ANY) as lvgl_sys::lv_style_selector_t,
+        );
+        lvgl_sys::lv_obj_clear_flag(
+            rp,
+            lvgl_sys::LV_OBJ_FLAG_CLICKABLE | lvgl_sys::LV_OBJ_FLAG_SCROLLABLE,
+        );
+    }
+    rect.set_pos(x.round() as i16, y.round() as i16)
+        .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+    rect.set_size(w.round() as i16, h.round() as i16)
+        .map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
+    unsafe {
+        stile::sfondo(rp, rgb, stile::MAIN);
     }
     Ok(())
 }
@@ -13299,12 +13505,7 @@ fn render_grid_slot(
                 continue;
             }
             if let Some(bg) = &entry.bg_color {
-                let mut rect = create_child_obj(screen)?;
-                rect.set_pos(geom.0.round() as i16, geom.1.round() as i16)
-                    .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
-                rect.set_size(geom.2.round() as i16, geom.3.round() as i16)
-                    .map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
-                apply_bg_color(&mut rect, bg, styles)?;
+                fondo_di_cella(screen, geom.0, geom.1, geom.2, geom.3, bg)?;
             }
             if let Some(border) = &entry.border_color {
                 render_cell_border(screen, geom.0, geom.1, geom.2, geom.3, border, styles)?;
@@ -13440,6 +13641,20 @@ fn render_recipe_panel(
             colore_campo(obj.bg_color.as_deref(), "recipe_panel", "bg_color"),
             stile::MAIN,
         );
+        // Il padding e il bordo chiaro del tema spostavano le righe: i bottoni
+        // «Applica» uscivano a destra, tagliati (piano parità LVGL §1.2,
+        // 11-11-2026). Le coordinate qui sotto sono dal bordo del pannello.
+        let cp = container
+            .raw()
+            .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
+            .as_ptr();
+        lvgl_sys::lv_obj_set_style_pad_top(cp, 0, 0);
+        lvgl_sys::lv_obj_set_style_pad_bottom(cp, 0, 0);
+        lvgl_sys::lv_obj_set_style_pad_left(cp, 0, 0);
+        lvgl_sys::lv_obj_set_style_pad_right(cp, 0, 0);
+        lvgl_sys::lv_obj_set_style_border_width(cp, 1, 0);
+        lvgl_sys::lv_obj_set_style_border_color(cp, Color::from_rgb((0x33, 0x41, 0x55)).into(), 0);
+        lvgl_sys::lv_obj_set_style_radius(cp, 4, 0);
     }
     let _ = &styles;
     let container_ptr = container.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
@@ -13515,6 +13730,13 @@ fn render_recipe_panel(
         let name_ptr = name_lbl.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
         unsafe { stile::font(name_ptr.as_ptr(), corpo as u16, stile::MAIN) };
         unsafe {
+            // Il nome in chiaro, come il pannello scuro del web: col testo del
+            // tema era scuro su scuro.
+            lvgl_sys::lv_obj_set_style_text_color(
+                name_ptr.as_ptr(),
+                Color::from_rgb((0xe2, 0xe8, 0xf0)).into(),
+                0,
+            );
             lvgl_sys::lv_label_set_long_mode(
                 name_ptr.as_ptr(),
                 lvgl_sys::LV_LABEL_LONG_DOT as lvgl_sys::lv_label_long_mode_t,
@@ -14732,7 +14954,7 @@ fn aggiorna_simbolo_lib(v: &mut VivoLib, tags: &TagSnapshot) {
 /// (fallback: default della tabella → token grezzo fra graffe se
 /// sconosciuto) — porta `resolveMsg` di `projectI18n.ts` 1:1. Testo senza
 /// `{{` passa invariato senza nemmeno scandire la stringa.
-fn resolve_msg(s: &str, lang: &str, table: &LanguageTable) -> String {
+pub(crate) fn resolve_msg(s: &str, lang: &str, table: &LanguageTable) -> String {
     if s.is_empty() || !s.contains("{{") {
         return s.to_string();
     }
@@ -15163,6 +15385,14 @@ fn render_lang_selector(
         ) {
             lvgl_sys::lv_obj_set_style_text_font(dd_ptr.as_ptr(), f, 0);
         }
+        // La freccia (`LV_SYMBOL_DOWN`) si disegna col carattere della parte
+        // indicatore, che eredita DejaVu: senza il simbolo, era un quadratino.
+        // Il Montserrat compilato ce l'ha (piano parità LVGL §1.2, 11-11-2026).
+        lvgl_sys::lv_obj_set_style_text_font(
+            dd_ptr.as_ptr(),
+            &lvgl_sys::lv_font_montserrat_14 as *const lvgl_sys::lv_font_t,
+            lvgl_sys::LV_PART_INDICATOR,
+        );
     }
     let _ = styles; // nessuno Style dedicato in questo giro, coerente col tema di default
 
@@ -15281,7 +15511,16 @@ fn dispatch_render(
             .map(|b| live.push(b)),
             None => Ok(()),
         },
-        "button" => render_button(screen, obj, styles, tag_tx, nav_tx, live),
+        "button" => render_button(
+            screen,
+            obj,
+            styles,
+            tag_tx,
+            nav_tx,
+            base_url,
+            shared_session,
+            live,
+        ),
         "navbutton" => render_navbutton(screen, obj, styles, nav_tx),
         "page_navigator" => render_page_navigator(
             screen,
@@ -15294,9 +15533,10 @@ fn dispatch_render(
             lang_table,
             &current_lang,
         ),
-        "text" => {
-            render_text(screen, obj, styles, tags, &current_lang, lang_table).map(|b| live.push(b))
-        }
+        "text" => render_text(screen, obj, styles, tags, &current_lang, lang_table).map(|b| {
+            alla_linea_di_base(&b, obj);
+            live.push(b)
+        }),
         "clock" => render_clock(screen, obj, &current_lang).map(|b| live.push(b)),
         "led" => render_led(screen, obj, tags).map(|b| live.push(b)),
         "slider" => render_slider(screen, obj, tags, tag_tx, base_url, rt_handle, live),
@@ -16888,11 +17128,7 @@ pub fn update_bindings(
                     if let Some(rgb) = parse_hex_color(&color_hex) {
                         lvgl_sys::lv_led_set_color(ptr.as_ptr(), Color::from_rgb(rgb).into());
                     }
-                    if tv.is_some() && (is_on || bad_quality) {
-                        lvgl_sys::lv_led_on(ptr.as_ptr());
-                    } else {
-                        lvgl_sys::lv_led_off(ptr.as_ptr());
-                    }
+                    luce_del_led(ptr.as_ptr(), tv.is_some() && (is_on || bad_quality));
                 }
             }
             LiveKind::BarLike {
@@ -18115,6 +18351,28 @@ mod binding_tests {
     /// Il caso che conta e' `close_popup`: fino a oggi non lo ascoltava
     /// nessuno, e il bottone «Chiudi finestra» sul pannello non faceva niente
     /// — il difetto trovato sul WP630 con `button-b_48`.
+    #[test]
+    fn la_funzione_del_bottone_parte_al_tocco_ma_non_per_login_e_logout() {
+        use super::funzione_al_tocco;
+        let b = |extra: &str| -> SynopticObject {
+            serde_json::from_str(&format!(
+                r#"{{"id":"b","type":"button","x":0,"y":0{extra}}}"#
+            ))
+            .unwrap()
+        };
+        assert_eq!(
+            funzione_al_tocco(&b(r#","on_press_fn":"accendi""#)),
+            Some("accendi")
+        );
+        assert_eq!(
+            funzione_al_tocco(&b(
+                r#","on_press_fn":"accendi","button_action":{"type":"login"}"#
+            )),
+            None
+        );
+        assert_eq!(funzione_al_tocco(&b(r#","on_press_fn":" ""#)), None);
+    }
+
     #[test]
     fn le_tre_azioni_di_finestra_di_un_bottone() {
         use super::Navigazione;

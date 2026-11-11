@@ -107,6 +107,14 @@ pub enum Comando {
         base_url: String,
         token: Option<String>,
     },
+    /// La funzione Python di un bottone, `on_press_fn` con `on_press_args`
+    /// (11-11-2026, piano parità LVGL §2.1): `POST /api/script/run/<nome>`.
+    EseguiFunzione {
+        base_url: String,
+        nome: String,
+        args: serde_json::Value,
+        token: Option<String>,
+    },
     /// La risposta alla domanda dopo un aggiornamento (03-10-2026).
     ConfermaAggiornamento {
         base_url: String,
@@ -121,6 +129,7 @@ impl Comando {
             Comando::PutTag { tag, .. } => format!("scrittura del tag '{tag}'"),
             Comando::AckAlarm { alarm_id, .. } => format!("ack dell'allarme '{alarm_id}'"),
             Comando::ApplyRecipe { id, .. } => format!("applicazione della ricetta '{id}'"),
+            Comando::EseguiFunzione { nome, .. } => format!("funzione '{nome}'"),
             Comando::AvviaAggiornamento { .. } => "avvio dell'aggiornamento".to_string(),
             Comando::AggiornaQuadlet { .. } => {
                 "aggiornamento della configurazione del servizio".to_string()
@@ -168,6 +177,25 @@ async fn esegui(cmd: Comando) -> anyhow::Result<()> {
                         Ok(_) => (true, "✓ ricetta applicata".into()),
                         Err(_) => (false, "✗ ricetta non applicata".into()),
                     });
+                }
+            }
+            r
+        }
+        Comando::EseguiFunzione {
+            base_url,
+            nome,
+            args,
+            token,
+        } => {
+            let r = client::esegui_funzione(&base_url, &nome, &args, token.as_deref()).await;
+            // Un rifiuto per ruolo lo tratta già `registra`; il resto (la
+            // funzione che non c'è o che fallisce) si dice a schermo.
+            if let Err(e) = &r {
+                let msg = e.to_string();
+                if !e_un_rifiuto(&msg) {
+                    if let Ok(mut g) = NON_ESEGUITO.lock() {
+                        *g = Some(format!("{nome}: {msg}"));
+                    }
                 }
             }
             r
@@ -285,6 +313,11 @@ fn esegui_bloccando(
 /// un difetto che si vede e uno che costa un collaudo» — e finché restava lì,
 /// qualunque 403 futuro sarebbe stato di nuovo invisibile.
 pub static RIFIUTO: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
+
+/// La funzione di un bottone che non è andata (11-11-2026, decisione 6 del
+/// piano parità LVGL): come [`RIFIUTO`], la scrive questo thread e la mostra
+/// il ciclo di rendering, così chi preme sa che non è successo niente.
+pub static NON_ESEGUITO: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
 
 /// Il messaggio d'errore dice che il server ha rifiutato per autorizzazione?
 ///

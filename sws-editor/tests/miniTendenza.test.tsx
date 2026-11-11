@@ -170,6 +170,19 @@ describe("la mini tendenza a secchielli", () => {
   });
 });
 
+describe("una mini tendenza ferma", () => {
+  // Decisione del maintainer dell'11-11-2026: a metà, come su LVGL; in basso
+  // sembrava uno zero.
+  it("sta a metà altezza, con la scala automatica", () => {
+    const m = new MiniSerie(60_000, 116);
+    for (let i = 0; i < 50; i++) m.aggiungi(T - 50_000 + i * 1000, 7.5);
+    const d = m.disegno({ larghezza: 120, altezza: 30, margine: 2 });
+    const ys = d.linea.split(" ").map((p) => Number(p.split(",")[1]));
+    expect(ys.length).toBeGreaterThan(0);
+    for (const y of ys) expect(y).toBeCloseTo(15, 5);
+  });
+});
+
 describe("l'orologio della mini tendenza", () => {
   it("un primo valore arrivato in ritardo non rifà la serie", async () => {
     // Una pagina lenta al montaggio: il primo valore si disegna 1,5 s dopo la

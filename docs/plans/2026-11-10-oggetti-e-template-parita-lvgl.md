@@ -222,6 +222,44 @@ Poi le scelte di contenuto dei template (§5) e queste tre di prodotto:
 6. **Funzione di un bottone che fallisce su LVGL**: proposta di Claude, non contestata: un breve avviso a
    schermo («Comando non eseguito») più la riga nel registro.
 
+## Fatto l'11-11-2026 sera (rami `feat/parita-lvgl`, nella 2.26.0-rc.14)
+
+Verificato col banco `tmp/parita-lvgl/`, solo su `ufficio`:
+- `foto.sh <template> <uscita> [pagina…]` avvia un runtime usa e getta e fotografa ogni pagina col viewer LVGL
+  (`--istantanea`) e col viewer web (Playwright);
+- `PAGINE_EXTRA` aggiunge pagine di prova;
+- `prova-funzione.sh` e `prova-finestra.sh` provano i bottoni e le finestre.
+
+**Fatto:**
+- **§1.1**, il testo sulla linea di base. Solo i `text` della pagina: la `kpi_tile` riusa `render_text` con
+  coordinate che sono già il bordo alto.
+- **§1.2**, in parte: celle senza bordo del tema, kpi in chiaro, led a piena luce, fondo della scala del gauge,
+  campanella centrata, freccia del `lang_selector`, `recipe_panel`.
+- **§2.1**, le funzioni dei bottoni, con l'avviso «Comando non eseguito».
+- **§3.1**, la mini tendenza ferma a metà.
+- **§4**, le finestre tradotte prima dei parametri, sui due motori.
+- **Scelta 3**, i bottoni del nebulizzatore.
+
+**Resta**:
+- **§1.2**:
+  - le linee della griglia sotto i fondi delle celle: attraversano le celle unite, quindi non si possono
+    semplicemente disegnare sopra;
+  - `faceplate_scale`;
+  - lo slider verticale a 0 %;
+  - `bg_image` dello slider (`s_img2`);
+  - la barra di scorrimento dei rettangoli bassi;
+  - i testi inglesi di `motor_basic`/`tank_level`;
+  - il `radio` disegnato a quadratini;
+  - il `lang_selector` bianco;
+  - l'immagine SVG «SWS» di `demo-items-lvgl` che non compare.
+- **Le scritte degli allarmi** («Allarmi», «Nessun allarme attivo»): su LVGL sono fisse in italiano, sul web
+  seguono l'IDE. Vanno portate nella tabella dei testi di sistema, su tutti e due.
+- **«—» per uno stato vuoto** (scelta 3): il testo di ripiego vale solo quando il valore manca, e qui il valore è
+  una stringa vuota.
+- **L'avviso «Comando non eseguito»** non si fotografa con `--istantanea`, perché arriva dopo la foto: si
+  collauda sul pannello.
+- **§2.2, §2.3, §3.2, §3.3, §5 e §6**.
+
 ## Ordine proposto
 
 1. §1.1 e §1.2 insieme, un ramo: i difetti di disegno, con le istantanee prima/dopo.

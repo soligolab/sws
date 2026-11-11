@@ -226,11 +226,15 @@ export class MiniSerie {
 
     lo = g.yMin ?? lo;
     hi = g.yMax ?? hi;
-    const range = hi - lo || 1;
     const pw = g.larghezza - g.margine * 2;
     const ph = g.altezza - g.margine * 2;
     const dx = pw / n;
-    const aY = (v: number) => g.margine + ph - ((v - lo) / range) * ph;
+    // Un valore fermo per tutta la finestra sta a metà, come su LVGL
+    // (`mini_serie.rs`): in basso sembrava uno zero (decisione del maintainer,
+    // 11-11-2026, piano parità LVGL §3.1).
+    const aY = hi > lo
+      ? (v: number) => g.margine + ph - ((v - lo) / (hi - lo)) * ph
+      : () => g.margine + ph / 2;
 
     const xs: number[] = [];
     const vs: number[] = [];

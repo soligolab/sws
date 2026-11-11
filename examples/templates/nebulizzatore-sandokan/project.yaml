@@ -17,6 +17,7 @@ tags:
 - id: sandokan.state
   description: "Sandokan — stato presa (ON/OFF)"
   data_type: string
+  write_min_role: Viewer
 - id: sandokan.power
   description: "Sandokan — potenza istantanea (W)"
   data_type: float
@@ -188,3 +189,13 @@ languages:
         it: "Tensione (V) — ultima ora"
         en: "Voltage (V) — last hour"
         es: "Tensión (V) — última hora"
+    - key: t0015
+      values:
+        it: "Accendi"
+        en: "On"
+        es: "Encender"
+    - key: t0016
+      values:
+        it: "Spegni"
+        en: "Off"
+        es: "Apagar"

@@ -36,6 +36,36 @@ use crate::model::ParametroFinestra;
 /// riferimenti fra oggetti; sostituire un `type` inventerebbe tipi.
 const ESCLUSE: [&str; 4] = ["id", "type", "group_id", "faceplate_id"];
 
+/// Traduce i segnaposti `{{chiave}}` in ogni stringa del valore, prima di
+/// [`sostituisci`] (11-11-2026, piano parità LVGL §4). Il testo di una finestra
+/// era `{{t0101}}` quando si sostituivano i parametri, e il `{nome}` arrivava
+/// solo con la traduzione al disegno, quando nessuno lo sostituiva più: la
+/// «Finestra pompa» diceva «Dettaglio di {nome}» anche con `nome` passato, e il
+/// titolo restava `{{t0105}}`.
+pub fn traduci(v: &mut serde_json::Value, tr: &dyn Fn(&str) -> String) {
+    match v {
+        serde_json::Value::String(s) => {
+            if s.contains("{{") {
+                *s = tr(s);
+            }
+        }
+        serde_json::Value::Array(a) => {
+            for x in a.iter_mut() {
+                traduci(x, tr);
+            }
+        }
+        serde_json::Value::Object(o) => {
+            for (k, val) in o.iter_mut() {
+                if ESCLUSE.contains(&k.as_str()) {
+                    continue;
+                }
+                traduci(val, tr);
+            }
+        }
+        _ => {}
+    }
+}
+
 /// Sostituisce `{nome}` in ogni stringa del valore, ricorsivamente.
 ///
 /// Un segnaposto senza valore **resta testuale** (`{nome}`), come sul web: è
@@ -171,6 +201,24 @@ pub fn titolo_finestra(
 #[cfg(test)]
 mod prove {
     use super::*;
+
+    #[test]
+    fn prima_si_traduce_poi_si_sostituisce() {
+        let mut v = serde_json::json!({
+            "finestra": { "titolo": "{{t1}}" },
+            "objects": [{ "id": "{{t2}}", "text": "{{t2}}" }]
+        });
+        let tr = |s: &str| {
+            s.replace("{{t1}}", "Finestra pompa")
+                .replace("{{t2}}", "Dettaglio di {nome}")
+        };
+        traduci(&mut v, &tr);
+        let p: HashMap<String, String> = [("nome".to_string(), "P-101".to_string())].into();
+        sostituisci(&mut v, &p);
+        assert_eq!(v["finestra"]["titolo"], "Finestra pompa");
+        assert_eq!(v["objects"][0]["text"], "Dettaglio di P-101");
+        assert_eq!(v["objects"][0]["id"], "{{t2}}", "gli id non si toccano");
+    }
 
     fn p(coppie: &[(&str, &str)]) -> HashMap<String, String> {
         coppie

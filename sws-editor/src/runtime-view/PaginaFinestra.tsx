@@ -9,6 +9,8 @@ import { useTranslation } from "react-i18next";
 import { SvgCanvas } from "@/canvas/SvgCanvas";
 import type { ButtonAction, CustomSymbol, FaceplateDef, SynopticObject, SynopticPage, TagState } from "@/types";
 import { titoloFinestra } from "@/finestre/finestra";
+import { resolveMsg } from "@/i18n/projectI18n";
+import { useLinguaContenuti } from "@/i18n/linguaContenuti";
 
 const BARRA = 32;
 
@@ -54,7 +56,11 @@ export function PaginaFinestra({ pagina, oggetti, parametri, sfondo, tagValues, 
     return () => window.removeEventListener("keydown", esc);
   }, [onClose]);
 
-  const titolo = useMemo(() => titoloFinestra(pagina, parametri), [pagina, parametri]);
+  const lingua = useLinguaContenuti();
+  const titolo = useMemo(
+    () => titoloFinestra(pagina, parametri, (x) => resolveMsg(x, lingua.lang, lingua.table)),
+    [pagina, parametri, lingua],
+  );
 
   const finestra = (
     <div data-testid="pagina-finestra" data-modale={modale ? "1" : "0"} data-gesto-proprio=""

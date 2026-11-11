@@ -12,6 +12,11 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Aggiunto
+- **I bottoni LVGL chiamano le loro funzioni Python** (piano parità LVGL §2.1). `on_press_fn` al clic (non per login e
+  logout, come sul web) e `on_release_fn` al rilascio, con i loro argomenti, via `POST /api/script/run/<nome>`. Una
+  funzione che il runtime non esegue apre «Comando non eseguito».
+- **Il nebulizzatore Sandokan accende e spegne la presa**: due bottoni su `sandokan.state`, che la sorgente MQTT
+  pubblicava già.
 - **Gruppi veri sul canvas, e un riquadro di selezione che non prende lo sfondo** (piano
   `docs/plans/2026-11-11-selezione-e-gruppi.md`, collaudo dell'11-11-2026 su Montagna). Un clic su un membro di un
   gruppo seleziona tutto il gruppo, con un riquadro tratteggiato e il suo nome, e il trascinamento lo sposta intero;
@@ -270,6 +275,20 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   il salvataggio non è finito.
 
 ### Corretto
+- **Il pannello LVGL disegna come il web** (piano `docs/plans/2026-11-10-oggetti-e-template-parita-lvgl.md`, decisioni
+  dell'11-11-2026, verificato col banco `tmp/parita-lvgl/`, che fotografa la stessa pagina coi due viewer).
+  - **Testo senza riquadro**: `y` è la linea di base come nell'`<text>` SVG, mentre prima era il bordo alto, circa un
+    corpo più in basso. I testi liberi dei progetti LVGL salgono; c'è l'avviso in `NOVITA.yaml`.
+  - **Celle con `bg_color`**: senza il bordo chiaro arrotondato del tema.
+  - **Valore della `kpi_tile` senza `color`**: in `#e2e8f0`, mentre prima era scuro su scuro.
+  - **`led`**: sempre a piena luce col colore dello stato. Prima un `off_color` grigio veniva quasi nero.
+  - **`gauge`**: ha il fondo della scala, l'arco grigio intero.
+  - **Campanella**: icona e scritta sono centrate insieme.
+  - **`lang_selector`**: la freccia usa il Montserrat; prima era un quadratino.
+  - **`recipe_panel`**: senza il padding del tema, che tagliava i bottoni «Applica», e coi nomi in chiaro.
+  - **Mini tendenza col valore fermo**: a metà su tutti e due i motori. Sul web stava in basso e sembrava uno zero.
+- **Finestre tradotte prima dei parametri**, sui due motori. La «Finestra pompa» dei gemelli diceva `{{t0105}}` e
+  «Dettaglio di {nome}» anche col nome passato; ora dice «Pompa P-101» e «Dettaglio di P-101».
 - **«Aggiorna ora» non si perde chiudendo il progetto** (collaudo della rc.13 sul TC620, 11-11-2026). Sul pannello
   copia dei dati, `in_corso` e avvio giravano dentro la richiesta HTTP. Chiudere il progetto nell'IDE durante la copia
   (877 MB, circa un minuto) faceva cadere la richiesta, e il lavoro si fermava appena finita la copia: niente

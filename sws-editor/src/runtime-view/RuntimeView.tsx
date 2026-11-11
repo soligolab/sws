@@ -188,8 +188,12 @@ export function RuntimeView() {
   const paginaFinestra = finestra ? pages.find((p) => p.id === finestra.pageId) : undefined;
   useEffect(() => { setFinestra(null); }, [currentPageId]);
   const oggettiDellaFinestra = useMemo(
-    () => (paginaFinestra && finestra ? oggettiFinestra(paginaFinestra, finestra.params) : []),
-    [paginaFinestra, finestra],
+    () => {
+      if (!paginaFinestra || !finestra) return [];
+      const lang = effectiveProjectLang(languageTable) || projectLang;
+      return oggettiFinestra(paginaFinestra, finestra.params, (x) => resolveMsg(x, lang, languageTable));
+    },
+    [paginaFinestra, finestra, languageTable, projectLang],
   );
   const sizeMode = effectiveSizeMode(project?.page_layout);
   const hideChrome = project?.page_layout?.hide_viewer_chrome === true;

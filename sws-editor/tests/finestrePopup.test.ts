@@ -31,6 +31,19 @@ describe("finestre popup", () => {
     expect(titoloFinestra({ ...pompa, finestra: { modale: true } }, {})).toBe("Dettaglio pompa");
   });
 
+  // 11-11-2026, piano parità LVGL §4: la «Finestra pompa» dei gemelli diceva
+  // `{{t0105}}` e «Dettaglio di {nome}» anche col nome passato.
+  it("prima si traduce, poi si sostituiscono i parametri", () => {
+    const tradotta: SynopticPage = {
+      ...pompa,
+      finestra: { modale: true, titolo: "{{t1}}" },
+      objects: [{ id: "{{t2}}", type: "text", x: 0, y: 0, text: "{{t2}}" }],
+    };
+    const tr = (s: string) => s.replace("{{t1}}", "Pompa {nome}").replace("{{t2}}", "Dettaglio di {nome}");
+    expect(titoloFinestra(tradotta, { nome: "P-101" }, tr)).toBe("Pompa P-101");
+    expect(oggettiFinestra(tradotta, {}, tr)[0]).toMatchObject({ id: "{{t2}}", text: "Dettaglio di 1" });
+  });
+
   it("una pagina-finestra non ha cornice e non è mai orfana", () => {
     expect(corniceDellaPagina(pompa, "base")).toBe(null);
     expect([...findOrphanPageIds([home, pompa], "home")]).toEqual([]);

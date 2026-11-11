@@ -120,6 +120,32 @@ objects:
   text_valign: middle
   color: "#e2e8f0"
 
+# ── Il comando della presa (11-11-2026, decisione 3 del piano parità LVGL) ──
+# La sorgente MQTT sa scrivere `sandokan.state` (`publish_topic`): il template
+# lo mostrava senza poterlo usare.
+- id: s_cmd_on
+  type: button
+  x: 40
+  y: 254
+  width: 72
+  height: 32
+  label: "{{t0015}}"
+  font_size: 12
+  tag: sandokan.state
+  write_value: "ON"
+  fill: "#16a34a"
+- id: s_cmd_off
+  type: button
+  x: 120
+  y: 254
+  width: 72
+  height: 32
+  label: "{{t0016}}"
+  font_size: 12
+  tag: sandokan.state
+  write_value: "OFF"
+  fill: "#475569"
+
 # ── Le letture della presa, dallo stesso topic MQTT con json_path diversi ──
 - id: s_box_letture
   type: rect

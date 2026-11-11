@@ -941,6 +941,38 @@ fn punto_tocco(s: &str) -> Option<(i32, i32)> {
 /// La sessione si azzera perché un 401/403 su una scrittura vuol dire che il
 /// server non riconosce più chi siamo: il pannello deve tornare a mostrarsi
 /// scollegato invece di continuare a far credere che i comandi passino.
+/// «Comando non eseguito»: la funzione di un bottone che il runtime non ha
+/// eseguito (11-11-2026, piano parità LVGL §2.1, decisione 6). Un riquadro sul
+/// layer superiore che si chiude col ✕, come il rifiuto qui sotto.
+fn mostra_non_eseguito() {
+    let Some(msg) = net_worker::NON_ESEGUITO
+        .lock()
+        .ok()
+        .and_then(|mut r| r.take())
+    else {
+        return;
+    };
+    unsafe {
+        let titolo = lvgl_render::text_cstring("Comando non eseguito");
+        let testo = lvgl_render::text_cstring(&msg);
+        let mbox = lvgl_sys::lv_msgbox_create(
+            core::ptr::null_mut(),
+            titolo.as_ptr(),
+            testo.as_ptr(),
+            core::ptr::null_mut(),
+            true,
+        );
+        if !mbox.is_null() {
+            lvgl_sys::lv_obj_align(
+                mbox,
+                lvgl_sys::LV_ALIGN_CENTER as lvgl_sys::lv_align_t,
+                0,
+                0,
+            );
+        }
+    }
+}
+
 fn mostra_rifiuto(shared_session: &session::SharedSession, avviso: &aggiornamento::SharedAvviso) {
     let Some(msg) = net_worker::RIFIUTO.lock().ok().and_then(|mut r| r.take()) else {
         return;
@@ -1134,6 +1166,13 @@ fn servi_finestra(
     )
     .unwrap_or_default();
     let effettivi = parametri::effettivi(&dichiarati, Some(&passati));
+    let lingua = shared_lang
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone();
+    parametri::traduci(&mut grezzo, &|s| {
+        lvgl_render::resolve_msg(s, &lingua, lang_table)
+    });
     parametri::sostituisci(&mut grezzo, &effettivi);
 
     let pagina: model::SynopticPage = match serde_json::from_value(grezzo) {
@@ -1334,6 +1373,8 @@ fn scrivi_istantanea(
                 finestra.as_ref().map(|f| f.area()),
                 overlay_avviso.credenziali(),
             );
+            // Anche nell'istantanea, così `--tocca` fotografa l'esito.
+            mostra_non_eseguito();
             // Le finestre si servono DENTRO il ciclo, fra un tocco e l'altro:
             // il secondo tocco di `--tocca "a;b"` deve poter cadere su un
             // bottone che esiste solo perché il primo ha aperto la finestra.
@@ -1606,6 +1647,7 @@ fn run_drm(
                 lvgl_render::update_bindings(&mut f.live, &tags, &lang_table, &shared_lang);
             }
             mostra_rifiuto(&shared_session, &avviso);
+            mostra_non_eseguito();
             tags
         };
         fascia_ritardo.sincronizza(
@@ -1993,6 +2035,7 @@ fn run_window(
                 lvgl_render::update_bindings(&mut f.live, &tags, &lang_table, &shared_lang);
             }
             mostra_rifiuto(&shared_session, &avviso);
+            mostra_non_eseguito();
             tags
         };
         fascia_ritardo.sincronizza(

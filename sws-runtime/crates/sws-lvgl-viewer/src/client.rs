@@ -278,6 +278,46 @@ pub async fn apply_recipe(
     Ok(())
 }
 
+/// `POST /api/script/run/<nome>` con `{"args": …}`: la funzione Python di un
+/// bottone (11-11-2026, piano parità LVGL §2.1). La rotta risponde 200 anche
+/// quando la funzione fallisce, con `ok: false` e `error`: quello è un errore
+/// qui, perché chi preme deve saperlo.
+pub async fn esegui_funzione(
+    base_url: &str,
+    nome: &str,
+    args: &serde_json::Value,
+    token: Option<&str>,
+) -> anyhow::Result<()> {
+    let mut url = reqwest::Url::parse(base_url)?;
+    url.path_segments_mut()
+        .map_err(|_| anyhow::anyhow!("base URL non può avere path segments (cannot-be-a-base)"))?
+        .push("api")
+        .push("script")
+        .push("run")
+        .push(nome);
+    let client = reqwest::Client::builder()
+        .use_preconfigured_tls(pinned_client_config(base_url)?)
+        .build()?;
+    let mut req = client.post(url).json(&serde_json::json!({ "args": args }));
+    if let Some(t) = token {
+        req = req.header("Authorization", format!("Bearer {t}"));
+    }
+    let esito: serde_json::Value = req.send().await?.error_for_status()?.json().await?;
+    esito_della_funzione(&esito)
+}
+
+/// `ScriptResult` letto: `ok: false` diventa l'errore, col testo del runtime.
+fn esito_della_funzione(esito: &serde_json::Value) -> anyhow::Result<()> {
+    if esito.get("ok").and_then(|v| v.as_bool()) == Some(false) {
+        let e = esito
+            .get("error")
+            .and_then(|v| v.as_str())
+            .unwrap_or("errore sconosciuto");
+        anyhow::bail!("{e}");
+    }
+    Ok(())
+}
+
 /// `GET /api/project` — restituisce l'intero `Project` (`sws-core::project`),
 /// di cui a questo motore serve solo `languages`. Deserializzato in un
 /// wrapper minimo invece che nel `Project` completo (che ha ~30 campi non
@@ -2376,5 +2416,18 @@ mod prove_ritardo_ws {
             let eta = aspetta(6_000, ritardo::in_ritardo).await;
             assert!(ritardo::in_ritardo(eta), "socket giù da 6 s: {eta} ms");
         });
+    }
+}
+
+#[cfg(test)]
+mod prove_funzioni {
+    use super::esito_della_funzione;
+
+    #[test]
+    fn una_funzione_fallita_e_un_errore_col_testo_del_runtime() {
+        assert!(esito_della_funzione(&serde_json::json!({"ok": true})).is_ok());
+        let e = esito_della_funzione(&serde_json::json!({"ok": false, "error": "NameError: x"}))
+            .unwrap_err();
+        assert_eq!(e.to_string(), "NameError: x");
     }
 }
