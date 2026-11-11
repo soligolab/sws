@@ -3,7 +3,7 @@
 > Nato il 10-11-2026 da `Appunti.txt` (punti del 30-10, 04-11, 05-11, 08-11 e 09-11-2026), quando il
 > maintainer ha chiesto di trasformare gli appunti in semi e piani e di eliminare il file.
 
-**Stato: piano — pronto, con tre scelte d'aspetto da chiedere prima** (la mini tendenza ferma, il
+**Stato: piano — pronto, scelte prese l'11-11-2026 (vedi «Decise l'11-11-2026»)** (la mini tendenza ferma, il
 momentaneo critico, il nebulizzatore e il suo «Stato:» — vedi «Da decidere col maintainer»).
 
 ## Da dove viene
@@ -206,6 +206,21 @@ Poi le scelte di contenuto dei template (§5) e queste tre di prodotto:
 5. **La password su LVGL** (§2.2): farla in questo piano o lasciarla come lavoro a sé, data la tastiera e la
    sessione da costruire.
 6. **Cosa mostra il pannello** quando una funzione chiamata da un bottone fallisce (§2.1).
+
+### Decise l'11-11-2026 (maintainer, dal TC620 con la rc.13)
+
+1. **Mini tendenza ferma**: la linea **a metà**, su tutti e due i motori (si cambia il `disegno` del web in
+   `miniSerie.ts`; LVGL è già così).
+2. **Momentaneo critico**: **esiste**, con la password alla pressione come sul web (poi pressione e rilascio
+   scritti insieme), e su LVGL quando c'è la password (punto 5).
+3. **`nebulizzatore-sandokan`**: proposta di Claude, non contestata: un bottone accendi/spegni sulla presa, e
+   «Stato:» mostra «—» finché non arriva un dato. Da riconfermare guardando il template.
+4. **Testo senza riquadro**: **si corregge LVGL** perché `y` sia la linea di base come sul web, con l'avviso in
+   `NOVITA.yaml`; CasaDomotica e i progetti con testi liberi vanno ricontrollati dopo.
+5. **Password e motivo su LVGL**: **in questo piano, per ultima**, come ramo a sé dopo i difetti di disegno e
+   `on_press_fn`.
+6. **Funzione di un bottone che fallisce su LVGL**: proposta di Claude, non contestata: un breve avviso a
+   schermo («Comando non eseguito») più la riga nel registro.
 
 ## Ordine proposto
 
