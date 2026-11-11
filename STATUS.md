@@ -39,6 +39,16 @@ due volte» e l'avviso giallo del riavvio nell'IDE del cloud (COLLAUDI, «Aggior
 runtime fermo (viewer leggero voce 5), poi l'assistente su Montagna: una pagina nuova con foto, fasce della cornice
 rispettate, chat staccata che si ricollega. Il TC620 di casa dalla rc.9.
 
+> **Collaudo 2.26.0-rc.12 dell'11-11 sul WP630 (rc.11 → rc.12 dal cloud, Montagna): 6 passate, 4 anomalie.** Passate:
+> «Aggiorna ora» parte una volta e l'IDE dice «si sta riavviando» in giallo; il pannello riparte; «Dati in ritardo» col
+> runtime fermo sul web, anche ricaricando; l'assistente con foto della pagina nel cloud, quattro sfondi nell'area
+> interna, niente nelle fasce; la chat dopo l'uscita vuota come da regola; Montagna 30 minuti con renderer 4-5 %, GPU 1 %,
+> runtime 12-13 % (ieri ~93 % e ~100 %), zero «lagged». Anomalie, per `fix/collaudo-rc12` e la rc.13: l'assistente non
+> conosce le finestre (`finestra` + `open_popup`); il pallino di qualità sopra un testo allineato a destra; l'assistente
+> che usa il testo senza riquadro come un riquadro; la chat staccata ferma su «No project open» dopo il rientro.
+> Aperti: il 409 del secondo aggiornamento, il LVGL (TC620), login e valori a occhio al minuto 25. «Dopo l'aggiornamento»
+> già confermato: niente ritorno alla rc.11. Dettagli in `docs/COLLAUDI_IN_SOSPESO.md`, «Collaudo 2.26.0-rc.12».
+
 > **Collaudo 2.26.0-rc.11 del 10-11 sul WP630 (dal cloud e dal pannello, progetto Montagna): 5 passati, 1 non passato, 6
 > anomalie.** Passati: login dal pannello con l'occhio (piano approvato), l'occhio nell'IDE, le kpi in modifica, la conferma
 > dell'aggiornamento, l'assistente che compone una pagina con faceplate e sfondi. Non passato: «Dati in ritardo» col

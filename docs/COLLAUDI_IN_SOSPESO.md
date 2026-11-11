@@ -34,11 +34,32 @@ sezione «Code annotate il 10-11-2026». Nell'IDE (cloud o 8460), con una chiave
 
 1. [x] **Faceplate proposti** **Confermato dal maintainer il 10-11-2026** (rc.11). Nel cloud, Montagna, kimi-k3: pagina «Vallone — stazione di pompaggio» con `fp_pompa` e tre istanze.  (fatto il 06-11, `630a0f30`): in una chat, chiedere una pagina con tre macchine uguali. La
        proposta porta un faceplate e tre istanze, il diff li elenca, dopo «Salva» c'è `faceplates/<id>.yaml`.
-2. [ ] **10-11-2026, in parte**: «Usa come base» reagisce, `genera_sfondo` e `varia_sfondo` vanno, foto e dissolvenza sul pannello dopo il deploy. Non passa: il banco perso alla riconnessione della chat, l'istantanea che nel cloud non c'è, lo sfondo invisibile nell'IDE prima e dopo il Salva, gli oggetti nelle fasce della cornice — corretti per la rc.12, da ricollaudare lì. **La conversazione intera con gli sfondi** (non passata il 05-11, corretta il 06-11): `genera_sfondo` → «Usa come
+2. [x] **Confermato dal maintainer l'11-11-2026** (rc.12, cloud, Montagna, pagina «Impianto di risalita»): istantanea della pagina nel cloud senza timeout, quattro sfondi generati, applicati e salvati, visibili prima e dopo il Salva, in `images/`, sfondo esattamente nell'area interna, nessun oggetto nelle fasce. Le anomalie nuove viste lì sono nella sezione «Collaudo 2.26.0-rc.12». **10-11-2026, in parte**: «Usa come base» reagisce, `genera_sfondo` e `varia_sfondo` vanno, foto e dissolvenza sul pannello dopo il deploy. Non passa: il banco perso alla riconnessione della chat, l'istantanea che nel cloud non c'è, lo sfondo invisibile nell'IDE prima e dopo il Salva, gli oggetti nelle fasce della cornice — corretti per la rc.12, da ricollaudare lì. **La conversazione intera con gli sfondi** (non passata il 05-11, corretta il 06-11): `genera_sfondo` → «Usa come
        base» → `varia_sfondo` → proposta → Applica → Salva → le foto in `images/`, in una chat sola. «Usa come base»
        reagisce al primo clic o dice che è in coda; nessuna istantanea in timeout.
 3. [ ] **Il banco dei tubi** (F5): un giudizio da 1 a 5 sulle due pagine del 04-11 (`tmp/ai-misure/`, solo su
        theobroma). È l'ingresso del piano «secondo giro».
+
+## Collaudo 2.26.0-rc.12 (11-11-2026)
+
+Sul WP630 dalla rc.11, dal cloud e via ssh, progetto Montagna. Le voci passate sono spuntate nelle loro sezioni
+(«Aggiorna ora» 1 e 3, viewer leggero 2, 3 e 5 web, assistente 2). Le anomalie, da correggere insieme nella rc.13:
+
+1. [ ] **L'assistente non conosce le finestre.** Chiesta una «pagina popup» coi dettagli della cabinovia, ha fatto una
+       pagina normale con un `navbutton`, che compare nei pulsanti di navigazione della cornice. Il prodotto ha
+       `finestra: {modale, titolo}` sulla pagina e il bottone `open_popup`, ma né `ai/prompt.rs` né `ai/tools.rs` li
+       nominano, e `schema_oggetto` non li fa scoprire (il campo è della pagina).
+2. [ ] **Viewer web: il pallino di qualità di un testo senza riquadro copre il testo** quando è allineato a destra o al
+       centro. `QDot` sta sempre a `x - 10` (`SvgCanvas.tsx`, ramo del testo a una riga), e con `text_anchor: end` `x`
+       è la fine del testo. Visto sui valori dei faceplate meteo e cabinovia.
+3. [ ] **L'assistente tratta il testo senza riquadro come un riquadro.** Scrive `x: 150, width: 134, text_anchor: end`
+       (voleva il bordo destro a 284) e prende `y` per il bordo alto: senza `text_wrap` il web ignora `width` e `y` è la
+       linea di base, quindi i valori finiscono a metà del faceplate e il titolo sopra la temperatura. Il prompt non
+       spiega la geometria del testo (stesso tema del piano «parità LVGL», visto dal lato dell'assistente).
+4. [ ] **La chat staccata resta su «No project open in the editor» dopo uscita, rientro e riapertura del progetto**,
+       col compositore disabilitato, finché non si ricarica la sua finestra. L'editor manda `stato` solo in risposta al
+       `ciao` della chat (`App.tsx`), non quando il progetto cambia. C'era già prima; si vede dalla rc.12 perché la chat
+       ora sopravvive all'uscita. La conversazione vuota dopo l'uscita invece è voluta (regola di `aiStream.ts`).
 
 ## «Aggiorna ora» non parte due volte (10-11-2026)
 
@@ -46,11 +67,11 @@ Fatto a casa il 10-11 (`fix/aggiornamento-in-corso`, squash `80114595`), nella *
 da un pannello **già sulla rc.11** che sale alla versione dopo: fra il clic e `in_corso` c'è l'istantanea dei dati
 (minuti con lo storico di CasaDomotica), e prima la card tornava «disponibile» con il pulsante attivo.
 
-1. [ ] Da un pannello sulla rc.11, «Aggiorna ora» verso la rc successiva, con CasaDomotica (storico grande). Durante la
+1. [x] **Confermato dal maintainer l'11-11-2026** sul WP630, rc.11 → rc.12 dal cloud, con Montagna (istantanea 2,8 MB): un solo avvio nel journal, un minuto di fermo, la card «in corso» anche cambiando scheda. Da un pannello sulla rc.11, «Aggiorna ora» verso la rc successiva, con CasaDomotica (storico grande). Durante la
        copia dei dati: cambia pagina e torna, ricarica il viewer, apri l'IDE nel cloud. Ovunque la card dice che
        l'aggiornamento è **in corso** e il pulsante resta spento; nessun secondo aggiornamento parte. Nell'IDE resta
        solo la riga dell'attesa, riletta ogni 15 s, finché il pannello non riparte.
-2. [ ] Un secondo `POST` dell'aggiornamento mentre il primo è prenotato risponde **409** (si vede nel journal del pannello
+2. [ ] 11-11-2026: non provata — nessun secondo `POST` è arrivato al pannello, quindi il 409 non si è visto; resta per il prossimo salto. Un secondo `POST` dell'aggiornamento mentre il primo è prenotato risponde **409** (si vede nel journal del pannello
        o con `curl`); dopo il riavvio lo stato torna normale e la conferma «Dopo l'aggiornamento» compare come sempre.
 
 **Visto il 10-11-2026 sul WP630, dalla rc.10 alla rc.11 (dall'IDE nel cloud):** istantanea 1,1 MB alle 11:13:57, runtime
@@ -60,7 +81,7 @@ corso» (bene); **durante il riavvio** diceva in rosso «Il dispositivo ha rispo
 cliente (parole del maintainer). Corretto sul ramo `fix/collaudo-rc11`: per dieci minuti dal clic l'IDE dice «si sta
 riavviando» in giallo e rilegge ogni 15 s; da collaudare al salto rc.11 → rc.12 (voce 3).
 
-3. [ ] Dal cloud, aggiornando un pannello sulla rc.11 alla rc.12: durante il riavvio, riaprendo Connessione, la sezione
+3. [x] **Confermato dal maintainer l'11-11-2026** (WP630, rc.11 → rc.12): scritta gialla «si sta riavviando», «Pannello non raggiungibile», niente righe rosse, esito al ritorno. Dal cloud, aggiornando un pannello sulla rc.11 alla rc.12: durante il riavvio, riaprendo Connessione, la sezione
        «Aggiornamento del runtime» dice in giallo «Il pannello si sta riavviando per l'aggiornamento…» e «Configurazione
        del servizio» dice «Pannello non raggiungibile»; niente righe rosse. Al ritorno del pannello compare l'esito.
 
@@ -72,15 +93,15 @@ password: le voci del pannello vogliono quell'immagine. Il WP630 si aggiorna dal
 prova di carico (il template ora è a 1 Hz).
 
 **Montagna sul WP630, viewer web** (progetto ancora a 10 Hz)
-1. [ ] 30 minuti sulla pagina iniziale di Montagna. Il login si apre subito. I valori sono freschi: si confrontano con
+1. [ ] 11-11-2026 (rc.12): i 30 minuti fatti, CPU piatta (voce 2); il login con «Marcia» e il confronto dei valori con l'IDE non riportati. 30 minuti sulla pagina iniziale di Montagna. Il login si apre subito. I valori sono freschi: si confrontano con
        l'IDE. Le mini tendenze scorrono anche a valore fermo.
-2. [ ] CPU del renderer con `top` (prima si chiede l'accesso SSH). Resta piatta fra il minuto 5 e il minuto 30. La base
+2. [x] **Confermato l'11-11-2026** (rc.12, WP630, Montagna a 10 Hz, 11:16–11:46, un campione al minuto): renderer 4-5 %, processo GPU 1 %, runtime 12-13 % di un core, piatti dal primo all'ultimo minuto (il 10-11 renderer ~93 % e GPU ~100 %). Misure in `tmp/test-changes/2026-11-11/` su theobroma. CPU del renderer con `top` (prima si chiede l'accesso SSH). Resta piatta fra il minuto 5 e il minuto 30. La base
        era il 96%.
-3. [ ] Journal del runtime: non c'è «ws/tags subscriber lagged». Se c'è, si apre il passo facoltativo del §8 del piano.
+3. [x] **Confermato l'11-11-2026** (rc.12): zero «lagged» nei 35 minuti. Journal del runtime: non c'è «ws/tags subscriber lagged». Se c'è, si apre il passo facoltativo del §8 del piano.
 4. [x] IDE 8460, Montagna in modifica: le kpi mostrano **Confermato dal maintainer il 10-11-2026** (rc.11).  mini tendenza e variazione.
 
 **I segnali decisi il 09-11**
-5. [ ] Dati in ritardo, **socket giù**: si ferma il runtime per 10 s (sul pannello serve SSH: chiederlo prima). Il socket
+5. [ ] 11-11-2026 (rc.12, WP630): **passa sul viewer web**, confermato dal maintainer — fascia gialla col contatore e oggetti grigi a runtime fermo, spariti al ritorno; ricaricando a runtime fermo (renderer chiuso, «Reload» sulla pagina di Chromium) «The panel is restarting…» e la pagina torna da sola. Resta il viewer LVGL (il WP630 non lo ha): sul TC620. Dati in ritardo, **socket giù**: si ferma il runtime per 10 s (sul pannello serve SSH: chiederlo prima). Il socket
        si chiude. Dopo 5 s compaiono la fascia «Dati in ritardo di N s» e gli oggetti grigi, e il numero sale di 1 al
        secondo. Al riavvio del runtime spariscono. Sul viewer web e sul viewer LVGL. *Non* staccando la rete: il socket
        resta aperto per minuti, nessuno dei due motori ha un battito, e un socket vivo e muto vale come impianto fermo
