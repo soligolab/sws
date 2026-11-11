@@ -12,6 +12,33 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — la 2.26.0-rc.12 pubblicata e sul VPS, con le correzioni del collaudo della rc.11 (2026-11-10 sera, theobroma)
+
+**Nessun ramo aperto.** `main` e il tag `2.26.0-rc.12` (`847ccd3f`) su origin con questa chiusura. Immagini
+`847ccd3f-arm64`/`-amd64`, `2.26.0-rc.12-*`, `rc-arm64`/`rc-amd64` pubblicate alle 22:15. **VPS**: gateway e Montagna su
+`847ccd3f-amd64` (ripiego rc.11), `deploy/vps/STATO.md`. **IDE 8460** sulla rc.12, Pixsys. **Pannelli**: WP630 sulla rc.11
+(spento la sera), TC620 sulla rc.9.
+
+**Fatto il 10-11** (oltre alla rc.11 del mattino, sezione sotto):
+- *Piani*: semi separati in `docs/plans/semi/`, `Appunti.txt` sciolto; archiviati i piani dell'occhio (approvato sul
+  WP630), di sws.soligo.net (SMTP per azienda fatto: catena progetto → azienda → installazione), della logica (L2
+  suggerimenti, L3 «Nuovo da modello») e dell'assistente (resto nel piano «assistente, secondo giro»).
+- *Burocrazia*: testi legali verificati e presentabili (titolare Mauro Soligo, `docs/legale/LEGGIMI.md` con cosa manca:
+  recapito, casella privacy@, datacenter OVH, journal, revisione legale); licenza doppia AGPL o commerciale dalla 2.26.0
+  (`LICENSING.md`, `CLA.md`); copia giornaliera dei dati sul VPS, 30 giorni.
+- *Collaudo della rc.11 sul WP630* (sotto): sei anomalie, tutte corrette nella rc.12 — banco della chat legato alla
+  conversazione (e all'utente), foto della pagina col motore del progetto (browser per il web, viewer LVGL nell'immagine
+  x86_64), sfondi visibili subito e dopo il Salva, oggetti fuori dalle fasce della cornice (fasce riservate e visibili in
+  modifica), viewer e IDE che aspettano il runtime invece di «No active project», anteprima delle foto non più in
+  negativo. In più: chat che si ricollega da sola dopo l'accesso, cron degli script nell'ora del pannello.
+- *Semi nuovi*: backup per azienda, seconda copia su un server remoto, avvisi delle dipendenze; il fornitore di IA
+  europeo è la fase G4 del piano «assistente, secondo giro».
+
+**Prossimo passo**: collaudo della rc.12 (`/test-changes`). Dal WP630 (rc.11 → rc.12 con «Aggiorna ora»): il «non parte
+due volte» e l'avviso giallo del riavvio nell'IDE del cloud (COLLAUDI, «Aggiorna ora» voci 1-3), «Dati in ritardo» col
+runtime fermo (viewer leggero voce 5), poi l'assistente su Montagna: una pagina nuova con foto, fasce della cornice
+rispettate, chat staccata che si ricollega. Il TC620 di casa dalla rc.9.
+
 > **Collaudo 2.26.0-rc.11 del 10-11 sul WP630 (dal cloud e dal pannello, progetto Montagna): 5 passati, 1 non passato, 6
 > anomalie.** Passati: login dal pannello con l'occhio (piano approvato), l'occhio nell'IDE, le kpi in modifica, la conferma
 > dell'aggiornamento, l'assistente che compone una pagina con faceplate e sfondi. Non passato: «Dati in ritardo» col
