@@ -22,6 +22,7 @@ import { ChatPanel } from "@/components/ChatPanel";
 import { LogPanel } from "@/components/LogPanel";
 import { apriFinestra, sorvegliaChiusura } from "@/apriFinestra";
 import { idEditore, Ponte } from "@/ai/ponte";
+import { annunciaProgettoAllaChat, progettoAperto } from "@/ai/progettoAllaChat";
 import { riassumi } from "@/ai/riassunto";
 import { fotografa } from "@/ai/fotoDalBrowser";
 import { LoginScreen } from "@/components/LoginScreen";
@@ -217,18 +218,25 @@ export function App() {
   useEffect(() => {
     if (!ponte.vivo) return;
 
+    // Le chat che si sono presentate: sono quelle a cui dire che il progetto
+    // è cambiato (`annunciaProgettoAllaChat`).
+    const chatPresentate = new Set<string>();
+    const stopProgetto = annunciaProgettoAllaChat(ponte, () => chatPresentate);
+
     const stop = ponte.ascolta((m) => {
       switch (m.t) {
         case "ciao": {
+          chatPresentate.add(m.da);
           // Una chat staccata si e' presentata: il pannello qui non deve
           // riaprirsi. Vale anche dopo un ricarico dell'editor, ed e' il modo in
           // cui l'IDE riparte sapendo di avere una chat fuori.
           setChatStaccata(true);
           const st = useAppStore.getState();
-          ponte.manda({ t: "stato", a: m.da, progetto: st.project?.meta.name ?? null });
+          ponte.manda({ t: "stato", a: m.da, progetto: progettoAperto(st) });
           break;
         }
         case "chat-chiusa":
+          chatPresentate.delete(m.da);
           setChatStaccata(false);
           finestraChat.current = null;
           break;
@@ -275,6 +283,7 @@ export function App() {
     return () => {
       window.removeEventListener("pagehide", addio);
       stop();
+      stopProgetto();
     };
   }, [ponte]);
 

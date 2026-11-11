@@ -31,7 +31,9 @@ export type MsgIn =
       ripresa?: boolean; speso?: number; tetto?: number | null }
   | { t: "testo"; delta: string }
   | { t: "pensiero"; delta: string }
-  | { t: "strumento"; nome: string; stato: "inizio" | "eseguo" | "fatto" | "errore"; messaggio?: string }
+  | { t: "strumento"; nome: string; stato: "inizio" | "scrivo" | "eseguo" | "fatto" | "errore"; messaggio?: string;
+      /** Con `scrivo`: quanto input ha scritto finora il modello, e da quanti secondi. */
+      byte?: number; secondi?: number }
   | { t: "proposta"; id: string; motivo: string;
       project?: ProjectInfo | null; pages?: SynopticPage[] | null;
       impronta?: string | null; giudizio: Giudizio;
@@ -92,7 +94,7 @@ export interface RigaDiff { verso: "+" | "-" | " "; testo: string }
 export type Riga =
   | { tipo: "utente"; testo: string }
   | { tipo: "assistente"; testo: string }
-  | { tipo: "strumento"; nome: string; stato: string; messaggio?: string }
+  | { tipo: "strumento"; nome: string; stato: string; messaggio?: string; byte?: number; secondi?: number }
   | { tipo: "sfondo"; id: string; base: boolean; luce?: string | null; approvata: boolean; jpg: string }
   | { tipo: "proposta"; msg: Extract<MsgIn, { t: "proposta" }>;
       /** Il diff calcolato quando la proposta è arrivata, e congelato lì:
@@ -108,7 +110,10 @@ export type Riga =
       /** Perché il diff non c'è. Presente solo con `diff === null` a calcolo
        *  concluso; finché è assente e `diff` è `null`, si sta calcolando. */
       diffErrore?: string;
-      esito?: "applicata" | "scartata" | "rifiutata"; nota?: string }
+      esito?: "applicata" | "scartata" | "rifiutata"; nota?: string;
+      /** Il motivo del rifiuto, non tradotto: con `storeErr.projectChanged` si
+       *  offre «Applica comunque». */
+      motivoRifiuto?: string }
   | { tipo: "errore"; testo: string }
   | { tipo: "simbolo"; slug: string; nome: string; svg: string }
   | { tipo: "immagine"; png: string; testo?: string };

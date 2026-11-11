@@ -713,6 +713,18 @@ function applyTransform(obj: SynopticObject, w: number, h: number, content: Reac
 
 // ── Quality dot overlay ───────────────────────────────────────────────────────
 
+/** Dove sta il pallino di qualità di un testo a una riga, che non ha riquadro:
+ *  `x` è il punto d'ancoraggio, non il bordo sinistro. Con `start` il testo
+ *  parte da `x` e il pallino gli sta davanti; con `end` il testo **finisce** a
+ *  `x`, e a `x - 10` il pallino cadeva sopra le ultime lettere («km/h», «°»:
+ *  collaudo della rc.12, 11-11-2026), quindi va dopo. Con `middle` va dopo la
+ *  fine stimata, con la stessa larghezza approssimata della selezione. */
+export function xPallinoTesto(x: number, anchor: string, larghezzaStimata: number): number {
+  if (anchor === "end") return x + 8;
+  if (anchor === "middle") return x + larghezzaStimata / 2 + 8;
+  return x - 10;
+}
+
 function QDot({ x, y, quality, goodColor, badColor, uncertainColor }: {
   x: number; y: number; quality: TagState["quality"];
   goodColor?: string; badColor?: string; uncertainColor?: string;
@@ -4695,7 +4707,10 @@ function SvgObjectCorpo(p: ObjProps) {
             {/* A runtime il testo non è interattivo: basta il rettangolo
                 trasparente per il click di selezione in editor. */}
           </>)}
-          {tv && obj.quality_dot !== false && <QDot x={obj.x + bw - 8} y={obj.y + 8} quality={tv.quality} goodColor={obj.quality_dot_good_color} badColor={obj.quality_dot_bad_color} uncertainColor={obj.quality_dot_uncertain_color} />}
+          {/* Nell'angolo opposto al testo: un valore allineato a destra arriva
+              fino al bordo, e nell'angolo in alto a destra il pallino gli
+              copriva le ultime lettere (11-11-2026). */}
+          {tv && obj.quality_dot !== false && <QDot x={anchor === "end" ? obj.x + 8 : obj.x + bw - 8} y={obj.y + 8} quality={tv.quality} goodColor={obj.quality_dot_good_color} badColor={obj.quality_dot_bad_color} uncertainColor={obj.quality_dot_uncertain_color} />}
         </>
       );
     }
@@ -4724,7 +4739,7 @@ function SvgObjectCorpo(p: ObjProps) {
             {content}
           </text>
         </>)}
-        {tv && obj.quality_dot !== false && <QDot x={obj.x - 10} y={obj.y - size / 2} quality={tv.quality} goodColor={obj.quality_dot_good_color} badColor={obj.quality_dot_bad_color} uncertainColor={obj.quality_dot_uncertain_color} />}
+        {tv && obj.quality_dot !== false && <QDot x={xPallinoTesto(obj.x, anchor, approxW)} y={obj.y - size / 2} quality={tv.quality} goodColor={obj.quality_dot_good_color} badColor={obj.quality_dot_bad_color} uncertainColor={obj.quality_dot_uncertain_color} />}
       </>
     );
   }

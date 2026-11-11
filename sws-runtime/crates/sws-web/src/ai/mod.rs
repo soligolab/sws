@@ -265,7 +265,7 @@ async fn sessione(socket: WebSocket, s: AppState, id_conversazione: Option<Strin
             misure,
             banco,
         } = &mut *g;
-        messaggi.push(json!({ "role": "user", "content": domanda }));
+        messaggi.push(domanda_dopo(messaggi, &domanda));
 
         let esito = match &finto {
             // La foto di un progetto web la chiede l'IDE di QUESTO socket: la
@@ -483,14 +483,35 @@ async fn vero_giro(
         }
         let inizio_giro = std::time::Instant::now();
         let tx2 = tx.clone();
+        // L'avanzamento dell'input di uno strumento arriva a ogni pezzo: alla
+        // chat basta una volta al secondo, col nome e il tempo dall'inizio.
+        let mut scrive: Option<(String, std::time::Instant, std::time::Instant)> = None;
         let risposta = cliente
             .turno(sistema.clone(), messaggi, &strumenti, move |e| match e {
                 client::Evento::Testo(t) => invia(&tx2, json!({ "t": "testo", "delta": t })),
                 client::Evento::Pensiero(t) => invia(&tx2, json!({ "t": "pensiero", "delta": t })),
-                client::Evento::StrumentoInizio { nome } => invia(
-                    &tx2,
-                    json!({ "t": "strumento", "nome": nome, "stato": "inizio" }),
-                ),
+                client::Evento::StrumentoInizio { nome } => {
+                    let ora = std::time::Instant::now();
+                    scrive = Some((nome.clone(), ora, ora));
+                    invia(
+                        &tx2,
+                        json!({ "t": "strumento", "nome": nome, "stato": "inizio" }),
+                    )
+                }
+                client::Evento::StrumentoScrive { byte } => {
+                    let Some((nome, inizio, ultimo)) = scrive.as_mut() else {
+                        return;
+                    };
+                    if ultimo.elapsed() < std::time::Duration::from_secs(1) {
+                        return;
+                    }
+                    *ultimo = std::time::Instant::now();
+                    invia(
+                        &tx2,
+                        json!({ "t": "strumento", "nome": nome, "stato": "scrivo",
+                                "byte": byte, "secondi": inizio.elapsed().as_secs() }),
+                    );
+                }
             })
             .await
             .map_err(|e| format!("{e:#}"))?;
@@ -839,6 +860,43 @@ fn risultato(id: &str, contenuto: &Value, errore: bool) -> Value {
         v["is_error"] = Value::Bool(true);
     }
     v
+}
+
+/// Il messaggio della persona, con le risposte agli strumenti rimasti aperti.
+///
+/// `proponi_modifica` chiude il turno senza un `tool_result`: l'esito lo
+/// decide la persona, nel browser. Ma l'API rifiuta una conversazione in cui
+/// un `tool_use` resta senza risposta, e la domanda successiva tornava «400
+/// Bad Request: tool_call_ids did not have response messages» (collaudo della
+/// rc.12, 11-11-2026, chiedendo un'altra modifica dopo aver applicato la
+/// prima). Le risposte vanno nello stesso messaggio della domanda, prima del
+/// testo: due messaggi `user` di fila non tutti i fornitori li accettano.
+fn domanda_dopo(messaggi: &[Value], domanda: &str) -> Value {
+    let aperti: Vec<&str> = messaggi
+        .last()
+        .filter(|m| m.get("role").and_then(Value::as_str) == Some("assistant"))
+        .and_then(|m| m.get("content"))
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter(|b| b.get("type").and_then(Value::as_str) == Some("tool_use"))
+        .filter_map(|b| b.get("id").and_then(Value::as_str))
+        .collect();
+    if aperti.is_empty() {
+        return json!({ "role": "user", "content": domanda });
+    }
+    let mut blocchi: Vec<Value> = aperti
+        .into_iter()
+        .map(|id| {
+            json!({
+                "type": "tool_result", "tool_use_id": id,
+                "content": "La proposta è andata alla persona, che l'ha applicata o scartata. \
+                            Il progetto di adesso si rilegge con gli strumenti.",
+            })
+        })
+        .collect();
+    blocchi.push(json!({ "type": "text", "text": domanda }));
+    json!({ "role": "user", "content": blocchi })
 }
 
 enum Proposta {
@@ -1222,6 +1280,45 @@ async fn componi_da_patch(s: &AppState, input: &Value, patch: &Value) -> Result<
 
 /// I blocchi che l'istantanea consegna al modello: l'unica parte di quel
 /// percorso provabile senza un modello e senza far girare LVGL.
+#[cfg(test)]
+mod tests_domanda_dopo {
+    use super::*;
+
+    #[test]
+    fn dopo_una_proposta_la_domanda_chiude_gli_strumenti_aperti() {
+        let messaggi = vec![
+            json!({ "role": "user", "content": "trasforma la pagina" }),
+            json!({ "role": "assistant", "content": [
+                { "type": "text", "text": "Propongo" },
+                { "type": "tool_use", "id": "proponi_modifica:10", "name": "proponi_modifica", "input": {} },
+            ]}),
+        ];
+        let m = domanda_dopo(&messaggi, "ora gli sfondi");
+        let blocchi = m["content"].as_array().unwrap();
+        assert_eq!(blocchi.len(), 2);
+        assert_eq!(blocchi[0]["type"], "tool_result");
+        assert_eq!(blocchi[0]["tool_use_id"], "proponi_modifica:10");
+        assert_eq!(
+            blocchi[1],
+            json!({ "type": "text", "text": "ora gli sfondi" })
+        );
+    }
+
+    #[test]
+    fn senza_strumenti_aperti_la_domanda_resta_testo() {
+        let messaggi =
+            vec![json!({ "role": "assistant", "content": [{ "type": "text", "text": "Fatto" }] })];
+        assert_eq!(
+            domanda_dopo(&messaggi, "ciao"),
+            json!({ "role": "user", "content": "ciao" })
+        );
+        assert_eq!(
+            domanda_dopo(&[], "ciao"),
+            json!({ "role": "user", "content": "ciao" })
+        );
+    }
+}
+
 #[cfg(test)]
 mod tests_istantanea {
     use super::*;

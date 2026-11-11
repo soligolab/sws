@@ -22,6 +22,7 @@
 //!   project README / OPEN_QUESTIONS Q1).
 
 use pyo3::prelude::*;
+use pyo3::sync::PyOnceLock;
 use pyo3::types::PyDict;
 use serde::Serialize;
 use std::{
@@ -251,7 +252,9 @@ const DEFAULT_TIMEOUT_MS: u64 = 5_000;
 /// The user source is injected as `__sws_user_source__` (a Python str)
 /// alongside `__sws_sandbox__` (a bool flag), `__sws_api__` (the objects of
 /// `NOMI_FORNITI`, by name), `__sws_builtin_aggiunti__` (`BUILTIN_AGGIUNTI`)
-/// and `__sws_kill_switch__` (a Rust-backed object polled by the trace fn).
+/// `__sws_kill_switch__` (a Rust-backed object polled by the trace fn) and
+/// `__sws_code_cache__` (`CODICE_COMPILATO`: the compiled user code, kept
+/// between runs and keyed by sandbox flag and source text).
 ///
 /// In the sandbox branch the globals also carry the guards RestrictedPython
 /// rewrites code into: `_print_`, `_getiter_` (`for`, comprehensions),
@@ -266,8 +269,11 @@ const DEFAULT_TIMEOUT_MS: u64 = 5_000;
 /// `schema_python` says so, and `demo-sim` keeps its table inside the `def`.
 ///
 /// Preemption: `sys.settrace` installs a per-bytecode-boundary trace function
-/// that checks `__sws_kill_switch__.is_set()`.  A Rust timer thread sets the
-/// switch after `SWS_SCRIPT_TIMEOUT_MS`.  On detection, `KeyboardInterrupt`
+/// that checks `__sws_kill_switch__.is_set()`, true once the run's deadline
+/// (`SWS_SCRIPT_TIMEOUT_MS` from the start) has passed.  The trace is armed
+/// right before `exec`, not before the compile: compiling is our code and
+/// RestrictedPython's, it holds no user loop, and tracing it cost two thirds
+/// of a run (11-11-2026).  On detection, `KeyboardInterrupt`
 /// is raised and caught by the inner `except KeyboardInterrupt` clause, which
 /// sets a clean timeout error string.  The outer `finally` always clears the
 /// trace so the `spawn_blocking` thread is left in a sane state.
@@ -281,12 +287,14 @@ import io, sys, traceback
 
 # ── Soft preemption ───────────────────────────────────────────────────────────
 # Fires at every Python call/line/return event.  Cost is one `is_set()` call
-# (an atomic load) per bytecode boundary — negligible for SCADA scripts.
+# (a clock read) per bytecode boundary — negligible for SCADA scripts.
+# Installata solo intorno a `exec` (11-11-2026): prima stava qui, e tracciava
+# anche `compile_restricted` — circa 19 000 eventi di `ast.py` e di
+# RestrictedPython contro i 25 di uno script tipico, due terzi del giro.
 def __sws_trace__(frame, event, arg):
     if __sws_kill_switch__.is_set():
         raise KeyboardInterrupt("SWS script timeout")
     return __sws_trace__
-sys.settrace(__sws_trace__)
 
 # ── I/O capture and execution ────────────────────────────────────────────────
 __sws_out__ = io.StringIO()
@@ -351,9 +359,11 @@ try:
             # Gli avvisi di RestrictedPython («Prints, but never reads
             # 'printed'») sono benigni e finirebbero sullo stderr del processo
             # a ogni giro: lo stesso filtro del controllo.
-            with __sws_w__.catch_warnings():
-                __sws_w__.simplefilter('ignore')
-                __sws_compiled__ = compile_restricted(__sws_user_source__, '<inline>', 'exec')
+            __sws_compiled__ = __sws_code_cache__.get((True, __sws_user_source__))
+            if __sws_compiled__ is None:
+                with __sws_w__.catch_warnings():
+                    __sws_w__.simplefilter('ignore')
+                    __sws_compiled__ = compile_restricted(__sws_user_source__, '<inline>', 'exec')
         except SyntaxError as _e:
             __sws_error__ = f'SyntaxError: {_e}'
     else:
@@ -367,9 +377,20 @@ try:
         __sws_globals__.update(__sws_api__)
         __sws_globals__['print'] = __sws_print__
         try:
-            __sws_compiled__ = compile(__sws_user_source__, '<inline>', 'exec')
+            __sws_compiled__ = __sws_code_cache__.get((False, __sws_user_source__))
+            if __sws_compiled__ is None:
+                __sws_compiled__ = compile(__sws_user_source__, '<inline>', 'exec')
         except SyntaxError as _e:
             __sws_error__ = f'SyntaxError: {_e}'
+
+    # Il codice compilato si tiene fra un giro e l'altro (11-11-2026): uno
+    # script a 1 s si ricompilava 86 400 volte al giorno, sempre uguale. La
+    # chiave è il testo intero, quindi uno script modificato si ricompila da
+    # solo; il tetto tiene a bada i testi vecchi lasciati dalle modifiche.
+    if __sws_compiled__ is not None:
+        if len(__sws_code_cache__) >= 256:
+            __sws_code_cache__.clear()
+        __sws_code_cache__[(__sws_sandbox__, __sws_user_source__)] = __sws_compiled__
 
     # Inject per-call arguments as plain globals.  `__sws_args__` is always a
     # dict (possibly empty).  Param-name safety is enforced server-side at PUT
@@ -381,6 +402,7 @@ try:
         _orig_out, _orig_err = sys.stdout, sys.stderr
         sys.stdout, sys.stderr = __sws_out__, __sws_err__
         try:
+            sys.settrace(__sws_trace__)
             exec(__sws_compiled__, __sws_globals__, {})
         except KeyboardInterrupt:
             __sws_error__ = 'TimeoutError: script exceeded the configured timeout (SWS_SCRIPT_TIMEOUT_MS)'
@@ -647,20 +669,34 @@ impl TagApi {
     }
 }
 
-/// Python-visible object whose `is_set()` method polls the Rust-owned kill flag.
-/// Injected as `__sws_kill_switch__` into every script run; the trace function
-/// calls it at each bytecode boundary to implement soft preemption.
+/// Python-visible object whose `is_set()` method says whether the run's
+/// deadline has passed. Injected as `__sws_kill_switch__` into every script
+/// run; the trace function calls it at each bytecode boundary to implement
+/// soft preemption.
+///
+/// Una scadenza e non un flag alzato da un thread (11-11-2026): il thread
+/// dormiva tutto il timeout anche quando lo script finiva in un millisecondo,
+/// e due script a 1 s ne tenevano dieci vivi per sempre, senza far niente.
 #[pyclass]
 struct KillSwitch {
-    flag: Arc<AtomicBool>,
+    scadenza: Instant,
 }
 
 #[pymethods]
 impl KillSwitch {
     fn is_set(&self) -> bool {
-        self.flag.load(Ordering::Relaxed)
+        Instant::now() >= self.scadenza
     }
 }
+
+/// Il codice degli script già compilato, per testo: `(sandbox, sorgente) →
+/// codice`. Lo legge e lo scrive l'harness (`__sws_code_cache__`); qui c'è
+/// solo perché duri fra un giro e l'altro.
+static CODICE_COMPILATO: PyOnceLock<Py<PyDict>> = PyOnceLock::new();
+
+/// L'harness compilato una volta sola: prima `py.run` ricompilava il suo
+/// testo a ogni giro (~0,8 ms su x86).
+static HARNESS_COMPILATO: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 
 fn py_to_tagvalue(any: &Bound<'_, PyAny>) -> PyResult<TagValue> {
     // Order matters: bool extracts as int in Python (True == 1), so check it first.
@@ -1188,21 +1224,15 @@ fn run_in_python(
     functions_registry: Option<FunctionsRegistry>,
     engine_for_functions: Engine,
 ) -> Result<ExecOutput, String> {
-    // Arm the kill switch.  A timer thread flips `kill_flag` after `timeout`;
-    // the Python trace function detects it and raises KeyboardInterrupt.
-    // The timer thread itself is cheap (just sleeping) and terminates naturally.
-    let kill_flag = Arc::new(AtomicBool::new(false));
-    let kf = kill_flag.clone();
-    std::thread::spawn(move || {
-        std::thread::sleep(timeout);
-        kf.store(true, Ordering::Relaxed);
-    });
+    // Arm the kill switch: past this instant the Python trace function raises
+    // KeyboardInterrupt.
+    let scadenza = Instant::now() + timeout;
 
     Python::attach(|py| -> PyResult<ExecOutput> {
         let handle_for_functions = handle.clone();
         let api = Py::new(py, TagApi { db, bus, handle })?;
         let notifier = Py::new(py, Notifier { tx: telegram_tx })?;
-        let kill_switch = Py::new(py, KillSwitch { flag: kill_flag })?;
+        let kill_switch = Py::new(py, KillSwitch { scadenza })?;
         // T-69: `now_ms`/`uptime_ms`/`delta_ms` are frozen at the values
         // computed once in `execute_with_args` before this call — see the
         // comment there for why. `state` shares the caller's `scratch` Arc,
@@ -1255,10 +1285,16 @@ fn run_in_python(
         globals.set_item("__sws_user_source__", user_source)?;
         globals.set_item("__sws_sandbox__", sandbox)?;
         globals.set_item("__sws_args__", json_map_to_pydict(py, &args)?)?;
+        globals.set_item(
+            "__sws_code_cache__",
+            CODICE_COMPILATO.get_or_init(py, || PyDict::new(py).unbind()).bind(py),
+        )?;
 
-        let c_code =
-            CString::new(HARNESS).expect("HARNESS contains a NUL byte — should not happen");
-        py.run(c_code.as_c_str(), Some(&globals), None)?;
+        let harness = HARNESS_COMPILATO.get_or_try_init(py, || -> PyResult<Py<PyAny>> {
+            let builtins = py.import("builtins")?;
+            Ok(builtins.getattr("compile")?.call1((HARNESS, "<sws-harness>", "exec"))?.unbind())
+        })?;
+        py.import("builtins")?.getattr("exec")?.call1((harness.bind(py), &globals))?;
 
         let stdout = globals
             .get_item("__sws_stdout_capture__")?
@@ -2437,5 +2473,73 @@ mod tests_modelli_ide {
                 }
             }
         }
+    }
+}
+
+/// Il giro leggero (11-11-2026): il timeout si controlla solo durante `exec`,
+/// il codice compilato si tiene fra un giro e l'altro, e la scadenza non ha
+/// più un thread che dorme. Come i test di L0, girano con e senza
+/// RestrictedPython e asseriscono la stessa cosa.
+#[cfg(test)]
+mod tests_giro_leggero {
+    use super::*;
+
+    fn motore() -> Engine {
+        Engine::new(Arc::new(TagDb::new(16)), Arc::new(TagWriteBus::new()))
+    }
+
+    /// Un ciclo infinito si ferma ancora, e si ferma **davvero**: Tokio smette
+    /// di aspettare allo scadere (e vince la corsa col trace, come prima), ma il
+    /// thread deve uscire dal ciclo subito dopo invece di girare per sempre.
+    /// Lo si vede dal contatore che lo script scrive: dopo lo scadere sta fermo.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn un_ciclo_infinito_si_ferma_davvero() {
+        let db = Arc::new(TagDb::new(16));
+        let mut e = Engine::new(db.clone(), Arc::new(TagWriteBus::new()));
+        e.timeout = Duration::from_millis(300);
+        let err = e
+            .execute("n = 0\nwhile True:\n    n = n + 1\n    tags.write('giri', n)\n".into(), "loop")
+            .await
+            .expect_err("il ciclo doveva essere interrotto");
+        assert!(err.contains("timed out") || err.contains("TimeoutError"), "{err}");
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        let prima = db.snapshot().await.get("giri").map(|s| s.value.clone());
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        let dopo = db.snapshot().await.get("giri").map(|s| s.value.clone());
+        assert!(prima.is_some(), "lo script non ha mai scritto il contatore");
+        assert_eq!(prima, dopo, "il ciclo gira ancora dopo lo scadere");
+    }
+
+    /// Il codice tenuto da parte è quello del testo: uno script modificato
+    /// stampa il valore nuovo al giro dopo, non quello vecchio.
+    #[tokio::test]
+    async fn uno_script_modificato_si_ricompila() {
+        let e = motore();
+        let a = e.execute("print('prima')\n".into(), "s").await.unwrap();
+        let a2 = e.execute("print('prima')\n".into(), "s").await.unwrap();
+        let b = e.execute("print('dopo')\n".into(), "s").await.unwrap();
+        assert_eq!(a.stdout, "prima\n");
+        assert_eq!(a2.stdout, "prima\n", "dal codice tenuto da parte");
+        assert_eq!(b.stdout, "dopo\n");
+    }
+
+    /// Un errore di sintassi non entra fra il codice compilato, e si
+    /// ripresenta a ogni giro invece di sparire al secondo.
+    #[tokio::test]
+    async fn un_errore_di_sintassi_resta_un_errore() {
+        let e = motore();
+        for _ in 0..2 {
+            let err = e.execute("if True print(1)\n".into(), "rotto").await.unwrap_err();
+            assert!(err.contains("SyntaxError"), "{err}");
+        }
+    }
+
+    /// Lo stesso testo con e senza sandbox non si scambia il codice: quello di
+    /// RestrictedPython chiama le guardie, che senza sandbox non ci sono.
+    #[test]
+    fn la_chiave_porta_la_sandbox() {
+        assert!(HARNESS.contains("__sws_code_cache__.get((True, __sws_user_source__))"));
+        assert!(HARNESS.contains("__sws_code_cache__.get((False, __sws_user_source__))"));
+        assert!(HARNESS.contains("__sws_code_cache__[(__sws_sandbox__, __sws_user_source__)]"));
     }
 }

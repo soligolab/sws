@@ -423,6 +423,9 @@
     "diffUnavailable": "Changes could not be computed: {{err}}. This does not mean «no changes» — don't apply without knowing what changes.",
     "noConfirm": "No confirmation from the editor. The proposal may have been applied anyway: check the canvas before retrying.",
     "applyBlocked": "The editor window is not responding: there is nowhere to apply.",
+    "applyAnyway": "Apply anyway",
+    "applyAnywayHint": "Changes made on disk outside this editor will be lost at the next Save.",
+    "toolWriting": "writing · {{kb}} kB · {{tempo}}",
     "risorseHide": "Hide the resources row (re-enable from here)",
     "risorseShow": "Show tokens and credit",
     "risorseIn": "in",
@@ -2155,7 +2158,7 @@
     "objectNotFound": "Object not found.",
     "mergeOverflow": "Cell ({{row}},{{col}}) already has a merge that would overflow.",
     "noProject": "No project open.",
-    "projectChanged": "The project has changed since the assistant read it: the proposal was discarded. Ask again and it will rebuild it on the current one.",
+    "projectChanged": "The project has changed since the assistant read it: the proposal was not applied. Ask again and it will rebuild it on the current one, or apply it anyway.",
     "cannotVerify": "Cannot verify that the project has not changed in the meantime. Try again when the runtime responds.",
     "scriptsKept": "The proposal did not include the project's scripts: the existing ones were kept. If the assistant was meant to change one, the change is not there.",
     "unsavedNote": "There were unsaved changes: the assistant read the pages from disk, so the replaced pages go back to the saved version. Ctrl+Z undoes everything."

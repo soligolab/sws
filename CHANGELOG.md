@@ -260,6 +260,26 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   il salvataggio non è finito.
 
 ### Corretto
+- **Le anomalie del collaudo della rc.12** (11-11-2026, WP630, Montagna; `docs/COLLAUDI_IN_SOSPESO.md`, «Collaudo
+  2.26.0-rc.12»). *L'assistente e le finestre*: chiesta una pagina popup, faceva una pagina normale con un
+  `navbutton`, che finiva fra i pulsanti della cornice, perché né il prompt né gli strumenti nominavano `finestra` e
+  `open_popup`; ora `ai/prompt.rs` spiega la pagina-finestra (`finestra: {modale, titolo}`, `open_popup`/`close_popup`,
+  `finestra_parametri` e `params` come nei faceplate). *L'assistente e il testo*: trattava un `text` senza riquadro
+  come un riquadro (`width` con `text_anchor: end`, `y` come bordo alto), e i valori finivano a metà dei faceplate;
+  il prompt ora dice la geometria e chiede `text_wrap: true` per impaginare, uguale sui due motori. *Il pallino di
+  qualità sul web*: per un testo a una riga stava sempre a `x - 10`, sopra le ultime lettere di un valore allineato a
+  destra; ora segue l'ancoraggio (`xPallinoTesto` in `SvgCanvas.tsx`), e in un testo con riquadro allineato a destra
+  va nell'angolo opposto. *La chat staccata*: dopo uscita, rientro e progetto riaperto restava su «No project open in
+  the editor» col compositore spento, perché l'editor diceva il progetto solo in risposta al `ciao`; ora lo annuncia
+  a ogni cambio (`ai/progettoAllaChat.ts`). Test `progettoAllaChat.test.ts`, `pallinoTesto.test.ts`.
+- **Gli script Python costano meno** (11-11-2026, seme «sandbox degli script, secondo giro», voci B1 e B2; misura sul
+  WP630 con Montagna: due script a 1 s valevano ~6,5 % di un core, metà del runtime). Il controllo del timeout
+  (`sys.settrace`) si accende subito prima di `exec` e non più prima di `compile_restricted`, che tracciava ~19 000
+  eventi di `ast.py` e RestrictedPython per giro; il codice compilato si tiene fra un giro e l'altro, per testo e
+  sandbox, con un tetto di 256 (`__sws_code_cache__`); l'harness si compila una volta sola. La scadenza è un istante
+  e non più un thread che dormiva 5 s a ogni giro (dieci thread fermi per sempre con due script a 1 s). Su x86, con
+  la sandbox vera: da 4,5 a 2,3 ms per giro. Test `tests_giro_leggero` (il ciclo infinito si ferma davvero, uno
+  script modificato si ricompila, un errore di sintassi resta tale).
 - **La chat si ricollega da sola dopo l'accesso** (10-11-2026, collaudo della rc.11). Con la chat aperta prima
   dell'accesso (sessione scaduta e nuovo login, o accesso dopo averla aperta) il pannello restava in ascolto sul socket
   aperto col token vecchio e mostrava «…» per sempre al posto del modello, finché non si ricaricava la pagina.

@@ -168,7 +168,7 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
           // mostrarlo invita a leggerlo invece del diff.
           break;
         case "strumento":
-          setRighe((r) => aggiornaStrumento(r, m.nome, m.stato, m.messaggio));
+          setRighe((r) => aggiornaStrumento(r, m.nome, m.stato, m.messaggio, m.byte, m.secondi));
           break;
         case "proposta": {
           // Il diff si chiede **adesso**, contro lo stato di adesso, e resta
@@ -261,7 +261,11 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
     setAttesa(true);
   };
 
-  const applica = async (indice: number) => {
+  /** `comunque`: senza il controllo dell'impronta, dopo un «il progetto è
+   *  cambiato». Rifare la domanda costa minuti e denaro, e a volte il cambio su
+   *  disco non tocca niente della proposta (immagini copiate, un salvataggio
+   *  da un'altra scheda): lo decide la persona. */
+  const applica = async (indice: number, comunque = false) => {
     const riga = righe[indice];
     if (riga?.tipo !== "proposta") return;
     const esito = await editor.applica({
@@ -269,13 +273,14 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
       motivo: riga.msg.motivo,
       project: riga.msg.project,
       pages: riga.msg.pages,
-      impronta: riga.msg.impronta,
+      impronta: comunque ? null : riga.msg.impronta,
       sfondi: riga.msg.sfondi,
       faceplates: riga.msg.faceplates,
     });
     setRighe((r) => r.map((x, i) => i !== indice || x.tipo !== "proposta" ? x : {
       ...x,
       esito: esito.ok ? "applicata" : "rifiutata",
+      motivoRifiuto: esito.ok ? undefined : esito.motivo,
       // La sentinella del ponte scaduto diventa la frase che dice la verità:
       // un timeout non dimostra che la proposta non sia stata applicata.
       nota: esito.ok ? traduciEsito(esito.avviso)
@@ -447,12 +452,15 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
                     color: r.stato === "errore" ? "var(--brand-danger, #ef4444)"
                                                 : "var(--brand-text-subtle, #64748b)" }}>
                 {icona} {r.nome}{r.messaggio ? ` — ${r.messaggio}` : ""}
+                {r.stato === "scrivo" && r.byte != null
+                  ? ` — ${t("chat.toolWriting", avanzamento(r.byte, r.secondi ?? 0))}` : ""}
               </div>
             );
           }
           return (
             <Proposta key={i} riga={r} bloccato={!!avviso}
-                      onApplica={() => applica(i)} onScarta={() => scarta(i)} />
+                      onApplica={() => applica(i)} onApplicaComunque={() => applica(i, true)}
+                      onScarta={() => scarta(i)} />
           );
         })}
         {attesa && <div style={RIGA_STRUMENTO}>…</div>}
@@ -484,11 +492,12 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
 // La proposta e il suo diff
 // ─────────────────────────────────────────────────────────────────────────────
 
-function Proposta({ riga, bloccato, onApplica, onScarta }: {
+function Proposta({ riga, bloccato, onApplica, onApplicaComunque, onScarta }: {
   riga: Extract<Riga, { tipo: "proposta" }>;
   /** L'editor non è raggiungibile: si legge, ma non si applica. */
   bloccato?: boolean;
   onApplica: () => void;
+  onApplicaComunque: () => void;
   onScarta: () => void;
 }) {
   const { t } = useTranslation();
@@ -584,6 +593,15 @@ function Proposta({ riga, bloccato, onApplica, onScarta }: {
                           ? "var(--brand-success, #22c55e)" : "var(--brand-text-subtle, #64748b)" }}>
           {t(`chat.outcome.${riga.esito}`)}
           {riga.nota ? <div style={{ marginTop: 4, color: "var(--brand-warning, #f59e0b)" }}>{riga.nota}</div> : null}
+          {riga.motivoRifiuto === "storeErr.projectChanged" && (
+            <div style={{ marginTop: 6 }}>
+              <button style={{ ...BTN, opacity: bloccato ? 0.5 : 1 }} disabled={bloccato}
+                      onClick={onApplicaComunque}>{t("chat.applyAnyway")}</button>
+              <div style={{ marginTop: 4, color: "var(--brand-text-subtle, #64748b)" }}>
+                {t("chat.applyAnywayHint")}
+              </div>
+            </div>
+          )}
         </div>
       ) : (
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
@@ -631,17 +649,28 @@ function appendiTesto(righe: Riga[], delta: string): Riga[] {
 /** Uno strumento che passa da «eseguo» a «fatto» aggiorna la sua riga invece
  *  di aggiungerne una: altrimenti una conversazione di dieci strumenti diventa
  *  venti righe di rumore. */
-function aggiornaStrumento(righe: Riga[], nome: string, stato: string, messaggio?: string): Riga[] {
+export function aggiornaStrumento(righe: Riga[], nome: string, stato: string, messaggio?: string,
+                                  byte?: number, secondi?: number): Riga[] {
+  const nuova: Riga = { tipo: "strumento", nome, stato, messaggio, byte, secondi };
   for (let i = righe.length - 1; i >= 0; i--) {
     const r = righe[i];
     if (r.tipo !== "strumento") break;
     if (r.nome === nome && r.stato !== "fatto" && r.stato !== "errore") {
       const copia = [...righe];
-      copia[i] = { tipo: "strumento", nome, stato, messaggio };
+      copia[i] = nuova;
       return copia;
     }
   }
-  return [...righe, { tipo: "strumento", nome, stato, messaggio }];
+  return [...righe, nuova];
+}
+
+/** «38 kB · 2:14»: quanto ha scritto il modello e da quanto. Serve a dire che
+ *  sta lavorando: una proposta su sei pagine sono minuti di silenzio, e la chat
+ *  ferma su «… valida» sembrava morta (11-11-2026). */
+export function avanzamento(byte: number, secondi: number): { kb: string; tempo: string } {
+  const m = Math.floor(secondi / 60);
+  const s = String(secondi % 60).padStart(2, "0");
+  return { kb: String(Math.max(1, Math.round(byte / 1024))), tempo: `${m}:${s}` };
 }
 
 // ── Stili, sulla falsariga di LogPanel ───────────────────────────────────────

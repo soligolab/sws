@@ -562,6 +562,12 @@ pub enum Evento {
     StrumentoInizio {
         nome: String,
     },
+    /// Un altro pezzo dell'input di quella chiamata: quanto è lungo finora.
+    /// Una proposta su sei pagine sono minuti di input, e senza questo la chat
+    /// restava ferma su «… valida» come se fosse morta (11-11-2026).
+    StrumentoScrive {
+        byte: usize,
+    },
 }
 
 /// Il corpo della richiesta. Fuori dal metodo perché è la parte che può
@@ -797,7 +803,11 @@ fn applica_evento(
                 }
                 "input_json_delta" => {
                     if let Some(t) = delta.get("partial_json").and_then(Value::as_str) {
-                        parziali.entry(idx).or_default().push_str(t);
+                        let parziale = parziali.entry(idx).or_default();
+                        parziale.push_str(t);
+                        on_event(Evento::StrumentoScrive {
+                            byte: parziale.len(),
+                        });
                     }
                 }
                 _ => {}

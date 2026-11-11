@@ -423,6 +423,9 @@
     "diffUnavailable": "Modifiche non calcolabili: {{err}}. Non significa «nessuna modifica» — non applicare senza sapere cosa cambia.",
     "noConfirm": "Nessuna conferma dall'editor. La proposta potrebbe essere stata applicata comunque: controlla il canvas prima di riprovare.",
     "applyBlocked": "La finestra dell'editor non risponde: non c'è dove applicare.",
+    "applyAnyway": "Applica comunque",
+    "applyAnywayHint": "Le modifiche fatte su disco fuori da questo editor andranno perse al prossimo Salva.",
+    "toolWriting": "scrivo · {{kb}} kB · {{tempo}}",
     "risorseHide": "Nascondi la riga risorse (si riattiva da qui)",
     "risorseShow": "Mostra token e credito",
     "risorseIn": "in",
@@ -2155,7 +2158,7 @@
     "objectNotFound": "Oggetto non trovato.",
     "mergeOverflow": "La cella ({{row}},{{col}}) ha già un merge che sborderebbe.",
     "noProject": "Nessun progetto aperto.",
-    "projectChanged": "Il progetto è cambiato da quando l'assistente l'ha letto: la proposta è stata scartata. Richiedila e la ricostruirà su quello attuale.",
+    "projectChanged": "Il progetto è cambiato da quando l'assistente l'ha letto: la proposta non è stata applicata. Richiedila e la ricostruirà su quello attuale, oppure applicala comunque.",
     "cannotVerify": "Non riesco a verificare che il progetto non sia cambiato nel frattempo. Riprova quando il runtime risponde.",
     "scriptsKept": "La proposta non conteneva gli script del progetto: sono stati tenuti quelli esistenti. Se l'assistente doveva modificarne uno, la modifica non c'è.",
     "unsavedNote": "C'erano modifiche non salvate: l'assistente ha letto le pagine dal disco, quindi le pagine sostituite tornano alla versione salvata. Ctrl+Z annulla tutto."

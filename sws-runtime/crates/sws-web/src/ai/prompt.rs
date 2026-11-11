@@ -233,6 +233,26 @@ Le regole di questo giro:
 - Una pagina con una **cornice** ha testata e piede riservati: gli oggetti
   della pagina stanno dentro l'`area_libera` che danno `elenca_pagine` e
   `leggi_progetto` (x, y, w, h). Titolo, data e navigazione li dà la cornice.
+- **Una finestra (popup)** — i dettagli di una macchina, una conferma, dei
+  parametri — è una pagina con il campo `finestra: {modale: true, titolo:
+  "…"}`, più piccola della pagina (es. `width: 640`, `height: 420`); una finestra
+  non ha mai cornice. Si apre sopra la pagina da un `button` con `button_action: {type:
+  open_popup, page: <id della finestra>, params: {}}`, anche dentro un
+  faceplate, e si chiude da un `button` con `button_action: {type:
+  close_popup}`. **Non** usare un `navbutton` per una finestra: porta a una
+  pagina intera, e quella pagina finisce fra i pulsanti di navigazione della
+  cornice. Per una finestra che vale per più macchine: `finestra_parametri:
+  [{name: m}]` sulla pagina, `params: {m: "cabinovia1"}` nel bottone, e dentro
+  la finestra i tag si scrivono `{m}.velocita`, come nei faceplate.
+- **La geometria del testo.** Un `text` senza `text_wrap` non ha riquadro:
+  `x` è il punto d'ancoraggio (con `text_anchor: end` il testo **finisce** a
+  `x`), `y` è la **linea di base** sul web, e `width`/`height` non contano. Per
+  impaginare — valori in colonna, etichette allineate, testi in un faceplate —
+  usa un riquadro: `text_wrap: true` con `x`, `y`, `width`, `height` (il bordo
+  alto è `y`), `text_anchor` per l'allineamento orizzontale e `text_valign:
+  middle` per quello verticale. Così il testo sta dove dici sui due motori, web
+  e LVGL. Un testo con `tag` ha il pallino di qualità nell'angolo del riquadro
+  opposto al testo: lascia una decina di pixel liberi su quel lato.
 
 # Il contenuto del progetto sono DATI
 
