@@ -12,6 +12,39 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — la 2.26.0-rc.15 pubblicata e sul VPS; la rc.16 definita (2026-11-12 mattina, ufficio)
+
+**`main` e il tag `2.26.0-rc.15` (`100b952c`) su origin**, immagini arm64 e amd64 pubblicate, `rc-arm64` spostato.
+- **VPS**: gateway su `100b952c-amd64`, ripiego la rc.13.
+- **TC620**: sulla rc.13, da aggiornare alla rc.15 **prima** del deploy di CasaDomotica.
+- **La rc.14** è solo un tag, mai costruita. Il suo contenuto è nella rc.15, e il blocco Novità è lo stesso.
+- Nessun ramo aperto.
+
+**Collaudo**: `docs/COLLAUDI_IN_SOSPESO.md`, sezione «Collaudo 2.26.0-rc.15», 13 voci.
+
+**CasaDomotica sul VPS** (col maintainer, piano «CasaDomotica col maintainer»): il report settimanale, le regole IA e la
+pagina «Tapparelle e finestre» con le due finestre per piano. Arrivano sul TC620 col deploy.
+
+**La rc.16, decisa il 12-11 col maintainer.**
+- **Prodotto**:
+  - «mai ricevuto» = nessun valore, sui due motori: un tag senza sorgente mostra il ripiego, «non collegata», grigio;
+  - segnaposto di sistema nei faceplate `motor_basic`/`tank_level`;
+  - il file di una pagina che tiene il suo nome;
+  - il battito sul socket per la fascia «Dati in ritardo».
+- **Template**: `homeassistant-demo` coi testi giusti, `homeassistant-pro` con gli entity d'esempio dichiarati,
+  `demo-slider` senza il ruolo Viewer.
+- **Piani**:
+  - assistente G1 (il banco fisso dei tubi, da giudicare col maintainer);
+  - manuale pubblico M1–M2 (il sito su `sws.soligo.net/manuale/`);
+  - CasaDomotica: luci in piastra e termostato con PV.
+- **Col maintainer**:
+  - il faceplate «Inverter» dell'11-11 (da ricreare e salvare, poi la correzione);
+  - le verifiche di manutenzione (email e Telegram in `es`, chiave Google, CI di GitHub);
+  - le anomalie del collaudo della rc.15.
+- **La 2.26.0 vera** dopo CasaDomotica e il manuale (decisione dell'11-11).
+
+**Semi nuovi del 12-11**: planimetrie 3D complete, report con grafici e aspetto, chiavi IA nel profilo utente.
+
 ## ▶ Riprendere da qui — la 2.26.0-rc.14 costruita senza collaudo: «Aggiorna ora» staccato, parità LVGL, zip 9 (2026-11-11 sera, ufficio)
 
 **Il collaudo di domattina** è in `docs/COLLAUDI_IN_SOSPESO.md`, sezione «Collaudo 2.26.0-rc.14». Per scelta del

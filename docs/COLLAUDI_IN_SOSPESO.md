@@ -40,7 +40,7 @@ sezione «Code annotate il 10-11-2026». Nell'IDE (cloud o 8460), con una chiave
 3. [ ] **Il banco dei tubi** (F5): un giudizio da 1 a 5 sulle due pagine del 04-11 (`tmp/ai-misure/`, solo su
        theobroma). È l'ingresso del piano «secondo giro».
 
-## Collaudo 2.26.0-rc.14 (11-11-2026 sera, da fare il 12-11)
+## Collaudo 2.26.0-rc.15 (12-11-2026) — la rc.14 è solo un tag, il suo contenuto è qui dentro
 
 Costruita senza collaudo, su richiesta del maintainer («le rc possono permettere questa eccezione»): il collaudo
 si fa su questa immagine, e le anomalie diventano la rc successiva. **Sul TC620** dalla rc.13, oppure con un
@@ -63,6 +63,16 @@ progetto LVGL. Le foto di confronto della sera sono in `tmp/parita-lvgl/` (solo 
 7. [ ] **`zip` 9**: un backup del progetto esportato e reimportato, un report xlsx aperto, un deploy dal cloud di
        un progetto con logica PLC, una pagina di boot caricata.
 8. [ ] **Nebulizzatore Sandokan**, se lo si usa: «Accendi» e «Spegni» comandano la presa.
+9. [ ] **Comando critico su LVGL**: su un pannello con utenti, un bottone `critical` chiede la password (sbagliata:
+       «Comando non eseguito: password errata»); con `require_reason` anche il motivo, che compare nell'audit; un
+       momentaneo critico scrive l'impulso. Senza `require_confirm` niente domanda sì/no prima.
+10. [ ] **Disegno LVGL, secondo giro**: griglia con un bordo per cella, `radio` a cerchi, selettore lingua scuro, il
+       logo SVG con le scritte, `faceplate_scale`, velo «Dati in ritardo» dentro una finestra aperta.
+11. [ ] **Allarmi nella lingua dei contenuti**: «Allarmi» e «Nessun allarme attivo» cambiano col selettore della lingua.
+12. [ ] **«Disabilita TLS»**: il pannello riparte davvero in chiaro e ci resta; «Genera certificato» lo riporta in HTTPS
+       con la fiducia del browser.
+13. [ ] **CasaDomotica (deploy dopo aver aggiornato il runtime)**: la pagina «Tapparelle e finestre» col riepilogo e le
+       due finestre per piano, «Apri/Chiudi tutto» (salta le portafinestre aperte), il report settimanale, le regole IA.
 
 ## Collaudo 2.26.0-rc.12 (11-11-2026)
 

@@ -300,6 +300,17 @@ Verificato col banco `tmp/parita-lvgl/`, solo su `ufficio`:
 - **La password su LVGL**: provata solo in un runtime senza utenti (il motivo, l'impulso, il motivo vuoto). La
   password vera si collauda sul pannello.
 
+### Decise il 12-11-2026
+
+- **Faceplate di sistema** (`motor_basic`, `tank_level`): **segnaposto di sistema** risolti dai due motori con la
+  tabella condivisa dei testi di sistema, nella lingua dei contenuti.
+- **`homeassistant-demo`**: si cambiano **i testi** («Delta soggiorno − studio», potenza in kW con scala 0–5).
+- **`homeassistant-pro`**: `person.mauro2` e `switch.lampada_cancelletto_mauro` restano, **dichiarati in `SETUP.md`
+  come esempio** da sostituire.
+- **`demo-slider`**: via `write_min_role: Viewer` da `s.rampa`.
+
+Tutto nella rc.16.
+
 ## Ordine proposto
 
 1. §1.1 e §1.2 insieme, un ramo: i difetti di disegno, con le istantanee prima/dopo.

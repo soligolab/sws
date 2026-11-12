@@ -27,6 +27,31 @@ sessione sola o in più sessioni; l'ordine proposto è quello sotto, dal più pi
 | Le regole del progetto (blocco `ai:`) | 04-11-2026 | [Un modello IA per ogni scopo, e il menù IA dell'IDE](../archive/2026-11-04-un-modello-per-ogni-scopo.md), F7; archiviato il 04-11-2026 |
 | `report_1` nomina `core2.cpu0` e `core2.cpu1` | 06-11-2026 | collaudo della 2.26.0-rc.2/rc.3 sul TC620 di casa; la scheda «tc-report» del banco |
 
+## Fatto col maintainer il 12-11-2026 (sul VPS, a progetto chiuso, con le copie di sicurezza)
+
+- **Punto 1, `report_1`.** È diventato «Casa — consumi e stato del sistema», settimanale, con 32 tag:
+  - energia dell'inverter (oggi), pompa di calore, prese, contatore del rack;
+  - CPU, i sei core `core.cpu0`…`core.cpu5` (i `core2.*` erano un vecchio test), RAM, disco, carico e temperature.
+
+  Copia: `project.yaml.prima-report-settimanale-20261112-042558`.
+- **Punto 2, il blocco `ai:`.** Scritto con le parole decise insieme: impianto, generali (stanze, unità, Sandokan),
+  assistente, simboli, traduzione, sfondi. Copia: `project.yaml.prima-regole-ia-…`.
+- **In più, le tapparelle e le finestre** (generatore in `tmp/casadomotica-tapparelle/`, solo su `ufficio`). La
+  pagina «Tapparelle e finestre» prende il posto di «Finestre e porte» (stesso id). Contiene:
+  - un riquadro per piano con le aperture aperte e le tapparelle alzate (tag derivati `openings.*`);
+  - «Apri tutto» e «Chiudi tutto»: funzione `tapparelle_tutte`, su tutte le 19 tapparelle previste, che salta le
+    portafinestre col contatto aperto;
+  - «Sicurezza e garage»: perimetrali, portoncino, portone sezionale con Apri/Ferma/Chiudi critici;
+  - due finestre modali, «Piano terra» e «Piano superiore», con un faceplate `serramento` per apertura.
+
+  Le aperture non domotiche hanno già i loro tag, in inglese (es. `shutter_kitchen_left`, `window_study`). Dalla
+  rc.16 diranno «non collegata» da sole. Provato in un runtime di prova: zero rilievi, foto web e LVGL, «Chiudi
+  tutto» con una portafinestra aperta.
+- **Restano**:
+  - il punto 3: le luci in piastra e il termostato con PV, nella rc.16;
+  - il punto 4: la planimetria, che ora ha un seme suo
+    ([planimetrie 3D complete](semi/2026-11-12-planimetrie-3d-complete.md)).
+
 ## Le cose da fare
 
 ### 1. `report_1` nomina `core2.cpu0` e `core2.cpu1`, che non esistono (il più piccolo)
