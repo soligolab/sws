@@ -12,6 +12,45 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — la rc.16 quasi tutta fatta, su due rami pushati e lasciati aperti (2026-11-12 sera, ufficio)
+
+**Due rami annidati su origin, non mergiati** (scelta del maintainer a fine giornata):
+- `feat/rc16-mai-ricevuto`, da `main` `0d99b0cd`, punta `591262ec`;
+- `feat/manuale-sito`, figlio del primo, punta `d739ebbb`. **È la punta di tutto il lavoro della rc.16**: da qui si
+  fa lo squash su `main`.
+
+Definition of done e controlli della CI verdi sulla punta: fmt, clippy, audit, `cargo test`, `pnpm build`, lint,
+type-check, vitest (247 file), le 56 guardie statiche. **Manca la conferma del maintainer**, che arriva col collaudo
+della rc.16.
+
+**Cosa c'è dentro** (dettaglio nel CHANGELOG, `[Unreleased]`):
+- **«Mai ricevuto»**: la semina ha `ts` 0 e non entra nello storico. Sui due motori un testo mostra il ripiego, un
+  `text_list` il predefinito, il led è grigio e lo slider attenuato con «—».
+- **Segnaposto `{{sys:nome}}`**, usati da `motor_basic` («Velocità:», «Guasto:»).
+- **Il file di una pagina tiene il suo nome.**
+- **Il battito** su `/ws/tags`: tick ogni 2 s, i viewer riaprono dopo 5 s di silenzio.
+- **«Commuta» su `ON`/`OFF`** scrive la stringa opposta, sui due motori. È un difetto trovato costruendo
+  CasaDomotica: corretto nel prodotto, non aggirato (regola del maintainer del 12-11).
+- **Finestre LVGL**: il testo prende il colore dallo sfondo.
+- **Template** sistemati (HA demo/pro, `demo-slider`, nebulizzatore a un bottone).
+- **Manuale pubblico M1–M2**, già online su `sws.soligo.net/manuale/` (container `sws-manuale` sul VPS).
+
+**CasaDomotica sul VPS**, oltre al mattino: le pagine **«Luci»** e **«Clima»** (schede a interruttore, piastra in sola
+lettura, termostato con PV), nell'albero delle pagine. Zero rilievi. Arrivano sul TC620 col deploy.
+
+**Resta per la rc.16**:
+1. **Assistente G1**: il banco `tubi-acciaio`, lo script finto (`SWS_AI_FAKE`) e l'e2e, il test vero `#[ignore]`.
+   La prova col modello vero chiede una chiave.
+2. **Faceplate «Inverter»**: va ricreato e salvato dal maintainer.
+3. **Verifiche di manutenzione guidate.**
+4. Le anomalie del collaudo della rc.15.
+
+Poi squash di `feat/manuale-sito` su `main`, eliminazione dei due rami (controllo degli alberi), rc.16, build, VPS.
+
+**Il collaudo della rc.15 è ancora da fare**: aggiornare il TC620, deployare CasaDomotica, poi le 13 voci in
+`docs/COLLAUDI_IN_SOSPESO.md`.
+
+
 ## ▶ Riprendere da qui — la 2.26.0-rc.15 pubblicata e sul VPS; la rc.16 definita (2026-11-12 mattina, ufficio)
 
 **`main` e il tag `2.26.0-rc.15` (`100b952c`) su origin**, immagini arm64 e amd64 pubblicate, `rc-arm64` spostato.
