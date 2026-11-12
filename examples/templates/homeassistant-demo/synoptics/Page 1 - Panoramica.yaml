@@ -28,7 +28,7 @@ objects:
 
 # ── CLIMA: due istanze del faceplate «ambiente» ──────────────────────────────
 # L'ultima riga del riquadro è l'indice che ogni istanza sceglie: il comfort
-# per il soggiorno, il delta per l'esterno.
+# per il soggiorno, il delta soggiorno − studio.
 - id: ha1_amb_sala
   type: faceplate
   faceplate_id: ambiente
@@ -100,7 +100,7 @@ objects:
   width: 380
   height: 52
   tag: energia.potenza_w
-  format: "{value:.0f} W"
+  format: "{value:.2f} kW"
   font_size: 40
   font_weight: bold
   text_anchor: middle
@@ -144,10 +144,10 @@ objects:
   height: 150
   tag: energia.potenza_w
   min: 0
-  max: 5000
-  unit: "W"
-  warn_high: 3500
-  alarm_high: 4500
+  max: 5
+  unit: "kW"
+  warn_high: 3.5
+  alarm_high: 4.5
 
 # ── SICUREZZA: le due porte col faceplate «contatto» (aperta = rosso, chiusa
 # = verde), movimento e modalità notturna con «indicatore» ──────────────────

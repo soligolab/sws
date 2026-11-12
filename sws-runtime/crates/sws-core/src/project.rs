@@ -1,7 +1,7 @@
 // Hot-reload (notify crate) deferred — not needed for PoC happy path.
 
 use crate::alarm::AlarmDef;
-use crate::tag::{TagDb, TagQuality, TagValue};
+use crate::tag::{TagDb, TagValue};
 use anyhow::Context;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -2833,12 +2833,11 @@ impl Project {
     }
 
     /// Register every tag from the definition list in `db` with an initial
-    /// value matching its declared `data_type`, quality `Uncertain`. Plugins
-    /// will overwrite this as soon as they get a real reading.
+    /// value matching its declared `data_type`, quality `Uncertain`, never
+    /// received (`TagDb::semina`). Plugins overwrite it with a real reading.
     pub async fn populate_tags(&self, db: &TagDb) {
         for tag in &self.tags {
-            db.set(tag.id.clone(), tag.initial_value(), TagQuality::Uncertain)
-                .await;
+            db.semina(tag.id.clone(), tag.initial_value()).await;
         }
     }
 }

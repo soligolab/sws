@@ -1,0 +1,27 @@
+# Il manuale pubblico su sws.soligo.net/manuale/ (piano manuale pubblico, M2, 12-11-2026).
+#
+# Un sito statico a parte, non dentro il runtime: si aggiorna senza rilasciare SWS
+# (`scripts/manuale/pubblica.sh`). Traefik gli manda `/manuale/` e `/robots.txt`
+# (`traefik/dynamic/sws-manuale.yml`), il resto resta al gateway. nginx a versione
+# fissa, tutto in sola lettura: il sito, la configurazione e il robots.txt.
+[Unit]
+Description=SWS — il manuale pubblico (sito statico)
+After=network-online.target
+
+[Container]
+Image=docker.io/library/nginx:1.27.3-alpine
+ContainerName=sws-manuale
+Network=sws-rete.network
+Volume=%h/sws-vps/manuale/sito:/usr/share/nginx/html/manuale:ro
+Volume=%h/sws-vps/manuale/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+Volume=%h/sws-vps/manuale/robots.txt:/usr/share/nginx/html/robots.txt:ro
+ReadOnly=true
+Tmpfs=/var/cache/nginx
+Tmpfs=/var/run
+
+[Service]
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

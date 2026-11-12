@@ -8148,6 +8148,38 @@ async fn id_nel_file(path: &std::path::Path) -> Option<String> {
     serde_yaml::from_str::<IdOnly>(&testo).ok().map(|p| p.id)
 }
 
+/// Il file in cui sta già la pagina con questo `id`, se ci sta col **nome**
+/// `nome` (12-11-2026, decisione del maintainer). Un template ha
+/// `Impianto.yaml` con dentro la pagina `{{t0001}}`: salvandola, il file
+/// diventava `{{t0001}}.yaml`, perché il nome del file seguiva il nome della
+/// pagina, che è il token. Ora il file tiene il nome con cui è nato finché la
+/// pagina non viene rinominata: un nome diverso vuol dire una rinomina, e lì il
+/// file segue come prima.
+async fn file_della_pagina(dir: &std::path::Path, id: &str, nome: &str) -> Option<String> {
+    #[derive(serde::Deserialize)]
+    struct IdNome {
+        id: String,
+        #[serde(default)]
+        name: String,
+    }
+    let mut voci = tokio::fs::read_dir(dir).await.ok()?;
+    while let Ok(Some(v)) = voci.next_entry().await {
+        let f = v.file_name().to_string_lossy().into_owned();
+        if !f.ends_with(".yaml") {
+            continue;
+        }
+        let Ok(testo) = tokio::fs::read_to_string(v.path()).await else {
+            continue;
+        };
+        if let Ok(p) = serde_yaml::from_str::<IdNome>(&testo) {
+            if p.id == id {
+                return (p.name == nome).then_some(f);
+            }
+        }
+    }
+    None
+}
+
 async fn save_synoptic(
     State(s): State<AppState>,
     Path(name): Path<String>,
@@ -8177,7 +8209,10 @@ async fn save_synoptic(
         warn!("cannot create synoptics dir: {e}");
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }
-    let new_filename = format!("{}.yaml", safe_filename(&name));
+    let new_filename = match file_della_pagina(&dir, &page.id, &page.name).await {
+        Some(f) => f,
+        None => format!("{}.yaml", safe_filename(&name)),
+    };
     let path = dir.join(&new_filename);
     // Un file con quel nome che contiene **un'altra** pagina non si sovrascrive
     // (04-11-2026): succede con un template, dove `Impianto.yaml` contiene la
@@ -9347,9 +9382,21 @@ async fn handle_ws(
 
     let mut batcher_seq: u64 = seq + 1; // seq 0 used by snapshot
     let db_batcher = db.clone();
+    // Il battito (12-11-2026, seme «viewer, prestazioni e protocollo» C1): un
+    // `{"type":"tick"}` ogni 2 s anche a impianto fermo. Un cavo staccato non
+    // chiude il socket per minuti, e senza valori nuovi il client non sapeva
+    // distinguere un impianto fermo da un collegamento morto. I client che lo
+    // conoscono, dopo 5 s di silenzio, danno il socket per caduto; quelli
+    // vecchi scartano un tipo che non conoscono.
+    let mut battito = tokio::time::interval(std::time::Duration::from_secs(2));
+    battito.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     let broadcast_task = tokio::spawn(async move {
         loop {
             tokio::select! {
+                _ = battito.tick() => {
+                    let msg = serde_json::json!({ "type": "tick", "ts": sws_core::now_ms() }).to_string();
+                    if broadcast_tx.send(Message::Text(msg)).await.is_err() { break; }
+                }
                 res = rx.recv() => {
                     match res {
                         Ok(update) => {
@@ -14747,5 +14794,32 @@ mod prove_email_di_ripiego {
         let r = test_email(State(s.clone()), Json(richiesta())).await;
         assert_ne!(r.status(), StatusCode::BAD_REQUEST);
         assert_eq!(r.status(), StatusCode::BAD_GATEWAY);
+    }
+}
+
+/// Il file di una pagina tiene il suo nome (12-11-2026).
+#[cfg(test)]
+mod prove_file_della_pagina {
+    use super::file_della_pagina;
+
+    #[tokio::test]
+    async fn stesso_nome_stesso_file_rinomina_file_nuovo() {
+        let d = tempfile::tempdir().unwrap();
+        std::fs::write(
+            d.path().join("Impianto.yaml"),
+            "id: p1\nname: '{{t0001}}'\nobjects: []\n",
+        )
+        .unwrap();
+        // Il template salvato: stesso id, stesso nome (il token) → lo stesso file.
+        assert_eq!(
+            file_della_pagina(d.path(), "p1", "{{t0001}}")
+                .await
+                .as_deref(),
+            Some("Impianto.yaml")
+        );
+        // Rinominata dall'utente: il file seguirà il nome nuovo.
+        assert_eq!(file_della_pagina(d.path(), "p1", "Quadro").await, None);
+        // Una pagina nuova: nessun file suo.
+        assert_eq!(file_della_pagina(d.path(), "p2", "{{t0001}}").await, None);
     }
 }

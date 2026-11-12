@@ -191,11 +191,6 @@ languages:
         es: "Tensión (V) — última hora"
     - key: t0015
       values:
-        it: "Accendi"
-        en: "On"
-        es: "Encender"
-    - key: t0016
-      values:
-        it: "Spegni"
-        en: "Off"
-        es: "Apagar"
+        it: "Accendi / spegni"
+        en: "On / off"
+        es: "Encender / apagar"

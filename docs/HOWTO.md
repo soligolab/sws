@@ -389,6 +389,11 @@ Sul dispositivo, poi, si aggiorna con `install-container.sh --pull` (senza argom
 `latest-<arch>`), o dall'editor: Configurazione → Istanza → Device → Installazione (§12).
 Dettagli in `docs/DEPLOY_CONTAINER_AARCH64.md`.
 
+**Il manuale pubblico** (dal 12-11-2026) si aggiorna a ogni release, a parte dalle immagini:
+`./scripts/manuale/pubblica.sh` genera il sito da `docs/manual/` (mkdocs-material in podman) e lo
+copia su `sws.soligo.net/manuale/`, scambiando le cartelle in un colpo. Si lancia nello stesso giro
+che aggiorna il gateway del VPS; `./scripts/check_manuale_sito.sh` dice prima se c'è un link rotto.
+
 ---
 
 *Traccia: **T-66 — «non modificare uno script mentre gira» è affidato alla disciplina, ed è già costato una build di 51 minuti: un lock lo toglie di mezzo**.*

@@ -323,6 +323,9 @@ pub enum LiveKind {
         /// L'attesa dopo una scrittura (fase 6, come il web dalla fase 1): il
         /// valore scritto e fin quando tenerlo, se il tag non lo riporta prima.
         attesa: Rc<std::cell::Cell<Option<(f64, std::time::Instant)>>>,
+        /// Se l'ultimo giro l'ha visto «mai ricevuto» (attenuato): l'opacità
+        /// si riscrive solo quando cambia, ogni scrittura fa ridisegnare.
+        mai: Rc<std::cell::Cell<Option<bool>>>,
     },
     /// Solo lo stato checked/unchecked cambia dal vivo,
     /// `lv_obj_add_state`/`clear_state` con `LV_STATE_CHECKED`.
@@ -1342,6 +1345,25 @@ pub(crate) fn scritture_al_clic(
     match c {
         Comando::Fisse(v) => v.clone(),
         Comando::Commuta { tag } => {
+            // `ON`/`OFF` (le luci di Zigbee2MQTT): la stringa opposta, nella
+            // stessa grafia; prima «OFF» era un testo non vuoto, cioè acceso
+            // (12-11-2026). Gemello di `inverso` nel web.
+            if let Some(TagValue::Str(s)) = corrente {
+                let t = s.trim();
+                if t.eq_ignore_ascii_case("on") || t.eq_ignore_ascii_case("off") {
+                    let opposto = if t.eq_ignore_ascii_case("off") {
+                        "on"
+                    } else {
+                        "off"
+                    };
+                    let scritto = if t == t.to_uppercase() {
+                        opposto.to_uppercase()
+                    } else {
+                        opposto.to_string()
+                    };
+                    return vec![(tag.clone(), TagValue::Str(scritto))];
+                }
+            }
             // Stessa verità del web: bool com'è, numero ≠ 0, testo non vuoto.
             let acceso = match corrente {
                 Some(TagValue::Bool(b)) => *b,
@@ -4262,6 +4284,16 @@ fn apply_font_size_con_ripiego(
     Ok(())
 }
 
+/// Un valore **mai ricevuto** (12-11-2026, decisione del maintainer): il
+/// runtime semina ogni tag incerto e con `ts` a 0 (`TagDb::semina`) finché una
+/// sorgente non lo scrive. Per chi disegna vale come nessun valore: una finestra
+/// non collegata dice «non collegata», non «chiusa». I comandi restano possibili
+/// (una variabile di memoria è mai ricevuta finché qualcuno non la scrive).
+/// Gemello di `maiRicevuto` nel web.
+fn mai_ricevuto(t: &TagSnapshotValue) -> bool {
+    t.ts == 0 && t.quality == TagQuality::Uncertain
+}
+
 /// Il testo di un `text`: il valore del tag col suo formato, altrimenti `text`.
 ///
 /// Il VALORE di un tag stringa può essere un token: è la via per cui uno script
@@ -4279,7 +4311,7 @@ fn contenuto_testo(
     lang_table: &LanguageTable,
 ) -> String {
     match tv {
-        Some(t) if matches!(&t.value, TagValue::Str(s) if s.is_empty()) => {
+        Some(t) if mai_ricevuto(t) || matches!(&t.value, TagValue::Str(s) if s.is_empty()) => {
             testo.cloned().unwrap_or_default()
         }
         Some(t) => resolve_msg(
@@ -4842,6 +4874,13 @@ pub fn apri_finestra(
         stile::bordo(p, Some((0x33, 0x41, 0x55)), 1.0, stile::MAIN);
         stile::raggio(p, 6.0, stile::MAIN);
         lvgl_sys::lv_obj_clear_flag(p, lvgl_sys::LV_OBJ_FLAG_SCROLLABLE);
+        // Il colore predefinito del testo, come lo schermo di una pagina (Q18):
+        // la finestra sta sul layer superiore e non lo eredita, e i testi senza
+        // `color` (il valore di una piastra) venivano neri sul fondo scuro
+        // (12-11-2026). Dallo sfondo della pagina-finestra, o da quello scuro
+        // del contenitore.
+        let testo = default_text_rgb(pagina.background.as_deref()).unwrap_or((0xe2, 0xe8, 0xf0));
+        lvgl_sys::lv_obj_set_style_text_color(p, Color::from_rgb(testo).into(), 0);
     }
 
     // ── la barra del titolo, col ✕ ───────────────────────────────────────
@@ -5537,7 +5576,7 @@ fn render_led(
         .clone()
         .unwrap_or_else(|| predefinito_lvgl("led", "off_color").to_string());
 
-    let tv = lookup(tags, &obj.tag);
+    let tv = lookup(tags, &obj.tag).filter(|t| !mai_ricevuto(t));
     let (is_on, bad_quality, color_hex) = led_state(tv, &on_value, &on_color, &off_color);
 
     let ptr = led.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
@@ -6081,6 +6120,18 @@ pub(crate) fn testo_valore_slider(
         None => format!("{v:.d$}{unita}"),
         Some(None) => format!("{v:.d$}{unita} · PV —"),
         Some(Some(p)) => format!("{v:.d$}{unita} · PV {p:.d$}{unita}"),
+    }
+}
+
+/// Il testo di uno slider il cui tag non è mai arrivato (12-11-2026): «—», col
+/// PV accanto se c'è, come `testoSolo` del web. Prima si leggeva lo zero della
+/// semina, «0.0 °C · PV 0.0 °C», su un termostato non collegato.
+pub(crate) fn testo_valore_assente(decimali: u8, unita: &str, pv: Option<Option<f64>>) -> String {
+    let d = decimali as usize;
+    match pv {
+        None => "—".to_string(),
+        Some(None) => "— · PV —".to_string(),
+        Some(Some(p)) => format!("— · PV {p:.d$}{unita}"),
     }
 }
 
@@ -7033,6 +7084,7 @@ fn init_bar_like(
                 .filter(|t| !t.is_empty())
                 .map(|t| (t, Rc::new(std::cell::Cell::new(None)))),
             attesa: Rc::new(std::cell::Cell::new(None)),
+            mai: Rc::new(std::cell::Cell::new(None)),
         },
     })
 }
@@ -8185,7 +8237,7 @@ fn render_text_list(
     tags: &TagSnapshot,
 ) -> anyhow::Result<LiveBinding> {
     let entries = obj.text_list_entries.clone().unwrap_or_default();
-    let tv = lookup(tags, &obj.tag);
+    let tv = lookup(tags, &obj.tag).filter(|t| !mai_ricevuto(t));
     let entry = match_text_list_entry(&entries, tv);
     let label_text = testo_text_list(entry, obj.text_list_default.as_deref(), tv, "it");
     let colore = colore_text_list(
@@ -15351,6 +15403,16 @@ pub(crate) fn resolve_msg(s: &str, lang: &str, table: &LanguageTable) -> String 
                     rest = &rest[close + 2..];
                     continue;
                 }
+                // `{{sys:nome}}`: una parola di sistema nella lingua dei
+                // contenuti (i faceplate di sistema, 12-11-2026), come il web.
+                if let Some(t) = key
+                    .strip_prefix("sys:")
+                    .and_then(sws_core::testi_sistema::da_nome)
+                {
+                    out.push_str(sws_core::testi_sistema::testo(t, lang));
+                    rest = &rest[close + 2..];
+                    continue;
+                }
                 let resolved = table
                     .entries
                     .iter()
@@ -17581,7 +17643,7 @@ pub fn update_bindings(
                 on_color,
                 off_color,
             } => {
-                let tv = lookup(tags, tag);
+                let tv = lookup(tags, tag).filter(|t| !mai_ricevuto(t));
                 let (is_on, bad_quality, color_hex) = led_state(tv, on_value, on_color, off_color);
                 unsafe {
                     if let Some(rgb) = parse_hex_color(&color_hex) {
@@ -17602,7 +17664,20 @@ pub fn update_bindings(
                 scarto,
                 pv,
                 attesa,
+                mai,
             } => {
+                // Mai ricevuto: attenuato come i dati vecchi, finché non arriva
+                // un valore; si trascina lo stesso (12-11-2026, `mai_ricevuto`).
+                let ora_mai = lookup(tags, tag).is_some_and(mai_ricevuto);
+                if mai.get() != Some(ora_mai) {
+                    let opa = if ora_mai {
+                        crate::effects::OPA_ATTENUATO
+                    } else {
+                        lvgl_sys::LV_OPA_COVER as u8
+                    };
+                    unsafe { lvgl_sys::lv_obj_set_style_opa(ptr.as_ptr(), opa, 0) };
+                    mai.set(Some(ora_mai));
+                }
                 // Se l'utente sta trascinando lo slider in questo momento
                 // (LV_STATE_PRESSED), non sovrascrivere il valore con quello
                 // — ancora vecchio — nello snapshot tag: il round-trip verso
@@ -17620,6 +17695,7 @@ pub fn update_bindings(
                 };
                 let valore_pv = pv.as_ref().map(|(t, cella)| {
                     let v = lookup(tags, &Some(t.clone()))
+                        .filter(|x| !mai_ricevuto(x))
                         .map(|x| tag_value_as_f64(&x.value))
                         .filter(|v| v.is_finite());
                     cella.set(v);
@@ -17657,8 +17733,12 @@ pub fn update_bindings(
                     if let Some(vp) = value_ptr {
                         lvgl_sys::lv_label_set_text(
                             vp.as_ptr(),
-                            text_cstring(&testo_valore_slider(raw, *decimals, unit, valore_pv))
-                                .as_ptr(),
+                            text_cstring(&if ora_mai {
+                                testo_valore_assente(*decimals, unit, valore_pv)
+                            } else {
+                                testo_valore_slider(raw, *decimals, unit, valore_pv)
+                            })
+                            .as_ptr(),
                         );
                     }
                 }
@@ -17893,7 +17973,7 @@ pub fn update_bindings(
                 default_color,
                 colore_testo,
             } => {
-                let tv = lookup(tags, tag);
+                let tv = lookup(tags, tag).filter(|t| !mai_ricevuto(t));
                 let entry = match_text_list_entry(entries, tv);
                 let label_text = testo_text_list(entry, default_label.as_deref(), tv, &lingua);
                 let colore =
@@ -18807,6 +18887,30 @@ mod binding_tests {
     /// Il caso che conta e' `close_popup`: fino a oggi non lo ascoltava
     /// nessuno, e il bottone «Chiudi finestra» sul pannello non faceva niente
     /// — il difetto trovato sul WP630 con `button-b_48`.
+    #[test]
+    fn commutare_on_off_scrive_la_stringa_opposta() {
+        use super::{scritture_al_clic, Comando};
+        let c = Comando::Commuta { tag: "luce".into() };
+        let s = |v: &str| scritture_al_clic(&c, Some(&TagValue::Str(v.into())));
+        assert_eq!(
+            s("OFF"),
+            vec![("luce".to_string(), TagValue::Str("ON".into()))]
+        );
+        assert_eq!(
+            s("ON"),
+            vec![("luce".to_string(), TagValue::Str("OFF".into()))]
+        );
+        assert_eq!(
+            s("on"),
+            vec![("luce".to_string(), TagValue::Str("off".into()))]
+        );
+        // Un altro testo resta com'era: non vuoto = acceso.
+        assert_eq!(
+            s("marcia"),
+            vec![("luce".to_string(), TagValue::Bool(false))]
+        );
+    }
+
     #[test]
     fn la_funzione_del_bottone_parte_al_tocco_ma_non_per_login_e_logout() {
         use super::funzione_al_tocco;
@@ -19875,6 +19979,11 @@ mod binding_tests {
             testo_valore_slider(21.5, 1, " °C", Some(None)),
             "21.5 °C · PV —"
         );
+        assert_eq!(testo_valore_assente(1, " °C", Some(None)), "— · PV —");
+        assert_eq!(
+            testo_valore_assente(1, " °C", Some(Some(19.5))),
+            "— · PV 19.5 °C"
+        );
         assert_eq!(
             angolo_pv(false, (0.0, 20.0, 200.0, 16.0), 0.5),
             (95.0, 11.0)
@@ -20011,6 +20120,17 @@ mod binding_tests {
     }
 
     #[test]
+    fn il_segnaposto_di_sistema_si_risolve_anche_senza_tabella() {
+        let t = LanguageTable::default();
+        assert_eq!(resolve_msg("{{sys:velocita}}:", "it", &t), "Velocità:");
+        assert_eq!(resolve_msg("{{sys:guasto}}:", "en", &t), "Fault:");
+        assert_eq!(
+            resolve_msg("{{sys:nonesiste}}", "it", &t),
+            "{{sys:nonesiste}}"
+        );
+    }
+
+    #[test]
     fn una_stringa_vuota_mostra_il_testo_di_ripiego() {
         let t = LanguageTable::default();
         let trattino = "—".to_string();
@@ -20020,6 +20140,16 @@ mod binding_tests {
             "—"
         );
         assert_eq!(contenuto_testo(Some(&v), None, None, None, "it", &t), "");
+        let semina = TagSnapshotValue {
+            value: TagValue::Bool(false),
+            quality: TagQuality::Uncertain,
+            ts: 0,
+        };
+        assert_eq!(
+            contenuto_testo(Some(&semina), None, Some(&trattino), None, "it", &t),
+            "—",
+            "mai ricevuto vale come nessun valore"
+        );
         let on = valore(TagValue::Str("ON".into()));
         assert_eq!(
             contenuto_testo(Some(&on), None, Some(&trattino), None, "it", &t),

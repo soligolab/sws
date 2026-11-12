@@ -153,6 +153,11 @@ impl Historian {
     /// scrive una strada sola, `DatastoreRegistry`; lo store qui resta per le
     /// **letture** (`restore_recent`, grafici oltre il buffer).
     pub async fn record(&self, tag: &str, state: &TagState) {
+        // Mai ricevuto (`TagDb::semina`, 12-11-2026): non è un campione. Prima
+        // ogni riavvio scriveva nello storico uno zero incerto per ogni tag.
+        if state.timestamp_ms == 0 && state.quality == TagQuality::Uncertain {
+            return;
+        }
         let sample = Sample {
             ts_ms: state.timestamp_ms,
             value: state.value.clone(),
@@ -408,6 +413,21 @@ mod tests {
     /// Il tratto «che oscilla» dei trend (18-10-2026): un segnale denso che alterna
     /// 0 e 100 ha media 50 in ogni secchio. Aggregato dopo la decimazione per
     /// indice, i secchi prendevano pochi campioni a passo fisso e la media saltava.
+    /// Un valore mai ricevuto (la semina) non è un campione (12-11-2026).
+    #[tokio::test]
+    async fn la_semina_non_entra_nello_storico() {
+        let h = Historian::new(100);
+        let semina = TagState {
+            value: TagValue::Float(0.0),
+            quality: TagQuality::Uncertain,
+            timestamp_ms: 0,
+        };
+        h.record("t", &semina).await;
+        assert!(h.query("t", None, None).await.is_empty());
+        h.record("t", &st(30, 3.0)).await;
+        assert_eq!(h.query("t", None, None).await.len(), 1);
+    }
+
     #[tokio::test]
     async fn i_secchi_si_calcolano_sui_campioni_interi() {
         let h = Historian::new(10_000);

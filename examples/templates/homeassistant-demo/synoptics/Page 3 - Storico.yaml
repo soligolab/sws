@@ -237,7 +237,7 @@ objects:
   width: 348
   height: 50
   tag: energia.potenza_w
-  format: "{value:.0f} W"
+  format: "{value:.2f} kW"
   font_size: 34
   font_weight: bold
   text_anchor: middle
@@ -253,7 +253,7 @@ objects:
   height: 20
   tag: energia.potenza_w
   min: 0
-  max: 5000
+  max: 5
   fill: "#f59e0b"
   bg_color: "#2d1f00"
 

@@ -1,7 +1,7 @@
 # Il riquadro di un ambiente nella Panoramica (R8, 04-11-2026): titolo,
 # temperatura e umidità di un'istanza del tipo `ambiente` (sala, esterno…),
 # e in fondo una riga «indice» che ogni istanza sceglie: il comfort per il
-# soggiorno, il delta per l'esterno. Fino al primo giro di revisione quella
+# soggiorno, il delta soggiorno − studio. Fino al primo giro di revisione quella
 # riga stava sulla pagina, sopra l'istanza: spostando il riquadro nell'IDE
 # restava indietro.
 #

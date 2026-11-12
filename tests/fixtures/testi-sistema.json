@@ -280,6 +280,20 @@
       "es": "Ninguna alarma activa",
       "en": "No active alarms"
     },
+    "velocita": {
+      "it": "Velocità",
+      "de": "Drehzahl",
+      "fr": "Vitesse",
+      "es": "Velocidad",
+      "en": "Speed"
+    },
+    "guasto": {
+      "it": "Guasto",
+      "de": "Störung",
+      "fr": "Défaut",
+      "es": "Avería",
+      "en": "Fault"
+    },
     "dati_in_ritardo": {
       "it": "Dati in ritardo di {n} s",
       "de": "Daten um {n} s verzögert",

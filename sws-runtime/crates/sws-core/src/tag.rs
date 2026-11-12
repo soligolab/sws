@@ -293,7 +293,9 @@ impl TagDb {
             Some(m) => m
                 .get(rel)
                 .cloned()
-                .unwrap_or((TagQuality::Uncertain, ts_radice)),
+                // Mai arrivata: incerta e mai ricevuta, anche se le sorelle
+                // sì (12-11-2026).
+                .unwrap_or((TagQuality::Uncertain, 0)),
             None => (q_radice.clone(), ts_radice),
         }
     }
@@ -425,6 +427,20 @@ impl TagDb {
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_millis() as u64;
+        self.set_alle(id, value, quality, ts).await
+    }
+
+    /// Il valore di partenza di un tag appena dichiarato: incerto, e con
+    /// `timestamp_ms` a 0, che vuol dire **mai ricevuto** (12-11-2026,
+    /// decisione del maintainer). Prima la semina portava l'ora dell'apertura,
+    /// e un tag che nessuna sorgente aveva mai scritto non si distingueva da
+    /// una lettura vera: una finestra non collegata diceva «chiusa», una
+    /// tapparella «0 %». Lo storico non registra un valore mai ricevuto.
+    pub async fn semina(&self, id: TagId, value: TagValue) {
+        self.set_alle(id, value, TagQuality::Uncertain, 0).await
+    }
+
+    async fn set_alle(&self, id: TagId, value: TagValue, quality: TagQuality, ts: u64) {
         // Una foglia di una radice composita (Fase 1b): leggi-modifica-scrivi
         // sulla radice, e la sua qualità diventa la peggiore delle foglie
         // (D6). L'evento porta la RADICE — chi vuole le foglie chiama
@@ -988,6 +1004,19 @@ mod percorsi_tests {
     /// la radice è Good per le sorelle già arrivate (04-11-2026): il suo
     /// valore è lo zero con cui la radice è nata, e un allarme «sotto soglia»
     /// non deve scattare su quello.
+    /// La semina dice «mai ricevuto» (12-11-2026): incerto e `ts` a 0, finché
+    /// una sorgente non scrive.
+    #[tokio::test]
+    async fn la_semina_e_mai_ricevuta() {
+        let db = TagDb::new(4);
+        db.semina("finestra".into(), TagValue::Bool(false)).await;
+        let s = db.get("finestra").await.unwrap();
+        assert_eq!((s.quality, s.timestamp_ms), (TagQuality::Uncertain, 0));
+        db.set("finestra".into(), TagValue::Bool(true), TagQuality::Good)
+            .await;
+        assert!(db.get("finestra").await.unwrap().timestamp_ms > 0);
+    }
+
     #[tokio::test]
     async fn una_foglia_mai_arrivata_e_incerta() {
         let db = db_con_radice().await;
@@ -1002,6 +1031,8 @@ mod percorsi_tests {
         let velocita = db.get("motore1.velocita").await.unwrap();
         assert_eq!(velocita.value, TagValue::Float(0.0));
         assert_eq!(velocita.quality, TagQuality::Uncertain);
+        assert_eq!(velocita.timestamp_ms, 0, "mai arrivata: mai ricevuta");
+        assert!(db.get("motore1.marcia").await.unwrap().timestamp_ms > 0);
         // Lo stesso sul bus, che è quello che leggono allarmi e storico.
         let update = rx.recv().await.unwrap();
         let foglie = db.espandi_foglie(&update).await;

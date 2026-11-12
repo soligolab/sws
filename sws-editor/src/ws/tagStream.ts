@@ -6,6 +6,10 @@ import { buildWsUrl } from "@/ws/wsUrl";
 import { socketCondiviso } from "@/ws/singletonWs";
 import { accoda, ricominciaMisura, segnaScollegato } from "@/ws/coalescenza";
 
+/** Dopo il primo battito del server, quanto silenzio vuol dire socket morto:
+ *  il runtime ne manda uno ogni 2 s (`ws_tags_handler`, 12-11-2026). */
+export const SILENZIO_MAX_MS = 5000;
+
 const socket = socketCondiviso(() => buildWsUrl("/ws/tags", "VITE_RUNTIME_WS_URL"));
 /** Il socket dei tag: cambia anche quando ci si collega/scollega da un runtime
  *  remoto, perché `buildWsUrl` lo dirotta nel relay. */
@@ -129,10 +133,33 @@ export function useTagStream(): void {
     stream.on("close", onChiuso);
     if (stream.readyState !== WebSocket.OPEN) segnaScollegato();
 
+    // Il battito del server (12-11-2026): un `tick` ogni 2 s anche a impianto
+    // fermo. Visto il primo, 5 s senza nessun messaggio vogliono dire
+    // collegamento morto — un cavo staccato non chiude il socket per minuti —
+    // e si riapre, con la fascia «Dati in ritardo» che parte da adesso. Un
+    // runtime che non lo manda non fa mai scattare niente. Gemello di
+    // `SILENZIO_MAX` nel viewer LVGL.
+    let battitoVisto = false;
+    let ultimo = Date.now();
+    const guardia = window.setInterval(() => {
+      if (!battitoVisto || stream.readyState !== WebSocket.OPEN) return;
+      if (Date.now() - ultimo <= SILENZIO_MAX_MS) return;
+      console.warn("[ws/tags] nessun battito da 5 s: collegamento perso, ricollego");
+      battitoVisto = false;
+      segnaScollegato();
+      stream.riapri();
+    }, 1000);
+
     const onMessage = (ev: MessageEvent) => {
+      ultimo = Date.now();
       const text = typeof ev.data === "string" ? ev.data : "";
       try {
         const parsed = JSON.parse(text) as ServerMsg;
+
+        if ((parsed as { type?: string }).type === "tick") {
+          battitoVisto = true;
+          return;
+        }
 
         if (parsed.type === "ack") {
           const ack = parsed as WriteAck;
@@ -173,6 +200,7 @@ export function useTagStream(): void {
 
     stream.on("message", onMessage);
     return () => {
+      window.clearInterval(guardia);
       stream.off("open", onOpen);
       stream.off("open", onAperto);
       stream.off("close", onChiuso);

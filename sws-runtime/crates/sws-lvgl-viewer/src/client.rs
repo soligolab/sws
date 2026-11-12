@@ -1646,6 +1646,9 @@ pub type ReloadFlag = Arc<std::sync::atomic::AtomicBool>;
 /// processo girava al 43% di CPU disegnando dati fermi. Un pannello davanti a
 /// un impianto non ha nessuno che se ne accorga.
 const ATTESA_MIN: std::time::Duration = std::time::Duration::from_secs(1);
+/// Dopo il primo battito del server, quanto silenzio vuol dire socket morto:
+/// il server ne manda uno ogni 2 s (`ws_tags_handler`, 12-11-2026).
+const SILENZIO_MAX: std::time::Duration = std::time::Duration::from_secs(5);
 const ATTESA_MAX: std::time::Duration = std::time::Duration::from_secs(30);
 
 fn prossima_attesa(a: std::time::Duration) -> std::time::Duration {
@@ -1773,7 +1776,24 @@ pub async fn spawn_tag_subscription(
     tokio::spawn(async move {
         let mut attesa = ATTESA_MIN;
         loop {
-            while let Some(msg) = stream.next().await {
+            // Il battito del server (12-11-2026): visto un `tick`, 5 s senza
+            // nessun messaggio vogliono dire collegamento morto (un cavo
+            // staccato non chiude il socket per minuti). Un server che non lo
+            // manda non fa mai scattare niente.
+            let mut battito_visto = false;
+            loop {
+                let prossimo = if battito_visto {
+                    match tokio::time::timeout(SILENZIO_MAX, stream.next()).await {
+                        Ok(m) => m,
+                        Err(_) => {
+                            eprintln!("[ws] nessun battito da 5 s: collegamento perso, ricollego");
+                            break;
+                        }
+                    }
+                } else {
+                    stream.next().await
+                };
+                let Some(msg) = prossimo else { break };
                 let msg = match msg {
                     Ok(m) => m,
                     Err(e) => {
@@ -1788,6 +1808,10 @@ pub async fn spawn_tag_subscription(
                     }
                     continue;
                 };
+                if text.contains("\"tick\"") {
+                    battito_visto = true;
+                    continue;
+                }
                 // Un delta e uno snapshot hanno campi diversi (`changed` vs
                 // `tags`) ma lo stesso discriminante "type" — proviamo prima il
                 // delta (il caso comune dopo l'avvio), poi lo snapshot (caso raro:

@@ -92,7 +92,6 @@ tags:
 - id: s.rampa
   description: 'Si muove da solo: rampa 0..100 in 40 s'
   data_type: float
-  write_min_role: Viewer
   unit: '%'
   generator:
     shape: ramp

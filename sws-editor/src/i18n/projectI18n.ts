@@ -6,6 +6,7 @@
 // per codice lingua. Il viewer (e l'anteprima editor) risolvono i token nella
 // lingua corrente prima di rendere gli oggetti.
 
+import { testoSistemaPerNome } from "@/i18n/testiSistema";
 import type { LanguageTable, SynopticObject } from "@/types";
 
 const STORAGE_KEY = "sws.projectLang";
@@ -51,8 +52,12 @@ const TOKEN_RE = /\{\{\s*([^}\s]+)\s*\}\}/g;
  *  condivisi stanno in `tests/fixtures/risoluzione-token.json`, che entrambi i
  *  motori leggono. */
 export function resolveMsg(str: string, lang: string, table?: LanguageTable | null): string {
-  if (!str || !table || str.indexOf("{{") < 0) return str;
-  return str.replace(TOKEN_RE, (_m, key: string) => {
+  if (!str || str.indexOf("{{") < 0) return str;
+  return str.replace(TOKEN_RE, (m, key: string) => {
+    // `{{sys:nome}}`: una parola di sistema, nella lingua dei contenuti, anche
+    // in un progetto senza tabella (i faceplate di sistema, 12-11-2026).
+    if (key.startsWith("sys:")) return testoSistemaPerNome(key.slice(4), lang) ?? m;
+    if (!table) return m;
     const entry = table.entries.find((e) => e.key === key);
     return entry?.values[lang] ?? entry?.values[table.default] ?? `{{${key}}}`;
   });

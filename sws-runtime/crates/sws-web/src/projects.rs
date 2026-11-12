@@ -1443,8 +1443,7 @@ pub async fn apply_tags(
             Some(f) => f.valore_iniziale(),
             None => t.initial_value(),
         };
-        db.set(t.id.clone(), iniziale, sws_core::TagQuality::Uncertain)
-            .await;
+        db.semina(t.id.clone(), iniziale).await;
         seminati += 1;
     }
     // Un'istanza che c'era GIÀ ma la cui forma è cambiata: aggiungere un

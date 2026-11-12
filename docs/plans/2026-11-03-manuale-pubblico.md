@@ -71,6 +71,22 @@ si serve solo a registrazione aperta — **oggi su sws.soligo.net risponde 404**
 `identitaStato()` dice già `gateway` e `gestita`). La testata `App.tsx:859-1018` è la stessa nei due stili. Prima del
 login si servono solo i campi del marchio in `CAMPI_PUBBLICI` (`marchi.rs:96-106`). Il tasto `?` apre già `ShortcutHelp`.
 
+## Fatto il 12-11-2026 (nella rc.16)
+
+- **M1**: `scripts/manuale/genera_sito.sh`, `prepara.py`, `capitoli_pubblici.txt`, `check_manuale_sito.sh`. Le proposte
+  del piano: mkdocs-material 9.5.39 in podman; parti per sviluppatori lasciate com'erano (il riquadro «per chi sviluppa
+  SWS» non c'è ancora: va con M5); link al repo come testo; titolo «SWS — SCADA Web Studio». 28 pagine, nessun link
+  rotto. Le righe dell'indice verso 03, 13 e 14 si tolgono da sole. I ritocchi di testo di M1 (il link a T12, la parte
+  IA del 04, 15:99) passano a M5.
+- **M2**: online su `https://sws.soligo.net/manuale/`.
+  - `deploy/vps/quadlet/sws-manuale.container` (nginx 1.27.3, sola lettura);
+  - `traefik/dynamic/sws-manuale.yml`;
+  - `deploy/vps/manuale/{nginx.conf,robots.txt}`, con crawler IA → 403 e 20 r/s con raffica di 60;
+  - `/manuale/` escluso da `sw.js`;
+  - `scripts/manuale/pubblica.sh`, citato in HOWTO §5, README e STATO del VPS.
+- **Il limite per indirizzo**: nginx vede l'indirizzo di Traefik, quindi oggi è un limite per tutti. Diventa per
+  persona col seme [indirizzo vero dietro Traefik](semi/2026-10-18-indirizzo-vero-dietro-traefik.md).
+
 ## Le sessioni
 
 **M1 — `feat/manuale-sito`: il sito, in locale.**

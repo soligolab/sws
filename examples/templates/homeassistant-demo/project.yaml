@@ -452,9 +452,9 @@ languages:
         es: "EXTERIOR"
     - key: t0010
       values:
-        it: "Delta (°C):"
-        en: "Delta (°C):"
-        es: "Delta (°C):"
+        it: "Delta soggiorno–studio (°C):"
+        en: "Delta living room–study (°C):"
+        es: "Delta salón–estudio (°C):"
     - key: t0011
       values:
         it: "ENERGIA"
@@ -637,14 +637,14 @@ languages:
         es: "potencia_kW × 0.25 €/kWh"
     - key: t0053
       values:
-        it: "Delta Int–Ext (°C):"
-        en: "Delta In–Out (°C):"
-        es: "Delta Int–Ext (°C):"
+        it: "Delta soggiorno–studio (°C):"
+        en: "Delta living room–study (°C):"
+        es: "Delta salón–estudio (°C):"
     - key: t0054
       values:
-        it: "sala.temperatura − esterno.temperatura"
-        en: "sala.temperatura − esterno.temperatura"
-        es: "sala.temperatura − esterno.temperatura"
+        it: "sala.temperatura − studio.temperatura"
+        en: "sala.temperatura − studio.temperatura"
+        es: "sala.temperatura − studio.temperatura"
     - key: t0055
       values:
         it: "Indice comfort (0–100):"

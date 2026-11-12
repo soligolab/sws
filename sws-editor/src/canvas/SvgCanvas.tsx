@@ -54,6 +54,7 @@ import { faceplateDefBBox, normalizeFaceplateParams } from "@/faceplate/definizi
 import { effectiveFaceplateParams, figliDelFaceplate, substituteFaceplateParams } from "./parametriFaceplate";
 import { bboxDelGruppo, espandiAlGruppo, gruppoIntero } from "@/editor/gruppiSelezione";
 import { idsNelRiquadro } from "@/canvas/selezioneRiquadro";
+import { maiRicevuto } from "@/canvas/maiRicevuto";
 import type { AlarmSeverity, AlarmState, Cornice, CustomSymbol, FaceplateDef, GridCell, ObjectGroup, PageSizeMode, PipePoint, Sample, SynopticObject, SynopticObjectType, TableRow, TagDef, TagState, TypeDef } from "@/types";
 import { fattoreFondoRespiro, luminositaValida, parametriLuminosita } from "./luce";
 import { puntiSvg, verticiPoligono } from "./forme";
@@ -4046,6 +4047,15 @@ function SvgObjectCorpo(p: ObjProps) {
           // conferma in mezzo il tag può essere cambiato (F3, decisione 3).
           const inverso = () => {
             const c = valoriVivi.current[bersaglio]?.value;
+            // `ON`/`OFF` (le luci di Zigbee2MQTT): la stringa opposta, nella
+            // stessa grafia. Prima «OFF» era un testo non vuoto, cioè acceso, e
+            // si scriveva `false` (12-11-2026). Gemello di `scritture_al_clic`.
+            if (typeof c === "string" && /^(on|off)$/i.test(c.trim())) {
+              const t = c.trim();
+              const off = t.toLowerCase() === "off";
+              const opposto = off ? "on" : "off";
+              return t === t.toUpperCase() ? opposto.toUpperCase() : opposto;
+            }
             return !(typeof c === "boolean" ? c : typeof c === "number" ? c !== 0 : String(c ?? "").length > 0);
           };
           guardedWrite(bersaglio, inverso); break;
@@ -4720,7 +4730,7 @@ function SvgObjectCorpo(p: ObjProps) {
     // Una stringa vuota vale come un valore che manca (decisione del
     // maintainer, 11-11-2026): si vede il `text` di ripiego, per esempio «—».
     // Senza un `text`, resta vuota: il nome del tag lì non dice niente.
-    const vuoto = tv != null && tv.value === "";
+    const vuoto = tv != null && (tv.value === "" || maiRicevuto(tv));
     const content = tv != null && !vuoto
       ? resolveMsg(formatValue(tv.value, obj.format ?? "{value}"), lingua.lang, lingua.table)
       : vuoto ? (obj.text ?? "") : (obj.text ?? obj.tag ?? "Testo");
@@ -4976,7 +4986,9 @@ function SvgObjectCorpo(p: ObjProps) {
     const { x: lx, y: ly, d } = geometriaLed(obj);
     const r = d / 2;
     const cx = lx + r; const cy = ly + r;
-    const tv = obj.tag ? tagValues[obj.tag] : undefined;
+    const letto = obj.tag ? tagValues[obj.tag] : undefined;
+    // Mai ricevuto: il grigio «senza dato», non lo spento.
+    const tv = maiRicevuto(letto) ? undefined : letto;
     const onVal = obj.on_value ?? true;
     const isOn = tv != null && (
       typeof onVal === "boolean" ? Boolean(tv.value) === onVal
@@ -5315,15 +5327,19 @@ function SvgObjectCorpo(p: ObjProps) {
     //
     // F3.6: si scrive al rilascio salvo `write_on_release: false`;
     // `write_deadband` filtra le variazioni piccole. `read_only` non si muove.
+    // Un tag mai ricevuto: grigio come i dati vecchi, anche dentro un
+    // faceplate (che non passa dal grigio di pagina). Si trascina lo stesso.
+    const mai = !isEditMode && maiRicevuto(tv);
     return (
-      <g onMouseDown={isEditMode ? handleMouseDown : undefined} onClick={(e) => e.stopPropagation()}>
+      <g onMouseDown={isEditMode ? handleMouseDown : undefined} onClick={(e) => e.stopPropagation()}
+        style={mai ? STILE_NON_AGGIORNATO : undefined}>
         {selRect(obj.x, obj.y, w, h)}
         {bgLayer(obj.x, obj.y, w, h, 4)}
         <SliderSvg
           x={obj.x} y={obj.y} w={w} h={h}
           verticale={obj.orientation === "vertical"}
           min={min} max={max} step={obj.step}
-          valoreTag={tv && numerico ? rawVal : tv ? null : min}
+          valoreTag={tv && numerico && !maiRicevuto(tv) ? rawVal : tv ? null : min}
           colore={coloreEffettivo(obj, "fill")}
           coloreTraccia={obj.slider_track_color || undefined}
           spessore={obj.slider_track_thickness}
@@ -5339,7 +5355,7 @@ function SvgObjectCorpo(p: ObjProps) {
           limiti={{ alarmLow: obj.alarm_low, warnLow: obj.warn_low, warnHigh: obj.warn_high, alarmHigh: obj.alarm_high }}
           riposo={obj.slider_rest_value}
           origine={obj.slider_origin}
-          valorePv={obj.slider_pv_tag ? (Number.isFinite(Number(tagValues[obj.slider_pv_tag]?.value)) ? Number(tagValues[obj.slider_pv_tag]?.value) : null) : undefined}
+          valorePv={obj.slider_pv_tag ? (Number.isFinite(Number(tagValues[obj.slider_pv_tag]?.value)) && !maiRicevuto(tagValues[obj.slider_pv_tag]) ? Number(tagValues[obj.slider_pv_tag]?.value) : null) : undefined}
           colorePv={obj.slider_pv_color || undefined}
           etichetta={obj.label || undefined}
           corpoEtichetta={obj.label_font_size ?? 11}
@@ -5870,7 +5886,9 @@ function SvgObjectCorpo(p: ObjProps) {
   // ── TEXT LIST ────────────────────────────────────────────────────────────────
 
   if (obj.type === "text_list") {
-    const tv = obj.tag ? tagValues[obj.tag] : undefined;
+    const letto = obj.tag ? tagValues[obj.tag] : undefined;
+    // Mai ricevuto: il testo predefinito («non collegata»), non la voce dello zero.
+    const tv = maiRicevuto(letto) ? undefined : letto;
     const liveVal = tv?.value;
     const entry = matchTextListEntry(obj.text_list_entries, liveVal);
     const label = entry ? entry.label : (obj.text_list_default ?? (liveVal !== undefined ? String(liveVal) : testoSistema("nd", lingua.lang)));

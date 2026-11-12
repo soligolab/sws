@@ -44,6 +44,10 @@ Ogni installazione HA ha entity_id diversi. Per trovare i tuoi:
 2. Filtra per dominio o parola chiave (es. "solarman", "temperature", "cover")
 3. Sostituisci gli entity_id nel `project.yaml` mantenendo i tag SWS invariati
 
+> **Gli entity_id di questo template sono esempi**, presi da una casa vera: anche quelli con un nome di persona
+> (`person.mauro2`, `switch.lampada_cancelletto_mauro`) vanno sostituiti con i tuoi. Finché non lo fai, quei tag
+> restano «mai ricevuti» e le pagine li mostrano senza valore.
+
 ### Tabella entity_id da adattare
 
 #### Solarman (inverter fotovoltaico)

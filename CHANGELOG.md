@@ -12,6 +12,14 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Aggiunto
+- **Segnaposto di sistema `{{sys:nome}}`**, risolti dai due motori con la tabella dei testi di sistema anche senza
+  tabella delle lingue. `motor_basic` dice «Velocità:» e «Guasto:» nella lingua dei contenuti.
+- **Il battito su `/ws/tags`**: il runtime manda un tick ogni 2 s, e i viewer danno il collegamento per perso dopo 5 s di
+  silenzio (un cavo staccato non chiudeva il socket per minuti). È compatibile coi client e coi runtime vecchi.
+- **Il manuale pubblico** su `sws.soligo.net/manuale/` (piano manuale pubblico, M1–M2):
+  - `scripts/manuale/genera_sito.sh` (mkdocs-material in podman) e `pubblica.sh`;
+  - nginx in sola lettura dietro Traefik, crawler IA → 403;
+  - `check_manuale_sito.sh`.
 - **Comandi critici su LVGL con password e motivo** (piano parità LVGL §2.2). Un riquadro con la tastiera
   chiede la password di chi è collegato e, con `require_reason`, il motivo, che va nell'audit. Il momentaneo
   critico diventa un impulso dopo la password (§2.3).
@@ -278,6 +286,22 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   il salvataggio non è finito.
 
 ### Corretto
+- **Rc.16, dal lavoro su CasaDomotica e dalle decisioni del 12-11-2026**:
+  - **«Mai ricevuto»**: la semina di un tag ha `ts` 0 (`TagDb::semina`) e non entra più nello storico (prima ogni
+    riavvio scriveva uno zero incerto per ogni tag). Sui due motori:
+    - un testo mostra il suo ripiego e un `text_list` il predefinito («non collegata»);
+    - il led è grigio senza dato;
+    - lo slider è attenuato, con valore e PV «—».
+  - **«Commuta» su `ON`/`OFF`**: scrive la stringa opposta. Prima «OFF» era un testo non vuoto, cioè acceso, e le luci
+    di Zigbee2MQTT non si potevano commutare.
+  - **Il file di una pagina tiene il suo nome** finché la pagina non si rinomina: un template non diventa più
+    `{{t0001}}.yaml`.
+  - **Le finestre LVGL** prendono il colore del testo dallo sfondo: i valori di una piastra erano neri.
+  - **Template**:
+    - `homeassistant-demo` dice delta soggiorno − studio e kW;
+    - `homeassistant-pro` dichiara gli entity d'esempio;
+    - `demo-slider` senza un ruolo che non serviva;
+    - il nebulizzatore ha un bottone solo.
 - **Il pannello LVGL disegna come il web, secondo giro** (12-11-2026, decisioni dell'11-11 sera).
   - **Griglia**: un bordo per cella; le celle unite non sono attraversate.
   - **`radio`**: cerchi.

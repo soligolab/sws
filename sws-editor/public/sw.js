@@ -35,6 +35,9 @@ self.addEventListener("fetch", (event) => {
   // sono del pannello, e un service worker registrato altrove sullo stesso
   // sito non li deve né mettere in cache né servire da lì.
   if (url.pathname.startsWith("/schermo/")) return;
+  // Il manuale (12-11-2026, piano manuale pubblico M2) è un sito a parte,
+  // servito da nginx sullo stesso indirizzo: niente cache dell'IDE.
+  if (url.pathname === "/manuale" || url.pathname.startsWith("/manuale/") || url.pathname === "/robots.txt") return;
   event.respondWith(
     fetch(event.request)
       .then((response) => {

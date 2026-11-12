@@ -168,6 +168,11 @@ con la pagina dentro, perché `ServeDir` serviva il guscio della SPA come rispos
 Ora una rotta della SPA (una richiesta di navigazione) ha 200, mentre un file davvero mancante
 resta 404: così un bundle che manca non torna come HTML con stato 200.
 
+**Il manuale pubblico** (12-11-2026): `sws-manuale` (nginx 1.27.3-alpine, sola lettura) dietro Traefik su
+`/manuale/` e `/robots.txt`, 28 pagine; GPTBot e gli altri crawler IA ricevono 403. nginx vede l'indirizzo di Traefik
+(`10.89.0.x`): il limite di 20 richieste/s vale per tutti insieme finché non c'è l'indirizzo vero (seme «indirizzo vero
+dietro Traefik»). Si aggiorna con `scripts/manuale/pubblica.sh`.
+
 **Versione in esecuzione: `100b952c-amd64` (2.26.0-rc.15)** dal 12-11-2026 mattina: «Aggiorna ora» staccato dalla
 richiesta, parità LVGL (due giri), comandi critici su LVGL, zip 9, «Disabilita TLS», le etichette vecchie fuori
 dall'immagine. La rc.14 è solo un tag, mai costruita. Stessa sequenza della rc.13; nessun progetto aperto. Verificato:

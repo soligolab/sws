@@ -40,6 +40,8 @@ export type VoceSistema =
   | "agg_in_avvio"
   | "allarmi"
   | "nessun_allarme_attivo"
+  | "velocita"
+  | "guasto"
   | "dati_in_ritardo"
   | "esito_titolo_ok"
   | "esito_titolo_ko"
@@ -155,6 +157,20 @@ export const TESTI_SISTEMA: Record<VoceSistema, Record<LinguaSistema, string>> =
     fr: "Aucune alarme active",
     es: "Ninguna alarma activa",
     en: "No active alarms",
+  },
+  velocita: {
+    it: "Velocità",
+    de: "Drehzahl",
+    fr: "Vitesse",
+    es: "Velocidad",
+    en: "Speed",
+  },
+  guasto: {
+    it: "Guasto",
+    de: "Störung",
+    fr: "Défaut",
+    es: "Avería",
+    en: "Fault",
   },
   dati_in_ritardo: {
     it: "Dati in ritardo di {n} s",
@@ -278,4 +294,11 @@ export function testoSistemaCon(
   let s: string = testoSistema(voce, lingua);
   for (const [nome, v] of Object.entries(valori)) s = s.split(`{${nome}}`).join(v);
   return s;
+}
+
+/** La parola di sistema per **nome**, se esiste: è il `{{sys:nome}}` dei
+ *  faceplate di sistema (12-11-2026), che `resolveMsg` risolve qui e non nella
+ *  tabella del progetto. `null` per un nome che la tabella non ha. */
+export function testoSistemaPerNome(nome: string, lingua: string): string | null {
+  return nome in TESTI_SISTEMA ? testoSistema(nome as VoceSistema, lingua) : null;
 }

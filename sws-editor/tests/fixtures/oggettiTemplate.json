@@ -45,14 +45,14 @@
      "type": "text",
      "x": 4,
      "y": 44,
-     "text": "Speed:",
+     "text": "{{sys:velocita}}:",
      "font_size": 11,
      "color": "#64748b"
     },
     {
      "id": "motor-speed-value",
      "type": "text",
-     "x": 44,
+     "x": 62,
      "y": 44,
      "tag": "{tag_prefix}.speed",
      "format": "{value:.0f} rpm",
@@ -64,14 +64,14 @@
      "type": "text",
      "x": 4,
      "y": 64,
-     "text": "Fault:",
+     "text": "{{sys:guasto}}:",
      "font_size": 11,
      "color": "#64748b"
     },
     {
      "id": "motor-fault-led",
      "type": "led",
-     "x": 40,
+     "x": 62,
      "y": 56,
      "width": 12,
      "height": 12,

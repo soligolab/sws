@@ -1,0 +1,16 @@
+# sws.soligo.net/manuale/ e /robots.txt → il sito statico del manuale (piano manuale pubblico, M2).
+# Tutto il resto resta al gateway (`sws-gateway.yml`): questa regola è più lunga, quindi vince.
+http:
+  routers:
+    sws-manuale:
+      rule: "Host(`sws.soligo.net`) && (PathPrefix(`/manuale`) || Path(`/robots.txt`))"
+      entryPoints: [websecure]
+      service: sws-manuale
+      tls:
+        certResolver: letsencrypt
+
+  services:
+    sws-manuale:
+      loadBalancer:
+        servers:
+          - url: "http://sws-manuale:80"

@@ -1,0 +1,32 @@
+# I capitoli del manuale che si pubblicano su sws.soligo.net/manuale/ (piano manuale pubblico, M1).
+# Uno per riga, nell'ordine della navigazione; «== titolo» apre una sezione. Fuori, per decisione del
+# 03-11-2026: 03 architettura, 13 API, 14 test (per chi sviluppa SWS, non per chi lo usa).
+MAIN.md
+== Guida
+01_overview.md
+02_quickstart.md
+04_editor_guide.md
+05_widget_reference.md
+06_protocols.md
+07_alarms.md
+08_historian.md
+09_auth_rbac.md
+10_deployment.md
+11_packaging_deploy.md
+12_gitops.md
+15_multilingua.md
+16_prestazioni.md
+17_sicurezza.md
+18_container_e_comunicazione.md
+== Tutorial
+T01_laboratorio.md
+T02_progetto_vuoto.md
+T03_tag_e_tipi.md
+T04_modbus.md
+T05_opcua.md
+T06_s7.md
+T07_mqtt.md
+T08_pagine.md
+T09_allarmi_e_storico.md
+T10_utenti_e_ruoli.md
+T11_pannello.md
