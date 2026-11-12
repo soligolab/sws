@@ -173,7 +173,13 @@ resta 404: così un bundle che manca non torna come HTML con stato 200.
 (`10.89.0.x`): il limite di 20 richieste/s vale per tutti insieme finché non c'è l'indirizzo vero (seme «indirizzo vero
 dietro Traefik»). Si aggiorna con `scripts/manuale/pubblica.sh`.
 
-**Versione in esecuzione: `100b952c-amd64` (2.26.0-rc.15)** dal 12-11-2026 mattina: «Aggiorna ora» staccato dalla
+**Versione in esecuzione: `671f67fd-amd64` (2.26.0-rc.16)** dal 12-11-2026 sera: «mai ricevuto» sui due motori,
+segnaposto `{{sys:…}}`, battito su `/ws/tags`, «Commuta» su ON/OFF, manuale pubblico. Stessa sequenza della rc.15 (copia
+del quadlet `.prima-rc16-2026-11-12`, `podman pull`, `sed` del sha in `Image=` e `--gateway-immagine`, `scp`,
+`daemon-reload`, `restart sws-gateway`). Verificato: gateway `healthy`, radice 200, quadlet uguale al repo (`md5sum`).
+Ripiego `100b952c-amd64` (rc.15).
+
+Prima: **Versione in esecuzione: `100b952c-amd64` (2.26.0-rc.15)** dal 12-11-2026 mattina: «Aggiorna ora» staccato dalla
 richiesta, parità LVGL (due giri), comandi critici su LVGL, zip 9, «Disabilita TLS», le etichette vecchie fuori
 dall'immagine. La rc.14 è solo un tag, mai costruita. Stessa sequenza della rc.13; nessun progetto aperto. Verificato:
 gateway `healthy`, radice 200, copia del quadlet uguale al repo (`md5sum`). Ripiego `125cec0f-amd64` (rc.13); tolta la

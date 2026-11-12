@@ -12,6 +12,39 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — rc.16 pubblicata; il Tiny TY gira SWS, ramo aperto da collaudare (2026-11-12 sera, theobroma)
+
+**rc.16 su origin**: lo squash dei due rami della notte (`ff89d725`) e `chore(rc): 2.26.0-rc.16` (`671f67fd`), col tag.
+Immagini arm64 e amd64 costruite nel worktree `/home/ut1/sws-build-rc16` e pubblicate, `rc-arm64` spostato; gateway
+del VPS sulla rc.16 (dettaglio in `deploy/vps/STATO.md`). I due rami vecchi eliminati, in locale e su origin.
+
+**TC620, stasera da casa**: la rc.15 era rientrata da sola alla rc.13 («la versione nuova non è partita bene»), senza
+una causa nota. L'immagine sotto qemu con configurazione vuota parte. Ipotesi: disco pieno (istantanea di 877 MB) o
+avvio oltre i 90 s. Se la rc.16 rientra anche lei: il journal (`journalctl --user -u sws-runtime`) e `df -h /data`.
+C'è anche il difetto visto oggi: uscendo e rientrando nel progetto durante l'aggiornamento, «Aggiorna ora» si poteva
+rilanciare.
+
+**Ramo aperto `feat/tiny-ty-armv7`** (pushato, da `main` rc.16), piano `docs/plans/2026-10-30-sws-lvgl-sul-tiny-ty.md`,
+passi 1-2. Sul Tiny TY (`pixsys@192.168.1.96`, password data dal maintainer, si usa solo con `sshpass -e`) runtime e
+viewer girano da `/data/sws-prova`, avviati a mano con `sudo` (`tyx_panelcontrol` fermato); progetto di prova
+`~/sws_projects/tiny-ty` (Host, gauge, kpi, trend; pagine Sistema e Test, cornice «Frame» con navigatore).
+- Fatto: build armv7 (`scripts/build_armv7.sh`), touch a 32 bit, `pannello.fps` (predefinito 20, LVGL e web), copia
+  DRM della sola zona cambiata, testi/colori/aghi riscritti solo se cambiano, trascinamento del trend da 59 a 8,3 ms
+  a fotogramma, pagina di abbinamento centrata, sparkline senza pallini, **un deploy ridisegna la pagina col backend
+  DRM** (`d8b8da93`, compilato in `dist/armv7/` ma non ancora sul dispositivo: era spento).
+- Misure: viewer 0-6 % di CPU a pagina ferma, runtime ~35 MB + viewer ~18 MB di PSS.
+
+**Domani, sul Tiny TY**:
+1. copiare `dist/armv7/sws-lvgl-viewer` in `/data/sws-prova` e riavviarlo; provare deploy e cambio pagina (Sistema ↔
+   Test) con Prestazioni aperta;
+2. la pagina Prestazioni dice ancora «su 16 ms» e «60 al secondo»: va riscritta su `pannello.fps`;
+3. luce e cicalino gestiti da SWS (beep al tocco, luminosità, oscura/spegne a riposo), impostati nel progetto;
+4. passo 2 parte B (32 bit, due buffer DRM, niente conversione), senza impedire la rotazione;
+5. definition of done del ramo (cargo test e vitest sulle ultime modifiche, `check_static`), collaudo, squash.
+
+Semi nuovi di oggi: QR del codice di abbinamento, abbinare un pannello dall'account.
+
+
 ## ▶ Riprendere da qui — la rc.16 quasi tutta fatta, su due rami pushati e lasciati aperti (2026-11-12 sera, ufficio)
 
 **Due rami annidati su origin, non mergiati** (scelta del maintainer a fine giornata):
