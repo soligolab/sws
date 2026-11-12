@@ -139,6 +139,7 @@ impl Fascia {
             ingrigisci_figli(schermo, self.filtro.dsc(), self.ricolore);
             if let Some(a) = finestra {
                 ingrigisci_figli(a, self.filtro.dsc(), self.ricolore);
+                velo_nella_finestra(a);
             }
         }
     }
@@ -251,6 +252,9 @@ impl Fascia {
             rischiara_figli(schermo, self.filtro.dsc());
             if let Some(a) = finestra {
                 rischiara_figli(a, self.filtro.dsc());
+                if let Some(v) = velo_di(a) {
+                    lvgl_sys::lv_obj_del(v);
+                }
             }
         }
         eprintln!("[ritardo] dati di nuovo aggiornati");
@@ -278,6 +282,63 @@ impl Default for Fascia {
 impl Drop for Fascia {
     fn drop(&mut self) {
         self.distruggi();
+    }
+}
+
+/// Il segno del velo dentro una finestra, nel suo `user_data`: un indirizzo che
+/// nessun altro oggetto può avere.
+static SEGNO_VELO: u8 = 0;
+
+/// Il velo dentro la finestra `a`, se c'è (11-11-2026, piano parità LVGL §3.3).
+/// Si ritrova cercandolo fra i figli, invece di tenerne il puntatore: chiudere
+/// la finestra lo cancella con lei, e un puntatore tenuto qui resterebbe a un
+/// oggetto che non esiste più.
+///
+/// # Safety
+/// `a` deve essere un oggetto LVGL vivo.
+unsafe fn velo_di(a: *mut lvgl_sys::lv_obj_t) -> Option<*mut lvgl_sys::lv_obj_t> {
+    let segno = &SEGNO_VELO as *const u8 as *mut core::ffi::c_void;
+    (0..lvgl_sys::lv_obj_get_child_cnt(a))
+        .map(|i| lvgl_sys::lv_obj_get_child(a, i as i32))
+        .find(|c| !c.is_null() && (**c).user_data == segno)
+}
+
+/// Il velo sopra gli oggetti di una finestra aperta: il velo della pagina sta
+/// sotto le finestre, e lì gli oggetti restavano grigi ma pieni, mentre sul web
+/// sono al 55 %. Il colore è il fondo della finestra; i tocchi passano.
+///
+/// # Safety
+/// `a` deve essere un oggetto LVGL vivo.
+unsafe fn velo_nella_finestra(a: *mut lvgl_sys::lv_obj_t) {
+    let v = match velo_di(a) {
+        Some(v) => v,
+        None => {
+            let Ok(v) = nudo(a) else {
+                return;
+            };
+            (*v).user_data = &SEGNO_VELO as *const u8 as *mut core::ffi::c_void;
+            lvgl_sys::lv_obj_add_flag(v, lvgl_sys::LV_OBJ_FLAG_IGNORE_LAYOUT);
+            lvgl_sys::lv_obj_set_style_bg_opa(v, OPA_VELO, 0);
+            v
+        }
+    };
+    let c = lvgl_sys::lv_obj_get_style_prop(
+        a,
+        lvgl_sys::LV_PART_MAIN,
+        lvgl_sys::lv_style_prop_t_LV_STYLE_BG_COLOR,
+    )
+    .color;
+    lvgl_sys::lv_obj_set_style_bg_color(v, c, 0);
+    lvgl_sys::lv_obj_set_pos(v, 0, 0);
+    lvgl_sys::lv_obj_set_size(
+        v,
+        lvgl_sys::lv_obj_get_content_width(a),
+        lvgl_sys::lv_obj_get_content_height(a),
+    );
+    // Sopra tutti gli oggetti della finestra, anche quelli creati dopo.
+    let ultimo = lvgl_sys::lv_obj_get_child_cnt(a) as i32 - 1;
+    if lvgl_sys::lv_obj_get_index(v) as i32 != ultimo {
+        lvgl_sys::lv_obj_move_to_index(v, ultimo);
     }
 }
 

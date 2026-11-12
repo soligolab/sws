@@ -789,6 +789,12 @@ pub struct PieSlice {
 pub struct FaceplateDef {
     #[serde(default)]
     pub objects: Vec<serde_json::Value>,
+    /// Il riquadro dichiarato, per `faceplate_scale` (11-11-2026): senza, si
+    /// ricava dagli oggetti come `faceplateDefBBox` del web.
+    #[serde(default)]
+    pub width: Option<f64>,
+    #[serde(default)]
+    pub height: Option<f64>,
     /// Il nome leggibile, per la barra del titolo quando un faceplate si apre
     /// come finestra (22-10-2026). Come ogni campo di questo modello ha il suo
     /// `default`: senza, un faceplate che non lo dichiara renderebbe

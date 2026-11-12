@@ -113,6 +113,9 @@ objects:
   width: 96
   height: 28
   tag: sandokan.state
+  # «—» finché la presa non dice niente: una stringa vuota mostra il testo di
+  # ripiego (decisione del maintainer, 11-11-2026).
+  text: "—"
   font_size: 14
   font_weight: 600
   text_anchor: start

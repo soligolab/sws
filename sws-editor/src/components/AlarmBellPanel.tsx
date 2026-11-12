@@ -11,6 +11,8 @@ import { playAlarmBeep, worstSeverity } from "@/alarmSound";
 import { SEV_COLOR } from "@/alarmSeverity";
 import type { AlarmSeverity, AlarmState, ShelvedAlarm } from "@/types";
 import { CampoNumero } from "@/components/CampoNumero";
+import { testoSistema } from "@/i18n/testiSistema";
+import { useLinguaContenuti } from "@/i18n/linguaContenuti";
 
 // ── AlarmBellPanel ────────────────────────────────────────────────────────────
 //
@@ -43,6 +45,7 @@ export interface AlarmBellPanelProps {
 
 export function AlarmBellPanel({ idPrefix = "", allowedSev, showHistory = true, showShelve = true, badgeFill,
   sound = false, soundSeverities, soundRepeatS = 20, muted: mutedProp, corpo = 12 }: AlarmBellPanelProps) {
+  const lingua = useLinguaContenuti();
   const { t } = useTranslation();
   useAlarmStream();
 
@@ -180,7 +183,7 @@ export function AlarmBellPanel({ idPrefix = "", allowedSev, showHistory = true, 
       <button
         ref={buttonRef}
         onClick={toggleOpen}
-        title={visibleActive.length === 0 ? t("viewer.noActiveAlarms") : `${visibleActive.length} ${t("viewer.active")}`}
+        title={visibleActive.length === 0 ? testoSistema("nessun_allarme_attivo", lingua.lang) : `${visibleActive.length} ${t("viewer.active")}`}
         style={{
           width: "100%", height: "100%", boxSizing: "border-box",
           background: badgeFill ?? "#1e293b",
@@ -197,7 +200,7 @@ export function AlarmBellPanel({ idPrefix = "", allowedSev, showHistory = true, 
         }}
       >
         <span style={{ color: badgeColor, fontSize: corpo + 2 }}>🔔</span>
-        <span>{t("viewer.alarms")}</span>
+        <span>{testoSistema("allarmi", lingua.lang)}</span>
         {/* F7.5 — "tacita": compare solo quando c'è davvero qualcosa che sta
             suonando, così non è un comando inerte sempre presente. Vive dentro
             il pulsante campanella (stopPropagation: non apre il pannello). */}

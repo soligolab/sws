@@ -75,6 +75,10 @@ pub enum Testo {
     AggInCorso,
     /// Dal tocco su «Aggiorna ora» alla partenza, login compreso (09-11-2026).
     AggInAvvio,
+    /// La scritta della campanella e la lista vuota degli allarmi (11-11-2026):
+    /// prima fisse in italiano su LVGL e nella lingua dell'IDE sul web.
+    Allarmi,
+    NessunAllarmeAttivo,
     /// La fascia del viewer quando i valori a schermo sono vecchi (09-11-2026, `{n}` i secondi).
     DatiInRitardo,
     EsitoTitoloOk,
@@ -155,6 +159,8 @@ pub const TUTTI: &[Testo] = &[
     Testo::AggIgnora,
     Testo::AggInCorso,
     Testo::AggInAvvio,
+    Testo::Allarmi,
+    Testo::NessunAllarmeAttivo,
     Testo::DatiInRitardo,
     Testo::EsitoTitoloOk,
     Testo::EsitoTitoloKo,
@@ -220,6 +226,8 @@ pub fn da_nome(nome: &str) -> Option<Testo> {
         "agg_ignora" => Testo::AggIgnora,
         "agg_in_corso" => Testo::AggInCorso,
         "agg_in_avvio" => Testo::AggInAvvio,
+        "allarmi" => Testo::Allarmi,
+        "nessun_allarme_attivo" => Testo::NessunAllarmeAttivo,
         "dati_in_ritardo" => Testo::DatiInRitardo,
         "esito_titolo_ok" => Testo::EsitoTitoloOk,
         "esito_titolo_ko" => Testo::EsitoTitoloKo,
@@ -438,6 +446,16 @@ pub fn testo(t: Testo, lingua: &str) -> &'static str {
         (AggInAvvio, "fr") => "Démarrage de la mise à jour…",
         (AggInAvvio, "es") => "Iniciando la actualización…",
         (AggInAvvio, _) => "Starting the update…",
+        (Allarmi, "it") => "Allarmi",
+        (Allarmi, "de") => "Alarme",
+        (Allarmi, "fr") => "Alarmes",
+        (Allarmi, "es") => "Alarmas",
+        (Allarmi, _) => "Alarms",
+        (NessunAllarmeAttivo, "it") => "Nessun allarme attivo",
+        (NessunAllarmeAttivo, "de") => "Keine aktiven Alarme",
+        (NessunAllarmeAttivo, "fr") => "Aucune alarme active",
+        (NessunAllarmeAttivo, "es") => "Ninguna alarma activa",
+        (NessunAllarmeAttivo, _) => "No active alarms",
 
         (DatiInRitardo, "it") => "Dati in ritardo di {n} s",
         (DatiInRitardo, "de") => "Daten um {n} s verzögert",

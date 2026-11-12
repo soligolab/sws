@@ -767,6 +767,23 @@ struct ButtonClickCtx {
     /// Le scritture decise al clic, in attesa della risposta alla conferma: il
     /// valore di un «commuta» si calcola quando si tocca, non quando si conferma.
     in_attesa: RefCell<Vec<(String, TagValue)>>,
+    /// Il riquadro della password, mentre è aperto.
+    critico: RefCell<Option<RiquadroCritico>>,
+}
+
+/// I pezzi del riquadro di un comando critico che servono alla risposta.
+struct RiquadroCritico {
+    radice: *mut lvgl_sys::lv_obj_t,
+    password: Option<*mut lvgl_sys::lv_obj_t>,
+    motivo: Option<*mut lvgl_sys::lv_obj_t>,
+    errore: *mut lvgl_sys::lv_obj_t,
+}
+
+thread_local! {
+    /// L'indirizzo del runtime e la sessione, per i comandi critici: li
+    /// imposta `dispatch_render`, e così non passano per ogni chiamante di
+    /// `collega_comando` (bottone, simbolo, cella).
+    static RETE: RefCell<Option<(String, SharedSession)>> = const { RefCell::new(None) };
 }
 
 /// Il comando di un bottone, deciso una volta al disegno della pagina.
@@ -795,6 +812,12 @@ pub(crate) enum Comando {
 /// Chi deve chiedere conferma, e con quale messaggio d'autore.
 struct RegolaConferma {
     critico: bool,
+    /// `require_confirm`: la domanda sì/no. Un critico senza di lei va dritto
+    /// alla password, come sul web (11-11-2026): prima la conferma era il
+    /// ripiego per la password che qui mancava.
+    chiedi_conferma: bool,
+    /// `require_reason` di un comando critico: il motivo, che va nell'audit.
+    motivo: bool,
     messaggio: Option<String>,
 }
 
@@ -900,8 +923,13 @@ unsafe extern "C" fn sws_button_clicked_cb(e: *mut lvgl_sys::lv_event_t) {
         manda_scritture(&ctx.tx, &scritture);
         return;
     };
+    *ctx.in_attesa.borrow_mut() = scritture.clone();
+    if !regola.chiedi_conferma {
+        // Solo critico: dritto alla password.
+        unsafe { apri_critico(user_data) };
+        return;
+    }
     let c = conferma_per(regola, &scritture);
-    *ctx.in_attesa.borrow_mut() = scritture;
     // La finestra si crea al click e si distrugge alla risposta: tenerne una
     // nascosta per ogni pulsante costerebbe memoria per una cosa che succede
     // di rado. Il contesto passato è **lo stesso** già leakato per il pulsante,
@@ -946,6 +974,227 @@ unsafe extern "C" fn sws_button_clicked_cb(e: *mut lvgl_sys::lv_event_t) {
     }
 }
 
+/// Il riquadro di un comando critico (11-11-2026, piano parità LVGL §2.2):
+/// la password di chi è collegato, il motivo se `require_reason`, la tastiera.
+/// Sopra la pagina sul layer superiore, che blocca i tocchi sotto. Senza
+/// sessione e senza motivo non c'è niente da chiedere: le scritture partono e,
+/// se il pannello ha utenti, il rifiuto apre l'accesso come per ogni comando.
+///
+/// # Safety
+/// `user_data` è il `ButtonClickCtx` del bottone.
+unsafe fn apri_critico(user_data: *mut std::ffi::c_void) {
+    let ctx = &*(user_data as *const ButtonClickCtx);
+    if ctx.critico.borrow().is_some() {
+        return;
+    }
+    let Some((base_url, sessione)) = RETE.with(|r| r.borrow().clone()) else {
+        eprintln!("[critico] nessun runtime noto: comando non eseguito");
+        ctx.in_attesa.borrow_mut().clear();
+        return;
+    };
+    let collegato = sessione
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .is_logged_in();
+    let vuole_motivo = ctx.conferma.as_ref().is_some_and(|r| r.motivo);
+    if !collegato && !vuole_motivo {
+        manda_critico(ctx, &base_url, &sessione, None, None);
+        return;
+    }
+    let top = lvgl_sys::lv_disp_get_layer_top(core::ptr::null_mut());
+    if top.is_null() {
+        return;
+    }
+    let (w, h) = crate::lvgl_display::dims();
+    let (w, h) = (w as i16, h as i16);
+    let radice = lvgl_sys::lv_obj_create(top);
+    lvgl_sys::lv_obj_remove_style(
+        radice,
+        core::ptr::null_mut(),
+        (lvgl_sys::LV_PART_ANY | lvgl_sys::LV_STATE_ANY) as lvgl_sys::lv_style_selector_t,
+    );
+    lvgl_sys::lv_obj_set_pos(radice, 0, 0);
+    lvgl_sys::lv_obj_set_size(radice, w, h);
+    lvgl_sys::lv_obj_set_style_bg_color(radice, Color::from_rgb((0, 0, 0)).into(), 0);
+    lvgl_sys::lv_obj_set_style_bg_opa(radice, 140, 0);
+    lvgl_sys::lv_obj_clear_flag(radice, lvgl_sys::LV_OBJ_FLAG_SCROLLABLE);
+    // DejaVu per tutto il riquadro, accenti compresi («è obbligatorio»): il
+    // carattere del tema non li ha. La tastiera rimette il suo per i simboli.
+    if let Some(f) = crate::lvgl_font::at_size(14) {
+        lvgl_sys::lv_obj_set_style_text_font(radice, f, 0);
+    }
+
+    let larga = (w - 40).min(460);
+    let campi = collegato as i16 + vuole_motivo as i16;
+    let alta = 56 + campi * 62 + 64;
+    let scheda = lvgl_sys::lv_obj_create(radice);
+    lvgl_sys::lv_obj_set_size(scheda, larga, alta);
+    lvgl_sys::lv_obj_align(
+        scheda,
+        lvgl_sys::LV_ALIGN_TOP_MID as lvgl_sys::lv_align_t,
+        0,
+        16,
+    );
+    lvgl_sys::lv_obj_set_style_bg_color(scheda, Color::from_rgb((0x1e, 0x29, 0x3b)).into(), 0);
+    lvgl_sys::lv_obj_set_style_border_color(scheda, Color::from_rgb((0x33, 0x41, 0x55)).into(), 0);
+    lvgl_sys::lv_obj_set_style_text_color(scheda, Color::from_rgb((0xe2, 0xe8, 0xf0)).into(), 0);
+    lvgl_sys::lv_obj_clear_flag(scheda, lvgl_sys::LV_OBJ_FLAG_SCROLLABLE);
+
+    let etichetta = |testo: &str, y: i16| {
+        let l = lvgl_sys::lv_label_create(scheda);
+        lvgl_sys::lv_label_set_text(l, text_cstring(testo).as_ptr());
+        lvgl_sys::lv_obj_set_pos(l, 0, y);
+        l
+    };
+    etichetta("Comando critico", 0);
+    let campo = |y: i16, segreto: bool, segnaposto: &str| {
+        let t = lvgl_sys::lv_textarea_create(scheda);
+        lvgl_sys::lv_textarea_set_one_line(t, true);
+        lvgl_sys::lv_textarea_set_password_mode(t, segreto);
+        lvgl_sys::lv_textarea_set_placeholder_text(t, text_cstring(segnaposto).as_ptr());
+        lvgl_sys::lv_obj_set_pos(t, 0, y);
+        lvgl_sys::lv_obj_set_width(t, larga - 32);
+        t
+    };
+    let mut y = 28;
+    let password = collegato.then(|| {
+        let t = campo(y, true, "Password");
+        y += 62;
+        t
+    });
+    let motivo = vuole_motivo.then(|| campo(y, false, "Motivo (obbligatorio)"));
+    let errore = etichetta("", alta - 92);
+    lvgl_sys::lv_obj_set_style_text_color(errore, Color::from_rgb((0xf8, 0x71, 0x71)).into(), 0);
+
+    let bottone = |testo: &str, x: i16, cb: unsafe extern "C" fn(*mut lvgl_sys::lv_event_t)| {
+        let b = lvgl_sys::lv_btn_create(scheda);
+        lvgl_sys::lv_obj_set_size(b, 120, 40);
+        lvgl_sys::lv_obj_set_pos(b, x, alta - 72);
+        let l = lvgl_sys::lv_label_create(b);
+        lvgl_sys::lv_label_set_text(l, text_cstring(testo).as_ptr());
+        lvgl_sys::lv_obj_align(l, lvgl_sys::LV_ALIGN_CENTER as lvgl_sys::lv_align_t, 0, 0);
+        lvgl_sys::lv_obj_add_event_cb(
+            b,
+            Some(cb),
+            lvgl_sys::lv_event_code_t_LV_EVENT_CLICKED,
+            user_data,
+        );
+        b
+    };
+    // «Annulla» per primo, come nella conferma: sotto il dito che ha toccato
+    // per sbaglio c'è quello che non fa niente.
+    let annulla = bottone("Annulla", 0, sws_critico_annulla_cb);
+    lvgl_sys::lv_obj_set_style_bg_color(annulla, Color::from_rgb((0x47, 0x55, 0x69)).into(), 0);
+    bottone("Conferma", larga - 32 - 120, sws_critico_conferma_cb);
+
+    let tastiera = lvgl_sys::lv_keyboard_create(radice);
+    crate::lvgl_font::restore_symbols_on(tastiera);
+    lvgl_sys::lv_obj_set_size(tastiera, w, h / 2 - 20);
+    lvgl_sys::lv_obj_align(
+        tastiera,
+        lvgl_sys::LV_ALIGN_BOTTOM_MID as lvgl_sys::lv_align_t,
+        0,
+        0,
+    );
+    if let Some(t) = password.or(motivo) {
+        lvgl_sys::lv_keyboard_set_textarea(tastiera, t);
+    }
+    for t in [password, motivo].into_iter().flatten() {
+        lvgl_sys::lv_obj_add_event_cb(
+            t,
+            Some(sws_critico_fuoco_cb),
+            lvgl_sys::lv_event_code_t_LV_EVENT_FOCUSED,
+            tastiera as *mut std::ffi::c_void,
+        );
+    }
+    *ctx.critico.borrow_mut() = Some(RiquadroCritico {
+        radice,
+        password,
+        motivo,
+        errore,
+    });
+}
+
+/// Il campo toccato prende la tastiera.
+unsafe extern "C" fn sws_critico_fuoco_cb(e: *mut lvgl_sys::lv_event_t) {
+    let tastiera = lvgl_sys::lv_event_get_user_data(e) as *mut lvgl_sys::lv_obj_t;
+    let campo = lvgl_sys::lv_event_get_target(e);
+    if !tastiera.is_null() && !campo.is_null() {
+        lvgl_sys::lv_keyboard_set_textarea(tastiera, campo);
+    }
+}
+
+unsafe extern "C" fn sws_critico_annulla_cb(e: *mut lvgl_sys::lv_event_t) {
+    let ctx = &*(lvgl_sys::lv_event_get_user_data(e) as *const ButtonClickCtx);
+    chiudi_critico(ctx);
+    ctx.in_attesa.borrow_mut().clear();
+}
+
+unsafe extern "C" fn sws_critico_conferma_cb(e: *mut lvgl_sys::lv_event_t) {
+    let ctx = &*(lvgl_sys::lv_event_get_user_data(e) as *const ButtonClickCtx);
+    let testo = |t: *mut lvgl_sys::lv_obj_t| {
+        std::ffi::CStr::from_ptr(lvgl_sys::lv_textarea_get_text(t))
+            .to_string_lossy()
+            .into_owned()
+    };
+    let (password, motivo, errore) = match ctx.critico.borrow().as_ref() {
+        Some(r) => (r.password.map(testo), r.motivo.map(testo), r.errore),
+        None => return,
+    };
+    if motivo.as_deref().is_some_and(|m| m.trim().is_empty()) {
+        lvgl_sys::lv_label_set_text(errore, text_cstring("Il motivo è obbligatorio").as_ptr());
+        return;
+    }
+    if password.as_deref().is_some_and(str::is_empty) {
+        lvgl_sys::lv_label_set_text(errore, text_cstring("Serve la password").as_ptr());
+        return;
+    }
+    chiudi_critico(ctx);
+    if let Some((base_url, sessione)) = RETE.with(|r| r.borrow().clone()) {
+        manda_critico(
+            ctx,
+            &base_url,
+            &sessione,
+            password,
+            motivo.map(|m| m.trim().to_string()),
+        );
+    }
+}
+
+/// Via il riquadro; LVGL cancella con la radice tutto quello che contiene.
+unsafe fn chiudi_critico(ctx: &ButtonClickCtx) {
+    if let Some(r) = ctx.critico.borrow_mut().take() {
+        lvgl_sys::lv_obj_del(r.radice);
+    }
+}
+
+/// Al thread di rete, con la sessione di adesso: la verifica e le scritture
+/// non toccano LVGL, e un rifiuto torna a schermo per le strade di sempre.
+fn manda_critico(
+    ctx: &ButtonClickCtx,
+    base_url: &str,
+    sessione: &SharedSession,
+    password: Option<String>,
+    motivo: Option<String>,
+) {
+    let scritture = std::mem::take(&mut *ctx.in_attesa.borrow_mut());
+    if scritture.is_empty() {
+        return;
+    }
+    let token = sessione
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .token
+        .clone();
+    crate::net_worker::invia(crate::net_worker::Comando::ScriviCritico {
+        base_url: base_url.to_string(),
+        token,
+        password,
+        motivo,
+        scritture,
+    });
+}
+
 /// I due pulsanti della finestra di conferma.
 ///
 /// **Deve essere `static`.** `lv_msgbox_create` passa l'array a
@@ -982,11 +1231,17 @@ unsafe extern "C" fn sws_conferma_cb(e: *mut lvgl_sys::lv_event_t) {
     }
     let ctx = unsafe { &*(user_data as *const ButtonClickCtx) };
     let scelta = unsafe { lvgl_sys::lv_msgbox_get_active_btn(mbox) };
-    let scritture = std::mem::take(&mut *ctx.in_attesa.borrow_mut());
-    if scelta == 1 {
-        manda_scritture(&ctx.tx, &scritture);
-    }
     unsafe { lvgl_sys::lv_msgbox_close(mbox) };
+    if scelta != 1 {
+        ctx.in_attesa.borrow_mut().clear();
+        return;
+    }
+    if ctx.conferma.as_ref().is_some_and(|r| r.critico) {
+        unsafe { apri_critico(user_data) };
+        return;
+    }
+    let scritture = std::mem::take(&mut *ctx.in_attesa.borrow_mut());
+    manda_scritture(&ctx.tx, &scritture);
 }
 
 /// Una scrittura per voce, in ordine: una rifiutata non ferma le altre (ognuna
@@ -1940,6 +2195,7 @@ unsafe fn larghezza_testo(p: stile::P) -> f64 {
 /// contorno sulla singola cella, sempre acceso quando dichiarato). Un
 /// rettangolo trasparente in più, non clickable — stessa tecnica del bordo
 /// d'allarme in `crea_effetti`, ma qui fisso invece che lampeggiante.
+#[allow(clippy::too_many_arguments)] // il riquadro, colore e spessore
 fn render_cell_border(
     screen: &mut lvgl::Obj,
     x: f64,
@@ -1947,12 +2203,24 @@ fn render_cell_border(
     w: f64,
     h: f64,
     hex: &str,
+    spessore: i16,
     styles: &mut Vec<Style>,
 ) -> anyhow::Result<()> {
     let Some(rgb) = parse_hex_color(hex) else {
         return Ok(()); // colore non valido: nessun bordo, non un errore fatale
     };
     let mut rect = create_child_obj(screen)?;
+    // Via lo stile del tema prima di posizione e misura: il bordo è un
+    // rettangolo netto, non una scheda arrotondata (11-11-2026).
+    unsafe {
+        lvgl_sys::lv_obj_remove_style(
+            rect.raw()
+                .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
+                .as_ptr(),
+            core::ptr::null_mut(),
+            (lvgl_sys::LV_PART_ANY | lvgl_sys::LV_STATE_ANY) as lvgl_sys::lv_style_selector_t,
+        );
+    }
     rect.set_pos(x.round() as i16, y.round() as i16)
         .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
     rect.set_size(w.round() as i16, h.round() as i16)
@@ -1960,7 +2228,7 @@ fn render_cell_border(
     let mut style = Style::default();
     style.set_bg_opa(lvgl::style::Opacity::OPA_0);
     style.set_border_color(Color::from_rgb(rgb));
-    style.set_border_width(2);
+    style.set_border_width(spessore);
     rect.add_style(Part::Main, &mut style)
         .map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
     styles.push(style);
@@ -3390,10 +3658,12 @@ fn sfondo_del_rect(
     eprintln!("[sfondo] carico {src}");
     let fonte = crate::svg_assets::SvgSource::Url(src.to_string());
     let byte = crate::svg_assets::bytes_for(base_url, rt_handle, &fonte)?;
-    let svg = match crate::svg_assets::tipo_raster(src) {
-        Some(mime) => crate::svg_assets::svg_attorno_al_raster(&byte, mime, w as u32, h as u32),
-        None => byte,
-    };
+    // Anche un SVG riempie il riquadro tagliando, come il `bgLayer` del web
+    // (`xMidYMid slice`): rasterizzato da solo restava intero al centro, e lo
+    // slider di `demo-slider` (`s_img2`) aveva l'immagine solo in una fascia
+    // (piano parità LVGL §1.2, 11-11-2026).
+    let mime = crate::svg_assets::tipo_raster(src).unwrap_or("image/svg+xml");
+    let svg = crate::svg_assets::svg_attorno_al_raster(&byte, mime, w as u32, h as u32);
     match disegna_svg_byte(
         screen,
         obj.x.unwrap_or(0.0).round() as i16,
@@ -3439,6 +3709,17 @@ fn render_rect(
 ) -> anyhow::Result<()> {
     let mut o = create_child_obj(screen)?;
     set_pos_size(&mut o, obj, 100.0, 50.0)?;
+    // Un rettangolo è un disegno, non un contenitore: col padding del tema uno
+    // basso (sotto ~40 px) mostrava la barra di scorrimento grigia (piano parità
+    // LVGL §1.2, 11-11-2026).
+    unsafe {
+        let r = o.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+        lvgl_sys::lv_obj_clear_flag(r, lvgl_sys::LV_OBJ_FLAG_SCROLLABLE);
+        lvgl_sys::lv_obj_set_style_pad_top(r, 0, 0);
+        lvgl_sys::lv_obj_set_style_pad_bottom(r, 0, 0);
+        lvgl_sys::lv_obj_set_style_pad_left(r, 0, 0);
+        lvgl_sys::lv_obj_set_style_pad_right(r, 0, 0);
+    }
     // Era `#555555` (web: `#555`), mentre un rettangolo piazzato nasce `#4a90d9`:
     // la tabella condivisa ha scelto ciò che si vede alla creazione. Come il
     // web, un `bg_color` vecchio fa da riempimento se `fill` manca.
@@ -3981,6 +4262,38 @@ fn apply_font_size_con_ripiego(
     Ok(())
 }
 
+/// Il testo di un `text`: il valore del tag col suo formato, altrimenti `text`.
+///
+/// Il VALORE di un tag stringa può essere un token: è la via per cui uno script
+/// scrive uno stato leggibile in tutte le lingue (`tr()` in `sws-pyscript`
+/// restituisce apposta un riferimento, non una traduzione). Qui si disegna, e
+/// qui la lingua si conosce. Una stringa **vuota** vale come un valore che
+/// manca (decisione del maintainer, 11-11-2026): si vede `text`, per esempio
+/// «—»; senza `text` resta vuota, come sul web.
+fn contenuto_testo(
+    tv: Option<&TagSnapshotValue>,
+    format: Option<&str>,
+    testo: Option<&String>,
+    tag: Option<&String>,
+    lingua: &str,
+    lang_table: &LanguageTable,
+) -> String {
+    match tv {
+        Some(t) if matches!(&t.value, TagValue::Str(s) if s.is_empty()) => {
+            testo.cloned().unwrap_or_default()
+        }
+        Some(t) => resolve_msg(
+            &format_value(&t.value, format.or(Some("{value}"))),
+            lingua,
+            lang_table,
+        ),
+        None => testo
+            .cloned()
+            .or_else(|| tag.cloned())
+            .unwrap_or_else(|| "Testo".to_string()),
+    }
+}
+
 /// Quanto il carattere sale sopra la linea di base, in pixel: `line_height`
 /// meno `base_line` (che in LVGL è la parte sotto la linea).
 fn ascesa(line_height: i16, base_line: i16) -> i16 {
@@ -4034,23 +4347,14 @@ fn render_text(
     lang_table: &LanguageTable,
 ) -> anyhow::Result<LiveBinding> {
     let tv = lookup(tags, &obj.tag);
-    let content = match tv {
-        // Il VALORE di un tag stringa può essere un token: è la via per cui uno
-        // script scrive uno stato leggibile in tutte le lingue (`tr()` in
-        // `sws-pyscript` restituisce apposta un riferimento, non una
-        // traduzione, perché lo script non sa chi leggerà). Qui si disegna, e
-        // qui la lingua si conosce.
-        Some(t) => resolve_msg(
-            &format_value(&t.value, obj.format.as_deref().or(Some("{value}"))),
-            lingua,
-            lang_table,
-        ),
-        None => obj
-            .text
-            .clone()
-            .or_else(|| obj.tag.clone())
-            .unwrap_or_else(|| "Testo".to_string()),
-    };
+    let content = contenuto_testo(
+        tv,
+        obj.format.as_deref(),
+        obj.text.as_ref(),
+        obj.tag.as_ref(),
+        lingua,
+        lang_table,
+    );
     let mut label = create_anchored_label(screen, obj, styles)?;
     label
         .set_text(&text_cstring(&content))
@@ -4210,6 +4514,8 @@ fn regola_conferma(obj: &SynopticObject) -> Option<RegolaConferma> {
     }
     Some(RegolaConferma {
         critico,
+        chiedi_conferma: obj.require_confirm == Some(true),
+        motivo: critico && obj.require_reason == Some(true),
         messaggio: obj
             .confirm_message
             .as_deref()
@@ -4257,6 +4563,19 @@ fn collega_comando(
     live: &mut Vec<LiveBinding>,
 ) {
     let Some(comando) = comando else { return };
+    // Il momentaneo critico è un impulso (decisione del maintainer,
+    // 11-11-2026): la password alla pressione, poi pressione e rilascio
+    // scritti insieme, come sul web. Prima non chiedeva niente.
+    let comando = match comando {
+        Comando::Momentaneo {
+            tag,
+            premi,
+            rilascia,
+        } if obj.critical == Some(true) => {
+            Comando::Fisse(vec![(tag.clone(), premi), (tag, rilascia)])
+        }
+        altro => altro,
+    };
     let corrente = Rc::new(RefCell::new(None));
     if let Some(tag) = tag_da_seguire(&comando) {
         live.push(LiveBinding {
@@ -4273,6 +4592,7 @@ fn collega_comando(
         corrente,
         tx: tx.clone(),
         in_attesa: RefCell::new(Vec::new()),
+        critico: RefCell::new(None),
     });
     unsafe {
         if momentaneo {
@@ -7073,6 +7393,18 @@ fn render_radio(
             ptr.as_ptr(),
             colore_campo(obj.fill.as_deref(), "radio", "fill"),
         );
+        // Un'opzione è un cerchio, come il `<circle>` del web: con lo stile
+        // della casella era un quadratino con la spunta (piano parità LVGL
+        // §1.2, 11-11-2026). Scelta: cerchio pieno del colore, senza spunta.
+        unsafe {
+            let ind = lvgl_sys::LV_PART_INDICATOR;
+            lvgl_sys::lv_obj_set_style_radius(ptr.as_ptr(), 0x7FFF, ind); // LV_RADIUS_CIRCLE
+            lvgl_sys::lv_obj_set_style_bg_img_src(
+                ptr.as_ptr(),
+                core::ptr::null(),
+                ind | lvgl_sys::LV_STATE_CHECKED,
+            );
+        }
         apply_checked_state(ptr, checkbox_is_checked(lookup(tags, &obj.tag), &opt.value));
         ptrs.push(ptr);
     }
@@ -9785,6 +10117,7 @@ fn render_alarm_viewer(
     styles: &mut Vec<Style>,
     shared_alarms: &SharedAlarms,
     ack_tx: &mpsc::Sender<String>,
+    lingua: &str,
 ) -> anyhow::Result<LiveBinding> {
     let mode = obj.alarm_viewer_mode.as_deref().unwrap_or("list");
     // I modi del web (25-10-2026): qui c'era un errore e l'oggetto spariva.
@@ -9802,7 +10135,7 @@ fn render_alarm_viewer(
         if come_banner.font_size.is_none() {
             come_banner.font_size = Some(11.0);
         }
-        return render_alarm_banner(screen, &come_banner, styles, shared_alarms, ack_tx);
+        return render_alarm_banner(screen, &come_banner, styles, shared_alarms, ack_tx, lingua);
     }
     // Il corpo del web (25-10-2026): 11, e 9 l'ACK (`corpo_annotazione`).
     let corpo = obj
@@ -9871,7 +10204,10 @@ fn render_alarm_viewer(
         .set_pos(4, 4)
         .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
     empty_label
-        .set_text(&text_cstring("Nessun allarme attivo"))
+        .set_text(&text_cstring(crate::testi_sistema::testo(
+            crate::testi_sistema::Testo::NessunAllarmeAttivo,
+            lingua,
+        )))
         .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
     let mut empty_style = Style::default();
     empty_style.set_text_color(Color::from_rgb((100, 116, 139))); // #64748b
@@ -10048,6 +10384,7 @@ fn render_alarm_banner(
     styles: &mut Vec<Style>,
     shared_alarms: &SharedAlarms,
     ack_tx: &mpsc::Sender<String>,
+    lingua: &str,
 ) -> anyhow::Result<LiveBinding> {
     let width = obj.width.unwrap_or(600.0);
     let height = obj.height.unwrap_or(32.0);
@@ -10227,7 +10564,10 @@ fn render_alarm_banner(
         .set_pos(0, ((height - 16.0) / 2.0).round() as i16)
         .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
     empty_label
-        .set_text(&text_cstring("Nessun allarme attivo"))
+        .set_text(&text_cstring(crate::testi_sistema::testo(
+            crate::testi_sistema::Testo::NessunAllarmeAttivo,
+            lingua,
+        )))
         .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
     let mut empty_style = Style::default();
     empty_style.set_text_color(Color::from_rgb((100, 116, 139))); // #64748b
@@ -11333,6 +11673,7 @@ fn render_alarm_bell(
     obj: &SynopticObject,
     styles: &mut Vec<Style>,
     shared_alarms: &SharedAlarms,
+    lingua: &str,
 ) -> anyhow::Result<LiveBinding> {
     let w = obj.width.unwrap_or(130.0);
     let h = obj.height.unwrap_or(34.0);
@@ -11344,7 +11685,10 @@ fn render_alarm_bell(
     let mut bell_lbl =
         Label::create(&mut btn).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
     bell_lbl
-        .set_text(&text_cstring("Allarmi"))
+        .set_text(&text_cstring(crate::testi_sistema::testo(
+            crate::testi_sistema::Testo::Allarmi,
+            lingua,
+        )))
         .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
     // Il corpo del web (25-10-2026): 12 il pulsante e le righe, 11 badge e
     // messaggi (`corpo_secondario`).
@@ -12999,9 +13343,7 @@ impl CorpoSvg {
             self.origine.0, self.origine.1
         );
         self.pixmap.fill(resvg::tiny_skia::Color::TRANSPARENT);
-        if let Ok(tree) =
-            resvg::usvg::Tree::from_data(svg.as_bytes(), &resvg::usvg::Options::default())
-        {
+        if let Some(tree) = crate::svg_raster::albero(svg.as_bytes()) {
             resvg::render(
                 &tree,
                 resvg::tiny_skia::Transform::identity(),
@@ -13296,60 +13638,64 @@ fn render_grid(
         row_y.push(ry);
     }
 
-    if obj.grid_show_borders.unwrap_or(true) {
-        let border_hex = obj
-            .grid_border_color
-            .clone()
-            .unwrap_or_else(|| "#64748b".to_string());
-        for cx in col_x.iter().copied().take(n_cols + 1) {
-            let mut ln =
-                Line::create(screen).map_err(|e| anyhow::anyhow!("Line::create: {e:?}"))?;
-            ln.set_pos(cx.round() as i16, origin_y.round() as i16)
-                .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
-            let pts: &'static [lvgl_sys::lv_point_t; 2] = Box::leak(Box::new([
-                lvgl_sys::lv_point_t { x: 0, y: 0 },
-                lvgl_sys::lv_point_t {
-                    x: 0,
-                    y: h.round() as i16,
-                },
-            ]));
-            let ptr = ln.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
-            unsafe { lvgl_sys::lv_line_set_points(ptr.as_ptr(), pts.as_ptr(), 2) };
-            let mut style = Style::default();
-            if let Some(rgb) = parse_hex_color(&border_hex) {
-                style.set_line_color(Color::from_rgb(rgb));
+    // Un bordo per cella, come il `<rect>` di ogni cella del web (decisione del
+    // maintainer, 11-11-2026): prima erano linee lunghe tutta la griglia,
+    // disegnate sotto, che i fondi colorati coprivano e che avrebbero tagliato
+    // le celle unite se disegnate sopra.
+    let bordi = obj.grid_show_borders.unwrap_or(true);
+    let colore_bordi = obj
+        .grid_border_color
+        .clone()
+        .unwrap_or_else(|| "#64748b".to_string());
+    let celle = obj.grid_cells.clone().unwrap_or_default();
+    // Le posizioni coperte da una cella unita (tranne la sua): lì non si
+    // disegna niente, come `covered` nel web.
+    let mut coperte = std::collections::HashSet::new();
+    for cell in &celle {
+        let row = cell.row.round().clamp(0.0, (n_rows - 1) as f64) as usize;
+        let col = cell.col.round().clamp(0.0, (n_cols - 1) as f64) as usize;
+        let rs = cell.rowspan.unwrap_or(1.0).round().max(1.0) as usize;
+        let cs = cell.colspan.unwrap_or(1.0).round().max(1.0) as usize;
+        for r in row..(row + rs).min(n_rows) {
+            for c in col..(col + cs).min(n_cols) {
+                if (r, c) != (row, col) {
+                    coperte.insert((r, c));
+                }
             }
-            style.set_line_width(1);
-            ln.add_style(Part::Main, &mut style)
-                .map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
-            styles.push(style);
         }
-        for ry in row_y.iter().copied().take(n_rows + 1) {
-            let mut ln =
-                Line::create(screen).map_err(|e| anyhow::anyhow!("Line::create: {e:?}"))?;
-            ln.set_pos(origin_x.round() as i16, ry.round() as i16)
-                .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
-            let pts: &'static [lvgl_sys::lv_point_t; 2] = Box::leak(Box::new([
-                lvgl_sys::lv_point_t { x: 0, y: 0 },
-                lvgl_sys::lv_point_t {
-                    x: w.round() as i16,
-                    y: 0,
-                },
-            ]));
-            let ptr = ln.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
-            unsafe { lvgl_sys::lv_line_set_points(ptr.as_ptr(), pts.as_ptr(), 2) };
-            let mut style = Style::default();
-            if let Some(rgb) = parse_hex_color(&border_hex) {
-                style.set_line_color(Color::from_rgb(rgb));
+    }
+    let definite: std::collections::HashSet<(usize, usize)> = celle
+        .iter()
+        .map(|c| {
+            (
+                c.row.round().clamp(0.0, (n_rows - 1) as f64) as usize,
+                c.col.round().clamp(0.0, (n_cols - 1) as f64) as usize,
+            )
+        })
+        .collect();
+    // Le celle senza definizione: solo il bordo della griglia.
+    if bordi {
+        for r in 0..n_rows {
+            for c in 0..n_cols {
+                if coperte.contains(&(r, c)) || definite.contains(&(r, c)) {
+                    continue;
+                }
+                let (x0, y0) = (col_x[c], row_y[r]);
+                render_cell_border(
+                    screen,
+                    x0,
+                    y0,
+                    col_x[c + 1] - x0,
+                    row_y[r + 1] - y0,
+                    &colore_bordi,
+                    1,
+                    styles,
+                )?;
             }
-            style.set_line_width(1);
-            ln.add_style(Part::Main, &mut style)
-                .map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
-            styles.push(style);
         }
     }
 
-    for cell in obj.grid_cells.clone().unwrap_or_default() {
+    for cell in celle {
         let row = cell.row.round().clamp(0.0, (n_rows - 1) as f64) as usize;
         let col = cell.col.round().clamp(0.0, (n_cols - 1) as f64) as usize;
         let rowspan = cell.rowspan.unwrap_or(1.0).round().max(1.0) as usize;
@@ -13372,14 +13718,40 @@ fn render_grid(
                 })
                 .unwrap_or(true);
         if !visible {
+            if bordi {
+                render_cell_border(
+                    screen,
+                    cell_x,
+                    cell_y,
+                    cell_w,
+                    cell_h,
+                    &colore_bordi,
+                    1,
+                    styles,
+                )?;
+            }
             continue;
         }
 
         if let Some(bg) = &cell.bg_color {
             fondo_di_cella(screen, cell_x, cell_y, cell_w, cell_h, bg)?;
         }
-        if let Some(border) = &cell.border_color {
-            render_cell_border(screen, cell_x, cell_y, cell_w, cell_h, border, styles)?;
+        // Il bordo della cella vince su quello della griglia, e vale 2 px.
+        match (&cell.border_color, bordi) {
+            (Some(border), _) => {
+                render_cell_border(screen, cell_x, cell_y, cell_w, cell_h, border, 2, styles)?
+            }
+            (None, true) => render_cell_border(
+                screen,
+                cell_x,
+                cell_y,
+                cell_w,
+                cell_h,
+                &colore_bordi,
+                1,
+                styles,
+            )?,
+            (None, false) => {}
         }
 
         render_grid_slot(
@@ -13508,7 +13880,7 @@ fn render_grid_slot(
                 fondo_di_cella(screen, geom.0, geom.1, geom.2, geom.3, bg)?;
             }
             if let Some(border) = &entry.border_color {
-                render_cell_border(screen, geom.0, geom.1, geom.2, geom.3, border, styles)?;
+                render_cell_border(screen, geom.0, geom.1, geom.2, geom.3, border, 2, styles)?;
             }
             render_grid_slot(
                 screen,
@@ -15393,6 +15765,32 @@ fn render_lang_selector(
             &lvgl_sys::lv_font_montserrat_14 as *const lvgl_sys::lv_font_t,
             lvgl_sys::LV_PART_INDICATOR,
         );
+        // Scuro come il `<select>` del web (fondo #1e293b, testo #e2e8f0, bordo
+        // #334155): col tema era una scheda bianca nella testata scura.
+        let p = dd_ptr.as_ptr();
+        lvgl_sys::lv_obj_set_style_bg_color(p, Color::from_rgb((0x1e, 0x29, 0x3b)).into(), 0);
+        lvgl_sys::lv_obj_set_style_text_color(p, Color::from_rgb((0xe2, 0xe8, 0xf0)).into(), 0);
+        lvgl_sys::lv_obj_set_style_border_color(p, Color::from_rgb((0x33, 0x41, 0x55)).into(), 0);
+        lvgl_sys::lv_obj_set_style_border_width(p, 1, 0);
+        lvgl_sys::lv_obj_set_style_radius(p, 4, 0);
+        let lista = lvgl_sys::lv_dropdown_get_list(p);
+        if !lista.is_null() {
+            lvgl_sys::lv_obj_set_style_bg_color(
+                lista,
+                Color::from_rgb((0x1e, 0x29, 0x3b)).into(),
+                0,
+            );
+            lvgl_sys::lv_obj_set_style_text_color(
+                lista,
+                Color::from_rgb((0xe2, 0xe8, 0xf0)).into(),
+                0,
+            );
+            lvgl_sys::lv_obj_set_style_border_color(
+                lista,
+                Color::from_rgb((0x33, 0x41, 0x55)).into(),
+                0,
+            );
+        }
     }
     let _ = styles; // nessuno Style dedicato in questo giro, coerente col tema di default
 
@@ -15449,6 +15847,11 @@ fn dispatch_render(
         .lock()
         .unwrap_or_else(|e| e.into_inner())
         .clone();
+    RETE.with(|r| {
+        if r.borrow().as_ref().map(|(u, _)| u.as_str()) != Some(base_url) {
+            *r.borrow_mut() = Some((base_url.to_string(), shared_session.clone()));
+        }
+    });
     let localized = localize_object(obj, &current_lang, lang_table);
     let obj = &localized;
 
@@ -15548,7 +15951,8 @@ fn dispatch_render(
         "table" => render_table(screen, obj, tags, tag_tx, &current_lang).map(|b| live.push(b)),
         "trend" => render_trend(screen, obj, base_url, rt_handle).map(|b| live.push(b)),
         "alarm_viewer" => {
-            render_alarm_viewer(screen, obj, styles, shared_alarms, ack_tx).map(|b| live.push(b))
+            render_alarm_viewer(screen, obj, styles, shared_alarms, ack_tx, &current_lang)
+                .map(|b| live.push(b))
         }
         "text_list" => render_text_list(screen, obj, tags).map(|b| live.push(b)),
         "bar_chart" => render_bar_chart(screen, obj, styles, tags).map(|b| live.push(b)),
@@ -15556,7 +15960,8 @@ fn dispatch_render(
             render_sparkline(screen, obj, styles, base_url, rt_handle).map(|b| live.push(b))
         }
         "alarm_banner" => {
-            render_alarm_banner(screen, obj, styles, shared_alarms, ack_tx).map(|b| live.push(b))
+            render_alarm_banner(screen, obj, styles, shared_alarms, ack_tx, &current_lang)
+                .map(|b| live.push(b))
         }
         "faceplate" => render_faceplate(
             screen,
@@ -15676,7 +16081,8 @@ fn dispatch_render(
             render_alarm_history(screen, obj, base_url, rt_handle, &current_lang, lang_table)
                 .map(|b| live.push(b))
         }
-        "alarm_bell" => render_alarm_bell(screen, obj, styles, shared_alarms).map(|b| live.push(b)),
+        "alarm_bell" => render_alarm_bell(screen, obj, styles, shared_alarms, &current_lang)
+            .map(|b| live.push(b)),
         "recipe_panel" => render_recipe_panel(
             screen,
             obj,
@@ -15904,6 +16310,55 @@ fn sostituisci_parametri(
     }
 }
 
+/// Il riquadro della definizione di un faceplate: `width`/`height` se ci sono,
+/// altrimenti quello che contiene gli oggetti, come `faceplateDefBBox` del web.
+fn riquadro_definizione(defn: &crate::model::FaceplateDef) -> (f64, f64) {
+    if let (Some(w), Some(h)) = (defn.width, defn.height) {
+        if w > 0.0 && h > 0.0 {
+            return (w, h);
+        }
+    }
+    let (mut w, mut h) = (0.0f64, 0.0f64);
+    for o in &defn.objects {
+        let n = |k: &str, d: f64| o.get(k).and_then(|v| v.as_f64()).unwrap_or(d);
+        w = w.max(n("x", 0.0) + n("width", 100.0));
+        h = h.max(n("y", 0.0) + n("height", 50.0));
+    }
+    (w.max(1.0), h.max(1.0))
+}
+
+/// `faceplate_scale` (decisione del maintainer, 11-11-2026): i fattori fra il
+/// riquadro dell'istanza e quello della definizione, se la scala è accesa e
+/// l'istanza ha una misura. Il web scala con una trasformazione SVG; qui si
+/// moltiplicano posizioni, misure e corpi, senza costo a runtime.
+fn scala_del_faceplate(
+    obj: &SynopticObject,
+    defn: &crate::model::FaceplateDef,
+) -> Option<(f64, f64)> {
+    if obj.faceplate_scale != Some(true) {
+        return None;
+    }
+    let (dw, dh) = riquadro_definizione(defn);
+    Some((obj.width? / dw, obj.height? / dh))
+}
+
+/// Un figlio scalato: posizione e misura per asse, i corpi col fattore minore
+/// (un testo non si deforma, e così non esce dal riquadro).
+fn scala_figlio(c: &mut SynopticObject, sx: f64, sy: f64) {
+    let corpo = sx.min(sy);
+    c.x = c.x.map(|v| v * sx);
+    c.y = c.y.map(|v| v * sy);
+    c.width = c.width.map(|v| v * sx);
+    c.height = c.height.map(|v| v * sy);
+    for f in [
+        &mut c.font_size,
+        &mut c.label_font_size,
+        &mut c.unit_font_size,
+    ] {
+        *f = f.map(|v| v * corpo);
+    }
+}
+
 /// `faceplate`: template composito di oggetti già ordinari (`FaceplateDef`
 /// in `sws-web/src/synoptic.rs`, `objects: Vec<serde_json::Value>` —
 /// **non** contiene SVG, quindi non è bloccato dal vincolo che ferma
@@ -15951,6 +16406,7 @@ fn render_faceplate(
     let params = parametri_effettivi(defn.params.as_ref(), obj.faceplate_params.as_ref());
     let origin_x = obj.x.unwrap_or(0.0);
     let origin_y = obj.y.unwrap_or(0.0);
+    let scala = scala_del_faceplate(obj, &defn);
 
     for raw_child in &defn.objects {
         let mut v = sostituisci_parametri(raw_child, &params);
@@ -15977,6 +16433,9 @@ fn render_faceplate(
         };
         if !SUPPORTED_TYPES.contains(&child_type.as_str()) || child_type == "faceplate" {
             continue;
+        }
+        if let Some((sx, sy)) = scala {
+            scala_figlio(&mut child, sx, sy);
         }
         child.x = Some(origin_x + child.x.unwrap_or(0.0));
         child.y = Some(origin_y + child.y.unwrap_or(0.0));
@@ -17258,17 +17717,14 @@ pub fn update_bindings(
                 color_style,
             } => {
                 let tv = lookup(tags, tag);
-                let content = match tv {
-                    Some(t) => resolve_msg(
-                        &format_value(&t.value, format.as_deref().or(Some("{value}"))),
-                        &lingua,
-                        lang_table,
-                    ),
-                    None => static_text
-                        .clone()
-                        .or_else(|| tag.clone())
-                        .unwrap_or_else(|| "Testo".to_string()),
-                };
+                let content = contenuto_testo(
+                    tv,
+                    format.as_deref(),
+                    static_text.as_ref(),
+                    tag.as_ref(),
+                    &lingua,
+                    lang_table,
+                );
                 unsafe {
                     lvgl_sys::lv_label_set_text(ptr.as_ptr(), text_cstring(&content).as_ptr());
                 }
@@ -19525,6 +19981,50 @@ mod binding_tests {
             quality: TagQuality::Good,
             ts: 0,
         }
+    }
+
+    #[test]
+    fn faceplate_scale_moltiplica_posizioni_misure_e_corpi() {
+        let defn: crate::model::FaceplateDef = serde_json::from_value(serde_json::json!({
+            "objects": [{"id":"t","type":"text","x":10,"y":20,"width":90,"height":30,"font_size":12}]
+        }))
+        .unwrap();
+        assert_eq!(riquadro_definizione(&defn), (100.0, 50.0));
+        let istanza: SynopticObject = serde_json::from_value(serde_json::json!({
+            "id":"f","type":"faceplate","x":0,"y":0,"width":200,"height":150,"faceplate_scale":true
+        }))
+        .unwrap();
+        let (sx, sy) = scala_del_faceplate(&istanza, &defn).unwrap();
+        assert_eq!((sx, sy), (2.0, 3.0));
+        let mut c: SynopticObject = serde_json::from_value(defn.objects[0].clone()).unwrap();
+        scala_figlio(&mut c, sx, sy);
+        assert_eq!(
+            (c.x, c.y, c.width, c.height),
+            (Some(20.0), Some(60.0), Some(180.0), Some(90.0))
+        );
+        assert_eq!(c.font_size, Some(24.0), "il corpo col fattore minore");
+        let senza: SynopticObject = serde_json::from_value(serde_json::json!({
+            "id":"f","type":"faceplate","x":0,"y":0,"width":200,"height":150
+        }))
+        .unwrap();
+        assert!(scala_del_faceplate(&senza, &defn).is_none());
+    }
+
+    #[test]
+    fn una_stringa_vuota_mostra_il_testo_di_ripiego() {
+        let t = LanguageTable::default();
+        let trattino = "—".to_string();
+        let v = valore(TagValue::Str(String::new()));
+        assert_eq!(
+            contenuto_testo(Some(&v), None, Some(&trattino), None, "it", &t),
+            "—"
+        );
+        assert_eq!(contenuto_testo(Some(&v), None, None, None, "it", &t), "");
+        let on = valore(TagValue::Str("ON".into()));
+        assert_eq!(
+            contenuto_testo(Some(&on), None, Some(&trattino), None, "it", &t),
+            "ON"
+        );
     }
 
     #[test]

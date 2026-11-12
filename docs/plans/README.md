@@ -144,6 +144,11 @@ passa da `semi/` a questa cartella (con `git mv` e i rimandi riscritti) e la rig
 Tre stati, nella colonna «Cosa resta»: **pronto** (decisa o quasi, resta da costruire/misurare), **in corso** (c'è un
 ramo o una serie di sessioni), **verifica** (il codice c'è già, manca la conferma a schermo).
 
+> **Decisioni dell'11-11-2026 sera:**
+> - la **2.26.0 vera** esce dopo CasaDomotica aggiornata e il manuale pubblico (M1–M5), non appena il collaudo
+>   della rc.15 è pulito;
+> - dopo la 2.26.0 il primo seme da pianificare è [LVGL 9.3](semi/2026-11-03-lvgl-9-3.md).
+
 <!-- RIGHE-NUOVI-PIANI -->
 | Piano | Origine | Cosa resta |
 |---|---|---|

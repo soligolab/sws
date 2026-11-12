@@ -58,14 +58,19 @@ atteso=$(comm -23 <(echo "$nelle_immagini") <(echo "$ESENTI" | sort -u))
 for q in "${QUADLET[@]}"; do
     [ -f "$q" ] || { ok 0 "manca $q"; continue; }
     got=$(azzerate_quadlet "$q")
-    if [ "$got" = "$atteso" ]; then
+    # Svuotarne una che l'immagine non ha più è innocuo (11-11-2026: le vecchie
+    # changelog/compat sono uscite dall'immagine, e togliere le righe dai quadlet
+    # dei pannelli avrebbe chiesto di alzarne la versione, cioè un secondo
+    # riavvio di ogni pannello per niente). Ne MANCA una: quello sì è il guasto.
+    manca=$(comm -23 <(echo "$atteso") <(echo "$got"))
+    if [ -z "$manca" ]; then
         ok 1 "$(basename "$q"): le azzera tutte"
     else
-        ok 0 "$(basename "$q"): disallineato — manca «$(comm -23 <(echo "$atteso") <(echo "$got") | tr '\n' ' ')» di troppo «$(comm -13 <(echo "$atteso") <(echo "$got") | tr '\n' ' ')»"
+        ok 0 "$(basename "$q"): disallineato — manca «$(echo "$manca" | tr '\n' ' ')»"
     fi
 done
 
-if [ "$azzerate_rust" = "$atteso" ]; then
+if [ -z "$(comm -23 <(echo "$atteso") <(echo "$azzerate_rust"))" ]; then
     ok 1 "ETICHETTE_DA_SVUOTARE (i container dei progetti sul VPS) dice lo stesso"
 else
     ok 0 "ETICHETTE_DA_SVUOTARE disallineato — manca «$(comm -23 <(echo "$atteso") <(echo "$azzerate_rust") | tr '\n' ' ')»"

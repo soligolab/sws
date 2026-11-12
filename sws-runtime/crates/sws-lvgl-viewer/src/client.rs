@@ -999,6 +999,18 @@ pub async fn put_tag(
     value: TagValue,
     token: Option<&str>,
 ) -> anyhow::Result<()> {
+    put_tag_con_motivo(base_url, tag, value, token, None).await
+}
+
+/// `PUT /api/tags/<tag>` col motivo, che il runtime scrive nell'audit
+/// (`reason`, come il web per i comandi con `require_reason`, 11-11-2026).
+pub async fn put_tag_con_motivo(
+    base_url: &str,
+    tag: &str,
+    value: TagValue,
+    token: Option<&str>,
+    reason: Option<&str>,
+) -> anyhow::Result<()> {
     let mut url = reqwest::Url::parse(base_url)?;
     url.path_segments_mut()
         .map_err(|_| anyhow::anyhow!("base URL non può avere path segments (cannot-be-a-base)"))?
@@ -1007,19 +1019,52 @@ pub async fn put_tag(
         .push(tag);
 
     #[derive(serde::Serialize)]
-    struct WriteTagBody {
+    struct WriteTagBody<'a> {
         value: TagValue,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        reason: Option<&'a str>,
     }
 
     let client = reqwest::Client::builder()
         .use_preconfigured_tls(pinned_client_config(base_url)?)
         .build()?;
-    let mut req = client.put(url).json(&WriteTagBody { value });
+    let mut req = client.put(url).json(&WriteTagBody { value, reason });
     if let Some(t) = token {
         req = req.header("Authorization", format!("Bearer {t}"));
     }
     req.send().await?.error_for_status()?;
     Ok(())
+}
+
+/// `POST /api/auth/verify-password`: chi sta al pannello è ancora il titolare
+/// della sessione (comandi critici, 11-11-2026, piano parità LVGL §2.2). 204 sì,
+/// 403 no; il resto è un errore (un 401 fa chiedere l'accesso).
+pub async fn verifica_password(
+    base_url: &str,
+    password: &str,
+    token: Option<&str>,
+) -> anyhow::Result<bool> {
+    let mut url = reqwest::Url::parse(base_url)?;
+    url.path_segments_mut()
+        .map_err(|_| anyhow::anyhow!("base URL non può avere path segments (cannot-be-a-base)"))?
+        .push("api")
+        .push("auth")
+        .push("verify-password");
+    let client = reqwest::Client::builder()
+        .use_preconfigured_tls(pinned_client_config(base_url)?)
+        .build()?;
+    let mut req = client
+        .post(url)
+        .json(&serde_json::json!({ "password": password }));
+    if let Some(t) = token {
+        req = req.header("Authorization", format!("Bearer {t}"));
+    }
+    let r = req.send().await?;
+    if r.status() == reqwest::StatusCode::FORBIDDEN {
+        return Ok(false);
+    }
+    r.error_for_status()?;
+    Ok(true)
 }
 
 /// Lo stesso orologio del resto del workspace (`sws_core::now_ms`).

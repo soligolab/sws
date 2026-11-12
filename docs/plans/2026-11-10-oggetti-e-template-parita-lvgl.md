@@ -177,7 +177,7 @@ Tutti preesistenti. Nessuno è un difetto del motore: è il contenuto del templa
   `scripts/check_templates.sh` contava anche gli slider `read_only`. La guardia è stata corretta il
   04-11-2026 (salta gli oggetti `read_only`): **il ruolo si può togliere**.
 
-## 6. Lo slider a intervallo (30-10-2026)
+## 6. Lo slider a intervallo (30-10-2026) — chiuso l'11-11-2026, non si fa
 
 - **Cos'è**: uno slider con due cursori (minimo e massimo) su due tag.
 - **Perché non c'è**: escluso dal piano della revisione dello slider il 30-10-2026
@@ -259,6 +259,46 @@ Verificato col banco `tmp/parita-lvgl/`, solo su `ufficio`:
 - **L'avviso «Comando non eseguito»** non si fotografa con `--istantanea`, perché arriva dopo la foto: si
   collauda sul pannello.
 - **§2.2, §2.3, §3.2, §3.3, §5 e §6**.
+
+### Decise l'11-11-2026 sera (le dieci domande)
+
+- **Password e motivo su LVGL (§2.2)**: la **password dell'utente**, come sul web. La tastiera del login LVGL la
+  chiede, il runtime la verifica e l'audit registra motivo e utente.
+- **Scritte di sistema degli allarmi**: nella **lingua dei contenuti**, nella tabella condivisa
+  `tests/fixtures/testi-sistema.json`, su web e LVGL.
+- **Slider a intervallo (§6)**: **chiuso**, non si fa.
+- **`faceplate_scale` su LVGL**: si scalano posizioni, misure e corpi dei figli, senza trasformazioni grafiche.
+- **Stato vuoto**: un testo legato a un tag **stringa vuota** mostra il suo `text` di ripiego, su tutti e due i
+  motori.
+- **Linee della griglia**: **un bordo per cella**, celle unite comprese, sopra il fondo.
+
+## Fatto l'11-12 novembre, secondo giro (ramo `feat/parita-lvgl-2`, nella 2.26.0-rc.15)
+
+- **Le decisioni della sera, tutte attuate**:
+  - griglia con un bordo per cella;
+  - `faceplate_scale`;
+  - stato vuoto col testo di ripiego;
+  - scritte degli allarmi nella tabella dei testi di sistema;
+  - password e motivo su LVGL (§2.2);
+  - momentaneo critico come impulso (§2.3);
+  - slider a intervallo chiuso (§6).
+- **§1.2**:
+  - `radio` a cerchi;
+  - `lang_selector` scuro;
+  - scritte degli SVG (`resvg` con `text`);
+  - rettangoli bassi;
+  - `bg_image` che riempie;
+  - lo slider verticale a 0 %, che è uguale sui due motori (anche il web copre l'etichetta), quindi niente da
+    correggere.
+- **§3.3**: il velo dentro le finestre.
+
+**Resta**:
+- **§3.2, il riempimento della sparkline**: rimandato a LVGL 9.3, il prossimo piano scelto dal maintainer.
+- **I testi inglesi di `motor_basic`/`tank_level`**: serve scegliere come tradurre un faceplate di sistema, che non
+  ha chiavi di progetto. Va chiesto al maintainer.
+- **§5, i dubbi dei template**: vanno chiesti al maintainer.
+- **La password su LVGL**: provata solo in un runtime senza utenti (il motivo, l'impulso, il motivo vuoto). La
+  password vera si collauda sul pannello.
 
 ## Ordine proposto
 

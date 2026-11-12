@@ -115,6 +115,16 @@ pub enum Comando {
         args: serde_json::Value,
         token: Option<String>,
     },
+    /// Un comando critico (11-11-2026, piano parità LVGL §2.2): la password,
+    /// se c'è una sessione, poi le scritture in ordine col motivo. Una password
+    /// sbagliata non scrive niente e lo dice a schermo.
+    ScriviCritico {
+        base_url: String,
+        token: Option<String>,
+        password: Option<String>,
+        motivo: Option<String>,
+        scritture: Vec<(String, TagValue)>,
+    },
     /// La risposta alla domanda dopo un aggiornamento (03-10-2026).
     ConfermaAggiornamento {
         base_url: String,
@@ -130,6 +140,14 @@ impl Comando {
             Comando::AckAlarm { alarm_id, .. } => format!("ack dell'allarme '{alarm_id}'"),
             Comando::ApplyRecipe { id, .. } => format!("applicazione della ricetta '{id}'"),
             Comando::EseguiFunzione { nome, .. } => format!("funzione '{nome}'"),
+            Comando::ScriviCritico { scritture, .. } => format!(
+                "comando critico su {}",
+                scritture
+                    .iter()
+                    .map(|(t, _)| t.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
             Comando::AvviaAggiornamento { .. } => "avvio dell'aggiornamento".to_string(),
             Comando::AggiornaQuadlet { .. } => {
                 "aggiornamento della configurazione del servizio".to_string()
@@ -180,6 +198,39 @@ async fn esegui(cmd: Comando) -> anyhow::Result<()> {
                 }
             }
             r
+        }
+        Comando::ScriviCritico {
+            base_url,
+            token,
+            password,
+            motivo,
+            scritture,
+        } => {
+            if let Some(pw) = password {
+                if !client::verifica_password(&base_url, &pw, token.as_deref()).await? {
+                    if let Ok(mut g) = NON_ESEGUITO.lock() {
+                        *g = Some("password errata".to_string());
+                    }
+                    anyhow::bail!("comando critico: password errata");
+                }
+            }
+            // Una scrittura rifiutata non ferma le altre, come nel web; si dice
+            // la prima che non è andata.
+            let mut primo: Option<anyhow::Error> = None;
+            for (tag, value) in scritture {
+                if let Err(e) = client::put_tag_con_motivo(
+                    &base_url,
+                    &tag,
+                    value,
+                    token.as_deref(),
+                    motivo.as_deref(),
+                )
+                .await
+                {
+                    primo.get_or_insert(e);
+                }
+            }
+            primo.map_or(Ok(()), Err)
         }
         Comando::EseguiFunzione {
             base_url,

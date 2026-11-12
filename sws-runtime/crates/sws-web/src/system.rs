@@ -816,6 +816,32 @@ pub struct TlsStatus {
 /// CA, nessun privilegio.
 pub const FILE_FIDUCIA_BROWSER: &str = "fiducia-browser";
 
+/// Il marcatore messo da parte da «Disabilita TLS» (11-11-2026, decisione del
+/// maintainer). Cancellare il certificato non bastava: al riavvio il runtime
+/// trovava `fiducia-browser` senza `tls.crt`, ne generava uno e ripartiva in
+/// HTTPS. Il marcatore però lo scrive l'installatore, che sa se l'host ha
+/// `certutil`: il runtime da solo non saprebbe ricrearlo. Quindi non si cancella,
+/// si rinomina, e un certificato nuovo (generato o caricato) lo rimette a posto.
+pub const FILE_FIDUCIA_SPENTA: &str = "fiducia-browser.spento";
+
+/// «Disabilita TLS»: il marcatore della fiducia va da parte.
+pub fn spegni_fiducia(config_dir: &std::path::Path) -> std::io::Result<()> {
+    let m = config_dir.join(FILE_FIDUCIA_BROWSER);
+    if m.exists() {
+        std::fs::rename(&m, config_dir.join(FILE_FIDUCIA_SPENTA))?;
+    }
+    Ok(())
+}
+
+/// Un certificato di nuovo al suo posto: la fiducia messa da parte torna.
+pub fn riaccendi_fiducia(config_dir: &std::path::Path) -> std::io::Result<()> {
+    let spenta = config_dir.join(FILE_FIDUCIA_SPENTA);
+    if spenta.exists() {
+        std::fs::rename(&spenta, config_dir.join(FILE_FIDUCIA_BROWSER))?;
+    }
+    Ok(())
+}
+
 #[derive(serde::Serialize)]
 pub struct HostCatalog {
     temperature: Vec<String>,
@@ -980,7 +1006,12 @@ pub async fn generate_tls_cert(
     s.audit
         .log("tls.generate", Some(user.username), serde_json::json!({}));
     let config_dir = (*s.config_dir).clone();
-    match tokio::task::spawn_blocking(move || genera_certificato(&config_dir)).await {
+    match tokio::task::spawn_blocking(move || {
+        genera_certificato(&config_dir)?;
+        riaccendi_fiducia(&config_dir).map_err(anyhow::Error::from)
+    })
+    .await
+    {
         Ok(Ok(())) => {}
         Ok(Err(e)) => {
             tracing::error!("generate_tls_cert: {e:#}");
@@ -1013,10 +1044,14 @@ pub async fn remove_tls_cert(
             }
         }
     }
-    // Niente marcatore «ha scelto no»: dal 26-10-2026 non c'è più nessuna
-    // proposta da zittire. Il guardiano della fiducia vede sparire `tls.crt`
-    // e toglie il certificato anche dall'archivio del browser, altrimenti
-    // resterebbe fidato un certificato che non esiste più.
+    // Il guardiano della fiducia vede sparire `tls.crt` e toglie il
+    // certificato anche dall'archivio del browser. Il marcatore va da parte,
+    // altrimenti al riavvio il runtime ne genererebbe un altro e ripartirebbe
+    // in HTTPS (11-11-2026).
+    if let Err(e) = spegni_fiducia(&s.config_dir) {
+        tracing::error!("remove_tls_cert: marcatore della fiducia non spostato: {e}");
+        return StatusCode::INTERNAL_SERVER_ERROR;
+    }
     tracing::info!("TLS certificate removed — rebooting to plain HTTP");
     system_reboot(State(s)).await
 }
@@ -1060,6 +1095,7 @@ pub async fn upload_tls_cert(
         // Chiave privata: 0600 alla creazione (2f).
         sws_core::segreti::scrivi_atomico_0600(&config_dir.join("tls.key"), key.as_bytes())
             .context("writing tls.key")?;
+        riaccendi_fiducia(&config_dir).context("restoring browser trust marker")?;
         Ok(())
     })
     .await;
@@ -1759,6 +1795,23 @@ mod tests_fiducia_browser {
     /// Quel che resta da provare è una riga sola: il nome del marcatore, che
     /// tre pezzi devono scrivere e leggere uguale — l'installatore in shell,
     /// il runtime all'avvio, e la card che lo mostra.
+    #[test]
+    fn disabilitare_tls_mette_da_parte_la_fiducia_e_un_certificato_la_rimette() {
+        let d = tempfile::tempdir().unwrap();
+        std::fs::write(d.path().join(super::FILE_FIDUCIA_BROWSER), "").unwrap();
+        super::spegni_fiducia(d.path()).unwrap();
+        assert!(!d.path().join(super::FILE_FIDUCIA_BROWSER).exists());
+        assert!(d.path().join(super::FILE_FIDUCIA_SPENTA).exists());
+        super::riaccendi_fiducia(d.path()).unwrap();
+        assert!(d.path().join(super::FILE_FIDUCIA_BROWSER).exists());
+        assert!(!d.path().join(super::FILE_FIDUCIA_SPENTA).exists());
+        // Senza marcatore non succede niente: un'istanza senza fiducia resta così.
+        let vuota = tempfile::tempdir().unwrap();
+        super::spegni_fiducia(vuota.path()).unwrap();
+        super::riaccendi_fiducia(vuota.path()).unwrap();
+        assert!(!vuota.path().join(super::FILE_FIDUCIA_BROWSER).exists());
+    }
+
     #[test]
     fn il_marcatore_della_fiducia_ha_un_nome_solo() {
         assert_eq!(super::FILE_FIDUCIA_BROWSER, "fiducia-browser");

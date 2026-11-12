@@ -7,6 +7,8 @@ import { useAlarmStream } from "@/ws/alarmStream";
 import { SEV_COLOR } from "@/alarmSeverity";
 import { effectiveProjectLang, resolveMsg } from "@/i18n/projectI18n";
 import type { AlarmSeverity, AlarmState, IsaState } from "@/types";
+import { testoSistema } from "@/i18n/testiSistema";
+import { useLinguaContenuti } from "@/i18n/linguaContenuti";
 
 // Blinking animation only for active-unacked (the most urgent state).
 function isaStyle(state: IsaState, color: string, corpo = 13): React.CSSProperties {
@@ -58,6 +60,7 @@ export interface AlarmBannerProps {
  *  confermati (ACK dato) o tornati normali non compaiono — l'altezza data
  *  all'oggetto determina quante righe entrano prima dello scroll. */
 export function AlarmBanner({ idPrefix = "", allowedSev, corpo = 13 }: AlarmBannerProps = {}) {
+  const lingua = useLinguaContenuti();
   const { t } = useTranslation();
   useAlarmStream();
 
@@ -107,7 +110,7 @@ export function AlarmBanner({ idPrefix = "", allowedSev, corpo = 13 }: AlarmBann
         border: "1px solid var(--brand-surface-2, #334155)",
         borderRadius: 4,
       }}>
-        {t("alarm.noAlarms")}
+        {testoSistema("nessun_allarme_attivo", lingua.lang)}
       </div>
     );
   }

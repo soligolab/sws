@@ -12,6 +12,9 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Aggiunto
+- **Comandi critici su LVGL con password e motivo** (piano parità LVGL §2.2). Un riquadro con la tastiera
+  chiede la password di chi è collegato e, con `require_reason`, il motivo, che va nell'audit. Il momentaneo
+  critico diventa un impulso dopo la password (§2.3).
 - **I bottoni LVGL chiamano le loro funzioni Python** (piano parità LVGL §2.1). `on_press_fn` al clic (non per login e
   logout, come sul web) e `on_release_fn` al rilascio, con i loro argomenti, via `POST /api/script/run/<nome>`. Una
   funzione che il runtime non esegue apre «Comando non eseguito».
@@ -275,6 +278,21 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   il salvataggio non è finito.
 
 ### Corretto
+- **Il pannello LVGL disegna come il web, secondo giro** (12-11-2026, decisioni dell'11-11 sera).
+  - **Griglia**: un bordo per cella; le celle unite non sono attraversate.
+  - **`radio`**: cerchi.
+  - **`lang_selector`**: scuro.
+  - **Scritte degli SVG**: si vedono (resvg con `text`, DejaVu Sans).
+  - **Rettangoli bassi**: senza barra di scorrimento.
+  - **`bg_image`**: riempie il riquadro tagliando.
+  - **Velo «Dati in ritardo»**: anche dentro una finestra aperta.
+  - **`faceplate_scale`**: posizioni, misure e corpi.
+  - **Tag stringa vuota**: mostra il `text` di ripiego, sui due motori.
+  - **«Allarmi» e «Nessun allarme attivo»**: dalla tabella dei testi di sistema, nella lingua dei contenuti.
+- **«Disabilita TLS» torna davvero in chiaro**: il marcatore `fiducia-browser` va da parte
+  (`fiducia-browser.spento`) e torna con un certificato nuovo.
+- **Immagine**: senza le etichette vecchie `changelog`/`compat`, che servivano solo alle 2.12.0-rc.3–rc.8.
+- **Test**: `asyncUtilTimeout` a 5 s. `abbinaPannelloCloud` e `avvisoAggiornamento` fallivano a macchina carica.
 - **`zip` 9.5.1**, dalla 2.4 (piano `docs/plans/2026-11-10-manutenzione-e-verifiche-rimandate.md` §1). Via da
   `audit.toml` le quattro eccezioni RUSTSEC-2026-0367/0368/0369/0429 sull'estrazione, che SWS non usa.
   `file_names()` e `name()` ora danno un `Result`, e un nome illeggibile si salta.

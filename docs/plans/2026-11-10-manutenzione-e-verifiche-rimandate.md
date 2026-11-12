@@ -27,6 +27,10 @@ Il punto su `rusqlite` che stava negli stessi appunti (righe 448-451) non è qui
 
 ## Da fare
 
+> **Decise l'11-11-2026 sera:**
+> - le etichette duplicate si tolgono **adesso**, nella prossima rc;
+> - «Disabilita TLS» toglie **anche il marcatore** della fiducia del browser, e riabilitando TLS la fiducia si rifà.
+
 ### 1. Aggiornare `zip` da 2.4 a 9.x in `sws-runtime`
 
 > **Fatto l'11-11-2026** (ramo `fix/zip-9`, nella 2.26.0-rc.14). `zip` è passato a 9.5.1 nei due crate. L'unica

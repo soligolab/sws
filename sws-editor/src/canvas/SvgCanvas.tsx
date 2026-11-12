@@ -3465,7 +3465,7 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
       <div style={containerStyle}>
         {showEmpty && (
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "#94a3b8" }}>
-            {t("canvas.noActiveAlarms")}
+            {testoSistema("nessun_allarme_attivo", msgLang)}
           </div>
         )}
       </div>
@@ -4717,9 +4717,13 @@ function SvgObjectCorpo(p: ObjProps) {
     // `tr()` in `sws-pyscript` restituisce apposta un riferimento e non una
     // traduzione, perché lo script non sa chi leggerà. Risolvere qui, dove si
     // disegna, è l'unico punto che la lingua la conosce.
-    const content = tv != null
+    // Una stringa vuota vale come un valore che manca (decisione del
+    // maintainer, 11-11-2026): si vede il `text` di ripiego, per esempio «—».
+    // Senza un `text`, resta vuota: il nome del tag lì non dice niente.
+    const vuoto = tv != null && tv.value === "";
+    const content = tv != null && !vuoto
       ? resolveMsg(formatValue(tv.value, obj.format ?? "{value}"), lingua.lang, lingua.table)
-      : (obj.text ?? obj.tag ?? "Testo");
+      : vuoto ? (obj.text ?? "") : (obj.text ?? obj.tag ?? "Testo");
     const size      = obj.font_size ?? 14;
     const family    = cssFamiglia(obj.font_family);
     const weight    = obj.font_weight ?? "normal";

@@ -38,6 +38,8 @@ export type VoceSistema =
   | "agg_ignora"
   | "agg_in_corso"
   | "agg_in_avvio"
+  | "allarmi"
+  | "nessun_allarme_attivo"
   | "dati_in_ritardo"
   | "esito_titolo_ok"
   | "esito_titolo_ko"
@@ -139,6 +141,20 @@ export const TESTI_SISTEMA: Record<VoceSistema, Record<LinguaSistema, string>> =
     fr: "Démarrage de la mise à jour…",
     es: "Iniciando la actualización…",
     en: "Starting the update…",
+  },
+  allarmi: {
+    it: "Allarmi",
+    de: "Alarme",
+    fr: "Alarmes",
+    es: "Alarmas",
+    en: "Alarms",
+  },
+  nessun_allarme_attivo: {
+    it: "Nessun allarme attivo",
+    de: "Keine aktiven Alarme",
+    fr: "Aucune alarme active",
+    es: "Ninguna alarma activa",
+    en: "No active alarms",
   },
   dati_in_ritardo: {
     it: "Dati in ritardo di {n} s",

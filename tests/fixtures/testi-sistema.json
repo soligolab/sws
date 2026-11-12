@@ -266,6 +266,20 @@
       "es": "Iniciando la actualización…",
       "en": "Starting the update…"
     },
+    "allarmi": {
+      "it": "Allarmi",
+      "de": "Alarme",
+      "fr": "Alarmes",
+      "es": "Alarmas",
+      "en": "Alarms"
+    },
+    "nessun_allarme_attivo": {
+      "it": "Nessun allarme attivo",
+      "de": "Keine aktiven Alarme",
+      "fr": "Aucune alarme active",
+      "es": "Ninguna alarma activa",
+      "en": "No active alarms"
+    },
     "dati_in_ritardo": {
       "it": "Dati in ritardo di {n} s",
       "de": "Daten um {n} s verzögert",

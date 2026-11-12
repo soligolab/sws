@@ -112,6 +112,23 @@ pub const MAX_SIDE_SFONDO: u32 = 4096;
 /// rotore hanno il loro budget (`simbolo_lib::fotogrammi_entro`).
 pub const MAX_SIDE_SIMBOLO: u32 = 2048;
 
+thread_local! {
+    /// Le opzioni di `usvg`, una volta per thread: caricare i caratteri di
+    /// sistema costa, e il disegno sta tutto sul thread di LVGL. Il sans-serif
+    /// è DejaVu Sans, lo stesso carattere delle etichette del pannello.
+    static OPZIONI: resvg::usvg::Options<'static> = {
+        let mut o = resvg::usvg::Options::default();
+        o.fontdb_mut().load_system_fonts();
+        o.fontdb_mut().set_sans_serif_family("DejaVu Sans");
+        o
+    };
+}
+
+/// L'albero di un SVG, coi caratteri di sistema per le scritte.
+pub(crate) fn albero(svg: &[u8]) -> Option<resvg::usvg::Tree> {
+    OPZIONI.with(|o| resvg::usvg::Tree::from_data(svg, o).ok())
+}
+
 /// `base` con lo specchio applicato **dopo**, attorno al riquadro `w`×`h`.
 ///
 /// # Perché lo specchio sta qui e non sui pixel
@@ -177,8 +194,7 @@ pub fn rasterize_entro(
     if w == 0 || h == 0 || w > tetto || h > tetto {
         return None;
     }
-    let opt = resvg::usvg::Options::default();
-    let tree = resvg::usvg::Tree::from_data(svg, &opt).ok()?;
+    let tree = albero(svg)?;
 
     let mut pixmap = resvg::tiny_skia::Pixmap::new(w, h)?;
     // Si scala l'SVG dentro il riquadro richiesto mantenendo le proporzioni:
@@ -231,7 +247,7 @@ pub fn trasformazione(
 /// Il riquadro in pixel che il disegno di `svg` occupa dentro `w`×`h`, bordi
 /// compresi e arrotondato verso l'esterno di un pixel. `None` se non disegna niente.
 pub fn ingombro(svg: &[u8], w: u32, h: u32, flip_h: bool, flip_v: bool) -> Option<Ritaglio> {
-    let tree = resvg::usvg::Tree::from_data(svg, &resvg::usvg::Options::default()).ok()?;
+    let tree = albero(svg)?;
     let b = tree.root().abs_stroke_bounding_box();
     if b.width() <= 0.0 || b.height() <= 0.0 {
         return None;
@@ -302,7 +318,7 @@ pub fn rasterize_ritaglio(
     if w == 0 || h == 0 || w > MAX_SIDE_SIMBOLO || h > MAX_SIDE_SIMBOLO || r.w == 0 || r.h == 0 {
         return None;
     }
-    let tree = resvg::usvg::Tree::from_data(svg, &resvg::usvg::Options::default()).ok()?;
+    let tree = albero(svg)?;
     let mut pixmap = resvg::tiny_skia::Pixmap::new(r.w, r.h)?;
     let t = resvg::tiny_skia::Transform::from_translate(-(r.x as f32), -(r.y as f32)).pre_concat(
         trasformazione(
@@ -328,7 +344,7 @@ pub fn rasterize_stretch(svg: &[u8], w: u32, h: u32) -> Option<resvg::tiny_skia:
     if w == 0 || h == 0 || w > 2048 || h > 2048 {
         return None;
     }
-    let tree = resvg::usvg::Tree::from_data(svg, &resvg::usvg::Options::default()).ok()?;
+    let tree = albero(svg)?;
     let mut pixmap = resvg::tiny_skia::Pixmap::new(w, h)?;
     let size = tree.size();
     let t =

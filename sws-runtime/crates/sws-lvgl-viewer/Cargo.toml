@@ -51,7 +51,9 @@ sdl2 = "0.38"
 # dentro `zune-jpeg`, `image-webp` e `gif`, tutto Rust puro (il PNG lo decodifica
 # gia' tiny-skia), e il raster passa per il rasterizzatore che c'e' gia',
 # avvolto in un SVG di due righe.
-resvg = { version = "0.45", default-features = false, features = ["raster-images"] }
+# `text` e `system-fonts` (11-11-2026, piano parità LVGL §1.2): senza, le
+# scritte degli SVG (il logo «SWS», le etichette di un disegno) sparivano.
+resvg = { version = "0.45", default-features = false, features = ["raster-images", "text", "system-fonts"] }
 
 # L'immagine raster diventa un `data:` dentro l'SVG che la avvolge: stessa 0.22
 # che usa gia' sws-web, nessun peso nuovo nell'albero.

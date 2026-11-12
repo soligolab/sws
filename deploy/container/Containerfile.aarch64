@@ -211,9 +211,10 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
 # Qui in fondo insieme alle altre, per la stessa ragione di cache spiegata
 # sopra: cambiano a ogni build, e in testa rifarebbero il layer apt.
 # Le Novità brevi di NOVITA.yaml nelle due lingue (dal 28-09-2026). Le etichette
-# vecchie `net.soligo.sws.changelog`/`.compat` restano, col testo breve in
-# italiano: i runtime rc.3-rc.8 leggono solo quelle, e senza vedrebbero
-# un'immagine nuova senza novità.
+# vecchie (changelog e compat senza lingua), per i runtime 2.12.0-rc.3-rc.8,
+# sono uscite dall'immagine l'11-11-2026: nessun pannello gira più quelle rc, ed
+# erano 1,7 KB su 5,7 di etichette. Il runtime le legge ancora dalle immagini
+# vecchie (`novita_da_etichette`).
 ARG SWS_NOVITA_IT=""
 ARG SWS_NOVITA_EN=""
 ARG SWS_COMPAT_IT=""
@@ -235,8 +236,6 @@ LABEL org.opencontainers.image.source="https://github.com/soligolab/sws" \
       net.soligo.sws.novita.en="$SWS_NOVITA_EN" \
       net.soligo.sws.compat.it="$SWS_COMPAT_IT" \
       net.soligo.sws.compat.en="$SWS_COMPAT_EN" \
-      net.soligo.sws.changelog="$SWS_NOVITA_IT" \
-      net.soligo.sws.compat="$SWS_COMPAT_IT" \
       net.soligo.sws.quadlet="$SWS_QUADLET"
 
 ENTRYPOINT ["/usr/local/bin/sws-runtime"]
