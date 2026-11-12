@@ -1,6 +1,6 @@
 {
   "name": "@soligolab/sws-editor",
-  "version": "2.26.0-rc.14",
+  "version": "2.26.0-rc.15",
   "private": true,
   "license": "(AGPL-3.0-only OR LicenseRef-SWS-Commercial)",
   "packageManager": "pnpm@9.15.0",
