@@ -345,6 +345,9 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   il salvataggio non è finito.
 
 ### Corretto
+- **Tiny TY: il setup Pixsys resta raggiungibile** (punto 11 di `ty570-1ad-p1.md`): toccando lo schermo
+  all'accensione si apre `tyx_panelcontrol gui`, ma il viewer LVGL partiva prima e lo copriva. Ora il viewer parte
+  dopo `rc-local.service` e, se il setup è aperto (`/tmp/runsetup`), aspetta che si chiuda.
 - **Tiny TY: IPv4 a ogni riavvio** (`deploy/tiny-ty/prepara-dispositivo.sh`, punto 10 di `ty570-1ad-p1.md`): lo
   script Pixsys `/data/if_configure.sh`, lanciato da udev, riaccende `eth0` prima di NetworkManager, che la adottava
   così com'era, senza DHCP. Il TY570 tornava col solo IPv6. Ora lo script scrive

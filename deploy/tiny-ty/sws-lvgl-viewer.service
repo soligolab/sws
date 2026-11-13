@@ -13,6 +13,10 @@ Description=SWS viewer LVGL (Tiny TY)
 # è meglio di un viewer fermato insieme a lui.
 After=sws-runtime.service
 Wants=sws-runtime.service
+# After rc.local, which decides whether the Pixsys setup opens (/tmp/runsetup):
+# the launcher must find that decision already made. Harmless where there is
+# no rc.local.
+After=rc-local.service
 
 [Service]
 Type=simple
