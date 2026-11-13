@@ -12,6 +12,26 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Aggiunto
+- **Il QR del codice di abbinamento e l'abbinamento senza progetto** (piano `docs/plans/2026-11-13-qr-di-abbinamento.md`):
+  - runtime: `--cloud-url` / `SWS_CLOUD_URL` (nelle immagini `https://sws.soligo.net`); `GET /api/abbinamento` porta
+    `cloud_link = <cloud>/#pair=<codice>` solo mentre il pannello aspetta col tunnel aperto;
+  - viewer LVGL: `LV_USE_QRCODE 1`, pagina di abbinamento con testi e codice a sinistra e QR a destra
+    (`page_with_qr`, `draw_qr`); pagina web del pannello: QR sotto il codice (`qrcode-generator` 1.4.4);
+  - gateway: `POST /api/pannelli/abbina` accetta un utente con sessione e un'azienda sua (ogni membro);
+    `GET /api/pannelli/in-attesa/:codice` dà il nome proposto; `mie-aziende` porta la `cartella`;
+  - IDE nel cloud: `PairPanel`, aperta da `#pair=` (letto all'avvio e tenuto oltre il login, `pairLink.ts`) o dal menu
+    col proprio nome («Abbina un pannello…»);
+  - Tiny TY: `install.sh` completa `runtime.env` con `SWS_TUNNEL_URL` e `SWS_CLOUD_URL`, il lanciatore lo esporta.
+- **`deploy/tiny-ty/ty570-1ad-p1.md`**: le questioni aperte con lo sviluppatore del Tiny TY; ogni intervento a mano sul
+  sistema entra in `prepara-dispositivo.sh` lo stesso giorno.
+- **Il banco fisso dei tubi d'acciaio** (piano assistente secondo giro, G1): il progetto vuoto
+  `tests/fixtures/ai-bench/tubi-acciaio/` (1280×800 con cornice), il copione finto `sinottico-tubi.json` (cinque
+  bozze, un tipo, sei tag, la pagina con sei simboli di libreria e due tubi), il test Rust che lo rigioca sul
+  validatore (`ai/banco_tubi.rs`, gira in CI), l'e2e `chat-tubi.spec.ts` e `scripts/banco_tubi.sh`, che avvia un
+  IDE usa e getta e col `--vero` misura il modello vero lasciando resoconto, foto e conteggi in `sws/tmp/banco-tubi/`.
+  Scostamento dal piano: la prova col modello vero non è un test `#[ignore]` ma la modalità `--vero` dell'e2e,
+  perché dal 10-11-2026 la foto di un progetto web la fa il browser dell'IDE, e senza browser il modello
+  lavorerebbe alla cieca.
 - **Segnaposto di sistema `{{sys:nome}}`**, risolti dai due motori con la tabella dei testi di sistema anche senza
   tabella delle lingue. `motor_basic` dice «Velocità:» e «Guasto:» nella lingua dei contenuti.
 - **Il battito su `/ws/tags`**: il runtime manda un tick ogni 2 s, e i viewer danno il collegamento per perso dopo 5 s di
@@ -137,6 +157,19 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   armhf (`Containerfile.armv7-cross.builder`); due correzioni dei 32 bit nel viewer (`ioctl` del touch e misura di
   `input_event`). Misurato sul dispositivo: runtime ~35 MB e viewer ~18 MB di PSS, viewer fra 0 e 6 % di CPU a pagina
   ferma.
+- **Il Tiny TY si installa con un pacchetto e systemd** (passo 3 dello stesso piano, ramo `feat/tiny-ty-systemd`).
+  `scripts/pacchetto_tiny_ty.sh` prepara `dist/sws-<versione>-tiny-ty-armv7.tar.gz`, `deploy/tiny-ty/install.sh` lo
+  installa: utente `sws` e non root, due unit di sistema che cedono al PLC (CPU e IO a peso 20, `OOMScoreAdjust`
+  500/600, `MemoryMax` 112/64 MB), il viewer sempre acceso col backend DRM, scheda e touch cercati da sé
+  (`/dev/input/by-path`), HTTP in locale finché il runtime non ha un certificato, RestrictedPython estratto da una
+  ruota senza pip, la regola udev per luce e cicalino. Nessuna credenziale di partenza: il pannello mostra il codice di
+  abbinamento. `check_systemd_units.sh` guarda anche queste unit.
+- **Luce, riposo e beep al tocco del pannello, dal progetto** (stesso piano, decisione del 12-11-2026). In
+  Impostazioni progetto, «Luce e cicalino del pannello»: luce in percento, oscura dopo N minuti e spegni dopo M senza
+  tocchi (il primo tocco riaccende senza premere quello che c'è sotto), beep con nota, durata e volume. Valgono dove
+  l'installazione dà al viewer `--retroilluminazione` e `--cicalino` (oggi il Tiny TY); altrove non fanno niente.
+  `PannelloConfig::valida` e `PUT /api/project/pannello` rifiutano i valori fuori dai limiti; il viewer LVGL rilegge
+  `pannello` (fotogrammi compresi) a ogni deploy.
 - **`pannello.fps`: i fotogrammi al secondo nel progetto** (1-60, predefinito 20), in Impostazioni progetto → pagina.
   Vale per il viewer LVGL (`ritmo.rs`, il tick di LVGL segue il tempo vero) e per il viewer web, dove il coalescente
   dei tag fa al più `fps` giri al secondo. `PUT /api/project/pannello`.
@@ -294,6 +327,24 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   il salvataggio non è finito.
 
 ### Corretto
+- **Tiny TY, dal collaudo sul TY570 del 13-11-2026**: `prepara-dispositivo.sh` legge il modello da `/etc/device.info` e
+  fa `apt-get update` prima di avahi (l'immagine Pixsys ha gli elenchi vuoti); il lanciatore del viewer sceglie il touch
+  capacitivo prima del TSC2007 (caricato anche senza pannello resistivo: il touch era morto); `install.sh` trova
+  `tyx_panelcontrol` per percorso (il processo si chiama `tyx-pc-gui`).
+- **La cornice attorno a una pagina LVGL più piccola dello schermo** fa lo stesso giro RGB565 della pagina
+  (`as_rendered`): sul Tiny TY due blu quasi uguali sembravano un errore.
+- **La chat lasciava uno strumento «in corso» per sempre** quando il giro lo rimandava al turno dopo
+  (`proponi_modifica` dopo le bozze o gli sfondi, `istantanea_pagina` dopo gli sfondi): la riga restava col pallino vivo
+  e «scrivo · 13 kB» anche a turno finito. Ora si chiude con «rimandata: prima scegli tu …». Visto sul banco dei tubi
+  col modello vero, 12-11-2026.
+- **Un aggiornamento che tornava indietro su ogni pannello lento** (quadlet 8). Sul TC620 il 12-11-2026 podman ha
+  impiegato 63 s a preparare la rc.15 prima di creare il container (primo avvio di un'immagine con `UserNS=keep-id`),
+  il runtime era sano dopo 1 s, ma il primo controllo di salute arriva 30 s dopo l'avvio: 93 s contro i 90 di systemd,
+  `start operation timed out` e ritorno alla rc.13. Il quadlet del runtime ha ora `TimeoutStartSec=600`. Un pannello
+  sul quadlet 7 lo prende dopo il primo aggiornamento riuscito; il TC620 lo passa una volta a mano (piano
+  `docs/plans/2026-11-13-aggiornamento-timeout-avvio.md`).
+- **Il campo dei fotogrammi al secondo cancellava il resto di `pannello`**: mandava `{ fps }` e la PUT sostituisce
+  tutta la sezione. Ora ogni campo rimanda gli altri (`salvaPannello`, con test).
 - **LVGL: testi, colori e aghi si riscrivono solo se cambiano** (`testo_etichetta`, `colore_diverso`). LVGL ridisegna
   a ogni chiamata anche a valore uguale, e `update_bindings` riscriveva tutto a ogni fotogramma: sul Tiny TY ~420 aree
   ridisegnate ogni 2 s, ora 6. Vale su tutti i pannelli LVGL.

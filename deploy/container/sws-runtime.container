@@ -24,7 +24,7 @@
 # più basso di quello dell'immagine che gira mostra «configurazione del servizio
 # da aggiornare», e la si aggiorna dall'IDE o dal pannello — vedi
 # docs/plans/2026-10-02-quadlet-che-viaggia.md.
-Description=SWS runtime (container podman) [quadlet 7]
+Description=SWS runtime (container podman) [quadlet 8]
 Documentation=file:///data/user/sws-container/README
 After=network-online.target
 Wants=network-online.target
@@ -293,6 +293,20 @@ Environment=SWS_IMAGE=ghcr.io/soligolab/sws-runtime:latest-arm64
 [Service]
 Restart=always
 RestartSec=5
+# Quanto systemd aspetta che il container diventi *healthy* (quadlet 8,
+# 13-11-2026). Il predefinito, 90 s, non basta al primo avvio di un'immagine
+# nuova: sul TC620 il 12-11-2026 podman ha impiegato 63 s a preparare la rc.15
+# prima di creare il container (la prima volta che un'immagine si usa con
+# `UserNS=keep-id`; la stessa immagine riparte in 0,2 s), e il primo controllo
+# di salute arriva 30 s dopo l'avvio. 63 + 30 > 90: systemd ha fermato una
+# rc.15 sana da un secondo, e `podman auto-update` è tornato alla rc.13.
+# Succedeva a **ogni** aggiornamento di quel pannello.
+#
+# Un limite largo non rallenta niente quando va bene: il download avviene prima
+# del riavvio, e l'unità risulta avviata appena il controllo passa. Allunga solo
+# l'attesa prima di un ritorno indietro vero. Chiave di systemd, non di quadlet:
+# il generatore di podman 5.0.2 non la può rifiutare.
+TimeoutStartSec=600
 # Il runtime gestisce SIGTERM e chiude in ~1 s; 30 s è margine abbondante e
 # serve a non farlo mai finire in SIGKILL a metà di una scrittura su
 # project.yaml o sull'SQLite dell'historian.
