@@ -12,6 +12,11 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Aggiunto
+- **Il cestino dei progetti** (piano `docs/plans/2026-11-13-cestino-dei-progetti.md`): la X sulla scheda di un
+  progetto (anche archiviato) lo sposta nel cestino (`.cestino` nella cartella, `POST …/trash` e `…/untrash`); la
+  sezione «Cestino (n) — 30 giorni di ritenzione» mostra i giorni che mancano a ogni progetto, «Ripristina» ed «Elimina
+  ora». `trash.rs` cancella ogni ora gli scaduti, sul gateway e sull'IDE, con `remove_project_dir` condivisa con
+  `delete_project` (che ora scrive anche l'audit). Il `DELETE` resta una cancellazione vera: lo usa il deploy remoto.
 - **Il QR del codice di abbinamento e l'abbinamento senza progetto** (piano `docs/plans/2026-11-13-qr-di-abbinamento.md`):
   - runtime: `--cloud-url` / `SWS_CLOUD_URL` (nelle immagini `https://sws.soligo.net`); `GET /api/abbinamento` porta
     `cloud_link = <cloud>/#pair=<codice>` solo mentre il pannello aspetta col tunnel aperto;

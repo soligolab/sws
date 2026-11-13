@@ -1383,6 +1383,16 @@ pub fn build(
             "/api/projects/:azienda/:nome/unarchive",
             post(crate::archivio::ripristina),
         )
+        // The trash (13-11-2026): same permissions as deleting; the purge
+        // after 30 days is `trash::start`. «Delete now» is the plain DELETE.
+        .route(
+            "/api/projects/:azienda/:nome/trash",
+            post(crate::trash::trash),
+        )
+        .route(
+            "/api/projects/:azienda/:nome/untrash",
+            post(crate::trash::untrash),
+        )
         .route(
             "/api/projects/:nome",
             delete(crate::projects::delete_project_implicito),

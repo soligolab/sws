@@ -104,6 +104,8 @@ declare -A TETTO=(
     [sws-runtime/crates/sws-web/src/backups.rs]=1         # BACKED_UP: il nome del file, non una scrittura
     [sws-runtime/crates/sws-web/src/istantanea.rs]=3      # copia sterilizzata del banco di prova; il terzo è `ritocca`, che ci aggiunge le bozze di simbolo DOPO la sterilizzazione
     [sws-runtime/crates/sws-web/src/project_registry.rs]=1 # esiste? (sola lettura)
+    [sws-runtime/crates/sws-web/src/trash.rs]=2           # la pulizia del cestino (13-11-2026): guarda se project.yaml ESISTE per
+                                                         # riconoscere un progetto nei due livelli della radice; non lo apre.
     [sws-runtime/crates/sws-runtime/src/main.rs]=1        # esiste? (sola lettura)
     [sws-runtime/crates/sws-banco/src/main.rs]=1          # lo ZIP del banco di prestazioni (17-10-2026): un project.yaml di soli
                                                          # tag generati, senza sorgenti né notifiche, quindi nessun segreto da portare.

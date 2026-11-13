@@ -2212,6 +2212,13 @@ export const api = {
   unarchiveProject: (riferimento: string) =>
     request<unknown>(`/api/projects/${rotta(riferimento)}/unarchive`, { method: "POST" }),
 
+  /** The trash (13-11-2026): the X moves a project there; it is deleted for
+   *  good after 30 days, or at once with `deleteProject` («Delete now»). */
+  trashProject: (riferimento: string) =>
+    request<unknown>(`/api/projects/${rotta(riferimento)}/trash`, { method: "POST" }),
+  untrashProject: (riferimento: string) =>
+    request<unknown>(`/api/projects/${rotta(riferimento)}/untrash`, { method: "POST" }),
+
   deleteProject: (riferimento: string) =>
     request<void>(`/api/projects/${rotta(riferimento)}`, { method: "DELETE" }),
 

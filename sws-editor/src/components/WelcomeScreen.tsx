@@ -56,6 +56,14 @@ function gb(n: number): string {
 }
 
 /** Dove il browser ricorda se l'elenco era a griglia o a lista. */
+/** Days a project stays in the trash: the server's `trash::RETENTION_DAYS`. */
+export const GIORNI_CESTINO = 30;
+
+/** Whole days left before a trashed project is deleted; 0 on its last day. */
+export function giorniAllaCancellazione(scadeMs: number, oraMs: number): number {
+  return Math.max(0, Math.ceil((scadeMs - oraMs) / (24 * 3600 * 1000)));
+}
+
 const VISTA_SALVATA = "sws.welcome.vista";
 
 export type Gruppo = { titolo?: string; altra: boolean; elenco: ProjectListEntry[] };
@@ -216,6 +224,35 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
     await handleOpen(rif, nome);
   };
 
+  // The X moves a project to the trash (13-11-2026): deleted for good after
+  // 30 days. An external project is only taken off the list, as before.
+  const handleTrash = async (p: ProjectListEntry) => {
+    if (p.external) return handleDelete(p);
+    if (!(await conferma(t("welcome.confermaCestino", { name: p.name, n: GIORNI_CESTINO })))) return;
+    setActionBusy(p.riferimento); setError(null);
+    try {
+      await api.trashProject(p.riferimento);
+      await loadProjects();
+    } catch (e: any) {
+      setError(t("welcome.errCestino", { name: p.name, err: e?.message ?? e }));
+    } finally {
+      setActionBusy(null);
+    }
+  };
+  const handleUntrash = async (p: ProjectListEntry) => {
+    setActionBusy(p.riferimento); setError(null);
+    try {
+      await api.untrashProject(p.riferimento);
+      await loadProjects();
+    } catch (e: any) {
+      setError(t("welcome.errCestino", { name: p.name, err: e?.message ?? e }));
+    } finally {
+      setActionBusy(null);
+    }
+  };
+  const [cestinoAperto, setCestinoAperto] = useState(false);
+  const nelCestino = projects.filter((p) => p.cestino);
+
   const handleDelete = async (p: ProjectListEntry) => {
     const confirmMsg = p.external
       ? t("welcome.confirmRemoveExternal", { name: p.name })
@@ -240,7 +277,7 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
   // L'archivio (18-10-2026): il progetto resta al suo posto, nascosto e non
   // apribile, e continua a contare nella quota di spazio.
   const [archiviAperti, setArchiviAperti] = useState(false);
-  const archiviati = projects.filter((p) => p.archiviato);
+  const archiviati = projects.filter((p) => p.archiviato && !p.cestino);
   const handleArchivia = async (p: ProjectListEntry, archivia: boolean) => {
     if (archivia && !(await conferma(t("welcome.confermaArchivia", { name: p.name })))) return;
     setActionBusy(p.riferimento); setError(null);
@@ -423,7 +460,7 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
               SENZA titolo: chi ha un'installazione sola non deve incontrare un
               concetto che per lui non esiste. Il titolo compare solo dove c'e
               davvero un'azienda da nominare. */}
-          {!loading && raggruppa(projects.filter((p) => !p.archiviato)).map((g, i, tutti) => (
+          {!loading && raggruppa(projects.filter((p) => !p.archiviato && !p.cestino)).map((g, i, tutti) => (
             <div key={`${g.altra ? "1" : "0"}-${g.titolo ?? ""}`}>
               {/* Lo stacco prima della PRIMA azienda altrui: tutto quello che
                   sta sotto non e tuo, e va detto una volta sola invece che
@@ -545,11 +582,12 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
                   ><IconaUI nome="archivio" titolo={t("welcome.archivia")} /></button>
                 )}
                 <button
-                  title={p.external ? t("welcome.removeFromList") : t("editor.delete")}
+                  title={p.external ? t("welcome.removeFromList") : t("welcome.spostaNelCestino")}
+                  data-testid={`trash-${p.riferimento}`}
                   style={{ ...ACT_BTN }}
                   onMouseEnter={(e) => (e.currentTarget.style.color = "var(--brand-danger, #ef4444)")}
                   onMouseLeave={(e) => (e.currentTarget.style.color = "var(--brand-text-muted, #94a3b8)")}
-                  onClick={() => handleDelete(p)}
+                  onClick={() => handleTrash(p)}
                 ><IconaUI nome="chiudi" titolo={t("editor.delete")} /></button>
               </div>
             );
@@ -747,9 +785,54 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
                   <button type="button" data-testid={`unarchive-${p.riferimento}`} disabled={actionBusy === p.riferimento}
                     onClick={() => handleArchivia(p, false)}>{t("welcome.ripristina")}</button>
                   <button type="button" title={t("editor.delete")} disabled={actionBusy === p.riferimento}
-                    onClick={() => handleDelete(p)}><IconaUI nome="chiudi" titolo={t("editor.delete")} /></button>
+                    onClick={() => handleTrash(p)}><IconaUI nome="chiudi" titolo={t("editor.delete")} /></button>
                 </div>
               ))}
+            </div>
+          )}
+          {/* The trash (13-11-2026): last and closed, with the days left. */}
+          {!loading && nelCestino.length > 0 && (
+            <div style={{ marginTop: 22, paddingTop: 12, borderTop: "1px solid var(--brand-surface-2, #334155)" }}>
+              <button type="button" data-testid="cestino-toggle" onClick={() => setCestinoAperto((v) => !v)}
+                style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, padding: 0,
+                  color: "var(--brand-text-subtle, #64748b)", textTransform: "uppercase", letterSpacing: 0.6 }}>
+                {cestinoAperto ? "▾" : "▸"} {t("welcome.cestino", { n: nelCestino.length, giorni: GIORNI_CESTINO })}
+              </button>
+              {cestinoAperto && (
+                <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginTop: 6 }}>
+                  {t("welcome.cestinoNota")}
+                </div>
+              )}
+              {cestinoAperto && nelCestino.map((p) => {
+                const giorni = giorniAllaCancellazione(p.cestino!.scade_ms, Date.now());
+                return (
+                  <div key={p.riferimento} data-testid={`cestino-${p.riferimento}`} style={{
+                    display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", marginTop: 6,
+                    border: "1px dashed var(--brand-surface-2, #334155)", borderRadius: 8, opacity: 0.85,
+                  }}>
+                    <div data-testid={`cestino-giorni-${p.riferimento}`}
+                      title={t("welcome.cestinoScade", { date: formatDate(p.cestino!.scade_ms) })}
+                      style={{
+                        width: 52, flexShrink: 0, textAlign: "center", padding: "4px 0", borderRadius: 6,
+                        background: giorni <= 3 ? "#7f1d1d55" : "var(--brand-surface, #1e293b)",
+                        color: giorni <= 3 ? "var(--brand-danger-soft, #fca5a5)" : "var(--brand-text-2, #cbd5e1)",
+                      }}>
+                      <div style={{ fontSize: 18, fontWeight: 700, lineHeight: 1.1 }}>{giorni}</div>
+                      <div style={{ fontSize: 10 }}>{t("welcome.cestinoGiorni", { count: giorni })}</div>
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 14 }}>{p.name}{p.azienda ? ` · ${p.azienda}` : ""}</div>
+                      <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>
+                        {t("welcome.cestinoIl", { date: formatDate(p.cestino!.quando_ms), da: p.cestino!.da || "?" })}
+                      </div>
+                    </div>
+                    <button type="button" data-testid={`untrash-${p.riferimento}`} disabled={actionBusy === p.riferimento}
+                      onClick={() => handleUntrash(p)}>{t("welcome.ripristina")}</button>
+                    <button type="button" data-testid={`delete-now-${p.riferimento}`} disabled={actionBusy === p.riferimento}
+                      onClick={() => handleDelete(p)}>{t("welcome.eliminaOra")}</button>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

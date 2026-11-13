@@ -169,6 +169,9 @@ pub struct ProjectListEntry {
     /// Archiviato (18-10-2026): l'elenco lo mostra a parte, e non si apre.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub archiviato: Option<crate::archivio::Archiviato>,
+    /// In the trash (13-11-2026): shown in its own section with the days left.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cestino: Option<crate::trash::Trashed>,
     /// `<azienda>/<nome>`, con `-` per l'azienda implicita: è **l'indirizzo**
     /// del progetto, quello che va nelle rotte. Il nome da solo non basta più
     /// da quando due aziende possono avere un «impianto» ciascuna.
@@ -495,6 +498,7 @@ pub async fn list_projects(
                         risoluzione: None,
                         anteprima_ms: None,
                         archiviato: None,
+                        cestino: None,
                     },
                 );
             }
@@ -560,6 +564,7 @@ pub async fn list_projects(
                         risoluzione: None,
                         anteprima_ms: None,
                         archiviato: None,
+                        cestino: None,
                     },
                 );
             }
@@ -613,6 +618,7 @@ pub async fn list_projects(
                 risoluzione: None,
                 anteprima_ms: None,
                 archiviato: None,
+                cestino: None,
             },
         );
     }
@@ -627,6 +633,7 @@ pub async fn list_projects(
         // non torna.
         let (motore, risoluzione) = scheda_tecnica(dir);
         e.archiviato = crate::archivio::leggi(dir);
+        e.cestino = crate::trash::read(dir);
         e.motore = motore;
         e.risoluzione = risoluzione;
         e.anteprima_ms = crate::anteprima::scritta_ms(dir);
@@ -1660,6 +1667,13 @@ pub async fn open_project(
         )
             .into_response();
     }
+    if crate::trash::is_trashed(&project_dir) {
+        return (
+            StatusCode::CONFLICT,
+            "the project is in the trash: restore it to open it",
+        )
+            .into_response();
+    }
     {
         // Q30: la migrazione riscrive project.yaml (il percorso SQLite di
         // default) con un leggi-modifica-scrivi. Tiene già
@@ -2480,8 +2494,7 @@ pub async fn delete_project(
     // **Prima il container, poi la cartella.** Al contrario non servirebbe a
     // niente: podman tiene il mount per inode, e un container gia attaccato
     // alla cartella vecchia ci resta anche dopo che il nome e stato riusato.
-    spegni_container(&s, &chiave).await;
-    if let Err(e) = tokio::fs::remove_dir_all(&target).await {
+    if let Err(e) = remove_project_dir(&s, &chiave, &target).await {
         warn!("delete_project: remove {}: {e}", target.display());
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -2489,7 +2502,26 @@ pub async fn delete_project(
         )
             .into_response();
     }
-    s.known_projects.remove(&chiave).await;
+    s.audit.log(
+        "project.delete",
+        chi.as_ref().map(|e| e.0.username.clone()),
+        serde_json::json!({ "progetto": chiave }),
+    );
+    info!(name = %safe_name, "project deleted");
+    StatusCode::NO_CONTENT.into_response()
+}
+
+/// Deletes a project folder for good: the container first, then the folder,
+/// the registry entry and the auto-open marker. Shared by `delete_project` and
+/// the trash purge (`trash.rs`), so there is one way to delete a project.
+pub(crate) async fn remove_project_dir(
+    s: &AppState,
+    chiave: &str,
+    target: &std::path::Path,
+) -> std::io::Result<()> {
+    spegni_container(s, chiave).await;
+    tokio::fs::remove_dir_all(target).await?;
+    s.known_projects.remove(chiave).await;
     // Clear the auto-open marker if it pointed at the deleted project, so the
     // runtime doesn't try to reopen a missing directory on next restart.
     let marker = s.projects_root.join(".active-project");
@@ -2498,8 +2530,7 @@ pub async fn delete_project(
             let _ = tokio::fs::remove_file(&marker).await;
         }
     }
-    info!(name = %safe_name, "project deleted");
-    StatusCode::NO_CONTENT.into_response()
+    Ok(())
 }
 
 /// `POST /api/projects/:name/rename` — rename a project.
@@ -2708,7 +2739,13 @@ pub async fn duplicate_project(
     // project.yaml troncato, e il difetto si scoprirebbe aprendo il duplicato.
     let _scrittura = s.project_write_lock.lock().await;
     // Il segno dell'archivio non si copia: la copia nasce viva (18-10-2026).
-    if let Err(e) = copy_dir_all(&src_dir, &dst_dir, &[crate::archivio::SEGNO]).await {
+    if let Err(e) = copy_dir_all(
+        &src_dir,
+        &dst_dir,
+        &[crate::archivio::SEGNO, crate::trash::MARK],
+    )
+    .await
+    {
         warn!("duplicate_project: copy {src_name} → {dst_name}: {e}");
         let _ = tokio::fs::remove_dir_all(&dst_dir).await;
         return (StatusCode::INTERNAL_SERVER_ERROR, "copy failed").into_response();

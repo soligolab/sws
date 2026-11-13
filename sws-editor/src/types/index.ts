@@ -2366,6 +2366,9 @@ export interface ProjectListEntry {
   /** Archiviato (18-10-2026): fuori dall'elenco normale, non si apre; conta nella
    *  quota di spazio. Assente = progetto vivo. */
   archiviato?: { quando_ms: number; da: string };
+  /** In the trash (13-11-2026): hidden from the list, not openable, deleted
+   *  for good at `scade_ms` (30 days, computed by the server). */
+  cestino?: { quando_ms: number; da: string; scade_ms: number };
   /** L'azienda a cui appartiene, quando non e quella implicita.
    *  Assente = «questa installazione»: la schermata non la nomina, perche chi
    *  ha un impianto solo non ha motivo di sapere che il concetto esiste. */

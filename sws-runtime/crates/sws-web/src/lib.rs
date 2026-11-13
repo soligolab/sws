@@ -64,6 +64,7 @@ pub mod telefono;
 pub mod telegram;
 pub mod templates;
 pub mod traduttore;
+pub mod trash;
 pub mod tunnel;
 pub mod validate;
 

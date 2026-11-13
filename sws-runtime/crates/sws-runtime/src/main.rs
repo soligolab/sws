@@ -1497,6 +1497,13 @@ async fn main() -> anyhow::Result<()> {
         sws_web::ciclo_account::avvia(app_state.clone());
     }
 
+    // The project trash (13-11-2026): deleted for good after 30 days, wherever
+    // there is a project list — the gateway and an IDE. Not on a panel (no
+    // list) nor in a project container behind the gateway (the gateway does it).
+    if args.gateway || (ide_only && !args.no_admin && !args.auth_delegata) {
+        sws_web::trash::start(app_state.clone());
+    }
+
     // Il codice di abbinamento (11-10-2026): un pannello senza nessun utente
     // non lascia entrare nessuno, e questa riga è il primo posto in cui chi lo
     // ha appena installato lo trova (`journalctl`, `podman logs`, l'installer).
