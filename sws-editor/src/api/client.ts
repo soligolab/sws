@@ -30,6 +30,7 @@ import type {
   NotificationConfig,
   SmtpConfig,
   PageLayoutConfig,
+  PannelloConfig,
   OpcUaBrowseRequest,
   OpcUaBrowseResponse,
   OpcUaCertEntry,
@@ -1258,9 +1259,29 @@ export const api = {
     }[]>("/api/identita/spazio"),
 
   mieAziende: () =>
-    request<{ id: number; nome: string; implicita: boolean; ruolo: string }[]>(
+    request<{ id: number; nome: string; implicita: boolean; ruolo: string; cartella?: string }[]>(
       "/api/identita/mie-aziende",
     ),
+
+  /** The name a panel waiting with this code proposes (gateway, 13-11-2026):
+   *  shown before confirming, so one sees *which* panel is being paired. */
+  waitingPanel: (code: string) =>
+    request<{ nome_proposto: string }>(`/api/pannelli/in-attesa/${encodeURIComponent(code)}`),
+
+  /** Pairs a waiting panel to one of the user's companies, with no project
+   *  open (QR link and user menu). `azienda` is the company folder (`-` =
+   *  the root); with a single company it may be left out. */
+  pairPanel: (p: { codice: string; nome?: string; azienda?: string; username?: string; password?: string }) =>
+    request<{ nome: string; azienda: string; url?: string }>("/api/pannelli/abbina", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...p,
+        nome: p.nome || undefined,
+        username: p.username || undefined,
+        password: p.password || undefined,
+      }),
+    }),
 
   /** Le risorse: la prima pagina della console. Chi amministra un'azienda ne
    *  riceve una sola, e senza lo stato della macchina — quello non e di
@@ -2692,8 +2713,10 @@ export const api = {
       headers: { ...seVersionato("/api/project/impostazione-iniziale") },
     }),
 
-  /** Lo schermo del pannello (12-11-2026): per ora i fotogrammi al secondo. */
-  updatePannello: (pannello: { fps?: number } | null) =>
+  /** Lo schermo del pannello (12-11-2026): fotogrammi al secondo; dal 13-11
+   *  luce, riposo e beep. Sostituisce tutto `pannello`: chi salva un campo
+   *  passa anche gli altri (`salvaPannello` in `EditorShell.tsx`). */
+  updatePannello: (pannello: PannelloConfig | null) =>
     request<void>("/api/project/pannello", {
       method: "PUT",
       headers: { "Content-Type": "application/json", ...seVersionato("/api/project/pannello") },

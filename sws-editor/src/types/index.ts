@@ -2062,6 +2062,23 @@ export interface SimboloCompilato {
   errori: string[];
 }
 
+/** `pannello` del progetto: specchio di `PannelloConfig` in `sws-core`. */
+export interface PannelloConfig {
+  fps?: number;
+  /** Percento, 5-100. Assente = SWS non tocca la luce. */
+  luminosita?: number;
+  oscura_dopo_min?: number;
+  spegni_dopo_min?: number;
+  beep?: BeepTocco;
+}
+
+export interface BeepTocco {
+  frequenza_hz: number;
+  durata_ms: number;
+  /** Percento, 1-100. */
+  volume: number;
+}
+
 export interface ProjectInfo {
   meta: { name: string; version: string };
   /** I tipi struttura riusabili (Fase 1b). Assente nei progetti che non ne hanno. */
@@ -2083,8 +2100,10 @@ export interface ProjectInfo {
   languages?: LanguageTable;
   page_layout?: PageLayoutConfig;
   /** Lo schermo del pannello (12-11-2026): `fps` = quante volte al secondo i
-   *  viewer, LVGL e web, ridisegnano al più. Assente = 20. */
-  pannello?: { fps?: number };
+   *  viewer, LVGL e web, ridisegnano al più. Assente = 20. Dal 13-11 luce,
+   *  riposo e beep al tocco: valgono dove l'installazione li dà al viewer
+   *  (oggi il Tiny TY), altrove non fanno niente. */
+  pannello?: PannelloConfig;
   /** Lo stile dei simboli del progetto (Fase 4 del piano dei simboli di libreria). */
   symbol_style?: import("@/symbols/stileProgetto").StileSimboliProgetto;
   /** Le regole di contesto dell'IA (04-11-2026): viaggiano col progetto. */

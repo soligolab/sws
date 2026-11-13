@@ -95,6 +95,10 @@ libc           = "0.2"
 # nessuno per partire. Il pannello resta col SDL2 di sistema, come prima.
 sdl-statico = ["sdl2/bundled", "sdl2/static-link"]
 
+[dev-dependencies]
+# Un sysfs finto per luce e cicalino (`schermo.rs`).
+tempfile.workspace = true
+
 [build-dependencies]
 # Genera i binding libdrm per src/drm_display.rs (percorso di rendering
 # DRM/KMS diretto, alternativo a SDL2 — vedi build.rs per il perché). Stessa

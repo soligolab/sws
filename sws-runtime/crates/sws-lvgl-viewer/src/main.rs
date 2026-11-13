@@ -127,6 +127,7 @@ mod parametri;
 mod riavvio;
 mod ritardo;
 mod ritmo;
+mod schermo;
 mod session;
 mod simbolo_lib;
 mod svg_assets;
@@ -321,6 +322,20 @@ struct Args {
     /// rendering.
     #[arg(long, default_value = "auto")]
     touch_device: String,
+
+    /// La retroilluminazione che SWS può regolare (solo backend "drm"): una
+    /// cartella di `/sys/class/backlight/`, con `brightness` e
+    /// `max_brightness`. La passa l'installazione del Tiny TY
+    /// (`deploy/tiny-ty/`); senza, luce e riposo del progetto non fanno
+    /// niente e la luce resta del sistema.
+    #[arg(long, value_name = "CARTELLA")]
+    retroilluminazione: Option<String>,
+
+    /// Il cicalino per il beep al tocco (solo backend "drm"): un chip PWM di
+    /// sysfs, es. `/sys/class/pwm/pwmchip3`; si usa il canale 0. Senza, il
+    /// beep del progetto non fa niente.
+    #[arg(long, value_name = "CARTELLA")]
+    cicalino: Option<String>,
 }
 
 /// Risolve `--touch-device`.
@@ -571,9 +586,8 @@ fn main() -> anyhow::Result<()> {
             // a costo quasi zero, stesso comportamento di un fetch riuscito ma
             // con `entries: []`.
             let lang_table = match client::fetch_languages(&args.base_url).await {
-                Ok((lingue, fps)) => {
-                    ritmo::imposta(fps);
-                    eprintln!("[ritmo] {fps} fotogrammi al secondo (pannello.fps del progetto)");
+                Ok((lingue, pannello)) => {
+                    imposta_pannello(pannello);
                     lingue
                 }
                 Err(e) => {
@@ -670,6 +684,15 @@ fn main() -> anyhow::Result<()> {
         &shared_lang,
         &shared_session,
     )?;
+
+    // The pairing QR is not a synoptic object: it is drawn over the white
+    // square the pairing page reserves for it (13-11-2026).
+    if let Some(abbinamento::Schermata::Codice {
+        link: Some(link), ..
+    }) = &in_attesa
+    {
+        abbinamento::draw_qr(link);
+    }
 
     eprintln!(
         "widget LVGL creati correttamente ({}): {}",
@@ -847,8 +870,20 @@ fn main() -> anyhow::Result<()> {
             Some(dev) => {
                 eprintln!("[touch] device: {dev}");
                 touch_indev::spawn(&dev, hor_res, ver_res)?;
+                schermo::avvia(
+                    args.retroilluminazione.as_deref(),
+                    args.cicalino.as_deref(),
+                    true,
+                );
             }
-            None => eprintln!("[drm] nessun touch: solo rendering"),
+            None => {
+                eprintln!("[drm] nessun touch: solo rendering");
+                schermo::avvia(
+                    args.retroilluminazione.as_deref(),
+                    args.cicalino.as_deref(),
+                    false,
+                );
+            }
         }
         run_drm(
             &args.drm_card,
@@ -1617,7 +1652,10 @@ fn run_drm(
             // Q37 — la cornice è un colore deliberato, lo stesso neutro delle
             // bande del letterbox nel viewer web (#0f172a). Una volta sola:
             // la pagina la sovrascrive a ogni flush, la cornice resta.
-            drm.riempi(0x0f, 0x17, 0x2a);
+            {
+                let (r, g, b) = lvgl_display::as_rendered(0x0f, 0x17, 0x2a);
+                drm.riempi(r, g, b);
+            }
             eprintln!(
                 "[drm] la pagina {hor_res}x{ver_res} è più piccola del display {dw}x{dh}: \
                  viene centrata, con attorno il neutro dichiarato (Q37)"
@@ -1670,6 +1708,8 @@ fn run_drm(
 
         tempi::misura("lvgl", lvgl::task_handler);
         lvgl::tick_inc(orologio.passo());
+        // Oscura o spegne lo schermo a riposo, se il progetto lo chiede.
+        schermo::giro();
 
         // L'avviso di aggiornamento, se c'è qualcosa da dire. Costa un lock e
         // un confronto di interi per frame: ridisegna solo quando lo stato
@@ -1819,7 +1859,10 @@ fn run_drm(
         if ora != (hor_res, ver_res) && ora.0 > 0 && ora.1 > 0 {
             (hor_res, ver_res) = ora;
             drm_off = page_offset(hor_res, ver_res, drm.width, drm.height);
-            drm.riempi(0x0f, 0x17, 0x2a);
+            {
+                let (r, g, b) = lvgl_display::as_rendered(0x0f, 0x17, 0x2a);
+                drm.riempi(r, g, b);
+            }
             lvgl_display::segna_tutto();
             eprintln!("[drm] pagina {hor_res}x{ver_res}, margine {drm_off:?}");
         }
@@ -1839,6 +1882,15 @@ fn run_drm(
             std::thread::sleep(target - elapsed);
         }
     }
+}
+
+/// Le impostazioni dello schermo dal progetto: fotogrammi al secondo, luce,
+/// riposo e beep.
+fn imposta_pannello(pannello: Option<sws_core::project::PannelloConfig>) {
+    let fps = sws_core::project::PannelloConfig::fps_effettivi(pannello.as_ref());
+    ritmo::imposta(fps);
+    eprintln!("[ritmo] {fps} fotogrammi al secondo (pannello.fps del progetto)");
+    schermo::configura(pannello.unwrap_or_default());
 }
 
 /// Il progetto è cambiato (un deploy) o la sessione è cambiata: si rilegge e
@@ -1877,6 +1929,15 @@ fn ricarica_se_chiesto(
     let sessione_cambiata = session::ridisegno_chiesto();
     if !(progetto_cambiato || sessione_cambiata) {
         return None;
+    }
+    // Fotogrammi, luce, riposo e beep viaggiano col deploy (13-11-2026): si
+    // rileggono qui, senza aspettare che il viewer riparta. Le lingue no:
+    // `lang_table` è di chi chiama, e per ora si rilegge alla partenza.
+    if progetto_cambiato {
+        match rt_handle.block_on(client::fetch_languages(base_url)) {
+            Ok((_, pannello)) => imposta_pannello(pannello),
+            Err(e) => eprintln!("[reload] impostazioni del pannello non rilette: {e}"),
+        }
     }
     // Gli SVG già scaricati vanno buttati: un deploy può aver
     // cambiato un simbolo custom o un'immagine **sotto lo stesso

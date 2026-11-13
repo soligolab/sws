@@ -3927,6 +3927,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sws-core",
+ "tempfile",
  "tokio",
  "tokio-tungstenite",
 ]

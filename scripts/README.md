@@ -513,6 +513,24 @@ che `podman tag` è stato fatto, non che il push sia arrivato, e verificare il r
 login. Con `--pubblicate` (che `build_containers_all.sh` passa quando è stato lanciato con
 `--push`) lo dice; senza, dice «etichettata, non necessariamente pushata».
 
+## `pacchetto_tiny_ty.sh` — SWS per i Tiny TY, senza container
+
+```bash
+./scripts/pacchetto_tiny_ty.sh             # build armv7 (build_armv7.sh) + SPA + pacchetto
+./scripts/pacchetto_tiny_ty.sh --no-rust   # riusa dist/armv7/
+./scripts/pacchetto_tiny_ty.sh --no-spa    # riusa sws-editor/dist/
+```
+
+Esce in `dist/sws-<versione>-tiny-ty-armv7.tar.gz`: binari armv7, pagine web, template, catalogo, i font
+che apt non porta, la ruota di RestrictedPython per Python 3.10 e l'installatore di `deploy/tiny-ty/`.
+Sul dispositivo, scompattato: `sudo ./install.sh` (o `--uninstall`, che lascia dati e configurazione).
+
+L'installatore controlla con `ldd` le librerie che mancano **prima** di copiare, crea l'utente
+`sws`, installa le due unit di sistema (`sws-runtime`, `sws-lvgl-viewer`) e la regola udev per luce
+e cicalino. Non tocca `tyx_panelcontrol`: se è acceso lo dice, perché come spegnerlo senza perdere
+i servizi del PLC è una domanda per Pixsys. Scheda DRM, touch e indirizzo del runtime il viewer li
+cerca da sé; si fissano in `/etc/sws/viewer.env`. Piano: `docs/plans/2026-10-30-sws-lvgl-sul-tiny-ty.md`.
+
 ## `clean_disk_space.sh` — libera spazio quando il disco è pieno
 
 `target/debug` (workspace + `sws-kiosk`/`sws-lvgl-viewer`, esclusi dal workspace e mai toccati da

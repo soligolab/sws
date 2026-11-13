@@ -1603,6 +1603,10 @@ pub fn build(
                 // (chiave di ritorno → l'azienda del progetto) o dalla piattaforma.
                 .route("/api/pannelli/abbina", post(crate::tunnel::gateway::abbina))
                 .route(
+                    "/api/pannelli/in-attesa/:codice",
+                    get(crate::tunnel::gateway::waiting_panel),
+                )
+                .route(
                     "/api/pannelli/:nome/rinomina",
                     post(crate::tunnel::gateway::rinomina),
                 )
@@ -2340,6 +2344,13 @@ async fn mie_aziende(State(s): State<AppState>, req: Request) -> Response {
                     "nome": a.nome,
                     "implicita": a.implicita,
                     "ruolo": ruolo.come_testo(),
+                    // The gateway's company key (`-` = the root), what
+                    // pairing a panel sends as `azienda`.
+                    "cartella": if a.cartella.is_empty() {
+                        crate::project_registry::AZIENDA_IMPLICITA
+                    } else {
+                        a.cartella.as_str()
+                    },
                 })
             })
         })
@@ -11715,10 +11726,11 @@ async fn update_project_page_layout(
     res
 }
 
-/// `PUT /api/project/pannello` — lo schermo del pannello (12-11-2026): per ora
-/// i fotogrammi al secondo dei viewer. Corpo `null` (o tutto vuoto) = i
-/// predefiniti. Un valore fuori da 1-60 è un 400: meglio dirlo che
-/// riportarlo nei limiti in silenzio.
+/// `PUT /api/project/pannello` — lo schermo del pannello (12-11-2026): i
+/// fotogrammi al secondo dei viewer e, dal 13-11, luce, riposo e beep. Corpo
+/// `null` (o tutto vuoto) = i predefiniti. Un valore fuori dai limiti
+/// (`PannelloConfig::valida`) è un 400: meglio dirlo che riportarlo nei
+/// limiti in silenzio.
 async fn update_project_pannello(
     State(s): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -11727,18 +11739,8 @@ async fn update_project_pannello(
 ) -> Response {
     use sws_core::project::PannelloConfig;
     let pannello = pannello.filter(|p| *p != PannelloConfig::default());
-    if let Some(f) = pannello.as_ref().and_then(|p| p.fps) {
-        if !(PannelloConfig::FPS_MIN..=PannelloConfig::FPS_MAX).contains(&f) {
-            return (
-                StatusCode::BAD_REQUEST,
-                format!(
-                    "fps {f} fuori da {}-{}",
-                    PannelloConfig::FPS_MIN,
-                    PannelloConfig::FPS_MAX
-                ),
-            )
-                .into_response();
-        }
+    if let Some(Err(e)) = pannello.as_ref().map(PannelloConfig::valida) {
+        return (StatusCode::BAD_REQUEST, e).into_response();
     }
     let dir = match active_dir(&s).await {
         Ok(d) => d,

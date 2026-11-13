@@ -72,7 +72,7 @@ import { NavigatorProperties } from "./NavigatorProperties";
 import { CampoTestoTradotto } from "@/editor/CampoTestoTradotto";
 import { CampoFormato } from "@/components/CampoFormato";
 import type { AlignMode } from "@/store";
-import type { AlarmSeverity, ButtonAction, FunctionDef, GridCell, PageLayoutConfig, PageSizeMode, ProjectTargetKind, RadioOption, SubCellEntry, SubGrid, SynopticObject, SynopticPage, TableRow, TagDef, TypeDef, TextListEntry, TrendTrace, XySeries } from "@/types";
+import type { AlarmSeverity, BeepTocco, ButtonAction, FunctionDef, GridCell, PageLayoutConfig, PageSizeMode, ProjectTargetKind, RadioOption, SubCellEntry, SubGrid, SynopticObject, SynopticPage, TableRow, TagDef, TypeDef, TextListEntry, TrendTrace, XySeries } from "@/types";
 import { eBoot, paginePerNavigazione } from "@/boot/tipi";
 import { aggiornaPagina, applicaATutte, applicaPredefinito, generePagina, salvaLayout } from "@/formatoProgettoAzioni";
 import { dalTag, descrizioniDeiTag } from "@/tag/forma";
@@ -83,6 +83,7 @@ import { AnteprimaPng } from "@/boot/AnteprimaPng";
 import { PermessoTagNota } from "@/editor/PermessoTagNota";
 import { rangoRuolo, sogliaEreditata } from "@/auth/permessoScrittura";
 import { CampoNumero } from "@/components/CampoNumero";
+import { salvaPannello } from "./salvaPannello";
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 
@@ -2925,41 +2926,114 @@ function ProjectPageLayoutSettings() {
         </label>
       </div>
 
-      <FpsPannello onErrore={setErrore} />
+      <NumeroPannello campo="fps" min={1} max={60} placeholder="20" etichetta={t("shell.fpsPannello")}
+        aiuto={t("shell.fpsPannelloHelp")} onErrore={setErrore} />
+
+      <SchermoPannello onErrore={setErrore} />
 
       {errore && <div style={{ color: "var(--brand-danger, #ef4444)", fontSize: 12 }}>{t("shell.erroreSalvataggio", { errore })}</div>}
     </div>
   );
 }
 
-/** I fotogrammi al secondo del pannello (`pannello.fps`, 12-11-2026, piano
- *  Tiny TY). Vuoto = predefinito (20). Si scrive quando si esce dal campo. */
-function FpsPannello({ onErrore }: { onErrore: (e: string | null) => void }) {
-  const { t } = useTranslation();
-  const fps = useAppStore((s) => s.project?.pannello?.fps);
-  const [testo, setTesto] = useState(fps === undefined ? "" : String(fps));
-  useEffect(() => { setTesto(fps === undefined ? "" : String(fps)); }, [fps]);
-  const salva = async () => {
+const stileCampoPannello = { background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "4px 8px", fontSize: 12, width: 80 };
+const stileAiutoPannello = { fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginTop: 3, lineHeight: 1.45 };
+const stileEtichettaPannello = { fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 4 };
+
+/** Un numero intero dentro i limiti, scritto quando si esce dal campo: vuoto =
+ *  `undefined`, fuori dai limiti torna il valore di prima. */
+function NumeroAlBlur({ valore, min, max, placeholder, testid, onValore }: {
+  valore: number | undefined; min: number; max: number; placeholder?: string; testid: string;
+  onValore: (n: number | undefined) => void;
+}) {
+  const [testo, setTesto] = useState(valore === undefined ? "" : String(valore));
+  useEffect(() => { setTesto(valore === undefined ? "" : String(valore)); }, [valore]);
+  const esci = () => {
     const n = testo.trim() === "" ? undefined : Math.round(Number(testo));
-    if (n !== undefined && (!Number.isFinite(n) || n < 1 || n > 60)) { setTesto(fps === undefined ? "" : String(fps)); return; }
-    if (n === fps) return;
+    if (n !== undefined && (!Number.isFinite(n) || n < min || n > max)) { setTesto(valore === undefined ? "" : String(valore)); return; }
+    if (n !== valore) onValore(n);
+  };
+  return (
+    <CampoNumero min={min} max={max} placeholder={placeholder} value={testo} data-testid={testid}
+      onTesto={setTesto} onBlur={esci}
+      onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+      style={stileCampoPannello} />
+  );
+}
+
+/** Un campo numerico di `pannello`: fotogrammi al secondo (12-11-2026), luce e
+ *  tempi di riposo (13-11-2026, piano Tiny TY). */
+function NumeroPannello({ campo, min, max, placeholder, etichetta, aiuto, onErrore }: {
+  campo: "fps" | "luminosita" | "oscura_dopo_min" | "spegni_dopo_min";
+  min: number; max: number; placeholder?: string; etichetta: string; aiuto: string;
+  onErrore: (e: string | null) => void;
+}) {
+  const valore = useAppStore((s) => s.project?.pannello?.[campo]);
+  const salva = async (n: number | undefined) => {
     onErrore(null);
-    try {
-      const pannello = n === undefined ? null : { fps: n };
-      await api.updatePannello(pannello);
-      useAppStore.setState((s) => (s.project ? { project: { ...s.project, pannello: pannello ?? undefined } } : {}));
-    } catch (e) {
-      onErrore(e instanceof Error ? e.message : String(e));
-    }
+    try { await salvaPannello({ [campo]: n }); }
+    catch (e) { onErrore(e instanceof Error ? e.message : String(e)); }
   };
   return (
     <div>
-      <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 4 }}>{t("shell.fpsPannello")}</div>
-      <CampoNumero min={1} max={60} placeholder="20" value={testo} data-testid="fps-pannello"
-        onTesto={setTesto} onBlur={() => void salva()}
-        onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-        style={{ background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "4px 8px", fontSize: 12, width: 80 }} />
-      <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginTop: 3, lineHeight: 1.45 }}>{t("shell.fpsPannelloHelp")}</div>
+      <div style={stileEtichettaPannello}>{etichetta}</div>
+      <NumeroAlBlur valore={valore} min={min} max={max} placeholder={placeholder}
+        testid={`pannello-${campo}`} onValore={(n) => void salva(n)} />
+      <div style={stileAiutoPannello}>{aiuto}</div>
+    </div>
+  );
+}
+
+/** Il beep a ogni tocco (13-11-2026): spento o acceso con nota, durata e
+ *  volume. Acceso la prima volta, parte dai valori di `BeepTocco::default`. */
+function BeepPannello({ onErrore }: { onErrore: (e: string | null) => void }) {
+  const { t } = useTranslation();
+  const beep = useAppStore((s) => s.project?.pannello?.beep);
+  const salva = async (b: BeepTocco | undefined) => {
+    onErrore(null);
+    try { await salvaPannello({ beep: b }); }
+    catch (e) { onErrore(e instanceof Error ? e.message : String(e)); }
+  };
+  const campo = (k: keyof BeepTocco, min: number, max: number, etichetta: string) => (
+    <label style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 11, color: "var(--brand-text-muted, #94a3b8)" }}>
+      {etichetta}
+      <NumeroAlBlur valore={beep?.[k]} min={min} max={max} testid={`pannello-beep-${k}`}
+        onValore={(n) => { if (beep && n !== undefined) void salva({ ...beep, [k]: n }); }} />
+    </label>
+  );
+  return (
+    <div>
+      <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 12, cursor: "pointer" }}>
+        <input type="checkbox" checked={beep !== undefined} data-testid="pannello-beep"
+          onChange={(e) => void salva(e.target.checked ? { frequenza_hz: 1000, durata_ms: 30, volume: 100 } : undefined)} />
+        {t("shell.beepPannello")}
+      </label>
+      {beep && (
+        <div style={{ display: "flex", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
+          {campo("frequenza_hz", 100, 10000, t("shell.beepFrequenza"))}
+          {campo("durata_ms", 5, 1000, t("shell.beepDurata"))}
+          {campo("volume", 1, 100, t("shell.beepVolume"))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Luce, riposo e beep del pannello (13-11-2026): una sezione sola, con la
+ *  riga che dice dove valgono. */
+function SchermoPannello({ onErrore }: { onErrore: (e: string | null) => void }) {
+  const { t } = useTranslation();
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <div style={{ fontSize: 12, fontWeight: 600 }}>{t("shell.schermoPannello")}</div>
+      <div style={{ ...stileAiutoPannello, marginTop: 0 }}>{t("shell.schermoPannelloHelp")}</div>
+      <NumeroPannello campo="luminosita" min={5} max={100} etichetta={t("shell.luminositaPannello")}
+        aiuto={t("shell.luminositaPannelloHelp")} onErrore={onErrore} />
+      <NumeroPannello campo="oscura_dopo_min" min={1} max={1440} etichetta={t("shell.oscuraDopo")}
+        aiuto={t("shell.oscuraDopoHelp")} onErrore={onErrore} />
+      <NumeroPannello campo="spegni_dopo_min" min={1} max={1440} etichetta={t("shell.spegniDopo")}
+        aiuto={t("shell.spegniDopoHelp")} onErrore={onErrore} />
+      <BeepPannello onErrore={onErrore} />
     </div>
   );
 }

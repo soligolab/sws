@@ -21,7 +21,11 @@
 #      cancella, con `RemainAfterExit=no` — il ciclo garantito;
 #   2. un `.path` che punta a una unit inesistente;
 #   3. `ExecStart=` con un percorso relativo (systemd lo rifiuta al caricamento,
-#      e l'errore si vede solo nel journal del dispositivo).
+#      e l'errore si vede solo nel journal del dispositivo);
+#   5. le unit del Tiny TY (deploy/tiny-ty, 13-11-2026): non girano come root e
+#      cedono al PLC — peso della CPU sotto il predefinito, `OOMScoreAdjust`
+#      positivo, un tetto di memoria. Sono la decisione del piano, passo 3: una
+#      riga tolta non dà errori, il PLC perde semplicemente la precedenza.
 #
 # Uso:  ./scripts/check_systemd_units.sh
 set -euo pipefail
@@ -57,6 +61,12 @@ unita = sorted(glob.glob(f"{D}/*.path") + glob.glob(f"{D}/*.service") + glob.glo
 print(f"\033[1m{len(unita)} unit systemd in deploy/container\033[0m\n")
 
 testi = {os.path.basename(p): open(p).read() for p in unita}
+# Le unit del Tiny TY col prefisso della cartella: `sws-runtime.service` esiste
+# anche lì, e non è la stessa unit.
+tiny = sorted(glob.glob(f"{root}/deploy/tiny-ty/*.service"))
+for p in tiny:
+    testi["tiny-ty/" + os.path.basename(p)] = open(p).read()
+print(f"\033[1m{len(tiny)} unit systemd in deploy/tiny-ty\033[0m\n")
 
 for nome, testo in testi.items():
     d = direttive(testo)
@@ -90,6 +100,25 @@ for nome, testo in testi.items():
     for k, v in d:
         if k.startswith("ExecStart") and v and not v.lstrip("-+!@").startswith("/"):
             problema(f"{nome}: `{k}={v}` non è un percorso assoluto — systemd rifiuta la unit")
+
+# 5. Il Tiny TY: SWS cede al PLC, e non da root.
+for nome, testo in testi.items():
+    if not nome.startswith("tiny-ty/"):
+        continue
+    c = dict(direttive(testo))
+    if c.get("User", "root") == "root":
+        problema(f"{nome}: gira come root", "le unit del Tiny TY girano come `sws` (CRA, sicuri per default)")
+    try:
+        peso = int(c.get("CPUWeight", "100"))
+        oom = int(c.get("OOMScoreAdjust", "0"))
+    except ValueError:
+        peso, oom = 100, 0
+    if peso >= 100 or oom <= 0 or "MemoryMax" not in c:
+        problema(
+            f"{nome}: non cede al PLC (CPUWeight={c.get('CPUWeight')}, "
+            f"OOMScoreAdjust={c.get('OOMScoreAdjust')}, MemoryMax={c.get('MemoryMax')})",
+            "sul Tiny TY SWS divide un core e 256 MB con CODESYS: CPUWeight sotto 100,\n"
+            "OOMScoreAdjust positivo e un MemoryMax (piano sws-lvgl-sul-tiny-ty, passo 3).")
 
 # 4. Impostare l'URL del browser e ricaricarlo devono viaggiare insieme.
 #
@@ -155,6 +184,7 @@ if fail:
 print(f"  \033[32m✓\033[0m nessuna condizione di livello che possa ciclare")
 print(f"  \033[32m✓\033[0m ogni `.path` punta a una unit che spediamo")
 print(f"  \033[32m✓\033[0m ogni `ExecStart=` è un percorso assoluto")
+print(f"  \033[32m✓\033[0m le unit del Tiny TY girano come `sws` e cedono al PLC")
 print(f"  \033[32m✓\033[0m l'installer ricarica il browser del pannello dopo aver cambiato l'URL,")
 print(f"    e solo se era già attivo (in modalità configurazione non gli ruba lo schermo)")
 print()

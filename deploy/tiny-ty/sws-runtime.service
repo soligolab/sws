@@ -1,0 +1,53 @@
+[Unit]
+# SWS sui Tiny TY (RV1106, un Cortex-A7, 256 MB), senza container: piano
+# docs/plans/2026-10-30-sws-lvgl-sul-tiny-ty.md, passo 3. La installa
+# deploy/tiny-ty/install.sh in /etc/systemd/system/.
+Description=SWS runtime (Tiny TY)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/opt/sws/bin/sws-runtime-launch.sh
+# `always` e non `on-failure`: un'uscita pulita lascerebbe il pannello senza
+# runtime, e il viewer senza niente da mostrare.
+Restart=always
+RestartSec=5
+
+# Utente dedicato, non root (CRA, sicuri per default). `dialout` per le seriali
+# RS485 delle sorgenti Modbus RTU; i dati sono suoi, in /var/lib/sws.
+User=sws
+Group=sws
+SupplementaryGroups=dialout
+# Il runtime cerca `pki` nella cartella di lavoro: senza, sarebbe `/`.
+WorkingDirectory=/var/lib/sws
+# Dove il viewer tiene i suoi dati, che il runtime include nell'inventario.
+Environment=SWS_VIEWER_DATA=/var/lib/sws/viewer
+
+# ── Il PLC vince (12-11-2026) ────────────────────────────────────────────────
+#
+# Sul Tiny TY SWS divide un core solo con CODESYS o LogicLab, e il PLC è la
+# ragione per cui il dispositivo esiste. Quindi SWS cede in tutti e tre i modi
+# che systemd conosce:
+#   - CPU: peso 20 contro i 100 predefiniti, e nice 10 come i lavori di fondo
+#     del runtime (che col loro nice relativo scendono ancora);
+#   - IO: peso 20, per lo storico SQLite che scrive sulla stessa eMMC;
+#   - memoria: sotto pressione il kernel sacrifica SWS prima del PLC
+#     (`OOMScoreAdjust` alto), e SWS non cresce oltre un tetto suo.
+# Misurato il 12-11-2026 col progetto `tiny-ty`: runtime ~35 MB di PSS. Il tetto
+# lascia spazio agli script Python e a un progetto più grosso; `MemoryHigh` fa
+# rallentare e recuperare memoria prima di arrivare al `MemoryMax`, dove il
+# kernel uccide. Su un kernel senza il controller `memory` di cgroup v2 systemd
+# ignora i due tetti e lo dice nel journal: `OOMScoreAdjust` vale comunque.
+CPUWeight=20
+Nice=10
+IOWeight=20
+OOMScoreAdjust=500
+MemoryHigh=80M
+MemoryMax=112M
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

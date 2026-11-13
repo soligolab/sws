@@ -2695,12 +2695,118 @@ pub struct PannelloConfig {
     /// grafico trascinato col dito prendeva il 93 % della CPU.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fps: Option<u32>,
+    /// La luce dello schermo, in percento ([`Self::LUCE_MIN`]-100). Assente =
+    /// SWS non la tocca. Luce, riposo e beep (13-11-2026, decisione del
+    /// 12-11: «gestire tutto da SWS») valgono solo sui pannelli dove
+    /// l'installazione dà al viewer la retroilluminazione e il cicalino — oggi
+    /// i Tiny TY; altrove non fanno niente.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub luminosita: Option<u8>,
+    /// Dopo quanti minuti senza tocchi lo schermo si oscura. Assente = mai.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub oscura_dopo_min: Option<u32>,
+    /// Dopo quanti minuti senza tocchi lo schermo si spegne. Assente = mai.
+    /// Il primo tocco riaccende senza premere quello che c'è sotto.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spegni_dopo_min: Option<u32>,
+    /// Il beep al tocco. Assente = nessun beep.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub beep: Option<BeepTocco>,
+}
+
+/// Il beep a ogni tocco dello schermo, sul cicalino del pannello.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+pub struct BeepTocco {
+    /// La nota, in hertz.
+    pub frequenza_hz: u32,
+    /// Quanto dura, in millisecondi.
+    pub durata_ms: u32,
+    /// Il volume in percento: sul PWM è il duty, e il 100 % è la metà del
+    /// periodo (un'onda quadra piena).
+    pub volume: u8,
+}
+
+impl Default for BeepTocco {
+    /// Quello che `rc.local` del Tiny TY fa all'avvio, 1 kHz a metà duty, ma
+    /// breve: è un clic, non un allarme.
+    fn default() -> Self {
+        Self {
+            frequenza_hz: 1000,
+            durata_ms: 30,
+            volume: 100,
+        }
+    }
 }
 
 impl PannelloConfig {
     pub const FPS_PREDEFINITI: u32 = 20;
     pub const FPS_MIN: u32 = 1;
     pub const FPS_MAX: u32 = 60;
+    /// Sotto il 5 % su molti schermi la luce è già spenta: chi vuole lo schermo
+    /// buio usa lo spegnimento a riposo, che si riaccende al tocco.
+    pub const LUCE_MIN: u8 = 5;
+    /// Un giorno: oltre, un tempo di riposo è un errore di battitura.
+    pub const RIPOSO_MAX_MIN: u32 = 24 * 60;
+    pub const BEEP_HZ: std::ops::RangeInclusive<u32> = 100..=10_000;
+    pub const BEEP_MS: std::ops::RangeInclusive<u32> = 5..=1_000;
+
+    /// Il primo valore fuori dai limiti, detto in parole. Un valore sbagliato
+    /// si rifiuta (400) invece di riportarlo nei limiti in silenzio.
+    pub fn valida(&self) -> Result<(), String> {
+        if let Some(f) = self.fps {
+            if !(Self::FPS_MIN..=Self::FPS_MAX).contains(&f) {
+                return Err(format!(
+                    "fps {f} fuori da {}-{}",
+                    Self::FPS_MIN,
+                    Self::FPS_MAX
+                ));
+            }
+        }
+        if let Some(l) = self.luminosita {
+            if !(Self::LUCE_MIN..=100).contains(&l) {
+                return Err(format!("luminosita {l} fuori da {}-100", Self::LUCE_MIN));
+            }
+        }
+        for (nome, v) in [
+            ("oscura_dopo_min", self.oscura_dopo_min),
+            ("spegni_dopo_min", self.spegni_dopo_min),
+        ] {
+            if let Some(m) = v {
+                if !(1..=Self::RIPOSO_MAX_MIN).contains(&m) {
+                    return Err(format!("{nome} {m} fuori da 1-{}", Self::RIPOSO_MAX_MIN));
+                }
+            }
+        }
+        if let (Some(o), Some(sp)) = (self.oscura_dopo_min, self.spegni_dopo_min) {
+            if sp <= o {
+                return Err(format!(
+                    "spegni_dopo_min ({sp}) deve venire dopo oscura_dopo_min ({o})"
+                ));
+            }
+        }
+        if let Some(b) = self.beep {
+            if !Self::BEEP_HZ.contains(&b.frequenza_hz) {
+                return Err(format!(
+                    "beep: frequenza {} Hz fuori da {}-{}",
+                    b.frequenza_hz,
+                    Self::BEEP_HZ.start(),
+                    Self::BEEP_HZ.end()
+                ));
+            }
+            if !Self::BEEP_MS.contains(&b.durata_ms) {
+                return Err(format!(
+                    "beep: durata {} ms fuori da {}-{}",
+                    b.durata_ms,
+                    Self::BEEP_MS.start(),
+                    Self::BEEP_MS.end()
+                ));
+            }
+            if !(1..=100).contains(&b.volume) {
+                return Err(format!("beep: volume {} fuori da 1-100", b.volume));
+            }
+        }
+        Ok(())
+    }
 
     /// I fotogrammi al secondo da usare: il valore del progetto, riportato
     /// fra [`Self::FPS_MIN`] e [`Self::FPS_MAX`], o il predefinito.
@@ -3327,7 +3433,10 @@ mod tests_pannello {
     #[test]
     fn fps_predefiniti_e_limiti() {
         assert_eq!(PannelloConfig::fps_effettivi(None), 20);
-        let p = |f| PannelloConfig { fps: Some(f) };
+        let p = |f| PannelloConfig {
+            fps: Some(f),
+            ..Default::default()
+        };
         assert_eq!(PannelloConfig::fps_effettivi(Some(&p(10))), 10);
         assert_eq!(PannelloConfig::fps_effettivi(Some(&p(0))), 1);
         assert_eq!(PannelloConfig::fps_effettivi(Some(&p(240))), 60);
@@ -3335,5 +3444,58 @@ mod tests_pannello {
             PannelloConfig::fps_effettivi(Some(&PannelloConfig::default())),
             20
         );
+    }
+
+    #[test]
+    fn valida_i_limiti() {
+        use super::BeepTocco;
+        assert!(PannelloConfig::default().valida().is_ok());
+        let ok = PannelloConfig {
+            fps: Some(20),
+            luminosita: Some(80),
+            oscura_dopo_min: Some(5),
+            spegni_dopo_min: Some(30),
+            beep: Some(BeepTocco::default()),
+        };
+        assert!(ok.valida().is_ok());
+        let con = |f: fn(&mut PannelloConfig)| {
+            let mut p = ok.clone();
+            f(&mut p);
+            p.valida()
+        };
+        assert!(con(|p| p.fps = Some(0)).is_err());
+        assert!(con(|p| p.luminosita = Some(2)).is_err());
+        assert!(con(|p| p.luminosita = Some(101)).is_err());
+        assert!(con(|p| p.oscura_dopo_min = Some(0)).is_err());
+        // Spegnere prima di oscurare non ha senso: si dice.
+        let e = con(|p| p.spegni_dopo_min = Some(5)).unwrap_err();
+        assert!(e.contains("dopo oscura_dopo_min"), "{e}");
+        // Solo spegnimento, senza oscuramento: lecito.
+        assert!(con(|p| p.oscura_dopo_min = None).is_ok());
+        assert!(con(|p| p.beep = Some(BeepTocco {
+            frequenza_hz: 50,
+            ..BeepTocco::default()
+        }))
+        .is_err());
+        assert!(con(|p| p.beep = Some(BeepTocco {
+            durata_ms: 0,
+            ..BeepTocco::default()
+        }))
+        .is_err());
+        assert!(con(|p| p.beep = Some(BeepTocco {
+            volume: 0,
+            ..BeepTocco::default()
+        }))
+        .is_err());
+    }
+
+    #[test]
+    fn un_progetto_senza_luce_resta_come_prima() {
+        // I progetti del 12-11 hanno solo `fps`: si leggono, e riscritti non
+        // guadagnano campi.
+        let p: PannelloConfig = serde_yaml::from_str("fps: 15\n").unwrap();
+        assert_eq!(p.fps, Some(15));
+        assert_eq!(p.luminosita, None);
+        assert_eq!(serde_yaml::to_string(&p).unwrap().trim(), "fps: 15");
     }
 }

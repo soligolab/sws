@@ -139,7 +139,9 @@ pub fn spawn(device_path: &str, hor_res: u32, ver_res: u32) -> anyhow::Result<()
             };
             let x = map_range(x_raw, x_info.minimum, x_info.maximum, w as i32);
             let y = map_range(y_raw, y_info.minimum, y_info.maximum, h as i32);
-            lvgl_indev::set_pointer_state(x, y, pressed);
+            // Il riposo decide se il tocco arriva a LVGL: quello che sveglia
+            // lo schermo no (`schermo.rs`). Qui parte anche il beep.
+            lvgl_indev::set_pointer_state(x, y, crate::schermo::tocco(pressed));
         }
     });
 

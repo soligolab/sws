@@ -1,0 +1,16 @@
+# Luce e cicalino del Tiny TY scrivibili dal viewer di SWS, che gira come
+# utente `sws` nel gruppo `video` e non come root. Decisione del 12-11-2026:
+# luce e cicalino li gestisce SWS (piano docs/plans/2026-10-30-sws-lvgl-sul-tiny-ty.md).
+# La installa deploy/tiny-ty/install.sh in /etc/udev/rules.d/.
+#
+# Misurato sul TY570 il 12-11-2026:
+#   - retroilluminazione: /sys/class/backlight/backlight/brightness, 0-255;
+#   - cicalino: /sys/class/pwm/pwmchip3/pwm0 (`rc.local` lo usa a 1 kHz).
+# Per il cicalino servono `export` del chip e, dopo l'export, i file del canale
+# (`period`, `duty_cycle`, `enable`): la seconda regola scatta quando il canale
+# compare.
+
+SUBSYSTEM=="backlight", ACTION=="add", RUN+="/bin/chgrp video /sys%p/brightness", RUN+="/bin/chmod g+w /sys%p/brightness"
+
+SUBSYSTEM=="pwm", KERNEL=="pwmchip3", ACTION=="add", RUN+="/bin/chgrp video /sys%p/export /sys%p/unexport", RUN+="/bin/chmod g+w /sys%p/export /sys%p/unexport"
+SUBSYSTEM=="pwm", KERNEL=="pwm0", KERNELS=="pwmchip3", ACTION=="add", RUN+="/bin/sh -c 'chgrp video /sys%p/period /sys%p/duty_cycle /sys%p/enable && chmod g+w /sys%p/period /sys%p/duty_cycle /sys%p/enable'"
