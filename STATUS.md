@@ -12,6 +12,36 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — rc.17: la catena mergiata, il QR di abbinamento, il Tiny TY installato (2026-11-13, theobroma)
+
+**La catena è in `main`**, cinque squash (`f3512bca` Tiny TY armv7, `2a461fdf` quadlet 8, `a1995e01` G1, `a62cf672`
+Tiny TY systemd, `92743c06` QR di abbinamento) e `chore(rc): 2.26.0-rc.17` (`a0c11846`), col tag. I cinque rami
+eliminati, in locale e su origin. Merge e rc chiesti dal maintainer prima del collaudo: il collaudo chiude la
+*definition of done* dopo, e le sue anomalie sono la patch successiva.
+
+**Il QR di abbinamento** (piano `docs/plans/2026-11-13-qr-di-abbinamento.md`, nato oggi da due semi): il pannello in
+attesa mostra accanto al codice un QR con `https://sws.soligo.net/#pair=<codice>` (LVGL `lv_qrcode`, web
+`qrcode-generator`); dal telefono si apre l'IDE, login se serve, e si conferma l'azienda — ogni membro abbina a una sua
+azienda, senza progetto; la stessa finestra dal menu col proprio nome. `SWS_CLOUD_URL` nella configurazione del
+runtime. Sulla rc.16 del VPS il link apriva l'IDE senza effetto: serve la rc.17 sul gateway.
+
+**Il TY570 in ufficio** (`pixsys@ty570-1ad-p1-06e990.local`, era `192.168.1.96`): `prepara-dispositivo.sh --applica`
+(nome mDNS, avahi, chiavi SSH: la home di `pixsys` era di root), pacchetto installato con systemd (utente `sws`, servizi
+attivi, RestrictedPython), tunnel d'attesa aperto verso il cloud, QR a schermo. PSS: runtime 26,8 MB, viewer 14,4 MB.
+`tyx_panelcontrol` fermato a mano (torna al riavvio). Le questioni per lo sviluppatore del TY in
+`deploy/tiny-ty/ty570-1ad-p1.md` (nove punti; il più pesante: un aggiornamento da SD cancella SWS e le chiavi).
+Codice nuovo del Tiny TY in inglese (indicazione del maintainer).
+
+**Il collaudo, cosa guardare** (per `/test-changes`), sulla rc.17:
+- dal telefono: QR del TY570 → login → conferma → pannello in `…/dev/ty570-1ad-p1-06e990`; «Abbina un pannello…» dal
+  menu; un utente con due aziende sceglie;
+- TY570: test 5-9 del collaudo di oggi (abbinamento e deploy, il touch su una pagina più piccola dello schermo — dubbio
+  C, `touch_indev.rs` scala sulla pagina senza il margine del centraggio —, tetti del cgroup, PSS dopo un'ora, riavvio);
+  luce e cicalino; IDE: cambiare i fotogrammi non cancella la luce;
+- TC620 (da casa): aggiornare alla rc.17, poi «Configurazione del servizio» → quadlet 8 → `TimeoutStartUSec` = `10min`,
+  poi togliere il drop-in `avvio-lento.conf`;
+- G1: il giudizio da 1 a 5 sulle pagine del banco dei tubi.
+
 ## ▶ Riprendere da qui — quattro rami in catena da collaudare; il codice in inglese (2026-11-13, ufficio = casa)
 
 **Quattro rami annidati, pushati, non mergiati** (scelta del maintainer a fine giornata). Si collaudano e si mergiano
