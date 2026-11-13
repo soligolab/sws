@@ -87,12 +87,6 @@ pub fn pagina_per(s: &Schermata) -> anyhow::Result<SynopticPage> {
 }
 
 fn pagina_primo_progetto(cloud: &str) -> anyhow::Result<SynopticPage> {
-    let testo = |id: &str, y: u32, h: u32, corpo: u32, colore: &str, t: &str| {
-        serde_json::json!({
-            "id": id, "type": "text", "x": 400, "y": y, "width": 720, "height": h,
-            "text": t, "font_size": corpo, "color": colore, "text_anchor": "middle",
-        })
-    };
     let v = serde_json::json!({
         "id": "__abbinamento",
         "name": "abbinamento",
@@ -110,16 +104,23 @@ fn pagina_primo_progetto(cloud: &str) -> anyhow::Result<SynopticPage> {
     Ok(serde_json::from_value(v)?)
 }
 
+/// Un testo centrato delle due schermate. `alto` è dove comincia il testo: dalla
+/// rc.15 un testo senza riquadro ha la `y` sulla linea di base, come sul web
+/// (`alla_linea_di_base` in `lvgl_render.rs`), e queste pagine scritte col
+/// bordo alto erano salite di un corpo — il codice usciva dalla sua cornice
+/// (visto sul Tiny TY il 12-11-2026). L'ascesa di DejaVu Sans è 0,93 corpi.
+fn testo(id: &str, alto: u32, h: u32, corpo: u32, colore: &str, t: &str) -> serde_json::Value {
+    let base = alto + (corpo as f32 * 0.93).round() as u32;
+    serde_json::json!({
+        // Con `text_anchor: middle` la `x` è il CENTRO del testo, come in
+        // SVG — non il bordo sinistro.
+        "id": id, "type": "text", "x": 400, "y": base, "width": 720, "height": h,
+        "text": t, "font_size": corpo, "color": colore, "text_anchor": "middle",
+    })
+}
+
 /// La pagina col codice.
 pub fn pagina(codice: &str, nome: &str) -> anyhow::Result<SynopticPage> {
-    let testo = |id: &str, y: u32, h: u32, corpo: u32, colore: &str, t: &str| {
-        serde_json::json!({
-            // Con `text_anchor: middle` la `x` è il CENTRO del testo, come in
-            // SVG — non il bordo sinistro.
-            "id": id, "type": "text", "x": 400, "y": y, "width": 720, "height": h,
-            "text": t, "font_size": corpo, "color": colore, "text_anchor": "middle",
-        })
-    };
     let v = serde_json::json!({
         "id": "__abbinamento",
         "name": "abbinamento",
@@ -132,7 +133,7 @@ pub fn pagina(codice: &str, nome: &str) -> anyhow::Result<SynopticPage> {
                 "Questo pannello non ha ancora utenti e non lascia entrare nessuno.\nInserisci il codice nell'IDE («Connetti») o nel cloud:"),
             { "id": "riquadro", "type": "rect", "x": 100, "y": 180, "width": 600, "height": 110,
               "fill": "#1e293b", "stroke": "#334155" },
-            testo("codice", 200, 70, 44, "#f8fafc", codice),
+            testo("codice", 210, 70, 44, "#f8fafc", codice),
             testo("oppure", 320, 50, 15, "#94a3b8",
                 "Oppure apri la pagina di questo pannello dal browser (porta 7443 o 7444)\ne crea lì il suo amministratore."),
             testo("en", 400, 50, 13, "#64748b",

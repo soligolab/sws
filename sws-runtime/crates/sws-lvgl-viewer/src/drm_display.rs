@@ -319,26 +319,64 @@ impl DrmDisplay {
     }
 
     pub fn flush_rgb888(&mut self, rgb888: &[u8], src_w: u32, src_h: u32, off: (i32, i32)) {
+        let tutta = crate::lvgl_display::Zona {
+            x1: 0,
+            y1: 0,
+            x2: src_w.saturating_sub(1),
+            y2: src_h.saturating_sub(1),
+        };
+        self.flush_rgb888_zona(rgb888, src_w, src_h, off, tutta);
+    }
+
+    /// Come [`Self::flush_rgb888`], ma copia solo `zona` (coordinate della
+    /// pagina): è quello che LVGL ha ridisegnato dall'ultima copia (piano Tiny
+    /// TY, passo 2). Un pixel si scrive con una parola sola, non quattro byte.
+    pub fn flush_rgb888_zona(
+        &mut self,
+        rgb888: &[u8],
+        src_w: u32,
+        src_h: u32,
+        off: (i32, i32),
+        zona: crate::lvgl_display::Zona,
+    ) {
         let (off_x, off_y, copy_w, copy_h) =
             ritaglio(src_w, src_h, self.width, self.height, off, rgb888.len());
+        let Some((x0, y0, x1, y1)) = dentro(zona, copy_w, copy_h) else {
+            return;
+        };
         let row_bytes_src = (src_w * 3) as usize;
         let row_bytes_dst = self.pitch as usize;
-        for y in 0..copy_h as usize {
+        for y in y0..=y1 {
             let src_row = &rgb888[y * row_bytes_src..(y + 1) * row_bytes_src];
             let dst_row_off = (y + off_y as usize) * row_bytes_dst;
-            for x in 0..copy_w as usize {
+            for x in x0..=x1 {
                 let s = &src_row[x * 3..x * 3 + 3];
                 let dst_off = dst_row_off + (x + off_x as usize) * 4;
-                unsafe {
-                    // XRGB8888 little-endian in memoria: B,G,R,X.
-                    *self.map.add(dst_off) = s[2];
-                    *self.map.add(dst_off + 1) = s[1];
-                    *self.map.add(dst_off + 2) = s[0];
-                    *self.map.add(dst_off + 3) = 0;
-                }
+                // XRGB8888 little-endian in memoria: B,G,R,X. Il pitch è
+                // multiplo di 4, quindi l'indirizzo è allineato.
+                let px = ((s[0] as u32) << 16) | ((s[1] as u32) << 8) | s[2] as u32;
+                unsafe { (self.map.add(dst_off) as *mut u32).write(px) };
             }
         }
     }
+}
+
+/// La parte di `zona` che cade nei `copy_w`×`copy_h` pixel copiabili, come
+/// indici `(x0, y0, x1, y1)` inclusi; `None` se è fuori.
+pub(crate) fn dentro(
+    zona: crate::lvgl_display::Zona,
+    copy_w: u32,
+    copy_h: u32,
+) -> Option<(usize, usize, usize, usize)> {
+    if copy_w == 0 || copy_h == 0 || zona.x1 >= copy_w || zona.y1 >= copy_h {
+        return None;
+    }
+    Some((
+        zona.x1 as usize,
+        zona.y1 as usize,
+        zona.x2.min(copy_w - 1) as usize,
+        zona.y2.min(copy_h - 1) as usize,
+    ))
 }
 
 impl Drop for DrmDisplay {
@@ -394,6 +432,58 @@ pub(crate) fn ritaglio(
     let w = src_w.min(dst_w.saturating_sub(off_x));
     let h = src_h.min(dst_h.saturating_sub(off_y)).min(righe_presenti);
     (off_x, off_y, w, h)
+}
+
+#[cfg(test)]
+mod tests_dentro {
+    use super::dentro;
+    use crate::lvgl_display::Zona;
+
+    #[test]
+    fn una_zona_dentro_resta_com_e() {
+        let z = Zona {
+            x1: 10,
+            y1: 20,
+            x2: 30,
+            y2: 40,
+        };
+        assert_eq!(dentro(z, 800, 480), Some((10, 20, 30, 40)));
+    }
+
+    #[test]
+    fn una_zona_oltre_il_bordo_si_taglia() {
+        let z = Zona {
+            x1: 700,
+            y1: 400,
+            x2: 900,
+            y2: 600,
+        };
+        assert_eq!(dentro(z, 800, 480), Some((700, 400, 799, 479)));
+    }
+
+    #[test]
+    fn una_zona_fuori_non_copia_niente() {
+        let z = Zona {
+            x1: 800,
+            y1: 0,
+            x2: 900,
+            y2: 10,
+        };
+        assert_eq!(dentro(z, 800, 480), None);
+        assert_eq!(
+            dentro(
+                Zona {
+                    x1: 0,
+                    y1: 0,
+                    x2: 0,
+                    y2: 0
+                },
+                0,
+                0
+            ),
+            None
+        );
+    }
 }
 
 #[cfg(test)]

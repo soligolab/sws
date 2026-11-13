@@ -132,6 +132,14 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 - **Il banco di collaudo** (`scripts/banco_collaudo/`, per chi sviluppa): una pagina servita da `server.py` (solo
   libreria standard, porta 8471) con le prove da fare in gruppi, l'esito a un tasto e una nota; gli esiti in
   `esiti.json` fuori da git, da cui si spuntano `COLLAUDI_IN_SOSPESO.md`, i piani e `Appunti.txt`.
+- **Il Tiny TY (RV1106, armv7) fa girare SWS senza container** (piano `docs/plans/2026-10-30-sws-lvgl-sul-tiny-ty.md`,
+  passi 1-2, sul ramo `feat/tiny-ty-armv7`). `scripts/build_armv7.sh` cross-compila runtime e viewer per Ubuntu 22.04
+  armhf (`Containerfile.armv7-cross.builder`); due correzioni dei 32 bit nel viewer (`ioctl` del touch e misura di
+  `input_event`). Misurato sul dispositivo: runtime ~35 MB e viewer ~18 MB di PSS, viewer fra 0 e 6 % di CPU a pagina
+  ferma.
+- **`pannello.fps`: i fotogrammi al secondo nel progetto** (1-60, predefinito 20), in Impostazioni progetto → pagina.
+  Vale per il viewer LVGL (`ritmo.rs`, il tick di LVGL segue il tempo vero) e per il viewer web, dove il coalescente
+  dei tag fa al più `fps` giri al secondo. `PUT /api/project/pannello`.
 
 ### Cambiato
 - **Il cron degli script gira nell'ora del pannello, non più in UTC** (decisione del maintainer, 10-11-2026; seme
@@ -286,6 +294,16 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   il salvataggio non è finito.
 
 ### Corretto
+- **LVGL: testi, colori e aghi si riscrivono solo se cambiano** (`testo_etichetta`, `colore_diverso`). LVGL ridisegna
+  a ogni chiamata anche a valore uguale, e `update_bindings` riscriveva tutto a ogni fotogramma: sul Tiny TY ~420 aree
+  ridisegnate ogni 2 s, ora 6. Vale su tutti i pannelli LVGL.
+- **LVGL: trascinando il trend si ridisegna solo il dito** (`trend::disegna_fondo` / `disegna_dito`): da 59 a 8,3 ms a
+  fotogramma sul Tiny TY. Le etichette del trend non si riscrivono se non cambiano.
+- **LVGL col backend DRM: un deploy ridisegna la pagina.** Il ciclo DRM non leggeva il segnale di ricarica, né il
+  ridisegno dopo «Esci»; ora i due cicli usano `ricarica_se_chiesto`.
+- **LVGL: la copia sul display DRM è solo la zona cambiata**, niente a pagina ferma (era lo schermo intero a ogni giro).
+- **LVGL: il codice di abbinamento sta al centro della sua cornice**, e la sparkline non disegna più un pallino per
+  punto.
 - **Rc.16, dal lavoro su CasaDomotica e dalle decisioni del 12-11-2026**:
   - **«Mai ricevuto»**: la semina di un tag ha `ts` 0 (`TagDb::semina`) e non entra più nello storico (prima ogni
     riavvio scriveva uno zero incerto per ogni tag). Sui due motori:

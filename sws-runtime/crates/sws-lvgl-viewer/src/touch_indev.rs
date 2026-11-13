@@ -31,12 +31,14 @@ const BTN_TOUCH: u16 = 0x14a;
 // struct input_event su Linux 64-bit non-kernel: { timeval (2×i64), u16
 // type, u16 code, i32 value } = 24 byte — verificato contro
 // /usr/include/linux/input.h prima di scrivere questo, non assunto a
-// memoria.
+// memoria. Su armv7 (Tiny TY, 12-11-2026) i due campi del tempo sono a 32 bit
+// e l'evento è di 16 byte: con 24 il kernel rifiutava la read (EINVAL) e il
+// touch restava muto. `c_long` è giusto su tutte e due le architetture.
 #[repr(C)]
 #[derive(Default, Clone, Copy)]
 struct InputEvent {
-    tv_sec: i64,
-    tv_usec: i64,
+    tv_sec: libc::c_long,
+    tv_usec: libc::c_long,
     type_: u16,
     code: u16,
     value: i32,
@@ -56,7 +58,8 @@ struct InputAbsinfo {
 
 // EVIOCGABS(abs) = _IOR('E', 0x40+abs, struct input_absinfo) — stessa
 // formula _IOC di drm_display.rs, dir=_IOC_READ (2) invece di READ|WRITE.
-fn eviocgabs(abs: u16) -> u64 {
+// `libc::Ioctl` e non `u64`: con glibc è un `c_ulong`, 32 bit su armv7 (Tiny TY).
+fn eviocgabs(abs: u16) -> libc::Ioctl {
     const IOC_READ: u32 = 2;
     const SIZE: u32 = std::mem::size_of::<InputAbsinfo>() as u32;
     let dir_shift = 30u32;
@@ -65,7 +68,7 @@ fn eviocgabs(abs: u16) -> u64 {
     ((IOC_READ << dir_shift)
         | ((b'E' as u32) << type_shift)
         | (0x40 + abs as u32)
-        | (SIZE << size_shift)) as u64
+        | (SIZE << size_shift)) as libc::Ioctl
 }
 
 fn query_absinfo(fd: i32, abs: u16) -> anyhow::Result<InputAbsinfo> {
@@ -116,7 +119,7 @@ pub fn spawn(device_path: &str, hor_res: u32, ver_res: u32) -> anyhow::Result<()
             // byte letti, nessuna conversione di endianness necessaria
             // (stesso processo/architettura che ha scritto i dati nel
             // device — evdev non è un formato di rete). read_unaligned, non
-            // read: [u8; 24] non garantisce l'allineamento a 8 byte che i
+            // read: un `[u8; N]` non garantisce l'allineamento a 8 byte che i
             // campi i64 di InputEvent richiederebbero.
             let ev: InputEvent =
                 unsafe { std::ptr::read_unaligned(buf.as_ptr() as *const InputEvent) };

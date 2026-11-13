@@ -34,6 +34,88 @@ static DISP: AtomicPtr<lvgl_sys::lv_disp_t> = AtomicPtr::new(core::ptr::null_mut
 static DRAW_BUF: AtomicPtr<lvgl_sys::lv_disp_draw_buf_t> = AtomicPtr::new(core::ptr::null_mut());
 /// Quanti pixel tiene il buffer di disegno di LVGL: cresce, non cala.
 static CAPIENZA: AtomicUsize = AtomicUsize::new(0);
+/// La zona di `FRAME` ridisegnata da LVGL e non ancora portata sullo schermo
+/// (12-11-2026, piano Tiny TY passo 2): il backend DRM copia solo questa, e
+/// niente quando è vuota. Prima copiava lo schermo intero a ogni giro, anche
+/// fermo: sul Tiny TY il viewer stava all'83 % di un core su una pagina immobile.
+static ZONA: Mutex<Option<Zona>> = Mutex::new(None);
+
+/// Un rettangolo di pixel della pagina, estremi inclusi.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Zona {
+    pub x1: u32,
+    pub y1: u32,
+    pub x2: u32,
+    pub y2: u32,
+}
+
+impl Zona {
+    /// Il rettangolo che contiene tutti e due.
+    pub fn unione(self, altra: Zona) -> Zona {
+        Zona {
+            x1: self.x1.min(altra.x1),
+            y1: self.y1.min(altra.y1),
+            x2: self.x2.max(altra.x2),
+            y2: self.y2.max(altra.y2),
+        }
+    }
+}
+
+/// Le aree passate da LVGL al flush dall'ultima lettura, solo col log di
+/// `SWS_TEMPI_LOG` acceso ([`registra_aree`]): senza, nessuno le legge e
+/// l'elenco crescerebbe per sempre.
+static REGISTRA_AREE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Accende la raccolta delle aree ridisegnate (`SWS_TEMPI_LOG`).
+pub fn registra_aree() {
+    REGISTRA_AREE.store(true, Ordering::Relaxed);
+}
+
+/// Quante aree, quanti pixel in tutto, e le aree distinte con quante volte.
+type AreeFlush = (u32, u64, Vec<(Zona, u32)>);
+static AREE_FLUSH: Mutex<AreeFlush> = Mutex::new((0, 0, Vec::new()));
+
+/// `(quante aree, pixel in tutto, le aree distinte con quante volte)` dall'ultima
+/// chiamata, e azzera.
+pub fn aree_flush_e_azzera() -> AreeFlush {
+    std::mem::take(&mut *AREE_FLUSH.lock().unwrap_or_else(|e| e.into_inner()))
+}
+
+fn aggiungi_zona(z: Zona) {
+    let mut zona = ZONA.lock().unwrap_or_else(|e| e.into_inner());
+    *zona = Some(match *zona {
+        Some(prima) => prima.unione(z),
+        None => z,
+    });
+}
+
+/// Tutta la pagina da ricopiare: dopo un cambio di misura, o quando il
+/// chiamante ha ridipinto lo schermo attorno alla pagina.
+pub fn segna_tutto() {
+    let (w, h) = dims();
+    if w > 0 && h > 0 {
+        aggiungi_zona(Zona {
+            x1: 0,
+            y1: 0,
+            x2: w - 1,
+            y2: h - 1,
+        });
+    }
+}
+
+/// Se LVGL ha ridisegnato qualcosa dall'ultima volta, passa a `f` il frame
+/// RGB888 e la zona cambiata, e la azzera. `false` se non c'era niente.
+pub fn con_zona_cambiata(f: impl FnOnce(&[u8], Zona)) -> bool {
+    let Some(zona) = ZONA.lock().unwrap_or_else(|e| e.into_inner()).take() else {
+        return false;
+    };
+    let Some(frame) = FRAME.get() else {
+        return false;
+    };
+    let buf = frame.lock().unwrap_or_else(|e| e.into_inner());
+    f(&buf, zona);
+    true
+}
 
 /// La risoluzione corrente del display (`(0, 0)` prima di `init_display`).
 pub fn dims() -> (u32, u32) {
@@ -83,6 +165,7 @@ pub fn ridimensiona(hor_res: u32, ver_res: u32) -> anyhow::Result<bool> {
         *buf = vec![0u8; n_px * 3];
     }
     *FRAME_DIMS.lock().unwrap_or_else(|e| e.into_inner()) = (hor_res, ver_res);
+    segna_tutto();
     // Safety: `drv` e `disp` sono quelli registrati da `init_display`, 'static.
     unsafe {
         (*drv).hor_res = hor_res as lvgl_sys::lv_coord_t;
@@ -148,6 +231,30 @@ unsafe extern "C" fn sws_flush_cb(
                 }
             }
         }
+    }
+
+    if w > 0 && h > 0 && (x1 as u32) < hor_res && (y1 as u32) < ver_res {
+        if REGISTRA_AREE.load(Ordering::Relaxed) {
+            let mut a = AREE_FLUSH.lock().unwrap_or_else(|e| e.into_inner());
+            a.0 += 1;
+            a.1 += (w * h) as u64;
+            let z = Zona {
+                x1: x1 as u32,
+                y1: y1 as u32,
+                x2: (x1 + w - 1) as u32,
+                y2: (y1 + h - 1) as u32,
+            };
+            match a.2.iter_mut().find(|(q, _)| *q == z) {
+                Some((_, n)) => *n += 1,
+                None => a.2.push((z, 1)),
+            }
+        }
+        aggiungi_zona(Zona {
+            x1: x1 as u32,
+            y1: y1 as u32,
+            x2: ((x1 + w - 1) as u32).min(hor_res - 1),
+            y2: ((y1 + h - 1) as u32).min(ver_res - 1),
+        });
     }
 
     // Obbligatorio: senza questo LVGL pensa che il flush sia ancora in corso

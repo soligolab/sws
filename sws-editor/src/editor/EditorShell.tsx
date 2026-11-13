@@ -2925,7 +2925,41 @@ function ProjectPageLayoutSettings() {
         </label>
       </div>
 
+      <FpsPannello onErrore={setErrore} />
+
       {errore && <div style={{ color: "var(--brand-danger, #ef4444)", fontSize: 12 }}>{t("shell.erroreSalvataggio", { errore })}</div>}
+    </div>
+  );
+}
+
+/** I fotogrammi al secondo del pannello (`pannello.fps`, 12-11-2026, piano
+ *  Tiny TY). Vuoto = predefinito (20). Si scrive quando si esce dal campo. */
+function FpsPannello({ onErrore }: { onErrore: (e: string | null) => void }) {
+  const { t } = useTranslation();
+  const fps = useAppStore((s) => s.project?.pannello?.fps);
+  const [testo, setTesto] = useState(fps === undefined ? "" : String(fps));
+  useEffect(() => { setTesto(fps === undefined ? "" : String(fps)); }, [fps]);
+  const salva = async () => {
+    const n = testo.trim() === "" ? undefined : Math.round(Number(testo));
+    if (n !== undefined && (!Number.isFinite(n) || n < 1 || n > 60)) { setTesto(fps === undefined ? "" : String(fps)); return; }
+    if (n === fps) return;
+    onErrore(null);
+    try {
+      const pannello = n === undefined ? null : { fps: n };
+      await api.updatePannello(pannello);
+      useAppStore.setState((s) => (s.project ? { project: { ...s.project, pannello: pannello ?? undefined } } : {}));
+    } catch (e) {
+      onErrore(e instanceof Error ? e.message : String(e));
+    }
+  };
+  return (
+    <div>
+      <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 4 }}>{t("shell.fpsPannello")}</div>
+      <CampoNumero min={1} max={60} placeholder="20" value={testo} data-testid="fps-pannello"
+        onTesto={setTesto} onBlur={() => void salva()}
+        onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+        style={{ background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "4px 8px", fontSize: 12, width: 80 }} />
+      <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginTop: 3, lineHeight: 1.45 }}>{t("shell.fpsPannelloHelp")}</div>
     </div>
   );
 }

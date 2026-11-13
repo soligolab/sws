@@ -507,6 +507,7 @@ pub fn build(
         )
         // Le regole IA del progetto (04-11-2026, piano un-modello-per-ogni-scopo).
         .route("/api/project/ai", put(update_project_ai))
+        .route("/api/project/pannello", put(update_project_pannello))
         // T-58 — il motore di rendering del progetto. Fino all'11-09-2026 si
         // sceglieva solo alla creazione e poi si cambiava editando
         // `project.yaml` a mano, con una trappola: il runtime riscrive il file
@@ -5639,6 +5640,7 @@ where
             saved_by: None,
             languages: Default::default(),
             page_layout: None,
+            pannello: None,
             symbol_style: None,
             ai: None,
             target: None,
@@ -11709,6 +11711,52 @@ async fn update_project_page_layout(
         // deve ricaricare niente per questo.
         let config_dir = s.config_dir.clone();
         crate::boot_image::publish(&config_dir, &dir, crate::boot_image::Occasione::Modifica).await;
+    }
+    res
+}
+
+/// `PUT /api/project/pannello` — lo schermo del pannello (12-11-2026): per ora
+/// i fotogrammi al secondo dei viewer. Corpo `null` (o tutto vuoto) = i
+/// predefiniti. Un valore fuori da 1-60 è un 400: meglio dirlo che
+/// riportarlo nei limiti in silenzio.
+async fn update_project_pannello(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    headers: axum::http::HeaderMap,
+    Json(pannello): Json<Option<sws_core::project::PannelloConfig>>,
+) -> Response {
+    use sws_core::project::PannelloConfig;
+    let pannello = pannello.filter(|p| *p != PannelloConfig::default());
+    if let Some(f) = pannello.as_ref().and_then(|p| p.fps) {
+        if !(PannelloConfig::FPS_MIN..=PannelloConfig::FPS_MAX).contains(&f) {
+            return (
+                StatusCode::BAD_REQUEST,
+                format!(
+                    "fps {f} fuori da {}-{}",
+                    PannelloConfig::FPS_MIN,
+                    PannelloConfig::FPS_MAX
+                ),
+            )
+                .into_response();
+        }
+    }
+    let dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
+    let res = patch_project_se(
+        &s.project_write_lock,
+        &dir,
+        versione_attesa(&headers),
+        |p| p.pannello = pannello,
+    )
+    .await;
+    if res.status() == StatusCode::NO_CONTENT {
+        s.audit.log(
+            "project.change",
+            Some(user.username),
+            serde_json::json!({"what": "pannello"}),
+        );
     }
     res
 }

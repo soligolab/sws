@@ -36,7 +36,31 @@ const MANDA: Duration = Duration::from_secs(2);
 /// runtime tokio suo: non deve poter ritardare né le scritture di
 /// `net_worker` né il disegno. Quando nessuno guarda i contatori si svuotano
 /// lo stesso, così il primo riassunto mandato parla degli ultimi secondi.
+///
+/// Con `SWS_TEMPI_LOG` nell'ambiente (12-11-2026, Tiny TY) il riassunto va
+/// invece nel log ogni [`MANDA`], una riga JSON `[tempi] {...}`: serve a
+/// misurare via ssh, senza un IDE collegato col login del pannello. Insieme
+/// escono le aree che LVGL ha ridisegnato: è così che si è visto che ogni
+/// testo della pagina si ridisegnava a ogni fotogramma.
 pub fn avvia(base_url: String) {
+    if std::env::var_os("SWS_TEMPI_LOG").is_some() {
+        crate::lvgl_display::registra_aree();
+        let _ = std::thread::Builder::new()
+            .name("sws-tempi".into())
+            .spawn(|| loop {
+                std::thread::sleep(MANDA);
+                let r = riassunto_e_azzera();
+                if let Ok(j) = serde_json::to_string(&r) {
+                    eprintln!("[tempi] {j}");
+                }
+                let (n, px, ultima) = crate::lvgl_display::aree_flush_e_azzera();
+                eprintln!("[tempi] aree ridisegnate: {n}, {px} pixel");
+                for (z, k) in ultima {
+                    eprintln!("[tempi]   {k}× ({},{})-({},{})", z.x1, z.y1, z.x2, z.y2);
+                }
+            });
+        return;
+    }
     let _ = std::thread::Builder::new()
         .name("sws-tempi".into())
         .spawn(move || {

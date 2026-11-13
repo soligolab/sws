@@ -454,6 +454,30 @@ pub struct Rett {
 }
 
 impl Rett {
+    /// Il rettangolo che contiene tutti e due.
+    pub fn unione(self, o: Rett) -> Rett {
+        let (x0, y0) = (self.x.min(o.x), self.y.min(o.y));
+        let (x1, y1) = (
+            (self.x + self.w).max(o.x + o.w),
+            (self.y + self.h).max(o.y + o.h),
+        );
+        Rett {
+            x: x0,
+            y: y0,
+            w: x1 - x0,
+            h: y1 - y0,
+        }
+    }
+
+    fn allarga(self, m: f32) -> Rett {
+        Rett {
+            x: self.x - m,
+            y: self.y - m,
+            w: self.w + 2.0 * m,
+            h: self.h + 2.0 * m,
+        }
+    }
+
     fn contiene(&self, x: f32, y: f32, margine: f32) -> bool {
         x >= self.x - margine
             && x <= self.x + self.w + margine
@@ -521,6 +545,9 @@ pub struct Scena {
     pub legenda: Vec<(Rett, usize)>,
     pub pulsanti: Vec<(Rett, Pulsante)>,
     pub dominio: Option<Dominio>,
+    /// Le scale dell'ultimo fondo: servono a [`disegna_dito`], che non lo rifà.
+    scale: Vec<(usize, Scala)>,
+    condivisa: Option<Scala>,
 }
 
 // ── Formato dei numeri e delle ore ──────────────────────────────────────────
@@ -795,13 +822,36 @@ fn tratti(
     out
 }
 
-/// Disegna il trend in `px` (grande `cfg.w`×`cfg.h`) e dice cosa scrivere.
+/// Disegna il trend in `px` (grande `cfg.w`×`cfg.h`) e dice cosa scrivere:
+/// il fondo e poi il dito, come [`disegna_fondo`] seguito da [`disegna_dito`].
 ///
 /// `misura(testo, px)` è la larghezza di un testo nel font del pannello: serve
 /// alla legenda e al riquadro dei valori, che si dimensionano sul testo.
-/// `fuso` converte un istante nell'ora del pannello.
+/// `fuso` converte un istante nell'ora del pannello. Il viewer chiama le due
+/// parti separate; questa resta per le prove.
+#[cfg(test)]
 #[allow(clippy::too_many_arguments)]
 pub fn disegna(
+    cfg: &Config,
+    dati: &Dati,
+    stato: &Stato,
+    ora_ms: u64,
+    sfondo_img: Option<&Pixmap>,
+    px: &mut Pixmap,
+    misura: &dyn Fn(&str, u16) -> f32,
+    fuso: &dyn Fn(u64) -> OraLocale,
+) -> Scena {
+    let mut sc = disegna_fondo(cfg, dati, stato, ora_ms, sfondo_img, px, misura, fuso);
+    disegna_dito(cfg, dati, stato, &mut sc, px, misura, fuso);
+    sc
+}
+
+/// Tutto il trend tranne il dito: sfondo, griglia, assi, tracce, legenda,
+/// pulsanti. È la parte cara (34 ms per 976×264 sul Tiny TY, 12-11-2026), e
+/// mentre il dito scorre non cambia: chi disegna la tiene da parte e rifà
+/// solo [`disegna_dito`] sopra.
+#[allow(clippy::too_many_arguments)]
+pub fn disegna_fondo(
     cfg: &Config,
     dati: &Dati,
     stato: &Stato,
@@ -1229,7 +1279,42 @@ pub fn disegna(
         }
     }
 
-    // Il dito sul grafico.
+    sc.scale = scale_proprie;
+    sc.condivisa = Some(condivisa);
+    sc
+}
+
+/// Il dito sul grafico sopra un fondo già disegnato: il mirino col riquadro dei
+/// valori, o il rettangolo dello zoom; senza dito, il valore corrente di una
+/// traccia sola. Aggiunge i suoi testi a `sc` e dice dove ha disegnato, per
+/// rifare solo quel pezzo (`None` = nessun pixel toccato).
+#[allow(clippy::too_many_arguments)]
+pub fn disegna_dito(
+    cfg: &Config,
+    dati: &Dati,
+    stato: &Stato,
+    sc: &mut Scena,
+    px: &mut Pixmap,
+    misura: &dyn Fn(&str, u16) -> f32,
+    fuso: &dyn Fn(u64) -> OraLocale,
+) -> Option<Rett> {
+    let d = sc.dominio?;
+    let condivisa = sc.condivisa?;
+    let (sx, plot_w, alto, plot_h) = (d.sx, d.plot_w, d.alto, d.plot_h);
+    let (t_min, t_span) = (d.t_min, d.t_span);
+    let scale = sc.scale.clone();
+    let scala_di = |i: usize| {
+        scale
+            .iter()
+            .find(|(j, _)| *j == i)
+            .map(|(_, s)| *s)
+            .unwrap_or(condivisa)
+    };
+    let x_at = |ts: u64| sx + ((ts as f64 - t_min as f64) / t_span as f64) as f32 * plot_w;
+    let y_con = |s: Scala| move |v: f64| alto + plot_h - s.frazione(v) as f32 * plot_h;
+    let n = cfg.n();
+
+    let mut toccato = None;
     let lettura = stato.pressione.filter(|p| !p.seleziona);
     if let Some(p) = stato.pressione.filter(|p| p.seleziona) {
         let x0 = sx.max(p.x0.min(p.x));
@@ -1261,28 +1346,29 @@ pub fn disegna(
                 BLU,
                 1.0,
             );
+            toccato = Some(r);
         }
     }
     if let Some(p) = lettura.filter(|p| p.x >= sx && p.x <= sx + plot_w) {
-        leggi(
-            cfg, dati, stato, px, &mut sc, p.x, t_min, t_span, x_at, &scala_di, y_con, misura, fuso,
+        toccato = leggi(
+            cfg, dati, stato, px, sc, p.x, t_min, t_span, x_at, &scala_di, y_con, misura, fuso,
         );
     } else if stato.pressione.is_none() && n == 1 {
         // Il valore corrente in alto a destra, con una traccia sola.
         if let Some(v) = dati.serie.first().and_then(|s| s.last()).and_then(|c| c.v) {
-            testo(
-                &mut sc,
-                sx + plot_w - 4.0,
-                alto + 4.0,
-                fmt_valore(v),
-                (0x94, 0xa3, 0xb8),
-                cfg.corpo + 1,
-                Orizz::Dx,
-                Vert::Alto,
-            );
+            sc.testi.push(Testo {
+                x: sx + plot_w - 4.0,
+                y: alto + 4.0,
+                testo: fmt_valore(v),
+                colore: (0x94, 0xa3, 0xb8),
+                px: cfg.corpo + 1,
+                orizz: Orizz::Dx,
+                vert: Vert::Alto,
+            });
         }
     }
-    sc
+    // L'antialiasing sborda di un pixel.
+    toccato.map(|r| r.allarga(2.0))
 }
 
 /// Il mirino e il riquadro dei valori sotto il dito — il passaggio del mouse
@@ -1302,8 +1388,14 @@ fn leggi<Y: Fn(f64) -> f32>(
     y_con: impl Fn(Scala) -> Y,
     misura: &dyn Fn(&str, u16) -> f32,
     fuso: &dyn Fn(u64) -> OraLocale,
-) {
-    let Some(d) = sc.dominio else { return };
+) -> Option<Rett> {
+    let d = sc.dominio?;
+    let mut toccato = Rett {
+        x: x - 1.0,
+        y: d.alto,
+        w: 2.0,
+        h: d.plot_h,
+    };
     linea(
         px,
         x,
@@ -1337,6 +1429,12 @@ fn leggi<Y: Fn(f64) -> f32>(
         let Some(v) = best.v else { continue };
         let tr = &cfg.tracce[i];
         let y = y_con(scala_di(i))(v);
+        toccato = toccato.unione(Rett {
+            x: x_at(best.ts) - 3.0,
+            y: y - 3.0,
+            w: 6.0,
+            h: 6.0,
+        });
         if let Some(c) = PathBuilder::from_circle(x_at(best.ts), y, 3.0) {
             px.fill_path(
                 &c,
@@ -1357,7 +1455,7 @@ fn leggi<Y: Fn(f64) -> f32>(
         }
     }
     if colpi == 0 {
-        return;
+        return Some(toccato);
     }
     let riga = 14.0;
     let corpo = cfg.corpo + 1;
@@ -1407,6 +1505,12 @@ fn leggi<Y: Fn(f64) -> f32>(
             vert: Vert::Alto,
         });
     }
+    Some(toccato.unione(Rett {
+        x: bx,
+        y: by,
+        w: bw,
+        h: bh,
+    }))
 }
 
 /// ◀ ▶ e lo scostamento in basso, ⟲ in alto quando c'è uno zoom: gli stessi
@@ -2141,6 +2245,43 @@ mod tests {
         );
         assert_eq!(st.rilascia(&c, &sc, ORA), Esito::Ridisegna);
         assert!(st.in_diretta());
+    }
+
+    #[test]
+    fn il_dito_tocca_solo_la_sua_zona() {
+        // Il viewer rifà il dito sopra una copia del fondo: fuori dalla zona
+        // che dice, i pixel devono restare quelli del fondo.
+        let c = cfg(vec![traccia("a", BLU)]);
+        let mut st = Stato::nuovo(&c);
+        let dati = Dati {
+            serie: vec![rampa(ORA - 55_000, 12, 5000, 0.0)],
+            ..Default::default()
+        };
+        let mut px = Pixmap::new(360, 180).unwrap();
+        st.premi(160.0, 80.0, ORA);
+        let mut sc = disegna_fondo(&c, &dati, &st, ORA, None, &mut px, &misura, &utc);
+        let fondo = px.clone();
+        let n = sc.testi.len();
+        let r = disegna_dito(&c, &dati, &st, &mut sc, &mut px, &misura, &utc).unwrap();
+        assert!(sc.testi[n..].iter().any(|t| t.testo.starts_with("a: ")));
+        let mut diversi = 0;
+        for y in 0..180u32 {
+            for x in 0..360u32 {
+                if pixel(&px, x, y) != pixel(&fondo, x, y) {
+                    diversi += 1;
+                    let (xf, yf) = (x as f32, y as f32);
+                    assert!(
+                        xf >= r.x && xf < r.x + r.w && yf >= r.y && yf < r.y + r.h,
+                        "({x},{y}) fuori da {r:?}"
+                    );
+                }
+            }
+        }
+        assert!(diversi > 0);
+        // E fondo + dito è proprio il disegno intero.
+        let mut intero = Pixmap::new(360, 180).unwrap();
+        disegna(&c, &dati, &st, ORA, None, &mut intero, &misura, &utc);
+        assert_eq!(intero.data(), px.data());
     }
 
     #[test]

@@ -730,7 +730,7 @@ const PATH_VERSIONATI = [
   "/api/project/datastores", "/api/project/global-scripts", "/api/project/reports",
   "/api/project/notifications", "/api/project/page-layout", "/api/project/target", "/api/project/symbol-style",
   "/api/project/backup-config", "/api/project/retention-time", "/api/project/tags/import-csv",
-  "/api/project/simboli", "/api/project/ai", "/api/project/impostazione-iniziale",
+  "/api/project/simboli", "/api/project/ai", "/api/project/impostazione-iniziale", "/api/project/pannello",
 ];
 
 /** L'header `If-Match` da mettere su un salvataggio di sezione, se sappiamo su
@@ -2690,6 +2690,14 @@ export const api = {
     request<void>("/api/project/impostazione-iniziale", {
       method: "DELETE",
       headers: { ...seVersionato("/api/project/impostazione-iniziale") },
+    }),
+
+  /** Lo schermo del pannello (12-11-2026): per ora i fotogrammi al secondo. */
+  updatePannello: (pannello: { fps?: number } | null) =>
+    request<void>("/api/project/pannello", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...seVersionato("/api/project/pannello") },
+      body: JSON.stringify(pannello),
     }),
 
   updatePageLayout: (config: PageLayoutConfig | null) =>

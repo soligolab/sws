@@ -325,11 +325,16 @@ fn esito_della_funzione(esito: &serde_json::Value) -> anyhow::Result<()> {
 /// `model.rs`, i campi non dichiarati vengono ignorati da serde, non
 /// generano errori. Anonymous-readable (stesso gruppo di route del viewer
 /// di `fetch_page`/`fetch_faceplate`), nessun header `Authorization`.
-pub async fn fetch_languages(base_url: &str) -> anyhow::Result<LanguageTable> {
+///
+/// Dal 12-11-2026 legge anche `pannello` (i fotogrammi al secondo): restituisce
+/// lingue e fotogrammi già riportati nei limiti.
+pub async fn fetch_languages(base_url: &str) -> anyhow::Result<(LanguageTable, u32)> {
     #[derive(Deserialize)]
     struct ProjectLanguagesOnly {
         #[serde(default)]
         languages: LanguageTable,
+        #[serde(default)]
+        pannello: Option<sws_core::project::PannelloConfig>,
     }
     let mut url = reqwest::Url::parse(base_url)?;
     url.path_segments_mut()
@@ -341,7 +346,8 @@ pub async fn fetch_languages(base_url: &str) -> anyhow::Result<LanguageTable> {
         .build()?;
     let resp = client.get(url).send().await?.error_for_status()?;
     let wrapper = resp.json::<ProjectLanguagesOnly>().await?;
-    Ok(wrapper.languages)
+    let fps = sws_core::project::PannelloConfig::fps_effettivi(wrapper.pannello.as_ref());
+    Ok((wrapper.languages, fps))
 }
 
 /// `GET /api/system`, di cui a questo client serve solo `auth_required`

@@ -2248,6 +2248,8 @@
     "offPage_one": "⚠ {{count}} object is off the sheet and will not be drawn at runtime. Drag it inside the dashed border to re-enable it, or enlarge the page.",
     "offPage_other": "⚠ {{count}} objects are off the sheet and will not be drawn at runtime. Drag them inside the dashed border to re-enable them, or enlarge the page.",
     "hideChromeHelp": "Only the page area is rendered on the panel. Active alarms appear overlaid, without taking up space.",
+    "fpsPannello": "Panel frames per second",
+    "fpsPannelloHelp": "How many times per second the panel redraws, at most (1-60, default 20). Fewer frames, less CPU: it matters on small panels. Applies to the LVGL and web viewers; the LVGL panel reads it when it restarts, for example after a deploy.",
     "warning": "Warning",
     "hideChromeWarning": ": without the bar, navigation between pages is only possible with \"Page button\" objects on the synoptic or with automatic rotation.",
     "formatWinsPre": "If a Tag is set, the format wins (use",

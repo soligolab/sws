@@ -2082,6 +2082,9 @@ export interface ProjectInfo {
   notifications?: NotificationConfig;
   languages?: LanguageTable;
   page_layout?: PageLayoutConfig;
+  /** Lo schermo del pannello (12-11-2026): `fps` = quante volte al secondo i
+   *  viewer, LVGL e web, ridisegnano al più. Assente = 20. */
+  pannello?: { fps?: number };
   /** Lo stile dei simboli del progetto (Fase 4 del piano dei simboli di libreria). */
   symbol_style?: import("@/symbols/stileProgetto").StileSimboliProgetto;
   /** Le regole di contesto dell'IA (04-11-2026): viaggiano col progetto. */

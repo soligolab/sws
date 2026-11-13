@@ -126,6 +126,7 @@ mod net_worker;
 mod parametri;
 mod riavvio;
 mod ritardo;
+mod ritmo;
 mod session;
 mod simbolo_lib;
 mod svg_assets;
@@ -569,14 +570,19 @@ fn main() -> anyhow::Result<()> {
             // vuoto) fa sì che `resolve_msg`/`localize_object` siano dei no-op
             // a costo quasi zero, stesso comportamento di un fetch riuscito ma
             // con `entries: []`.
-            let lang_table = client::fetch_languages(&args.base_url)
-                .await
-                .unwrap_or_else(|e| {
+            let lang_table = match client::fetch_languages(&args.base_url).await {
+                Ok((lingue, fps)) => {
+                    ritmo::imposta(fps);
+                    eprintln!("[ritmo] {fps} fotogrammi al secondo (pannello.fps del progetto)");
+                    lingue
+                }
+                Err(e) => {
                     eprintln!(
                         "[lang] impossibile leggere project.languages, nessuna traduzione attiva: {e}"
                     );
                     model::LanguageTable::default()
-                });
+                }
+            };
             // Q36 — sapere se il runtime ha utenti definiti decide se il
             // controllo login/logout ha senso di esistere.
             //
@@ -849,6 +855,8 @@ fn main() -> anyhow::Result<()> {
             hor_res,
             ver_res,
             shared_tags,
+            reload_flag,
+            (page.id.clone(), page.name.clone()),
             styles,
             live_bindings,
             tag_tx,
@@ -1547,6 +1555,8 @@ fn run_drm(
     hor_res: u32,
     ver_res: u32,
     shared_tags: SharedTagSnapshot,
+    reload_flag: client::ReloadFlag,
+    mut current_page: (Option<String>, String),
     mut styles: Vec<lvgl::style::Style>,
     mut live_bindings: Vec<lvgl_render::LiveBinding>,
     tag_tx: mpsc::Sender<TagCommand>,
@@ -1619,7 +1629,6 @@ fn run_drm(
         drm.width, drm.height
     );
 
-    let mut frame_buf = vec![0u8; (hor_res * ver_res * 3) as usize];
     // Vive quanto il loop: dentro ci sono i contesti delle callback, che LVGL
     // tiene per puntatore.
     let mut overlay_avviso = lvgl_avviso::Overlay::new();
@@ -1629,6 +1638,7 @@ fn run_drm(
     // La finestra modale aperta, al più una (22-10-2026): vive quanto il
     // ciclo, e la pagina sotto resta dov'è.
     let mut finestra: Option<lvgl_render::FinestraViva> = None;
+    let mut orologio = ritmo::Orologio::nuovo();
     loop {
         let frame_start = Instant::now();
 
@@ -1659,7 +1669,7 @@ fn run_drm(
         tempi::registra("tag", t_tag.elapsed());
 
         tempi::misura("lvgl", lvgl::task_handler);
-        lvgl::tick_inc(Duration::from_millis(16));
+        lvgl::tick_inc(orologio.passo());
 
         // L'avviso di aggiornamento, se c'è qualcosa da dire. Costa un lock e
         // un confronto di interi per frame: ridisegna solo quando lo stato
@@ -1775,11 +1785,31 @@ fn run_drm(
                         );
                         styles = new_styles;
                         live_bindings = new_live;
+                        current_page = (new_page.id.clone(), new_page.name.clone());
                     }
                     Err(e) => eprintln!("[nav] rendering di '{target_page}' fallito: {e}"),
                 },
                 Err(e) => eprintln!("[nav] impossibile caricare pagina '{target_page}': {e}"),
             }
+        }
+
+        // Ricarica: il progetto o la sessione sono cambiati (Q20).
+        if let Some((nuovi_stili, nuovi_live)) = ricarica_se_chiesto(
+            &reload_flag,
+            &current_page,
+            &tags_now,
+            &tag_tx,
+            &nav_tx,
+            &base_url,
+            &rt_handle,
+            &shared_alarms,
+            &ack_tx,
+            &lang_table,
+            &shared_lang,
+            &shared_session,
+        ) {
+            styles = nuovi_stili;
+            live_bindings = nuovi_live;
         }
 
         // Il display segue la pagina aperta (18-10-2026): misura e margine si
@@ -1788,26 +1818,130 @@ fn run_drm(
         let ora = lvgl_display::dims();
         if ora != (hor_res, ver_res) && ora.0 > 0 && ora.1 > 0 {
             (hor_res, ver_res) = ora;
-            frame_buf = vec![0u8; (hor_res * ver_res * 3) as usize];
             drm_off = page_offset(hor_res, ver_res, drm.width, drm.height);
             drm.riempi(0x0f, 0x17, 0x2a);
+            lvgl_display::segna_tutto();
             eprintln!("[drm] pagina {hor_res}x{ver_res}, margine {drm_off:?}");
         }
-        // La copia sul display: lo schermo intero a ogni giro, anche fermo —
-        // è la prima ipotesi del piano «dove se ne va il tempo».
+        // La copia sul display: solo la zona che LVGL ha ridisegnato, e niente
+        // a pagina ferma (12-11-2026, piano Tiny TY passo 2). Fino a oggi era lo
+        // schermo intero a ogni giro: l'83 % di un core sul Tiny TY.
         let t_display = Instant::now();
-        if lvgl_display::copy_frame_rgb888(&mut frame_buf) {
-            drm.flush_rgb888(&frame_buf, hor_res, ver_res, drm_off);
-        }
+        lvgl_display::con_zona_cambiata(|frame, zona| {
+            drm.flush_rgb888_zona(frame, hor_res, ver_res, drm_off, zona)
+        });
 
         tempi::registra("display", t_display.elapsed());
         let elapsed = frame_start.elapsed();
         tempi::registra("giro", elapsed);
-        let target = Duration::from_millis(16);
+        let target = ritmo::periodo();
         if elapsed < target {
             std::thread::sleep(target - elapsed);
         }
     }
+}
+
+/// Il progetto è cambiato (un deploy) o la sessione è cambiata: si rilegge e
+/// si ridisegna la pagina corrente. `None` se non c'era niente da fare o se la
+/// pagina non si è potuta rileggere — allora resta quella di prima.
+///
+/// Comune ai due cicli (12-11-2026): il ciclo DRM del Tiny TY non ce l'aveva, e
+/// un deploy arrivava sul disco senza che lo schermo cambiasse.
+#[allow(clippy::too_many_arguments)]
+fn ricarica_se_chiesto(
+    reload_flag: &client::ReloadFlag,
+    current_page: &(Option<String>, String),
+    tags_now: &client::TagSnapshot,
+    tag_tx: &mpsc::Sender<TagCommand>,
+    nav_tx: &mpsc::Sender<lvgl_render::Navigazione>,
+    base_url: &str,
+    rt_handle: &tokio::runtime::Handle,
+    shared_alarms: &client::SharedAlarms,
+    ack_tx: &mpsc::Sender<String>,
+    lang_table: &model::LanguageTable,
+    shared_lang: &client::SharedLang,
+    shared_session: &session::SharedSession,
+) -> Option<(Vec<lvgl::style::Style>, Vec<lvgl_render::LiveBinding>)> {
+    // Ricarica: il progetto è cambiato mentre lo stavamo guardando (Q20).
+    //
+    // `swap` e non `load` + `store`: fra le due ci starebbe una notifica, e
+    // andrebbe persa. Così, se ne arriva un'altra durante il ridisegno, il
+    // flag resta alzato e si ricarica di nuovo al frame successivo.
+    //
+    // Si rilegge la pagina CORRENTE, non quella di partenza: chi ha
+    // navigato altrove deve restare dov'è, col contenuto aggiornato.
+    // Anche quando la sessione cambia (29-10-2026): chi entra o esce vede
+    // gli oggetti col loro `min_role` rimessi a posto. Tutte e due le
+    // letture, sempre: con `||` la seconda resterebbe alzata per il giro dopo.
+    let progetto_cambiato = reload_flag.swap(false, std::sync::atomic::Ordering::Relaxed);
+    let sessione_cambiata = session::ridisegno_chiesto();
+    if !(progetto_cambiato || sessione_cambiata) {
+        return None;
+    }
+    // Gli SVG già scaricati vanno buttati: un deploy può aver
+    // cambiato un simbolo custom o un'immagine **sotto lo stesso
+    // URL**, e una cache che non se ne accorge ridisegna la pagina
+    // nuova col disegno vecchio — cioè proprio l'inganno che il
+    // ricaricamento automatico doveva togliere di mezzo.
+    svg_assets::invalidate();
+    // **Questo token vale ancora?** (22-10-2026). Un deploy può aver
+    // cambiato gli utenti del progetto, e sul pannello la sessione è
+    // un file su disco riconvalidato solo contro l'orologio: finché la
+    // data non scade il token è «buono», e il pannello continua a
+    // mostrarsi collegato mentre i comandi vengono rifiutati.
+    //
+    // È il momento esatto: il pannello sa già che il progetto è
+    // cambiato, qui impara anche che non è più lui. Il ridisegno che
+    // segue mostra «Login» al posto del nome e rimette i `min_role` al
+    // loro posto da sé.
+    verifica_sessione(base_url, rt_handle, shared_session);
+    // Stessa ragione, per l'elenco del navigatore: un deploy può aver
+    // aggiunto, tolto o riordinato pagine, e il menù resterebbe quello
+    // di prima. È l'unico punto in cui si rilegge — a ogni render
+    // sarebbe una richiesta bloccante per navigatore disegnato (B8).
+    client::invalida_pagine_nav();
+    let (id, nome) = (&current_page.0, &current_page.1);
+    let letta = match id {
+        Some(id) => rt_handle.block_on(client::resolve_page_by_id(base_url, id)),
+        None => rt_handle.block_on(client::fetch_page(base_url, nome)),
+    };
+    match letta {
+        Ok(new_page) => match lvgl_render::render_page_objects(
+            &new_page,
+            tags_now,
+            tag_tx,
+            nav_tx,
+            base_url,
+            rt_handle,
+            shared_alarms,
+            ack_tx,
+            lang_table,
+            shared_lang,
+            shared_session,
+        ) {
+            Ok((summary, new_styles, new_live)) => {
+                eprintln!(
+                    "[reload] '{}' ridisegnata: {} oggetti, {} non supportati, {} fuori pagina, {} nascosti per ruolo",
+                    new_page.name,
+                    summary.rendered.len(),
+                    summary.skipped_unsupported.len(),
+                    summary.skipped_off_page.len(),
+                    summary.skipped_role.len()
+                );
+                return Some((new_styles, new_live));
+            }
+            Err(e) => {
+                eprintln!("[reload] rendering fallito: {e} — resto sulla pagina di prima")
+            }
+        },
+        // La pagina può essere sparita insieme al progetto vecchio: si
+        // resta su quella che c'è, sbagliata ma visibile, invece di
+        // lasciare lo schermo vuoto.
+        Err(e) => {
+            eprintln!("[reload] impossibile rileggere '{nome}': {e} — resto sulla pagina di prima")
+        }
+    }
+    None
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1963,6 +2097,7 @@ fn run_window(
     // La finestra modale aperta, al più una (22-10-2026): vive quanto il
     // ciclo, e la pagina sotto resta dov'è.
     let mut finestra: Option<lvgl_render::FinestraViva> = None;
+    let mut orologio = ritmo::Orologio::nuovo();
     'running: loop {
         let frame_start = Instant::now();
 
@@ -2051,7 +2186,7 @@ fn run_window(
         // nav_tx — niente I/O di rete dentro quelle callback, solo dopo, qui
         // sotto.
         tempi::misura("lvgl", lvgl::task_handler);
-        lvgl::tick_inc(Duration::from_millis(16));
+        lvgl::tick_inc(orologio.passo());
 
         // L'avviso di aggiornamento, se c'è qualcosa da dire. Costa un lock e
         // un confronto di interi per frame: ridisegna solo quando lo stato
@@ -2197,84 +2332,23 @@ fn run_window(
             }
         }
 
-        // Ricarica: il progetto è cambiato mentre lo stavamo guardando (Q20).
-        //
-        // `swap` e non `load` + `store`: fra le due ci starebbe una notifica, e
-        // andrebbe persa. Così, se ne arriva un'altra durante il ridisegno, il
-        // flag resta alzato e si ricarica di nuovo al frame successivo.
-        //
-        // Si rilegge la pagina CORRENTE, non quella di partenza: chi ha
-        // navigato altrove deve restare dov'è, col contenuto aggiornato.
-        // Anche quando la sessione cambia (29-10-2026): chi entra o esce vede
-        // gli oggetti col loro `min_role` rimessi a posto. Tutte e due le
-        // letture, sempre: con `||` la seconda resterebbe alzata per il giro dopo.
-        let progetto_cambiato = reload_flag.swap(false, std::sync::atomic::Ordering::Relaxed);
-        let sessione_cambiata = session::ridisegno_chiesto();
-        if progetto_cambiato || sessione_cambiata {
-            // Gli SVG già scaricati vanno buttati: un deploy può aver
-            // cambiato un simbolo custom o un'immagine **sotto lo stesso
-            // URL**, e una cache che non se ne accorge ridisegna la pagina
-            // nuova col disegno vecchio — cioè proprio l'inganno che il
-            // ricaricamento automatico doveva togliere di mezzo.
-            svg_assets::invalidate();
-            // **Questo token vale ancora?** (22-10-2026). Un deploy può aver
-            // cambiato gli utenti del progetto, e sul pannello la sessione è
-            // un file su disco riconvalidato solo contro l'orologio: finché la
-            // data non scade il token è «buono», e il pannello continua a
-            // mostrarsi collegato mentre i comandi vengono rifiutati.
-            //
-            // È il momento esatto: il pannello sa già che il progetto è
-            // cambiato, qui impara anche che non è più lui. Il ridisegno che
-            // segue mostra «Login» al posto del nome e rimette i `min_role` al
-            // loro posto da sé.
-            verifica_sessione(&base_url, &rt_handle, &shared_session);
-            // Stessa ragione, per l'elenco del navigatore: un deploy può aver
-            // aggiunto, tolto o riordinato pagine, e il menù resterebbe quello
-            // di prima. È l'unico punto in cui si rilegge — a ogni render
-            // sarebbe una richiesta bloccante per navigatore disegnato (B8).
-            client::invalida_pagine_nav();
-            let (id, nome) = (&current_page.0, &current_page.1);
-            let letta = match id {
-                Some(id) => rt_handle.block_on(client::resolve_page_by_id(&base_url, id)),
-                None => rt_handle.block_on(client::fetch_page(&base_url, nome)),
-            };
-            match letta {
-                Ok(new_page) => match lvgl_render::render_page_objects(
-                    &new_page,
-                    &tags_now,
-                    &tag_tx,
-                    &nav_tx,
-                    &base_url,
-                    &rt_handle,
-                    &shared_alarms,
-                    &ack_tx,
-                    &lang_table,
-                    &shared_lang,
-                    &shared_session,
-                ) {
-                    Ok((summary, new_styles, new_live)) => {
-                        eprintln!(
-                            "[reload] '{}' ridisegnata: {} oggetti, {} non supportati, {} fuori pagina, {} nascosti per ruolo",
-                            new_page.name,
-                            summary.rendered.len(),
-                            summary.skipped_unsupported.len(),
-                            summary.skipped_off_page.len(),
-                            summary.skipped_role.len()
-                        );
-                        styles = new_styles;
-                        live_bindings = new_live;
-                    }
-                    Err(e) => {
-                        eprintln!("[reload] rendering fallito: {e} — resto sulla pagina di prima")
-                    }
-                },
-                // La pagina può essere sparita insieme al progetto vecchio: si
-                // resta su quella che c'è, sbagliata ma visibile, invece di
-                // lasciare lo schermo vuoto.
-                Err(e) => eprintln!(
-                    "[reload] impossibile rileggere '{nome}': {e} — resto sulla pagina di prima"
-                ),
-            }
+        // Ricarica: il progetto o la sessione sono cambiati (Q20).
+        if let Some((nuovi_stili, nuovi_live)) = ricarica_se_chiesto(
+            &reload_flag,
+            &current_page,
+            &tags_now,
+            &tag_tx,
+            &nav_tx,
+            &base_url,
+            &rt_handle,
+            &shared_alarms,
+            &ack_tx,
+            &lang_table,
+            &shared_lang,
+            &shared_session,
+        ) {
+            styles = nuovi_stili;
+            live_bindings = nuovi_live;
         }
 
         // La pagina nuova può avere un'altra misura: il display l'ha già
@@ -2340,7 +2414,7 @@ fn run_window(
         tempi::registra("display", t_display.elapsed());
         let elapsed = frame_start.elapsed();
         tempi::registra("giro", elapsed);
-        let target = Duration::from_millis(16); // ~60 fps
+        let target = ritmo::periodo();
         if elapsed < target {
             std::thread::sleep(target - elapsed);
         }

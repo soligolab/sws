@@ -2401,6 +2401,10 @@ pub struct Project {
     /// field existed already has literal per-page width/height).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub page_layout: Option<PageLayoutConfig>,
+    /// Come si comporta lo schermo del pannello (12-11-2026, piano Tiny TY):
+    /// per ora quante volte al secondo si ridisegna. `None` = i predefiniti.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pannello: Option<PannelloConfig>,
     /// Lo stile dei simboli del progetto (Fase 4 del piano
     /// docs/archive/2026-10-14-motore-simboli-lib.md): colori di stato, colori dei
     /// materiali della libreria, volume e contorno, animazioni. Ogni campo
@@ -2678,6 +2682,34 @@ pub struct PageLayoutConfig {
     /// informativo: contano `default_width`/`default_height`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dispositivo: Option<String>,
+}
+
+/// Le impostazioni dello schermo del pannello, nel progetto: viaggiano col
+/// deploy (decisione del maintainer del 12-11-2026, piano
+/// `docs/plans/2026-10-30-sws-lvgl-sul-tiny-ty.md`).
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct PannelloConfig {
+    /// Fotogrammi al secondo dei viewer, LVGL e web: quante volte al più si
+    /// ridisegna. Assente = [`PannelloConfig::FPS_PREDEFINITI`]. Fino al
+    /// 12-11-2026 il viewer LVGL andava a 60, e sul Tiny TY (un core) un
+    /// grafico trascinato col dito prendeva il 93 % della CPU.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fps: Option<u32>,
+}
+
+impl PannelloConfig {
+    pub const FPS_PREDEFINITI: u32 = 20;
+    pub const FPS_MIN: u32 = 1;
+    pub const FPS_MAX: u32 = 60;
+
+    /// I fotogrammi al secondo da usare: il valore del progetto, riportato
+    /// fra [`Self::FPS_MIN`] e [`Self::FPS_MAX`], o il predefinito.
+    pub fn fps_effettivi(pannello: Option<&PannelloConfig>) -> u32 {
+        pannello
+            .and_then(|p| p.fps)
+            .map(|f| f.clamp(Self::FPS_MIN, Self::FPS_MAX))
+            .unwrap_or(Self::FPS_PREDEFINITI)
+    }
 }
 
 /// Tabella lingue di progetto: messaggi nativi + traduzioni, indicizzati per
@@ -3285,5 +3317,23 @@ mod tests_regole_ia {
         };
         let y = serde_yaml::to_string(&r).unwrap();
         assert!(!y.contains("regole"), "{y}");
+    }
+}
+
+#[cfg(test)]
+mod tests_pannello {
+    use super::PannelloConfig;
+
+    #[test]
+    fn fps_predefiniti_e_limiti() {
+        assert_eq!(PannelloConfig::fps_effettivi(None), 20);
+        let p = |f| PannelloConfig { fps: Some(f) };
+        assert_eq!(PannelloConfig::fps_effettivi(Some(&p(10))), 10);
+        assert_eq!(PannelloConfig::fps_effettivi(Some(&p(0))), 1);
+        assert_eq!(PannelloConfig::fps_effettivi(Some(&p(240))), 60);
+        assert_eq!(
+            PannelloConfig::fps_effettivi(Some(&PannelloConfig::default())),
+            20
+        );
     }
 }

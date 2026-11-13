@@ -144,6 +144,15 @@ dopo sui gemelli `demo-items-web`/`demo-items-lvgl` (coprono i 39 tipi, guardia
   un evento di disegno (`LV_EVENT_DRAW_*`). Se arriva prima il passaggio a LVGL 9.3
   ([seme](semi/2026-11-03-lvgl-9-3.md)), ricontrollare: potrebbe non servire più.
 
+### 3.2b I pallini della sparkline, e i parametri grafici delle mini tendenze (12-11-2026)
+
+- **Visto sul Tiny TY**: la sparkline in basso nelle `kpi_tile` era una fila di pallini azzurri grandi, non
+  una linea. Lo scatter di LVGL disegna sempre i punti, larghi quanto l'indicatore del tema. **Corretto il
+  12-11** sul ramo `feat/tiny-ty-armv7`: larghezza e altezza dell'indicatore a zero in `render_sparkline`.
+- **Richiesta del maintainer, non urgente**: i parametri grafici della linea, sui due motori — spessore,
+  colore, opacità e colore del riempimento, stile della linea (continua, tratteggiata) se LVGL lo regge.
+  Oggi ci sono `spark_color`, `spark_fill`, `spark_fill_opacity`. Va con il 3.2 (il riempimento su LVGL).
+
 ### 3.3 Il velo «Dati in ritardo» non entra nelle finestre LVGL
 
 - **Misura**: con la fascia «Dati in ritardo» accesa gli oggetti di una finestra LVGL aperta sono grigi ma

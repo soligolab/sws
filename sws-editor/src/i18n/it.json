@@ -2248,6 +2248,8 @@
     "offPage_one": "⚠ {{count}} oggetto è fuori dal foglio e non verrà disegnato a runtime. Trascinalo dentro il bordo tratteggiato per riattivarlo, oppure allarga la pagina.",
     "offPage_other": "⚠ {{count}} oggetti sono fuori dal foglio e non verranno disegnati a runtime. Trascinali dentro il bordo tratteggiato per riattivarli, oppure allarga la pagina.",
     "hideChromeHelp": "Sul pannello viene renderizzata solo l'area della pagina. Gli allarmi attivi compaiono sovrapposti, senza rubare spazio.",
+    "fpsPannello": "Fotogrammi al secondo del pannello",
+    "fpsPannelloHelp": "Quante volte al secondo il pannello ridisegna, al più (1-60, predefinito 20). Meno fotogrammi, meno CPU: conta sui pannelli piccoli. Vale per i viewer LVGL e web; il pannello LVGL lo legge quando riparte, per esempio dopo un deploy.",
     "warning": "Attenzione",
     "hideChromeWarning": ": senza la barra la navigazione tra pagine può avvenire solo con oggetti \"Pulsante pagina\" sul synoptic o con la rotazione automatica.",
     "formatWinsPre": "Se è impostato un Tag, vince il formato (usa",

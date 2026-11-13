@@ -53,7 +53,7 @@ vi.mock("@/ws/singletonWs", () => ({
 
 import { useAppStore } from "@/store";
 import { sendSubscribe, useTagStream } from "@/ws/tagStream";
-import { impostaPianificatore, RISERVA_MS, svuotaOra } from "@/ws/coalescenza";
+import { azzeraRitmo, impostaFps, impostaPianificatore, RISERVA_MS, svuotaOra } from "@/ws/coalescenza";
 
 const voce = (id: string, value: number, ts = 1_000, quality = "Good") => ({ id, value, quality, ts });
 
@@ -79,6 +79,8 @@ describe("i valori dei tag nello store, una volta per fotogramma", () => {
   afterEach(() => {
     svuotaOra();
     impostaPianificatore();
+    azzeraRitmo();
+    impostaFps(undefined);
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
     vi.useRealTimers();
@@ -153,6 +155,20 @@ describe("i valori dei tag nello store, una volta per fotogramma", () => {
     } finally {
       window.removeEventListener("sws:write-failed", fallite);
     }
+  });
+
+  it("al più pannello.fps giri al secondo: un delta troppo vicino al giro di prima aspetta", () => {
+    impostaFps(10);
+    monta();
+    finto.manda({ type: "delta", seq: 1, changed: [voce("a", 1)] });
+    vi.advanceTimersByTime(17); // il primo fotogramma
+    expect(useAppStore.getState().tagValues.a?.value).toBe(1);
+    finto.manda({ type: "delta", seq: 2, changed: [voce("a", 2)] });
+    // 10 al secondo: il giro dopo non prima di 100 ms dal precedente.
+    vi.advanceTimersByTime(60);
+    expect(useAppStore.getState().tagValues.a?.value).toBe(1);
+    vi.advanceTimersByTime(40 + RISERVA_MS);
+    expect(useAppStore.getState().tagValues.a?.value).toBe(2);
   });
 
   it("al primo fotogramma i valori ci sono", () => {

@@ -22,6 +22,8 @@ import type { TagState } from "@/types";
 /** Il timer di riserva. In una scheda nascosta `requestAnimationFrame` si
  *  ferma, e i valori devono arrivare lo stesso. */
 export const RISERVA_MS = 100;
+/** I fotogrammi al secondo senza `pannello.fps` nel progetto. */
+export const FPS_PREDEFINITI = 20;
 
 /** Chiede di chiamare `cb` una volta; restituisce come annullare la richiesta. */
 export type Pianificatore = (cb: () => void) => () => void;
@@ -32,20 +34,49 @@ export type Pianificatore = (cb: () => void) => () => void;
 const fotogramma: Pianificatore = (cb) => {
   let raf: number | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null;
+  let attesa: ReturnType<typeof setTimeout> | null = null;
   const annulla = () => {
     if (raf !== null) cancelAnimationFrame(raf);
     if (timer !== null) clearTimeout(timer);
+    if (attesa !== null) clearTimeout(attesa);
     raf = null;
     timer = null;
+    attesa = null;
   };
   const parti = () => {
     annulla();
+    ultimoGiro = performance.now();
     cb();
   };
-  if (typeof requestAnimationFrame === "function") raf = requestAnimationFrame(parti);
-  timer = setTimeout(parti, RISERVA_MS);
+  const chiedi = () => {
+    attesa = null;
+    if (typeof requestAnimationFrame === "function") raf = requestAnimationFrame(parti);
+    timer = setTimeout(parti, RISERVA_MS);
+  };
+  // Al più `fps` giri al secondo (`pannello.fps` del progetto, 12-11-2026):
+  // se il giro di prima è troppo vicino, si aspetta il resto del periodo.
+  const resto = ultimoGiro + periodoMs - performance.now();
+  if (resto > 0) attesa = setTimeout(chiedi, resto);
+  else chiedi();
   return annulla;
 };
+
+/** La durata minima fra due giri, da `pannello.fps` del progetto. */
+let periodoMs = 1000 / FPS_PREDEFINITI;
+let ultimoGiro = -Infinity;
+
+/** Per i test: dimentica l'ultimo giro (l'orologio finto riparte da capo). */
+export function azzeraRitmo(): void {
+  ultimoGiro = -Infinity;
+}
+
+/** I fotogrammi al secondo del viewer (`pannello.fps`, predefinito 20, fra 1 e
+ *  60): gli stessi limiti di `PannelloConfig::fps_effettivi` nel runtime. Fino
+ *  al 12-11-2026 la pagina si aggiornava a ogni fotogramma del browser. */
+export function impostaFps(fps: number | undefined): void {
+  const f = fps === undefined || !Number.isFinite(fps) ? FPS_PREDEFINITI : Math.min(60, Math.max(1, Math.round(fps)));
+  periodoMs = 1000 / f;
+}
 
 let pianifica: Pianificatore = fotogramma;
 let inAttesa = new Map<string, TagState>();

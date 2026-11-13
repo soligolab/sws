@@ -652,6 +652,15 @@ pub struct TrendVivo {
     etichette: Vec<core::ptr::NonNull<lvgl_sys::lv_obj_t>>,
     tocchi: CodaTocchi,
     sporco: bool,
+    /// Il fondo senza il dito, solo mentre il dito è appoggiato: scorrendo si
+    /// rifà il dito sopra una copia invece dell'intero grafico (12-11-2026,
+    /// Tiny TY: 34 ms a fotogramma, CPU al 100 %). 4 byte per pixel, liberati
+    /// quando il dito si alza.
+    fondo: Option<resvg::tiny_skia::Pixmap>,
+    /// Dove il dito ha disegnato l'ultima volta: da ripulire al prossimo.
+    dito: Option<crate::trend::Rett>,
+    /// I testi del fondo in `scena.testi`; quelli dopo sono del dito.
+    testi_fondo: usize,
     /// Posizione e misura nella pagina, per tornarci dallo schermo intero.
     riquadro: (i16, i16, u32, u32),
 }
@@ -1045,7 +1054,7 @@ unsafe fn apri_critico(user_data: *mut std::ffi::c_void) {
 
     let etichetta = |testo: &str, y: i16| {
         let l = lvgl_sys::lv_label_create(scheda);
-        lvgl_sys::lv_label_set_text(l, text_cstring(testo).as_ptr());
+        testo_etichetta(l, text_cstring(testo).as_ptr());
         lvgl_sys::lv_obj_set_pos(l, 0, y);
         l
     };
@@ -1074,7 +1083,7 @@ unsafe fn apri_critico(user_data: *mut std::ffi::c_void) {
         lvgl_sys::lv_obj_set_size(b, 120, 40);
         lvgl_sys::lv_obj_set_pos(b, x, alta - 72);
         let l = lvgl_sys::lv_label_create(b);
-        lvgl_sys::lv_label_set_text(l, text_cstring(testo).as_ptr());
+        testo_etichetta(l, text_cstring(testo).as_ptr());
         lvgl_sys::lv_obj_align(l, lvgl_sys::LV_ALIGN_CENTER as lvgl_sys::lv_align_t, 0, 0);
         lvgl_sys::lv_obj_add_event_cb(
             b,
@@ -1145,11 +1154,11 @@ unsafe extern "C" fn sws_critico_conferma_cb(e: *mut lvgl_sys::lv_event_t) {
         None => return,
     };
     if motivo.as_deref().is_some_and(|m| m.trim().is_empty()) {
-        lvgl_sys::lv_label_set_text(errore, text_cstring("Il motivo è obbligatorio").as_ptr());
+        testo_etichetta(errore, text_cstring("Il motivo è obbligatorio").as_ptr());
         return;
     }
     if password.as_deref().is_some_and(str::is_empty) {
-        lvgl_sys::lv_label_set_text(errore, text_cstring("Serve la password").as_ptr());
+        testo_etichetta(errore, text_cstring("Serve la password").as_ptr());
         return;
     }
     chiudi_critico(ctx);
@@ -1644,7 +1653,7 @@ unsafe extern "C" fn sws_slider_changed_cb(e: *mut lvgl_sys::lv_event_t) {
     if let Some((p, decimali, unita)) = &ctx.etichetta {
         let v = tag_value_as_f64(&valore);
         let testo = testo_valore_slider(v, *decimali, unita, ctx.pv.as_ref().map(|c| c.get()));
-        unsafe { lvgl_sys::lv_label_set_text(p.as_ptr(), text_cstring(&testo).as_ptr()) };
+        unsafe { testo_etichetta(p.as_ptr(), text_cstring(&testo).as_ptr()) };
     }
     if let Some(f) = &ctx.fumetto {
         let i = unsafe { lvgl_sys::lv_bar_get_value(target) } + ctx.scarto;
@@ -1701,7 +1710,7 @@ unsafe extern "C" fn sws_slider_rilasciato_cb(e: *mut lvgl_sys::lv_event_t) {
                 unita,
                 ctx.pv.as_ref().map(|c| c.get()),
             );
-            unsafe { lvgl_sys::lv_label_set_text(p.as_ptr(), text_cstring(&testo).as_ptr()) };
+            unsafe { testo_etichetta(p.as_ptr(), text_cstring(&testo).as_ptr()) };
         }
         ctx.attendi(tag_value_as_f64(&valore));
         ctx.ultima_molla.set(None);
@@ -1937,6 +1946,45 @@ unsafe fn chart_add_series(
         Color::from_rgb(rgb).into(),
         lvgl_sys::LV_CHART_AXIS_PRIMARY_Y as lvgl_sys::lv_chart_axis_t,
     )
+}
+
+/// `true` se il colore `prop` della parte principale di `obj` non è già `rgb`.
+/// Riscrivere uno stile e rinfrescarlo ridisegna l'oggetto anche con lo stesso
+/// colore: `update_bindings` lo faceva a ogni fotogramma (12-11-2026, Tiny TY).
+///
+/// # Safety
+/// `obj` è un oggetto LVGL vivo.
+pub(crate) unsafe fn colore_diverso(
+    obj: *mut lvgl_sys::lv_obj_t,
+    prop: lvgl_sys::lv_style_prop_t,
+    rgb: (u8, u8, u8),
+) -> bool {
+    let attuale = lvgl_sys::lv_obj_get_style_prop(obj, lvgl_sys::LV_PART_MAIN, prop).color;
+    let voluto: lvgl_sys::lv_color_t = Color::from_rgb(rgb).into();
+    attuale.full != voluto.full
+}
+
+/// `lv_label_set_text`, ma solo se il testo cambia (12-11-2026, Tiny TY).
+/// LVGL ridisegna l'etichetta a ogni chiamata, anche con lo stesso testo, e
+/// `update_bindings` riscrive tutti i testi a ogni fotogramma: sul Tiny TY
+/// ogni titolo, valore e unità della pagina si ridisegnava 20 volte al secondo
+/// (circa 120 000 pixel a fotogramma su una pagina che cambia ogni 2 s).
+///
+/// # Safety
+/// `etichetta` è un `lv_label` vivo e `testo` una stringa C valida, come per
+/// `lv_label_set_text`.
+pub(crate) unsafe fn testo_etichetta(
+    etichetta: *mut lvgl_sys::lv_obj_t,
+    testo: *const std::ffi::c_char,
+) {
+    let attuale = lvgl_sys::lv_label_get_text(etichetta);
+    if !attuale.is_null()
+        && !testo.is_null()
+        && std::ffi::CStr::from_ptr(attuale) == std::ffi::CStr::from_ptr(testo)
+    {
+        return;
+    }
+    lvgl_sys::lv_label_set_text(etichetta, testo);
 }
 
 /// Porta `SEV_COLOR` di `alarmSeverity.ts` (i valori di fallback — questo
@@ -4510,7 +4558,7 @@ fn render_clock(
         lingua,
     );
     unsafe {
-        lvgl_sys::lv_label_set_text(lp, text_cstring(&testo).as_ptr());
+        testo_etichetta(lp, text_cstring(&testo).as_ptr());
         lvgl_sys::lv_obj_align(lp, allinea as lvgl_sys::lv_align_t, dx, 0);
         if let Some(rgb) = obj.color.as_deref().and_then(parse_hex_color) {
             lvgl_sys::lv_obj_set_style_text_color(lp, Color::from_rgb(rgb).into(), 0);
@@ -4900,7 +4948,7 @@ pub fn apri_finestra(
             let t = lvgl_sys::lv_label_create(barra);
             if !t.is_null() {
                 let testo = text_cstring(titolo);
-                lvgl_sys::lv_label_set_text(t, testo.as_ptr());
+                testo_etichetta(t, testo.as_ptr());
                 stile::testo(t, (0xe2, 0xe8, 0xf0), stile::MAIN);
                 stile::font(t, 13, stile::MAIN);
                 lvgl_sys::lv_obj_set_pos(t, 8, 5);
@@ -4918,7 +4966,7 @@ pub fn apri_finestra(
                 let l = lvgl_sys::lv_label_create(x);
                 if !l.is_null() {
                     let cross = text_cstring("✕");
-                    lvgl_sys::lv_label_set_text(l, cross.as_ptr());
+                    testo_etichetta(l, cross.as_ptr());
                     stile::testo(l, (0x94, 0xa3, 0xb8), stile::MAIN);
                     stile::font(l, 13, stile::MAIN);
                     lvgl_sys::lv_obj_align(
@@ -7002,7 +7050,7 @@ fn init_bar_like(
             let l = core::ptr::NonNull::new(unsafe { lvgl_sys::lv_label_create(ptr.as_ptr()) })
                 .ok_or_else(|| anyhow::anyhow!("lv_label_create: memoria esaurita"))?;
             unsafe {
-                lvgl_sys::lv_label_set_text(l.as_ptr(), testo.as_ptr());
+                testo_etichetta(l.as_ptr(), testo.as_ptr());
                 lvgl_sys::lv_obj_align(
                     l.as_ptr(),
                     lvgl_sys::LV_ALIGN_CENTER as lvgl_sys::lv_align_t,
@@ -9292,7 +9340,7 @@ pub(crate) fn apri_credenziali(testi: TestiAccesso<'_>) -> Option<Credenziali> {
             let l = lvgl_sys::lv_label_create(ov.as_ptr());
             if !l.is_null() {
                 lvgl_sys::lv_obj_set_pos(l, x0, y);
-                lvgl_sys::lv_label_set_text(l, text_cstring(testo).as_ptr());
+                testo_etichetta(l, text_cstring(testo).as_ptr());
                 lvgl_sys::lv_obj_set_style_text_color(l, lvgl_sys::lv_color_t { full: 0 }, 0);
                 stile::testo(l, (148, 163, 184), stile::MAIN);
                 if let Some(f) = crate::lvgl_font::at_size(16) {
@@ -9347,7 +9395,7 @@ pub(crate) fn apri_credenziali(testi: TestiAccesso<'_>) -> Option<Credenziali> {
                 lvgl_sys::lv_obj_set_pos(l, x0, y);
                 lvgl_sys::lv_obj_set_width(l, w_col);
                 lvgl_sys::lv_label_set_long_mode(l, lvgl_sys::LV_LABEL_LONG_WRAP as u8);
-                lvgl_sys::lv_label_set_text(l, text_cstring(testi.titolo).as_ptr());
+                testo_etichetta(l, text_cstring(testi.titolo).as_ptr());
                 stile::testo(l, (226, 232, 240), stile::MAIN);
                 if let Some(f) = crate::lvgl_font::at_size(18) {
                     lvgl_sys::lv_obj_set_style_text_font(l, f, 0);
@@ -9361,7 +9409,7 @@ pub(crate) fn apri_credenziali(testi: TestiAccesso<'_>) -> Option<Credenziali> {
                 lvgl_sys::lv_obj_set_pos(l, x0, y);
                 lvgl_sys::lv_obj_set_width(l, w_col);
                 lvgl_sys::lv_label_set_long_mode(l, lvgl_sys::LV_LABEL_LONG_WRAP as u8);
-                lvgl_sys::lv_label_set_text(l, text_cstring(&format!("⚠ {e}")).as_ptr());
+                testo_etichetta(l, text_cstring(&format!("⚠ {e}")).as_ptr());
                 stile::testo(l, (252, 165, 165), stile::MAIN);
                 if let Some(f) = crate::lvgl_font::at_size(16) {
                     lvgl_sys::lv_obj_set_style_text_font(l, f, 0);
@@ -9447,7 +9495,7 @@ pub(crate) fn apri_credenziali(testi: TestiAccesso<'_>) -> Option<Credenziali> {
             stile::raggio(b.as_ptr(), 6.0, stile::MAIN);
             let l = lvgl_sys::lv_label_create(b.as_ptr());
             if !l.is_null() {
-                lvgl_sys::lv_label_set_text(l, text_cstring(testo).as_ptr());
+                testo_etichetta(l, text_cstring(testo).as_ptr());
                 stile::testo(l, (226, 232, 240), stile::MAIN);
                 if let Some(f) = crate::lvgl_font::at_size(16) {
                     lvgl_sys::lv_obj_set_style_text_font(l, f, 0);
@@ -9706,6 +9754,9 @@ fn render_trend(
             etichette: Vec::new(),
             tocchi,
             sporco: true,
+            fondo: None,
+            dito: None,
+            testi_fondo: 0,
             riquadro: (
                 obj.x.unwrap_or(0.0).round() as i16,
                 obj.y.unwrap_or(0.0).round() as i16,
@@ -9747,6 +9798,8 @@ fn ridimensiona_trend(t: &mut TrendVivo) {
     }
     t.buf = buf;
     t.pixmap = pixmap;
+    t.fondo = None;
+    t.dito = None;
     t.cfg.w = w;
     t.cfg.h = h;
     // Lo sfondo a immagine era alla misura del riquadro: a schermo intero no.
@@ -9905,7 +9958,11 @@ fn scrivi_testi(
     for (k, lp) in etichette.iter().enumerate() {
         let lp = lp.as_ptr();
         let Some(tx) = testi.get(k) else {
-            unsafe { lvgl_sys::lv_obj_add_flag(lp, lvgl_sys::LV_OBJ_FLAG_HIDDEN) };
+            unsafe {
+                if !lvgl_sys::lv_obj_has_flag(lp, lvgl_sys::LV_OBJ_FLAG_HIDDEN) {
+                    lvgl_sys::lv_obj_add_flag(lp, lvgl_sys::LV_OBJ_FLAG_HIDDEN);
+                }
+            }
             continue;
         };
         let (lw, lh) = misura_trend(&tx.testo, tx.px);
@@ -9919,22 +9976,40 @@ fn scrivi_testi(
             Vert::Mezzo => tx.y - lh / 2.0,
             Vert::Basso => tx.y - lh,
         };
+        // Ogni stile riscritto ridisegna l'etichetta, e il canvas sotto di lei,
+        // anche se non cambia niente: si scrive solo quello che cambia
+        // (12-11-2026, Tiny TY). `lv_obj_set_pos` lo controlla già da sé.
         unsafe {
-            lvgl_sys::lv_label_set_text(lp, text_cstring(&tx.testo).as_ptr());
-            lvgl_sys::lv_obj_set_style_text_font(lp, font_trend(tx.px), 0);
-            lvgl_sys::lv_obj_set_style_text_color(lp, Color::from_rgb(tx.colore).into(), 0);
+            testo_etichetta(lp, text_cstring(&tx.testo).as_ptr());
+            let font = font_trend(tx.px);
+            let attuale = lvgl_sys::lv_obj_get_style_prop(
+                lp,
+                lvgl_sys::LV_PART_MAIN,
+                lvgl_sys::lv_style_prop_t_LV_STYLE_TEXT_FONT,
+            )
+            .ptr;
+            if attuale != font as *const std::ffi::c_void {
+                lvgl_sys::lv_obj_set_style_text_font(lp, font, 0);
+            }
+            if colore_diverso(lp, lvgl_sys::lv_style_prop_t_LV_STYLE_TEXT_COLOR, tx.colore) {
+                lvgl_sys::lv_obj_set_style_text_color(lp, Color::from_rgb(tx.colore).into(), 0);
+            }
             lvgl_sys::lv_obj_set_pos(
                 lp,
                 x.round() as lvgl_sys::lv_coord_t,
                 y.round() as lvgl_sys::lv_coord_t,
             );
-            lvgl_sys::lv_obj_clear_flag(lp, lvgl_sys::LV_OBJ_FLAG_HIDDEN);
+            if lvgl_sys::lv_obj_has_flag(lp, lvgl_sys::LV_OBJ_FLAG_HIDDEN) {
+                lvgl_sys::lv_obj_clear_flag(lp, lvgl_sys::LV_OBJ_FLAG_HIDDEN);
+            }
         }
     }
 }
 
 /// Un frame del trend: tocchi, dati nuovi, e il ridisegno solo se qualcosa è
-/// cambiato — il poller risponde ogni 2 s, il ciclo gira a 60 fps.
+/// cambiato — il poller risponde ogni 2 s, il ciclo gira a `pannello.fps`.
+/// Quando cambia solo il dito si rifà solo il dito, sopra il fondo tenuto da
+/// parte (`TrendVivo::fondo`).
 fn aggiorna_trend(t: &mut TrendVivo, lingua: &str, table: &LanguageTable) {
     use crate::trend::Esito;
     let ora = client::now_unix_ms();
@@ -9944,13 +10019,14 @@ fn aggiorna_trend(t: &mut TrendVivo, lingua: &str, table: &LanguageTable) {
     }
     let eventi: Vec<ToccoTrend> = t.tocchi.borrow_mut().drain(..).collect();
     let mut nuovo_intervallo = false;
+    let mut solo_dito = false;
     for e in eventi {
         match e {
             ToccoTrend::Premi(x, y) => {
                 t.stato.premi(x, y, ora);
-                t.sporco = true;
+                solo_dito = true;
             }
-            ToccoTrend::Trascina(x, y) => t.sporco |= t.stato.trascina(x, y, ora),
+            ToccoTrend::Trascina(x, y) => solo_dito |= t.stato.trascina(x, y, ora),
             ToccoTrend::Rilascia => match t.stato.rilascia(&t.cfg, &t.scena, ora) {
                 Esito::Niente => {}
                 Esito::Ridisegna => t.sporco = true,
@@ -9972,7 +10048,7 @@ fn aggiorna_trend(t: &mut TrendVivo, lingua: &str, table: &LanguageTable) {
     // Il dito tenuto fermo diventa una selezione anche senza muoversi.
     if let Some(p) = t.stato.pressione.filter(|p| !p.seleziona) {
         t.stato.trascina(p.x, p.y, ora);
-        t.sporco |= t.stato.pressione.is_some_and(|p| p.seleziona);
+        solo_dito |= t.stato.pressione.is_some_and(|p| p.seleziona);
     }
     if nuovo_intervallo {
         let (da, a) = t.stato.intervallo(&t.cfg, ora);
@@ -9995,14 +10071,52 @@ fn aggiorna_trend(t: &mut TrendVivo, lingua: &str, table: &LanguageTable) {
             t.sporco = true;
         }
     }
+    let misura = |s: &str, px: u16| misura_trend(s, px).0;
+    let (w, h) = (t.cfg.w, t.cfg.h);
+
     if !t.sporco {
-        return;
+        if !solo_dito {
+            return;
+        }
+        // Il dito appena appoggiato: finché era alzato il dito non disegnava
+        // pixel, quindi il pixmap è già il fondo.
+        if t.fondo.is_none() && t.dito.is_none() {
+            t.fondo = Some(t.pixmap.clone());
+        }
+        if let Some(fondo) = t.fondo.as_ref() {
+            let prima = t.dito;
+            if let Some(z) = prima.and_then(|r| zona_trend(r, w, h)) {
+                copia_zona(fondo, &mut t.pixmap, z);
+            }
+            t.scena.testi.truncate(t.testi_fondo);
+            let dito = crate::tempi::misura("canvas.trend", || {
+                crate::trend::disegna_dito(
+                    &t.cfg,
+                    &t.dati,
+                    &t.stato,
+                    &mut t.scena,
+                    &mut t.pixmap,
+                    &misura,
+                    &crate::trend::ora_locale,
+                )
+            });
+            let unione = match (prima, dito) {
+                (Some(a), Some(b)) => Some(a.unione(b)),
+                (a, b) => a.or(b),
+            };
+            if let Some(z) = unione.and_then(|r| zona_trend(r, w, h)) {
+                in_rgb565(&t.pixmap, &mut t.buf, z);
+                invalida_zona(t.canvas, z);
+            }
+            t.dito = dito;
+            scrivi_testi(t.canvas, &mut t.etichette, &t.scena.testi);
+            return;
+        }
     }
     t.sporco = false;
 
-    let misura = |s: &str, px: u16| misura_trend(s, px).0;
-    let scena = crate::tempi::misura("canvas.trend", || {
-        crate::trend::disegna(
+    let mut scena = crate::tempi::misura("canvas.trend", || {
+        crate::trend::disegna_fondo(
             &t.cfg,
             &t.dati,
             &t.stato,
@@ -10013,22 +10127,98 @@ fn aggiorna_trend(t: &mut TrendVivo, lingua: &str, table: &LanguageTable) {
             &crate::trend::ora_locale,
         )
     });
-    // RGBA premoltiplicato ma opaco (lo sfondo copre tutto) → RGB565.
-    for (o, p) in t
-        .buf
-        .chunks_exact_mut(2)
-        .zip(t.pixmap.data().chunks_exact(4))
-    {
-        let v: u16 = ((p[0] as u16 & 0xF8) << 8) | ((p[1] as u16 & 0xFC) << 3) | (p[2] as u16 >> 3);
-        o[0] = (v & 0xFF) as u8;
-        o[1] = (v >> 8) as u8;
+    // Il fondo si tiene solo col dito appoggiato, e nello stesso buffer
+    // finché la misura non cambia.
+    if t.stato.pressione.is_some() {
+        match t.fondo.as_mut() {
+            Some(f) if f.width() == w && f.height() == h => {
+                f.data_mut().copy_from_slice(t.pixmap.data())
+            }
+            _ => t.fondo = Some(t.pixmap.clone()),
+        }
+    } else {
+        t.fondo = None;
     }
+    t.testi_fondo = scena.testi.len();
+    t.dito = crate::trend::disegna_dito(
+        &t.cfg,
+        &t.dati,
+        &t.stato,
+        &mut scena,
+        &mut t.pixmap,
+        &misura,
+        &crate::trend::ora_locale,
+    );
+    in_rgb565(&t.pixmap, &mut t.buf, (0, 0, w as usize, h as usize));
     unsafe {
         lvgl_sys::lv_obj_invalidate(t.canvas.as_ptr());
     }
 
     scrivi_testi(t.canvas, &mut t.etichette, &scena.testi);
     t.scena = scena;
+}
+
+/// Un rettangolo del trend in pixel interi dentro `w`×`h`: `(x0, y0, x1, y1)`,
+/// `x1` e `y1` esclusi. `None` se cade tutto fuori.
+fn zona_trend(r: crate::trend::Rett, w: u32, h: u32) -> Option<(usize, usize, usize, usize)> {
+    let x0 = r.x.floor().max(0.0) as usize;
+    let y0 = r.y.floor().max(0.0) as usize;
+    let x1 = ((r.x + r.w).ceil().max(0.0) as usize).min(w as usize);
+    let y1 = ((r.y + r.h).ceil().max(0.0) as usize).min(h as usize);
+    (x1 > x0 && y1 > y0).then_some((x0, y0, x1, y1))
+}
+
+/// Ricopia da `da` ad `a` (stessa misura) la zona `z`.
+fn copia_zona(
+    da: &resvg::tiny_skia::Pixmap,
+    a: &mut resvg::tiny_skia::Pixmap,
+    (x0, y0, x1, y1): (usize, usize, usize, usize),
+) {
+    let w = a.width() as usize;
+    let (src, dst) = (da.data(), a.data_mut());
+    for y in y0..y1 {
+        let r = (y * w + x0) * 4..(y * w + x1) * 4;
+        dst[r.clone()].copy_from_slice(&src[r]);
+    }
+}
+
+/// Converte la zona `z` del pixmap nel buffer RGB565 del canvas. RGBA
+/// premoltiplicato ma opaco (lo sfondo copre tutto).
+fn in_rgb565(
+    px: &resvg::tiny_skia::Pixmap,
+    buf: &mut [u8],
+    (x0, y0, x1, y1): (usize, usize, usize, usize),
+) {
+    let w = px.width() as usize;
+    let dati = px.data();
+    for y in y0..y1 {
+        let o = &mut buf[(y * w + x0) * 2..(y * w + x1) * 2];
+        let p = &dati[(y * w + x0) * 4..(y * w + x1) * 4];
+        for (o, p) in o.chunks_exact_mut(2).zip(p.chunks_exact(4)) {
+            let v: u16 =
+                ((p[0] as u16 & 0xF8) << 8) | ((p[1] as u16 & 0xFC) << 3) | (p[2] as u16 >> 3);
+            o[0] = (v & 0xFF) as u8;
+            o[1] = (v >> 8) as u8;
+        }
+    }
+}
+
+/// Fa ridisegnare a LVGL solo la zona `z` del canvas.
+fn invalida_zona(
+    canvas: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    (x0, y0, x1, y1): (usize, usize, usize, usize),
+) {
+    unsafe {
+        let mut c: lvgl_sys::lv_area_t = core::mem::zeroed();
+        lvgl_sys::lv_obj_get_coords(canvas.as_ptr(), &mut c);
+        let a = lvgl_sys::lv_area_t {
+            x1: c.x1 + x0 as lvgl_sys::lv_coord_t,
+            y1: c.y1 + y0 as lvgl_sys::lv_coord_t,
+            x2: c.x1 + x1 as lvgl_sys::lv_coord_t - 1,
+            y2: c.y1 + y1 as lvgl_sys::lv_coord_t - 1,
+        };
+        lvgl_sys::lv_obj_invalidate_area(canvas.as_ptr(), &a);
+    }
 }
 
 /// `sparkline`: la mini tendenza, come `MiniTendenza.tsx` sul web. Lo
@@ -10084,6 +10274,11 @@ fn render_sparkline(
             lvgl_sys::LV_CHART_TYPE_SCATTER as lvgl_sys::lv_chart_type_t,
         );
         lvgl_sys::lv_chart_set_div_line_count(ptr.as_ptr(), 0, 0);
+        // Niente pallini sui punti (12-11-2026, visto sul Tiny TY): un grafico
+        // SCATTER li disegna sempre, grandi quanto la larghezza dell'indicatore
+        // del tema, e la linea del web diventava una fila di cerchi azzurri.
+        lvgl_sys::lv_obj_set_style_width(ptr.as_ptr(), 0, lvgl_sys::LV_PART_INDICATOR);
+        lvgl_sys::lv_obj_set_style_height(ptr.as_ptr(), 0, lvgl_sys::LV_PART_INDICATOR);
         // L'asse X in terzi di colonna (`mini_serie::Disegno`).
         lvgl_sys::lv_chart_set_range(
             ptr.as_ptr(),
@@ -10119,7 +10314,7 @@ fn render_sparkline(
             .clamp(6.0, 200.0);
         unsafe {
             let l = lvgl_sys::lv_label_create(ptr.as_ptr());
-            lvgl_sys::lv_label_set_text(l, text_cstring("").as_ptr());
+            testo_etichetta(l, text_cstring("").as_ptr());
             stile::font(l, corpo as u16, stile::MAIN);
             stile::testo(l, rgb, stile::MAIN);
             // Dentro il margine del grafico: il bordo destro del testo cade a
@@ -11229,7 +11424,7 @@ unsafe extern "C" fn sws_setpoint_ready_cb(e: *mut lvgl_sys::lv_event_t) {
                     *ctx.bozza.borrow_mut() = Some(n);
                     let d = ctx.decimali;
                     let u = &ctx.unita;
-                    lvgl_sys::lv_label_set_text(
+                    testo_etichetta(
                         ctx.value_ptr.as_ptr(),
                         text_cstring(&format!("{n:.d$}{u}")).as_ptr(),
                     );
@@ -11500,7 +11695,7 @@ fn render_setpoint(
     // aggiornata, ma senza questo resterebbe vuota fino al primo giro — e in
     // un'istantanea di un progetto senza sorgenti resterebbe vuota e basta.
     unsafe {
-        lvgl_sys::lv_label_set_text(
+        testo_etichetta(
             attuale_ptr.as_ptr(),
             text_cstring(&format!("{attuale_testo} {initial:.decimali$}{unit}")).as_ptr(),
         );
@@ -13503,7 +13698,7 @@ impl PipeCorpo {
         }
         if let (Some(p), Some(t)) = (self.etichetta, lookup(tags, &self.etichetta_tag)) {
             let testo = format_value(&t.value, Some(&self.formato));
-            unsafe { lvgl_sys::lv_label_set_text(p.as_ptr(), text_cstring(&testo).as_ptr()) };
+            unsafe { testo_etichetta(p.as_ptr(), text_cstring(&testo).as_ptr()) };
         }
     }
 }
@@ -15150,7 +15345,7 @@ fn aggiorna_simbolo_lib(v: &mut VivoLib, tags: &TagSnapshot) {
         unsafe {
             match &voluta {
                 Some((testo, rgb)) => {
-                    lvgl_sys::lv_label_set_text(l, text_cstring(testo).as_ptr());
+                    testo_etichetta(l, text_cstring(testo).as_ptr());
                     stile::testo(l, *rgb, stile::MAIN);
                     let lw = larghezza_testo(l);
                     lvgl_sys::lv_obj_set_pos(
@@ -16703,7 +16898,7 @@ unsafe fn lucchetto_ruolo(genitore: *mut lvgl_sys::lv_obj_t, destra: f64, alto: 
     let l = lvgl_sys::lv_label_create(p);
     if !l.is_null() {
         let testo = text_cstring(&format!("🔒 {ruolo}"));
-        lvgl_sys::lv_label_set_text(l, testo.as_ptr());
+        testo_etichetta(l, testo.as_ptr());
         stile::testo(l, (0xfb, 0xbf, 0x24), stile::MAIN);
         stile::font(l, 11, stile::MAIN);
         lvgl_sys::lv_obj_align(l, lvgl_sys::LV_ALIGN_CENTER as lvgl_sys::lv_align_t, 0, 0);
@@ -17731,7 +17926,7 @@ pub fn update_bindings(
                         lvgl::Animation::OFF.into(),
                     );
                     if let Some(vp) = value_ptr {
-                        lvgl_sys::lv_label_set_text(
+                        testo_etichetta(
                             vp.as_ptr(),
                             text_cstring(&if ora_mai {
                                 testo_valore_assente(*decimals, unit, valore_pv)
@@ -17778,7 +17973,7 @@ pub fn update_bindings(
                         &lingua,
                     );
                     unsafe {
-                        lvgl_sys::lv_label_set_text(ptr.as_ptr(), text_cstring(&testo).as_ptr());
+                        testo_etichetta(ptr.as_ptr(), text_cstring(&testo).as_ptr());
                     }
                     *ultimo = Some((istante, lingua.clone()));
                 }
@@ -17806,7 +18001,7 @@ pub fn update_bindings(
                     lang_table,
                 );
                 unsafe {
-                    lvgl_sys::lv_label_set_text(ptr.as_ptr(), text_cstring(&content).as_ptr());
+                    testo_etichetta(ptr.as_ptr(), text_cstring(&content).as_ptr());
                 }
                 if let Some(style) = color_style {
                     let rgb = text_color_hex(
@@ -17818,7 +18013,13 @@ pub fn update_bindings(
                         *alarm_high,
                         static_color_hex.as_deref(),
                     );
-                    if let Some(rgb) = rgb {
+                    if let Some(rgb) = rgb.filter(|c| unsafe {
+                        colore_diverso(
+                            ptr.as_ptr(),
+                            lvgl_sys::lv_style_prop_t_LV_STYLE_TEXT_COLOR,
+                            *c,
+                        )
+                    }) {
                         style.set_text_color(Color::from_rgb(rgb));
                         unsafe {
                             lvgl_sys::lv_obj_refresh_style(
@@ -17862,33 +18063,31 @@ pub fn update_bindings(
                 let voluto = threshold_color(raw, soglie.0, soglie.1, soglie.2, soglie.3)
                     .unwrap_or(*rgb_base);
                 unsafe {
-                    lvgl_sys::lv_meter_set_indicator_value(
-                        ptr.as_ptr(),
-                        *needle_indic,
-                        raw.round() as i32,
-                    );
-                    lvgl_sys::lv_meter_set_indicator_end_value(
-                        ptr.as_ptr(),
-                        *arc_indic,
-                        raw.round() as i32,
-                    );
+                    // Solo se il valore cambia: LVGL invalida l'ago a ogni
+                    // chiamata, anche con lo stesso valore (12-11-2026, Tiny TY).
+                    let v = raw.round() as i32;
+                    if !needle_indic.is_null() && (**needle_indic).start_value != v {
+                        lvgl_sys::lv_meter_set_indicator_value(ptr.as_ptr(), *needle_indic, v);
+                    }
+                    if !arc_indic.is_null() && (**arc_indic).end_value != v {
+                        lvgl_sys::lv_meter_set_indicator_end_value(ptr.as_ptr(), *arc_indic, v);
+                    }
                     if voluto != *rgb_arco && !arc_indic.is_null() {
                         (**arc_indic).type_data.arc.color = Color::from_rgb(voluto).into();
                         lvgl_sys::lv_obj_invalidate(ptr.as_ptr());
                         *rgb_arco = voluto;
                     }
                     let d = *decimali;
-                    lvgl_sys::lv_label_set_text(
+                    testo_etichetta(
                         value_ptr.as_ptr(),
                         text_cstring(&format!("{raw:.d$}{unit_suffix}")).as_ptr(),
                     );
                     if let Some((ind, t)) = sp {
                         if let Some(v) = tags.get(t.as_str()).map(|x| tag_value_as_f64(&x.value)) {
-                            lvgl_sys::lv_meter_set_indicator_value(
-                                ptr.as_ptr(),
-                                *ind,
-                                v.round() as i32,
-                            );
+                            let v = v.round() as i32;
+                            if !ind.is_null() && (**ind).start_value != v {
+                                lvgl_sys::lv_meter_set_indicator_value(ptr.as_ptr(), *ind, v);
+                            }
                         }
                     }
                 }
@@ -17921,7 +18120,13 @@ pub fn update_bindings(
                         .unwrap_or_else(|| "#94a3b8".to_string())
                 };
                 unsafe {
-                    if let Some(rgb) = parse_hex_color(&lamp_hex) {
+                    if let Some(rgb) = parse_hex_color(&lamp_hex).filter(|c| {
+                        colore_diverso(
+                            lamp_ptr.as_ptr(),
+                            lvgl_sys::lv_style_prop_t_LV_STYLE_BG_COLOR,
+                            *c,
+                        )
+                    }) {
                         lamp_style.set_bg_color(Color::from_rgb(rgb));
                         lvgl_sys::lv_obj_refresh_style(
                             lamp_ptr.as_ptr(),
@@ -17929,11 +18134,14 @@ pub fn update_bindings(
                             lvgl_sys::lv_style_prop_t_LV_STYLE_BG_COLOR,
                         );
                     }
-                    lvgl_sys::lv_label_set_text(
-                        label_ptr.as_ptr(),
-                        text_cstring(&label_text).as_ptr(),
-                    );
-                    if let Some(rgb) = parse_hex_color(&label_hex) {
+                    testo_etichetta(label_ptr.as_ptr(), text_cstring(&label_text).as_ptr());
+                    if let Some(rgb) = parse_hex_color(&label_hex).filter(|c| {
+                        colore_diverso(
+                            label_ptr.as_ptr(),
+                            lvgl_sys::lv_style_prop_t_LV_STYLE_TEXT_COLOR,
+                            *c,
+                        )
+                    }) {
                         label_style.set_text_color(Color::from_rgb(rgb));
                         lvgl_sys::lv_obj_refresh_style(
                             label_ptr.as_ptr(),
@@ -17979,11 +18187,14 @@ pub fn update_bindings(
                 let colore =
                     colore_text_list(entry, colore_testo.as_deref(), default_color.as_deref());
                 unsafe {
-                    lvgl_sys::lv_label_set_text(
-                        label_ptr.as_ptr(),
-                        text_cstring(&label_text).as_ptr(),
-                    );
-                    if let Some(rgb) = colore {
+                    testo_etichetta(label_ptr.as_ptr(), text_cstring(&label_text).as_ptr());
+                    if let Some(rgb) = colore.filter(|c| {
+                        colore_diverso(
+                            label_ptr.as_ptr(),
+                            lvgl_sys::lv_style_prop_t_LV_STYLE_TEXT_COLOR,
+                            *c,
+                        )
+                    }) {
                         label_style.set_text_color(Color::from_rgb(rgb));
                         lvgl_sys::lv_obj_refresh_style(
                             label_ptr.as_ptr(),
@@ -18004,10 +18215,7 @@ pub fn update_bindings(
                     *mostrato = ora.clone();
                     if let Some((ok, testo)) = ora {
                         unsafe {
-                            lvgl_sys::lv_label_set_text(
-                                label.as_ptr(),
-                                text_cstring(&testo).as_ptr(),
-                            );
+                            testo_etichetta(label.as_ptr(), text_cstring(&testo).as_ptr());
                             stile::testo(
                                 label.as_ptr(),
                                 if ok {
@@ -18043,7 +18251,7 @@ pub fn update_bindings(
                         None => (String::new(), (0, 0, 0)),
                     };
                     unsafe {
-                        lvgl_sys::lv_label_set_text(label.as_ptr(), text_cstring(&testo).as_ptr());
+                        testo_etichetta(label.as_ptr(), text_cstring(&testo).as_ptr());
                         stile::testo(label.as_ptr(), colore, stile::MAIN);
                         let lw = larghezza_testo(label.as_ptr());
                         lvgl_sys::lv_obj_set_pos(
@@ -18076,7 +18284,7 @@ pub fn update_bindings(
                     update_sparkline(*ptr, *ser, &d);
                     if let (Some(l), Some(v)) = (ultimo, d.ultimo) {
                         unsafe {
-                            lvgl_sys::lv_label_set_text(
+                            testo_etichetta(
                                 l.as_ptr(),
                                 text_cstring(&crate::trend::to_fixed(v, 1)).as_ptr(),
                             );
@@ -18191,10 +18399,7 @@ pub fn update_bindings(
                                     &p.etichetta,
                                     *decimali,
                                 );
-                                lvgl_sys::lv_label_set_text(
-                                    l.as_ptr(),
-                                    text_cstring(&testo).as_ptr(),
-                                );
+                                testo_etichetta(l.as_ptr(), text_cstring(&testo).as_ptr());
                                 lvgl_sys::lv_obj_update_layout(l.as_ptr());
                                 let lw = lvgl_sys::lv_obj_get_width(l.as_ptr());
                                 let lh = lvgl_sys::lv_obj_get_height(l.as_ptr());
@@ -18216,9 +18421,7 @@ pub fn update_bindings(
                             Some(f) => f.replace("{value}", &grezzo),
                             None => grezzo,
                         };
-                        unsafe {
-                            lvgl_sys::lv_label_set_text(c.as_ptr(), text_cstring(&testo).as_ptr())
-                        };
+                        unsafe { testo_etichetta(c.as_ptr(), text_cstring(&testo).as_ptr()) };
                     }
                 }
             }
@@ -18244,7 +18447,7 @@ pub fn update_bindings(
                     let d = *decimali;
                     unsafe {
                         if !in_bozza {
-                            lvgl_sys::lv_label_set_text(
+                            testo_etichetta(
                                 value_ptr.as_ptr(),
                                 text_cstring(&format!("{v:.d$}{unit}")).as_ptr(),
                             );
@@ -18252,7 +18455,7 @@ pub fn update_bindings(
                         // La riga «Attuale:» segue lo stesso valore: sul web
                         // sono due testi dello stesso numero, e devono dire la
                         // stessa cosa.
-                        lvgl_sys::lv_label_set_text(
+                        testo_etichetta(
                             attuale_ptr.as_ptr(),
                             text_cstring(&format!("{attuale_testo} {v:.d$}{unit}")).as_ptr(),
                         );
@@ -18523,7 +18726,7 @@ fn update_alarm_bell(
         } else {
             lvgl_sys::lv_obj_clear_flag(badge_ptr.as_ptr(), hidden);
             if let Some(child) = lvgl_sys::lv_obj_get_child(badge_ptr.as_ptr(), 0).as_mut() {
-                lvgl_sys::lv_label_set_text(child, text_cstring(&count.to_string()).as_ptr());
+                testo_etichetta(child, text_cstring(&count.to_string()).as_ptr());
             }
         }
     }
@@ -18536,7 +18739,7 @@ fn update_alarm_bell(
         unsafe {
             match alarms.get(i) {
                 Some(a) => {
-                    lvgl_sys::lv_label_set_text(
+                    testo_etichetta(
                         row_ptr.as_ptr(),
                         text_cstring(&resolve_msg(&a.messaggio(), lingua, lang_table)).as_ptr(),
                     );
@@ -18606,7 +18809,7 @@ fn update_alarm_viewer(
                 );
                 lvgl_sys::lv_obj_clear_flag(row.dot_ptr.as_ptr(), hidden);
 
-                lvgl_sys::lv_label_set_text(
+                testo_etichetta(
                     row.msg_ptr.as_ptr(),
                     text_cstring(&resolve_msg(&a.messaggio(), lingua, lang_table)).as_ptr(),
                 );
@@ -18617,7 +18820,7 @@ fn update_alarm_viewer(
                         .activated_at_ms
                         .map(|ts| format_alarm_age(ts, now_ms))
                         .unwrap_or_default();
-                    lvgl_sys::lv_label_set_text(ts_ptr.as_ptr(), text_cstring(&ts_text).as_ptr());
+                    testo_etichetta(ts_ptr.as_ptr(), text_cstring(&ts_text).as_ptr());
                     lvgl_sys::lv_obj_clear_flag(ts_ptr.as_ptr(), hidden);
                 }
 
@@ -18775,10 +18978,7 @@ fn update_alarm_banner(
                 // vuota col bordo per il rientrato (come `isaStyle` del web).
                 let pp = pill_ptr.as_ptr();
                 let attivo = a.isa_state == "active_unacked";
-                lvgl_sys::lv_label_set_text(
-                    pp,
-                    text_cstring(testo_isa(&a.isa_state, lingua)).as_ptr(),
-                );
+                testo_etichetta(pp, text_cstring(testo_isa(&a.isa_state, lingua)).as_ptr());
                 if attivo {
                     stile::sfondo(pp, rgb, stile::MAIN);
                     stile::testo(pp, (0x0f, 0x17, 0x2a), stile::MAIN);
@@ -18792,7 +18992,7 @@ fn update_alarm_banner(
                 lvgl_sys::lv_obj_update_layout(pp);
                 let px = lvgl_sys::lv_obj_get_width(pp) + 8;
                 lvgl_sys::lv_obj_set_x(msg_ptr.as_ptr(), px);
-                lvgl_sys::lv_label_set_text(
+                testo_etichetta(
                     msg_ptr.as_ptr(),
                     text_cstring(&format!(
                         "{} — {}",

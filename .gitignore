@@ -59,6 +59,9 @@ REMOVED_DOC.md
 /sws-runtime/target-container-aarch64-cross/
 /.cargo-container-aarch64-cross/
 /sws-runtime/crates/sws-lvgl-viewer/target-container-aarch64-cross/
+/sws-runtime/target-container-armv7-cross/
+/.cargo-container-armv7-cross/
+/sws-runtime/crates/sws-lvgl-viewer/target-container-armv7-cross/
 /sws-runtime/crates/sws-lvgl-viewer/target-container-aarch64-generic/
 .scratch-check*/
 

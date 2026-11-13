@@ -20,7 +20,7 @@ import { useAppStore } from "@/store";
 import { localizePageName, effectiveProjectLang, resolveMsg } from "@/i18n/projectI18n";
 import { LinguaContenutiProvider, useLinguaContenuti } from "@/i18n/linguaContenuti";
 import { useTagStream, tryTagWriteWs, sendSubscribe } from "@/ws/tagStream";
-import { useDatiInRitardo } from "@/ws/coalescenza";
+import { impostaFps, useDatiInRitardo } from "@/ws/coalescenza";
 import { testoSistemaCon } from "@/i18n/testiSistema";
 import type { ButtonAction, CustomSymbol, FaceplateDef, FunctionDef, PageSizeMode, SynopticObject, SynopticPage } from "@/types";
 import { puoScrivere, sogliaScritturaTag } from "@/auth/permessoScrittura";
@@ -177,6 +177,7 @@ export function RuntimeView() {
   }, [autoRotate, autoRotateIntervalS, pages, currentPageId, setCurrentPage, project]);
 
   useTagStream();
+  useEffect(() => { impostaFps(project?.pannello?.fps); }, [project?.pannello?.fps]);
 
   // T-17: per-page subscription — tell the server which tags this page uses
   // so it sends delta frames only for those tags (bandwidth optimization).
