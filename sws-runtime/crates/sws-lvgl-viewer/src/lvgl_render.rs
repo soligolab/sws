@@ -4865,9 +4865,13 @@ impl FinestraViva {
     }
 }
 
-/// L'altezza della barra del titolo di una finestra. Ci stanno un testo da 13
-/// e il ✕, con due pixel di respiro.
-const BARRA_FINESTRA: i16 = 26;
+/// Title bar height of a window: 32 px like the web (`BARRA` in
+/// `PaginaFinestra.tsx`), a 13 px bold title and the ✕ button centred in it.
+const BARRA_FINESTRA: i16 = 32;
+/// The window frame. It stays OUTSIDE the page: LVGL places children inside
+/// the border (`lv_obj_move_to` adds `border_width`), so the container is the
+/// page plus the bar plus this on each side.
+const BORDO_FINESTRA: i16 = 1;
 
 /// Apre una pagina come **finestra modale** sul layer superiore.
 ///
@@ -4934,8 +4938,16 @@ pub fn apri_finestra(
     // (decisione del maintainer): LVGL ritaglia da sé i figli che escono dal
     // genitore, quindi basta non dargli una misura più grande del vetro.
     let (pag_w, pag_h) = resolve_resolution(pagina);
-    let w = (pag_w as i16).min(schermo_w);
-    let h = ((pag_h as i16).saturating_add(BARRA_FINESTRA)).min(schermo_h);
+    let w = (pag_w as i16)
+        .saturating_add(2 * BORDO_FINESTRA)
+        .min(schermo_w);
+    let h = (pag_h as i16)
+        .saturating_add(BARRA_FINESTRA + 2 * BORDO_FINESTRA)
+        .min(schermo_h);
+    // The content box, where bar and page live: children start inside the
+    // border, and a child as wide as `w` would paint over the right/bottom edge.
+    let wi = w - 2 * BORDO_FINESTRA;
+    let hi = h - 2 * BORDO_FINESTRA;
     let contenitore = core::ptr::NonNull::new(unsafe { lvgl_sys::lv_obj_create(velo.as_ptr()) })
         .ok_or_else(|| anyhow::anyhow!("lv_obj_create del contenitore ha restituito null"))?;
     unsafe {
@@ -4948,8 +4960,17 @@ pub fn apri_finestra(
         lvgl_sys::lv_obj_set_size(p, w, h);
         lvgl_sys::lv_obj_align(p, lvgl_sys::LV_ALIGN_CENTER as lvgl_sys::lv_align_t, 0, 0);
         stile::sfondo(p, (0x0f, 0x17, 0x2a), stile::MAIN);
-        stile::bordo(p, Some((0x33, 0x41, 0x55)), 1.0, stile::MAIN);
+        stile::bordo(
+            p,
+            Some((0x33, 0x41, 0x55)),
+            BORDO_FINESTRA as f64,
+            stile::MAIN,
+        );
         stile::raggio(p, 6.0, stile::MAIN);
+        // The frame on top of bar and page, and the children cut to the rounded
+        // corners: without these the square bar/page corners poke out of the radius.
+        lvgl_sys::lv_obj_set_style_border_post(p, true, stile::MAIN);
+        lvgl_sys::lv_obj_set_style_clip_corner(p, true, stile::MAIN);
         lvgl_sys::lv_obj_clear_flag(p, lvgl_sys::LV_OBJ_FLAG_SCROLLABLE);
         // Il colore predefinito del testo, come lo schermo di una pagina (Q18):
         // la finestra sta sul layer superiore e non lo eredita, e i testi senza
@@ -4970,7 +4991,7 @@ pub fn apri_finestra(
                 (lvgl_sys::LV_PART_ANY | lvgl_sys::LV_STATE_ANY) as lvgl_sys::lv_style_selector_t,
             );
             lvgl_sys::lv_obj_set_pos(barra, 0, 0);
-            lvgl_sys::lv_obj_set_size(barra, w, BARRA_FINESTRA);
+            lvgl_sys::lv_obj_set_size(barra, wi, BARRA_FINESTRA);
             stile::sfondo(barra, (0x1e, 0x29, 0x3b), stile::MAIN);
             lvgl_sys::lv_obj_clear_flag(barra, lvgl_sys::LV_OBJ_FLAG_SCROLLABLE);
 
@@ -4979,8 +5000,20 @@ pub fn apri_finestra(
                 let testo = text_cstring(titolo);
                 testo_etichetta(t, testo.as_ptr());
                 stile::testo(t, (0xe2, 0xe8, 0xf0), stile::MAIN);
-                stile::font(t, 13, stile::MAIN);
-                lvgl_sys::lv_obj_set_pos(t, 8, 5);
+                stile::font_grassetto(t, 13, stile::MAIN);
+                // Web: padding-left 12, bold 13, centred vertically in the bar;
+                // the width leaves room for the ✕ (long titles are clipped with dots).
+                lvgl_sys::lv_label_set_long_mode(
+                    t,
+                    lvgl_sys::LV_LABEL_LONG_DOT as lvgl_sys::lv_label_long_mode_t,
+                );
+                lvgl_sys::lv_obj_set_width(t, (wi - 12 - 44).max(1));
+                lvgl_sys::lv_obj_align(
+                    t,
+                    lvgl_sys::LV_ALIGN_LEFT_MID as lvgl_sys::lv_align_t,
+                    12,
+                    0,
+                );
             }
 
             // Il ✕ lo disegna il motore (decisione del maintainer): senza, una
@@ -4988,10 +5021,28 @@ pub fn apri_finestra(
             // resterebbe prigioniera sullo schermo.
             let x = lvgl_sys::lv_btn_create(barra);
             if !x.is_null() {
-                lvgl_sys::lv_obj_set_size(x, 28, BARRA_FINESTRA - 4);
-                lvgl_sys::lv_obj_set_pos(x, w - 30, 2);
+                // Theme off, like every other object here: lv_btn's default
+                // theme brings an 8-16 px radius, a grey shadow shifted down (light
+                // theme) and 10-24 px of padding on a 28 px button: the circle
+                // with the grey crescent. Size and position AFTER remove_style.
+                lvgl_sys::lv_obj_remove_style(
+                    x,
+                    core::ptr::null_mut(),
+                    (lvgl_sys::LV_PART_ANY | lvgl_sys::LV_STATE_ANY)
+                        as lvgl_sys::lv_style_selector_t,
+                );
+                lvgl_sys::lv_obj_set_size(x, 30, BARRA_FINESTRA - 8);
+                lvgl_sys::lv_obj_align(
+                    x,
+                    lvgl_sys::LV_ALIGN_RIGHT_MID as lvgl_sys::lv_align_t,
+                    -6,
+                    0,
+                );
+                // Web: transparent, 1 px #334155 border, radius 4.
                 stile::trasparente(x, stile::MAIN);
-                stile::bordo(x, None, 0.0, stile::MAIN);
+                stile::bordo(x, Some((0x33, 0x41, 0x55)), 1.0, stile::MAIN);
+                stile::raggio(x, 4.0, stile::MAIN);
+                stile::sfondo(x, (0x33, 0x41, 0x55), lvgl_sys::LV_STATE_PRESSED);
                 let l = lvgl_sys::lv_label_create(x);
                 if !l.is_null() {
                     let cross = text_cstring("✕");
@@ -5033,7 +5084,7 @@ pub fn apri_finestra(
             (lvgl_sys::LV_PART_ANY | lvgl_sys::LV_STATE_ANY) as lvgl_sys::lv_style_selector_t,
         );
         lvgl_sys::lv_obj_set_pos(p, 0, BARRA_FINESTRA);
-        lvgl_sys::lv_obj_set_size(p, w, h - BARRA_FINESTRA);
+        lvgl_sys::lv_obj_set_size(p, wi, hi - BARRA_FINESTRA);
         lvgl_sys::lv_obj_clear_flag(p, lvgl_sys::LV_OBJ_FLAG_SCROLLABLE);
         if let Some(bg) = pagina.background.as_deref().and_then(parse_hex_color) {
             stile::sfondo(p, bg, stile::MAIN);
@@ -9290,14 +9341,15 @@ pub(crate) struct TestiAccesso<'a> {
 /// suo testo coi margini, e chiedergliene meno non lo rimpicciolisce, sposta
 /// solo i conti (misurato con l'istantanea il 29-10-2026). Fino ad allora i
 /// pulsanti uscivano sopra la tastiera sulle pagine da 800×480.
-fn misure_accesso(meta: i16, con_errore: bool) -> (i16, i16, i16) {
+///
+/// `h_titolo` and `h_errore` are the **measured** heights of the two wrapped
+/// labels on top (13-11-2026: on the TY570 the Italian title wrapped to two
+/// lines and its second line covered «Utente:», because the block assumed one).
+fn misure_accesso(meta: i16, h_titolo: i16, h_errore: Option<i16>) -> (i16, i16, i16) {
     const CAMPO_MINIMO: i16 = 40;
     let mut alto = (meta / 8).clamp(8, 24);
     let mut h_campo = ((meta - alto * 2) / 4).clamp(CAMPO_MINIMO, 64);
-    let blocco = |alto: i16, h: i16| {
-        let hb = h.min(48);
-        5 * alto + 16 + 2 * h + hb + if con_errore { alto + 4 } else { 0 }
-    };
+    let blocco = |alto: i16, h: i16| blocco_accesso(alto, h, h.min(48), h_titolo, h_errore);
     // Il blocco parte almeno a `alto` dal bordo (`.max(alto)` in
     // `apri_credenziali`), e sotto deve restare un filo prima della tastiera.
     while alto + blocco(alto, h_campo) + 4 > meta {
@@ -9310,6 +9362,26 @@ fn misure_accesso(meta: i16, con_errore: bool) -> (i16, i16, i16) {
         }
     }
     (alto, h_campo, h_campo.min(48))
+}
+
+/// Height of the whole access block, top to bottom: title, optional error,
+/// two label+field pairs, buttons. The title and error advance by their real
+/// height (never less than `alto`, so a one-line text keeps the old layout).
+/// Single source for `misure_accesso`, the centring in `apri_credenziali` and
+/// the test.
+fn blocco_accesso(
+    alto: i16,
+    h_campo: i16,
+    h_btn: i16,
+    h_titolo: i16,
+    h_errore: Option<i16>,
+) -> i16 {
+    (h_titolo.max(alto) + 8)
+        + h_errore.map_or(0, |h| h.max(alto) + 4)
+        + 4 * alto
+        + 8
+        + 2 * h_campo
+        + h_btn
 }
 
 /// La schermata di accesso a **due campi**, su tutto lo schermo.
@@ -9357,13 +9429,43 @@ pub(crate) fn apri_credenziali(testi: TestiAccesso<'_>) -> Option<Credenziali> {
         // stanno nell'altra metà, e le misure si derivano dall'altezza invece
         // di essere cablate — un WP630 e un TC620 non hanno lo stesso vetro.
         let meta = lh / 2;
-        let (alto, h_campo, h_btn) = misure_accesso(meta, testi.errore.is_some());
         // **Una colonna, non tutto il vetro.** Larghi quanto lo schermo, i due
         // campi non sembravano campi: su 1280 px una casella da 1240 si legge
         // come una banda. 560 px è la misura in cui una riga di testo resta
         // una riga di testo; sotto i 600 px di vetro vince il margine.
         let w_col = (lw - 40).min(560);
         let x0 = (lw - w_col) / 2;
+        // The two texts on top wrap (in Italian «Per questo comando serve
+        // accedere…» is two lines in 560 px): create and measure them first,
+        // so everything below is laid out after their real height.
+        let a_capo = |testo: &str, rgb: (u8, u8, u8), px: u16| {
+            let l = lvgl_sys::lv_label_create(ov.as_ptr());
+            if !l.is_null() {
+                lvgl_sys::lv_obj_set_width(l, w_col);
+                lvgl_sys::lv_label_set_long_mode(l, lvgl_sys::LV_LABEL_LONG_WRAP as u8);
+                testo_etichetta(l, text_cstring(testo).as_ptr());
+                stile::testo(l, rgb, stile::MAIN);
+                if let Some(f) = crate::lvgl_font::at_size(px) {
+                    lvgl_sys::lv_obj_set_style_text_font(l, f, 0);
+                }
+            }
+            l
+        };
+        let l_titolo = a_capo(testi.titolo, (226, 232, 240), 18);
+        let l_errore = testi
+            .errore
+            .map(|e| a_capo(&format!("⚠ {e}"), (252, 165, 165), 16));
+        lvgl_sys::lv_obj_update_layout(ov.as_ptr());
+        let altezza = |l: *mut lvgl_sys::lv_obj_t| {
+            if l.is_null() {
+                0
+            } else {
+                lvgl_sys::lv_obj_get_height(l)
+            }
+        };
+        let h_titolo = altezza(l_titolo);
+        let h_errore = l_errore.map(altezza);
+        let (alto, h_campo, h_btn) = misure_accesso(meta, h_titolo, h_errore);
         let etichetta = |testo: &str, y: i16| {
             let l = lvgl_sys::lv_label_create(ov.as_ptr());
             if !l.is_null() {
@@ -9407,43 +9509,19 @@ pub(crate) fn apri_credenziali(testi: TestiAccesso<'_>) -> Option<Credenziali> {
         // password e «Annulla» restava una banda vuota di un centinaio di
         // pixel, che sul vetro sembrava un pezzo mancante. Qui si misura
         // prima quanto è alto tutto, e lo si centra.
-        let h_blocco = (alto + 8)
-            + if testi.errore.is_some() { alto + 4 } else { 0 }
-            + (alto + 4)
-            + h_campo
-            + alto
-            + (alto + 4)
-            + h_campo
-            + alto
-            + h_btn;
+        let h_blocco = blocco_accesso(alto, h_campo, h_btn, h_titolo, h_errore);
         let mut y = ((meta - h_blocco) / 2).max(alto);
-        {
-            let l = lvgl_sys::lv_label_create(ov.as_ptr());
-            if !l.is_null() {
-                lvgl_sys::lv_obj_set_pos(l, x0, y);
-                lvgl_sys::lv_obj_set_width(l, w_col);
-                lvgl_sys::lv_label_set_long_mode(l, lvgl_sys::LV_LABEL_LONG_WRAP as u8);
-                testo_etichetta(l, text_cstring(testi.titolo).as_ptr());
-                stile::testo(l, (226, 232, 240), stile::MAIN);
-                if let Some(f) = crate::lvgl_font::at_size(18) {
-                    lvgl_sys::lv_obj_set_style_text_font(l, f, 0);
-                }
-            }
+        if !l_titolo.is_null() {
+            lvgl_sys::lv_obj_set_pos(l_titolo, x0, y);
         }
-        y += alto + 8;
-        if let Some(e) = testi.errore {
-            let l = lvgl_sys::lv_label_create(ov.as_ptr());
+        // The real height, not a fixed step: a wrapped title pushes
+        // «Utente:» down instead of being drawn over it.
+        y += h_titolo.max(alto) + 8;
+        if let (Some(l), Some(h)) = (l_errore, h_errore) {
             if !l.is_null() {
                 lvgl_sys::lv_obj_set_pos(l, x0, y);
-                lvgl_sys::lv_obj_set_width(l, w_col);
-                lvgl_sys::lv_label_set_long_mode(l, lvgl_sys::LV_LABEL_LONG_WRAP as u8);
-                testo_etichetta(l, text_cstring(&format!("⚠ {e}")).as_ptr());
-                stile::testo(l, (252, 165, 165), stile::MAIN);
-                if let Some(f) = crate::lvgl_font::at_size(16) {
-                    lvgl_sys::lv_obj_set_style_text_font(l, f, 0);
-                }
             }
-            y += alto + 4;
+            y += h.max(alto) + 4;
         }
         etichetta(&format!("{}:", testi.utente_etichetta), y);
         y += alto + 4;
@@ -19224,15 +19302,23 @@ mod binding_tests {
     /// pagine da 800×480 i pulsanti finivano sulla tastiera.
     #[test]
     fn l_accesso_entra_sopra_la_tastiera() {
-        for (meta, errore) in [
-            (240, false),
-            (240, true),
-            (300, false),
-            (400, false),
-            (400, true),
+        // 21 ≈ one line at 18 px, 44 ≈ two (the Italian CmdServeAccesso
+        // title on the TY570, 13-11-2026); 19 ≈ one error line at 16 px.
+        for (meta, h_titolo, h_errore) in [
+            (240, 21, None),
+            (240, 21, Some(19)),
+            (240, 44, None),
+            (300, 21, None),
+            (300, 44, None),
+            (300, 44, Some(19)),
+            (400, 21, None),
+            (400, 44, Some(38)),
         ] {
-            let (alto, h, hb) = super::misure_accesso(meta, errore);
-            let blocco = 5 * alto + 16 + 2 * h + hb + if errore { alto + 4 } else { 0 };
+            let (alto, h, hb) = super::misure_accesso(meta, h_titolo, h_errore);
+            let blocco = super::blocco_accesso(alto, h, hb, h_titolo, h_errore);
+            // «Utente:» starts below the last line of the title.
+            assert!(h_titolo.max(alto) + 8 > h_titolo);
+            let errore = h_errore.is_some();
             // Come lo dispone `apri_credenziali`: parte da `alto` al minimo.
             let fine = ((meta - blocco) / 2).max(alto) + blocco;
             assert!(
@@ -19241,7 +19327,12 @@ mod binding_tests {
             );
         }
         // Su un vetro alto le misure restano quelle di prima.
-        assert_eq!(super::misure_accesso(400, false), (24, 64, 48));
+        assert_eq!(super::misure_accesso(400, 21, None), (24, 64, 48));
+        // A one-line block keeps exactly the old height formula.
+        assert_eq!(
+            super::blocco_accesso(24, 64, 48, 21, Some(19)),
+            5 * 24 + 16 + 2 * 64 + 48 + 24 + 4
+        );
     }
 
     /// L'occhio sui campi password (09-11-2026): parte nascosta, il tocco la

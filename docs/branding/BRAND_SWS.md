@@ -120,6 +120,10 @@ linea), **quattro** risoluzioni. Le altre combinazioni che la nomenclatura perme
 | `20`   | 12,1"   | 1280 × 800  | 16:10  | WP620 e WP820, TC620 e TC820 |
 | `30`   | 15,6"   | 1920 × 1080 | 16:9   | WP630 e WP830, TC630 e TC830 |
 
+**Tiny TY** (gruppo «Tiny TY» nei preset, 13-11-2026): stessa nomenclatura con sigla `TY`, due
+schermi soli — `50` → 5" 800 × 480 (TY550 cap., TY750 res.) e `70` → 7" 1024 × 600 (TY570 cap.,
+TY770 res.). Le varianti `-1AD`/`-2AD` cambiano l'I/O, non la risoluzione.
+
 Questa tabella e i preset dell'IDE
 (`sws-editor/public/branding/pixsys/brand.json` → `device_presets`) dicono la stessa cosa, e
 `sws-editor/tests/presetPixsys.test.ts` lo verifica: il nome contiene la risoluzione, quindi un

@@ -33,11 +33,19 @@ const CATALOGO = [
   { cap: "620", res: "820", pollici: '12,1"', w: 1280, h: 800 },
   { cap: "630", res: "830", pollici: '15,6"', w: 1920, h: 1080 },
 ];
-const GRUPPI: Record<string, string> = { WP: "WebPanel", TC: "TouchController" };
+/** Tiny TY (13-11-2026): stessa nomenclatura, 5 capacitivo e 7 resistivo,
+ *  ma due soli schermi — 50 → 5" 800×480 · 70 → 7" 1024×600. Le varianti
+ *  -1AD/-2AD cambiano solo l'I/O, non la pagina. */
+const CATALOGO_TY = [
+  { cap: "550", res: "750", pollici: '5"', w: 800, h: 480 },
+  { cap: "570", res: "770", pollici: '7"', w: 1024, h: 600 },
+];
+const GRUPPI: Record<string, string> = { WP: "WebPanel", TC: "TouchController", TY: "Tiny TY" };
+const CATALOGHI: Record<string, typeof CATALOGO> = { WP: CATALOGO, TC: CATALOGO, TY: CATALOGO_TY };
 
 /** Ogni voce che il catalogo prevede: sigla, codice, touch, schermo. */
 const attesi = Object.keys(GRUPPI).flatMap((sigla) =>
-  CATALOGO.flatMap((s) => [
+  CATALOGHI[sigla].flatMap((s) => [
     { sigla, codice: s.cap, touch: "capacitivo", ...s },
     { sigla, codice: s.res, touch: "resistivo", ...s },
   ]),
@@ -47,7 +55,7 @@ type Preset = { label: string; group?: string; width: number; height: number };
 const preset = brand.device_presets as Preset[];
 
 describe("i preset Pixsys sono il catalogo, e lo rispettano", () => {
-  it("ci sono esattamente i venti modelli che esistono, e nessun altro", () => {
+  it("ci sono esattamente i ventiquattro modelli che esistono, e nessun altro", () => {
     // Dieci codici per linea: per ogni schermo un capacitivo e un resistivo.
     // Le altre combinazioni che la nomenclatura permetterebbe — un WP670, un
     // TC515 — a catalogo non ci sono, e un preset che le offrisse manderebbe
@@ -63,7 +71,7 @@ describe("i preset Pixsys sono il catalogo, e lo rispettano", () => {
 
   it("ogni voce porta la risoluzione, i pollici, il touch e il gruppo del suo modello", () => {
     for (const p of preset) {
-      const m = /^(WP|TC)(\d{3}) — /.exec(p.label);
+      const m = /^(WP|TC|TY)(\d{3}) — /.exec(p.label);
       expect(m, `nome fuori nomenclatura: ${p.label}`).not.toBeNull();
       const [, sigla, codice] = m!;
       const a = attesi.find((x) => x.sigla === sigla && x.codice === codice);
@@ -78,11 +86,11 @@ describe("i preset Pixsys sono il catalogo, e lo rispettano", () => {
 
   it("dentro ogni gruppo gli schermi crescono", () => {
     // Chi cerca sa che pannello ha davanti, non il numero di modello.
-    for (const gruppo of Object.values(GRUPPI)) {
+    for (const [sigla, gruppo] of Object.entries(GRUPPI)) {
       const larghezze = preset.filter((p) => p.group === gruppo).map((p) => `${p.width}x${p.height}`);
       const primaVolta = larghezze.filter((c, i) => larghezze.indexOf(c) === i);
-      expect(primaVolta, `${gruppo}: schermi fuori ordine`)
-        .toEqual(["1024x600", "1024x768", "1280x800", "1920x1080"]);
+      const attese = [...new Set(CATALOGHI[sigla].map((s) => `${s.w}x${s.h}`))];
+      expect(primaVolta, `${gruppo}: schermi fuori ordine`).toEqual(attese);
     }
   });
 

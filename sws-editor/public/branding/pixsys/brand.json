@@ -136,6 +136,30 @@
       "group": "TouchController",
       "width": 1920,
       "height": 1080
+    },
+    {
+      "label": "TY550 — 5\" capacitivo (800×480)",
+      "group": "Tiny TY",
+      "width": 800,
+      "height": 480
+    },
+    {
+      "label": "TY750 — 5\" resistivo (800×480)",
+      "group": "Tiny TY",
+      "width": 800,
+      "height": 480
+    },
+    {
+      "label": "TY570 — 7\" capacitivo (1024×600)",
+      "group": "Tiny TY",
+      "width": 1024,
+      "height": 600
+    },
+    {
+      "label": "TY770 — 7\" resistivo (1024×600)",
+      "group": "Tiny TY",
+      "width": 1024,
+      "height": 600
     }
   ],
   "data_path_presets": [
