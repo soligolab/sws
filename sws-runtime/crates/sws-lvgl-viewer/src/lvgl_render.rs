@@ -284,8 +284,9 @@ pub enum LiveKind {
     SvgRaster {
         #[allow(dead_code)]
         canvas_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+        /// Shared with the page-background cache (`sfondi`): one copy only.
         #[allow(dead_code)]
-        buf: Vec<u8>,
+        buf: std::sync::Arc<Vec<u8>>,
     },
     Led {
         ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
@@ -3722,6 +3723,22 @@ fn sfondo_del_rect(
     // Una riga prima e una dopo: decodificare uno sfondo grande può durare, e
     // l'istantanea dell'assistente rinnova l'attesa a ogni riga del viewer.
     let t0 = std::time::Instant::now();
+    let (x, y) = (
+        obj.x.unwrap_or(0.0).round() as i16,
+        obj.y.unwrap_or(0.0).round() as i16,
+    );
+    // Seen before at this size: no download, no decode (13-11-2026, TY570: going
+    // back to the HVAC page took 1,6 s every time, all of it here).
+    if let Some((bw, bh, buf)) = crate::svg_assets::sfondo_in_cache(src, w as u32, h as u32) {
+        if let Ok(b) = canvas_su_buffer(screen, x, y, bw as i16, bh as i16, buf) {
+            eprintln!(
+                "[sfondo] {src} from cache in {} ms",
+                t0.elapsed().as_millis()
+            );
+            opacita_sfondo(screen, obj);
+            return Some(b);
+        }
+    }
     eprintln!("[sfondo] carico {src}");
     let fonte = crate::svg_assets::SvgSource::Url(src.to_string());
     let byte = crate::svg_assets::bytes_for(base_url, rt_handle, &fonte)?;
@@ -3733,8 +3750,8 @@ fn sfondo_del_rect(
     let svg = crate::svg_assets::svg_attorno_al_raster(&byte, mime, w as u32, h as u32);
     match disegna_svg_byte(
         screen,
-        obj.x.unwrap_or(0.0).round() as i16,
-        obj.y.unwrap_or(0.0).round() as i16,
+        x,
+        y,
         w,
         h,
         &svg,
@@ -3744,27 +3761,42 @@ fn sfondo_del_rect(
     ) {
         Ok(b) => {
             eprintln!("[sfondo] {src} pronto in {} ms", t0.elapsed().as_millis());
-            // `bg_image_opacity` (fase 3 dello slider, 30-10-2026, universale):
-            // l'immagine in trasparenza. Il canvas appena creato è l'ultimo figlio.
-            if let Some(o) = obj.bg_image_opacity.filter(|o| *o < 100.0) {
-                if let Ok(padre) = screen.raw() {
-                    unsafe {
-                        let figlio = lvgl_sys::lv_obj_get_child(padre.as_ptr(), -1);
-                        if !figlio.is_null() {
-                            lvgl_sys::lv_obj_set_style_opa(
-                                figlio,
-                                (o.max(0.0) * 2.55).round() as u8,
-                                0,
-                            );
-                        }
-                    }
-                }
+            if let LiveKind::SvgRaster { canvas_ptr, buf } = &b.kind {
+                let (bw, bh) = unsafe {
+                    (
+                        lvgl_sys::lv_obj_get_width(canvas_ptr.as_ptr()),
+                        lvgl_sys::lv_obj_get_height(canvas_ptr.as_ptr()),
+                    )
+                };
+                crate::svg_assets::metti_sfondo(
+                    src,
+                    w as u32,
+                    h as u32,
+                    (bw as u32, bh as u32),
+                    buf.clone(),
+                );
             }
+            opacita_sfondo(screen, obj);
             Some(b)
         }
         Err(e) => {
             eprintln!("[sfondo] {}: {e}", obj.id.as_deref().unwrap_or("?"));
             None
+        }
+    }
+}
+
+/// `bg_image_opacity` (fase 3 dello slider, 30-10-2026, universale): l'immagine
+/// in trasparenza. Il canvas appena creato è l'ultimo figlio.
+fn opacita_sfondo(screen: &mut lvgl::Obj, obj: &SynopticObject) {
+    if let Some(o) = obj.bg_image_opacity.filter(|o| *o < 100.0) {
+        if let Ok(padre) = screen.raw() {
+            unsafe {
+                let figlio = lvgl_sys::lv_obj_get_child(padre.as_ptr(), -1);
+                if !figlio.is_null() {
+                    lvgl_sys::lv_obj_set_style_opa(figlio, (o.max(0.0) * 2.55).round() as u8, 0);
+                }
+            }
         }
     }
 }
@@ -14666,12 +14698,29 @@ fn disegna_svg_byte(
     let screen = genitore;
     let raster = crate::svg_raster::rasterize_entro(svg, w as u32, h as u32, flip_h, flip_v, tetto)
         .ok_or_else(|| anyhow::anyhow!("SVG non rasterizzabile a {w}x{h}"))?;
-    let mut buf = raster.to_lvgl_true_color_alpha();
+    let buf = std::sync::Arc::new(raster.to_lvgl_true_color_alpha());
     // Le dimensioni del canvas si prendono dalla bitmap prodotta, non dai `w`/`h`
     // chiesti: sono le stesse, ma ricalcolarle sarebbe un secondo conto che un
     // giorno potrebbe divergere dal primo — e un canvas dichiarato più grande
     // della sua bitmap fa leggere a LVGL oltre la fine del buffer.
-    let (w, h) = (raster.width as i16, raster.height as i16);
+    canvas_su_buffer(screen, x, y, raster.width as i16, raster.height as i16, buf)
+}
+
+/// An `lv_canvas` at `(x, y)` showing `buf` (`TRUE_COLOR_ALPHA`, `w × h`). The
+/// buffer is only read by LVGL, so it can be shared (page-background cache).
+fn canvas_su_buffer(
+    screen: &mut impl NativeObject,
+    x: i16,
+    y: i16,
+    w: i16,
+    h: i16,
+    buf: std::sync::Arc<Vec<u8>>,
+) -> anyhow::Result<LiveBinding> {
+    anyhow::ensure!(
+        buf.len() >= crate::pixel::alpha_buffer_len(w.max(0) as usize, h.max(0) as usize),
+        "buffer {} byte, short for {w}x{h}",
+        buf.len()
+    );
 
     let mut canvas = unsafe {
         let ptr = lvgl_sys::lv_canvas_create(
@@ -14691,7 +14740,7 @@ fn disegna_svg_byte(
     unsafe {
         lvgl_sys::lv_canvas_set_buffer(
             canvas_ptr.as_ptr(),
-            buf.as_mut_ptr() as *mut std::ffi::c_void,
+            buf.as_ptr() as *mut std::ffi::c_void,
             w as lvgl_sys::lv_coord_t,
             h as lvgl_sys::lv_coord_t,
             lvgl_sys::LV_IMG_CF_TRUE_COLOR_ALPHA as lvgl_sys::lv_img_cf_t,

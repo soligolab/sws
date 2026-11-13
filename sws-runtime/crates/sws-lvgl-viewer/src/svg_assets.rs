@@ -119,8 +119,38 @@ fn cache() -> &'static std::sync::Mutex<HashMap<String, Option<Vec<u8>>>> {
 /// pagina nuova — il tipo di stranezza che si dà per colpa al pannello.
 pub fn invalidate() {
     cache().lock().unwrap_or_else(|e| e.into_inner()).clear();
+    SFONDI.lock().unwrap_or_else(|e| e.into_inner()).clear();
     *simboli().lock().unwrap_or_else(|e| e.into_inner()) = None;
     crate::simbolo_lib::invalida();
+}
+
+/// Page backgrounds already decoded, in LVGL's format (13-11-2026): on the
+/// TY570 a 1024×600 JPEG took 1,6 s to download, decode, scale and convert at
+/// every visit of its page. Key: url and requested size; value: bitmap size and
+/// the buffer, shared with the canvas showing it. The last [`SFONDI_MAX`] only
+/// (2,4 MB each at 1024×600): the RAM is counted. A deploy empties it.
+type Sfondo = (String, (u32, u32), (u32, u32), std::sync::Arc<Vec<u8>>);
+static SFONDI: std::sync::Mutex<Vec<Sfondo>> = std::sync::Mutex::new(Vec::new());
+const SFONDI_MAX: usize = 2;
+
+/// The decoded background of `url` at `w × h`, if seen: its size and buffer.
+pub fn sfondo_in_cache(url: &str, w: u32, h: u32) -> Option<(u32, u32, std::sync::Arc<Vec<u8>>)> {
+    let mut v = SFONDI.lock().unwrap_or_else(|e| e.into_inner());
+    let i = v.iter().position(|(u, s, _, _)| u == url && *s == (w, h))?;
+    let e = v.remove(i);
+    let out = (e.2 .0, e.2 .1, e.3.clone());
+    v.push(e); // most recent last
+    Some(out)
+}
+
+/// Remembers a decoded background, dropping the oldest beyond [`SFONDI_MAX`].
+pub fn metti_sfondo(url: &str, w: u32, h: u32, size: (u32, u32), buf: std::sync::Arc<Vec<u8>>) {
+    let mut v = SFONDI.lock().unwrap_or_else(|e| e.into_inner());
+    v.retain(|(u, s, _, _)| !(u == url && *s == (w, h)));
+    v.push((url.to_string(), (w, h), size, buf));
+    while v.len() > SFONDI_MAX {
+        v.remove(0);
+    }
 }
 
 /// I simboli custom del progetto, scaricati una volta sola.
@@ -225,6 +255,23 @@ pub fn bytes_for(base_url: &str, rt: &tokio::runtime::Handle, src: &SvgSource) -
         .unwrap_or_else(|e| e.into_inner())
         .insert(url, scaricato.clone());
     scaricato
+}
+
+#[cfg(test)]
+mod tests_sfondi {
+    #[test]
+    fn the_background_cache_keeps_the_last_two() {
+        let b = |n: u8| std::sync::Arc::new(vec![n; 4]);
+        super::metti_sfondo("a", 1, 1, (1, 1), b(1));
+        super::metti_sfondo("b", 1, 1, (1, 1), b(2));
+        assert_eq!(super::sfondo_in_cache("a", 1, 1).unwrap().2[0], 1);
+        super::metti_sfondo("c", 1, 1, (1, 1), b(3));
+        // "a" was used last: "b" goes.
+        assert!(super::sfondo_in_cache("b", 1, 1).is_none());
+        assert!(super::sfondo_in_cache("a", 2, 2).is_none(), "another size");
+        super::invalidate();
+        assert!(super::sfondo_in_cache("a", 1, 1).is_none());
+    }
 }
 
 #[cfg(test)]
