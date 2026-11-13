@@ -23,6 +23,21 @@ test e2e; il test `#[ignore]` col modello vero che scrive il resoconto in `sws/t
 maintainer** sulle due pagine del 04-11 e su una nuova con `claude-opus-5-5`: è quello che decide quanto lavoro di
 prompt serve prima di promettere il «prompt semplice».
 
+**G1, fatto il 12-11-2026 notte** (ramo `feat/assistente-g1`, annidato su `fix/aggiornamento-timeout-avvio`):
+banco `tests/fixtures/ai-bench/tubi-acciaio/`, copione `sinottico-tubi.json` (scritto a mano: le tracce del 04-11 stanno
+solo su theobroma), test Rust `ai/banco_tubi.rs`, e2e `chat-tubi.spec.ts`, `scripts/banco_tubi.sh [--vero]`.
+**Scostamento**: la prova col modello vero non è un `#[ignore]` ma `banco_tubi.sh --vero`, perché dal 10-11 la foto di
+un progetto web la fa il browser dell'IDE. Due prove con `kimi-k3` (unica chiave su `ufficio`):
+- 22:39, **1,43 $, 15 min**, 20 giri, 8 bozze, 4 istantanee: proposta validata ma rimandata (bozze nello stesso turno),
+  e il test non ha mai risposto «procedi» perché la riga dello strumento restava «scrivo» — difetto della chat,
+  corretto;
+- 23:25, **0,95 $, 10 min**, 18 giri, 5 bozze, 2 istantanee, 0 correzioni, un «procedi»: 25 oggetti, 5 simboli
+  `prj:`, 6 di libreria, 2 tubi, il tipo `macchina_linea` e un faceplate «Macchina di linea» per ogni macchina.
+  Materiale in `sws/tmp/banco-tubi/2026-11-12-232548-vero/` (progetto salvato, `pagina.png`, `misure/`).
+
+**Resta di G1**: il **giudizio del maintainer** da 1 a 5 su questa pagina e su quelle del 04-11, e una prova con
+`claude-opus-5-5` quando c'è la chiave (`SWS_AI_CHIAVI=<cartella> ./scripts/banco_tubi.sh --vero`).
+
 **G2 — Planimetria e banco della casa (era F6).** L'assistente scrive una `Planimetria` nel modello che esiste
 (`sws-editor/src/planimetrie/modello.ts`, `planimetrie/<id>.yaml`, in metri); `pianta_svg` in Rust (muri, porte con
 l'arco, finestre, aree, niente testo) come sfondo della pagina; lo strumento `pianta` dà stanze e finestre in pixel di

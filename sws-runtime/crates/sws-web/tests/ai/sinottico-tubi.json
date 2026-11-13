@@ -1,0 +1,943 @@
+{
+ "_perche": "Il banco fisso dei tubi d'acciaio (piano 2026-11-10-assistente-secondo-giro, G1), rigiocato senza il modello: cinque bozze di simboli che la libreria non ha, poi una proposta con un tipo, sei tag e la pagina intera con sei simboli di libreria, due tubi dell'acqua e i testi. Scritto a mano il 13-11-2026, non ricavato da una conversazione vera. Da usare con SWS_AI_FAKE=<questo file> sul progetto tests/fixtures/ai-bench/tubi-acciaio/ (test `il_copione_dei_tubi_arriva_alla_proposta` e e2e/chat-tubi.spec.ts).",
+ "turni": [
+  {
+   "testo": "La libreria ha forno, rulliera, pompa, serbatoio, quadro e carroponte. Mancano cinque macchine: le disegno.\n\n",
+   "strumenti": [
+    {
+     "nome": "cerca_simboli",
+     "input": {
+      "testo": "forno rulliera pompa serbatoio quadro carroponte"
+     }
+    },
+    {
+     "nome": "bozza_simbolo",
+     "input": {
+      "descrizione": {
+       "slug": "aspo-svolgitore",
+       "w": 120,
+       "h": 110,
+       "tipo": "machines",
+       "body": "body-motor",
+       "it": "Aspo svolgitore",
+       "en": "Decoiler",
+       "ops": [
+        {
+         "op": "forma",
+         "tag": "rect",
+         "geo": {
+          "x": 16,
+          "y": 96,
+          "width": 88,
+          "height": 10,
+          "rx": 1
+         },
+         "mat": "steel-dark",
+         "velo": "dark-v"
+        },
+        {
+         "op": "corpo"
+        },
+        {
+         "op": "forma",
+         "tag": "rect",
+         "geo": {
+          "x": 48,
+          "y": 40,
+          "width": 24,
+          "height": 58,
+          "rx": 2
+         },
+         "velo": "paint-h"
+        },
+        {
+         "op": "statico"
+        },
+        {
+         "op": "parte",
+         "id": "rotor",
+         "kind": "rotor",
+         "geo": {
+          "cx": 60,
+          "cy": 44,
+          "symmetry": 60
+         }
+        },
+        {
+         "op": "forma",
+         "tag": "circle",
+         "geo": {
+          "cx": 60,
+          "cy": 44,
+          "r": 34
+         },
+         "mat": "steel",
+         "velo": "metal-r"
+        },
+        {
+         "op": "forma",
+         "tag": "circle",
+         "geo": {
+          "cx": 60,
+          "cy": 44,
+          "r": 12
+         },
+         "mat": "steel-dark",
+         "velo": "metal-r"
+        },
+        {
+         "op": "statico"
+        },
+        {
+         "op": "parte",
+         "id": "lamp",
+         "kind": "lamp"
+        },
+        {
+         "op": "forma",
+         "tag": "circle",
+         "geo": {
+          "cx": 104,
+          "cy": 14,
+          "r": 3
+         },
+         "mat": "lamp-green"
+        }
+       ]
+      }
+     }
+    },
+    {
+     "nome": "bozza_simbolo",
+     "input": {
+      "descrizione": {
+       "slug": "raddrizzatrice",
+       "w": 140,
+       "h": 90,
+       "tipo": "machines",
+       "body": "body-motor",
+       "it": "Raddrizzatrice",
+       "en": "Straightener",
+       "ops": [
+        {
+         "op": "forma",
+         "tag": "rect",
+         "geo": {
+          "x": 8,
+          "y": 76,
+          "width": 124,
+          "height": 10,
+          "rx": 1
+         },
+         "mat": "steel-dark",
+         "velo": "dark-v"
+        },
+        {
+         "op": "corpo"
+        },
+        {
+         "op": "forma",
+         "tag": "rect",
+         "geo": {
+          "x": 14,
+          "y": 14,
+          "width": 112,
+          "height": 64,
+          "rx": 4
+         },
+         "velo": "paint-h"
+        },
+        {
+         "op": "statico"
+        },
+        {
+         "op": "forma",
+         "tag": "circle",
+         "geo": {
+          "cx": 30,
+          "cy": 34,
+          "r": 8
+         },
+         "mat": "steel",
+         "velo": "metal-r"
+        },
+        {
+         "op": "forma",
+         "tag": "circle",
+         "geo": {
+          "cx": 50,
+          "cy": 34,
+          "r": 8
+         },
+         "mat": "steel",
+         "velo": "metal-r"
+        },
+        {
+         "op": "forma",
+         "tag": "circle",
+         "geo": {
+          "cx": 70,
+          "cy": 34,
+          "r": 8
+         },
+         "mat": "steel",
+         "velo": "metal-r"
+        },
+        {
+         "op": "forma",
+         "tag": "circle",
+         "geo": {
+          "cx": 90,
+          "cy": 34,
+          "r": 8
+         },
+         "mat": "steel",
+         "velo": "metal-r"
+        },
+        {
+         "op": "forma",
+         "tag": "circle",
+         "geo": {
+          "cx": 110,
+          "cy": 34,
+          "r": 8
+         },
+         "mat": "steel",
+         "velo": "metal-r"
+        },
+        {
+         "op": "forma",
+         "tag": "circle",
+         "geo": {
+          "cx": 40,
+          "cy": 56,
+          "r": 8
+         },
+         "mat": "steel",
+         "velo": "metal-r"
+        },
+        {
+         "op": "forma",
+         "tag": "circle",
+         "geo": {
+          "cx": 60,
+          "cy": 56,
+          "r": 8
+         },
+         "mat": "steel",
+         "velo": "metal-r"
+        },
+        {
+         "op": "forma",
+         "tag": "circle",
+         "geo": {
+          "cx": 80,
+          "cy": 56,
+          "r": 8
+         },
+         "mat": "steel",
+         "velo": "metal-r"
+        },
+        {
+         "op": "forma",
+         "tag": "circle",
+         "geo": {
+          "cx": 100,
+          "cy": 56,
+          "r": 8
+         },
+         "mat": "steel",
+         "velo": "metal-r"
+        },
+        {
+         "op": "parte",
+         "id": "rotor",
+         "kind": "rotor",
+         "geo": {
+          "cx": 70,
+          "cy": 34,
+          "symmetry": 90
+         }
+        },
+        {
+         "op": "forma",
+         "tag": "circle",
+         "geo": {
+          "cx": 70,
+          "cy": 34,
+          "r": 8
+         },
+         "mat": "stainless",
+         "velo": "metal-r"
+        },
+        {
+         "op": "statico"
+        },
+        {
+         "op": "parte",
+         "id": "lamp",
+         "kind": "lamp"
+        },
+        {
+         "op": "forma",
+         "tag": "circle",
+         "geo": {
+          "cx": 122,
+          "cy": 8,
+          "r": 3
+         },
+         "mat": "lamp-green"
+        }
+       ]
+      }
+     }
+    },
+    {
+     "nome": "bozza_simbolo",
+     "input": {
+      "descrizione": {
+       "slug": "gabbia-formatura",
+       "w": 120,
+       "h": 100,
+       "tipo": "machines",
+       "body": "body-motor",
+       "it": "Gabbia di formatura",
+       "en": "Forming stand",
+       "ops": [
+        {
+         "op": "forma",
+         "tag": "rect",
+         "geo": {
+          "x": 20,
+          "y": 88,
+          "width": 80,
+          "height": 8,
+          "rx": 1
+         },
+         "mat": "steel-dark",
+         "velo": "dark-v"
+        },
+        {
+         "op": "corpo"
+        },
+        {
+         "op": "forma",
+         "tag": "rect",
+         "geo": {
+          "x": 24,
+          "y": 8,
+          "width": 16,
+          "height": 82,
+          "rx": 2
+         },
+         "velo": "paint-h"
+        },
+        {
+         "op": "forma",
+         "tag": "rect",
+         "geo": {
+          "x": 80,
+          "y": 8,
+          "width": 16,
+          "height": 82,
+          "rx": 2
+         },
+         "velo": "paint-h"
+        },
+        {
+         "op": "statico"
+        },
+        {
+         "op": "forma",
+         "tag": "rect",
+         "geo": {
+          "x": 40,
+          "y": 14,
+          "width": 40,
+          "height": 10,
+          "rx": 1
+         },
+         "mat": "steel",
+         "velo": "metal-v"
+        },
+        {
+         "op": "parte",
+         "id": "rotor",
+         "kind": "rotor",
+         "geo": {
+          "cx": 60,
+          "cy": 40,
+          "symmetry": 90
+         }
+        },
+        {
+         "op": "forma",
+         "tag": "circle",
+         "geo": {
+          "cx": 60,
+          "cy": 40,
+          "r": 12
+         },
+         "mat": "steel",
+         "velo": "metal-r"
+        },
+        {
+         "op": "statico"
+        },
+        {
+         "op": "forma",
+         "tag": "circle",
+         "geo": {
+          "cx": 60,
+          "cy": 66,
+          "r": 12
+         },
+         "mat": "steel",
+         "velo": "metal-r"
+        },
+        {
+         "op": "parte",
+         "id": "lamp",
+         "kind": "lamp"
+        },
+        {
+         "op": "forma",
+         "tag": "circle",
+         "geo": {
+          "cx": 108,
+          "cy": 10,
+          "r": 3
+         },
+         "mat": "lamp-green"
+        }
+       ]
+      }
+     }
+    },
+    {
+     "nome": "bozza_simbolo",
+     "input": {
+      "descrizione": {
+       "slug": "saldatrice-hf",
+       "w": 120,
+       "h": 110,
+       "tipo": "machines",
+       "body": "body-motor",
+       "it": "Saldatrice HF",
+       "en": "HF welder",
+       "ops": [
+        {
+         "op": "tubo_v",
+         "x": 55,
+         "y": 86,
+         "h": 20
+        },
+        {
+         "op": "flangia_o",
+         "x": 52,
+         "y": 106
+        },
+        {
+         "op": "forma",
+         "tag": "rect",
+         "geo": {
+          "x": 10,
+          "y": 80,
+          "width": 100,
+          "height": 8,
+          "rx": 1
+         },
+         "mat": "steel-dark",
+         "velo": "dark-v"
+        },
+        {
+         "op": "corpo"
+        },
+        {
+         "op": "forma",
+         "tag": "rect",
+         "geo": {
+          "x": 14,
+          "y": 8,
+          "width": 92,
+          "height": 74,
+          "rx": 4
+         },
+         "velo": "paint-h"
+        },
+        {
+         "op": "statico"
+        },
+        {
+         "op": "forma",
+         "tag": "circle",
+         "geo": {
+          "cx": 60,
+          "cy": 44,
+          "r": 20
+         },
+         "mat": "copper",
+         "velo": "metal-r"
+        },
+        {
+         "op": "forma",
+         "tag": "circle",
+         "geo": {
+          "cx": 60,
+          "cy": 44,
+          "r": 9
+         },
+         "mat": "steel-dark"
+        },
+        {
+         "op": "parte",
+         "id": "lamp",
+         "kind": "lamp"
+        },
+        {
+         "op": "forma",
+         "tag": "circle",
+         "geo": {
+          "cx": 98,
+          "cy": 16,
+          "r": 3
+         },
+         "mat": "lamp-green"
+        }
+       ]
+      }
+     }
+    },
+    {
+     "nome": "bozza_simbolo",
+     "input": {
+      "descrizione": {
+       "slug": "sega-volante",
+       "w": 140,
+       "h": 100,
+       "tipo": "machines",
+       "body": "body-motor",
+       "it": "Sega volante",
+       "en": "Flying saw",
+       "ops": [
+        {
+         "op": "forma",
+         "tag": "rect",
+         "geo": {
+          "x": 6,
+          "y": 86,
+          "width": 128,
+          "height": 10,
+          "rx": 1
+         },
+         "mat": "steel-dark",
+         "velo": "dark-v"
+        },
+        {
+         "op": "corpo"
+        },
+        {
+         "op": "forma",
+         "tag": "rect",
+         "geo": {
+          "x": 20,
+          "y": 40,
+          "width": 100,
+          "height": 46,
+          "rx": 4
+         },
+         "velo": "paint-h"
+        },
+        {
+         "op": "statico"
+        },
+        {
+         "op": "parte",
+         "id": "rotor",
+         "kind": "rotor",
+         "geo": {
+          "cx": 70,
+          "cy": 28,
+          "symmetry": 30
+         }
+        },
+        {
+         "op": "forma",
+         "tag": "circle",
+         "geo": {
+          "cx": 70,
+          "cy": 28,
+          "r": 24
+         },
+         "mat": "stainless",
+         "velo": "metal-r"
+        },
+        {
+         "op": "forma",
+         "tag": "circle",
+         "geo": {
+          "cx": 70,
+          "cy": 28,
+          "r": 5
+         },
+         "mat": "steel-dark"
+        },
+        {
+         "op": "statico"
+        },
+        {
+         "op": "parte",
+         "id": "lamp",
+         "kind": "lamp"
+        },
+        {
+         "op": "forma",
+         "tag": "circle",
+         "geo": {
+          "cx": 128,
+          "cy": 48,
+          "r": 3
+         },
+         "mat": "lamp-green"
+        }
+       ]
+      }
+     }
+    }
+   ]
+  },
+  {
+   "testo": "Ecco la proposta: il tipo `macchina_linea` (marcia, allarme, velocità) con un'istanza per macchina, la portata dell'acqua, e la pagina Linea con le dieci macchine da sinistra a destra, il carroponte sopra e il circuito dell'acqua sotto.\n\n",
+   "strumenti": [
+    {
+     "nome": "proponi_modifica",
+     "input": {
+      "motivo": "sinottico della linea tubi d'acciaio",
+      "simboli": [
+       "aspo-svolgitore",
+       "raddrizzatrice",
+       "gabbia-formatura",
+       "saldatrice-hf",
+       "sega-volante"
+      ],
+      "patch": {
+       "tipi_aggiunti": [
+        {
+         "id": "macchina_linea",
+         "description": "Una macchina della linea tubi",
+         "members": [
+          {
+           "name": "marcia",
+           "description": "In marcia",
+           "data_type": "bool"
+          },
+          {
+           "name": "allarme",
+           "description": "In allarme",
+           "data_type": "bool"
+          },
+          {
+           "name": "velocita",
+           "description": "Velocità della linea",
+           "data_type": "float",
+           "unit": "m/min",
+           "decimals": 1
+          }
+         ]
+        }
+       ],
+       "tag_aggiunti": [
+        {
+         "id": "aspo",
+         "description": "Aspo svolgitore",
+         "data_type": "float",
+         "type_ref": "macchina_linea"
+        },
+        {
+         "id": "raddrizzatrice",
+         "description": "Raddrizzatrice",
+         "data_type": "float",
+         "type_ref": "macchina_linea"
+        },
+        {
+         "id": "formatura",
+         "description": "Gabbia di formatura",
+         "data_type": "float",
+         "type_ref": "macchina_linea"
+        },
+        {
+         "id": "saldatrice",
+         "description": "Saldatrice HF",
+         "data_type": "float",
+         "type_ref": "macchina_linea"
+        },
+        {
+         "id": "sega",
+         "description": "Sega volante",
+         "data_type": "float",
+         "type_ref": "macchina_linea"
+        },
+        {
+         "id": "acqua.portata",
+         "description": "Portata dell'acqua di raffreddamento",
+         "data_type": "float",
+         "unit": "m³/h"
+        }
+       ],
+       "pagine_intere": [
+        {
+         "id": "linea",
+         "name": "Linea",
+         "background": "#e2e8f0",
+         "width": 1280,
+         "height": 800,
+         "objects": [
+          {
+           "id": "t_titolo",
+           "type": "text",
+           "text": "Linea tubi saldati — formatura e taglio",
+           "x": 24,
+           "y": 96,
+           "font_size": 22,
+           "color": "#0f172a"
+          },
+          {
+           "id": "crane",
+           "type": "symbol",
+           "symbol_id": "lib:machines/overhead-crane",
+           "x": 360,
+           "y": 110,
+           "width": 560,
+           "height": 90
+          },
+          {
+           "id": "m_aspo",
+           "type": "symbol",
+           "symbol_id": "prj:aspo-svolgitore",
+           "x": 24,
+           "y": 300,
+           "width": 120,
+           "height": 110,
+           "state_tag": "aspo.marcia",
+           "symbol_parts": {
+            "lamp": {
+             "tag": "aspo.allarme"
+            }
+           }
+          },
+          {
+           "id": "m_radd",
+           "type": "symbol",
+           "symbol_id": "prj:raddrizzatrice",
+           "x": 168,
+           "y": 320,
+           "width": 140,
+           "height": 90,
+           "state_tag": "raddrizzatrice.marcia",
+           "symbol_parts": {
+            "lamp": {
+             "tag": "raddrizzatrice.allarme"
+            }
+           }
+          },
+          {
+           "id": "m_form",
+           "type": "symbol",
+           "symbol_id": "prj:gabbia-formatura",
+           "x": 332,
+           "y": 310,
+           "width": 120,
+           "height": 100,
+           "state_tag": "formatura.marcia",
+           "symbol_parts": {
+            "lamp": {
+             "tag": "formatura.allarme"
+            }
+           }
+          },
+          {
+           "id": "m_sald",
+           "type": "symbol",
+           "symbol_id": "prj:saldatrice-hf",
+           "x": 476,
+           "y": 300,
+           "width": 120,
+           "height": 110,
+           "state_tag": "saldatrice.marcia",
+           "symbol_parts": {
+            "lamp": {
+             "tag": "saldatrice.allarme"
+            }
+           }
+          },
+          {
+           "id": "m_rull",
+           "type": "symbol",
+           "symbol_id": "lib:machines/roller-conveyor",
+           "x": 620,
+           "y": 350,
+           "width": 200,
+           "height": 60
+          },
+          {
+           "id": "m_forno",
+           "type": "symbol",
+           "symbol_id": "lib:process/furnace",
+           "x": 840,
+           "y": 290,
+           "width": 100,
+           "height": 120
+          },
+          {
+           "id": "m_sega",
+           "type": "symbol",
+           "symbol_id": "prj:sega-volante",
+           "x": 964,
+           "y": 310,
+           "width": 140,
+           "height": 100,
+           "state_tag": "sega.marcia",
+           "symbol_parts": {
+            "lamp": {
+             "tag": "sega.allarme"
+            }
+           }
+          },
+          {
+           "id": "tank",
+           "type": "symbol",
+           "symbol_id": "lib:process/vertical-tank",
+           "x": 300,
+           "y": 500,
+           "width": 80,
+           "height": 160
+          },
+          {
+           "id": "pump",
+           "type": "symbol",
+           "symbol_id": "lib:process/centrifugal-pump",
+           "x": 440,
+           "y": 560,
+           "width": 80,
+           "height": 80
+          },
+          {
+           "id": "quadro",
+           "type": "symbol",
+           "symbol_id": "lib:electrical/electrical-cabinet",
+           "x": 1140,
+           "y": 500,
+           "width": 100,
+           "height": 180
+          },
+          {
+           "id": "p_tank_pump",
+           "type": "pipe",
+           "x": 380,
+           "y": 600,
+           "width": 60,
+           "height": 20,
+           "from_obj_id": "tank",
+           "from_port": "n-right",
+           "to_obj_id": "pump",
+           "to_port": "n-left",
+           "pipe_style": "metallo",
+           "stroke_width": 10,
+           "pipe_flow": true,
+           "pipe_flow_tag": "acqua.portata"
+          },
+          {
+           "id": "p_pump_sald",
+           "type": "pipe",
+           "x": 480,
+           "y": 410,
+           "width": 56,
+           "height": 150,
+           "from_obj_id": "pump",
+           "from_port": "n-top",
+           "to_obj_id": "m_sald",
+           "to_port": "n-bottom",
+           "pipe_style": "metallo",
+           "stroke_width": 10,
+           "pipe_flow": true,
+           "pipe_flow_tag": "acqua.portata"
+          },
+          {
+           "id": "t_acqua",
+           "type": "text",
+           "text": "Acqua di raffreddamento della saldatrice",
+           "x": 560,
+           "y": 600,
+           "font_size": 16,
+           "color": "#334155"
+          },
+          {
+           "id": "v_aspo",
+           "type": "text",
+           "tag": "aspo.velocita",
+           "format": "{value:.1f} m/min",
+           "x": 29,
+           "y": 420,
+           "width": 110,
+           "height": 22,
+           "font_size": 14,
+           "color": "#334155"
+          },
+          {
+           "id": "v_raddrizzatrice",
+           "type": "text",
+           "tag": "raddrizzatrice.velocita",
+           "format": "{value:.1f} m/min",
+           "x": 183,
+           "y": 420,
+           "width": 110,
+           "height": 22,
+           "font_size": 14,
+           "color": "#334155"
+          },
+          {
+           "id": "v_formatura",
+           "type": "text",
+           "tag": "formatura.velocita",
+           "format": "{value:.1f} m/min",
+           "x": 337,
+           "y": 420,
+           "width": 110,
+           "height": 22,
+           "font_size": 14,
+           "color": "#334155"
+          },
+          {
+           "id": "v_saldatrice",
+           "type": "text",
+           "tag": "saldatrice.velocita",
+           "format": "{value:.1f} m/min",
+           "x": 481,
+           "y": 420,
+           "width": 110,
+           "height": 22,
+           "font_size": 14,
+           "color": "#334155"
+          },
+          {
+           "id": "v_sega",
+           "type": "text",
+           "tag": "sega.velocita",
+           "format": "{value:.1f} m/min",
+           "x": 979,
+           "y": 420,
+           "width": 110,
+           "height": 22,
+           "font_size": 14,
+           "color": "#334155"
+          }
+         ]
+        }
+       ]
+      }
+     }
+    }
+   ]
+  }
+ ]
+}

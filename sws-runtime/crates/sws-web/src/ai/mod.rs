@@ -23,6 +23,7 @@
 //! e il browser rifiuta di applicarla se non corrisponde più. Controllo di
 //! concorrenza ottimistico, con il pezzo che già esisteva (`calcola_impronta`).
 
+mod banco_tubi;
 pub mod client;
 pub mod config_api;
 mod conversazioni;
@@ -571,6 +572,7 @@ async fn vero_giro(
                     }),
                     true,
                 ));
+                rimanda(tx, nome, "rimandata: prima scegli tu i simboli");
                 continue;
             }
             if nome == "proponi_modifica" && sfondi_in_questo_turno {
@@ -584,6 +586,7 @@ async fn vero_giro(
                     }),
                     true,
                 ));
+                rimanda(tx, nome, "rimandata: prima scegli tu lo sfondo");
                 continue;
             }
             // Le basi aspettano la persona: niente istantanee nello stesso turno.
@@ -601,6 +604,7 @@ async fn vero_giro(
                     }),
                     true,
                 ));
+                rimanda(tx, nome, "rimandata: prima scegli tu lo sfondo");
                 continue;
             }
             if nome == "proponi_modifica" {
@@ -1006,6 +1010,16 @@ impl Banco {
             None => self.simboli.push(d),
         }
     }
+}
+
+/// Chiude la riga di uno strumento che il giro non esegue e rimanda al turno
+/// dopo. Senza, la chat lo mostrava per sempre con il pallino vivo e «scrivo ·
+/// 13 kB», come se stesse ancora lavorando (banco dei tubi, 12-11-2026).
+fn rimanda(tx: &mpsc::UnboundedSender<String>, nome: &str, perche: &str) {
+    invia(
+        tx,
+        json!({ "t": "strumento", "nome": nome, "stato": "fatto", "messaggio": perche }),
+    );
 }
 
 /// `bozza_simbolo`: compila, mette sul banco, e manda la miniatura alla chat.

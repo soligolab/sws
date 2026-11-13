@@ -141,6 +141,22 @@ cd sws-editor && pnpm test:e2e        # headless
 cd sws-editor && pnpm test:e2e:ui     # debug UI
 ```
 
+### `banco_tubi.sh` — l'assistente sul banco fisso dei tubi d'acciaio
+
+Il banco di G1 (piano `docs/plans/2026-11-10-assistente-secondo-giro.md`): copia il progetto vuoto
+`tests/fixtures/ai-bench/tubi-acciaio/` in `sws/tmp/banco-tubi/<ora>/`, avvia un IDE usa e getta sulla
+8680 (`APORT=` per cambiarla), crea l'amministratore, lancia `e2e/chat-tubi.spec.ts` e spegne l'IDE.
+
+```sh
+./scripts/banco_tubi.sh          # agente finto (sinottico-tubi.json): gratis, ~15 s
+./scripts/banco_tubi.sh --vero   # modello vero, A PAGAMENTO: chiavi e modello di .run-editor/config
+```
+
+Con `--vero` il test fa la persona (dopo le bozze risponde «procedi») e nella cartella della prova restano
+il resoconto del runtime (`misure/`), la foto della pagina (`pagina.png`) e i conteggi (`conteggi.json`):
+il materiale per il giudizio da 1 a 5. Vuole `cargo build -p sws-runtime` e `pnpm --dir sws-editor build`
+aggiornati.
+
 ### `check_viewer_layout.sh` — barre di scorrimento sul pannello
 
 Verifica che il viewer non produca barre di scorrimento su un pannello 1280×800

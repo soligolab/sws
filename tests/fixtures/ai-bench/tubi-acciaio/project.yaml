@@ -1,0 +1,20 @@
+# Il banco fisso dei tubi d'acciaio (piano docs/plans/2026-11-10-assistente-secondo-giro.md, G1).
+#
+# Un progetto VUOTO di proposito: una pagina 1280×800 con la cornice, nessun tag,
+# nessuna sorgente. È il punto di partenza uguale per tutte le prove dell'assistente
+# sul «sinottico di una linea di tubi d'acciaio»: col copione finto
+# (sws-web/tests/ai/sinottico-tubi.json, rigiocato da sws-web/src/ai/banco_tubi.rs
+# e da e2e/chat-tubi.spec.ts) e col modello vero (scripts/banco_tubi.sh --vero).
+# Se cambia, le misure di prima non si confrontano più con quelle di dopo: si
+# cambia solo con una ragione scritta qui.
+meta:
+  name: banco-tubi-acciaio
+  version: 0.1.0
+
+tags: []
+sources: []
+
+page_layout:
+  size_mode: fixed
+  cornice_predefinita: linea
+  home_page_id: linea

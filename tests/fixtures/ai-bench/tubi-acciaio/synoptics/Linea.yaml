@@ -1,0 +1,7 @@
+# La pagina vuota su cui l'assistente compone il sinottico.
+id: linea
+name: Linea
+background: "#e2e8f0"
+width: 1280
+height: 800
+objects: []

@@ -1,0 +1,36 @@
+# La cornice del banco: testata col nome della pagina e l'ora, piede vuoto.
+# Il contenuto sta fra y 56 e y 738.
+id: linea
+nome: Linea
+larghezza: 1280
+altezza: 800
+testata:
+  altezza: 56
+  sfondo: '#1e293b'
+piede:
+  altezza: 62
+  sfondo: '#1e293b'
+oggetti:
+- id: titolo
+  type: text
+  x: 24
+  y: 8
+  width: 560
+  height: 40
+  text_wrap: true
+  text_valign: middle
+  text: '{{pagina.nome}}'
+  font_size: 22
+  font_weight: bold
+  text_anchor: start
+  color: '#e2e8f0'
+- id: data_ora
+  type: clock
+  x: 1056
+  y: 10
+  width: 200
+  height: 36
+  font_size: 18
+  text_anchor: end
+  color: '#e2e8f0'
+  clock_formato: data_ora
