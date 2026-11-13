@@ -154,8 +154,33 @@ Ogni fase finisce con la *definition of done* e il collaudo sul dispositivo. Le 
 - Collaudo su **TC620/WP630** (web e LVGL), secondo quello che consente la fase 0.
 - PC Linux: una VM Debian con NM.
 
+## Fase 0 — misure (13-11-2026 sera, da `ufficio`)
+
+| | **TY570** (Ubuntu 22.04) | **TC620** (PixsysOS 2.1.3) |
+|---|---|---|
+| D-Bus | NetworkManager 1.36, timedate1, hostname1, login1, locale1 | NetworkManager, timedate1, timesync1, hostname1, login1, `net.pixsys.Config1`, `net.pixsys.SWUpdate1` |
+| polkit | **0.105**: solo file `.pkla` in `/etc/polkit-1/localauthority/50-local.d/`, le regole JS non si leggono | **124**: regole JS; quelle di Pixsys in `/usr/share/polkit-1/rules.d/` |
+| utente di SWS | `sws`: NM `network-control`/`settings.modify.system`/`wifi.scan` = `auth`, `CanReboot` = `challenge` → serve un `.pkla` nostro | `user` (gruppo `setup-user`, è l'utente del container con `keep-id`): **già `yes`** per NM (anche `checkpoint-rollback`), `timedate1` (ntp, time, timezone, local-rtc), `hostname1.set-static-hostname`, `login1.reboot`, e `systemd1.manage-units` su `touch-calibration.service` (regole Pixsys 12-16) |
+| spegnimento | da concedere col `.pkla` | **non concesso** (solo reboot): o si toglie dalla v1 su TC/WP, o si chiede a Pixsys |
+| luce | `/sys/class/backlight/backlight` (già in `schermo.rs`, gruppo `video`) | `brightness` di root 644 → via **`net.pixsys.Config1.Display`** (`GetBrightness`, `GetIdleTimeout`, `GetRotation`, `HasDisplayCapabilities` e i loro `Set`); beep via `net.pixsys.Config1.Buzzer` (`Get/SetTouchFeedback`) |
+| calibrazione | resistivi (TY750/770): nel viewer | `touch-calibration.service` di Pixsys, avviabile da `setup-user` |
+| schede | `eth0`, `eth1`, `can0`; niente Wi-Fi | **`ethernet0`**, `ethernet1`, `bond0`, `can0`, `dummy0`; niente Wi-Fi |
+| MAC per il PIN | `eth0` = `7c:6c:39:06:e9:90` → `06e990` | `ethernet0` = `7c:6c:39:07:af:f9` → `07aff9` (come il nome `tc620-…-07aff9`) |
+
+Conseguenze per le fasi:
+- il PIN iniziale si legge da `eth0`, poi da `ethernet0`, poi dalla prima scheda fisica;
+- **TC/WP non chiede niente a Pixsys** per rete, ora, nome e riavvio: il socket del bus di sistema è già nel
+  container (lo usano `display_target.rs` e `launcher_dbus.rs`) e le regole ci sono. La luce passa da
+  `net.pixsys.Config1.Display`, la calibrazione da `touch-calibration.service`;
+- **Tiny TY e PC Linux**: l'installatore mette un `.pkla` (polkit 0.105) **e** una regola `.rules` (polkit ≥ 0.106),
+  per il gruppo dell'utente di SWS. Le azioni sono quelle concesse da Pixsys più `login1.power-off`;
+- **nessuno dei due ha Wi-Fi**: la sezione Wi-Fi si costruisce sul backend finto e sulla capacità sondata, e si prova
+  su un PC Linux con una chiavetta;
+- il **WP630** (in ufficio, non raggiungibile da qui) ha lo stesso PixsysOS: si verifica al collaudo.
+
 ## Stato
 
 - **13-11-2026**: piano approvato; il seme è passato qui con `git mv`.
-- **Prossimo passo: la fase 0** (misure sui dispositivi, chiedendo prima di ogni SSH). Il lavoro delle fasi comincia
+- **13-11-2026 sera**: fase 0 fatta su TY570 e TC620 (sopra).
+- **Prossimo passo: la fase 1**, backend e API. Il lavoro delle fasi comincia
   dopo la chiusura di `fix/rc18-ritocchi`, oppure annidato su di esso se lo decide il maintainer.
