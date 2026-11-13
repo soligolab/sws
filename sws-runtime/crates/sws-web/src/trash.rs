@@ -1,4 +1,4 @@
-//! The project trash (13-11-2026, plan `docs/plans/2026-11-13-cestino-dei-progetti.md`).
+//! The project trash (13-11-2026, plan `docs/archive/2026-11-13-cestino-dei-progetti.md`).
 //!
 //! The X on a project card no longer deletes: it leaves a `.cestino` mark in the
 //! project folder, like the archive leaves `.archiviato` (`archivio.rs`). A

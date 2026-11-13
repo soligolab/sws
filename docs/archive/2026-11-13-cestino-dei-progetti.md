@@ -63,7 +63,7 @@ file e con la stessa forma (`Archiviato` riusato o gemello `Trashed`).
   `ripristinaDalCestino`, `eliminaOra`, `errCestino`.
 
 ### Documenti
-Piano in `docs/plans/2026-11-13-cestino-dei-progetti.md`; `CHANGELOG.md`; una voce in `NOVITA.yaml` (2.26.0 è a 15
+Piano in `docs/archive/2026-11-13-cestino-dei-progetti.md`; `CHANGELOG.md`; una voce in `NOVITA.yaml` (2.26.0 è a 15
 voci: si accorpa); capitolo HOWTO se c'è quello dell'archivio. CasaDomotica: non si applica (è una funzione
 dell'elenco dei progetti, non dell'impianto) — annotarlo.
 
