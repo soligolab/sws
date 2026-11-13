@@ -58,6 +58,15 @@ in `examples/templates/`, i fixture dei test.
   all'occorrenza sul device». Niente alias in lettura per le chiavi di `project.yaml`. Fanno eccezione i file di stato
   del dispositivo in `config/`, che un deploy non riscrive: lì il runtime sposta il file vecchio all'avvio.
 
+- **Un concetto alla volta, e ovunque** (osservazione del maintainer, sempre il 13-11, fermando un primo tentativo sul
+  ramo del Tiny TY): «l'IDE è comune, forse conviene aggiornare una cosa alla volta e ovunque». Un nome si traduce
+  in tutti gli strati insieme — modello, API, runtime, viewer, IDE, script e guardie — non solo nei file che il lavoro
+  del momento tocca, altrimenti lo stesso concetto vive con due nomi fra IDE e pannello. Il tentativo (le impostazioni
+  dello schermo del pannello: `pannello` → `panel`, `/api/project/pannello` → `/api/project/panel`, `ritmo.rs` →
+  `frame_rate.rs`, `schermo.rs` → `screen.rs`) è stato annullato e rimandato. Attenzione al falso amico: nel codice
+  «pannello» vuol dire due cose, le impostazioni dello schermo e il dispositivo collegato (`pannelloCollegato`,
+  `tunnel/pannello.rs`); sono due concetti, da tradurre separatamente.
+
 Resta aperto, per quando si farà il passaggio completo: le API fra IDE e pannelli di versioni diverse, e una guardia
 contro le parole italiane nei nomi nuovi.
 
