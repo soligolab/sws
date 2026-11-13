@@ -12,6 +12,53 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — quattro rami in catena da collaudare; il codice in inglese (2026-11-13, ufficio = casa)
+
+**Quattro rami annidati, pushati, non mergiati** (scelta del maintainer a fine giornata). Si collaudano e si mergiano
+**in quest'ordine**, uno squash ciascuno, ogni ramo dopo il suo genitore:
+1. `feat/tiny-ty-armv7` (`beb752bd`, da `main` rc.16) — Tiny TY passi 1-2, `pannello.fps`, ridisegni LVGL (sezione
+   del 12-11 qui sotto);
+2. `fix/aggiornamento-timeout-avvio` (`ffce3735`) — **perché il TC620 tornava indietro**: 48-63 s di podman per
+   preparare un'immagine nuova + 30 s del primo controllo di salute > 90 s di `TimeoutStartSec`. Quadlet **8** con
+   `TimeoutStartSec=600`. Il TC620 è sulla **rc.16** grazie a un drop-in messo a mano
+   (`~/.config/systemd/user/sws-runtime.service.d/avvio-lento.conf`), da togliere dopo la «Configurazione del
+   servizio» col quadlet 8. Piano `docs/plans/2026-11-13-aggiornamento-timeout-avvio.md`;
+3. `feat/assistente-g1` (`1ea53e73`) — G1, il banco fisso dei tubi d'acciaio: fixture, copione finto, test Rust,
+   e2e, `scripts/banco_tubi.sh [--vero]`; la chat che lasciava «scrivo» acceso su uno strumento rimandato. Due prove
+   con kimi-k3 (la buona: 0,95 $, 10 min), materiale in `sws/tmp/banco-tubi/2026-11-12-232548-vero/`;
+4. `feat/tiny-ty-systemd` (punta di tutto) — Tiny TY passo 3: `scripts/pacchetto_tiny_ty.sh` e `deploy/tiny-ty/`
+   (utente `sws`, unit che cedono al PLC, viewer DRM sempre acceso, RestrictedPython senza pip, regola udev);
+   luce, riposo e beep al tocco dal progetto (`schermo.rs`, «Luce e cicalino del pannello» nell'IDE); il campo
+   fps che cancellava il resto di `pannello` (`salvaPannello`); `deploy/tiny-ty/prepara-dispositivo.sh` (nome mDNS
+   come i TC, permessi SSH: diagnosi senza argomenti, `--applica` per correggere). Il pacchetto è stato installato
+   in un Ubuntu 22.04 armhf sotto qemu: runtime come `sws`, `/health`, sandbox; non ancora sul dispositivo.
+
+Sulla punta, verdi: `cargo check`, `cargo test`, `pnpm build`, vitest (248 file), le 56 guardie, fmt, clippy, audit,
+lint, type-check. **Manca la conferma del maintainer.** Niente rc costruita.
+
+**Il collaudo, cosa guardare** (per `/test-changes`):
+- TC620: aggiornare a una rc che contiene il ramo 2 (il drop-in tiene ancora il timeout lungo), poi «Configurazione
+  del servizio» → quadlet 8 → `systemctl --user show sws-runtime -p TimeoutStartUSec` dice `10min`; solo allora
+  togliere il drop-in. Il quadlet 8 si prova davvero all'aggiornamento successivo, senza drop-in;
+- G1: il **giudizio da 1 a 5** sulla pagina della seconda prova (e su quelle del 04-11); una prova con
+  `claude-opus-5-5` quando c'è la chiave;
+- **TY570, in ufficio** (chiedere l'indirizzo prima di entrare): `sudo ./prepara-dispositivo.sh` (diagnosi: perché
+  `ssh-copy-id` fallisce, da dove si legge il modello, avahi c'è?); poi il pacchetto e `install.sh`; i sei punti
+  «Da provare sul TY570» e quelli di luce e cicalino nel piano `docs/plans/2026-10-30-sws-lvgl-sul-tiny-ty.md`;
+- IDE: Impostazioni progetto → «Luce e cicalino del pannello»; cambiare i fotogrammi non deve cancellare la luce.
+
+**Il codice in inglese** (su `main`, solo documenti): regola nuova in `CLAUDE.md`, «Il codice si scrive in inglese,
+ovunque». Codice **nuovo** in inglese; un nome **esistente** solo con un commit dedicato `refactor(en): prima → dopo`,
+un concetto alla volta e ovunque. Il glossario sta nel seme `docs/plans/semi/2026-11-13-codice-in-inglese.md`: deciso
+`frame` = cornice (il fotogramma del viewer diventerà `redraw`, prima), il resto da decidere col maintainer
+(«dispositivo» invece di «pannello» nei testi). Un primo rinomina sul ramo del Tiny è stato annullato apposta.
+Il codice scritto oggi sul ramo è ancora in italiano: è nato prima della regola.
+
+**Prossimo passo**: il collaudo della catena, oppure il glossario. Dal piano del Tiny restano anche: calibrazione dei
+resistivi, risoluzioni 800×480 e 1024×600 nell'editor, la pagina Prestazioni che dice ancora «16 ms», il canale di
+aggiornamento senza registry (sessione di plan).
+
+
 ## ▶ Riprendere da qui — rc.16 pubblicata; il Tiny TY gira SWS, ramo aperto da collaudare (2026-11-12 sera, theobroma)
 
 **rc.16 su origin**: lo squash dei due rami della notte (`ff89d725`) e `chore(rc): 2.26.0-rc.16` (`671f67fd`), col tag.
