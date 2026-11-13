@@ -173,7 +173,13 @@ resta 404: così un bundle che manca non torna come HTML con stato 200.
 (`10.89.0.x`): il limite di 20 richieste/s vale per tutti insieme finché non c'è l'indirizzo vero (seme «indirizzo vero
 dietro Traefik»). Si aggiorna con `scripts/manuale/pubblica.sh`.
 
-**Versione in esecuzione: `671f67fd-amd64` (2.26.0-rc.16)** dal 12-11-2026 sera: «mai ricevuto» sui due motori,
+**Versione in esecuzione: `a0c11846-amd64` (2.26.0-rc.17)** dal 13-11-2026 mattina: la catena del Tiny TY, il
+quadlet 8 dei pannelli, G1, il QR di abbinamento (il gateway lascia abbinare ogni membro a una sua azienda, `GET
+/api/pannelli/in-attesa/:codice`). Stessa sequenza (copia `.prima-rc17-2026-11-13`, `podman pull`, `sed` del sha in
+`Image=` e `--gateway-immagine`, `scp`, `daemon-reload`, `restart sws-gateway`). Verificato: gateway `healthy`, radice
+200, la rotta nuova risponde 401 senza sessione, quadlet uguale al repo (`md5sum`). Ripiego `671f67fd-amd64` (rc.16).
+
+Prima: **Versione in esecuzione: `671f67fd-amd64` (2.26.0-rc.16)** dal 12-11-2026 sera: «mai ricevuto» sui due motori,
 segnaposto `{{sys:…}}`, battito su `/ws/tags`, «Commuta» su ON/OFF, manuale pubblico. Stessa sequenza della rc.15 (copia
 del quadlet `.prima-rc16-2026-11-12`, `podman pull`, `sed` del sha in `Image=` e `--gateway-immagine`, `scp`,
 `daemon-reload`, `restart sws-gateway`). Verificato: gateway `healthy`, radice 200, quadlet uguale al repo (`md5sum`).
