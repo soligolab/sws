@@ -13,7 +13,7 @@
 #
 # Uso, come root:
 #   sudo ./prepara-dispositivo.sh                      # DIAGNOSI: legge e stampa, non cambia niente
-#   sudo ./prepara-dispositivo.sh --applica            # nome + avahi + permessi SSH
+#   sudo ./prepara-dispositivo.sh --applica            # nome + avahi + permessi SSH + IPv4 at boot
 #   sudo ./prepara-dispositivo.sh --applica --modello ty570-1ad-p1
 #   sudo ./prepara-dispositivo.sh --applica --chiave id_ed25519.pub [--utente pixsys]
 #
@@ -179,6 +179,35 @@ if [ -d /etc/ssh/sshd_config.d ]; then
     fi
     fai sshd -t
     fai systemctl reload ssh
+fi
+
+# ── 3. IPv4 on eth0 at every boot ─────────────────────────────────────────────
+# Pixsys' udev rule 70-persistent-mac.rules runs /data/if_configure.sh, which
+# sets the MAC and brings eth0 *up* before NetworkManager starts. When it wins
+# the race, NetworkManager adopts the link as external configuration
+# (connection-assumed, a volatile profile with ipv4.method=disabled) and never
+# runs DHCP: the device comes back with IPv6 only. Seen on the TY570 on
+# 13-11-2026; keep-configuration=no held over three reboots.
+# Point 10 in ty570-1ad-p1.md.
+
+titolo "IPv4 on $IFACE at boot"
+
+NM_CONF=/etc/NetworkManager/conf.d/50-sws-$IFACE.conf
+if ! command -v NetworkManager >/dev/null 2>&1; then
+    echo "  NetworkManager not installed: nothing to do"
+else
+    echo "  NetworkManager $(NetworkManager --version)"
+    echo "  active on $IFACE: $(nmcli -g NAME,UUID,TYPE connection show --active 2>/dev/null | grep -F "$IFACE" || echo none)"
+    journalctl -b -u NetworkManager --no-pager 2>/dev/null | grep -q "($IFACE).*connection-assumed" \
+        && echo "  ✗ at this boot NetworkManager adopted $IFACE as found, without DHCP"
+    if [ -f "$NM_CONF" ]; then
+        echo "  $NM_CONF already there"
+    else
+        fai sh -c "printf '%s\n' '# SWS: do not adopt the configuration found on $IFACE at boot (prepara-dispositivo.sh).' \
+            '[device-sws-$IFACE]' 'match-device=interface-name:$IFACE' 'keep-configuration=no' > '$NM_CONF'"
+        # Read at the next start of NetworkManager: the running link is left alone.
+        echo "  takes effect at the next reboot"
+    fi
 fi
 
 titolo "Fatto"

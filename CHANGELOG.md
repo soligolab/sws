@@ -345,6 +345,11 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   il salvataggio non è finito.
 
 ### Corretto
+- **Tiny TY: IPv4 a ogni riavvio** (`deploy/tiny-ty/prepara-dispositivo.sh`, punto 10 di `ty570-1ad-p1.md`): lo
+  script Pixsys `/data/if_configure.sh`, lanciato da udev, riaccende `eth0` prima di NetworkManager, che la adottava
+  così com'era, senza DHCP. Il TY570 tornava col solo IPv6. Ora lo script scrive
+  `/etc/NetworkManager/conf.d/50-sws-eth0.conf` con `keep-configuration=no`: IPv4 è salito in quattro riavvii su
+  quattro.
 - **LVGL, dal collaudo sul TY570 del 13-11-2026 (c'erano già a 16 bit)**: nell'accesso il titolo che va a capo in
   italiano non copre più «Utente:» (titolo ed errore si misurano prima, `blocco_accesso`); le finestre hanno il bordo
   intero (a destra e in basso lo coprivano i figli) e la ✕ è un quadrato centrato senza lo stile del tema (era un
