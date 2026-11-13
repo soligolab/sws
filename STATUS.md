@@ -12,6 +12,33 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — il TY570 a casa: rete al riavvio e setup Pixsys corretti, pacchetto installato (2026-11-13 notte, ufficio)
+
+**Il TY570 è a casa**, `ty570-1ad-p1-06e990.local` = 192.168.1.242 (reservation su Technitium chiesta all'altra
+sessione), raggiungibile da `ufficio` con `ssh -o IdentitiesOnly=yes -i ~/.ssh/id_ed25519_sws pixsys@…` (chiave
+autorizzata il 13-11; senza `IdentitiesOnly` l'agent offre sette chiavi e il TY chiude). Stessa chiave anche sul TC620.
+
+Due commit nuovi su `fix/rc18-ritocchi`, dopo la serata in cui il TY570 è rimasto senza rete:
+- `e73e48bd` **IPv4 a ogni riavvio**: `/data/if_configure.sh` di Pixsys riaccende `eth0` prima di NetworkManager, che
+  la adottava senza DHCP. `prepara-dispositivo.sh` scrive `conf.d/50-sws-eth0.conf` con `keep-configuration=no`;
+  quattro riavvii su quattro con IPv4. Punto 10 di `deploy/tiny-ty/ty570-1ad-p1.md`.
+- `ff8e567b` **il setup Pixsys non viene coperto**: il viewer parte dopo `rc-local.service` e aspetta che
+  `tyx_panelcontrol gui` (`/tmp/runsetup`) si chiuda. Punto 11 — attenzione: entrare nel setup **cancella il
+  programma PLC** (è `rc.local` di Pixsys).
+
+Pacchetto ricostruito qui (`dist/sws-2.26.0-rc.17-tiny-ty-armv7.tar.gz`, binari di `c66a0236`) e **installato sul
+TY570** alle 21:59: runtime e viewer attivi.
+
+**Da provare (il maintainer stasera non poteva)**:
+- tocco entro 2 s all'accensione → il setup Pixsys resta a schermo; chiuso il setup, torna SWS;
+- le tre voci della rc.18 qui sotto (cache degli sfondi HVAC, finestre di SystemInfo, accesso in italiano).
+
+Piccolo, da sistemare: `install.sh` avvisa «tyx_panelcontrol è acceso e tiene lo schermo» anche quando gira senza
+`gui`, dove il viewer funziona lo stesso — l'avviso è vecchio.
+
+Nuovo seme su `main` (`cca2e636`, **non pushato**): il pannello di controllo del sistema operativo dentro SWS,
+abilitato di default e disattivabile dal progetto (`docs/plans/semi/2026-11-13-pannello-di-controllo-del-sistema.md`).
+
 ## ▶ Riprendere da qui — ramo `fix/rc18-ritocchi` pushato, da provare sul TY570 (2026-11-13 sera, theobroma)
 
 **Il ramo aperto è `fix/rc18-ritocchi`** (da `main` = `763fc383`), pushato su origin a fine giornata per scelta del
