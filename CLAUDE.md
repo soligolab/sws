@@ -78,13 +78,18 @@ viewer, le voci `it` di `NOVITA.yaml`), i documenti in `docs/`, `STATUS.md`, `CH
 di commit e le risposte al maintainer. Un testo che vede l'utente sta in un file di lingua, non nel codice.
 
 **Si sistema man mano, non tutto insieme** (decisione dello stesso giorno: «per ora lo si può fare gradualmente man
-mano che si lavora»):
+mano che si lavora»), con due regole diverse per il codice nuovo e per i nomi che esistono già:
 - il codice **nuovo** nasce in inglese, anche dentro un file ancora in italiano. Su questo punto la regola batte
   l'abitudine di scrivere come il codice intorno;
-- quello che si **tocca** per lavoro si traduce: la funzione che si modifica, i suoi nomi locali, i suoi commenti. Un
-  file che si cambia in buona parte si rinomina, coi riferimenti (guardie `check_*.sh` comprese: cercano spesso nomi
-  con `grep`);
-- non si apre un ramo solo per tradurre, e non si traduce codice che il lavoro in corso non tocca.
+- un nome **esistente** non si traduce di passaggio. Si cambia solo con un **commit dedicato**: un concetto alla volta,
+  **ovunque** compaia (modello, API, runtime, viewer, IDE, script, guardie `check_*.sh`, test, fixture), e nient'altro
+  nello stesso commit. Parole del maintainer: «l'IDE è comune, forse conviene aggiornare una cosa alla volta e
+  ovunque», e «vincolare le traduzioni a dei commit dedicati in modo da identificarli e poterli revisionare». Il
+  messaggio comincia con `refactor(en):` e dice il prima e il dopo (`refactor(en): pannello → panel`), così
+  `git log --grep 'refactor(en)'` li elenca tutti;
+- il nome inglese viene dal **glossario** (nel seme qui sotto, finché non ha un file suo): un concetto che non c'è
+  ancora si aggiunge al glossario prima del commit, non si inventa nel commit;
+- non si traduce codice che il lavoro in corso non chiede di tradurre.
 
 **La compatibilità, per ora, la fanno i progetti, non il codice**: una chiave di `project.yaml` rinominata non porta
 un alias in lettura; i progetti si aggiornano nel cloud e nell'IDE e si rimandano al dispositivo col deploy.

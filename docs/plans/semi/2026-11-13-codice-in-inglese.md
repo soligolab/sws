@@ -67,6 +67,38 @@ in `examples/templates/`, i fixture dei test.
   «pannello» vuol dire due cose, le impostazioni dello schermo e il dispositivo collegato (`pannelloCollegato`,
   `tunnel/pannello.rs`); sono due concetti, da tradurre separatamente.
 
+- **Commit dedicati** (stesso giorno): ogni traduzione di un nome esistente è un commit a sé, `refactor(en): prima →
+  dopo`, un concetto ovunque e nient'altro, per poterli trovare e rivedere. La regola in `CLAUDE.md` è stata corretta
+  di conseguenza: il codice nuovo nasce in inglese, i nomi esistenti si cambiano solo così.
+
+## Il glossario, prima di ogni `refactor(en)`
+
+Parole del maintainer: «dobbiamo anche fare un lavoro di glossario, per esempio anche per l'italiano la parola pannello
+non è ideale, si parla di dispositivo riferendosi al device». Il glossario fissa, per ogni concetto, **due** nomi: quello
+del codice (inglese) e quello che si usa in italiano nell'interfaccia e nei documenti. Le due cose sono indipendenti:
+cambiare «pannello» in «dispositivo» nei testi è un lavoro sui file di lingua e sul manuale, non sul codice.
+
+Prima proposta, **da decidere col maintainer** (13-11-2026; i nomi che il codice usa già in inglese sono tenuti):
+
+| Concetto | Oggi nel codice | Codice (proposta) | Italiano (proposta) | Nota |
+|---|---|---|---|---|
+| l'apparecchio su cui gira il runtime (WP630, TC620, Tiny TY) | `pannello`, `dispositivo`, `device` | `device` | **dispositivo** | il maintainer: non «pannello» |
+| il dispositivo che l'IDE comanda adesso | `pannelloCollegato` | `connectedDevice` | dispositivo collegato | |
+| le impostazioni dello schermo (fps, luce, riposo, beep) | `pannello` (`PannelloConfig`) | `screen` (`ScreenConfig`) | schermo | era il falso amico: non è il dispositivo |
+| l'abbinamento al cloud o all'IDE | `abbinamento` | `pairing` | abbinamento | `abbinamento.json` è stato del dispositivo: migrazione all'avvio |
+| l'aggiornamento dell'immagine | `aggiornamento` | `update` | aggiornamento | |
+| testata e piede comuni alle pagine | `cornice` | `frame` | cornice | `frame` è anche il fotogramma: da decidere |
+| la pagina sinottica | `synoptic`, `pagina` | `page` / `synoptic` | pagina | oggi tutti e due: sceglierne uno |
+| la variabile | `tag`, `variabile` | `tag` | variabile | |
+| la sorgente dati (Modbus, MQTT…) | `source`, `sorgente` | `source` | sorgente | |
+| la foto di una pagina | `istantanea` | `snapshot` | istantanea | |
+| lo storico | `historian`, `storico` | `history` | storico | il crate resta `sws-historian` |
+| il marchio (brand) | `marchi` | `branding` | marchio | |
+| le identità e gli utenti | `identita`, `utenti` | `identity`, `users` | utenti | |
+
+Dove vive: finché è una proposta, qui; deciso, diventa un file suo (`docs/GLOSSARIO.md`) a cui rimandano `CLAUDE.md`
+e il manuale, e la tabella si allunga a ogni concetto nuovo **prima** del suo commit `refactor(en)`.
+
 Resta aperto, per quando si farà il passaggio completo: le API fra IDE e pannelli di versioni diverse, e una guardia
 contro le parole italiane nei nomi nuovi.
 
