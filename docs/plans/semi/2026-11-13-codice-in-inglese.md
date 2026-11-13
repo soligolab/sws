@@ -87,7 +87,8 @@ Prima proposta, **da decidere col maintainer** (13-11-2026; i nomi che il codice
 | le impostazioni dello schermo (fps, luce, riposo, beep) | `pannello` (`PannelloConfig`) | `screen` (`ScreenConfig`) | schermo | era il falso amico: non è il dispositivo |
 | l'abbinamento al cloud o all'IDE | `abbinamento` | `pairing` | abbinamento | `abbinamento.json` è stato del dispositivo: migrazione all'avvio |
 | l'aggiornamento dell'immagine | `aggiornamento` | `update` | aggiornamento | |
-| testata e piede comuni alle pagine | `cornice` | `frame` | cornice | `frame` è anche il fotogramma: da decidere |
+| testata e piede comuni alle pagine | `cornice` | **`frame`** | cornice | deciso il 13-11: l'interfaccia inglese dice già «Frame» (`en.json`); vedi sotto |
+| un giro di ridisegno del viewer | `frame` (`frame_start`, `frame_buf`…) | `redraw` (`redraw_start`…) | fotogramma | si rinomina **prima** della cornice, per liberare `frame` |
 | la pagina sinottica | `synoptic`, `pagina` | `page` / `synoptic` | pagina | oggi tutti e due: sceglierne uno |
 | la variabile | `tag`, `variabile` | `tag` | variabile | |
 | la sorgente dati (Modbus, MQTT…) | `source`, `sorgente` | `source` | sorgente | |
@@ -95,6 +96,19 @@ Prima proposta, **da decidere col maintainer** (13-11-2026; i nomi che il codice
 | lo storico | `historian`, `storico` | `history` | storico | il crate resta `sws-historian` |
 | il marchio (brand) | `marchi` | `branding` | marchio | |
 | le identità e gli utenti | `identita`, `utenti` | `identity`, `users` | utenti | |
+
+**`frame`, deciso il 13-11-2026.** Proposta iniziale: lasciare `frame` agli usi tecnici e trovare un'altra parola per la
+cornice. Il maintainer: «fotogrammi, framebuffer e frame WebSocket possiamo rinominarli dove facciano loro confusione?
+Perché poi non sempre sono veramente in conflitto, frame inteso come cornice non collide per esempio con frame buffer».
+Misurato: `frame` compare ~200 volte nel Rust e ~60 nell'editor, e in nessun punto vuol dire la cornice. Si divide così:
+- **resta com'è**, perché non collide o non è nostro: `framebuffer` e `lvgl_framebuffer` (anche valore di
+  `project.yaml`), `TMsg::Frame` della libreria WebSocket, `frame-ancestors` della CSP, `iframe`,
+  `requestAnimationFrame`, `keyframes`; e l'unità `fps`;
+- **si rinomina**, perché è nostro e collide: il fotogramma del viewer LVGL (`frame_start`, `frame_buf`, i commenti
+  in `lvgl_render.rs`, `main.rs`, `lvgl_display.rs`, `drm_display.rs`) → `redraw`, in un `refactor(en)` suo **prima**
+  di quello della cornice; da verificare `ai/foto_ide.rs` (20 occorrenze) e i messaggi WebSocket nostri, che restano
+  `frame` solo se il contesto è inequivocabile;
+- poi `cornice` → `frame` ovunque.
 
 Dove vive: finché è una proposta, qui; deciso, diventa un file suo (`docs/GLOSSARIO.md`) a cui rimandano `CLAUDE.md`
 e il manuale, e la tabella si allunga a ogni concetto nuovo **prima** del suo commit `refactor(en)`.
