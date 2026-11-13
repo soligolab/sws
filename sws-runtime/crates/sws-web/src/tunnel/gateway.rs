@@ -580,6 +580,7 @@ pub async fn abbina(State(s): State<crate::router::AppState>, req: Request<Body>
         .get::<crate::gateway::ritorno::Chiamante>()
         .cloned();
     let chi = req.extensions().get::<crate::router::AuthUser>().cloned();
+    let chi_nome = chi.as_ref().map(|u| u.username.clone());
     let origine = crate::gateway::ritorno::origine_della_richiesta(req.headers());
     let corpo = match axum::body::to_bytes(req.into_body(), 16 * 1024).await {
         Ok(b) => b,
@@ -595,6 +596,12 @@ pub async fn abbina(State(s): State<crate::router::AppState>, req: Request<Body>
             .azienda
             .clone()
             .unwrap_or_else(|| crate::project_registry::AZIENDA_IMPLICITA.to_string()),
+        // Any member pairs a panel to one of their companies, with no project
+        // open: from the QR link or the user menu (maintainer, 13-11-2026).
+        (None, Some(u)) => match company_for_member(&s, &u, r.azienda.as_deref()).await {
+            Ok(a) => a,
+            Err((stato, detail)) => return errore(stato, detail),
+        },
         _ => {
             return errore(
                 StatusCode::FORBIDDEN,
@@ -702,7 +709,12 @@ pub async fn abbina(State(s): State<crate::router::AppState>, req: Request<Body>
     s.audit.log(
         "pannello.abbinato",
         None,
-        serde_json::json!({ "pannello": nome, "azienda": azienda, "hw": in_attesa.hw }),
+        serde_json::json!({
+            "pannello": nome,
+            "azienda": azienda,
+            "hw": in_attesa.hw,
+            "by": chi_nome,
+        }),
     );
     tracing::info!(pannello = %nome, %azienda, "pannello abbinato col codice");
     axum::Json(serde_json::json!({
@@ -712,6 +724,64 @@ pub async fn abbina(State(s): State<crate::router::AppState>, req: Request<Body>
         "sessione": dal_pannello,
     }))
     .into_response()
+}
+
+/// The company a member pairs a panel to: the one asked for, if it is theirs;
+/// with none asked, their only one. The implicit company (the root) counts as
+/// `-`, like everywhere on the gateway.
+async fn company_for_member(
+    s: &crate::router::AppState,
+    chi: &crate::router::AuthUser,
+    asked: Option<&str>,
+) -> Result<String, (StatusCode, &'static str)> {
+    let app = crate::projects::appartenenze_di(s, Some(chi)).await;
+    if app.fuori_dal_modello {
+        return Err((
+            StatusCode::FORBIDDEN,
+            "a panel is paired by a user of this cloud, from a company they belong to",
+        ));
+    }
+    choose_company(&app.cartelle, app.implicita, asked)
+}
+
+fn choose_company(
+    folders: &[String],
+    implicit: bool,
+    asked: Option<&str>,
+) -> Result<String, (StatusCode, &'static str)> {
+    let mut mine: Vec<&str> = folders.iter().map(String::as_str).collect();
+    if implicit {
+        mine.push(crate::project_registry::AZIENDA_IMPLICITA);
+    }
+    match asked.map(str::trim).filter(|a| !a.is_empty()) {
+        Some(a) if mine.contains(&a) => Ok(a.to_string()),
+        Some(_) => Err((StatusCode::FORBIDDEN, "not one of your companies")),
+        None if mine.len() == 1 => Ok(mine[0].to_string()),
+        None if mine.is_empty() => Err((StatusCode::FORBIDDEN, "you belong to no company")),
+        None => Err((StatusCode::BAD_REQUEST, "choose the company")),
+    }
+}
+
+/// `GET /api/pannelli/in-attesa/:codice` — the name a waiting panel proposes,
+/// so whoever pairs it sees *which* panel it is before confirming. Only to a
+/// signed-in user or a project container, and only for a code they already
+/// hold: it tells nothing the panel screen does not show.
+pub async fn waiting_panel(
+    State(s): State<crate::router::AppState>,
+    axum::extract::Path(codice): axum::extract::Path<String>,
+) -> Response {
+    let Some(attesa) = s.pannelli_in_attesa.clone() else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    let Some(codice) = crate::abbinamento::normalizza(&codice) else {
+        return StatusCode::BAD_REQUEST.into_response();
+    };
+    match attesa.di(&codice).await {
+        Some(a) => {
+            axum::Json(serde_json::json!({ "nome_proposto": a.nome_proposto })).into_response()
+        }
+        None => StatusCode::NOT_FOUND.into_response(),
+    }
 }
 
 /// `GET /api/amministrazione/pannelli` — i pannelli del gateway, per chi
@@ -1052,6 +1122,27 @@ pub fn registro_nuovo() -> Arc<Registro> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_member_pairs_only_to_their_companies() {
+        let f = vec!["acme".to_string()];
+        assert_eq!(choose_company(&f, false, None).unwrap(), "acme");
+        assert_eq!(choose_company(&f, false, Some("acme")).unwrap(), "acme");
+        assert_eq!(
+            choose_company(&f, false, Some("other")).unwrap_err().0,
+            StatusCode::FORBIDDEN
+        );
+        // Two companies (one is the root): the caller must choose.
+        assert_eq!(
+            choose_company(&f, true, None).unwrap_err().0,
+            StatusCode::BAD_REQUEST
+        );
+        assert_eq!(choose_company(&f, true, Some("-")).unwrap(), "-");
+        assert_eq!(
+            choose_company(&[], false, None).unwrap_err().0,
+            StatusCode::FORBIDDEN
+        );
+    }
 
     /// Un websocket attraversa il tunnel per davvero: IDE → gateway → yamux →
     /// pannello (eco) e ritorno. È quello che mancava il 10-10-2026: i tag dal

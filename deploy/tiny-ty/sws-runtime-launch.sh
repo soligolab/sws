@@ -19,8 +19,12 @@ SWS_DATA=/var/lib/sws
 
 # Le opzioni di questa installazione (righe chiave=valore), se ci sono.
 if [ -f /etc/sws/runtime.env ]; then
+    # Exported as a whole: the runtime reads its SWS_* options (tunnel, cloud
+    # address) from the environment, and a plain assignment would stay here.
+    set -a
     # shellcheck disable=SC1091
     . /etc/sws/runtime.env
+    set +a
 fi
 
 # PyO3 avvia l'interprete di sistema (python3.10), che legge PYTHONPATH.

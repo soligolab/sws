@@ -26,6 +26,21 @@ describe("CancelloAbbinamento", () => {
     expect(screen.queryByText("pagina")).toBeNull();
   });
 
+  it("with a cloud link the code comes with its QR; without, the code alone", async () => {
+    fetchFinto.mockReturnValueOnce(risposta(200, {
+      in_attesa: true, codice: "7KQ2-M9XD-3HWP-T4BZ", nome: "tc620",
+      cloud_link: "https://sws.soligo.net/#pair=7KQ2-M9XD-3HWP-T4BZ",
+    }));
+    const { unmount } = render(<CancelloAbbinamento><div>pagina</div></CancelloAbbinamento>);
+    expect((await screen.findByTestId("codice-abbinamento")).textContent).toBe("7KQ2-M9XD-3HWP-T4BZ");
+    expect(screen.getByTestId("qr-abbinamento").querySelector("path")!.getAttribute("d")).not.toBe("");
+    unmount();
+    fetchFinto.mockReturnValueOnce(risposta(200, { in_attesa: true, codice: "7KQ2-M9XD-3HWP-T4BZ", nome: "tc620" }));
+    render(<CancelloAbbinamento><div>pagina</div></CancelloAbbinamento>);
+    await screen.findByTestId("codice-abbinamento");
+    expect(screen.queryByTestId("qr-abbinamento")).toBeNull();
+  });
+
   it("un pannello abbinato, o un runtime vecchio, lascia passare", async () => {
     fetchFinto.mockReturnValueOnce(risposta(200, { in_attesa: false, codice: null, nome: "tc620" }));
     const { unmount } = render(<CancelloAbbinamento><div>pagina</div></CancelloAbbinamento>);

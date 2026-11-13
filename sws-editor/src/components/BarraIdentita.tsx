@@ -28,9 +28,13 @@ import { ChiudiAccount } from "@/components/accesso/ChiudiAccount";
  */
 export function BarraIdentita({
   onCambiaPassword,
+  onPairPanel,
   dove = "ide",
 }: {
   onCambiaPassword: () => void;
+  /** «Abbina un pannello…» with no project (13-11-2026): only in the cloud,
+   *  where the page passes it. */
+  onPairPanel?: () => void;
   /** Dove sta la barra. Una sola barra per due posti: nell'IDE offre la
    *  console, nella console offre il ritorno all'IDE. Due componenti
    *  sarebbero due «Esci» da tenere d'accordo. */
@@ -187,6 +191,11 @@ export function BarraIdentita({
                 onClick={() => { window.location.href = "/index-admin.html"; }}
               >
                 {t("welcome.barraIde")}
+              </button>
+            )}
+            {onPairPanel && (
+              <button style={voce} onClick={() => { setAperto(false); onPairPanel(); }}>
+                {t("abbinamento.pairMenu")}
               </button>
             )}
             <button style={voce} onClick={() => { setAperto(false); onCambiaPassword(); }}>

@@ -11,6 +11,8 @@ import { api, dimenticaVersioneProgetto } from "@/api/client";
 import { conferma } from "@/finestraAvviso/finestraAvviso";
 import type { ProjectListEntry } from "@/types";
 import { BarraIdentita } from "@/components/BarraIdentita";
+import { PairPanel } from "@/components/PairPanel";
+import { takePairCode } from "@/pairLink";
 import { ChangePasswordScreen } from "@/components/ChangePasswordScreen";
 
 // ── styles ────────────────────────────────────────────────────────────────────
@@ -114,6 +116,9 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
   const [showNew, setShowNew]     = useState(false);
   const [newTab, setNewTab]       = useState<NewProjectTab>("empty");
   const [showInstalla, setShowInstalla] = useState(false);
+  // «Abbina un pannello» with no project: `""` = opened from the menu,
+  // a code = opened from the panel QR link.
+  const [pairing, setPairing] = useState<string | null>(null);
   const [editing, setEditing]     = useState<EditingState | null>(null);
   const [actionBusy, setActionBusy] = useState<string | null>(null);
   // Il cambio password volontario, chiesto dal menu della barra. Riusa la
@@ -168,7 +173,13 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
   useEffect(() => {
     let vivo = true;
     api.identitaStato()
-      .then((st) => { if (vivo) setGateway(!!st.gateway); })
+      .then((st) => {
+        if (!vivo) return;
+        setGateway(!!st.gateway);
+        // Arrived from a panel QR (`#pair=…`, kept through the login).
+        const code = st.gateway ? takePairCode() : null;
+        if (code) setPairing(code);
+      })
       .catch(() => { /* runtime vecchio: si continua col modello a istanza singola */ });
     return () => { vivo = false; };
   }, []);
@@ -314,7 +325,12 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
       )}
       {showInstalla && <InstallaRuntimeModal gateway={gateway} onClose={() => setShowInstalla(false)} />}
 
-      <BarraIdentita onCambiaPassword={() => setCambioPassword(true)} />
+      {pairing !== null && <PairPanel initialCode={pairing} onClose={() => setPairing(null)} />}
+
+      <BarraIdentita
+        onCambiaPassword={() => setCambioPassword(true)}
+        onPairPanel={gateway ? () => setPairing("") : undefined}
+      />
 
       {/* Solo chi e vicino o oltre: un avviso che c'e sempre non e un
           avviso. */}

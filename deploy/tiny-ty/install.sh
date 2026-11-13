@@ -131,6 +131,18 @@ if [ ! -f "$CONF_DIR/runtime.env" ]; then
 # SWS_ENABLE_IDE=1
 FINE
 fi
+# The cloud: the waiting tunnel (the panel calls the gateway and waits there
+# with its pairing code) and the IDE address the pairing QR points to. Added
+# only when the key is missing, so an existing file is completed, never
+# rewritten; an empty value turns either off.
+for kv in \
+    "SWS_TUNNEL_URL=wss://tunnel.soligo.net/tunnel/v1" \
+    "SWS_CLOUD_URL=https://sws.soligo.net"; do
+    if ! grep -q "^${kv%%=*}=" "$CONF_DIR/runtime.env"; then
+        printf '\n%s\n' "$kv" >> "$CONF_DIR/runtime.env"
+        echo "    runtime.env: $kv"
+    fi
+done
 if [ ! -f "$CONF_DIR/viewer.env" ]; then
     cat > "$CONF_DIR/viewer.env" <<'FINE'
 # Opzioni del viewer LVGL, lette da /opt/sws/bin/sws-lvgl-viewer-launch.sh.

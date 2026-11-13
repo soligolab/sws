@@ -662,7 +662,7 @@
 #define LV_USE_GIF 0
 
 /*QR code library*/
-#define LV_USE_QRCODE 0
+#define LV_USE_QRCODE 1  // 1 dal 2026-11-13: il QR della pagina di abbinamento
 
 /*FreeType library*/
 // 1 dal 2026-08-27 (Q24): i font Montserrat inclusi in LVGL coprono solo

@@ -255,6 +255,14 @@ struct Args {
     #[arg(long, env = "SWS_TUNNEL_URL")]
     tunnel: Option<String>,
 
+    /// The cloud IDE address (`https://sws.soligo.net`) put in the pairing QR
+    /// as `<address>/#pair=<code>`. Used only while the panel waits for
+    /// pairing with the tunnel open; empty = no QR, the code alone. Like the
+    /// tunnel address it sits in the image (`ENV`) or in the installer's
+    /// configuration, so a self-hosted cloud only changes that line.
+    #[arg(long, env = "SWS_CLOUD_URL")]
+    cloud_url: Option<String>,
+
     /// Il nome con cui questo pannello si presenta al gateway.
     ///
     /// Nella prima fetta lo si scrive a mano e deve combaciare con una riga di
@@ -1681,6 +1689,9 @@ async fn main() -> anyhow::Result<()> {
                         codice = ?app_state.abbinamento.codice(),
                         "tunnel: chiamo il gateway in attesa di abbinamento — il codice si inserisce nell'IDE nel cloud («Abbina un pannello»)"
                     ),
+                }
+                if let Some(cloud) = args.cloud_url.as_deref() {
+                    app_state.abbinamento.set_cloud_url(cloud);
                 }
                 sws_web::tunnel::pannello::tieni_aperto_abbinabile(
                     url.clone(),

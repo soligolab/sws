@@ -1,5 +1,6 @@
 import { CampoPassword } from "@/components/CampoPassword";
 import { BrandLogo } from "@/components/BrandLogo";
+import { QrCode } from "@/components/QrCode";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { paginaCentrata, schedaModulo } from "@/components/schermataAccesso";
@@ -21,10 +22,13 @@ import { percorsoPubblico } from "@/api/prefisso";
 export function AbbinamentoScreen({
   codice,
   nome,
+  link,
   onFatto,
 }: {
   codice: string;
   nome: string;
+  /** The cloud link the QR carries; absent = code only. */
+  link?: string | null;
   onFatto: () => void;
 }) {
   const { t } = useTranslation();
@@ -97,6 +101,15 @@ export function AbbinamentoScreen({
           {codice}
         </div>
 
+        {link && (
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <QrCode text={link} size={132} label={t("abbinamento.qrEtichetta")} />
+            <p style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", margin: 0, lineHeight: 1.5 }}>
+              {t("abbinamento.qrSpiega")}
+            </p>
+          </div>
+        )}
+
         <p style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", margin: 0, lineHeight: 1.5 }}>
           {t("abbinamento.oppureQui")}
         </p>
@@ -167,6 +180,8 @@ type Stato = {
   cloud?: string | null;
   /** Abbinato al cloud ma senza utenti: aspetta il primo progetto (fetta E). */
   abbinato_cloud_senza_utenti?: boolean;
+  /** The pairing QR content (`<cloud>/#pair=<code>`), when there is a cloud. */
+  cloud_link?: string | null;
 };
 
 /** Da mostrare al posto della pagina: il codice, o «in attesa del primo
@@ -254,7 +269,11 @@ export function CancelloAbbinamento({ children }: { children: React.ReactNode })
     return <AttesaPrimoProgetto stato={stato} />;
   }
   if (stato !== "nessuno") {
-    return <AbbinamentoScreen codice={stato.codice!} nome={stato.nome} onFatto={() => setStato("nessuno")} />;
+    return <AbbinamentoScreen
+        codice={stato.codice!}
+        nome={stato.nome}
+        link={stato.cloud_link}
+        onFatto={() => setStato("nessuno")} />;
   }
   return <>{children}</>;
 }

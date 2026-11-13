@@ -69,7 +69,7 @@ export function AbbinaPannelloCloud({ onAbbinato }: { onAbbinato: (url: string) 
       void riepilogo(r.nome);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      if (msg.includes("credenziali_admin") || msg.includes("servono utente e password")) setChiedeCredenziali(true);
+      if (asksForCredentials(msg)) setChiedeCredenziali(true);
       setErrore(dettaglio(msg));
     } finally {
       setInCorso(false);
@@ -177,7 +177,13 @@ function Riepilogo({ p, onRinominato, onConnetti, onAltro }: {
 
 /** Il `detail` del gateway, se l'errore lo porta: è la frase scritta per chi
  *  legge («nessun pannello in attesa con questo codice…»). */
-function dettaglio(msg: string): string {
+/** The panel already has users: the code alone is not enough, an Admin of the
+ *  panel is needed (the server's own wording, matched as it is). */
+export function asksForCredentials(msg: string): boolean {
+  return msg.includes("credenziali_admin") || msg.includes("servono utente e password");
+}
+
+export function dettaglio(msg: string): string {
   const i = msg.indexOf("{");
   if (i >= 0) {
     try { const d = JSON.parse(msg.slice(i)).detail; if (typeof d === "string") return d; } catch { /* non JSON */ }

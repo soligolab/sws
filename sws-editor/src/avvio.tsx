@@ -15,11 +15,14 @@ import { useAppStore } from "@/store";
 import { CancelloAbbinamento } from "@/components/AbbinamentoScreen";
 import { FinestraAvviso } from "@/finestraAvviso/FinestraAvviso";
 import { registraNelLog } from "@/finestraAvviso/finestraAvviso";
+import { capturePairCode } from "@/pairLink";
 
 export async function avvia(Radice: React.ComponentType, opzioni: { apiLocale?: boolean } = {}): Promise<void> {
   // Le pagine dell'IDE parlano sempre con il runtime che le serve, anche se
   // l'editor è collegato a uno remoto: il remoto lo si raggiunge dal server.
   if (opzioni.apiLocale) setForceLocalApi(true);
+  // The pairing QR's `#pair=<code>`: taken before the login can hide it.
+  capturePairCode();
   // Le versioni fino alla 2.6.6 lasciavano password in chiaro nel profilo del
   // browser: si tolgono prima di disegnare qualunque cosa.
   dimenticaPasswordLegacy();

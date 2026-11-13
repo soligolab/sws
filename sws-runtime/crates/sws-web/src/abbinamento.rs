@@ -162,6 +162,10 @@ pub struct Abbinamento {
     /// Suona quando cambia qualcosa che il tunnel presenta al gateway: il
     /// codice (consumato) o le credenziali del tunnel. Il tunnel si ricollega.
     cambiato: std::sync::Arc<tokio::sync::Notify>,
+    /// The cloud IDE address (`SWS_CLOUD_URL`), set only when the waiting
+    /// tunnel is open: without it the gateway cannot find this panel, and a
+    /// QR pointing there would end in an error.
+    cloud_url: std::sync::OnceLock<String>,
 }
 
 impl Abbinamento {
@@ -186,6 +190,7 @@ impl Abbinamento {
             archivio: Mutex::new(archivio),
             sbagliati: Mutex::new((0, None)),
             cambiato: Default::default(),
+            cloud_url: Default::default(),
         }
     }
 
@@ -236,6 +241,21 @@ impl Abbinamento {
             .unwrap_or_else(|e| e.into_inner())
             .as_ref()
             .map(|a| a.codice.clone())
+    }
+
+    /// Remembers the cloud IDE address for [`Self::cloud_link`]. Trailing
+    /// slashes are dropped; an empty address is ignored.
+    pub fn set_cloud_url(&self, url: &str) {
+        let url = url.trim().trim_end_matches('/');
+        if !url.is_empty() {
+            let _ = self.cloud_url.set(url.to_string());
+        }
+    }
+
+    /// The link the pairing QR carries: the cloud IDE with the code in the
+    /// hash (`#pair=…`), which the IDE reads and keeps through the login.
+    pub fn cloud_link(&self, code: &str) -> Option<String> {
+        cloud_link(self.cloud_url.get()?, code)
     }
 
     /// L'identità hardware (`seriale:…`, `mac:…`, `casuale:…`).
@@ -354,6 +374,10 @@ fn ora_ms() -> u64 {
         .unwrap_or(0)
 }
 
+fn cloud_link(base: &str, code: &str) -> Option<String> {
+    (!base.is_empty()).then(|| format!("{base}/#pair={code}"))
+}
+
 /// Il nome con cui questo pannello si presenta: l'hostname.
 ///
 /// Lo usano tre cose che devono dire la **stessa** cosa — la schermata di
@@ -394,6 +418,7 @@ pub async fn stato(State(s): State<crate::router::AppState>) -> Response {
         "in_attesa": in_attesa,
         "codice": codice,
         "nome": nome_proposto(),
+        "cloud_link": codice.as_deref().and_then(|c| s.abbinamento.cloud_link(c)),
         "cloud": cloud,
         "abbinato_cloud_senza_utenti": in_attesa && cloud.is_some(),
     }))
@@ -667,6 +692,20 @@ fn salva_tunnel(s: &crate::router::AppState, t: &CredenzialiTunnel) -> anyhow::R
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cloud_link_only_with_a_cloud_address() {
+        let dir = tempfile::tempdir().unwrap();
+        let a = Abbinamento::apri(dir.path(), true);
+        assert_eq!(a.cloud_link("7KQ2-M9XD-3HWP-T4BZ"), None);
+        a.set_cloud_url("  ");
+        assert_eq!(a.cloud_link("7KQ2-M9XD-3HWP-T4BZ"), None);
+        a.set_cloud_url("https://sws.soligo.net/");
+        assert_eq!(
+            a.cloud_link("7KQ2-M9XD-3HWP-T4BZ").as_deref(),
+            Some("https://sws.soligo.net/#pair=7KQ2-M9XD-3HWP-T4BZ")
+        );
+    }
 
     #[test]
     fn il_codice_ha_la_forma_chiesta() {

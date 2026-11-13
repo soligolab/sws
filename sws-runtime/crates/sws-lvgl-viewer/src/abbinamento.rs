@@ -34,13 +34,22 @@ pub struct StatoAbbinamento {
     /// Abbinato al cloud ma ancora senza utenti (fetta E).
     #[serde(default)]
     pub abbinato_cloud_senza_utenti: bool,
+    /// The link the pairing QR carries (`<cloud>/#pair=<code>`); absent when
+    /// the runtime has no cloud address or no waiting tunnel.
+    #[serde(default)]
+    pub cloud_link: Option<String>,
 }
 
 /// Cosa mostrare al posto della pagina del progetto.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Schermata {
     /// In attesa: il codice da inserire nell'IDE.
-    Codice { codice: String, nome: String },
+    Codice {
+        codice: String,
+        nome: String,
+        /// The QR content, when there is a cloud to pair with.
+        link: Option<String>,
+    },
     /// Abbinato al cloud, senza utenti: il primo progetto li porterà.
     PrimoProgetto { cloud: String },
 }
@@ -75,13 +84,23 @@ pub fn da_mostrare(s: &Option<StatoAbbinamento>) -> Option<Schermata> {
     Some(Schermata::Codice {
         codice: s.codice.clone()?,
         nome: s.nome.clone(),
+        link: s.cloud_link.clone().filter(|l| !l.is_empty()),
     })
 }
 
 /// La pagina della schermata, 800×480 come la pagina predefinita del viewer.
 pub fn pagina_per(s: &Schermata) -> anyhow::Result<SynopticPage> {
     match s {
-        Schermata::Codice { codice, nome } => pagina(codice, nome),
+        Schermata::Codice {
+            codice,
+            nome,
+            link: None,
+        } => pagina(codice, nome),
+        Schermata::Codice {
+            codice,
+            nome,
+            link: Some(_),
+        } => page_with_qr(codice, nome),
         Schermata::PrimoProgetto { cloud } => pagina_primo_progetto(cloud),
     }
 }
@@ -143,6 +162,92 @@ pub fn pagina(codice: &str, nome: &str) -> anyhow::Result<SynopticPage> {
     Ok(serde_json::from_value(v)?)
 }
 
+/// Where the QR goes on the page with QR: the square of the code itself (the
+/// white quiet zone around it is a page `rect`, so it shows in snapshots too).
+pub const QR_X: i16 = 570;
+pub const QR_Y: i16 = 150;
+pub const QR_SIZE: i16 = 180;
+const QR_MARGIN: u32 = 12;
+
+/// A text centred on `cx`, its top edge at `top` (see [`testo`]).
+#[allow(clippy::too_many_arguments)]
+fn text_at(
+    id: &str,
+    cx: u32,
+    top: u32,
+    w: u32,
+    h: u32,
+    size: u32,
+    color: &str,
+    t: &str,
+) -> serde_json::Value {
+    let mut v = testo(id, top, h, size, color, t);
+    v["x"] = cx.into();
+    v["width"] = w.into();
+    v
+}
+
+/// The pairing page when there is a cloud: texts and code on the left, the QR
+/// on the right (maintainer's choice, 13-11-2026). The code stays: it is the
+/// way in from a local IDE, or when the QR cannot be read.
+pub fn page_with_qr(codice: &str, nome: &str) -> anyhow::Result<SynopticPage> {
+    let (qx, qy, qs, m) = (QR_X as u32, QR_Y as u32, QR_SIZE as u32, QR_MARGIN);
+    let qr_cx = qx + qs / 2;
+    let v = serde_json::json!({
+        "id": "__abbinamento",
+        "name": "abbinamento",
+        "background": "#0f172a",
+        "width": 800,
+        "height": 480,
+        "objects": [
+            testo("titolo", 30, 40, 26, "#e2e8f0", &format!("Pannello «{nome}» da abbinare")),
+            testo("spiega", 80, 60, 16, "#94a3b8",
+                "Questo pannello non ha ancora utenti e non lascia entrare nessuno.\nInquadra il QR col telefono, oppure inserisci il codice nell'IDE («Connetti») o nel cloud:"),
+            { "id": "riquadro", "type": "rect", "x": 30, "y": 170, "width": 480, "height": 90,
+              "fill": "#1e293b", "stroke": "#334155" },
+            text_at("codice", 270, 193, 470, 60, 36, "#f8fafc", codice),
+            text_at("oppure", 270, 290, 480, 70, 14, "#94a3b8",
+                "Oppure apri la pagina di questo pannello dal browser\n(porta 7443 o 7444) e crea lì il suo amministratore."),
+            { "id": "qr_fondo", "type": "rect", "x": qx - m, "y": qy - m,
+              "width": qs + 2 * m, "height": qs + 2 * m, "fill": "#ffffff", "stroke": "#ffffff" },
+            text_at("qr_spiega", qr_cx, qy + qs + m + 10, 240, 30, 14, "#94a3b8",
+                "Inquadra col telefono"),
+            testo("en", 410, 50, 13, "#64748b",
+                "Panel waiting to be paired: scan the QR, or enter this code in the IDE («Connect») or in the cloud."),
+        ],
+    });
+    Ok(serde_json::from_value(v)?)
+}
+
+/// Draws the QR of `link` on the active screen, over the white square of
+/// [`page_with_qr`]. `lv_qrcode` keeps its own canvas buffer in the LVGL heap
+/// (`QR_SIZE`² × 2 bytes, about 63 KB): the page lives only while the panel
+/// waits for pairing, when no project is competing for RAM.
+pub fn draw_qr(link: &str) {
+    let dark: lvgl_sys::lv_color_t = lvgl::Color::from_rgb((0, 0, 0)).into();
+    let light: lvgl_sys::lv_color_t = lvgl::Color::from_rgb((255, 255, 255)).into();
+    unsafe {
+        let qr = lvgl_sys::lv_qrcode_create(
+            lvgl_sys::lv_disp_get_scr_act(core::ptr::null_mut()),
+            QR_SIZE,
+            dark,
+            light,
+        );
+        if qr.is_null() {
+            eprintln!("[abbinamento] QR: lv_qrcode_create failed");
+            return;
+        }
+        lvgl_sys::lv_obj_set_pos(qr, QR_X, QR_Y);
+        let res = lvgl_sys::lv_qrcode_update(qr, link.as_ptr().cast(), link.len() as u32);
+        if res != lvgl_sys::LV_RES_OK as lvgl_sys::lv_res_t {
+            eprintln!(
+                "[abbinamento] QR: the link does not fit ({} bytes)",
+                link.len()
+            );
+        }
+    }
+}
+
 /// Controlla lo stato ogni pochi secondi e, appena il pannello non è più in
 /// attesa — o la schermata da mostrare cambia (codice → «in attesa del primo
 /// progetto», fetta E) — riavvia il viewer con gli stessi argomenti.
@@ -184,6 +289,32 @@ mod tests {
     use super::*;
 
     #[test]
+    fn with_a_link_the_page_keeps_the_code_and_makes_room_for_the_qr() {
+        let s = Schermata::Codice {
+            codice: "7KQ2-M9XD-3HWP-T4BZ".into(),
+            nome: "ty570".into(),
+            link: Some("https://sws.soligo.net/#pair=7KQ2-M9XD-3HWP-T4BZ".into()),
+        };
+        let p = pagina_per(&s).unwrap();
+        let id = |n: &str| p.objects.iter().find(|o| o.id.as_deref() == Some(n));
+        assert_eq!(
+            id("codice").unwrap().text.as_deref(),
+            Some("7KQ2-M9XD-3HWP-T4BZ")
+        );
+        assert!(id("qr_fondo").is_some());
+        let no_link = Schermata::Codice {
+            codice: "7KQ2-M9XD-3HWP-T4BZ".into(),
+            nome: "ty570".into(),
+            link: None,
+        };
+        let p = pagina_per(&no_link).unwrap();
+        assert!(!p
+            .objects
+            .iter()
+            .any(|o| o.id.as_deref() == Some("qr_fondo")));
+    }
+
+    #[test]
     fn la_pagina_porta_il_codice() {
         let p = pagina("7KQ2-M9XD-3HWP-T4BZ", "tc620").unwrap();
         assert_eq!(p.width, Some(800.0));
@@ -208,6 +339,7 @@ mod tests {
                 nome: "x".into(),
                 cloud: None,
                 abbinato_cloud_senza_utenti: false,
+                cloud_link: None,
             })
         };
         assert!(da_mostrare(&s(true, Some("A"))).is_some());
@@ -223,6 +355,7 @@ mod tests {
             nome: "x".into(),
             cloud: Some("tc620-casa".into()),
             abbinato_cloud_senza_utenti: true,
+            cloud_link: None,
         });
         assert_eq!(
             da_mostrare(&cloud),

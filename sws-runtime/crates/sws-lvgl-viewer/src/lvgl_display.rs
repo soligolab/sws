@@ -189,6 +189,20 @@ pub fn copy_frame_rgb888(out: &mut [u8]) -> bool {
     true
 }
 
+/// The colour a page background `(r, g, b)` really has on screen: LVGL keeps
+/// colours in RGB565 (`lv_color_make` drops the low bits) and `sws_flush_cb`
+/// widens them back the way below. Whatever is painted around the page (the
+/// DRM frame, Q37) must go through the same round trip, or a page with the
+/// same declared colour shows a visible seam (Tiny TY, 13-11-2026).
+pub fn as_rendered(r: u8, g: u8, b: u8) -> (u8, u8, u8) {
+    let (r5, g6, b5) = ((r >> 3) as u32, (g >> 2) as u32, (b >> 3) as u32);
+    (
+        ((r5 * 255) / 31) as u8,
+        ((g6 * 255) / 63) as u8,
+        ((b5 * 255) / 31) as u8,
+    )
+}
+
 unsafe extern "C" fn sws_flush_cb(
     disp_drv: *mut lvgl_sys::_lv_disp_drv_t,
     area: *const lvgl_sys::lv_area_t,
@@ -310,4 +324,15 @@ pub fn init_display(hor_res: u32, ver_res: u32) -> anyhow::Result<()> {
     DRV.store(disp_drv as *mut _, Ordering::Release);
     DISP.store(disp_ptr, Ordering::Release);
     Ok(())
+}
+
+#[cfg(test)]
+mod as_rendered_tests {
+    #[test]
+    fn frame_matches_the_page_background() {
+        // #0f172a, the background of the pairing page and of the Q37 frame.
+        assert_eq!(super::as_rendered(0x0f, 0x17, 0x2a), (8, 20, 41));
+        assert_eq!(super::as_rendered(0xff, 0xff, 0xff), (255, 255, 255));
+        assert_eq!(super::as_rendered(0, 0, 0), (0, 0, 0));
+    }
 }
