@@ -12,6 +12,38 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — ramo `fix/rc18-ritocchi` pushato, da provare sul TY570 (2026-11-13 sera, theobroma)
+
+**Il ramo aperto è `fix/rc18-ritocchi`** (da `main` = `763fc383`), pushato su origin a fine giornata per scelta del
+maintainer, **non mergiato**: manca la prova sul TY570, che stasera non rispondeva (né il nome `.local` né
+`192.168.1.96`; probabilmente spento). Questo blocco vive sul ramo: su `main` lo stato è quello del blocco sotto.
+- `eedd8958` cache degli sfondi LVGL: gli ultimi due restano decodificati, la seconda visita a HVAC non costa più 1,6 s;
+- `e78f2a4e` seme `docs/plans/semi/2026-11-13-sfondi-pesanti-e-precarico.md` (avvisare sugli sfondi pesanti, scegliere
+  quanti precaricarne — decisione del maintainer: «lascia così per ora»);
+- `15ea7b9c` le quattro correzioni chieste per la rc.18: accesso LVGL che va a capo, bordo e ✕ delle finestre LVGL,
+  Prestazioni sui fotogrammi del progetto, preset dei Tiny TY;
+- chiusura: `quinn-udp` 0.5.15 → 0.5.16 (RUSTSEC-2026-0538, per il job «Rust audit»), CHANGELOG, questo blocco.
+
+Tutto verde qui: `cargo check`, fmt, clippy, audit, `pnpm build`/lint/type-check, 56 guardie statiche; nel ramo anche
+428 test del viewer e vitest (2448). `NOVITA.yaml` non toccato: il blocco 2.26.0 ha già 15 voci, e queste sono
+correzioni di cose non ancora rilasciate.
+
+**Il pacchetto è pronto**: `/home/ut1/sws-build-tiny/dist/sws-2.26.0-rc.17-tiny-ty-armv7.tar.gz` (commit `15ea7b9c`).
+Installazione: `scp` sul TY, estrarre, `sudo ./sws-2.26.0-rc.17-tiny-ty-armv7/install.sh`.
+
+**Prossimo passo:** riacceso il TY570, installare il pacchetto e far provare al maintainer:
+- la seconda visita alla pagina HVAC immediata (nel log del viewer la riga `[sfondo] … from cache`);
+- le finestre di SystemInfo: bordo intero, ✕ centrata, titolo che non copre il contenuto;
+- l'accesso in italiano senza sovrapposizione con «Utente:».
+
+Se va: squash su `main` (controllo degli alberi, `git branch -D`, ramo eliminato anche su origin), poi la **rc.18**
+(quattro file di versione, tag, build arm64 e amd64 con `--push` nel worktree `~/sws-build-rc16`, gateway del VPS sul
+nuovo sha, `deploy/vps/STATO.md`). Dopo la rc.18: LVGL a 32 bit sul WP630 (percorso SDL) da misurare.
+
+Restano aperti, senza ramo: l'archivio della UI per un assistente IA (chiesto, non iniziato); l'importatore Movicon
+(sessione di plan a parte; gli archivi `tmp/KTD*.zip` sono del cliente: mai nel repo, nei documenti solo numeri);
+un pannello sconosciuto in attesa nella console del cloud.
+
 ## ▶ Riprendere da qui — rc.17: la catena mergiata, il QR di abbinamento, il Tiny TY installato (2026-11-13, theobroma)
 
 **La catena è in `main`**, cinque squash (`f3512bca` Tiny TY armv7, `2a461fdf` quadlet 8, `a1995e01` G1, `a62cf672`

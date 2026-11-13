@@ -12,6 +12,10 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Aggiunto
+- **LVGL: gli ultimi due sfondi di pagina restano decodificati** (`svg_assets.rs`, `SFONDI_MAX = 2`, condivisi col
+  canvas via `Arc`): sul TY570 tornare alla pagina HVAC costava 1,6 s ogni volta (JPEG 1024x600 scaricato, decodificato,
+  scalato); ora la seconda visita è immediata. Un deploy svuota la cache. L'avviso sugli sfondi pesanti e la scelta di
+  quanti precaricarne sono nel seme `docs/plans/semi/2026-11-13-sfondi-pesanti-e-precarico.md`.
 - **LVGL a 32 bit e DRM a due buffer** (piano `docs/archive/2026-11-13-lvgl-32-bit.md`, parte B del passo 2 del Tiny
   TY): `LV_COLOR_DEPTH 32`, niente più bande nelle foto e nei gradienti; ogni pixel scritto per LVGL passa da
   `pixel.rs`; il crate `lvgl` 0.6.2 vendorizzato (patch 0003, flush su `lv_color_t`); buffer di disegno in
@@ -341,6 +345,12 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   il salvataggio non è finito.
 
 ### Corretto
+- **LVGL, dal collaudo sul TY570 del 13-11-2026 (c'erano già a 16 bit)**: nell'accesso il titolo che va a capo in
+  italiano non copre più «Utente:» (titolo ed errore si misurano prima, `blocco_accesso`); le finestre hanno il bordo
+  intero (a destra e in basso lo coprivano i figli) e la ✕ è un quadrato centrato senza lo stile del tema (era un
+  cerchio con l'ombra). Istantanee prima/dopo in `sws/tmp/lvgl-32bit/popup-prima-dopo.png`.
+- **Prestazioni** (IDE): scala e testi usano il periodo dei fotogrammi del progetto (`pannello.fps`, predefinito 20),
+  non 16 ms / 60 al secondo; i **Tiny TY** (TY550/TY750 5" 800x480, TY570/TY770 7" 1024x600) fra i preset Pixsys.
 - **Tiny TY, dal collaudo sul TY570 del 13-11-2026**: identità dell'abbinamento, seriale e modello della sorgente Host
   da `/etc/device.info` (il seriale del device-tree è quello del SoC); il cicalino scrivibile dal viewer anche se
   `rc.local` l'ha esportato prima (`sws-hw-access.sh`, `ExecStartPre=+`); un deploy riaccende lo schermo e fa
