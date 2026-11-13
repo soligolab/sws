@@ -1,6 +1,6 @@
 # Il codice in inglese, ovunque
 
-> **Seme — decisione.** Nato il 13-11-2026 da una richiesta del maintainer. **Quando questo lavoro comincia, il primo
+> **Seme — in corso, gradualmente** (decisione del 13-11 qui sotto). Nato il 13-11-2026 da una richiesta del maintainer. **Quando questo lavoro comincia, il primo
 > passo è una sessione di plan approfondita e dedicata, per sviscerarne tutti i dettagli**: le misure qui sotto sono
 > grezze e invecchiano col codice. Fino ad allora il codice non si tocca (parole del maintainer: «il codice lo
 > tocchiamo dopo»).
@@ -48,6 +48,18 @@ Tre strati, con rischi diversi:
 
 Più tutto quello che sta intorno: `NOVITA.yaml`, CHANGELOG, il manuale (che cita nomi di file e di campi), i template
 in `examples/templates/`, i fixture dei test.
+
+## Deciso il 13-11-2026, lo stesso giorno
+
+- **Gradualmente** (l'opzione B): «per ora lo si può fare gradualmente man mano che si lavora». La regola è in
+  `CLAUDE.md`, «Il codice si scrive in inglese, ovunque»: il codice nuovo nasce in inglese, quello che si tocca si
+  traduce, e restano in italiano solo i file di lingua (più documenti, commit e risposte, che non sono codice).
+- **La compatibilità la fanno i progetti**: «per ora basta aggiornare i progetti sul cloud/ide e riscaricarli
+  all'occorrenza sul device». Niente alias in lettura per le chiavi di `project.yaml`. Fanno eccezione i file di stato
+  del dispositivo in `config/`, che un deploy non riscrive: lì il runtime sposta il file vecchio all'avvio.
+
+Resta aperto, per quando si farà il passaggio completo: le API fra IDE e pannelli di versioni diverse, e una guardia
+contro le parole italiane nei nomi nuovi.
 
 ## Le opzioni che si vedono già
 
