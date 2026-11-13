@@ -88,6 +88,9 @@ core, prima che LVGL disegni e prima del runtime e del PLC. Qui il rimedio non �
    non ha disegnato, niente copia e un sonno più lungo. Atteso: CPU quasi a zero a pagina ferma.
    Ne guadagnano anche il WP630 e gli altri pannelli LVGL. Misurare sul TY570 con CasaDomotica.
 
+   **Fatto il 13-11-2026** ([LVGL a 32 bit](../archive/2026-11-13-lvgl-32-bit.md)): `LV_COLOR_DEPTH 32`,
+   `direct_mode`, due buffer DRM col page flip legacy. Sul TY570 viewer 20,9 MB di PSS, CPU a pagina ferma ~2,6 %.
+
    **Corretto e deciso il 12-11-2026.** LVGL **non** disegna dentro il buffer DRM: lo schermo lo
    legge mentre si scrive (strappo nelle animazioni), e sui Rockchip è memoria senza cache, lenta
    da rileggere per trasparenze, bordi smussati e ombre (da misurare). Lo schema approvato dal

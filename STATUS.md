@@ -32,6 +32,21 @@ attivi, RestrictedPython), tunnel d'attesa aperto verso il cloud, QR a schermo. 
 `deploy/tiny-ty/ty570-1ad-p1.md` (nove punti; il più pesante: un aggiornamento da SD cancella SWS e le chiavi).
 Codice nuovo del Tiny TY in inglese (indicazione del maintainer).
 
+**Dopo la rc.17, sempre il 13-11 (in `main`, non pushato, niente immagine):** il cestino dei progetti (confermato
+sull'IDE 8460); il collaudo del TY570 (seriale da `/etc/device.info`, cicalino, riposo, luce oscurata, lingue rilette
+al deploy, impostazioni del pannello orizzontali e più grandi); **LVGL a 32 bit con DRM a due buffer** (confermato sul
+TY570: niente bande, viewer +0,7 MB, CPU a pagina ferma dimezzata). Il progetto di prova è `https://sws.soligo.net/p/-/tiny-ty`
+(pagine Sistema, HVAC, SystemInfo con 5 finestre): si tiene aggiornato lì, è la base di test del Tiny TY.
+
+**Da correggere al prossimo giro** (maintainer, 13-11, sul TY570; c'erano già a 16 bit, istantanee in
+`sws/tmp/lvgl-32bit/popup-16-32.png`):
+- LVGL, accesso in italiano: «Per questo comando serve…» va a capo e si sovrappone a «Utente:»;
+- LVGL, finestre (popup): manca il bordo a destra e in basso; la X in alto a destra è un cerchio con una mezzaluna
+  grigia, come se la X non fosse centrata nel pulsante; il titolo della finestra copre la prima riga del contenuto.
+
+**Prossimi passi:** rc.18 (porta nel cloud il menu del pannello e la luce oscurata, e LVGL a 32 bit sul WP630 da
+misurare), poi i due difetti qui sopra.
+
 **Il collaudo, cosa guardare** (per `/test-changes`), sulla rc.17:
 - dal telefono: QR del TY570 → login → conferma → pannello in `…/dev/ty570-1ad-p1-06e990`; «Abbina un pannello…» dal
   menu; un utente con due aziende sceglie;

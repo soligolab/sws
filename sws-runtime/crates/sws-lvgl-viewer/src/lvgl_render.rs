@@ -3413,10 +3413,7 @@ unsafe extern "C" fn filtro_luce_cb(
         return c;
     }
     let f = &*(dsc as *const FiltroLuce);
-    let full = c.full;
-    let r = (((full >> 11) & 0x1f) as u32 * 255 / 31) as u8;
-    let g = (((full >> 5) & 0x3f) as u32 * 255 / 63) as u8;
-    let b = ((full & 0x1f) as u32 * 255 / 31) as u8;
+    let (r, g, b) = crate::pixel::rgb_of(c);
     let rgb = effects::colore_filtrato((r, g, b), f.grigio, f.luminosita as f64, f.respiro as f64);
     Color::from_rgb(rgb).into()
 }
@@ -7264,7 +7261,7 @@ fn aggiorna_barre(b: &mut BarreVive, tags: &TagSnapshot) {
     scrivi_testi(b.canvas, &mut b.etichette, &testi);
 }
 
-/// Un `lv_canvas` con l'alfa (3 byte per pixel, RGB565 + alfa) alla posizione
+/// Un `lv_canvas` con l'alfa (`pixel::PX_ALPHA` byte per pixel) alla posizione
 /// dell'oggetto: per i widget disegnati in proprio con angoli trasparenti.
 fn canvas_alfa(
     screen: &mut lvgl::Obj,
@@ -7272,7 +7269,7 @@ fn canvas_alfa(
     w: u32,
     h: u32,
 ) -> anyhow::Result<(core::ptr::NonNull<lvgl_sys::lv_obj_t>, Vec<u8>)> {
-    let mut buf = vec![0u8; 3 * w as usize * h as usize];
+    let mut buf = vec![0u8; crate::pixel::alpha_buffer_len(w as usize, h as usize)];
     unsafe {
         let p = lvgl_sys::lv_canvas_create(
             screen
@@ -7301,7 +7298,10 @@ fn canvas_alfa(
 /// tiny-skia (RGBA premoltiplicato) → il formato di `canvas_alfa`, nello
 /// stesso buffer (niente allocazioni a ogni ridisegno).
 fn pixmap_in_buffer_alfa(px: &resvg::tiny_skia::Pixmap, buf: &mut [u8]) {
-    for (o, p) in buf.chunks_exact_mut(3).zip(px.data().chunks_exact(4)) {
+    for (o, p) in buf
+        .chunks_exact_mut(crate::pixel::PX_ALPHA)
+        .zip(px.data().chunks_exact(4))
+    {
         let a = p[3];
         let un = |c: u8| {
             if a == 0 || a == 255 {
@@ -7310,11 +7310,7 @@ fn pixmap_in_buffer_alfa(px: &resvg::tiny_skia::Pixmap, buf: &mut [u8]) {
                 ((c as u16 * 255) / a as u16).min(255) as u8
             }
         };
-        let (r, g, b) = (un(p[0]), un(p[1]), un(p[2]));
-        let v: u16 = ((r as u16 & 0xF8) << 8) | ((g as u16 & 0xFC) << 3) | (b as u16 >> 3);
-        o[0] = (v & 0xFF) as u8;
-        o[1] = (v >> 8) as u8;
-        o[2] = a;
+        crate::pixel::put_rgba(o, un(p[0]), un(p[1]), un(p[2]), a);
     }
 }
 
@@ -9676,9 +9672,9 @@ fn render_trend(
         .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
     let canvas_ptr = canvas.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
 
-    // Opaco (RGB565, 2 byte per pixel): lo sfondo del trend copre sempre tutto
-    // il riquadro, come sul web — l'alfa costerebbe un byte in più a pixel.
-    let mut buf = vec![0u8; 2 * w as usize * h as usize];
+    // Opaco (`pixel::PX` byte per pixel): lo sfondo del trend copre sempre
+    // tutto il riquadro, come sul web — l'alfa costerebbe un byte in più a pixel.
+    let mut buf = vec![0u8; crate::pixel::buffer_len(w as usize, h as usize)];
     let pixmap =
         resvg::tiny_skia::Pixmap::new(w, h).ok_or_else(|| anyhow::anyhow!("pixmap {w}x{h}"))?;
     let tocchi: CodaTocchi = Default::default();
@@ -9781,7 +9777,7 @@ fn ridimensiona_trend(t: &mut TrendVivo) {
     let Some(pixmap) = resvg::tiny_skia::Pixmap::new(w, h) else {
         return;
     };
-    let mut buf = vec![0u8; 2 * w as usize * h as usize];
+    let mut buf = vec![0u8; crate::pixel::buffer_len(w as usize, h as usize)];
     unsafe {
         lvgl_sys::lv_canvas_set_buffer(
             t.canvas.as_ptr(),
@@ -10182,7 +10178,7 @@ fn copia_zona(
     }
 }
 
-/// Converte la zona `z` del pixmap nel buffer RGB565 del canvas. RGBA
+/// Converte la zona `z` del pixmap nel buffer del canvas (`TRUE_COLOR`). RGBA
 /// premoltiplicato ma opaco (lo sfondo copre tutto).
 fn in_rgb565(
     px: &resvg::tiny_skia::Pixmap,
@@ -10191,14 +10187,12 @@ fn in_rgb565(
 ) {
     let w = px.width() as usize;
     let dati = px.data();
+    let px_b = crate::pixel::PX;
     for y in y0..y1 {
-        let o = &mut buf[(y * w + x0) * 2..(y * w + x1) * 2];
+        let o = &mut buf[(y * w + x0) * px_b..(y * w + x1) * px_b];
         let p = &dati[(y * w + x0) * 4..(y * w + x1) * 4];
-        for (o, p) in o.chunks_exact_mut(2).zip(p.chunks_exact(4)) {
-            let v: u16 =
-                ((p[0] as u16 & 0xF8) << 8) | ((p[1] as u16 & 0xFC) << 3) | (p[2] as u16 >> 3);
-            o[0] = (v & 0xFF) as u8;
-            o[1] = (v >> 8) as u8;
+        for (o, p) in o.chunks_exact_mut(px_b).zip(p.chunks_exact(4)) {
+            crate::pixel::put_rgb(o, p[0], p[1], p[2]);
         }
     }
 }
@@ -11111,13 +11105,10 @@ fn render_pie_chart(
         .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
     let canvas_ptr = canvas.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
 
-    // 3 byte/pixel: LV_IMG_CF_TRUE_COLOR_ALPHA a LV_COLOR_DEPTH=16 (vedi
-    // LV_IMG_PX_SIZE_ALPHA_BYTE in lv_img_buf.h — macro function-like, non
-    // valutabile da bindgen, calcolato a mano come per DRM_IOCTL_* altrove
-    // in questo progetto). Serve l'alfa: gli angoli del canvas quadrato
-    // fuori dall'anello devono restare trasparenti sullo sfondo pagina, non
-    // un rettangolo pieno.
-    let buf_size = 3usize * w as usize * h as usize;
+    // `pixel::PX_ALPHA` byte per pixel (LV_IMG_CF_TRUE_COLOR_ALPHA). Serve
+    // l'alfa: gli angoli del canvas quadrato fuori dall'anello devono restare
+    // trasparenti sullo sfondo pagina, non un rettangolo pieno.
+    let buf_size = crate::pixel::alpha_buffer_len(w as usize, h as usize);
     let mut buf = vec![0u8; buf_size];
     unsafe {
         lvgl_sys::lv_canvas_set_buffer(
@@ -13251,7 +13242,7 @@ impl ExtraTubo {
                 return;
             };
             self.pixmap = px;
-            self.buf = vec![0u8; 3 * w as usize * h as usize];
+            self.buf = vec![0u8; crate::pixel::alpha_buffer_len(w as usize, h as usize)];
             unsafe {
                 lvgl_sys::lv_canvas_set_buffer(
                     self.canvas.as_ptr(),
@@ -13542,7 +13533,7 @@ impl CorpoSvg {
                 return;
             };
             self.pixmap = px;
-            self.buf = vec![0u8; 3 * w as usize * h as usize];
+            self.buf = vec![0u8; crate::pixel::alpha_buffer_len(w as usize, h as usize)];
             unsafe {
                 lvgl_sys::lv_canvas_set_buffer(
                     self.canvas.as_ptr(),
@@ -19252,8 +19243,8 @@ mod binding_tests {
         assert_eq!((a.larghezza, a.altezza), (32, 32));
         assert_eq!(
             a.pixel.len(),
-            32 * 32 * 3,
-            "TRUE_COLOR_ALPHA a 16 bit: 3 byte per pixel"
+            32 * 32 * crate::pixel::PX_ALPHA,
+            "TRUE_COLOR_ALPHA"
         );
         let barrato = raster_occhio(32, true).expect("anche il barrato");
         assert!(
@@ -19262,7 +19253,7 @@ mod binding_tests {
         );
         let piccolo = raster_occhio(20, false).expect("la misura del web");
         assert!(!core::ptr::eq(a, piccolo), "misure diverse, raster diversi");
-        assert_eq!(piccolo.pixel.len(), 20 * 20 * 3);
+        assert_eq!(piccolo.pixel.len(), 20 * 20 * crate::pixel::PX_ALPHA);
     }
 
     /// La stessa icona del web (scelta del maintainer, 09-11-2026): i tratti

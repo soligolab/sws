@@ -63,13 +63,38 @@ const fn drm_iowr(nr: u32, size: usize) -> u32 {
         | ((size as u32) << IOC_SIZESHIFT)
 }
 
+/// The copy below writes LVGL's pixels as they are: they must be XRGB8888.
+const _: () = assert!(
+    crate::pixel::PX == 4,
+    "the DRM path wants LV_COLOR_DEPTH 32"
+);
+
+/// `DRM_MODE_PAGE_FLIP_EVENT` (drm_mode.h): the kernel sends an event when the
+/// flip has happened.
+const PAGE_FLIP_EVENT: u32 = 0x01;
+
+/// One dumb buffer with its framebuffer, mapped in memory.
+struct Buffer {
+    fb: u32,
+    dumb: u32,
+    map: *mut u8,
+    size: usize,
+}
+
 pub struct DrmDisplay {
     _file: File, // tenuto vivo solo per chiudere il fd al Drop
     fd: RawFd,
-    fb_handle: u32,
-    dumb_handle: u32,
-    map: *mut u8,
-    map_size: usize,
+    crtc_id: u32,
+    /// Two buffers shown in turn with the legacy page flip (13-11-2026, plan
+    /// `docs/archive/2026-11-13-lvgl-32-bit.md`): the screen never reads the one
+    /// being written, so no tearing. One only if the second could not be
+    /// made or the driver refuses the flip.
+    buffers: Vec<Buffer>,
+    /// The buffer on screen.
+    front: usize,
+    /// The zone copied into the other buffer at the previous flip: the one now
+    /// hidden has not got it yet, and gets it with the next zone.
+    previous: Option<crate::lvgl_display::Zona>,
     pitch: u32,
     pub width: u32,
     pub height: u32,
@@ -152,87 +177,13 @@ impl DrmDisplay {
         // Dumb buffer: stesso identico percorso di lv_drivers/display/drm.c
         // (letto prima di scrivere questo codice, non assunto) —
         // DRM_IOCTL_MODE_CREATE_DUMB + DRM_IOCTL_MODE_MAP_DUMB + mmap.
-        let mut creq = drm_mode_create_dumb {
-            height,
-            width,
-            bpp: 32,
-            ..Default::default()
-        };
-        let ret = unsafe {
-            drmIoctl(
-                fd,
-                drm_iowr(0xB2, std::mem::size_of::<drm_mode_create_dumb>())
-                    as std::os::raw::c_ulong,
-                &mut creq as *mut _ as *mut std::os::raw::c_void,
-            )
-        };
-        if ret < 0 {
-            anyhow::bail!(
-                "DRM_IOCTL_MODE_CREATE_DUMB fallita: {}",
-                std::io::Error::last_os_error()
-            );
-        }
-
-        let mut mreq = drm_mode_map_dumb {
-            handle: creq.handle,
-            ..Default::default()
-        };
-        let ret = unsafe {
-            drmIoctl(
-                fd,
-                drm_iowr(0xB3, std::mem::size_of::<drm_mode_map_dumb>()) as std::os::raw::c_ulong,
-                &mut mreq as *mut _ as *mut std::os::raw::c_void,
-            )
-        };
-        if ret < 0 {
-            anyhow::bail!(
-                "DRM_IOCTL_MODE_MAP_DUMB fallita: {}",
-                std::io::Error::last_os_error()
-            );
-        }
-
-        let map_size = creq.size as usize;
-        let map = unsafe {
-            libc::mmap(
-                ptr::null_mut(),
-                map_size,
-                libc::PROT_READ | libc::PROT_WRITE,
-                libc::MAP_SHARED,
-                fd,
-                mreq.offset as libc::off_t,
-            )
-        };
-        if map == libc::MAP_FAILED {
-            anyhow::bail!(
-                "mmap del dumb buffer fallita: {}",
-                std::io::Error::last_os_error()
-            );
-        }
-        let map = map as *mut u8;
-
-        // Azzera il buffer (nero pieno in XRGB8888, non contenuto
-        // indefinito del kernel) prima del primo frame reale.
-        unsafe { ptr::write_bytes(map, 0, map_size) };
-
-        let mut fb_handle: u32 = 0;
-        let mut handles = [creq.handle, 0, 0, 0];
-        let mut pitches = [creq.pitch, 0, 0, 0];
-        let mut offsets = [0u32, 0, 0, 0];
-        let ret = unsafe {
-            drmModeAddFB2(
-                fd,
-                width,
-                height,
-                DRM_FORMAT_XRGB8888,
-                handles.as_mut_ptr(),
-                pitches.as_mut_ptr(),
-                offsets.as_mut_ptr(),
-                &mut fb_handle,
-                0,
-            )
-        };
-        if ret != 0 {
-            anyhow::bail!("drmModeAddFB2 fallita: {}", std::io::Error::last_os_error());
+        let (first, pitch) = crea_buffer(fd, width, height)?;
+        let mut buffers = vec![first];
+        match crea_buffer(fd, width, height) {
+            Ok((second, _)) => buffers.push(second),
+            Err(e) => {
+                eprintln!("[drm] second buffer not available ({e}): one buffer, no page flip")
+            }
         }
 
         let mut mode_mut = mode;
@@ -241,7 +192,7 @@ impl DrmDisplay {
             drmModeSetCrtc(
                 fd,
                 crtc_id,
-                fb_handle,
+                buffers[0].fb,
                 0,
                 0,
                 &mut conn_id_mut,
@@ -259,45 +210,18 @@ impl DrmDisplay {
         Ok(Self {
             _file: file,
             fd,
-            fb_handle,
-            dumb_handle: creq.handle,
-            map,
-            map_size,
-            pitch: creq.pitch,
+            crtc_id,
+            buffers,
+            front: 0,
+            previous: None,
+            pitch,
             width,
             height,
         })
     }
 
-    /// Converte RGB888 (3 byte/pixel, il formato prodotto da
-    /// `lvgl_display::copy_frame_rgb888`) in XRGB8888 (4 byte/pixel, il
-    /// formato reale del piano — confermato via debugfs) e scrive
-    /// direttamente nel buffer mappato, rispettando il pitch reale (può
-    /// differire da width*4 per allineamento hardware — qui non lo fa,
-    /// 1280*4=5120=pitch osservato, ma il codice non lo assume).
-    ///
-    /// # F2 — perché prende le misure della sorgente
-    ///
-    /// Prima questa funzione dava per scontato che il frame fosse grande quanto
-    /// il display e iterava su `self.width`/`self.height` leggendo da `rgb888`.
-    /// Con una pagina 800x480 su un display 1280x800 il chiamante passava un
-    /// buffer da 1 152 000 byte e questa ne leggeva fino a 3 072 000: **panic da
-    /// indice fuori range**, cioè la peggior diagnostica possibile su un
-    /// dispositivo senza console — lo schermo resta nero e non lo spiega
-    /// nessuno.
-    ///
-    /// Ora si copia l'**intersezione** fra frame e schermo, alla posizione che
-    /// il chiamante indica: le stesse due regole del backend SDL2, che questo
-    /// caso lo gestiva già (`page_offset` per centrare, ritaglio esplicito per
-    /// non chiedere più pixel di quanti ce ne siano). Due backend che si
-    /// comportano diversamente davanti allo stesso progetto sono una divergenza
-    /// che si paga più tardi.
-    ///
-    /// Cosa c'è **attorno** al foglio quando è più piccolo dello schermo resta
-    /// indefinito: qui non si dipinge, e sul buffer appena aperto è nero perché
-    /// il kernel consegna pagine azzerate. È una decisione di prodotto ancora
-    /// aperta — `docs/OPEN_QUESTIONS.md` Q37 — e non va presa di straforo qui.
-    /// Q37 — riempie l'INTERO framebuffer col colore dato (XRGB8888).
+    /// Q37 — riempie l'INTERO framebuffer, **tutti e due i buffer**, col colore
+    /// dato (XRGB8888).
     /// Chiamata una volta all'avvio, prima del primo frame: la pagina la
     /// sovrascrive a ogni flush, il resto è la cornice, che così è un colore
     /// deliberato (il neutro delle bande del viewer web) e non «memoria come
@@ -305,58 +229,103 @@ impl DrmDisplay {
     /// dichiarato sono due cose diverse, ed era il punto della scheda.
     pub fn riempi(&mut self, r: u8, g: u8, b: u8) {
         let row_bytes = self.pitch as usize;
-        for y in 0..self.height as usize {
-            for x in 0..self.width as usize {
-                let off = y * row_bytes + x * 4;
-                unsafe {
-                    *self.map.add(off) = b;
-                    *self.map.add(off + 1) = g;
-                    *self.map.add(off + 2) = r;
-                    *self.map.add(off + 3) = 0;
+        let px = u32::from_le_bytes([b, g, r, 0]);
+        // Both buffers: each one is shown in turn.
+        for buf in &self.buffers {
+            for y in 0..self.height as usize {
+                for x in 0..self.width as usize {
+                    unsafe { (buf.map.add(y * row_bytes + x * 4) as *mut u32).write(px) };
                 }
             }
         }
+        self.previous = None;
     }
 
-    pub fn flush_rgb888(&mut self, rgb888: &[u8], src_w: u32, src_h: u32, off: (i32, i32)) {
-        let tutta = crate::lvgl_display::Zona {
-            x1: 0,
-            y1: 0,
-            x2: src_w.saturating_sub(1),
-            y2: src_h.saturating_sub(1),
-        };
-        self.flush_rgb888_zona(rgb888, src_w, src_h, off, tutta);
-    }
-
-    /// Come [`Self::flush_rgb888`], ma copia solo `zona` (coordinate della
-    /// pagina): è quello che LVGL ha ridisegnato dall'ultima copia (piano Tiny
-    /// TY, passo 2). Un pixel si scrive con una parola sola, non quattro byte.
-    pub fn flush_rgb888_zona(
+    /// Brings `zona` of the page (LVGL's buffer, XRGB8888, `src_w` pixels per
+    /// row) to the screen at `off`. With two buffers: into the hidden one, with
+    /// the zone of the previous flip, then a page flip; with one: in place.
+    pub fn flush_zona(
         &mut self,
-        rgb888: &[u8],
+        page: &[u8],
+        src_w: u32,
+        src_h: u32,
+        off: (i32, i32),
+        zona: crate::lvgl_display::Zona,
+    ) {
+        if self.buffers.len() < 2 {
+            self.copia(0, page, src_w, src_h, off, zona);
+            return;
+        }
+        let back = 1 - self.front;
+        let tutta = match self.previous {
+            Some(p) => zona.unione(p),
+            None => zona,
+        };
+        self.copia(back, page, src_w, src_h, off, tutta);
+        let ret = unsafe {
+            drmModePageFlip(
+                self.fd,
+                self.crtc_id,
+                self.buffers[back].fb,
+                PAGE_FLIP_EVENT,
+                ptr::null_mut(),
+            )
+        };
+        if ret != 0 {
+            // The driver refuses the flip: one buffer from now on, the one on
+            // screen, written in place (as before 13-11-2026).
+            eprintln!(
+                "[drm] page flip refused ({}): one buffer from now on",
+                std::io::Error::last_os_error()
+            );
+            let front = self.buffers.swap_remove(back);
+            drop_buffer(self.fd, front);
+            self.front = 0;
+            self.previous = None;
+            self.copia(0, page, src_w, src_h, off, tutta);
+            return;
+        }
+        self.aspetta_flip();
+        self.front = back;
+        self.previous = Some(zona);
+    }
+
+    /// Waits for the flip event (at most 100 ms, a few frames) and drains it:
+    /// the next copy must not write into the buffer still on screen.
+    fn aspetta_flip(&self) {
+        let mut pfd = libc::pollfd {
+            fd: self.fd,
+            events: libc::POLLIN,
+            revents: 0,
+        };
+        if unsafe { libc::poll(&mut pfd, 1, 100) } > 0 {
+            let mut ev = [0u8; 256];
+            unsafe { libc::read(self.fd, ev.as_mut_ptr() as *mut libc::c_void, ev.len()) };
+        }
+    }
+
+    /// Copies `zona` of the page into buffer `i`, row by row, no conversion.
+    fn copia(
+        &self,
+        i: usize,
+        page: &[u8],
         src_w: u32,
         src_h: u32,
         off: (i32, i32),
         zona: crate::lvgl_display::Zona,
     ) {
         let (off_x, off_y, copy_w, copy_h) =
-            ritaglio(src_w, src_h, self.width, self.height, off, rgb888.len());
+            ritaglio(src_w, src_h, self.width, self.height, off, page.len());
         let Some((x0, y0, x1, y1)) = dentro(zona, copy_w, copy_h) else {
             return;
         };
-        let row_bytes_src = (src_w * 3) as usize;
-        let row_bytes_dst = self.pitch as usize;
+        let map = self.buffers[i].map;
+        let src_row = src_w as usize * 4;
+        let n = (x1 - x0 + 1) * 4;
         for y in y0..=y1 {
-            let src_row = &rgb888[y * row_bytes_src..(y + 1) * row_bytes_src];
-            let dst_row_off = (y + off_y as usize) * row_bytes_dst;
-            for x in x0..=x1 {
-                let s = &src_row[x * 3..x * 3 + 3];
-                let dst_off = dst_row_off + (x + off_x as usize) * 4;
-                // XRGB8888 little-endian in memoria: B,G,R,X. Il pitch è
-                // multiplo di 4, quindi l'indirizzo è allineato.
-                let px = ((s[0] as u32) << 16) | ((s[1] as u32) << 8) | s[2] as u32;
-                unsafe { (self.map.add(dst_off) as *mut u32).write(px) };
-            }
+            let src = &page[y * src_row + x0 * 4..y * src_row + x0 * 4 + n];
+            let dst_off = (y + off_y as usize) * self.pitch as usize + (x0 + off_x as usize) * 4;
+            unsafe { ptr::copy_nonoverlapping(src.as_ptr(), map.add(dst_off), n) };
         }
     }
 }
@@ -381,20 +350,113 @@ pub(crate) fn dentro(
 
 impl Drop for DrmDisplay {
     fn drop(&mut self) {
-        unsafe {
-            libc::munmap(self.map as *mut libc::c_void, self.map_size);
-            drmModeRmFB(self.fd, self.fb_handle);
-            let mut dreq = drm_mode_destroy_dumb {
-                handle: self.dumb_handle,
-            };
-            drmIoctl(
-                self.fd,
-                drm_iowr(0xB4, std::mem::size_of::<drm_mode_destroy_dumb>())
-                    as std::os::raw::c_ulong,
-                &mut dreq as *mut _ as *mut std::os::raw::c_void,
-            );
+        for b in self.buffers.drain(..) {
+            drop_buffer(self.fd, b);
         }
     }
+}
+
+fn drop_buffer(fd: RawFd, b: Buffer) {
+    unsafe {
+        libc::munmap(b.map as *mut libc::c_void, b.size);
+        drmModeRmFB(fd, b.fb);
+        let mut dreq = drm_mode_destroy_dumb { handle: b.dumb };
+        drmIoctl(
+            fd,
+            drm_iowr(0xB4, std::mem::size_of::<drm_mode_destroy_dumb>()) as std::os::raw::c_ulong,
+            &mut dreq as *mut _ as *mut std::os::raw::c_void,
+        );
+    }
+}
+
+/// One dumb buffer XRGB8888 `width × height`, mapped and cleared, with its
+/// framebuffer. Returns it and its pitch.
+fn crea_buffer(fd: RawFd, width: u32, height: u32) -> anyhow::Result<(Buffer, u32)> {
+    let mut creq = drm_mode_create_dumb {
+        height,
+        width,
+        bpp: 32,
+        ..Default::default()
+    };
+    let ret = unsafe {
+        drmIoctl(
+            fd,
+            drm_iowr(0xB2, std::mem::size_of::<drm_mode_create_dumb>()) as std::os::raw::c_ulong,
+            &mut creq as *mut _ as *mut std::os::raw::c_void,
+        )
+    };
+    if ret < 0 {
+        anyhow::bail!(
+            "DRM_IOCTL_MODE_CREATE_DUMB fallita: {}",
+            std::io::Error::last_os_error()
+        );
+    }
+    let mut mreq = drm_mode_map_dumb {
+        handle: creq.handle,
+        ..Default::default()
+    };
+    let ret = unsafe {
+        drmIoctl(
+            fd,
+            drm_iowr(0xB3, std::mem::size_of::<drm_mode_map_dumb>()) as std::os::raw::c_ulong,
+            &mut mreq as *mut _ as *mut std::os::raw::c_void,
+        )
+    };
+    if ret < 0 {
+        anyhow::bail!(
+            "DRM_IOCTL_MODE_MAP_DUMB fallita: {}",
+            std::io::Error::last_os_error()
+        );
+    }
+    let size = creq.size as usize;
+    let map = unsafe {
+        libc::mmap(
+            ptr::null_mut(),
+            size,
+            libc::PROT_READ | libc::PROT_WRITE,
+            libc::MAP_SHARED,
+            fd,
+            mreq.offset as libc::off_t,
+        )
+    };
+    if map == libc::MAP_FAILED {
+        anyhow::bail!(
+            "mmap del dumb buffer fallita: {}",
+            std::io::Error::last_os_error()
+        );
+    }
+    let map = map as *mut u8;
+    // Nero pieno in XRGB8888, non contenuto indefinito del kernel.
+    unsafe { ptr::write_bytes(map, 0, size) };
+    let mut fb: u32 = 0;
+    let mut handles = [creq.handle, 0, 0, 0];
+    let mut pitches = [creq.pitch, 0, 0, 0];
+    let mut offsets = [0u32, 0, 0, 0];
+    let ret = unsafe {
+        drmModeAddFB2(
+            fd,
+            width,
+            height,
+            DRM_FORMAT_XRGB8888,
+            handles.as_mut_ptr(),
+            pitches.as_mut_ptr(),
+            offsets.as_mut_ptr(),
+            &mut fb,
+            0,
+        )
+    };
+    if ret != 0 {
+        anyhow::bail!("drmModeAddFB2 fallita: {}", std::io::Error::last_os_error());
+    }
+    Ok((
+        Buffer {
+            fb,
+            dumb: creq.handle,
+            map,
+            size,
+        },
+        creq.pitch,
+    ))
 }
 
 /// F2 — quanta parte del frame si può copiare sullo schermo, e da dove.
@@ -423,7 +485,7 @@ pub(crate) fn ritaglio(
     // taglierebbe anche il lato opposto, nascondendo il doppio delle cose.
     let off_x = off.0.max(0) as u32;
     let off_y = off.1.max(0) as u32;
-    let row_bytes = (src_w as usize) * 3;
+    let row_bytes = (src_w as usize) * crate::pixel::PX;
     let righe_presenti = if row_bytes == 0 {
         0
     } else {
@@ -495,7 +557,7 @@ mod tests_ritaglio {
     /// ne conteneva 480.
     #[test]
     fn pagina_piu_piccola_del_display() {
-        let byte = 800 * 480 * 3;
+        let byte = 800 * 480 * 4;
         assert_eq!(
             ritaglio(800, 480, 1280, 800, (240, 160), byte),
             (240, 160, 800, 480)
@@ -505,7 +567,7 @@ mod tests_ritaglio {
     /// Pagina più grande: si ritaglia, non si stira, e si parte dall'angolo.
     #[test]
     fn pagina_piu_grande_del_display() {
-        let byte = 1920 * 1080 * 3;
+        let byte = 1920 * 1080 * 4;
         assert_eq!(
             ritaglio(1920, 1080, 1280, 800, (0, 0), byte),
             (0, 0, 1280, 800)
@@ -516,7 +578,7 @@ mod tests_ritaglio {
     /// deve diventare un `as u32` gigantesco.
     #[test]
     fn offset_negativo_vale_zero() {
-        let byte = 1920 * 1080 * 3;
+        let byte = 1920 * 1080 * 4;
         assert_eq!(
             ritaglio(1920, 1080, 1280, 800, (-320, -140), byte),
             (0, 0, 1280, 800)
@@ -527,7 +589,7 @@ mod tests_ritaglio {
     /// bordi: si copia quello che c'è.
     #[test]
     fn un_buffer_corto_limita_le_righe() {
-        let byte = 800 * 100 * 3; // 100 righe invece di 480
+        let byte = 800 * 100 * 4; // 100 righe invece di 480
         assert_eq!(
             ritaglio(800, 480, 1280, 800, (0, 0), byte),
             (0, 0, 800, 100)
@@ -538,7 +600,7 @@ mod tests_ritaglio {
     /// `saturating_sub` che torna a essere enorme.
     #[test]
     fn oltre_il_bordo_non_si_copia_niente() {
-        let byte = 800 * 480 * 3;
+        let byte = 800 * 480 * 4;
         assert_eq!(
             ritaglio(800, 480, 1280, 800, (2000, 2000), byte),
             (2000, 2000, 0, 0)

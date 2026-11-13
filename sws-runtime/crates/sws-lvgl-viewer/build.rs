@@ -61,6 +61,8 @@ fn main() {
         .allowlist_function("drmModeSetCrtc")
         .allowlist_function("drmModeAddFB2")
         .allowlist_function("drmModeRmFB")
+        // Two buffers shown in turn (13-11-2026, plan lvgl-32-bit): the legacy flip.
+        .allowlist_function("drmModePageFlip")
         .allowlist_function("drmIoctl")
         .allowlist_type("drmModeRes")
         .allowlist_type("drmModeConnector")

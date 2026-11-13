@@ -12,6 +12,11 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Aggiunto
+- **LVGL a 32 bit e DRM a due buffer** (piano `docs/archive/2026-11-13-lvgl-32-bit.md`, parte B del passo 2 del Tiny
+  TY): `LV_COLOR_DEPTH 32`, niente più bande nelle foto e nei gradienti; ogni pixel scritto per LVGL passa da
+  `pixel.rs`; il crate `lvgl` 0.6.2 vendorizzato (patch 0003, flush su `lv_color_t`); buffer di disegno in
+  `direct_mode` (via il frame RGB888 intermedio); due dumb buffer col page flip legacy, copia della sola zona senza
+  conversioni. Sul TY570: viewer 20,9 MB di PSS (prima 20,2), CPU a pagina ferma ~2,6 % (prima ~6 %).
 - **La luce oscurata del pannello** (`pannello.dimmed_brightness`, percento del massimo, sotto la luce normale) e, nelle
   impostazioni del progetto, luce e riposo su righe orizzontali con l'unità grande a destra, le due luci come slider,
   la finestra ingrandita (zoom 1,25), le caselle di luce e beep che si cambiano solo dalla casella e ricordano gli

@@ -124,6 +124,7 @@ mod mini_serie;
 mod model;
 mod net_worker;
 mod parametri;
+mod pixel;
 mod riavvio;
 mod ritardo;
 mod ritmo;
@@ -1870,8 +1871,8 @@ fn run_drm(
         // a pagina ferma (12-11-2026, piano Tiny TY passo 2). Fino a oggi era lo
         // schermo intero a ogni giro: l'83 % di un core sul Tiny TY.
         let t_display = Instant::now();
-        lvgl_display::con_zona_cambiata(|frame, zona| {
-            drm.flush_rgb888_zona(frame, hor_res, ver_res, drm_off, zona)
+        lvgl_display::con_zona_cambiata(|page, zona| {
+            drm.flush_zona(page, hor_res, ver_res, drm_off, zona)
         });
 
         tempi::registra("display", t_display.elapsed());

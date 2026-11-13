@@ -17,6 +17,7 @@ venga riletto come vero.
 
 | Piano | Stato | Evidenza |
 |---|---|---|
+| [2026-11-13-lvgl-32-bit.md](2026-11-13-lvgl-32-bit.md) | **FATTO** il 13-11-2026, confermato dal maintainer sul TY570 | LVGL a 32 bit (niente più bande), `pixel.rs`, crate `lvgl` vendorizzato, `direct_mode`, DRM a due buffer col page flip legacy; viewer +0,7 MB, CPU a pagina ferma dimezzata. Resta il WP630 con la rc.18 |
 | [2026-11-13-cestino-dei-progetti.md](2026-11-13-cestino-dei-progetti.md) | **FATTO** il 13-11-2026, confermato dal maintainer sull'IDE 8460 | Il cestino dei progetti: la X sposta nel cestino, 30 giorni di ritenzione con i giorni mancanti su ogni progetto, «Ripristina» ed «Elimina ora», pulizia oraria sul gateway e sull'IDE (`trash.rs`) |
 | [2026-11-12-qr-del-codice-di-abbinamento.md](2026-11-12-qr-del-codice-di-abbinamento.md) | **diventato piano** il 13-11-2026 | Seme del QR del codice di abbinamento: deciso nella sessione di plan del 13-11, il lavoro è nel piano [QR di abbinamento](../plans/2026-11-13-qr-di-abbinamento.md) |
 | [2026-11-12-abbinare-un-pannello-dall-account.md](2026-11-12-abbinare-un-pannello-dall-account.md) | **diventato piano** il 13-11-2026 | Seme dell'abbinamento senza progetto: assorbito dal piano [QR di abbinamento](../plans/2026-11-13-qr-di-abbinamento.md) — ogni membro abbina a una sua azienda, dal link del QR o dal menu utente |

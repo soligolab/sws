@@ -24,7 +24,10 @@
  *====================*/
 
 /*Color depth: 1 (1 byte per pixel), 8 (RGB332), 16 (RGB565), 32 (ARGB8888)*/
-#define LV_COLOR_DEPTH 16
+/*32 since 13-11-2026 (docs/archive/2026-11-13-lvgl-32-bit.md): at 16 bit photos and
+ *gradients showed bands (the HVAC background on the TY570). Every pixel written
+ *for LVGL goes through src/pixel.rs, which reads this value.*/
+#define LV_COLOR_DEPTH 32
 
 /*Swap the 2 bytes of RGB565 color. Useful if the display has an 8-bit interface (e.g. SPI)*/
 #define LV_COLOR_16_SWAP 0

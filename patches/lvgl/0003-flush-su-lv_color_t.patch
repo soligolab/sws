@@ -1,0 +1,23 @@
+# lvgl 0.6.2: the flush callback on lv_color_t, not lv_color16_t, so the crate
+# builds with LV_COLOR_DEPTH 32 (13-11-2026, docs/archive/2026-11-13-lvgl-32-bit.md).
+# Applicare con: git apply patches/lvgl/0003-*.patch
+--- a/sws-runtime/crates/sws-lvgl-viewer/vendor/lvgl-0.6.2/src/display.rs
++++ b/sws-runtime/crates/sws-lvgl-viewer/vendor/lvgl-0.6.2/src/display.rs
+@@ -68,7 +68,7 @@
+             unsafe extern "C" fn(
+                 *mut lvgl_sys::lv_disp_drv_t,
+                 *const lvgl_sys::lv_area_t,
+-                *mut lvgl_sys::lv_color16_t,
++                *mut lvgl_sys::lv_color_t,
+             ),
+         >,
+         rounder_cb: Option<
+@@ -221,7 +221,7 @@
+             unsafe extern "C" fn(
+                 *mut lvgl_sys::_lv_disp_drv_t,
+                 *const lvgl_sys::lv_area_t,
+-                *mut lvgl_sys::lv_color16_t,
++                *mut lvgl_sys::lv_color_t,
+             ),
+         >,
+         rounder_cb: Option<

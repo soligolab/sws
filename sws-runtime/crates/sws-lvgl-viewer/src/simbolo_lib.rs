@@ -326,7 +326,7 @@ pub const BUDGET_ROTORE_BYTE: usize = 8 * 1024 * 1024;
 
 /// I fotogrammi di un rotore entro il budget, dato il riquadro che li contiene.
 pub fn fotogrammi_entro(symmetry: f64, dove: Ritaglio) -> usize {
-    let per_fotogramma = (dove.w as usize * dove.h as usize * 3).max(1);
+    let per_fotogramma = crate::pixel::alpha_buffer_len(dove.w as usize, dove.h as usize).max(1);
     fotogrammi_rotore(symmetry).min((BUDGET_ROTORE_BYTE / per_fotogramma).max(4))
 }
 
@@ -734,13 +734,9 @@ mod tests {
             panic!("il secondo strato è il corpo")
         };
         let (lx, ly) = (cx as u32 - bitmap.dove.x, cy as u32 - bitmap.dove.y);
-        let i = ((ly * bitmap.dove.w + lx) * 3) as usize;
+        let i = (ly * bitmap.dove.w + lx) as usize * crate::pixel::PX_ALPHA;
         let j = ((cy as u32 * 160 + cx as u32) * 4) as usize;
-        let rgb565 = u16::from_le_bytes([bitmap.buf[i], bitmap.buf[i + 1]]);
-        let (r, g) = (
-            ((rgb565 >> 11) as u8) << 3,
-            (((rgb565 >> 5) & 0x3f) as u8) << 2,
-        );
+        let (r, g, _, _) = crate::pixel::read_rgba(&bitmap.buf[i..]);
         assert!(
             (r as i16 - (intero.pixels[j] & 0xf8) as i16).abs() <= 8,
             "rosso {r} contro {}",
@@ -776,7 +772,7 @@ mod tests {
         assert_eq!(fotogrammi.len(), 20);
         assert!(fotogrammi
             .iter()
-            .all(|f| f.len() == (dove.w * dove.h * 3) as usize));
+            .all(|f| f.len() == (dove.w * dove.h) as usize * crate::pixel::PX_ALPHA));
         assert_ne!(
             fotogrammi[0], fotogrammi[5],
             "fotogrammi diversi sono angoli diversi"
@@ -810,7 +806,10 @@ mod tests {
             h: 400,
         };
         let n = fotogrammi_entro(360.0, grande);
-        assert!(n < 120 && n * 400 * 400 * 3 <= BUDGET_ROTORE_BYTE, "{n}");
+        assert!(
+            n < 120 && n * 400 * 400 * crate::pixel::PX_ALPHA <= BUDGET_ROTORE_BYTE,
+            "{n}"
+        );
         assert!(
             fotogrammi_entro(
                 360.0,

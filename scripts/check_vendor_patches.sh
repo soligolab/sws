@@ -37,9 +37,11 @@ LVGL_CHART="sws-runtime/crates/sws-lvgl-viewer/vendor/lvgl-sys-0.6.2/vendor/lvgl
 LVGL_BUILD_RS="sws-runtime/crates/sws-lvgl-viewer/vendor/lvgl-sys-0.6.2/build.rs"
 # Il crate `s7` (BSD-3), vendorizzato il 20-10-2026 per la porta configurabile.
 S7_TCP="sws-runtime/crates/sws-plugin-s7/vendor/s7-0.1.9/src/tcp.rs"
+LVGL_DISPLAY_RS="sws-runtime/crates/sws-lvgl-viewer/vendor/lvgl-0.6.2/src/display.rs"
 PATCHES=(
   "patches/lvgl/0001-init-x_ext_buf_assigned.patch|$LVGL_CHART|ser->x_ext_buf_assigned = false;"
   "patches/lvgl/0002-extra-include-e-link.patch|$LVGL_BUILD_RS|LVGL_EXTRA_INCLUDE"
+  "patches/lvgl/0003-flush-su-lv_color_t.patch|$LVGL_DISPLAY_RS|*mut lvgl_sys::lv_color_t,"
   "patches/s7/0001-porta-configurabile.patch|$S7_TCP|pub fn with_port"
 )
 
@@ -136,7 +138,7 @@ if [ -f "$LOCK" ]; then
   # pipefail` il SIGPIPE del produttore (141) diventerebbe un fallimento della
   # pipeline. Vedi il commento in check_static.sh, dove costava 11 falsi
   # positivi su 40 giri.
-  for crate in lvgl-sys s7; do
+  for crate in lvgl-sys lvgl s7; do
     if grep -q REGISTRY <<< "$(awk -v n="$crate" '$0 == "name = \"" n "\"" {f=1; next}
             f&&/^\[\[package\]\]/{exit}
             f&&/^source = "registry\+/{print "REGISTRY"; exit}' "$LOCK")"; then

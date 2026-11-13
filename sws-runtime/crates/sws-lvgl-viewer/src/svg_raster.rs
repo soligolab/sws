@@ -39,8 +39,8 @@ impl Raster {
     }
 
     /// Converte nel formato che `lv_canvas` sa disegnare con questa
-    /// configurazione: `LV_IMG_CF_TRUE_COLOR_ALPHA` a `LV_COLOR_DEPTH=16`,
-    /// cioè **3 byte per pixel** — RGB565 little-endian più un byte di alfa.
+    /// configurazione: `LV_IMG_CF_TRUE_COLOR_ALPHA`, `pixel::PX_ALPHA` byte per
+    /// pixel (3 a 16 bit: RGB565 più l'alfa; 4 a 32 bit: B, G, R, A).
     /// È lo stesso formato che già usano `render_symbol` e `render_pie_chart`.
     ///
     /// Non è solo un adattamento: dimezza la memoria rispetto a RGBA8888
@@ -53,8 +53,9 @@ impl Raster {
     /// centro di una forma piena e visibile solo sui contorni, cioè
     /// esattamente dove è più facile scambiarlo per "l'SVG è fatto così".
     pub fn to_lvgl_true_color_alpha(&self) -> Vec<u8> {
-        let mut out = Vec::with_capacity(self.pixels.len() / 4 * 3);
-        for px in self.pixels.chunks_exact(4) {
+        let px_a = crate::pixel::PX_ALPHA;
+        let mut out = vec![0u8; self.pixels.len() / 4 * px_a];
+        for (px, o) in self.pixels.chunks_exact(4).zip(out.chunks_exact_mut(px_a)) {
             let (r, g, b, a) = (px[0], px[1], px[2], px[3]);
             let (r, g, b) = if a == 0 || a == 255 {
                 (r, g, b)
@@ -62,10 +63,7 @@ impl Raster {
                 let un = |c: u8| ((c as u16 * 255) / a as u16).min(255) as u8;
                 (un(r), un(g), un(b))
             };
-            let rgb565: u16 = ((r as u16 & 0xF8) << 8) | ((g as u16 & 0xFC) << 3) | (b as u16 >> 3);
-            out.push((rgb565 & 0xFF) as u8);
-            out.push((rgb565 >> 8) as u8);
-            out.push(a);
+            crate::pixel::put_rgba(o, r, g, b, a);
         }
         out
     }
@@ -499,20 +497,20 @@ mod tests {
     fn la_conversione_per_lvgl_usa_tre_byte_per_pixel() {
         let r = rasterize(CERCHIO, 16, 16, false, false).expect("deve rasterizzarsi");
         let buf = r.to_lvgl_true_color_alpha();
+        let px = crate::pixel::PX_ALPHA;
+        assert_eq!(buf.len(), 16 * 16 * px, "LV_IMG_CF_TRUE_COLOR_ALPHA");
+        let c = (8 * 16 + 8) * px;
         assert_eq!(
-            buf.len(),
-            16 * 16 * 3,
-            "LV_IMG_CF_TRUE_COLOR_ALPHA a 16 bit = 3 byte/pixel"
-        );
-        // Centro rosso: RGB565 di #ff0000 è 0xF800, little-endian 00 F8, alfa piena.
-        let c = (8 * 16 + 8) * 3;
-        assert_eq!(
-            &buf[c..c + 3],
-            &[0x00, 0xF8, 0xFF],
+            crate::pixel::read_rgba(&buf[c..c + px]),
+            (255, 0, 0, 255),
             "il centro dovrebbe essere rosso opaco"
         );
         // Angolo fuori dal cerchio: trasparente.
-        assert_eq!(buf[2], 0, "l'angolo dovrebbe avere alfa 0");
+        assert_eq!(
+            crate::pixel::read_rgba(&buf[..px]).3,
+            0,
+            "l'angolo dovrebbe avere alfa 0"
+        );
     }
 
     /// tiny-skia premoltiplica. Se non si divide per l'alfa, un pixel a metà
@@ -528,12 +526,12 @@ mod tests {
             height: 1,
         };
         let buf = r.to_lvgl_true_color_alpha();
-        assert_eq!(
-            buf[1] & 0xF8,
-            0xF8,
+        let (r, _, _, a) = crate::pixel::read_rgba(&buf);
+        assert!(
+            r >= 0xF8,
             "il rosso deve tornare pieno, non dimezzato: {buf:?}"
         );
-        assert_eq!(buf[2], 128, "l'alfa deve restare quella di partenza");
+        assert_eq!(a, 128, "l'alfa deve restare quella di partenza");
     }
 
     /// Tutti i disegni della libreria, interi: si interpretano e lasciano

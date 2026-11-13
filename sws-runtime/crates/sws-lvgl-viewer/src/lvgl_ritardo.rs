@@ -73,7 +73,7 @@ pub struct Fascia {
     /// Il testo già scritto: si riscrive solo quando cambia il secondo.
     scritto: String,
     /// Il colore del velo già messo (`lv_color_t::full`).
-    sfondo: Option<u16>,
+    sfondo: Option<u32>,
     /// La misura già data a velo e fascia: il display segue la pagina.
     misura: (u32, u32),
     /// Il grigio dello stale, uno per tutti gli oggetti senza filtro loro.
@@ -212,9 +212,12 @@ impl Fascia {
                     lvgl_sys::lv_style_prop_t_LV_STYLE_BG_COLOR,
                 )
                 .color;
-                if self.sfondo != Some(c.full) {
+                // `full` is u16 or u32 with the colour depth.
+                #[allow(clippy::unnecessary_cast)]
+                let full = c.full as u32;
+                if self.sfondo != Some(full) {
                     lvgl_sys::lv_obj_set_style_bg_color(velo, c, 0);
-                    self.sfondo = Some(c.full);
+                    self.sfondo = Some(full);
                 }
             }
             if self.scritto != testo {

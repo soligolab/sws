@@ -20,10 +20,15 @@
 use std::sync::atomic::{AtomicPtr, AtomicUsize, Ordering};
 use std::sync::{Mutex, OnceLock};
 
-/// Frame buffer condiviso RGB888 (3 byte/pixel), riempito dal flush
-/// callback (chiamato da LVGL, contesto FFI) e letto dal loop SDL2 (contesto
-/// Rust normale) — il `Mutex` è il confine di sincronizzazione tra i due.
-static FRAME: OnceLock<Mutex<Vec<u8>>> = OnceLock::new();
+/// LVGL's draw buffer, a whole page in `lv_color_t` (`direct_mode`, 13-11-2026,
+/// plan `docs/archive/2026-11-13-lvgl-32-bit.md`): LVGL draws each changed area
+/// at its place and the buffer *is* the frame, row stride = page width. Until
+/// then LVGL drew compact areas and the flush copied them, converted, into a
+/// second RGB888 frame (`FRAME`): 1,8 MB and a conversion per pixel on the Tiny
+/// TY. Written by LVGL inside `task_handler`, read by the loop after it, on the
+/// same thread.
+static PIXELS: AtomicPtr<lvgl_sys::lv_color_t> = AtomicPtr::new(core::ptr::null_mut());
+static INIZIALIZZATO: OnceLock<()> = OnceLock::new();
 /// La risoluzione **corrente** del display: segue la pagina aperta (18-10-2026,
 /// vedi `ridimensiona`). Prima era fissata dalla prima pagina per tutta la
 /// sessione, e una prima pagina 1280×768 su uno schermo 1280×800 lasciava due
@@ -34,7 +39,7 @@ static DISP: AtomicPtr<lvgl_sys::lv_disp_t> = AtomicPtr::new(core::ptr::null_mut
 static DRAW_BUF: AtomicPtr<lvgl_sys::lv_disp_draw_buf_t> = AtomicPtr::new(core::ptr::null_mut());
 /// Quanti pixel tiene il buffer di disegno di LVGL: cresce, non cala.
 static CAPIENZA: AtomicUsize = AtomicUsize::new(0);
-/// La zona di `FRAME` ridisegnata da LVGL e non ancora portata sullo schermo
+/// La zona della pagina ridisegnata da LVGL e non ancora portata sullo schermo
 /// (12-11-2026, piano Tiny TY passo 2): il backend DRM copia solo questa, e
 /// niente quando è vuota. Prima copiava lo schermo intero a ogni giro, anche
 /// fermo: sul Tiny TY il viewer stava all'83 % di un core su una pagina immobile.
@@ -103,17 +108,31 @@ pub fn segna_tutto() {
     }
 }
 
-/// Se LVGL ha ridisegnato qualcosa dall'ultima volta, passa a `f` il frame
-/// RGB888 e la zona cambiata, e la azzera. `false` se non c'era niente.
+/// The page as LVGL drew it: `w × h` pixels of `pixel::PX` bytes, row by row.
+/// Empty before `init_display`.
+fn pagina() -> &'static [u8] {
+    let p = PIXELS.load(Ordering::Acquire);
+    let (w, h) = dims();
+    if p.is_null() {
+        return &[];
+    }
+    // Safety: `p` is the leaked draw buffer, at least `CAPIENZA` pixels, and
+    // `dims()` never exceeds it (`ridimensiona` grows it first).
+    unsafe { std::slice::from_raw_parts(p as *const u8, (w * h) as usize * crate::pixel::PX) }
+}
+
+/// Se LVGL ha ridisegnato qualcosa dall'ultima volta, passa a `f` la pagina
+/// (nel formato di LVGL: a 32 bit B,G,R,A come XRGB8888) e la zona cambiata, e
+/// la azzera. `false` se non c'era niente.
 pub fn con_zona_cambiata(f: impl FnOnce(&[u8], Zona)) -> bool {
     let Some(zona) = ZONA.lock().unwrap_or_else(|e| e.into_inner()).take() else {
         return false;
     };
-    let Some(frame) = FRAME.get() else {
+    let buf = pagina();
+    if buf.is_empty() {
         return false;
-    };
-    let buf = frame.lock().unwrap_or_else(|e| e.into_inner());
-    f(&buf, zona);
+    }
+    f(buf, zona);
     true
 }
 
@@ -124,7 +143,7 @@ pub fn dims() -> (u32, u32) {
 
 fn buffer_pixel(n_px: usize) -> &'static mut [lvgl_sys::lv_color_t] {
     // 'static via Box::leak, non una variabile locale (vedi `init_display`).
-    Box::leak(vec![lvgl_sys::lv_color16_t { full: 0 }; n_px].into_boxed_slice())
+    Box::leak(vec![lvgl_sys::lv_color_t { full: 0 }; n_px].into_boxed_slice())
 }
 
 /// Porta il display a `hor_res`×`ver_res`, se non lo è già. Va chiamata
@@ -159,10 +178,7 @@ pub fn ridimensiona(hor_res: u32, ver_res: u32) -> anyhow::Result<bool> {
             );
         }
         CAPIENZA.store(n_px, Ordering::Release);
-    }
-    if let Some(frame) = FRAME.get() {
-        let mut buf = frame.lock().unwrap_or_else(|e| e.into_inner());
-        *buf = vec![0u8; n_px * 3];
+        PIXELS.store(pixel_buf.as_mut_ptr(), Ordering::Release);
     }
     *FRAME_DIMS.lock().unwrap_or_else(|e| e.into_inner()) = (hor_res, ver_res);
     segna_tutto();
@@ -175,33 +191,28 @@ pub fn ridimensiona(hor_res: u32, ver_res: u32) -> anyhow::Result<bool> {
     Ok(true)
 }
 
-/// Copia l'ultimo frame flushato in un buffer RGB888 fornito dal chiamante
-/// (dimensione `hor_res*ver_res*3`, stesso ordine riga per riga di
-/// `init_display`). Restituisce `false` se il display non è ancora stato
-/// inizializzato.
+/// Copia la pagina in un buffer RGB888 fornito dal chiamante (dimensione
+/// `hor_res*ver_res*3`, riga per riga): per `--istantanea` e il backend SDL.
+/// Restituisce `false` se il display non è ancora stato inizializzato.
 pub fn copy_frame_rgb888(out: &mut [u8]) -> bool {
-    let Some(frame) = FRAME.get() else {
+    let buf = pagina();
+    if buf.is_empty() {
         return false;
-    };
-    let buf = frame.lock().unwrap_or_else(|e| e.into_inner());
-    let n = out.len().min(buf.len());
-    out[..n].copy_from_slice(&buf[..n]);
+    }
+    let px_b = crate::pixel::PX;
+    for (o, p) in out.chunks_exact_mut(3).zip(buf.chunks_exact(px_b)) {
+        let mut c = lvgl_sys::lv_color_t { full: 0 };
+        // Safety: `p` holds exactly one `lv_color_t` (PX bytes).
+        unsafe {
+            std::ptr::copy_nonoverlapping(p.as_ptr(), &mut c as *mut _ as *mut u8, px_b);
+        }
+        let (r, g, b) = crate::pixel::rgb_of(c);
+        o.copy_from_slice(&[r, g, b]);
+    }
     true
 }
 
-/// The colour a page background `(r, g, b)` really has on screen: LVGL keeps
-/// colours in RGB565 (`lv_color_make` drops the low bits) and `sws_flush_cb`
-/// widens them back the way below. Whatever is painted around the page (the
-/// DRM frame, Q37) must go through the same round trip, or a page with the
-/// same declared colour shows a visible seam (Tiny TY, 13-11-2026).
-pub fn as_rendered(r: u8, g: u8, b: u8) -> (u8, u8, u8) {
-    let (r5, g6, b5) = ((r >> 3) as u32, (g >> 2) as u32, (b >> 3) as u32);
-    (
-        ((r5 * 255) / 31) as u8,
-        ((g6 * 255) / 63) as u8,
-        ((b5 * 255) / 31) as u8,
-    )
-}
+pub use crate::pixel::as_rendered;
 
 unsafe extern "C" fn sws_flush_cb(
     disp_drv: *mut lvgl_sys::_lv_disp_drv_t,
@@ -217,35 +228,9 @@ unsafe extern "C" fn sws_flush_cb(
     let w = (area.x2 - area.x1 + 1).max(0) as usize;
     let h = (area.y2 - area.y1 + 1).max(0) as usize;
 
-    if let Some(frame) = FRAME.get() {
-        let mut buf = frame.lock().unwrap_or_else(|e| e.into_inner());
-        for row in 0..h {
-            let dst_y = y1 + row;
-            if dst_y >= ver_res as usize {
-                continue;
-            }
-            for col in 0..w {
-                let dst_x = x1 + col;
-                if dst_x >= hor_res as usize {
-                    continue;
-                }
-                // Safety: color_p punta a un array riga-per-riga di w*h
-                // pixel per quest'area — stesso layout che DisplayRefresh::
-                // as_pixels() del crate assume (vedi lvgl-0.6.2/src/display.rs).
-                let px = unsafe { *color_p.add(row * w + col) };
-                let raw: u16 = unsafe { px.full }; // union: lettura del pattern di bit grezzo, RGB565
-                let r5 = (raw >> 11) & 0x1F;
-                let g6 = (raw >> 5) & 0x3F;
-                let b5 = raw & 0x1F;
-                let idx = (dst_y * hor_res as usize + dst_x) * 3;
-                if idx + 2 < buf.len() {
-                    buf[idx] = ((r5 as u32 * 255) / 31) as u8;
-                    buf[idx + 1] = ((g6 as u32 * 255) / 63) as u8;
-                    buf[idx + 2] = ((b5 as u32 * 255) / 31) as u8;
-                }
-            }
-        }
-    }
+    // `direct_mode`: LVGL has already drawn the area in place, in the page
+    // buffer. Nothing to copy: the backend reads the page after `task_handler`.
+    let _ = color_p;
 
     if w > 0 && h > 0 && (x1 as u32) < hor_res && (y1 as u32) < ver_res {
         if REGISTRA_AREE.load(Ordering::Relaxed) {
@@ -282,8 +267,8 @@ unsafe extern "C" fn sws_flush_cb(
 /// richiede che LVGL sia già inizializzato (il ctor `#[ctor]` del crate
 /// `lvgl` lo fa automaticamente al primo utilizzo, prima di `main()`).
 pub fn init_display(hor_res: u32, ver_res: u32) -> anyhow::Result<()> {
-    FRAME
-        .set(Mutex::new(vec![0u8; (hor_res * ver_res * 3) as usize]))
+    INIZIALIZZATO
+        .set(())
         .map_err(|_| anyhow::anyhow!("init_display chiamata più di una volta"))?;
     *FRAME_DIMS.lock().unwrap_or_else(|e| e.into_inner()) = (hor_res, ver_res);
 
@@ -292,6 +277,7 @@ pub fn init_display(hor_res: u32, ver_res: u32) -> anyhow::Result<()> {
     // 'static via Box::leak, non una variabile locale — questo è il fix.
     let pixel_buf = buffer_pixel(n_px);
     CAPIENZA.store(n_px, Ordering::Release);
+    PIXELS.store(pixel_buf.as_mut_ptr(), Ordering::Release);
 
     // Default per _lv_disp_draw_buf_t/_lv_disp_drv_t è generato da bindgen
     // come zero-init sicuro (vedi bindings.rs) — stesso pattern usato da
@@ -315,6 +301,8 @@ pub fn init_display(hor_res: u32, ver_res: u32) -> anyhow::Result<()> {
     disp_drv.hor_res = hor_res as lvgl_sys::lv_coord_t;
     disp_drv.ver_res = ver_res as lvgl_sys::lv_coord_t;
     disp_drv.flush_cb = Some(sws_flush_cb);
+    // The buffer is the whole page, drawn in place (see `PIXELS`).
+    disp_drv.set_direct_mode(1);
 
     let disp_ptr = unsafe { lvgl_sys::lv_disp_drv_register(disp_drv as *mut _) };
     if disp_ptr.is_null() {
@@ -324,15 +312,4 @@ pub fn init_display(hor_res: u32, ver_res: u32) -> anyhow::Result<()> {
     DRV.store(disp_drv as *mut _, Ordering::Release);
     DISP.store(disp_ptr, Ordering::Release);
     Ok(())
-}
-
-#[cfg(test)]
-mod as_rendered_tests {
-    #[test]
-    fn frame_matches_the_page_background() {
-        // #0f172a, the background of the pairing page and of the Q37 frame.
-        assert_eq!(super::as_rendered(0x0f, 0x17, 0x2a), (8, 20, 41));
-        assert_eq!(super::as_rendered(0xff, 0xff, 0xff), (255, 255, 255));
-        assert_eq!(super::as_rendered(0, 0, 0), (0, 0, 0));
-    }
 }
