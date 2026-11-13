@@ -12,6 +12,10 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Aggiunto
+- **La luce oscurata del pannello** (`pannello.dimmed_brightness`, percento del massimo, sotto la luce normale) e, nelle
+  impostazioni del progetto, luce e riposo su righe orizzontali con l'unità grande a destra, le due luci come slider,
+  la finestra ingrandita (zoom 1,25), le caselle di luce e beep che si cambiano solo dalla casella e ricordano gli
+  ultimi valori, una riga sul volume del cicalino (è il duty del PWM).
 - **Il cestino dei progetti** (piano `docs/archive/2026-11-13-cestino-dei-progetti.md`): la X sulla scheda di un
   progetto (anche archiviato) lo sposta nel cestino (`.cestino` nella cartella, `POST …/trash` e `…/untrash`); la
   sezione «Cestino (n) — 30 giorni di ritenzione» mostra i giorni che mancano a ogni progetto, «Ripristina» ed «Elimina
@@ -332,6 +336,11 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   il salvataggio non è finito.
 
 ### Corretto
+- **Tiny TY, dal collaudo sul TY570 del 13-11-2026**: identità dell'abbinamento, seriale e modello della sorgente Host
+  da `/etc/device.info` (il seriale del device-tree è quello del SoC); il cicalino scrivibile dal viewer anche se
+  `rc.local` l'ha esportato prima (`sws-hw-access.sh`, `ExecStartPre=+`); un deploy riaccende lo schermo e fa
+  ripartire il riposo (si spegneva subito); una luce trovata a zero vale il massimo (pagina di abbinamento al buio);
+  a ogni deploy il viewer LVGL rilegge anche la tabella delle lingue (`{{t0001}}` a schermo per un token nuovo).
 - **Tiny TY, dal collaudo sul TY570 del 13-11-2026**: `prepara-dispositivo.sh` legge il modello da `/etc/device.info` e
   fa `apt-get update` prima di avahi (l'immagine Pixsys ha gli elenchi vuoti); il lanciatore del viewer sceglie il touch
   capacitivo prima del TSC2007 (caricato anche senza pannello resistivo: il touch era morto); `install.sh` trova

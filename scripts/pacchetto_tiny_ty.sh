@@ -55,7 +55,8 @@ mkdir -p "$STAGE/bin" "$STAGE/www" "$STAGE/templates" "$STAGE/catalogo" "$STAGE/
 
 install -m 755 "$DIST/armv7/sws-runtime" "$DIST/armv7/sws-lvgl-viewer" "$STAGE/bin/"
 install -m 755 "$REPO/deploy/tiny-ty/sws-runtime-launch.sh" \
-    "$REPO/deploy/tiny-ty/sws-lvgl-viewer-launch.sh" "$STAGE/bin/"
+    "$REPO/deploy/tiny-ty/sws-lvgl-viewer-launch.sh" \
+    "$REPO/deploy/tiny-ty/sws-hw-access.sh" "$STAGE/bin/"
 install -m 755 "$REPO/deploy/tiny-ty/install.sh" "$STAGE/"
 install -m 644 "$REPO/deploy/tiny-ty/sws-runtime.service" \
     "$REPO/deploy/tiny-ty/sws-lvgl-viewer.service" \

@@ -92,6 +92,17 @@ impl Riposo {
         }
     }
 
+    /// A deploy counts as activity: the screen lights up and the idle time
+    /// starts again. Without it the new times were measured from the last
+    /// touch, maybe minutes before, and a deploy with «off after 2 minutes»
+    /// left the screen dark straight away (TY570, 13-11-2026).
+    pub fn wake(&mut self, ora: Instant) -> bool {
+        self.ultimo = ora;
+        let was_dark = self.fase != Fase::Acceso;
+        self.fase = Fase::Acceso;
+        was_dark
+    }
+
     /// Da chiamare a ogni giro del ciclo: la fase in cui passare, se cambia.
     /// Col dito appoggiato non si va a riposo, per quanto a lungo stia lì.
     pub fn giro(
@@ -111,8 +122,7 @@ impl Riposo {
         } else {
             Fase::Acceso
         };
-        // Il giro non riaccende mai: lo fa solo un tocco. Così un deploy che
-        // allunga i tempi non accende lo schermo di nessuno.
+        // Il giro non riaccende mai: lo fa un tocco, o un deploy (`wake`).
         let piu_buio = |a: Fase, b: Fase| (a as u8) > (b as u8);
         if piu_buio(voluta, self.fase) {
             self.fase = voluta;
@@ -140,7 +150,13 @@ impl Luce {
             Ok(t.trim().parse()?)
         };
         let massimo = leggi("max_brightness")?.max(1);
-        let iniziale = leggi("brightness")?;
+        // A light found at 0 is a screen a previous run left off at rest, not
+        // a choice: with no light in the project (the pairing page, a project
+        // without one) the panel stayed black (TY570, 13-11-2026).
+        let iniziale = match leggi("brightness")? {
+            0 => massimo,
+            b => b,
+        };
         Ok(Self {
             brightness: dir.join("brightness"),
             massimo,
@@ -148,14 +164,17 @@ impl Luce {
         })
     }
 
-    fn valore(&self, percento: Option<u8>, fase: Fase) -> u32 {
+    fn valore(&self, percento: Option<u8>, dimmed: Option<u8>, fase: Fase) -> u32 {
         let normale = match percento {
             Some(p) => (self.massimo * p as u32).div_ceil(100),
             None => self.iniziale,
         };
         match fase {
             Fase::Acceso => normale,
-            Fase::Oscurato => (normale * OSCURATO_PERCENTO / 100).max(1),
+            Fase::Oscurato => match dimmed {
+                Some(p) => (self.massimo * p as u32).div_ceil(100).max(1),
+                None => (normale * OSCURATO_PERCENTO / 100).max(1),
+            },
             Fase::Spento => 0,
         }
     }
@@ -255,7 +274,11 @@ fn minuti(m: Option<u32>) -> Option<Duration> {
 impl Schermo {
     fn applica_luce(&self) {
         if let Some(l) = &self.luce {
-            l.scrivi(l.valore(self.cfg.luminosita, self.riposo.fase()));
+            l.scrivi(l.valore(
+                self.cfg.luminosita,
+                self.cfg.dimmed_brightness,
+                self.riposo.fase(),
+            ));
         }
     }
 
@@ -264,6 +287,7 @@ impl Schermo {
             c.imposta(b);
         }
         self.cfg = cfg;
+        self.riposo.wake(Instant::now());
         self.applica_luce();
     }
 }
@@ -433,18 +457,34 @@ mod tests {
     }
 
     #[test]
+    fn a_deploy_wakes_the_screen_and_restarts_the_idle_time() {
+        let t0 = Instant::now();
+        let mut r = Riposo::nuovo(t0);
+        // The last touch long ago: the new short times must not count from it.
+        assert!(!r.wake(t0 + 600 * S));
+        assert_eq!(r.giro(t0 + 601 * S, OSC, SPE), None);
+        assert_eq!(r.fase(), Fase::Acceso);
+        r.giro(t0 + 600 * S + SPE.unwrap(), OSC, SPE);
+        assert_eq!(r.fase(), Fase::Spento);
+        assert!(r.wake(t0 + 2000 * S), "dark → lit");
+        assert_eq!(r.fase(), Fase::Acceso);
+    }
+
+    #[test]
     fn la_luce_in_numeri() {
         let l = Luce {
             brightness: PathBuf::new(),
             massimo: 255,
             iniziale: 200,
         };
-        assert_eq!(l.valore(None, Fase::Acceso), 200);
-        assert_eq!(l.valore(Some(100), Fase::Acceso), 255);
-        assert_eq!(l.valore(Some(50), Fase::Acceso), 128);
-        assert_eq!(l.valore(Some(100), Fase::Oscurato), 38);
-        assert_eq!(l.valore(Some(5), Fase::Oscurato), 1);
-        assert_eq!(l.valore(Some(80), Fase::Spento), 0);
+        assert_eq!(l.valore(None, None, Fase::Acceso), 200);
+        assert_eq!(l.valore(Some(100), None, Fase::Acceso), 255);
+        assert_eq!(l.valore(Some(50), None, Fase::Acceso), 128);
+        assert_eq!(l.valore(Some(100), None, Fase::Oscurato), 38);
+        assert_eq!(l.valore(Some(5), None, Fase::Oscurato), 1);
+        assert_eq!(l.valore(Some(80), None, Fase::Spento), 0);
+        // The dimmed light set in the project, in percent of the maximum.
+        assert_eq!(l.valore(Some(80), Some(20), Fase::Oscurato), 51);
     }
 
     #[test]
@@ -455,11 +495,15 @@ mod tests {
         std::fs::write(luce.join("max_brightness"), "255\n").unwrap();
         std::fs::write(luce.join("brightness"), "180\n").unwrap();
         let l = Luce::apri(&luce).unwrap();
-        l.scrivi(l.valore(Some(40), Fase::Acceso));
+        l.scrivi(l.valore(Some(40), None, Fase::Acceso));
         assert_eq!(
             std::fs::read_to_string(luce.join("brightness")).unwrap(),
             "102"
         );
+        // Found off: with no light in the project, full light, not black.
+        std::fs::write(luce.join("brightness"), "0\n").unwrap();
+        let l = Luce::apri(&luce).unwrap();
+        assert_eq!(l.valore(None, None, Fase::Acceso), 255);
 
         let chip = d.path().join("pwmchip3");
         std::fs::create_dir_all(chip.join("pwm0")).unwrap();

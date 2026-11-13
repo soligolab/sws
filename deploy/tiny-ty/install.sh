@@ -93,6 +93,7 @@ install -m 755 "$QUI/bin/sws-runtime"                 "$INSTALL_DIR/bin/"
 install -m 755 "$QUI/bin/sws-lvgl-viewer"             "$INSTALL_DIR/bin/"
 install -m 755 "$QUI/bin/sws-runtime-launch.sh"       "$INSTALL_DIR/bin/"
 install -m 755 "$QUI/bin/sws-lvgl-viewer-launch.sh"   "$INSTALL_DIR/bin/"
+install -m 755 "$QUI/bin/sws-hw-access.sh"            "$INSTALL_DIR/bin/"
 for d in www templates catalogo; do
     rm -rf "${INSTALL_DIR:?}/$d"
     [ -d "$QUI/$d" ] && cp -r "$QUI/$d" "$INSTALL_DIR/$d"

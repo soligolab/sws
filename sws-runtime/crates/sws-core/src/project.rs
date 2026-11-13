@@ -2702,6 +2702,12 @@ pub struct PannelloConfig {
     /// i Tiny TY; altrove non fanno niente.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub luminosita: Option<u8>,
+    /// The dimmed brightness, in percent of the maximum like `luminosita`
+    /// (1-100, below it). Absent = 15 % of the normal brightness. Asked by the
+    /// maintainer on 13-11-2026: «manca la % a cui portare la luminosità
+    /// dimmerata».
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dimmed_brightness: Option<u8>,
     /// Dopo quanti minuti senza tocchi lo schermo si oscura. Assente = mai.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub oscura_dopo_min: Option<u32>,
@@ -2765,6 +2771,17 @@ impl PannelloConfig {
         if let Some(l) = self.luminosita {
             if !(Self::LUCE_MIN..=100).contains(&l) {
                 return Err(format!("luminosita {l} fuori da {}-100", Self::LUCE_MIN));
+            }
+        }
+        if let Some(d) = self.dimmed_brightness {
+            if !(1..=100).contains(&d) {
+                return Err(format!("dimmed_brightness {d} outside 1-100"));
+            }
+            if self.luminosita.is_some_and(|l| d >= l) {
+                return Err(format!(
+                    "dimmed_brightness ({d}) must be below luminosita ({})",
+                    self.luminosita.unwrap_or_default()
+                ));
             }
         }
         for (nome, v) in [
@@ -3453,6 +3470,7 @@ mod tests_pannello {
         let ok = PannelloConfig {
             fps: Some(20),
             luminosita: Some(80),
+            dimmed_brightness: Some(20),
             oscura_dopo_min: Some(5),
             spegni_dopo_min: Some(30),
             beep: Some(BeepTocco::default()),
@@ -3467,6 +3485,12 @@ mod tests_pannello {
         assert!(con(|p| p.luminosita = Some(2)).is_err());
         assert!(con(|p| p.luminosita = Some(101)).is_err());
         assert!(con(|p| p.oscura_dopo_min = Some(0)).is_err());
+        assert!(con(|p| p.dimmed_brightness = Some(0)).is_err());
+        assert!(
+            con(|p| p.dimmed_brightness = Some(80)).is_err(),
+            "not below the normal light"
+        );
+        assert!(con(|p| p.dimmed_brightness = None).is_ok());
         // Spegnere prima di oscurare non ha senso: si dice.
         let e = con(|p| p.spegni_dopo_min = Some(5)).unwrap_err();
         assert!(e.contains("dopo oscura_dopo_min"), "{e}");

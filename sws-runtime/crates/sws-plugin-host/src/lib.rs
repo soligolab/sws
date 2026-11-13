@@ -106,13 +106,34 @@ pub fn leggi_device_tree(basi: &[&str], campo: &str) -> Option<String> {
     })
 }
 
-/// Il seriale: device-tree su ARM, poi il DMI su x86.
-fn leggi_seriale() -> Option<String> {
-    leggi_device_tree(DEVICE_TREE, "serial-number").or_else(|| {
-        let t = std::fs::read_to_string("/sys/class/dmi/id/product_serial").ok()?;
-        let t = t.trim().to_string();
-        (!t.is_empty()).then_some(t)
+/// Where Pixsys writes the order code and the serial number on the panels
+/// that are not PixsysOS (Tiny TY, Ubuntu): `/etc/device.info`, the file its
+/// own `rc.local` reads. On the Tiny TY the device-tree serial is the SoC's
+/// (`6d7b021725c7f9ec`), not the one on the label (13-11-2026).
+pub const PIXSYS_DEVICE_INFO: &str = "/etc/device.info";
+
+/// A `key = value` field of a Pixsys `device.info` (`Serial number`,
+/// `Device_Name`), with the spaces around `=` the file has.
+pub fn pixsys_device_info(path: &Path, key: &str) -> Option<String> {
+    let text = std::fs::read_to_string(path).ok()?;
+    text.lines().find_map(|l| {
+        let (k, v) = l.split_once('=')?;
+        let v = v.trim();
+        (k.trim() == key && !v.is_empty()).then(|| v.to_string())
     })
+}
+
+/// Il seriale: quello di Pixsys in `/etc/device.info` (Tiny TY), poi il
+/// device-tree su ARM, poi il DMI su x86.
+fn leggi_seriale() -> Option<String> {
+    let info = Path::new(PIXSYS_DEVICE_INFO);
+    pixsys_device_info(info, "Serial number")
+        .or_else(|| leggi_device_tree(DEVICE_TREE, "serial-number"))
+        .or_else(|| {
+            let t = std::fs::read_to_string("/sys/class/dmi/id/product_serial").ok()?;
+            let t = t.trim().to_string();
+            (!t.is_empty()).then_some(t)
+        })
 }
 
 /// Le temperature di `root` (di norma `/sys/class`): ogni `thermal/thermal_zone*`
@@ -188,7 +209,8 @@ impl Collector {
             ultima: Instant::now(),
             sysfs: PathBuf::from("/sys/class"),
             serial: leggi_seriale(),
-            model: leggi_device_tree(DEVICE_TREE, "model"),
+            model: pixsys_device_info(Path::new(PIXSYS_DEVICE_INFO), "Device_Name")
+                .or_else(|| leggi_device_tree(DEVICE_TREE, "model")),
         }
     }
 
@@ -325,6 +347,29 @@ pub async fn run(cfg: HostConfig, db: Arc<TagDb>, cancel: CancellationToken) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pixsys_device_info_is_read_as_written() {
+        let d = std::env::temp_dir().join(format!("sws-device-info-{}", std::process::id()));
+        std::fs::create_dir_all(&d).unwrap();
+        let f = d.join("device.info");
+        std::fs::write(
+            &f,
+            "[Pixsys]\nSerial number =P102500C03052500004\nDevice_Name   =TY570-1AD-P1\n",
+        )
+        .unwrap();
+        assert_eq!(
+            pixsys_device_info(&f, "Serial number").as_deref(),
+            Some("P102500C03052500004")
+        );
+        assert_eq!(
+            pixsys_device_info(&f, "Device_Name").as_deref(),
+            Some("TY570-1AD-P1")
+        );
+        assert_eq!(pixsys_device_info(&f, "Missing"), None);
+        assert_eq!(pixsys_device_info(&d.join("none"), "Serial number"), None);
+        std::fs::remove_dir_all(&d).ok();
+    }
 
     fn snap() -> Snapshot {
         let mut s = Snapshot {

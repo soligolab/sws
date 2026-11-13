@@ -16,6 +16,9 @@ Wants=sws-runtime.service
 
 [Service]
 Type=simple
+# As root (`+`): backlight and buzzer writable by the `video` group, also when
+# rc.local exported the buzzer channel before the udev rule could see it.
+ExecStartPre=+/opt/sws/bin/sws-hw-access.sh
 ExecStart=/opt/sws/bin/sws-lvgl-viewer-launch.sh
 # `always`: all'abbinamento il viewer esce per passare al progetto e trova 503
 # finché il progetto non è attivo (visto il 12-11-2026); lo rilancia systemd.

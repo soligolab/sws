@@ -2067,6 +2067,9 @@ export interface PannelloConfig {
   fps?: number;
   /** Percento, 5-100. Assente = SWS non tocca la luce. */
   luminosita?: number;
+  /** Dimmed brightness, percent of the maximum (1-100, below `luminosita`).
+   *  Absent = 15 % of the normal one. */
+  dimmed_brightness?: number;
   oscura_dopo_min?: number;
   spegni_dopo_min?: number;
   beep?: BeepTocco;

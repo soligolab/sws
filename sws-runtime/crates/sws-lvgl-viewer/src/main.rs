@@ -1603,7 +1603,7 @@ fn run_drm(
     rt_handle: tokio::runtime::Handle,
     base_url: String,
     shared_alarms: client::SharedAlarms,
-    lang_table: model::LanguageTable,
+    mut lang_table: model::LanguageTable,
     shared_lang: client::SharedLang,
     shared_session: session::SharedSession,
     // L'avviso di aggiornamento: il thread di controllo lo aggiorna, il loop
@@ -1844,7 +1844,7 @@ fn run_drm(
             &rt_handle,
             &shared_alarms,
             &ack_tx,
-            &lang_table,
+            &mut lang_table,
             &shared_lang,
             &shared_session,
         ) {
@@ -1910,7 +1910,7 @@ fn ricarica_se_chiesto(
     rt_handle: &tokio::runtime::Handle,
     shared_alarms: &client::SharedAlarms,
     ack_tx: &mpsc::Sender<String>,
-    lang_table: &model::LanguageTable,
+    lang_table: &mut model::LanguageTable,
     shared_lang: &client::SharedLang,
     shared_session: &session::SharedSession,
 ) -> Option<(Vec<lvgl::style::Style>, Vec<lvgl_render::LiveBinding>)> {
@@ -1931,11 +1931,16 @@ fn ricarica_se_chiesto(
         return None;
     }
     // Fotogrammi, luce, riposo e beep viaggiano col deploy (13-11-2026): si
-    // rileggono qui, senza aspettare che il viewer riparta. Le lingue no:
-    // `lang_table` è di chi chiama, e per ora si rilegge alla partenza.
+    // rileggono qui, senza aspettare che il viewer riparta. The language table
+    // too: a token added by a deploy (the assistant writing `{{t0001}}` for a
+    // unit) stayed on screen as `{{t0001}}` until the viewer restarted
+    // (TY570, 13-11-2026).
     if progetto_cambiato {
         match rt_handle.block_on(client::fetch_languages(base_url)) {
-            Ok((_, pannello)) => imposta_pannello(pannello),
+            Ok((tabella, pannello)) => {
+                *lang_table = tabella;
+                imposta_pannello(pannello);
+            }
             Err(e) => eprintln!("[reload] impostazioni del pannello non rilette: {e}"),
         }
     }
@@ -2047,7 +2052,7 @@ fn run_window(
     rt_handle: tokio::runtime::Handle,
     base_url: String,
     shared_alarms: client::SharedAlarms,
-    lang_table: model::LanguageTable,
+    mut lang_table: model::LanguageTable,
     shared_lang: client::SharedLang,
     shared_session: session::SharedSession,
     // L'avviso di aggiornamento: il thread di controllo lo aggiorna, il loop
@@ -2404,7 +2409,7 @@ fn run_window(
             &rt_handle,
             &shared_alarms,
             &ack_tx,
-            &lang_table,
+            &mut lang_table,
             &shared_lang,
             &shared_session,
         ) {

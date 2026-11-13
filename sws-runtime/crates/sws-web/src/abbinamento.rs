@@ -108,6 +108,14 @@ pub fn normalizza(scritto: &str) -> Option<String> {
 pub fn identita_hardware() -> Option<String> {
     // `/host/devicetree` è il device-tree montato dal quadlet (lo stesso che
     // usa la sorgente Host): dentro il container podman maschera `/sys/firmware`.
+    // The Pixsys serial on the label first, where there is one (Tiny TY:
+    // `/etc/device.info`); on PixsysOS the device-tree already holds it.
+    if let Some(s) = sws_plugin_host::pixsys_device_info(
+        Path::new(sws_plugin_host::PIXSYS_DEVICE_INFO),
+        "Serial number",
+    ) {
+        return Some(format!("seriale:{s}"));
+    }
     let seriale = std::fs::read("/host/devicetree/serial-number")
         .or_else(|_| std::fs::read("/sys/firmware/devicetree/base/serial-number"))
         .ok()
