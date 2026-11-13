@@ -66,6 +66,35 @@ Vale su **tutte** le macchine di sviluppo, ed e' per questo che sta qui e non in
 locale: `CLAUDE.md` viaggia con git, `~/.claude/` no — stesso motivo per cui i piani stanno in
 `docs/plans/`.
 
+## Il codice si scrive in inglese, ovunque (regola del maintainer, 2026-11-13)
+
+**Tutto il codice è in inglese**: nomi di file e cartelle, moduli, tipi, funzioni, variabili, costanti, campi e chiavi
+dei formati (`project.yaml`, i file di `config/`, JSON), rotte delle API, argomenti e variabili d'ambiente, test,
+script, **commenti e messaggi di log**. Parole del maintainer: «una regola stringente per cui tutto il codice deve
+essere in inglese ovunque (ad eccezione ovviamente dei file di lingua)».
+
+**Restano in italiano**, perché non sono codice: i file di lingua (`sws-editor/src/i18n/*.json`, i testi di sistema dei
+viewer, le voci `it` di `NOVITA.yaml`), i documenti in `docs/`, `STATUS.md`, `CHANGELOG.md`, `CLAUDE.md`, i messaggi
+di commit e le risposte al maintainer. Un testo che vede l'utente sta in un file di lingua, non nel codice.
+
+**Si sistema man mano, non tutto insieme** (decisione dello stesso giorno: «per ora lo si può fare gradualmente man
+mano che si lavora»):
+- il codice **nuovo** nasce in inglese, anche dentro un file ancora in italiano. Su questo punto la regola batte
+  l'abitudine di scrivere come il codice intorno;
+- quello che si **tocca** per lavoro si traduce: la funzione che si modifica, i suoi nomi locali, i suoi commenti. Un
+  file che si cambia in buona parte si rinomina, coi riferimenti (guardie `check_*.sh` comprese: cercano spesso nomi
+  con `grep`);
+- non si apre un ramo solo per tradurre, e non si traduce codice che il lavoro in corso non tocca.
+
+**La compatibilità, per ora, la fanno i progetti, non il codice**: una chiave di `project.yaml` rinominata non porta
+un alias in lettura; i progetti si aggiornano nel cloud e nell'IDE e si rimandano al dispositivo col deploy.
+**Eccezione: i file di stato del dispositivo** in `config/` (`abbinamento.json`, `pannelli.yaml`, `utenti_*`, i
+certificati conosciuti…), che nessun deploy riscrive: rinominarli senza che il runtime sposti il file vecchio
+all'avvio disabbina il pannello o gli fa dimenticare i certificati. Lì la migrazione all'avvio è obbligatoria.
+
+Il seme con le misure e il refactoring completo, quando si farà:
+[il codice in inglese](docs/plans/semi/2026-11-13-codice-in-inglese.md).
+
 ## Session start
 
 **First, run `./scripts/session_start.sh`.** It compares this machine with
