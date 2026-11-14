@@ -187,6 +187,16 @@ Conseguenze per le fasi:
   schermate LVGL (`d8c5a094`). Installato sul TY570 (pacchetto con nome rc.17): le API rispondono su NM e
   timedated col PIN `06e990`. Il collaudo sul vetro non è ancora fatto.
 - **14-11-2026**: dettaglio della **fase 4** scritto qui sotto. Si aspetta il via libera.
+- **14-11-2026**: **fase 4** sul ramo `feat/control-panel-4` (annidato su `feat/control-panel`): backend Wi-Fi,
+  hotspot e luce (`05051ab8`), web (`1db73c84`), calibrazione PixsysOS (`f580f0f5`), LVGL con la calibrazione dei
+  resistivi (`f89e6752`, `9ff94804`). Non collaudata: aspetta la chiavetta Wi-Fi sul TY570.
+- **14-11-2026**: **fasi 5 e 6** sul ramo `feat/control-panel-5` (annidato sul 4, `6df86069`): PIN del progetto e
+  interruttore nella finestra «Impostazioni progetto» (non in Istanza → Device: è un campo del progetto, e quella
+  finestra è il posto unico delle impostazioni del progetto), `PUT /api/project/control-panel`, hash mascherato in
+  `GET /api/project`, installatori che stampano il PIN iniziale. **Resta fuori**: la stessa API dal cloud per il
+  proprietario del dispositivo abbinato (passa dal tunnel; chi può cambiare la rete di un dispositivo da remoto
+  va deciso col maintainer, con la conferma dei 60 s che diventa decisiva); il pulsante in CasaDomotica quando il
+  lavoro entra in `main`; la voce di `NOVITA.yaml`, perché il blocco 2.26.0 ha già 15 voci su 15.
 
 ## Fase 4 — dettaglio (14-11-2026)
 
