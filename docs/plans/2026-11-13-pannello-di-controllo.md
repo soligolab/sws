@@ -191,8 +191,10 @@ Conseguenze per le fasi:
   hotspot e luce (`05051ab8`), web (`1db73c84`), calibrazione PixsysOS (`f580f0f5`), LVGL con la calibrazione dei
   resistivi (`f89e6752`, `9ff94804`). Non collaudata: aspetta la chiavetta Wi-Fi sul TY570.
 - **14-11-2026**: **fasi 5 e 6** sul ramo `feat/control-panel-5` (annidato sul 4, `6df86069`): PIN del progetto e
-  interruttore nella finestra «Impostazioni progetto» (non in Istanza → Device: è un campo del progetto, e quella
-  finestra è il posto unico delle impostazioni del progetto), `PUT /api/project/control-panel`, hash mascherato in
+  interruttore in Istanza → Device → «Schermo e accesso» (`8766ea61`, decisione del maintainer dello stesso giorno: le
+  impostazioni del progetto su come si comporta il dispositivo — tutto schermo, fps, luce, riposo, beep, pannello di
+  controllo — escono dalla finestra «Impostazioni progetto», che tiene come sono le pagine),
+  `PUT /api/project/control-panel`, hash mascherato in
   `GET /api/project`, installatori che stampano il PIN iniziale. **Resta fuori**: la stessa API dal cloud per il
   proprietario del dispositivo abbinato (passa dal tunnel; chi può cambiare la rete di un dispositivo da remoto
   va deciso col maintainer, con la conferma dei 60 s che diventa decisiva); il pulsante in CasaDomotica quando il
