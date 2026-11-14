@@ -25,6 +25,7 @@
 
 | # | Ramo | Piano | Cosa si prova alla fine | Immagine |
 |---|---|---|---|---|
+| [2026-11-14-stile-sobrio.md](2026-11-14-stile-sobrio.md) | seme del 04-11-2026 («la grafica è troppo colorata e giocosa»), sessione di plan del 14-11 con la tavola da provare | **in corso** — ramo `feat/stile-sobrio`, annidato su `feat/control-panel-5`: uno stile dell'IDE in più, scelto dalla persona, fatto di tre colori (sfondo, inchiostro, accento) con lo stato solo per allarmi ed esiti; tre sessioni: motore e preferenze, colori scritti a mano con una guardia, icone a linea al posto delle emoji |
 | C0 | `fix/collaudo-2-25-0` | questa tabella, §Collaudo | chat e registro staccati nel cloud parlano col progetto; i menù di pagina mostrano i nomi; «Montagna» leggera sul WP630 — **fatta il 04-11, mergiata il 05-11 nella 2.25.1, collaudo sull'immagine** | **2.25.1** |
 | T1 | `feat/template-regole` | questa tabella, §Regole dei template | il lucchetto «🔒 Supervisor» sui comandi che il ruolo non può usare (web e LVGL); R6–R8 nella guardia; i primi sei template a posto — **fatta il 04-11, mergiata il 05-11 nella 2.25.1, collaudo sull'immagine** | — |
 | T2 | `feat/template-regole-2` | idem | gli altri dieci template; la guardia a zero — **fatta il 04-11, mergiata il 05-11 nella 2.25.1, collaudo sull'immagine** | sì |
@@ -52,7 +53,7 @@ del maintainer: non toccano i file degli altri piani. Testi e schermate del manu
 finestre e Logica sono definitivi.
 
 **Fuori dalla serie, e restano vivi**: [l'assistente che disegna i simboli](2026-11-03-assistente-genera-simboli-e-sinottici.md)
-(F5–F7) e [lo stile sobrio](semi/2026-11-04-stile-sobrio.md) (se arriva prima di M5, le schermate aspettano lui). Il [manuale rifatto](../archive/2026-10-19-manuale-rifatto.md) è
+(F5–F7) e [lo stile sobrio](2026-11-14-stile-sobrio.md) (se arriva prima di M5, le schermate aspettano lui). Il [manuale rifatto](../archive/2026-10-19-manuale-rifatto.md) è
 archiviato dal 05-11-2026: T12–T14 e le schermate sono passati in M5.
 
 ### §Collaudo — le anomalie della 2.25.0 (sessione C0)

@@ -718,7 +718,7 @@ nell'IDE?).
   archivi in `dist/`, cache della vecchia build QEMU, due cartelle di compilazione in `tmp/`). Tenuti `target/release`
   (lo usa la prova OpenPLC che gira da 15 giorni) e le cache delle immagini container.
 - **Semi nuovi**: [build veloce e due portali](docs/plans/semi/2026-11-05-build-veloce-e-due-portali.md); nello
-  [stile sobrio](docs/plans/semi/2026-11-04-stile-sobrio.md) la misura delle icone che non vale nelle barre dello stile VS
+  [stile sobrio](docs/plans/2026-11-14-stile-sobrio.md) la misura delle icone che non vale nelle barre dello stile VS
   Code. In `Appunti.txt`: la CI di GitHub rossa dal 05-10 al passo clippy.
 
 **Pomeriggio (in `main`, non pushato: `4d918f75`, `b24193d7`)**, tutto collaudato dal maintainer:
