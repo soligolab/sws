@@ -12,6 +12,39 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — rc.18: pannello di controllo, Device → Schermo e accesso, stile sobrio (2026-11-14)
+
+Su richiesta del maintainer («fai lo squash merge di tutto su main e rilascia la rc di tutto») la catena annidata è
+in `main`, un commit per ramo, e i rami locali sono eliminati:
+- `c62c7279` fix(rc18) — ritocchi della rc.18 e il Tiny TY a casa (ex `fix/rc18-ritocchi`, ancora su origin: da
+  eliminare quando lo dice il maintainer);
+- `a5d97979` pannello di controllo, fasi 1-3; `c74e189a` fase 4 (Wi-Fi, hotspot, luce, calibrazione);
+  `ca028383` fasi 5 e 6 (PIN del progetto, installatori, Device → «Schermo e accesso»);
+- `00f7d451` stile sobrio, sessione 1 (quattro colori scelti dalla persona).
+I rami annidati sono stati applicati come differenza dal genitore: per ognuno, `git diff <ramo> main` mostrava solo
+gli otto file meta che `main` aveva già (il controllo «alberi uguali» non poteva passare per quelli).
+
+NOVITA 2.26.0 (blocco pieno a 15): «Conferme e avvisi» e «Il cambio password al primo accesso» sono diventate una
+voce sola (via la frase «il deploy avvisa prima se porta utenti che dovranno cambiarla»); la voce del pannello di
+destra ha perso «da sola su un progetto nuovo o da Progetto → Impostazioni» per far posto allo stile sobrio; nuova
+la voce del pannello di controllo. **Da rivedere al collaudo.**
+
+**Il collaudo, cosa guardare** (per `/test-changes`), sulla rc.18:
+- **Tiny TY (TY570)**: le voci rimaste della rc.17 qui sotto (rete al riavvio, setup Pixsys), poi il pannello di
+  controllo: gesto di 5 s nell'angolo, finestra all'avvio, PIN `06e990`, Rete DHCP/statico con ritorno dopo 60 s, Ora,
+  Dispositivo, riavvio. Con la chiavetta Wi-Fi: `lsusb` e driver, scansione, collegamento, ritorno dopo 60 s,
+  hotspot col telefono e QR. Luce dal pannello sopra quella del progetto, e la riga in «Schermo e accesso».
+- **TC620/WP630**: pannello di controllo web e LVGL; luce via `net.pixsys.Config1.Display` (scala in percento
+  supposta, mai misurata); «Calibra» avvia `touch-calibration.service`.
+- **IDE**: Configurazione → Istanza → Device → «Schermo e accesso» (tutto schermo, fps, luce, riposo, beep, PIN del
+  progetto: col PIN impostato quello del MAC non apre più); la finestra «Impostazioni progetto» senza quei campi;
+  Configurazione → IDE → Stile «Sobrio» coi quattro colori, scuro e chiaro, nelle due disposizioni, e chat e log
+  staccati che seguono lo stile.
+- **Non collaudabile ora**: la calibrazione dei resistivi (manca un TY750/770).
+
+Prossimo lavoro: stile sobrio, sessioni 2 (colori scritti a mano, guardia) e 3 (icone al posto delle emoji);
+pannello di controllo dal cloud (da decidere col maintainer); CasaDomotica col pulsante «Impostazioni dispositivo».
+
 ## ▶ Riprendere da qui — il TY570 a casa: rete al riavvio e setup Pixsys corretti, pacchetto installato (2026-11-13 notte, ufficio)
 
 **Il TY570 è a casa**, `ty570-1ad-p1-06e990.local` = 192.168.1.242 (reservation su Technitium chiesta all'altra
