@@ -21,6 +21,9 @@ struct PointerState {
     x: i16,
     y: i16,
     pressed: bool,
+    /// A press LVGL must see once, then released: the touch the corner
+    /// gesture held back and gave back (`control_panel::Pointer::Click`).
+    release_after_read: bool,
 }
 
 static POINTER: OnceLock<Mutex<PointerState>> = OnceLock::new();
@@ -28,12 +31,26 @@ static POINTER: OnceLock<Mutex<PointerState>> = OnceLock::new();
 /// Chiamata dal loop SDL2 a ogni evento mouse (down/up/motion) — l'ultimo
 /// stato scritto qui è quello che `sws_pointer_read_cb` riporterà a LVGL al
 /// prossimo poll (`lv_indev_read`, guidato da `lv_task_handler()`).
+///
+/// The device control panel sees the touch first: a finger in its corner is
+/// held back until it is clear whether it is the gesture
+/// (`control_panel::filter_pointer`).
 pub fn set_pointer_state(x: i32, y: i32, pressed: bool) {
+    let width = crate::lvgl_display::dims().0 as i32;
+    let decision =
+        crate::control_panel::filter_pointer(x, y, pressed, width, std::time::Instant::now());
     if let Some(m) = POINTER.get() {
         let mut s = m.lock().unwrap_or_else(|e| e.into_inner());
         s.x = x.clamp(i16::MIN as i32, i16::MAX as i32) as i16;
         s.y = y.clamp(i16::MIN as i32, i16::MAX as i32) as i16;
-        s.pressed = pressed;
+        match decision {
+            crate::control_panel::Pointer::Pass => s.pressed = pressed,
+            crate::control_panel::Pointer::Withhold => {}
+            crate::control_panel::Pointer::Click => {
+                s.pressed = true;
+                s.release_after_read = true;
+            }
+        }
     }
 }
 
@@ -43,7 +60,15 @@ unsafe extern "C" fn sws_pointer_read_cb(
 ) {
     let s = POINTER
         .get()
-        .map(|m| *m.lock().unwrap_or_else(|e| e.into_inner()))
+        .map(|m| {
+            let mut g = m.lock().unwrap_or_else(|e| e.into_inner());
+            let now = *g;
+            if g.release_after_read {
+                g.release_after_read = false;
+                g.pressed = false;
+            }
+            now
+        })
         .unwrap_or_default();
     unsafe {
         (*data).point = lvgl_sys::lv_point_t { x: s.x, y: s.y };

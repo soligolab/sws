@@ -1415,7 +1415,8 @@
     "sezioneFaceplate": "Parametri",
     "targetRiskyTitolo": "Passare a LVGL?",
     "targetRiskyTesto": "Il motore LVGL disegna meno cose del browser: alcuni oggetti di questo progetto potrebbero non comparire sul pannello, o comparire diversi.\n\nIl verso contrario, da LVGL al web, non perde niente.",
-    "targetRiskySi": "Passa a LVGL"
+    "targetRiskySi": "Passa a LVGL",
+    "openControlPanel": "Apri il pannello di controllo del dispositivo"
   },
   "shortcut": {
     "navCanvas": "Navigazione canvas",
@@ -4938,5 +4939,63 @@
         "messaggio": "Allarme attivo:"
       }
     }
+  },
+  "controlPanel": {
+    "title": "Impostazioni dispositivo",
+    "pinHelp": "PIN di servizio. Senza un PIN del progetto vale quello del dispositivo: le ultime 6 cifre del MAC sull'etichetta.",
+    "pinWrong": "PIN sbagliato.",
+    "pinLocked": "Troppi tentativi: riprova fra {{secs}} s.",
+    "cancel": "Annulla",
+    "enter": "Entra",
+    "close": "Chiudi",
+    "network": "Rete",
+    "wifi": "Wi-Fi",
+    "time": "Ora",
+    "screen": "Schermo",
+    "device": "Dispositivo",
+    "loading": "Lettura…",
+    "noCards": "Nessuna scheda di rete gestita.",
+    "card": "Scheda",
+    "addressNow": "Indirizzo ora",
+    "gatewayDns": "Gateway · DNS",
+    "static": "Statico",
+    "staticToConfirm": "Statico, da confermare",
+    "change": "Modifica",
+    "address": "Indirizzo",
+    "gateway": "Gateway",
+    "apply": "Applica",
+    "field": "campo",
+    "confirmQuestion": "La rete funziona come vuoi?",
+    "confirmHelp": "Senza conferma, fra {{secs}} secondi il dispositivo torna da solo com'era: {{before}}.",
+    "rollback": "Torna indietro",
+    "confirm": "Conferma",
+    "state": {
+      "connected": "connessa",
+      "connecting": "in configurazione",
+      "disconnected": "non configurata",
+      "unavailable": "cavo non collegato"
+    },
+    "deviceTime": "Ora del dispositivo",
+    "sync": "Sincronizzazione",
+    "ntp": "Automatica (NTP)",
+    "manual": "Manuale",
+    "synced": "sincronizzata",
+    "notSynced": "non ancora sincronizzata",
+    "timezone": "Fuso orario",
+    "dateTime": "Data e ora",
+    "manualOnlyWhenOff": "Si imposta a mano solo con la sincronizzazione «Manuale».",
+    "model": "Modello",
+    "serial": "Seriale",
+    "hostname": "Nome in rete",
+    "swsVersion": "Versione SWS",
+    "pin": "PIN di servizio",
+    "pinInitial": "iniziale, dal MAC",
+    "pinInitialWarning": "Il PIN iniziale lo conosce chiunque veda il nome in rete: imposta un PIN nel progetto.",
+    "reboot": "Riavvia",
+    "powerOff": "Spegni",
+    "rebootAsk": "Riavviare il dispositivo?",
+    "powerOffAsk": "Spegnere il dispositivo? Per riaccenderlo bisogna togliere e ridare corrente.",
+    "rebooting": "Il dispositivo si sta riavviando…",
+    "poweringOff": "Il dispositivo si sta spegnendo…"
   }
 }

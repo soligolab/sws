@@ -111,9 +111,11 @@ mod abbinamento;
 mod aggiornamento;
 mod barre;
 mod client;
+mod control_panel;
 mod drm_display;
 mod effects;
 mod lvgl_avviso;
+mod lvgl_control_panel;
 mod lvgl_display;
 mod lvgl_font;
 mod lvgl_indev;
@@ -277,6 +279,14 @@ struct Args {
     /// vero e nient'altro.
     #[arg(long)]
     avviso_di_prova: Option<String>,
+
+    /// Opens the device control panel at start and types this PIN, to look at
+    /// it with `--istantanea` without touching a device: `PIN` or
+    /// `PIN:sezione` (`network`, `time`, `device`), or `pin` alone for the PIN
+    /// screen. The runtime must answer `/api/control-panel` — a test runtime
+    /// with `SWS_CONTROL_PANEL_FAKE=1` does.
+    #[arg(long)]
+    pannello_di_prova: Option<String>,
 
     /// Accende la fascia «Dati in ritardo» con un ritardo **finto** di tanti
     /// secondi (09-11-2026), per guardarla senza staccare la rete del pannello.
@@ -741,6 +751,12 @@ fn main() -> anyhow::Result<()> {
     // Comune a entrambi i backend: touch_indev.rs (backend "drm") alimenta
     // lo stesso indev del mouse SDL2, non ne registra uno diverso.
     lvgl_indev::init_pointer_indev()?;
+    // The device control panel: boot button, corner gesture, action. Over the
+    // pairing screen too — that is where a device without a network is.
+    control_panel::start(&args.base_url);
+    if let Some(pin) = args.pannello_di_prova.as_deref() {
+        control_panel::try_out(pin);
+    }
 
     // L'avviso di aggiornamento a schermo (decisione 41: «in web **e** in
     // LVGL»). Fino al 20-10-2026 si mostrava **solo** su un pannello senza
@@ -1197,7 +1213,8 @@ fn servi_finestra(
         Navigazione::Pagina(_)
         | Navigazione::ChiudiFinestra
         | Navigazione::Accedi
-        | Navigazione::Esci => return None,
+        | Navigazione::Esci
+        | Navigazione::ControlPanel => return None,
     };
 
     // I valori effettivi: quelli passati da chi apre, poi i default dichiarati
@@ -1321,6 +1338,8 @@ fn scrivi_istantanea(
     let mut finestra: Option<lvgl_render::FinestraViva> = None;
     let mut comandi_nav = 0;
     let mut overlay_avviso = lvgl_avviso::Overlay::new();
+    // The device control panel, above everything (`lvgl_control_panel`).
+    let mut overlay_pannello = lvgl_control_panel::Overlay::new();
     // La fascia «Dati in ritardo» (09-11-2026): con `--ritardo-di-prova` è
     // l'unico modo di vederla disegnata senza staccare la rete di un pannello.
     let mut fascia_ritardo = lvgl_ritardo::Fascia::new();
@@ -1440,6 +1459,11 @@ fn scrivi_istantanea(
                             aggiornamento::AzioneRichiesta::Accesso,
                         );
                     }
+                    lvgl_render::Navigazione::ControlPanel => {
+                        eprintln!("  pannello di controllo richiesto");
+                        comandi_nav += 1;
+                        control_panel::open(false);
+                    }
                     lvgl_render::Navigazione::Esci => {
                         eprintln!("  uscita richiesta");
                         comandi_nav += 1;
@@ -1487,6 +1511,12 @@ fn scrivi_istantanea(
             shared_session,
             hor_res,
             ver_res,
+        );
+        overlay_pannello.sincronizza(
+            &shared_lang
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .clone(),
         );
         lvgl::task_handler();
         lvgl::tick_inc(Duration::from_millis(PASSO_MS));
@@ -1671,6 +1701,8 @@ fn run_drm(
     // Vive quanto il loop: dentro ci sono i contesti delle callback, che LVGL
     // tiene per puntatore.
     let mut overlay_avviso = lvgl_avviso::Overlay::new();
+    // The device control panel, above everything (`lvgl_control_panel`).
+    let mut overlay_pannello = lvgl_control_panel::Overlay::new();
     // La fascia «Dati in ritardo» (09-11-2026). Vedi `run_window`.
     let mut fascia_ritardo = lvgl_ritardo::Fascia::new();
 
@@ -1726,6 +1758,12 @@ fn run_drm(
             hor_res,
             ver_res,
         );
+        overlay_pannello.sincronizza(
+            &shared_lang
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .clone(),
+        );
 
         while let Ok(cmd) = tag_rx.try_recv() {
             let base_url = base_url.clone();
@@ -1770,6 +1808,7 @@ fn run_drm(
                     .clear();
                 session::chiedi_ridisegno();
             }
+            Some(lvgl_render::Navigazione::ControlPanel) => control_panel::open(false),
             _ => {}
         }
         // Le tre richieste di finestra si servono qui e non toccano la pagina
@@ -1930,6 +1969,10 @@ fn ricarica_se_chiesto(
     let sessione_cambiata = session::ridisegno_chiesto();
     if !(progetto_cambiato || sessione_cambiata) {
         return None;
+    }
+    // A deploy may have turned the control panel on or off.
+    if progetto_cambiato {
+        control_panel::refresh_status();
     }
     // Fotogrammi, luce, riposo e beep viaggiano col deploy (13-11-2026): si
     // rileggono qui, senza aspettare che il viewer riparta. The language table
@@ -2116,6 +2159,8 @@ fn run_window(
     // Vive quanto il loop: dentro ci sono i contesti delle callback, che LVGL
     // tiene per puntatore.
     let mut overlay_avviso = lvgl_avviso::Overlay::new();
+    // The device control panel, above everything (`lvgl_control_panel`).
+    let mut overlay_pannello = lvgl_control_panel::Overlay::new();
     // La fascia «Dati in ritardo» (09-11-2026, stessa regola del viewer web):
     // nasce spenta e si accende da sé quando i valori a schermo hanno più di
     // 5 s, o il socket è giù da più di 5 s.
@@ -2269,6 +2314,12 @@ fn run_window(
             hor_res,
             ver_res,
         );
+        overlay_pannello.sincronizza(
+            &shared_lang
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .clone(),
+        );
 
         // Scrittura tag generate da click/drag in questo frame: girate a un
         // task async sul runtime tokio del processo (già vivo per il task WS
@@ -2326,6 +2377,7 @@ fn run_window(
                     .clear();
                 session::chiedi_ridisegno();
             }
+            Some(lvgl_render::Navigazione::ControlPanel) => control_panel::open(false),
             _ => {}
         }
         // Le tre richieste di finestra si servono qui e non toccano la pagina

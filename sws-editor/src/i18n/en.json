@@ -1415,7 +1415,8 @@
     "sezioneFaceplate": "Parameters",
     "targetRiskyTitolo": "Switch to LVGL?",
     "targetRiskyTesto": "The LVGL engine draws fewer things than the browser: some objects in this project may not appear on the panel, or may look different.\n\nThe other way round, from LVGL to web, loses nothing.",
-    "targetRiskySi": "Switch to LVGL"
+    "targetRiskySi": "Switch to LVGL",
+    "openControlPanel": "Open the device control panel"
   },
   "shortcut": {
     "navCanvas": "Canvas navigation",
@@ -4938,5 +4939,63 @@
         "messaggio": "Alarm active:"
       }
     }
+  },
+  "controlPanel": {
+    "title": "Device settings",
+    "pinHelp": "Service PIN. Without a project PIN the device's own applies: the last 6 digits of the MAC on its label.",
+    "pinWrong": "Wrong PIN.",
+    "pinLocked": "Too many attempts: try again in {{secs}} s.",
+    "cancel": "Cancel",
+    "enter": "Enter",
+    "close": "Close",
+    "network": "Network",
+    "wifi": "Wi-Fi",
+    "time": "Time",
+    "screen": "Screen",
+    "device": "Device",
+    "loading": "Reading…",
+    "noCards": "No managed network card.",
+    "card": "Card",
+    "addressNow": "Address now",
+    "gatewayDns": "Gateway · DNS",
+    "static": "Static",
+    "staticToConfirm": "Static, to confirm",
+    "change": "Change",
+    "address": "Address",
+    "gateway": "Gateway",
+    "apply": "Apply",
+    "field": "field",
+    "confirmQuestion": "Does the network work as you want?",
+    "confirmHelp": "Without a confirmation, in {{secs}} seconds the device goes back by itself: {{before}}.",
+    "rollback": "Go back",
+    "confirm": "Confirm",
+    "state": {
+      "connected": "connected",
+      "connecting": "configuring",
+      "disconnected": "not configured",
+      "unavailable": "cable unplugged"
+    },
+    "deviceTime": "Device time",
+    "sync": "Synchronisation",
+    "ntp": "Automatic (NTP)",
+    "manual": "Manual",
+    "synced": "synchronised",
+    "notSynced": "not synchronised yet",
+    "timezone": "Time zone",
+    "dateTime": "Date and time",
+    "manualOnlyWhenOff": "It can be set by hand only with «Manual» synchronisation.",
+    "model": "Model",
+    "serial": "Serial",
+    "hostname": "Network name",
+    "swsVersion": "SWS version",
+    "pin": "Service PIN",
+    "pinInitial": "initial, from the MAC",
+    "pinInitialWarning": "Anyone who sees the network name knows the initial PIN: set a PIN in the project.",
+    "reboot": "Reboot",
+    "powerOff": "Power off",
+    "rebootAsk": "Reboot the device?",
+    "powerOffAsk": "Power the device off? Turning it back on takes removing and restoring power.",
+    "rebooting": "The device is rebooting…",
+    "poweringOff": "The device is powering off…"
   }
 }

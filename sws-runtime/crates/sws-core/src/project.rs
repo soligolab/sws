@@ -2405,6 +2405,11 @@ pub struct Project {
     /// per ora quante volte al secondo si ridisegna. `None` = i predefiniti.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pannello: Option<PannelloConfig>,
+    /// The device control panel (plan `docs/plans/2026-11-13-pannello-di-controllo.md`):
+    /// whether the runtime gesture and the synoptic action open it, and the
+    /// project's service PIN. `None` = enabled, with the device's initial PIN.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub control_panel: Option<ControlPanelConfig>,
     /// Lo stile dei simboli del progetto (Fase 4 del piano
     /// docs/archive/2026-10-14-motore-simboli-lib.md): colori di stato, colori dei
     /// materiali della libreria, volume e contorno, animazioni. Ogni campo
@@ -2740,6 +2745,29 @@ impl Default for BeepTocco {
             frequenza_hz: 1000,
             durata_ms: 30,
             volume: 100,
+        }
+    }
+}
+
+/// The device control panel settings carried by the project. Disabling it
+/// removes the runtime gesture and the synoptic action; the window shown when
+/// SWS starts stays, because it is the way back for a device left without a
+/// network (TY570, 13-11-2026).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ControlPanelConfig {
+    #[serde(default = "bool_true")]
+    pub enabled: bool,
+    /// argon2 hash of the service PIN. `None` = the device's initial PIN (the
+    /// low six hex digits of the MAC of `eth0`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pin_hash: Option<String>,
+}
+
+impl Default for ControlPanelConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            pin_hash: None,
         }
     }
 }

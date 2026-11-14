@@ -4369,6 +4369,7 @@ export function ObjectProps({
               <option value="open_faceplate">{t("props.openFaceplate")}</option>
               <option value="open_popup">{t("finestraPopup.apri")}</option>
               <option value="close_popup">{t("finestraPopup.chiudiAzione")}</option>
+              <option value="open_control_panel">{t("props.openControlPanel")}</option>
             </select>
             {obj.button_action?.type === "open_popup" && (() => {
               const act = obj.button_action as { type: "open_popup"; page: string; params?: Record<string, string> };

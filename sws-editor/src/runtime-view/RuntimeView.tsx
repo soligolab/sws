@@ -1,3 +1,4 @@
+import { openControlPanel } from "@/control-panel/ControlPanelLauncher";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PaginaFinestra } from "@/runtime-view/PaginaFinestra";
 import { oggettiFinestra } from "@/finestre/finestra";
@@ -353,6 +354,7 @@ export function RuntimeView() {
       return;
     }
     if (action.type === "close_popup") { setFinestra(null); return; }
+    if (action.type === "open_control_panel") { openControlPanel(); return; }
     if (action.type === "navigate") {
       const raw = action.url?.trim();
       if (!raw) return;

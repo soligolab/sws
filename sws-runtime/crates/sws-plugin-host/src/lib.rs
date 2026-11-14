@@ -90,7 +90,7 @@ pub fn leggi_testo(metric: HostMetric, s: &Snapshot) -> Option<String> {
 /// Dove cercare i dati di scheda del device-tree. Nel container `/proc/device-tree`
 /// non c'è (podman maschera `/sys/firmware`): `install-container.sh` monta
 /// `/sys/firmware/devicetree/base` in sola lettura su `/host/devicetree`.
-const DEVICE_TREE: &[&str] = &[
+pub const DEVICE_TREE: &[&str] = &[
     "/proc/device-tree",
     "/sys/firmware/devicetree/base",
     "/host/devicetree",
@@ -125,7 +125,7 @@ pub fn pixsys_device_info(path: &Path, key: &str) -> Option<String> {
 
 /// Il seriale: quello di Pixsys in `/etc/device.info` (Tiny TY), poi il
 /// device-tree su ARM, poi il DMI su x86.
-fn leggi_seriale() -> Option<String> {
+pub fn leggi_seriale() -> Option<String> {
     let info = Path::new(PIXSYS_DEVICE_INFO);
     pixsys_device_info(info, "Serial number")
         .or_else(|| leggi_device_tree(DEVICE_TREE, "serial-number"))

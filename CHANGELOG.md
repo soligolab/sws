@@ -12,6 +12,30 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Aggiunto
+- **Pannello di controllo del dispositivo, fase 3: le stesse schermate nel viewer LVGL** (Tiny TY, TC/WP col motore
+  LVGL; `control_panel.rs` per stato, gesto e rete, `lvgl_control_panel.rs` per il disegno): PIN, Rete con tastiera e
+  barra di conferma, Ora, Dispositivo, sul layer di sistema sopra pagina, finestre e avviso di aggiornamento. Le parole
+  sono quelle del web, lette in compilazione da `it.json`/`en.json`: una copia sola per i due motori. Il dito fermo 5 s
+  nell'angolo si intercetta in `lvgl_indev` prima di LVGL; rilasciato prima, il tocco arriva comunque al pulsante sotto.
+  `--pannello-di-prova PIN[:sezione]` lo apre per le istantanee. Su entrambi i motori il pannello parla la lingua dei
+  contenuti del progetto, non quella dell'interfaccia (che sui dispositivi è l'inglese).
+- **Pannello di controllo del dispositivo, fase 2: le schermate web** (piano
+  `docs/plans/2026-11-13-pannello-di-controllo.md`): PIN con tastiera esadecimale, poi Rete (com'è ora e DHCP o
+  statico, con una tastiera numerica per gli indirizzi e la barra di conferma che conta i 60 s, con «Torna indietro»
+  subito), Ora (NTP, fuso, data e ora a mano) e Dispositivo (modello, seriale, versione, il PIN iniziale finché il
+  progetto non ne ha uno, riavvio e spegnimento con conferma). Wi-Fi e Schermo restano grigi fino alla fase 4. Ci si
+  arriva in tre modi: il tasto «Impostazioni dispositivo» per 5 s all'avvio del viewer (sempre, anche sopra la
+  schermata di abbinamento), il dito fermo 5 s nell'angolo in alto a destra e l'azione del pulsante «Apri il pannello
+  di controllo del dispositivo» (`open_control_panel`); le ultime due spariscono se il progetto lo disattiva.
+  `POST /api/control-panel/network/rollback` (`CheckpointRollback`).
+- **Pannello di controllo del dispositivo, fase 1: backend e API** (piano
+  `docs/plans/2026-11-13-pannello-di-controllo.md`, ancora senza schermate): `/api/control-panel/*` con rete cablata
+  (DHCP o statico, sotto un checkpoint di NetworkManager che torna indietro da solo se entro 60 s non arriva la
+  conferma), ora e fuso (`timedate1`), informazioni, riavvio e spegnimento (`login1`). Si entra col PIN di servizio:
+  quello del progetto (`control_panel.pin_hash`), altrimenti i 6 caratteri bassi del MAC di `eth0`/`ethernet0`;
+  sessione di 15 minuti, 5 errori bloccano per un minuto. Sul Tiny TY `install.sh` installa i permessi polkit per
+  `sws` (`.pkla` per polkit 0.105, `.rules` per i più recenti). Provato sul TY570: statico e ritorno, rollback senza
+  conferma, fuso orario.
 - **LVGL: gli ultimi due sfondi di pagina restano decodificati** (`svg_assets.rs`, `SFONDI_MAX = 2`, condivisi col
   canvas via `Arc`): sul TY570 tornare alla pagina HVAC costava 1,6 s ogni volta (JPEG 1024x600 scaricato, decodificato,
   scalato); ora la seconda visita è immediata. Un deploy svuota la cache. L'avviso sugli sfondi pesanti e la scelta di

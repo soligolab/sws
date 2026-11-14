@@ -1198,6 +1198,7 @@ pub async fn create_project(
                 languages: lingua_iniziale(req.lang.as_deref()),
                 page_layout: None,
                 pannello: None,
+                control_panel: None,
                 symbol_style: None,
                 ai: None,
                 target: req.target.clone(),

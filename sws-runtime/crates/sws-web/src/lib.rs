@@ -14,6 +14,7 @@ pub mod catalogo;
 pub mod certificati;
 pub mod ciclo_account;
 pub mod conferma_aggiornamento;
+pub mod control_panel;
 pub mod cornici;
 pub mod cron;
 pub mod discover;

@@ -1495,6 +1495,7 @@ pub fn build(
         .route("/api/auth/login", post(login))
         // Il codice di abbinamento (11-10-2026): pre-auth per costruzione — un
         // pannello in attesa non ha nessuna credenziale da chiedere.
+        .merge(crate::control_panel::routes())
         .route("/api/abbinamento", get(crate::abbinamento::stato))
         .route(
             "/api/abbinamento/rivendica",
@@ -2041,6 +2042,7 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
         )
         .route("/cert", get(get_cert))
         .route("/api/auth/login", post(login))
+        .merge(crate::control_panel::routes())
         .route("/api/abbinamento", get(crate::abbinamento::stato))
         .route(
             "/api/abbinamento/rivendica",
@@ -2191,6 +2193,7 @@ fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>) -> Router {
         )
         .route("/cert", get(get_cert))
         .route("/api/auth/login", post(login))
+        .merge(crate::control_panel::routes())
         .route("/api/abbinamento", get(crate::abbinamento::stato))
         .route(
             "/api/abbinamento/rivendica",
@@ -5662,6 +5665,7 @@ where
             languages: Default::default(),
             page_layout: None,
             pannello: None,
+            control_panel: None,
             symbol_style: None,
             ai: None,
             target: None,

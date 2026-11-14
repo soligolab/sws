@@ -2232,7 +2232,8 @@ export function SvgCanvas({
               return;
             }
             // P1 (17-10-2026): la finestra la apre chi conosce le pagine (il viewer).
-            if (obj.button_action.type === "open_popup" || obj.button_action.type === "close_popup") {
+            if (obj.button_action.type === "open_popup" || obj.button_action.type === "close_popup"
+              || obj.button_action.type === "open_control_panel") {
               if (obj.on_press_fn && onScript) onScript(obj.on_press_fn, obj.on_press_args ?? {});
               onButtonAction?.(obj.button_action);
               return;

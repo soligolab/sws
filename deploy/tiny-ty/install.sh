@@ -23,6 +23,9 @@ CONF_DIR=/etc/sws
 UTENTE=sws
 SERVIZI=(sws-runtime sws-lvgl-viewer)
 REGOLA=/etc/udev/rules.d/99-sws-tiny-ty.rules
+# Control panel permissions: one file per polkit generation (see the files).
+POLKIT_PKLA=/etc/polkit-1/localauthority/50-local.d/50-sws-control-panel.pkla
+POLKIT_RULES=/etc/polkit-1/rules.d/50-sws-control-panel.rules
 
 QUI="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -37,7 +40,7 @@ if [ "${1:-}" = "--uninstall" ]; then
         rm -f "/etc/systemd/system/$s.service"
     done
     systemctl daemon-reload
-    rm -f "$REGOLA"
+    rm -f "$REGOLA" "$POLKIT_PKLA" "$POLKIT_RULES"
     rm -rf "$INSTALL_DIR"
     echo "==> SWS tolto. Dati e configurazione restano:"
     echo "    $DATA_DIR e $CONF_DIR (sudo rm -rf $DATA_DIR $CONF_DIR per cancellarli)"
@@ -53,7 +56,8 @@ case "$(uname -m)" in
 esac
 
 for f in bin/sws-runtime bin/sws-lvgl-viewer www/index.html \
-         sws-runtime.service sws-lvgl-viewer.service 99-sws-tiny-ty.rules; do
+         sws-runtime.service sws-lvgl-viewer.service 99-sws-tiny-ty.rules \
+         50-sws-control-panel.pkla 50-sws-control-panel.rules; do
     [ -e "$QUI/$f" ] || die "manca $f: lancialo dalla cartella del pacchetto scompattato"
 done
 
@@ -167,6 +171,12 @@ mkdir -p "$(dirname "$REGOLA")"
 install -m 644 "$QUI/99-sws-tiny-ty.rules" "$REGOLA"
 udevadm control --reload
 udevadm trigger --action=add --subsystem-match=backlight --subsystem-match=pwm || true
+
+# Control panel: the runtime may change network, time and power from the
+# screen. Both files go in; each polkit reads only its own kind.
+install -d -m 755 "$(dirname "$POLKIT_PKLA")" "$(dirname "$POLKIT_RULES")"
+install -m 644 "$QUI/50-sws-control-panel.pkla" "$POLKIT_PKLA"
+install -m 644 "$QUI/50-sws-control-panel.rules" "$POLKIT_RULES"
 
 echo "==> Servizi"
 for s in "${SERVIZI[@]}"; do

@@ -1,0 +1,11 @@
+# SWS control panel: what the runtime (user `sws`) may change on the system
+# from the device's own screen. polkit 0.105 (Ubuntu 22.04, Tiny TY) reads only
+# these files; newer polkit reads 50-sws-control-panel.rules instead. The same
+# actions PixsysOS grants its container user (plan
+# docs/plans/2026-11-13-pannello-di-controllo.md, phase 0), plus power-off.
+[SWS control panel]
+Identity=unix-user:sws
+Action=org.freedesktop.NetworkManager.settings.modify.system;org.freedesktop.NetworkManager.network-control;org.freedesktop.NetworkManager.checkpoint-rollback;org.freedesktop.NetworkManager.wifi.scan;org.freedesktop.NetworkManager.enable-disable-wifi;org.freedesktop.timedate1.set-time;org.freedesktop.timedate1.set-timezone;org.freedesktop.timedate1.set-ntp;org.freedesktop.login1.reboot;org.freedesktop.login1.reboot-multiple-sessions;org.freedesktop.login1.power-off;org.freedesktop.login1.power-off-multiple-sessions
+ResultAny=yes
+ResultInactive=yes
+ResultActive=yes

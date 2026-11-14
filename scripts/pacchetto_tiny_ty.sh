@@ -60,7 +60,9 @@ install -m 755 "$REPO/deploy/tiny-ty/sws-runtime-launch.sh" \
 install -m 755 "$REPO/deploy/tiny-ty/install.sh" "$STAGE/"
 install -m 644 "$REPO/deploy/tiny-ty/sws-runtime.service" \
     "$REPO/deploy/tiny-ty/sws-lvgl-viewer.service" \
-    "$REPO/deploy/tiny-ty/99-sws-tiny-ty.rules" "$STAGE/"
+    "$REPO/deploy/tiny-ty/99-sws-tiny-ty.rules" \
+    "$REPO/deploy/tiny-ty/50-sws-control-panel.pkla" \
+    "$REPO/deploy/tiny-ty/50-sws-control-panel.rules" "$STAGE/"
 
 cp -r "$REPO/sws-editor/dist/." "$STAGE/www/"
 cp -r "$REPO/examples/templates/." "$STAGE/templates/"

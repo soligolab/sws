@@ -249,7 +249,10 @@ export type ButtonAction =
    *  valori dei suoi parametri. `page` è l'id della pagina. */
   | { type: "open_popup"; page: string; params?: Record<string, string> }
   /** Chiude la finestra aperta (un bottone «Chiudi» dentro la finestra). */
-  | { type: "close_popup" };
+  | { type: "close_popup" }
+  /** Opens the device control panel (plan docs/plans/2026-11-13-pannello-di-controllo.md);
+   *  does nothing when the project disabled it. */
+  | { type: "open_control_panel" };
 
 export interface SynopticObject {
   id: string;

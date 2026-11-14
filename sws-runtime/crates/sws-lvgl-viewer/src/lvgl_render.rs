@@ -900,6 +900,9 @@ pub enum Navigazione {
     Accedi,
     /// Il bottone «Esci»: chiude la sessione e ridisegna la pagina.
     Esci,
+    /// The device control panel (`open_control_panel`, 13-11-2026): served by
+    /// `control_panel`, which also checks that the project allows it.
+    ControlPanel,
 }
 
 /// Contesto per il click di un navbutton: il nome pagina è fisso quanto il
@@ -2057,7 +2060,7 @@ fn colore_campo(v: Option<&str>, tipo: &str, campo: &str) -> (u8, u8, u8) {
 /// parte | stato). Non creano `Style` da tenere vivi: LVGL copia il valore.
 /// Servono dove il web colora parti che il tema di LVGL dipinge da sé
 /// (indicatore di una barra, manopola, spunta, bordo).
-mod stile {
+pub(crate) mod stile {
     use super::Color;
     pub type P = *mut lvgl_sys::lv_obj_t;
     pub const MAIN: u32 = lvgl_sys::LV_PART_MAIN;
@@ -4814,6 +4817,7 @@ fn azione_del_bottone(obj: &SynopticObject) -> Option<Navigazione> {
         "close_popup" => Some(Navigazione::ChiudiFinestra),
         "login" => Some(Navigazione::Accedi),
         "logout" => Some(Navigazione::Esci),
+        "open_control_panel" => Some(Navigazione::ControlPanel),
         _ => None,
     }
 }
@@ -19295,6 +19299,10 @@ mod binding_tests {
         assert_eq!(
             super::azione_del_bottone(&b(r#"{"type":"logout"}"#)),
             Some(Navigazione::Esci)
+        );
+        assert_eq!(
+            super::azione_del_bottone(&b(r#"{"type":"open_control_panel"}"#)),
+            Some(Navigazione::ControlPanel)
         );
     }
 

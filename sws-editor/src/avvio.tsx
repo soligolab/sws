@@ -16,8 +16,12 @@ import { CancelloAbbinamento } from "@/components/AbbinamentoScreen";
 import { FinestraAvviso } from "@/finestraAvviso/FinestraAvviso";
 import { registraNelLog } from "@/finestraAvviso/finestraAvviso";
 import { capturePairCode } from "@/pairLink";
+import { ControlPanelLauncher } from "@/control-panel/ControlPanelLauncher";
 
-export async function avvia(Radice: React.ComponentType, opzioni: { apiLocale?: boolean } = {}): Promise<void> {
+export async function avvia(
+  Radice: React.ComponentType,
+  opzioni: { apiLocale?: boolean; controlPanel?: boolean } = {},
+): Promise<void> {
   // Le pagine dell'IDE parlano sempre con il runtime che le serve, anche se
   // l'editor è collegato a uno remoto: il remoto lo si raggiunge dal server.
   if (opzioni.apiLocale) setForceLocalApi(true);
@@ -44,6 +48,10 @@ export async function avvia(Radice: React.ComponentType, opzioni: { apiLocale?: 
           un host solo, fuori dal cancello, così vale anche sul pannello in
           attesa di abbinamento. */}
       <FinestraAvviso />
+      {/* The device control panel, on the viewer page only, outside the gate:
+          a device waiting to be paired is a device that may need its network
+          fixed (plan docs/plans/2026-11-13-pannello-di-controllo.md). */}
+      {opzioni.controlPanel && <ControlPanelLauncher />}
     </React.StrictMode>,
   );
 }
