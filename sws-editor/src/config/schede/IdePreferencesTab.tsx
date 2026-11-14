@@ -4,6 +4,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { UiLangSelect } from "@/components/UiLangSelect";
 import { DISPOSIZIONI_IDE, MISURE_ICONE, useAppStore, type DisposizioneIde } from "@/store";
 import { IconaStrumento } from "@/editor/IconaStrumento";
+import { DEFAULT_SOBER, IDE_STYLES, resolveMode, soberContrasts, type IdeStyle, type SoberColors } from "@/theme";
 
 // ── Preferenze IDE ───────────────────────────────────────────────────────────
 //
@@ -86,6 +87,90 @@ function DisposizioneSection() {
   );
 }
 
+/** The IDE style (14-11-2026, plan docs/plans/2026-11-14-stile-sobrio.md):
+ *  colourful as always, or sober. With the sober one, the three colours of the
+ *  variant on screen, each contrast next to them, and the way back to the
+ *  defaults. */
+function IdeStyleSection() {
+  const { t } = useTranslation();
+  const style = useAppStore((s) => s.ideStyle);
+  const setStyle = useAppStore((s) => s.setIdeStyle);
+  const colors = useAppStore((s) => s.soberColors);
+  const setColors = useAppStore((s) => s.setSoberColors);
+  const themeMode = useAppStore((s) => s.themeMode);
+  const variant = resolveMode(themeMode);
+  const current = colors[variant];
+  const labels: Record<IdeStyle, [string, string]> = {
+    colorful: [t("cfgUi.styleColorful"), t("cfgUi.styleColorfulNote")],
+    sober: [t("cfgUi.styleSober"), t("cfgUi.styleSoberNote")],
+  };
+  const change = (field: keyof SoberColors, value: string) =>
+    setColors({ ...colors, [variant]: { ...current, [field]: value } });
+  const c = soberContrasts(current, variant);
+  const ratio = (label: string, value: number, min: number, testid: string) => (
+    <span data-testid={testid} style={{ whiteSpace: "nowrap" }}>
+      {label}{" "}
+      <b style={{ color: value >= min ? "var(--brand-success-soft, #86efac)" : "var(--brand-danger-soft, #fca5a5)" }}>
+        {value.toFixed(1)}:1
+      </b>
+    </span>
+  );
+  return (
+    <div style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 6, padding: "10px 14px", display: "flex", flexDirection: "column", gap: 8 }}>
+      <div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--brand-text, #e2e8f0)" }}>{t("cfgUi.ideStyle")}</div>
+        <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginTop: 2 }}>{t("cfgUi.ideStyleNote")}</div>
+      </div>
+      <div role="radiogroup" aria-label={t("cfgUi.ideStyle")} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        {IDE_STYLES.map((d) => (
+          <button key={d} type="button" role="radio" aria-checked={style === d} data-testid={`ide-style-${d}`}
+            onClick={() => setStyle(d)}
+            style={{
+              textAlign: "left", padding: "6px 10px", borderRadius: 4, cursor: "pointer",
+              background: style === d ? "var(--brand-surface-2, #334155)" : "transparent",
+              border: `1px solid ${style === d ? "var(--brand-primary, #3b82f6)" : "var(--brand-surface-2, #334155)"}`,
+              color: "var(--brand-text, #e2e8f0)",
+            }}>
+            <div style={{ fontSize: 12, fontWeight: 600 }}>{labels[d][0]}</div>
+            <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginTop: 1 }}>{labels[d][1]}</div>
+          </button>
+        ))}
+      </div>
+      {style === "sober" && (
+        <div data-testid="sober-colors" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: "var(--brand-text, #e2e8f0)" }}>
+            {t(variant === "dark" ? "cfgUi.soberColorsDark" : "cfgUi.soberColorsLight")}
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 16px" }}>
+            {(["background", "ink", "accent", "icons"] as const).map((f) => (
+              <label key={f} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--brand-text-2, #cbd5e1)" }}>
+                <input type="color" value={current[f]} data-testid={`sober-${f}`}
+                  onChange={(e) => change(f, e.target.value)}
+                  style={{ width: 32, height: 22, padding: 0, border: "1px solid var(--brand-border, #475569)", borderRadius: 4, background: "none" }} />
+                {t(`cfgUi.sober_${f}`)}
+              </label>
+            ))}
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "2px 14px", fontSize: 11, color: "var(--brand-text-muted, #94a3b8)" }}>
+            {ratio(t("cfgUi.contrastText"), c.text, 4.5, "contrast-text")}
+            {ratio(t("cfgUi.contrastMuted"), c.muted, 4.5, "contrast-muted")}
+            {ratio(t("cfgUi.contrastAccent"), c.accent, 3, "contrast-accent")}
+            {ratio(t("cfgUi.contrastOnAccent"), c.onAccent, 4.5, "contrast-on-accent")}
+            {ratio(t("cfgUi.contrastIcons"), c.icons, 3, "contrast-icons")}
+          </div>
+          <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>{t("cfgUi.soberHelp")}</div>
+          <div>
+            <button type="button" data-testid="sober-reset" onClick={() => setColors({ ...colors, [variant]: DEFAULT_SOBER[variant] })}
+              style={{ background: "var(--brand-surface-2, #334155)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-border, #475569)", borderRadius: 4, padding: "4px 10px", fontSize: 12, cursor: "pointer" }}>
+              {t("cfgUi.soberReset")}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function IdePreferencesTab() {
   const { t } = useTranslation();
   return (
@@ -107,6 +192,7 @@ export function IdePreferencesTab() {
         </div>
         <UiLangSelect />
       </div>
+      <IdeStyleSection />
       <DisposizioneSection />
       <MisuraIconeSection />
       <SezioneScorciatoie />

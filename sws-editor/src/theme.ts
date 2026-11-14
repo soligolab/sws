@@ -197,6 +197,134 @@ export function testoLeggibile(colore: string, sfondi: string[], inchiostro: str
   return inchiostro;
 }
 
+// ── The sober IDE style (14-11-2026, plan docs/plans/2026-11-14-stile-sobrio.md)
+//
+// A second look for the IDE, chosen by the person like light/dark: three colours
+// — background, ink, accent — per variant, and colour only where something
+// matters. Panels and borders are shades of the background, secondary text is
+// the ink toned down as far as it still reads, the accent marks what is active
+// or about to be done. Status colours stay, muted, for alarms and outcomes.
+
+export type IdeStyle = "colorful" | "sober";
+export const IDE_STYLES = ["colorful", "sober"] as const;
+
+/** `icons` (14-11-2026, maintainer: «un colore unico da usare per tutte le
+ *  linee delle icone»): one colour for every icon stroke — a neutral grey, or a
+ *  hint of blue — so the icons stay alike and the style stays sober. */
+export interface SoberColors { background: string; ink: string; accent: string; icons: string }
+export interface SoberColorSet { dark: SoberColors; light: SoberColors }
+
+/** The colours the maintainer chose on the board (14-11-2026): graphite, warm
+ *  grey, steel blue; paper, near-black, a darker blue. */
+export const DEFAULT_SOBER: SoberColorSet = {
+  dark: { background: "#1c1f24", ink: "#d6d3cd", accent: "#5b9bd5", icons: "#a7a5a1" },
+  light: { background: "#f4f3f0", ink: "#2a2d33", accent: "#2b6cb0", icons: "#5b5d61" },
+};
+
+const STYLE_KEY = "sws.ide.style";
+const SOBER_KEY = "sws.ide.soberColors";
+const HEX = /^#[0-9a-fA-F]{6}$/;
+
+export function getStoredStyle(): IdeStyle {
+  try { if (localStorage.getItem(STYLE_KEY) === "sober") return "sober"; } catch { /* no storage */ }
+  return "colorful";
+}
+
+/** The saved colours, each one checked: a broken value falls back to its default. */
+export function getStoredSoberColors(): SoberColorSet {
+  let saved: Partial<Record<"dark" | "light", Partial<SoberColors>>> = {};
+  try { saved = JSON.parse(localStorage.getItem(SOBER_KEY) ?? "{}") ?? {}; } catch { /* no storage or bad JSON */ }
+  const pick = (v: "dark" | "light"): SoberColors => {
+    const c = saved[v] ?? {};
+    const d = DEFAULT_SOBER[v];
+    const ok = (x: unknown, def: string) => (typeof x === "string" && HEX.test(x) ? x.toLowerCase() : def);
+    return {
+      background: ok(c.background, d.background), ink: ok(c.ink, d.ink),
+      accent: ok(c.accent, d.accent), icons: ok(c.icons, d.icons),
+    };
+  };
+  return { dark: pick("dark"), light: pick("light") };
+}
+
+export function storeIdeStyle(style: IdeStyle, colors: SoberColorSet): void {
+  try {
+    localStorage.setItem(STYLE_KEY, style);
+    localStorage.setItem(SOBER_KEY, JSON.stringify(colors));
+  } catch { /* no storage: the choice lasts this page */ }
+}
+
+/** The ink moved toward the background as far as `t`, but no further than it
+ *  keeps `min` contrast on every one of `surfaces`. */
+function tonedInk(ink: string, background: string, surfaces: string[], t: number, min: number): string {
+  for (let k = t; k > 0; k -= 0.02) {
+    const c = mescola(ink, background, k);
+    if (surfaces.every((x) => contrast(c, x) >= min)) return c;
+  }
+  return ink;
+}
+
+export interface SoberTheme {
+  neutrals: Neutrals;
+  status: StatusColors;
+  desk: string;
+  guide: string;
+  primary: string;
+  primaryHover: string;
+  icons: string;
+}
+
+/** Everything the IDE paints, from the three colours of one variant. Pure, so
+ *  the contrast tests can run it on any colours. */
+export function soberTheme(c: SoberColors, variant: ResolvedTheme): SoberTheme {
+  const bg = c.background.toLowerCase();
+  const ink = c.ink.toLowerCase();
+  const surface = mescola(bg, ink, 0.045);
+  const surface2 = mescola(bg, ink, 0.10);
+  const surfaces = [bg, surface, surface2];
+  const textMuted = tonedInk(ink, bg, surfaces, 0.40, 4.5);
+  const neutrals: Neutrals = {
+    bg, surface, surface2,
+    border: mescola(bg, ink, 0.20),
+    text: ink,
+    text2: tonedInk(ink, bg, surfaces, 0.16, 7),
+    textMuted,
+    textSubtle: textMuted,
+  };
+  const dark = variant === "dark";
+  // Muted status hues; the soft one is the text on its own tinted background.
+  const hue = dark
+    ? { danger: "#e5534b", success: "#5aa66a", warning: "#d4a017" }
+    : { danger: "#c93b34", success: "#2f7a3d", warning: "#9a6b00" };
+  const tint = (h: string) => mescola(bg, h, 0.16);
+  const soft = (h: string) => testoLeggibile(mescola(h, ink, 0.25), [tint(h), surface], dark ? LIGHT_INK : DARK_INK);
+  const status: StatusColors = {
+    danger: hue.danger, dangerSoft: soft(hue.danger), dangerBg: tint(hue.danger),
+    success: hue.success, successSoft: soft(hue.success), successBg: tint(hue.success),
+    warning: hue.warning, warningSoft: soft(hue.warning), warningBg: tint(hue.warning),
+  };
+  return {
+    neutrals, status,
+    desk: dark ? mescola(bg, "#000000", 0.35) : mescola(bg, ink, 0.14),
+    guide: mescola(bg, ink, dark ? 0.22 : 0.40),
+    primary: c.accent.toLowerCase(),
+    primaryHover: mescola(c.accent.toLowerCase(), dark ? ink : "#000000", 0.15),
+    icons: c.icons.toLowerCase(),
+  };
+}
+
+/** The contrasts the IDE preferences show next to the pickers. */
+export function soberContrasts(c: SoberColors, variant: ResolvedTheme) {
+  const t = soberTheme(c, variant);
+  const n = t.neutrals;
+  return {
+    text: contrast(n.text, n.bg),
+    muted: Math.min(contrast(n.textMuted, n.surface), contrast(n.textMuted, n.surface2)),
+    accent: Math.min(contrast(t.primary, n.bg), contrast(t.primary, n.surface)),
+    onAccent: contrast(readableOn(t.primary), t.primary),
+    icons: Math.min(contrast(t.icons, n.bg), contrast(t.icons, n.surface), contrast(t.icons, n.surface2)),
+  };
+}
+
 let mql: MediaQueryList | null = null;
 function systemPrefersDark(): boolean {
   if (typeof window === "undefined" || !window.matchMedia) return true;
@@ -326,11 +454,15 @@ export function applyAppearance(mode: ThemeMode): ResolvedTheme {
   // del proprio contrasto.
   const brand = getBrand();
   const override = resolved === "light" ? brand.neutralsLight : brand.neutralsDark;
-  const neutrals: Neutrals = {
+  // The sober style replaces the brand's colours too: it is the person's choice.
+  const sober = getStoredStyle() === "sober"
+    ? soberTheme(getStoredSoberColors()[resolved], resolved) : null;
+  const neutrals: Neutrals = sober?.neutrals ?? {
     ...(resolved === "light" ? LIGHT_NEUTRALS : DARK_NEUTRALS),
     ...override,
   };
-  const status   = resolved === "light" ? LIGHT_STATUS   : DARK_STATUS;
+  const status   = sober?.status ?? (resolved === "light" ? LIGHT_STATUS : DARK_STATUS);
+  const primary  = sober?.primary ?? brand.colors.primary;
   const root = document.documentElement;
   const s = root.style;
 
@@ -343,8 +475,8 @@ export function applyAppearance(mode: ThemeMode): ResolvedTheme {
   s.setProperty(CSS_VARS.text2,     neutrals.text2);
   s.setProperty(CSS_VARS.textMuted, neutrals.textMuted);
   s.setProperty(VAR_TEXT_SUBTLE,    neutrals.textSubtle);
-  s.setProperty(VAR_CANVAS_DESK,    resolved === "light" ? LIGHT_DESK : DARK_DESK);
-  s.setProperty(VAR_GUIDA_ALBERO,   resolved === "light" ? LIGHT_GUIDA : DARK_GUIDA);
+  s.setProperty(VAR_CANVAS_DESK,    sober?.desk ?? (resolved === "light" ? LIGHT_DESK : DARK_DESK));
+  s.setProperty(VAR_GUIDA_ALBERO,   sober?.guide ?? (resolved === "light" ? LIGHT_GUIDA : DARK_GUIDA));
   s.setProperty(VAR_OMBRA_CARD, resolved === "light"
     ? "0 1px 2px rgba(15,23,42,.08), 0 2px 8px rgba(15,23,42,.07)"
     : "0 1px 2px rgba(0,0,0,.35), 0 2px 8px rgba(0,0,0,.25)");
@@ -352,10 +484,21 @@ export function applyAppearance(mode: ThemeMode): ResolvedTheme {
   // Le barre di attività della disposizione «Stile VS Code» (31-10-2026): un
   // colore per voce, nella variante del tema. Il fondo serve alle icone che
   // hanno pieni «bucati» (i cursori di `tipo`).
+  // In the sober style every item is the muted ink and only the active one
+  // takes the accent; the tool group headers lose their colours the same way.
   for (const [voce, [scuro, chiaro]] of Object.entries(COLORI_ATTIVITA)) {
-    s.setProperty(varAttivita(voce), resolved === "light" ? chiaro : scuro);
+    s.setProperty(varAttivita(voce), sober ? sober.icons : resolved === "light" ? chiaro : scuro);
   }
   s.setProperty("--sws-att-fondo", neutrals.bg);
+  if (sober) {
+    s.setProperty("--sws-att-attiva", primary);
+    s.setProperty("--sws-gruppo", neutrals.textMuted);
+    s.setProperty("--sws-icone", sober.icons);
+  } else {
+    s.removeProperty("--sws-att-attiva");
+    s.removeProperty("--sws-gruppo");
+    s.removeProperty("--sws-icone");
+  }
 
   // Stato.
   s.setProperty(VAR_DANGER,       status.danger);
@@ -370,16 +513,16 @@ export function applyAppearance(mode: ThemeMode): ResolvedTheme {
 
   // L'accento resta quello del brand: se non ancora impostato (chiamata prima
   // di applyBranding), riempi coi default del brand corrente.
-  s.setProperty(CSS_VARS.primary,      brand.colors.primary);
-  s.setProperty(CSS_VARS.primaryHover, brand.colors.primaryHover);
+  s.setProperty(CSS_VARS.primary,      primary);
+  s.setProperty(CSS_VARS.primaryHover, sober?.primaryHover ?? brand.colors.primaryHover);
 
   // Foreground leggibile sopra i fill accento/stato: calcolato per max-contrasto
   // (ignora brand.onPrimary, che per alcuni brand — es. ACME verde — fallirebbe).
-  s.setProperty(VAR_ON_PRIMARY, readableOn(brand.colors.primary));
+  s.setProperty(VAR_ON_PRIMARY, readableOn(primary));
   // Il primario come testo: deve leggersi sopra lo sfondo e su tutte e due le
   // superfici, perché un collegamento può stare su ognuna delle tre.
   s.setProperty(VAR_PRIMARY_TESTO, testoLeggibile(
-    brand.colors.primary,
+    primary,
     [neutrals.bg, neutrals.surface, neutrals.surface2],
     resolved === "light" ? DARK_INK : LIGHT_INK,
   ));
@@ -388,6 +531,7 @@ export function applyAppearance(mode: ThemeMode): ResolvedTheme {
   s.setProperty(VAR_ON_WARNING, readableOn(status.warning));
 
   root.setAttribute("data-theme", resolved);
+  root.setAttribute("data-stile", sober ? "sober" : "colorful");
   s.setProperty("color-scheme", resolved);
 
   const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
@@ -427,6 +571,12 @@ export function initThemeSystemListener(getMode: () => ThemeMode): void {
 export function initThemeStorageListener(onChange?: (mode: ThemeMode) => void): void {
   if (typeof window === "undefined") return;
   window.addEventListener("storage", (e) => {
+    // The sober style and its colours: reapply with the mode this window has.
+    // `applyAppearance` never writes these keys, so nothing bounces back.
+    if ((e.key === STYLE_KEY || e.key === SOBER_KEY) && modoApplicato) {
+      applyAppearance(modoApplicato);
+      return;
+    }
     if (e.key !== STORAGE_KEY) return;
     const mode = e.newValue === "light" || e.newValue === "dark" || e.newValue === "system"
       ? e.newValue : "system";

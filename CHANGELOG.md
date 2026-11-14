@@ -12,6 +12,15 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Aggiunto
+- **IDE: lo stile sobrio, prima sessione** (piano `docs/plans/2026-11-14-stile-sobrio.md`). In Configurazione → IDE
+  la scelta «Colorato / Sobrio», della persona e di questo browser. Il sobrio è fatto di tre colori per tema, scelti coi
+  selettori (sfondo, inchiostro, accento e un colore unico per le linee di tutte le icone; predefiniti grafite, grigio
+  caldo, blu acciaio), con il contrasto accanto e
+  «Ripristina». `soberTheme` in `theme.ts` ricava pannelli e bordi dallo sfondo e le scritte secondarie
+  dall'inchiostro, tenendole ≥ 4,5:1; le barre di attività e i gruppi di Strumenti diventano grigi e solo la voce
+  attiva prende l'accento; il logo perde il colore; lo stato resta, smorzato. Un marchio d'azienda caricato dopo
+  l'avvio ora riapplica il tema sopra di sé (prima riscriveva anche i neutri del tema chiaro). Emoji e colori
+  scritti a mano sono le sessioni 2 e 3.
 - **IDE: Configurazione → Istanza → Device → «Schermo e accesso».** Le impostazioni del progetto che dicono come si
   comporta il dispositivo escono dalla finestra «Impostazioni progetto», che tiene come sono le pagine (motore,
   formato, sfondi, cornice, dimensionamento, pagina iniziale): tutto schermo, fotogrammi al secondo, luce, riposo,

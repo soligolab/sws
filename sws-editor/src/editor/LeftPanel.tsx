@@ -958,7 +958,8 @@ function coloreGruppo(group: PaletteGroup, _mode: unknown): string {
   // altri motivi — cioè a volte sì e a volte no.
   const chiaro = typeof document !== "undefined"
     && document.documentElement.getAttribute("data-theme") === "light";
-  return chiaro ? group.colorLight : group.color;
+  // Sober style: `--sws-gruppo` (set only there) wins and every group is grey.
+  return `var(--sws-gruppo, ${chiaro ? group.colorLight : group.color})`;
 }
 
 /** Una riga di Strumenti: icona (o anteprima del simbolo), nome, e a destra
@@ -1031,7 +1032,7 @@ function GruppoStrumenti({ group, showLvglBadge, ultimo }: { group: PaletteGroup
         commuta={commuta} rientro={20} guide={guideAlbero([], { x: 13, finoA: 18, ultimo: ultimo && !open })} />
       {open && group.items.map(({ type }, iItem) => (
         <RigaStrumento key={type} testid={`strumento-${type}`}
-          icona={<IconaStrumento tipo={type} px={px} colore={colore} />}
+          icona={<IconaStrumento tipo={type} px={px} colore={`var(--sws-icone, ${colore})`} />}
           nome={simboli ? t("editor.palette.sfogliaSimboli") : t(`editor.palette.item.${type}`)}
           nota={showLvglBadge && LVGL_SUPPORTED_TYPES.has(type) ? <SegnoLvgl /> : undefined}
           rientro={36} titolo={t("leftPanel.strumentoAggiungi")} onClick={() => aggiungiOggetto(type)}

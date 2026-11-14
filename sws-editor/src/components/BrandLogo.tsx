@@ -15,6 +15,8 @@ export function BrandLogo() {
   const brand = getBrand();
   const [failed, setFailed] = useState(false);
   useAppStore((s) => s.themeMode);
+  // Sober style (14-11-2026): the logo keeps its shape and loses its colour.
+  const sober = useAppStore((s) => s.ideStyle) === "sober";
   const chiaro = typeof document !== "undefined"
     && document.documentElement.getAttribute("data-theme") === "light";
   const src = (chiaro && brand.logoChiaroUrl) || brand.logoUrl;
@@ -25,7 +27,7 @@ export function BrandLogo() {
         src={src}
         alt={brand.name}
         title={brand.name}
-        style={{ height: 26, width: "auto", display: "block" }}
+        style={{ height: 26, width: "auto", display: "block", filter: sober ? "grayscale(1)" : undefined }}
         onError={() => setFailed(true)}
       />
     );

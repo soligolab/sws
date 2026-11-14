@@ -103,7 +103,10 @@ export function BarraAttivita({ voci, attiva, aperta, lato, onScegli, etichetta 
               style={{
                 position: "relative", width: larghezza, height: altezzaVoce(icona), display: "flex", alignItems: "center",
                 justifyContent: "center", background: "transparent", border: "none", cursor: "pointer", padding: 0,
-                color: `var(${varAttivita(chiave)}, var(--brand-text, #e2e8f0))`,
+                // Sober style: the active item takes the accent (`--sws-att-attiva`, unset otherwise).
+                color: scelta && aperta
+                  ? `var(--sws-att-attiva, var(${varAttivita(chiave)}, var(--brand-text, #e2e8f0)))`
+                  : `var(${varAttivita(chiave)}, var(--brand-text, #e2e8f0))`,
                 opacity: scelta && aperta ? 1 : 0.7,
               }}>
               {scelta && aperta && (

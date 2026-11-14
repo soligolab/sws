@@ -8,7 +8,7 @@ import { api, setAuthToken, ProjectChangedError, type RilievoProgetto } from "@/
 import { confermaDopo428, NESSUNA_CONFERMA } from "./conferme428";
 import { segnaPannelloCollegato } from "@/api/pannello";
 import { aggiungi, ordinaPagine, posizioneDi, riconcilia, rimuovi, sposta } from "@/pageTree";
-import { applyAppearance, getStoredMode, type ThemeMode } from "@/theme";
+import { applyAppearance, getStoredMode, getStoredSoberColors, getStoredStyle, storeIdeStyle, type IdeStyle, type SoberColorSet, type ThemeMode } from "@/theme";
 import type { AppConfigTab } from "@/config/schede";
 import { genId } from "@/id";
 import { getStoredProjectLang, setStoredProjectLang, getStoredEditorPreviewLang, setStoredEditorPreviewLang } from "@/i18n/projectI18n";
@@ -547,6 +547,13 @@ interface AppState {
   /** La disposizione dei pannelli (31-10-2026): preferenza di questo browser. */
   disposizioneIde: DisposizioneIde;
   setDisposizioneIde: (d: DisposizioneIde) => void;
+
+  /** The IDE style (14-11-2026, plan 2026-11-14-stile-sobrio): colourful as
+   *  always, or sober with three colours per variant. A preference of this browser. */
+  ideStyle: IdeStyle;
+  soberColors: SoberColorSet;
+  setIdeStyle: (style: IdeStyle) => void;
+  setSoberColors: (colors: SoberColorSet) => void;
 
   /** Lingua CORRENTE dei contenuti di progetto (tabella lingue, T-40).
    *  Asse indipendente dalla lingua UI. "" = usa il default della tabella. */
@@ -1261,6 +1268,19 @@ export const useAppStore = create<AppState>((set, get) => {
     setDisposizioneIde: (d) => {
       try { localStorage.setItem(CHIAVE_DISPOSIZIONE, d); } catch { /* storage non disponibile */ }
       set({ disposizioneIde: d });
+    },
+
+    ideStyle: getStoredStyle(),
+    soberColors: getStoredSoberColors(),
+    setIdeStyle: (style) => {
+      storeIdeStyle(style, get().soberColors);
+      set({ ideStyle: style });
+      applyAppearance(get().themeMode);
+    },
+    setSoberColors: (colors) => {
+      storeIdeStyle(get().ideStyle, colors);
+      set({ soberColors: colors });
+      applyAppearance(get().themeMode);
     },
 
     projectLang: getStoredProjectLang(),

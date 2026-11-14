@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { api } from "@/api/client";
 import { applicaCampiPrivati, applyBranding, getBrand, loadBranding } from "@/branding";
+import { applyAppearance, getStoredMode } from "@/theme";
 
 /**
  * Dopo l'accesso, il marchio diventa quello dell'**azienda** di chi è entrato.
@@ -30,7 +31,12 @@ export function useMarchioDellAzienda(authToken: string | null): void {
       if (authToken !== "no-auth") {
         try {
           const { marchio } = await api.marchioMio();
-          if (vivo && marchio && marchio !== getBrand().id) applyBranding(await loadBranding(marchio));
+          if (vivo && marchio && marchio !== getBrand().id) {
+            applyBranding(await loadBranding(marchio));
+            // The brand writes its colours over the theme's: the theme (light
+            // neutrals, the sober style) goes back on top, as at boot.
+            applyAppearance(getStoredMode());
+          }
         } catch {
           // Un'installazione senza aziende, o un runtime che non espone la
           // rotta: si resta sul marchio dell'installazione.
