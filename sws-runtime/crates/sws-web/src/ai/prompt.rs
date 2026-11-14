@@ -244,6 +244,11 @@ Le regole di questo giro:
   cornice. Per una finestra che vale per più macchine: `finestra_parametri:
   [{name: m}]` sulla pagina, `params: {m: "cabinovia1"}` nel bottone, e dentro
   la finestra i tag si scrivono `{m}.velocita`, come nei faceplate.
+- **Le impostazioni del dispositivo** (rete, Wi-Fi, ora, schermo, riavvio) le
+  apre un `button` con `button_action: {type: open_control_panel}`: chiede il
+  PIN di servizio e non porta parametri. Mettilo dove lo chiede l'utente, di
+  solito in una pagina di sistema; non costruire pagine che imitano quelle
+  impostazioni.
 - **La geometria del testo.** Un `text` senza `text_wrap` non ha riquadro:
   `x` è il punto d'ancoraggio (con `text_anchor: end` il testo **finisce** a
   `x`), `y` è la **linea di base** sul web, e `width`/`height` non contano. Per

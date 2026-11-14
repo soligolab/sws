@@ -508,6 +508,10 @@ pub fn build(
         // Le regole IA del progetto (04-11-2026, piano un-modello-per-ogni-scopo).
         .route("/api/project/ai", put(update_project_ai))
         .route("/api/project/pannello", put(update_project_pannello))
+        .route(
+            "/api/project/control-panel",
+            put(update_project_control_panel),
+        )
         // T-58 — il motore di rendering del progetto. Fino all'11-09-2026 si
         // sceglieva solo alla creazione e poi si cambiava editando
         // `project.yaml` a mano, con una trappola: il runtime riscrive il file
@@ -5527,6 +5531,16 @@ async fn get_project(State(s): State<AppState>) -> Response {
 /// segreto è mascherato dal giorno in cui entra nella tabella.
 pub(crate) fn mask_project_secrets(project: &mut Project) {
     sws_core::segreti::maschera(project, MASKED_PASSWORD);
+    // The control panel PIN is six hex digits: its hash out of the browser
+    // would be worn down offline in hours. The IDE only needs to know a PIN
+    // is set; `PUT /api/project/control-panel` never takes the hash back.
+    if let Some(hash) = project
+        .control_panel
+        .as_mut()
+        .and_then(|c| c.pin_hash.as_mut())
+    {
+        *hash = MASKED_PASSWORD.to_string();
+    }
 }
 
 /// Read project.yaml (or build a minimal default), apply `f`, write back.
@@ -11777,6 +11791,77 @@ async fn update_project_pannello(
     res
 }
 
+/// The body of `PUT /api/project/control-panel`. The PIN goes in plain and is
+/// stored hashed; leaving `pin` out keeps the one there is.
+#[derive(Debug, serde::Deserialize)]
+struct ControlPanelUpdate {
+    enabled: bool,
+    /// A new project PIN: six characters `0-9a-f`, what the screen's keypad types.
+    #[serde(default)]
+    pin: Option<String>,
+    /// Back to the device's initial PIN (the low six hex digits of the MAC).
+    #[serde(default)]
+    reset_pin: bool,
+}
+
+/// The project PIN as the keypad of the control panel can type it.
+fn valid_control_panel_pin(pin: &str) -> Result<String, &'static str> {
+    let pin = pin.trim().to_ascii_lowercase();
+    if pin.len() != 6 || !pin.chars().all(|c| c.is_ascii_hexdigit()) {
+        return Err("the PIN is six characters, digits 0-9 and letters a-f");
+    }
+    Ok(pin)
+}
+
+/// The project's `control_panel` after an update: a new hash replaces the old
+/// one, `reset` drops it, neither keeps it. The defaults leave no section.
+fn apply_control_panel(p: &mut Project, enabled: bool, new_hash: Option<String>, reset: bool) {
+    use sws_core::project::ControlPanelConfig;
+    let old = p.control_panel.take().and_then(|c| c.pin_hash);
+    let pin_hash = if reset { None } else { new_hash.or(old) };
+    let cfg = ControlPanelConfig { enabled, pin_hash };
+    p.control_panel = (cfg != ControlPanelConfig::default()).then_some(cfg);
+}
+
+/// `PUT /api/project/control-panel` — the device control panel (plan
+/// `docs/plans/2026-11-13-pannello-di-controllo.md`, phase 6): whether the
+/// gesture and the synoptic action open it, and the project's service PIN.
+async fn update_project_control_panel(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    headers: axum::http::HeaderMap,
+    Json(body): Json<ControlPanelUpdate>,
+) -> Response {
+    let new_hash = match body.pin.as_deref().map(valid_control_panel_pin) {
+        None => None,
+        Some(Err(e)) => return (StatusCode::BAD_REQUEST, e).into_response(),
+        Some(Ok(pin)) => match sws_auth::hash_password(&pin) {
+            Ok(h) => Some(h),
+            Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+        },
+    };
+    let dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
+    let pin_changed = new_hash.is_some() || body.reset_pin;
+    let res = patch_project_se(
+        &s.project_write_lock,
+        &dir,
+        versione_attesa(&headers),
+        |p| apply_control_panel(p, body.enabled, new_hash, body.reset_pin),
+    )
+    .await;
+    if res.status() == StatusCode::NO_CONTENT {
+        s.audit.log(
+            "project.change",
+            Some(user.username),
+            serde_json::json!({"what": "control_panel", "enabled": body.enabled, "pin_changed": pin_changed}),
+        );
+    }
+    res
+}
+
 /// `PUT /api/project/ai` — le regole di contesto dell'IA del progetto. Corpo
 /// `null` (o tutto vuoto) = nessuna regola. Un campo oltre il tetto di
 /// lunghezza è un 400, come nel validatore.
@@ -12799,6 +12884,64 @@ notifications:
         )
         .expect("build zip con segreti");
         assert!(zip_entry(&zip2, "secrets.yaml").contains("password-mqtt-vera"));
+    }
+}
+
+#[cfg(test)]
+mod control_panel_project_tests {
+    use super::{
+        apply_control_panel, mask_project_secrets, valid_control_panel_pin, MASKED_PASSWORD,
+    };
+    use sws_core::project::{ControlPanelConfig, Project};
+
+    fn project() -> Project {
+        serde_yaml::from_str("meta:\n  name: p\n  version: '1'\n").unwrap()
+    }
+
+    #[test]
+    fn the_pin_is_what_the_keypad_types() {
+        assert_eq!(valid_control_panel_pin(" 06E990 ").as_deref(), Ok("06e990"));
+        assert!(valid_control_panel_pin("12345").is_err());
+        assert!(valid_control_panel_pin("1234567").is_err());
+        assert!(valid_control_panel_pin("12345g").is_err());
+    }
+
+    #[test]
+    fn a_pin_is_kept_replaced_or_dropped() {
+        let mut p = project();
+        apply_control_panel(&mut p, true, Some("h1".into()), false);
+        assert_eq!(
+            p.control_panel.as_ref().and_then(|c| c.pin_hash.as_deref()),
+            Some("h1")
+        );
+        // Only the switch changes: the PIN stays.
+        apply_control_panel(&mut p, false, None, false);
+        assert_eq!(
+            p.control_panel,
+            Some(ControlPanelConfig {
+                enabled: false,
+                pin_hash: Some("h1".into())
+            })
+        );
+        apply_control_panel(&mut p, false, Some("h2".into()), false);
+        assert_eq!(
+            p.control_panel.as_ref().and_then(|c| c.pin_hash.as_deref()),
+            Some("h2")
+        );
+        // Back to the device PIN and enabled: the defaults, no section left.
+        apply_control_panel(&mut p, true, None, true);
+        assert_eq!(p.control_panel, None);
+    }
+
+    #[test]
+    fn the_hash_never_reaches_the_browser() {
+        let mut p = project();
+        apply_control_panel(&mut p, true, Some("$argon2id$secret".into()), false);
+        mask_project_secrets(&mut p);
+        assert_eq!(
+            p.control_panel.and_then(|c| c.pin_hash).as_deref(),
+            Some(MASKED_PASSWORD)
+        );
     }
 }
 

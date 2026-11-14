@@ -225,7 +225,8 @@
       "ia_fornitori": "Fornitori e chiavi",
       "ia_scopi": "Un modello per scopo",
       "ia_regole": "Regole del progetto",
-      "impostazioni": "Impostazioni"
+      "impostazioni": "Impostazioni",
+      "screen": "Schermo e accesso"
     },
     "sottorami": {
       "device": "Device",
@@ -2435,7 +2436,19 @@
     "genereBoot": "immagine di boot",
     "impostazioneInizialeTitolo": "Imposta il progetto",
     "impostazioneInizialeTesto": "Prima di disegnare: motore, misura delle pagine, sfondi e cornice valgono per tutte le pagine. Si possono cambiare quando vuoi da Impostazioni progetto.",
-    "impostazioneInizialeFine": "Fatto"
+    "impostazioneInizialeFine": "Fatto",
+    "controlPanel": "Pannello di controllo del dispositivo",
+    "controlPanelHelp": "Rete, Wi-Fi, ora, schermo e riavvio, dallo schermo del dispositivo. Si apre tenendo premuto 5 s l'angolo in alto a destra o da un pulsante del sinottico; la finestra all'avvio di SWS resta sempre, come via d'emergenza.",
+    "controlPanelEnabled": "Si apre col gesto e dai pulsanti del sinottico",
+    "controlPanelDevicePin": "Vale il PIN del dispositivo: le ultime 6 cifre del MAC, che chiunque in rete può leggere. Imposta un PIN del progetto.",
+    "controlPanelPinSet": "PIN del progetto impostato.",
+    "controlPanelPinChange": "Cambia",
+    "controlPanelPinReset": "Torna al PIN del dispositivo",
+    "controlPanelPinLabel": "PIN, 6 caratteri",
+    "controlPanelPinSave": "Imposta PIN",
+    "controlPanelPinHelp": "Cifre 0-9 e lettere a-f, come le scrive il tastierino del dispositivo. Arriva col deploy.",
+    "deviceScreenIntro": "Come si comporta lo schermo del dispositivo e chi entra nelle sue impostazioni. Sono impostazioni del progetto: arrivano al dispositivo col deploy.",
+    "deviceBrightnessOverride": "Su questo dispositivo la luce è stata regolata a mano al {{n}} % dal pannello di controllo: vale sopra quella del progetto finché lì non si sceglie «Come dice il progetto»."
   },
   "credenziali": {
     "waitWithoutRetryingEveryNew": "Aspetta **senza** riprovare: ogni nuovo tentativo allunga il blocco. ",
@@ -4686,8 +4699,7 @@
     "rispostaAnnullata": "annullato"
   },
   "impostazioniTab": {
-    "testo": "Quello che vale per tutte le pagine del progetto. Si cambia nella finestra «Impostazioni progetto», che si apre anche dal pannello di una pagina.",
-    "tuttoSchermo": "Visualizzatore a tutto schermo"
+    "testo": "Quello che vale per tutte le pagine del progetto. Si cambia nella finestra «Impostazioni progetto», che si apre anche dal pannello di una pagina."
   },
   "logica": {
     "funzioni": "Funzioni ({{n}})",

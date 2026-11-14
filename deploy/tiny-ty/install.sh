@@ -30,6 +30,20 @@ POLKIT_RULES=/etc/polkit-1/rules.d/50-sws-control-panel.rules
 QUI="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 die() { echo "ERRORE: $*" >&2; exit 1; }
+
+# The control panel's initial PIN, as the runtime computes it
+# (`control_panel/pin.rs`): the low six hex digits of the MAC of eth0, then
+# ethernet0, then the first physical card in name order. Empty if none.
+initial_pin() {
+    local c
+    for c in eth0 ethernet0 $(LC_ALL=C ls /sys/class/net 2>/dev/null); do
+        [ -r "/sys/class/net/$c/address" ] || continue
+        case "$c" in eth0|ethernet0) ;; *) [ -e "/sys/class/net/$c/device" ] || continue ;; esac
+        local hex
+        hex="$(tr -d ':\n' < "/sys/class/net/$c/address" | tr '[:upper:]' '[:lower:]')"
+        [ ${#hex} -eq 12 ] && [ "$hex" != 000000000000 ] && { echo "${hex:6}"; return; }
+    done
+}
 [ "$(id -u)" -eq 0 ] || die "va lanciato come root: sudo $0 $*"
 
 # ── Disinstallazione ──────────────────────────────────────────────────────────
@@ -190,16 +204,17 @@ done
 
 # ── Chi tiene lo schermo ──────────────────────────────────────────────────────
 #
-# `tyx_panelcontrol` di Pixsys gestisce schermo, luce, cicalino, UPS e i servizi
-# del PLC. Con lui acceso SWS e lui si contendono il DRM. Decisione del
-# 12-11-2026: SWS gestisce luce e cicalino, ma come spegnerlo senza perdere il
-# resto è una domanda aperta per Pixsys. Quindi qui non si tocca: si dice.
+# `tyx_panelcontrol` di Pixsys gestisce UPS, cicalino e i servizi del PLC, e
+# resta acceso: SWS ci convive. Lo schermo lo contende solo la sua finestra di
+# setup (`tyx_panelcontrol gui`, aperta toccando lo schermo all'avvio), e il
+# viewer aspetta che si chiuda (`sws-lvgl-viewer-launch.sh`). Avvisare per il
+# processo senza `gui` era l'avviso vecchio del 12-11-2026.
 # Matched on the executable path: the process renames itself (comm is
 # `tyx-pc-gui`), so `pgrep -x tyx_panelcontrol` never finds it.
-if pgrep -f '^/data/tyx_panelcontrol/tyx_panelcontrol' >/dev/null 2>&1; then
+if pgrep -f '^/data/tyx_panelcontrol/tyx_panelcontrol gui' >/dev/null 2>&1; then
     echo ""
-    echo "    ATTENZIONE: tyx_panelcontrol è acceso e tiene lo schermo."
-    echo "    Il viewer di SWS non lo vedrà finché lui gira (rc.local lo avvia al boot)."
+    echo "    ATTENZIONE: il setup di Pixsys è aperto sullo schermo."
+    echo "    Il viewer di SWS comparirà quando lo si chiude."
 fi
 
 # ── Com'è andata ──────────────────────────────────────────────────────────────
@@ -219,9 +234,18 @@ echo ""
 echo "==> Fatto. Dall'IDE: Configurazione → Istanza → Device → Connessione → «Connetti»"
 # The mDNS name first, when avahi publishes it (prepara-dispositivo.sh).
 if systemctl is-active --quiet avahi-daemon 2>/dev/null; then
-    echo "    http://$(hostname).local:7444   (the pairing code is on the panel screen)"
+    echo "    http://$(hostname).local:7444   (il codice di abbinamento è sullo schermo del pannello)"
 fi
 for a in ${indirizzi:-localhost}; do
     echo "    http://$a:7444   (il codice di abbinamento è sullo schermo del pannello)"
 done
 echo "    Log: journalctl -u sws-runtime -u sws-lvgl-viewer -f"
+pin="$(initial_pin)"
+echo ""
+if [ -n "$pin" ]; then
+    echo "==> Pannello di controllo del dispositivo: PIN iniziale $pin"
+    echo "    (le ultime 6 cifre del MAC; vale finché il progetto non ne imposta uno suo)"
+    echo "    Si apre tenendo premuto 5 s l'angolo in alto a destra, o all'avvio di SWS."
+else
+    echo "    Nessuna scheda di rete con un MAC: il PIN iniziale del pannello di controllo non c'è."
+fi

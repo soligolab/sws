@@ -106,6 +106,9 @@ export const SCHEDE = [
   { id: "resources",     ramo: "istanza",   icona: "📦", soloAdmin: false, portaBozza: false, richiedeProgetto: false },
   { id: "backups",       ramo: "istanza",   icona: "💾", soloAdmin: true,  portaBozza: false, richiedeProgetto: false },
   { id: "system",        ramo: "istanza",   icona: "📊", soloAdmin: false, portaBozza: false, richiedeProgetto: false, sottoRamo: "device" },
+  // The project fields about how the device behaves (14-11-2026): moved out of
+  // the «Project settings» window, which keeps how the pages look.
+  { id: "screen",        ramo: "istanza",   icona: "🖥", soloAdmin: true,  portaBozza: false, richiedeProgetto: true,  sottoRamo: "device" },
   { id: "devices",       ramo: "istanza",   icona: "📇", soloAdmin: true,  portaBozza: false, richiedeProgetto: false, sottoRamo: "device" },
   { id: "runtime",       ramo: "istanza",   icona: "🔗", soloAdmin: true,  portaBozza: false, richiedeProgetto: false, sottoRamo: "device" },
   { id: "install",       ramo: "istanza",   icona: "⬇", soloAdmin: true,  portaBozza: false, richiedeProgetto: false, sottoRamo: "device" },

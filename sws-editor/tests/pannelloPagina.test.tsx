@@ -12,6 +12,7 @@ import { GRUPPI_PAGINA, PageProps, PannelloDestro, apriImpostazioniProgetto } fr
 import { salvaLayout } from "../src/formatoProgettoAzioni";
 import { PREFISSO_MEMORIA } from "../src/editor/stilePannelli";
 import { FinestraAvviso } from "../src/finestraAvviso/FinestraAvviso";
+import { DeviceScreenSettings } from "../src/editor/DeviceScreenSettings";
 import { svuotaCoda } from "../src/finestraAvviso/finestraAvviso";
 import type { PageLayoutConfig, SynopticPage } from "../src/types";
 
@@ -129,14 +130,61 @@ describe("la finestra «Impostazioni progetto»", () => {
     let fatto!: Promise<null>;
     await act(async () => { fatto = apriImpostazioniProgetto("Impostazioni progetto"); });
     expect(screen.getByTestId("impostazioni-progetto")).toBeTruthy();
-    const casella = screen.getByRole("checkbox", { name: /full-screen|tutto schermo/i });
-    await act(async () => { fireEvent.click(casella); });
+    const home = screen.getAllByRole("combobox").find((c) => [...(c as HTMLSelectElement).options].some((o) => o.value === "p1")) as HTMLSelectElement;
+    await act(async () => { fireEvent.change(home, { target: { value: "p1" } }); });
     expect(scrivi).toHaveBeenCalledTimes(1);
     // Il resto del page_layout viaggia con lui: il server lo sostituisce intero.
-    expect(scrivi.mock.calls[0][0]).toMatchObject({ hide_viewer_chrome: true, default_width: 1280, cornice_predefinita: "c1" });
-    expect(useAppStore.getState().project?.page_layout?.hide_viewer_chrome).toBe(true);
+    expect(scrivi.mock.calls[0][0]).toMatchObject({ home_page_id: "p1", default_width: 1280, cornice_predefinita: "c1" });
+    expect(useAppStore.getState().project?.page_layout?.home_page_id).toBe("p1");
+    // What the device does lives under Instance → Device now, not here.
+    expect(screen.queryByTestId("control-panel-settings")).toBeNull();
     fireEvent.click(screen.getByTestId("chiudi-impostazioni-progetto"));
     await expect(fatto).resolves.toBeNull();
+  });
+
+  it("device leaf: full screen writes the whole page_layout", async () => {
+    const scrivi = vi.spyOn(api, "updatePageLayout").mockResolvedValue(undefined as never);
+    render(<DeviceScreenSettings />);
+    await act(async () => { fireEvent.click(screen.getByRole("checkbox", { name: /full-screen|tutto schermo/i })); });
+    expect(scrivi.mock.calls[0][0]).toMatchObject({ hide_viewer_chrome: true, default_width: 1280, cornice_predefinita: "c1" });
+    expect(useAppStore.getState().project?.page_layout?.hide_viewer_chrome).toBe(true);
+  });
+
+  it("device leaf: a brightness set on the device says it wins over the project's", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ enabled: true, pin: "device", brightness: 60 }), { status: 200 }));
+    render(<DeviceScreenSettings />);
+    expect((await screen.findByTestId("device-brightness-override")).textContent).toContain("60 %");
+  });
+
+  it("device leaf: no device brightness, no line", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ enabled: true, pin: "device", brightness: null }), { status: 200 }));
+    render(<DeviceScreenSettings />);
+    await act(async () => {});
+    expect(screen.queryByTestId("device-brightness-override")).toBeNull();
+  });
+
+  it("control panel: the device PIN warns, a project PIN replaces it, reset goes back", async () => {
+    const put = vi.spyOn(api, "updateControlPanel").mockResolvedValue(undefined as never);
+    render(<DeviceScreenSettings />);
+    expect(screen.getByTestId("control-panel-pin-warning")).toBeTruthy();
+    const save = screen.getByTestId("control-panel-pin-save") as HTMLButtonElement;
+    // Only what the device keypad types: a "g" is dropped, five characters are not enough.
+    fireEvent.change(screen.getByTestId("control-panel-pin"), { target: { value: "12ab9g" } });
+    expect(save.disabled).toBe(true);
+    fireEvent.change(screen.getByTestId("control-panel-pin"), { target: { value: "12AB9F" } });
+    await act(async () => { fireEvent.click(save); });
+    expect(put).toHaveBeenLastCalledWith({ enabled: true, pin: "12ab9f" });
+    expect(screen.getByTestId("control-panel-pin-state")).toBeTruthy();
+    expect(screen.queryByTestId("control-panel-pin-warning")).toBeNull();
+    // The switch keeps the PIN: it is not sent again.
+    await act(async () => { fireEvent.click(screen.getByTestId("control-panel-enabled")); });
+    expect(put).toHaveBeenLastCalledWith({ enabled: false });
+    expect(useAppStore.getState().project?.control_panel).toEqual({ enabled: false, pin_hash: "********" });
+    await act(async () => { fireEvent.click(screen.getByTestId("control-panel-pin-reset")); });
+    expect(put).toHaveBeenLastCalledWith({ enabled: false, reset_pin: true });
+    expect(screen.getByTestId("control-panel-pin-warning")).toBeTruthy();
   });
 
   it("passare a LVGL chiede conferma nella Finestra di avviso, e Annulla non cambia niente", async () => {

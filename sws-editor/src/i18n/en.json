@@ -225,7 +225,8 @@
       "ia_fornitori": "Providers and keys",
       "ia_scopi": "A model per purpose",
       "ia_regole": "Project rules",
-      "impostazioni": "Settings"
+      "impostazioni": "Settings",
+      "screen": "Screen and access"
     },
     "sottorami": {
       "device": "Device",
@@ -2435,7 +2436,19 @@
     "genereBoot": "boot image",
     "impostazioneInizialeTitolo": "Set up the project",
     "impostazioneInizialeTesto": "Before drawing: engine, page size, backgrounds and frame apply to every page. You can change them any time from Project settings.",
-    "impostazioneInizialeFine": "Done"
+    "impostazioneInizialeFine": "Done",
+    "controlPanel": "Device control panel",
+    "controlPanelHelp": "Network, Wi-Fi, time, screen and restart, from the device's own screen. It opens by holding the top-right corner for 5 s or from a synoptic button; the window shown when SWS starts always stays, as the way back.",
+    "controlPanelEnabled": "Opens with the gesture and from synoptic buttons",
+    "controlPanelDevicePin": "The device PIN holds: the last 6 digits of the MAC, which anyone on the network can read. Set a project PIN.",
+    "controlPanelPinSet": "Project PIN set.",
+    "controlPanelPinChange": "Change",
+    "controlPanelPinReset": "Back to the device PIN",
+    "controlPanelPinLabel": "PIN, 6 characters",
+    "controlPanelPinSave": "Set PIN",
+    "controlPanelPinHelp": "Digits 0-9 and letters a-f, as the device keypad types them. It arrives with the deploy.",
+    "deviceScreenIntro": "How the device screen behaves and who gets into its settings. They are project settings: they reach the device with the deploy.",
+    "deviceBrightnessOverride": "On this device the brightness was set by hand to {{n}} % from the control panel: it wins over the project's until «As the project says» is chosen there."
   },
   "credenziali": {
     "waitWithoutRetryingEveryNew": "Wait **without** retrying: every new attempt lengthens the lockout. ",
@@ -4686,8 +4699,7 @@
     "rispostaAnnullata": "cancelled"
   },
   "impostazioniTab": {
-    "testo": "What applies to every page of the project. It is changed in the «Project settings» window, which also opens from a page's panel.",
-    "tuttoSchermo": "Full-screen viewer"
+    "testo": "What applies to every page of the project. It is changed in the «Project settings» window, which also opens from a page's panel."
   },
   "logica": {
     "funzioni": "Functions ({{n}})",

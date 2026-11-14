@@ -14,6 +14,7 @@ import { AlarmsTab } from "@/config/schede/AlarmsTab";
 import { IdePreferencesTab } from "@/config/schede/IdePreferencesTab";
 import { IaAssistenteTab, IaFornitoriTab, IaRegoleTab, IaScopiTab } from "@/config/schede/IaTab";
 import { SystemTab } from "@/config/schede/SystemTab";
+import { DeviceScreenTab } from "@/config/schede/DeviceScreenTab";
 import { UsersTab } from "@/config/schede/UsersTab";
 import { ResourcesTab } from "@/config/schede/ResourcesTab";
 import { DatastoresTab } from "@/config/schede/DatastoresTab";
@@ -55,6 +56,7 @@ const COMPONENTI: Record<IdConComponente, React.ComponentType<{ scheda: IdScheda
   users: UsersTab,
   resources: ResourcesTab,
   system: SystemTab,
+  screen: DeviceScreenTab,
   backups: BackupsTab,
   devices: DevicesTab,
   runtime: RuntimeConnectionTab,

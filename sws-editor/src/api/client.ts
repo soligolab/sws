@@ -732,6 +732,7 @@ const PATH_VERSIONATI = [
   "/api/project/notifications", "/api/project/page-layout", "/api/project/target", "/api/project/symbol-style",
   "/api/project/backup-config", "/api/project/retention-time", "/api/project/tags/import-csv",
   "/api/project/simboli", "/api/project/ai", "/api/project/impostazione-iniziale", "/api/project/pannello",
+  "/api/project/control-panel",
 ];
 
 /** L'header `If-Match` da mettere su un salvataggio di sezione, se sappiamo su
@@ -2728,6 +2729,16 @@ export const api = {
       method: "PUT",
       headers: { "Content-Type": "application/json", ...seVersionato("/api/project/pannello") },
       body: JSON.stringify(pannello),
+    }),
+
+  /** The device control panel of the project: the switch and, when given, a
+   *  new service PIN (sent in plain, stored hashed). `reset_pin` goes back to
+   *  the device's initial PIN. */
+  updateControlPanel: (body: { enabled: boolean; pin?: string; reset_pin?: boolean }) =>
+    request<void>("/api/project/control-panel", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...seVersionato("/api/project/control-panel") },
+      body: JSON.stringify(body),
     }),
 
   updatePageLayout: (config: PageLayoutConfig | null) =>

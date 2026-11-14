@@ -29,8 +29,6 @@ export function ImpostazioniProgettoTab(_: { scheda: IdScheda }) {
     [t("cornici.campoTitolo"), cornice ? nomePagina(cornice.name) : t("cornici.nessunaPredefinita")],
     [t("shell.sizingMode"), t(l?.size_mode === "ratio" ? "shell.sizingRatio" : l?.size_mode === "fluid" ? "shell.sizingFluid" : "shell.sizingFixed")],
     [t("shell.homePage"), home ? nomePagina(home.name) : t("shell.firstPageInTheList")],
-    [t("impostazioniTab.tuttoSchermo"), t(l?.hide_viewer_chrome ? "common.yes" : "common.no")],
-    [t("shell.fpsPannello"), String(project?.pannello?.fps ?? 20)],
   ];
   return (
     <div data-testid="scheda-impostazioni-progetto" style={{ maxWidth: 560, display: "flex", flexDirection: "column", gap: 12 }}>

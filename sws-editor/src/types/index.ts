@@ -2078,6 +2078,15 @@ export interface PannelloConfig {
   beep?: BeepTocco;
 }
 
+/** `control_panel` of the project: mirror of `ControlPanelConfig` in `sws-core`. */
+export interface ControlPanelConfig {
+  /** Absent = true: the runtime gesture and the synoptic action open it. */
+  enabled?: boolean;
+  /** Masked by the server ("********") when the project sets a PIN; absent =
+   *  the device's initial PIN. */
+  pin_hash?: string;
+}
+
 export interface BeepTocco {
   frequenza_hz: number;
   durata_ms: number;
@@ -2110,6 +2119,8 @@ export interface ProjectInfo {
    *  riposo e beep al tocco: valgono dove l'installazione li dà al viewer
    *  (oggi il Tiny TY), altrove non fanno niente. */
   pannello?: PannelloConfig;
+  /** The device control panel (plan 2026-11-13-pannello-di-controllo). */
+  control_panel?: ControlPanelConfig;
   /** Lo stile dei simboli del progetto (Fase 4 del piano dei simboli di libreria). */
   symbol_style?: import("@/symbols/stileProgetto").StileSimboliProgetto;
   /** Le regole di contesto dell'IA (04-11-2026): viaggiano col progetto. */

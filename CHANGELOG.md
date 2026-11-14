@@ -12,6 +12,20 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Aggiunto
+- **IDE: Configurazione → Istanza → Device → «Schermo e accesso».** Le impostazioni del progetto che dicono come si
+  comporta il dispositivo escono dalla finestra «Impostazioni progetto», che tiene come sono le pagine (motore,
+  formato, sfondi, cornice, dimensionamento, pagina iniziale): tutto schermo, fotogrammi al secondo, luce, riposo,
+  beep e pannello di controllo stanno nella foglia nuova (`DeviceScreenSettings.tsx`, spostati da `EditorShell.tsx`
+  senza cambiarli). Restano campi del progetto e arrivano col deploy. Se sul dispositivo la luce è stata regolata
+  a mano dal pannello di controllo, la foglia lo dice, perché vale sopra quella del progetto.
+- **Pannello di controllo del dispositivo, fasi 5 e 6: installazione e IDE.** In Istanza → Device → «Schermo e accesso»
+  una sezione «Pannello di controllo del dispositivo»: l'interruttore che toglie gesto e pulsanti del sinottico (la
+  finestra all'avvio resta) e il **PIN del progetto**, 6 caratteri `0-9a-f` come li scrive il tastierino; finché non
+  c'è, un avviso dice che vale quello del MAC. Rotta `PUT /api/project/control-panel` (`enabled`, `pin` in chiaro,
+  salvato argon2, `reset_pin`); `GET /api/project` maschera l'hash, che su sei caratteri esadecimali si
+  forzerebbe in ore. Gli installatori del Tiny TY e del PC Linux stampano il PIN iniziale (sul PC il runtime gira da
+  root, quindi niente polkit); quello del Tiny TY avvisa solo quando è aperto il setup di Pixsys (`tyx_panelcontrol
+  gui`), non più per il processo di sempre. L'assistente IA conosce `open_control_panel`.
 - **Pannello di controllo del dispositivo, fase 4: Wi-Fi, hotspot, luce e calibrazione** (web e LVGL). Wi-Fi via
   NetworkManager: reti visibili con segnale e sicurezza, collegamento con la tastiera a schermo, dimentica, radio; le
   802.1X si vedono ma non si collegano. **Hotspot**: il dispositivo fa da access point (`sws-hotspot`, modo `ap`,

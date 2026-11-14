@@ -29,6 +29,20 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 die() { echo "ERROR: $*" >&2; exit 1; }
 
+# The control panel's initial PIN, as the runtime computes it
+# (`control_panel/pin.rs`): the low six hex digits of the MAC of eth0, then
+# ethernet0, then the first physical card in name order. Empty if none.
+initial_pin() {
+    local c
+    for c in eth0 ethernet0 $(LC_ALL=C ls /sys/class/net 2>/dev/null); do
+        [ -r "/sys/class/net/$c/address" ] || continue
+        case "$c" in eth0|ethernet0) ;; *) [ -e "/sys/class/net/$c/device" ] || continue ;; esac
+        local hex
+        hex="$(tr -d ':\n' < "/sys/class/net/$c/address" | tr '[:upper:]' '[:lower:]')"
+        [ ${#hex} -eq 12 ] && [ "$hex" != 000000000000 ] && { echo "${hex:6}"; return; }
+    done
+}
+
 require_root() {
     [ "$(id -u)" -eq 0 ] || die "Run as root:  sudo $0 $*"
 }
@@ -138,6 +152,12 @@ fi
 
 echo ""
 echo "==> Installation complete."
+# The service runs as root, so the control panel needs no polkit rule here.
+pin="$(initial_pin)"
+if [ -n "$pin" ]; then
+    echo "    Device control panel: initial PIN $pin"
+    echo "    (the last 6 digits of the MAC; it holds until the project sets its own)"
+fi
 # `hostname -I` è un'opzione di net-tools: dove /usr/bin/hostname è quello di
 # coreutils (Pixsys OS, per esempio) fallisce, e con `set -euo pipefail` la
 # sostituzione fallita abortiva lo script proprio su questo messaggio finale,
@@ -163,3 +183,10 @@ echo "    Projects:             $DATA_DIR/projects/"
 echo ""
 echo "    First login: admin / admin"
 echo "    Change the default password immediately via the admin UI."
+# The service runs as root, so the control panel needs no polkit rule here.
+pin="$(initial_pin)"
+if [ -n "$pin" ]; then
+    echo ""
+    echo "    Device control panel: initial PIN $pin"
+    echo "    (the last 6 digits of the MAC; it holds until the project sets its own)"
+fi
