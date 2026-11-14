@@ -182,5 +182,130 @@ Conseguenze per le fasi:
 
 - **13-11-2026**: piano approvato; il seme è passato qui con `git mv`.
 - **13-11-2026 sera**: fase 0 fatta su TY570 e TC620 (sopra).
-- **Prossimo passo: la fase 1**, backend e API. Il lavoro delle fasi comincia
-  dopo la chiusura di `fix/rc18-ritocchi`, oppure annidato su di esso se lo decide il maintainer.
+- **14-11-2026**: fasi 1, 2 e 3 sul ramo `feat/control-panel` (annidato su `fix/rc18-ritocchi`, non pushato):
+  backend e API (`4176ef11`), schermate web (`8af76988`), lingua dei contenuti del progetto (`23fbad4d`),
+  schermate LVGL (`d8c5a094`). Installato sul TY570 (pacchetto con nome rc.17): le API rispondono su NM e
+  timedated col PIN `06e990`. Il collaudo sul vetro non è ancora fatto.
+- **14-11-2026**: dettaglio della **fase 4** scritto qui sotto. Si aspetta il via libera.
+
+## Fase 4 — dettaglio (14-11-2026)
+
+Decisioni del maintainer, dello stesso giorno:
+- **Wi-Fi anche come access point**: il dispositivo crea una sua rete Wi-Fi a cui collegarsi col telefono. Il
+  maintainer l'ha chiamata «modalità APN»: è l'hotspot, non l'APN di un modem 4G;
+- **la luce regolata dal pannello è del dispositivo**: vale sopra quella del progetto (`pannello.luminosita`) e
+  il deploy non la cancella, finché non la si riporta a «come dice il progetto»;
+- **la calibrazione dei resistivi si costruisce adesso, senza collaudo**: un TY750/770 non c'è. Si collauda
+  quando ce n'è uno.
+
+### Misure sul TY570 (14-11-2026, in sola lettura)
+
+| cosa | trovato |
+|---|---|
+| Wi-Fi in NM | `libnm-device-plugin-wifi.so`, `wpasupplicant` 2.10; `nmcli radio` dice Wi-Fi abilitato |
+| hotspot | `dnsmasq-base` 2.90 c'è: NM `ipv4.method=shared` funziona senza installare niente |
+| driver USB nel kernel 5.10.252 | `r8188eu` (staging), `88x2bu`, `rt2800usb`, `mt76x0u`, `mt76x2u` |
+| strumenti | `iw` e `wireless-tools` **non** ci sono (non servono: si sonda tutto via NM) |
+| luce | `/sys/class/backlight/backlight`, max 255 (già di `schermo.rs`) |
+| touch | capacitivo ILITEK e, caricato comunque, `TSC2007` (vedi `ty570-1ad-p1.md` punto 9) |
+| calibrazione Pixsys | formato **tslib**: `/usr/local/etc/pointercal` = `4157 4 -683600 37 4135 -846804 65536 1024 600`, scritto da `/data/calibrate.sh` (`ts_calibrate` sul `fb0`) |
+
+Il viewer oggi legge il TSC2007 **crudo** con `EVIOCGABS` e lo stende fra minimo e massimo: sui resistivi **non
+applica la calibrazione di fabbrica di Pixsys**. Il commento in testa a `touch_indev.rs` parla di un `ts-uinput`
+che sul Tiny TY non c'è. Quindi la calibrazione corregge anche un difetto, non è solo una funzione nuova.
+
+### Wi-Fi
+
+**API** (stesso stile delle altre, dietro la sessione di servizio):
+- `GET /api/control-panel/wifi`: radio accesa sì/no, scheda (`wlan0`…), modo (`client` | `hotspot` | `off`),
+  rete attiva, reti viste (SSID, segnale %, sicurezza `open`/`wpa`/`wpa3`/`enterprise`, già nota sì/no), profili
+  salvati, e `can_hotspot`;
+- `POST /api/control-panel/wifi/scan`: `RequestScan` sulla scheda; la lista si rilegge dopo ~3 s;
+- `POST /api/control-panel/wifi/connect` `{ssid, password?, hidden?}`: `AddAndActivateConnection` con un profilo
+  `sws-wifi-<ssid>`, oppure `ActivateConnection` se il profilo c'è già;
+- `POST /api/control-panel/wifi/forget` `{ssid}`: cancella il profilo;
+- `PUT /api/control-panel/wifi/radio` `{enabled}`: `WirelessEnabled`;
+- `GET`/`PUT /api/control-panel/wifi/hotspot` `{enabled, ssid, password}`: un profilo solo, `sws-hotspot`, con
+  `802-11-wireless.mode=ap`, banda 2,4 GHz, canale automatico, WPA2-PSK, `ipv4.method=shared` (NM dà 10.42.0.1/24
+  e il DHCP con `dnsmasq`), `autoconnect=true`, così riparte al riavvio;
+- l'indirizzamento di `wlan0` (DHCP/statico) è quello che c'è già: `wlan0` compare fra le schede della sezione Rete,
+  come `eth0`.
+
+**Regole**:
+- **hotspot e client si escludono**: una chiavetta USB ha una scheda sola. Accendere l'hotspot spegne il client e
+  viceversa, e la schermata lo dice prima di farlo;
+- **`can_hotspot`** viene da `WirelessCapabilities` di NM, bit `NM_WIFI_DEVICE_CAP_AP` (0x40). Una chiavetta che
+  non sa fare da access point non mostra l'hotspot. `r8188eu` di staging è il primo sospetto: si vede col collaudo;
+- **la rete di sicurezza dei 60 s vale anche qui** (checkpoint NM, come la fase 1): collegarsi a una rete, accendere
+  o spegnere l'hotspot. Il caso che la giustifica: chi è collegato all'hotspot e lo spegne, o chi dall'IDE sposta
+  il dispositivo su una rete Wi-Fi che non raggiunge;
+- **i valori proposti per l'hotspot**: SSID `sws-<6 caratteri del MAC>` (lo stesso suffisso del nome in rete) e
+  una password **casuale di 10 caratteri**, mostrata in chiaro e modificabile. Non è il PIN: il PIN iniziale si
+  ricava dal MAC, e la password dell'hotspot è la porta d'ingresso della rete;
+- **QR per collegarsi**: con l'hotspot acceso la sezione mostra il QR `WIFI:T:WPA;S:<ssid>;P:<password>;;`.
+  `lv_qrcode` è già acceso nel viewer per l'abbinamento;
+- **segreti**: la password la tiene NM nel profilo di sistema (file di root, `psk-flags=0`). SWS non la salva da
+  nessuna parte. La rilegge con `GetSecrets` solo per il QR e per la casella dell'hotspot, dietro la sessione;
+- reti **enterprise** (802.1X): si vedono in lista ma non si possono collegare, con la scritta «non supportata».
+
+**Permessi**: al `.pkla` e al `.rules` del Tiny TY si aggiungono `org.freedesktop.NetworkManager.wifi.share.protected`
+e `wifi.share.open`. Le altre azioni Wi-Fi ci sono già. Sul TC/WP la fase 0 non ha visto Wi-Fi: la capacità
+sondata la nasconde.
+
+**Schermate**:
+- web e LVGL, una sezione **Wi-Fi** che compare solo con `capabilities.wifi`;
+- in LVGL serve la **tastiera alfanumerica** per SSID e password: `lv_keyboard` è già usato dal login
+  (`lvgl_render.rs`) e `lvgl_font.rs` ha già la correzione dei font per i suoi tasti. Il tastierino esadecimale
+  della fase 3 resta per PIN e indirizzi.
+
+### Luce
+
+- **Dove sta**: `config/control_panel.json` del dispositivo, `{"brightness": 60}`. È un **file di stato del
+  dispositivo** (regola del codice in inglese: quelli che nessun deploy riscrive), nome nuovo e già in inglese;
+- **API**: `GET`/`PUT /api/control-panel/display` `{brightness: 5-100 | null}`. `null` vuol dire «come dice il
+  progetto». Capacità nuova `display` in `capabilities`;
+- **Tiny TY e LVGL**: il viewer la legge da `/api/control-panel` e la mette sopra `PannelloConfig.luminosita` in
+  `schermo.rs`. Oscurato e spento a riposo restano del progetto;
+- **TC/WP**: il runtime chiama `net.pixsys.Config1.Display.SetBrightness` (fase 0). La scala di Pixsys si misura al
+  collaudo. Sul TC/WP il progetto non regola la luce (lo fa `schermo.rs` solo col `--retroilluminazione`), quindi lì
+  non c'è niente da sovrascrivere;
+- **PC Linux**: niente capacità, niente sezione;
+- la slitta si muove dal vivo e si salva quando si rilascia.
+
+### Calibrazione dei resistivi
+
+- **Formato tslib**, lo stesso di Pixsys (`a b c d e f s xres yres`: `x = (a·X + b·Y + c)/s`, scalato se lo schermo
+  ha un'altra risoluzione). Così una calibrazione fatta con `/data/calibrate.sh` vale anche per SWS, e viceversa;
+- **lettura**: `touch_indev.rs`, per un touch **resistivo** (TSC2007 o con `_ts` nel nome, non ILITEK), cerca
+  `/var/lib/sws/viewer/pointercal` e poi `/usr/local/etc/pointercal`. Se c'è, applica la matrice. Se non c'è,
+  continua a stendere fra minimo e massimo come oggi. Si scrive nel log quale ha preso;
+- **scrittura**: SWS scrive solo il suo (`/var/lib/sws/viewer/`). Quello di Pixsys è di root e resta com'è;
+- **schermata**: solo LVGL. Cinque croci (quattro angoli e il centro) e i minimi quadrati sui cinque punti, come
+  `ts_calibrate`, poi una prova «tocca qui» con il punto che segue il dito, e «Salva» o «Rifai». Durante la
+  calibrazione il touch passa crudo, senza matrice e senza il filtro del gesto nell'angolo. Senza un tocco per
+  30 s si torna alla calibrazione di prima: un resistivo fuori calibrazione non deve poter chiudere fuori chi lo usa;
+- **capacità** `touch_calibration`: sì solo in LVGL con touch resistivo. Il viewer la sa e il runtime no, quindi la
+  sezione la mostra il viewer, senza chiederla all'API;
+- **TC/WP**: il pulsante avvia `touch-calibration.service` di Pixsys (`systemd1.manage-units`, già concesso).
+  Quel servizio prende lo schermo per conto suo: si vede al collaudo;
+- **collaudo rimandato**: niente resistivo a disposizione. I test Rust coprono matrice, minimi quadrati e la
+  lettura del file di Pixsys misurato qui sopra.
+
+### Sezione «Schermo»
+
+Raccoglie luce e calibrazione. Compare se c'è almeno una delle due capacità. Sul web resta solo la luce.
+
+### Ordine di lavoro (ramo `feat/control-panel-4`, annidato su `feat/control-panel`)
+
+1. backend: Wi-Fi e hotspot in `dbus.rs` e nel backend finto (con reti finte, una enterprise, una chiavetta senza
+   AP), più luce e capacità. Test Rust;
+2. permessi: `.pkla`/`.rules` con `wifi.share.*`;
+3. web: sezioni Wi-Fi e Schermo, con vitest;
+4. LVGL: tastiera alfanumerica, Wi-Fi con QR, luce in `schermo.rs`, poi calibrazione (matrice in `touch_indev.rs`,
+   schermata), con i test;
+5. istantanee dei due motori in `sws/tmp/pannello-di-controllo/`;
+6. collaudo sul TY570 con la chiavetta: scansione, collegamento, rollback dei 60 s, hotspot col telefono e QR,
+   luce. La calibrazione resta in `docs/COLLAUDI_IN_SOSPESO.md` finché non c'è un resistivo.
+
+Cosa chiede alla chiavetta: un driver fra quelli del kernel qui sopra. Se `lsusb` mostra un chip senza driver, si
+prova un'altra chiavetta: compilare driver per il kernel di Pixsys è fuori dalla fase.
