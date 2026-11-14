@@ -58,6 +58,21 @@ describe("Istanza → Prestazioni", () => {
     expect(screen.queryByTestId("fase-giro"), "il giro sta nella riga in alto, non fra le fasi").toBeNull();
   });
 
+  it("la barra è piena a un fotogramma del progetto, non a 16 ms", async () => {
+    // Without pannello.fps: 20 per second, 50 ms per frame.
+    useAppStore.setState({ remoteConnected: true, remoteUrl: "https://pannello:7444", project: { pannello: {} } } as never);
+    const { unmount } = render(<PrestazioniTab />);
+    expect((await screen.findAllByText(/su 50 ms|out of 50 ms/)).length).toBeGreaterThan(0);
+    // display: 800 ms over 100 frames = 8 ms, i.e. 16 % of 50 ms (was 50 % of 16 ms).
+    const riga = await screen.findByTestId("fase-display");
+    expect(riga.querySelector('[style*="width: 16%"]')).not.toBeNull();
+    unmount();
+    // pannello.fps = 10 -> 100 ms.
+    useAppStore.setState({ project: { pannello: { fps: 10 } } } as never);
+    render(<PrestazioniTab />);
+    expect((await screen.findAllByText(/su 100 ms|out of 100 ms/)).length).toBeGreaterThan(0);
+  });
+
   it("il 95° percentile per eccesso, come in sws-core", () => {
     expect(p95(voce("x", 100, 0, 40, [0, 95, 0, 0, 0, 0, 5, 0]))).toBe(2);
     expect(p95(voce("x", 1, 90, 90, [0, 0, 0, 0, 0, 0, 0, 1]))).toBe(90);

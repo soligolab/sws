@@ -16,6 +16,7 @@ import { S } from "@/config/comuni";
 import { useAppStore } from "@/store";
 import { useInVista } from "@/components/Tenuta";
 import { etichettaDispositivo } from "@/ws/remoteLogStream";
+import { fpsEffettivi } from "@/ws/coalescenza";
 
 const SCATOLA: CSSProperties = {
   background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface, #1e293b)",
@@ -39,9 +40,6 @@ export function etichettaLavoro(nome: string): string {
   const m = /^sorgente\.([a-z0-9]+)\.(.+)$/.exec(nome);
   return m ? `sws-${m[1]} \u00b7 ${m[2]}` : nome;
 }
-
-/** Un fotogramma a 60 al secondo: la misura di tutte le barre del viewer. */
-const FOTOGRAMMA_MS = 16;
 
 /** Il 95° percentile per eccesso, come `Voce::p95_ms` in `sws-core`. */
 export function p95(v: VocePrestazioni): number {
@@ -108,6 +106,10 @@ export function ColonnaPrestazioni({ remoto, titolo }: { remoto: boolean; titolo
 
 function Viewer({ dati }: { dati: Prestazioni }) {
   const { t } = useTranslation();
+  // The bar scale is one frame of the project (`pannello.fps`, default 20),
+  // not a fixed 60 per second (12-11-2026).
+  const fpsProgetto = useAppStore((s) => fpsEffettivi(s.project?.pannello?.fps));
+  const fotogrammaMs = 1000 / fpsProgetto;
   const v = dati.viewer;
   if (!v) {
     return (
@@ -133,7 +135,7 @@ function Viewer({ dati }: { dati: Prestazioni }) {
         <thead>
           <tr>
             <th style={S.th}>{t("prestazioni.fase")}</th>
-            <th style={S.th}>{t("prestazioni.perFotogramma")}</th>
+            <th style={S.th}>{t("prestazioni.perFotogramma", { ms: ms(fotogrammaMs) })}</th>
             <th style={{ ...S.th, textAlign: "right" }}>{t("prestazioni.volte")}</th>
             <th style={{ ...S.th, textAlign: "right" }}>{t("prestazioni.media")}</th>
             <th style={{ ...S.th, textAlign: "right" }}>p95</th>
@@ -143,7 +145,7 @@ function Viewer({ dati }: { dati: Prestazioni }) {
         <tbody>
           {righe.map((x) => {
             const perFotogramma = fotogrammi > 0 ? x.somma_ms / fotogrammi : 0;
-            const quota = Math.min(1, perFotogramma / FOTOGRAMMA_MS);
+            const quota = Math.min(1, perFotogramma / fotogrammaMs);
             return (
               <tr key={x.nome} data-testid={`fase-${x.nome}`}>
                 <td style={S.td} title={x.nome}>{t(`prestazioni.fasi.${x.nome}`, { defaultValue: x.nome })}</td>
@@ -165,7 +167,7 @@ function Viewer({ dati }: { dati: Prestazioni }) {
           })}
         </tbody>
       </table>
-      <div style={{ ...NOTA, marginTop: 6 }}>{t("prestazioni.viewerNota")}</div>
+      <div style={{ ...NOTA, marginTop: 6 }}>{t("prestazioni.viewerNota", { ms: ms(fotogrammaMs), fps: fpsProgetto })}</div>
     </div>
   );
 }

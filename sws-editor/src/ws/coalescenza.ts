@@ -74,8 +74,13 @@ export function azzeraRitmo(): void {
  *  60): gli stessi limiti di `PannelloConfig::fps_effettivi` nel runtime. Fino
  *  al 12-11-2026 la pagina si aggiornava a ogni fotogramma del browser. */
 export function impostaFps(fps: number | undefined): void {
-  const f = fps === undefined || !Number.isFinite(fps) ? FPS_PREDEFINITI : Math.min(60, Math.max(1, Math.round(fps)));
-  periodoMs = 1000 / f;
+  periodoMs = 1000 / fpsEffettivi(fps);
+}
+
+/** `pannello.fps` brought into 1..60, or the default: the same as
+ *  `PannelloConfig::fps_effettivi` in sws-core. */
+export function fpsEffettivi(fps: number | undefined): number {
+  return fps === undefined || !Number.isFinite(fps) ? FPS_PREDEFINITI : Math.min(60, Math.max(1, Math.round(fps)));
 }
 
 let pianifica: Pianificatore = fotogramma;

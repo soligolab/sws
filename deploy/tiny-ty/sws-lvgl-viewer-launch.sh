@@ -33,6 +33,22 @@ if [ -f /etc/sws/viewer.env ]; then
     . /etc/sws/viewer.env
 fi
 
+# ── The Pixsys setup comes first ──────────────────────────────────────────────
+# A touch within 2 s of power-on makes rc.local create /tmp/runsetup and start
+# `tyx_panelcontrol gui`, the device setup (network, time, calibration). It is
+# the only local way to configure the system: the viewer must not cover it.
+# Wait until it is closed, then take the screen. On 13-11-2026 the viewer hid
+# it, and a TY570 left without IPv4 had no way back from its own screen.
+# Point 11 in ty570-1ad-p1.md.
+SETUP_PIXSYS='^/data/tyx_panelcontrol/tyx_panelcontrol gui'
+if [ -e /tmp/runsetup ] && pgrep -f "$SETUP_PIXSYS" >/dev/null 2>&1; then
+    echo "Pixsys setup open: the viewer waits until it is closed"
+    while pgrep -f "$SETUP_PIXSYS" >/dev/null 2>&1; do
+        sleep 5
+    done
+    echo "Pixsys setup closed: starting the viewer"
+fi
+
 # ── La scheda DRM ─────────────────────────────────────────────────────────────
 if [ -z "${SWS_DRM_CARD:-}" ]; then
     for stato in /sys/class/drm/card*-*/status; do
