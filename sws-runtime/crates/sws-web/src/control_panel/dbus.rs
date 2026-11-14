@@ -10,7 +10,8 @@
 //! as an error string and the panel shows it; nothing here asks for a password.
 
 use super::backend::{
-    Capabilities, Card, CardKind, CardState, Ipv4Change, Ipv4Method, TimeChange, TimeState,
+    Capabilities, Card, CardKind, CardState, Hotspot, Ipv4Change, Ipv4Method, TimeChange,
+    TimeState, WifiConnect, WifiMode, WifiNetwork, WifiSecurity, WifiState,
 };
 use std::collections::HashMap;
 use std::net::Ipv4Addr;
@@ -23,6 +24,19 @@ const NM_DEVICE: &str = "org.freedesktop.NetworkManager.Device";
 const NM_IP4: &str = "org.freedesktop.NetworkManager.IP4Config";
 const NM_ACTIVE: &str = "org.freedesktop.NetworkManager.Connection.Active";
 const NM_SETTINGS_CONN: &str = "org.freedesktop.NetworkManager.Settings.Connection";
+const NM_SETTINGS: &str = "org.freedesktop.NetworkManager.Settings";
+const NM_SETTINGS_PATH: &str = "/org/freedesktop/NetworkManager/Settings";
+const NM_WIRELESS: &str = "org.freedesktop.NetworkManager.Device.Wireless";
+const NM_AP: &str = "org.freedesktop.NetworkManager.AccessPoint";
+const SYSTEMD: &str = "org.freedesktop.systemd1";
+const SYSTEMD_PATH: &str = "/org/freedesktop/systemd1";
+const SYSTEMD_MANAGER: &str = "org.freedesktop.systemd1.Manager";
+const SYSTEMD_UNIT: &str = "org.freedesktop.systemd1.Unit";
+/// PixsysOS' touch calibration; `setup-user` may start it (phase 0).
+const TOUCH_CALIBRATION_UNIT: &str = "touch-calibration.service";
+const PIXSYS: &str = "net.pixsys.Config1";
+const PIXSYS_DISPLAY_PATH: &str = "/net/pixsys/Config1/Display";
+const PIXSYS_DISPLAY: &str = "net.pixsys.Config1.Display";
 const TIMEDATE: &str = "org.freedesktop.timedate1";
 const TIMEDATE_PATH: &str = "/org/freedesktop/timedate1";
 const LOGIN: &str = "org.freedesktop.login1";
@@ -33,6 +47,19 @@ const PROPS: &str = "org.freedesktop.DBus.Properties";
 /// NetworkManager's device types we tell apart (`NMDeviceType`).
 const NM_DEVICE_TYPE_ETHERNET: u32 = 1;
 const NM_DEVICE_TYPE_WIFI: u32 = 2;
+/// `NM_WIFI_DEVICE_CAP_AP`: the card can be an access point.
+const NM_WIFI_DEVICE_CAP_AP: u32 = 0x40;
+/// `NM_802_11_AP_SEC_KEY_MGMT_*`.
+const KEY_MGMT_PSK: u32 = 0x100;
+const KEY_MGMT_802_1X: u32 = 0x200;
+const KEY_MGMT_SAE: u32 = 0x400;
+/// `NM_CHECKPOINT_CREATE_FLAG_DELETE_NEW_CONNECTIONS`: an unconfirmed Wi-Fi
+/// profile goes away with the rollback, instead of staying saved.
+const CHECKPOINT_DELETE_NEW: u32 = 0x02;
+/// The profile names SWS creates. The hotspot is one; client profiles carry
+/// the SSID.
+const HOTSPOT_ID: &str = "sws-hotspot";
+const CLIENT_ID_PREFIX: &str = "sws-wifi-";
 
 /// The checkpoint of the last network change, until it is confirmed.
 static CHECKPOINT: Mutex<Option<OwnedObjectPath>> = Mutex::new(None);
@@ -104,7 +131,89 @@ pub async fn capabilities() -> Capabilities {
         time,
         reboot: can("CanReboot").await,
         power_off: can("CanPowerOff").await,
+        display: backlight_by_viewer() || pixsys_display(&c).await,
+        touch_calibration_service: unit_loaded(&c, TOUCH_CALIBRATION_UNIT).await,
     }
+}
+
+/// The unit exists on this system: `LoadUnit` answers for any name, so the
+/// `LoadState` says whether there is a file behind it.
+async fn unit_loaded(c: &zbus::Connection, unit: &str) -> bool {
+    let Ok(m) = c
+        .call_method(
+            Some(SYSTEMD),
+            SYSTEMD_PATH,
+            Some(SYSTEMD_MANAGER),
+            "LoadUnit",
+            &(unit,),
+        )
+        .await
+    else {
+        return false;
+    };
+    let Ok(path) = m.body().deserialize::<OwnedObjectPath>() else {
+        return false;
+    };
+    get_all(c, SYSTEMD, path.as_str(), SYSTEMD_UNIT)
+        .await
+        .ok()
+        .and_then(|p| prop::<String>(&p, "LoadState"))
+        .is_some_and(|s| s == "loaded")
+}
+
+pub async fn start_touch_calibration() -> Result<(), String> {
+    let c = system().await?;
+    c.call_method(
+        Some(SYSTEMD),
+        SYSTEMD_PATH,
+        Some(SYSTEMD_MANAGER),
+        "StartUnit",
+        &(TOUCH_CALIBRATION_UNIT, "replace"),
+    )
+    .await
+    .map_err(|e| format!("touch calibration: {e}"))?;
+    Ok(())
+}
+
+/// The Tiny TY's runtime launcher says so: the viewer drives the backlight
+/// (`schermo.rs`, `--retroilluminazione`) and reads the panel's value.
+fn backlight_by_viewer() -> bool {
+    std::env::var("SWS_BACKLIGHT_BY_VIEWER").is_ok_and(|v| v == "1")
+}
+
+/// PixsysOS: `net.pixsys.Config1.Display`, measured in phase 0.
+async fn pixsys_display(c: &zbus::Connection) -> bool {
+    c.call_method(
+        Some(PIXSYS),
+        PIXSYS_DISPLAY_PATH,
+        Some(PIXSYS_DISPLAY),
+        "HasDisplayCapabilities",
+        &(),
+    )
+    .await
+    .ok()
+    .and_then(|r| r.body().deserialize::<bool>().ok())
+    .unwrap_or(false)
+}
+
+/// Brightness in percent. On the Tiny TY there is nothing to do here: the
+/// viewer applies the saved value. On PixsysOS the light is root's, and
+/// `Config1.Display` sets it.
+pub async fn apply_brightness(percent: u8) -> Result<(), String> {
+    if backlight_by_viewer() {
+        return Ok(());
+    }
+    let c = system().await?;
+    c.call_method(
+        Some(PIXSYS),
+        PIXSYS_DISPLAY_PATH,
+        Some(PIXSYS_DISPLAY),
+        "SetBrightness",
+        &(u32::from(percent),),
+    )
+    .await
+    .map_err(|e| format!("brightness: {e}"))?;
+    Ok(())
 }
 
 async fn nm_devices(c: &zbus::Connection) -> Result<Vec<OwnedObjectPath>, String> {
@@ -280,6 +389,37 @@ fn dns_u32(a: &Ipv4Addr) -> u32 {
     u32::from_ne_bytes(a.octets())
 }
 
+/// Opens the checkpoint of a change on `device`. Flags 0 = roll back only this
+/// device. A previous checkpoint still open is replaced: NetworkManager refuses
+/// two on the same device.
+async fn checkpoint(
+    c: &zbus::Connection,
+    device: &OwnedObjectPath,
+    rollback_secs: u32,
+    flags: u32,
+) -> Result<(), String> {
+    let previous = CHECKPOINT.lock().unwrap().take();
+    if let Some(old) = previous {
+        let _ = c
+            .call_method(Some(NM), NM_PATH, Some(NM), "CheckpointDestroy", &(old,))
+            .await;
+    }
+    let devices = vec![device.clone()];
+    let cp = c
+        .call_method(
+            Some(NM),
+            NM_PATH,
+            Some(NM),
+            "CheckpointCreate",
+            &(devices, rollback_secs, flags),
+        )
+        .await
+        .map_err(|e| format!("checkpoint: {e}"))?;
+    let cp: OwnedObjectPath = cp.body().deserialize().map_err(|e| e.to_string())?;
+    *CHECKPOINT.lock().unwrap() = Some(cp);
+    Ok(())
+}
+
 pub async fn set_ipv4(card: &str, change: &Ipv4Change, rollback_secs: u32) -> Result<(), String> {
     let c = system().await?;
     let (device, props) = device_by_name(&c, card).await?;
@@ -302,27 +442,7 @@ pub async fn set_ipv4(card: &str, change: &Ipv4Change, rollback_secs: u32) -> Re
 
     // A checkpoint on this device first: if the confirmation does not come,
     // NetworkManager puts back the profile and the device by itself.
-    // Flags 0 = roll back only this device. A previous checkpoint still open
-    // is replaced: NetworkManager refuses two on the same device.
-    let previous = CHECKPOINT.lock().unwrap().take();
-    if let Some(old) = previous {
-        let _ = c
-            .call_method(Some(NM), NM_PATH, Some(NM), "CheckpointDestroy", &(old,))
-            .await;
-    }
-    let devices = vec![device.clone()];
-    let cp = c
-        .call_method(
-            Some(NM),
-            NM_PATH,
-            Some(NM),
-            "CheckpointCreate",
-            &(devices, rollback_secs, 0u32),
-        )
-        .await
-        .map_err(|e| format!("checkpoint: {e}"))?;
-    let cp: OwnedObjectPath = cp.body().deserialize().map_err(|e| e.to_string())?;
-    *CHECKPOINT.lock().unwrap() = Some(cp);
+    checkpoint(&c, &device, rollback_secs, 0).await?;
 
     c.call_method(
         Some(NM),
@@ -371,6 +491,575 @@ pub async fn rollback_network() -> Result<(), String> {
         .await
         .map_err(|e| format!("the change was already undone ({e})"))?;
     Ok(())
+}
+
+// ── Wi-Fi ───────────────────────────────────────────────────────────────────
+
+/// The first Wi-Fi card and its device properties.
+async fn wifi_device(
+    c: &zbus::Connection,
+) -> Result<Option<(OwnedObjectPath, HashMap<String, OwnedValue>)>, String> {
+    for d in nm_devices(c).await? {
+        let p = get_all(c, NM, d.as_str(), NM_DEVICE).await?;
+        if prop::<u32>(&p, "DeviceType") == Some(NM_DEVICE_TYPE_WIFI) {
+            return Ok(Some((d, p)));
+        }
+    }
+    Ok(None)
+}
+
+async fn require_wifi_device(
+    c: &zbus::Connection,
+) -> Result<(OwnedObjectPath, HashMap<String, OwnedValue>), String> {
+    wifi_device(c)
+        .await?
+        .ok_or_else(|| "no Wi-Fi card".to_string())
+}
+
+/// Security of an access point from its flags (`NM80211ApFlags`, and the WPA
+/// and RSN `NM80211ApSecurityFlags`).
+fn ap_security(flags: u32, wpa: u32, rsn: u32) -> WifiSecurity {
+    let mgmt = wpa | rsn;
+    if mgmt & KEY_MGMT_802_1X != 0 {
+        WifiSecurity::Enterprise
+    } else if mgmt & KEY_MGMT_PSK != 0 {
+        WifiSecurity::Wpa
+    } else if mgmt & KEY_MGMT_SAE != 0 {
+        WifiSecurity::Wpa3
+    } else if flags & 1 != 0 {
+        // Privacy without WPA: WEP. Treated as WPA-PSK by the form; joining
+        // will fail with NetworkManager's message, which is honest enough.
+        WifiSecurity::Wpa
+    } else {
+        WifiSecurity::Open
+    }
+}
+
+/// One entry per SSID, strongest first; hidden networks (empty SSID) left out.
+fn dedup_networks(mut seen: Vec<WifiNetwork>) -> Vec<WifiNetwork> {
+    seen.sort_by(|a, b| b.active.cmp(&a.active).then(b.signal.cmp(&a.signal)));
+    let mut out: Vec<WifiNetwork> = Vec::new();
+    for n in seen {
+        if !n.ssid.is_empty() && !out.iter().any(|o| o.ssid == n.ssid) {
+            out.push(n);
+        }
+    }
+    out
+}
+
+/// A saved profile: its path and settings.
+struct Profile {
+    path: OwnedObjectPath,
+    settings: Settings,
+}
+
+impl Profile {
+    fn get<T: TryFrom<OwnedValue>>(&self, section: &str, key: &str) -> Option<T> {
+        self.settings.get(section).and_then(|s| prop::<T>(s, key))
+    }
+    fn is_wifi(&self) -> bool {
+        self.get::<String>("connection", "type").as_deref() == Some("802-11-wireless")
+    }
+    fn ssid(&self) -> Option<String> {
+        self.get::<Vec<u8>>("802-11-wireless", "ssid")
+            .map(|b| String::from_utf8_lossy(&b).into_owned())
+    }
+    fn is_ap(&self) -> bool {
+        self.get::<String>("802-11-wireless", "mode").as_deref() == Some("ap")
+    }
+    fn id(&self) -> String {
+        self.get::<String>("connection", "id").unwrap_or_default()
+    }
+}
+
+async fn wifi_profiles(c: &zbus::Connection) -> Result<Vec<Profile>, String> {
+    let m = c
+        .call_method(
+            Some(NM),
+            NM_SETTINGS_PATH,
+            Some(NM_SETTINGS),
+            "ListConnections",
+            &(),
+        )
+        .await
+        .map_err(|e| format!("NetworkManager: {e}"))?;
+    let paths: Vec<OwnedObjectPath> = m.body().deserialize().map_err(|e| e.to_string())?;
+    let mut out = Vec::new();
+    for path in paths {
+        let Ok(m) = c
+            .call_method(
+                Some(NM),
+                path.as_str(),
+                Some(NM_SETTINGS_CONN),
+                "GetSettings",
+                &(),
+            )
+            .await
+        else {
+            continue;
+        };
+        let Ok(settings) = m.body().deserialize::<Settings>() else {
+            continue;
+        };
+        let p = Profile { path, settings };
+        if p.is_wifi() {
+            out.push(p);
+        }
+    }
+    Ok(out)
+}
+
+/// The hotspot profile: the one SWS made, or any access-point profile.
+fn find_hotspot(profiles: &[Profile]) -> Option<&Profile> {
+    profiles
+        .iter()
+        .find(|p| p.id() == HOTSPOT_ID)
+        .or_else(|| profiles.iter().find(|p| p.is_ap()))
+}
+
+pub async fn wifi() -> Result<WifiState, String> {
+    let c = system().await?;
+    let nm = get_all(&c, NM, NM_PATH, NM).await?;
+    let radio = prop::<bool>(&nm, "WirelessEnabled").unwrap_or(false);
+    let Some((device, dev)) = wifi_device(&c).await? else {
+        return Ok(WifiState {
+            card: None,
+            radio,
+            mode: WifiMode::Off,
+            active_ssid: None,
+            networks: vec![],
+            saved: vec![],
+            can_hotspot: false,
+        });
+    };
+    let wl = get_all(&c, NM, device.as_str(), NM_WIRELESS).await?;
+    let profiles = wifi_profiles(&c).await.unwrap_or_default();
+    let saved: Vec<String> = profiles
+        .iter()
+        .filter(|p| !p.is_ap())
+        .filter_map(Profile::ssid)
+        .collect();
+
+    let state = prop::<u32>(&dev, "State").unwrap_or(0);
+    let active = match active_profile(&c, &dev).await {
+        Some(path) => profiles.iter().find(|p| p.path == path),
+        None => None,
+    };
+    let mode = match (radio, active) {
+        (false, _) => WifiMode::Off,
+        (true, Some(p)) if p.is_ap() => WifiMode::Hotspot,
+        (true, Some(_)) if (40..=100).contains(&state) => WifiMode::Client,
+        _ => WifiMode::Idle,
+    };
+    let active_ssid = active.and_then(Profile::ssid);
+
+    let mut seen = Vec::new();
+    let aps: Vec<OwnedObjectPath> = prop(&wl, "AccessPoints").unwrap_or_default();
+    for ap in aps {
+        let Ok(a) = get_all(&c, NM, ap.as_str(), NM_AP).await else {
+            continue;
+        };
+        let ssid = prop::<Vec<u8>>(&a, "Ssid")
+            .map(|b| String::from_utf8_lossy(&b).into_owned())
+            .unwrap_or_default();
+        seen.push(WifiNetwork {
+            known: saved.contains(&ssid),
+            active: mode == WifiMode::Client && active_ssid.as_deref() == Some(ssid.as_str()),
+            signal: prop::<u8>(&a, "Strength").unwrap_or(0),
+            security: ap_security(
+                prop(&a, "Flags").unwrap_or(0),
+                prop(&a, "WpaFlags").unwrap_or(0),
+                prop(&a, "RsnFlags").unwrap_or(0),
+            ),
+            ssid,
+        });
+    }
+
+    Ok(WifiState {
+        card: prop::<String>(&dev, "Interface"),
+        radio,
+        mode,
+        active_ssid: if matches!(mode, WifiMode::Client | WifiMode::Hotspot) {
+            active_ssid
+        } else {
+            None
+        },
+        networks: dedup_networks(seen),
+        saved,
+        can_hotspot: prop::<u32>(&wl, "WirelessCapabilities").unwrap_or(0) & NM_WIFI_DEVICE_CAP_AP
+            != 0,
+    })
+}
+
+pub async fn wifi_scan() -> Result<(), String> {
+    let c = system().await?;
+    let (device, _) = require_wifi_device(&c).await?;
+    let opts: HashMap<String, OwnedValue> = HashMap::new();
+    c.call_method(
+        Some(NM),
+        device.as_str(),
+        Some(NM_WIRELESS),
+        "RequestScan",
+        &(opts,),
+    )
+    .await
+    .map_err(|e| format!("scan: {e}"))?;
+    Ok(())
+}
+
+pub async fn wifi_radio(enabled: bool) -> Result<(), String> {
+    let c = system().await?;
+    c.call_method(
+        Some(NM),
+        NM_PATH,
+        Some(PROPS),
+        "Set",
+        &(NM, "WirelessEnabled", Value::from(enabled)),
+    )
+    .await
+    .map_err(|e| format!("radio: {e}"))?;
+    Ok(())
+}
+
+/// A random version-4 UUID, as NetworkManager wants for a new profile.
+fn new_uuid() -> String {
+    let mut b = super::random_bytes::<16>();
+    b[6] = (b[6] & 0x0f) | 0x40;
+    b[8] = (b[8] & 0x3f) | 0x80;
+    let h: String = b.iter().map(|x| format!("{x:02x}")).collect();
+    format!(
+        "{}-{}-{}-{}-{}",
+        &h[0..8],
+        &h[8..12],
+        &h[12..16],
+        &h[16..20],
+        &h[20..32]
+    )
+}
+
+fn section(pairs: Vec<(&str, Value<'_>)>) -> Result<HashMap<String, OwnedValue>, String> {
+    pairs
+        .into_iter()
+        .map(|(k, v)| Ok((k.to_string(), ov(v)?)))
+        .collect()
+}
+
+/// A new client profile for `req`. `wpa3` = the network only offers SAE.
+fn client_settings(req: &WifiConnect, card: &str, wpa3: bool) -> Result<Settings, String> {
+    let mut s = Settings::new();
+    s.insert(
+        "connection".into(),
+        section(vec![
+            ("id", Value::from(format!("{CLIENT_ID_PREFIX}{}", req.ssid))),
+            ("uuid", Value::from(new_uuid())),
+            ("type", Value::from("802-11-wireless")),
+            ("interface-name", Value::from(card.to_string())),
+            ("autoconnect", Value::from(true)),
+        ])?,
+    );
+    s.insert(
+        "802-11-wireless".into(),
+        section(vec![
+            ("ssid", Value::from(req.ssid.as_bytes().to_vec())),
+            ("mode", Value::from("infrastructure")),
+            ("hidden", Value::from(req.hidden)),
+        ])?,
+    );
+    if let Some(pw) = req.password.as_deref().filter(|p| !p.is_empty()) {
+        s.insert(
+            "802-11-wireless-security".into(),
+            section(vec![
+                (
+                    "key-mgmt",
+                    Value::from(if wpa3 { "sae" } else { "wpa-psk" }),
+                ),
+                ("psk", Value::from(pw.to_string())),
+            ])?,
+        );
+    }
+    s.insert(
+        "ipv4".into(),
+        section(vec![("method", Value::from("auto"))])?,
+    );
+    s.insert(
+        "ipv6".into(),
+        section(vec![("method", Value::from("auto"))])?,
+    );
+    Ok(s)
+}
+
+/// The hotspot profile: 2.4 GHz, WPA2-PSK (CCMP only, the combination every
+/// phone accepts), `ipv4.method=shared` so NetworkManager hands out addresses
+/// with dnsmasq (10.42.0.1/24). A high autoconnect priority so that, when it
+/// is on, it wins over saved client networks at boot.
+fn hotspot_settings(h: &Hotspot, card: &str, uuid: String) -> Result<Settings, String> {
+    let mut s = Settings::new();
+    s.insert(
+        "connection".into(),
+        section(vec![
+            ("id", Value::from(HOTSPOT_ID)),
+            ("uuid", Value::from(uuid)),
+            ("type", Value::from("802-11-wireless")),
+            ("interface-name", Value::from(card.to_string())),
+            ("autoconnect", Value::from(h.enabled)),
+            ("autoconnect-priority", Value::from(50i32)),
+        ])?,
+    );
+    s.insert(
+        "802-11-wireless".into(),
+        section(vec![
+            ("ssid", Value::from(h.ssid.as_bytes().to_vec())),
+            ("mode", Value::from("ap")),
+            ("band", Value::from("bg")),
+        ])?,
+    );
+    s.insert(
+        "802-11-wireless-security".into(),
+        section(vec![
+            ("key-mgmt", Value::from("wpa-psk")),
+            ("psk", Value::from(h.password.clone())),
+            ("proto", Value::from(vec!["rsn"])),
+            ("pairwise", Value::from(vec!["ccmp"])),
+            ("group", Value::from(vec!["ccmp"])),
+        ])?,
+    );
+    s.insert(
+        "ipv4".into(),
+        section(vec![("method", Value::from("shared"))])?,
+    );
+    s.insert(
+        "ipv6".into(),
+        section(vec![("method", Value::from("ignore"))])?,
+    );
+    Ok(s)
+}
+
+async fn activate(
+    c: &zbus::Connection,
+    profile: &OwnedObjectPath,
+    device: &OwnedObjectPath,
+) -> Result<(), String> {
+    let root = zbus::zvariant::ObjectPath::try_from("/").map_err(|e| e.to_string())?;
+    c.call_method(
+        Some(NM),
+        NM_PATH,
+        Some(NM),
+        "ActivateConnection",
+        &(profile, device, root),
+    )
+    .await
+    .map_err(|e| format!("activate: {e}"))?;
+    Ok(())
+}
+
+async fn add_profile(c: &zbus::Connection, settings: Settings) -> Result<OwnedObjectPath, String> {
+    let m = c
+        .call_method(
+            Some(NM),
+            NM_SETTINGS_PATH,
+            Some(NM_SETTINGS),
+            "AddConnection",
+            &(settings,),
+        )
+        .await
+        .map_err(|e| format!("add profile: {e}"))?;
+    m.body().deserialize().map_err(|e| e.to_string())
+}
+
+async fn update_profile(
+    c: &zbus::Connection,
+    path: &OwnedObjectPath,
+    settings: Settings,
+) -> Result<(), String> {
+    c.call_method(
+        Some(NM),
+        path.as_str(),
+        Some(NM_SETTINGS_CONN),
+        "Update",
+        &(settings,),
+    )
+    .await
+    .map_err(|e| format!("update: {e}"))?;
+    Ok(())
+}
+
+/// `autoconnect` of a saved profile, keeping everything else.
+async fn set_autoconnect(c: &zbus::Connection, p: &Profile, on: bool) -> Result<(), String> {
+    let mut settings = p.settings.clone();
+    if let Some(conn) = settings.get_mut("connection") {
+        conn.insert("autoconnect".into(), ov(Value::from(on))?);
+    }
+    // GetSettings never returns secrets: an Update without them would wipe
+    // the PSK, so they are read back first.
+    if let Ok(secrets) = profile_secrets(c, &p.path).await {
+        if let Some(sec) = secrets.get("802-11-wireless-security") {
+            let entry = settings
+                .entry("802-11-wireless-security".into())
+                .or_default();
+            for (k, v) in sec {
+                if let Ok(v) = v.try_clone() {
+                    entry.insert(k.clone(), v);
+                }
+            }
+        }
+    }
+    update_profile(c, &p.path, settings).await
+}
+
+async fn profile_secrets(c: &zbus::Connection, path: &OwnedObjectPath) -> Result<Settings, String> {
+    let m = c
+        .call_method(
+            Some(NM),
+            path.as_str(),
+            Some(NM_SETTINGS_CONN),
+            "GetSecrets",
+            &("802-11-wireless-security",),
+        )
+        .await
+        .map_err(|e| format!("secrets: {e}"))?;
+    m.body().deserialize().map_err(|e| e.to_string())
+}
+
+pub async fn wifi_connect(req: &WifiConnect, rollback_secs: u32) -> Result<(), String> {
+    let c = system().await?;
+    let (device, dev) = require_wifi_device(&c).await?;
+    let card = prop::<String>(&dev, "Interface").unwrap_or_default();
+    let state = wifi().await?;
+    let net = state.networks.iter().find(|n| n.ssid == req.ssid);
+    if net.is_some_and(|n| n.security == WifiSecurity::Enterprise) {
+        return Err("802.1X networks cannot be joined from the panel".into());
+    }
+    let profiles = wifi_profiles(&c).await?;
+    let existing = profiles
+        .iter()
+        .find(|p| !p.is_ap() && p.ssid().as_deref() == Some(req.ssid.as_str()));
+    let password = req.password.as_deref().filter(|p| !p.is_empty());
+    if existing.is_none()
+        && password.is_none()
+        && net.is_some_and(|n| n.security != WifiSecurity::Open)
+    {
+        return Err(format!("{} needs a password", req.ssid));
+    }
+
+    checkpoint(&c, &device, rollback_secs, CHECKPOINT_DELETE_NEW).await?;
+    // The hotspot would take the card back at the next boot.
+    if let Some(h) = find_hotspot(&profiles) {
+        if h.get::<bool>("connection", "autoconnect").unwrap_or(true) {
+            set_autoconnect(&c, h, false).await?;
+        }
+    }
+    let wpa3 = net.is_some_and(|n| n.security == WifiSecurity::Wpa3);
+    let path = match existing {
+        Some(p) if password.is_none() => p.path.clone(),
+        Some(p) => {
+            let mut s = client_settings(req, &card, wpa3)?;
+            // Same profile, new password: keep its uuid.
+            if let (Some(conn), Some(uuid)) = (
+                s.get_mut("connection"),
+                p.get::<String>("connection", "uuid"),
+            ) {
+                conn.insert("uuid".into(), ov(Value::from(uuid))?);
+                conn.insert("id".into(), ov(Value::from(p.id()))?);
+            }
+            update_profile(&c, &p.path, s).await?;
+            p.path.clone()
+        }
+        None => add_profile(&c, client_settings(req, &card, wpa3)?).await?,
+    };
+    activate(&c, &path, &device).await
+}
+
+pub async fn wifi_forget(ssid: &str) -> Result<(), String> {
+    let c = system().await?;
+    let profiles = wifi_profiles(&c).await?;
+    let mut found = false;
+    for p in profiles
+        .iter()
+        .filter(|p| !p.is_ap() && p.ssid().as_deref() == Some(ssid))
+    {
+        c.call_method(
+            Some(NM),
+            p.path.as_str(),
+            Some(NM_SETTINGS_CONN),
+            "Delete",
+            &(),
+        )
+        .await
+        .map_err(|e| format!("forget: {e}"))?;
+        found = true;
+    }
+    if found {
+        Ok(())
+    } else {
+        Err(format!("no saved network called {ssid}"))
+    }
+}
+
+pub async fn hotspot() -> Result<Option<Hotspot>, String> {
+    let c = system().await?;
+    let profiles = wifi_profiles(&c).await?;
+    let Some(p) = find_hotspot(&profiles) else {
+        return Ok(None);
+    };
+    let password = profile_secrets(&c, &p.path)
+        .await
+        .ok()
+        .and_then(|s| {
+            s.get("802-11-wireless-security")
+                .and_then(|sec| prop::<String>(sec, "psk"))
+        })
+        .unwrap_or_default();
+    Ok(Some(Hotspot {
+        enabled: p.get::<bool>("connection", "autoconnect").unwrap_or(true),
+        ssid: p.ssid().unwrap_or_default(),
+        password,
+    }))
+}
+
+pub async fn set_hotspot(h: &Hotspot, rollback_secs: u32) -> Result<(), String> {
+    let c = system().await?;
+    let (device, dev) = require_wifi_device(&c).await?;
+    let card = prop::<String>(&dev, "Interface").unwrap_or_default();
+    if h.enabled {
+        let wl = get_all(&c, NM, device.as_str(), NM_WIRELESS).await?;
+        if prop::<u32>(&wl, "WirelessCapabilities").unwrap_or(0) & NM_WIFI_DEVICE_CAP_AP == 0 {
+            return Err("this Wi-Fi card cannot be an access point".into());
+        }
+    }
+    let profiles = wifi_profiles(&c).await?;
+    let existing = find_hotspot(&profiles);
+
+    checkpoint(&c, &device, rollback_secs, CHECKPOINT_DELETE_NEW).await?;
+    let uuid = existing
+        .and_then(|p| p.get::<String>("connection", "uuid"))
+        .unwrap_or_else(new_uuid);
+    let settings = hotspot_settings(h, &card, uuid)?;
+    let path = match existing {
+        Some(p) => {
+            update_profile(&c, &p.path, settings).await?;
+            p.path.clone()
+        }
+        None => add_profile(&c, settings).await?,
+    };
+    if h.enabled {
+        activate(&c, &path, &device).await
+    } else {
+        // Off now, not only at the next boot.
+        if let Some(active) = path_or_none(prop(&dev, "ActiveConnection")) {
+            if active_profile(&c, &dev).await.as_ref() == Some(&path) {
+                c.call_method(
+                    Some(NM),
+                    NM_PATH,
+                    Some(NM),
+                    "DeactivateConnection",
+                    &(active,),
+                )
+                .await
+                .map_err(|e| format!("deactivate: {e}"))?;
+            }
+        }
+        Ok(())
+    }
 }
 
 pub async fn time() -> Result<TimeState, String> {
@@ -513,6 +1202,57 @@ mod tests {
             Some("192.168.1.1")
         );
         assert_eq!(prop::<Vec<u32>>(&s, "dns").map(|v| v.len()), Some(1));
+    }
+
+    #[test]
+    fn access_point_security_from_flags() {
+        assert_eq!(ap_security(0, 0, 0), WifiSecurity::Open);
+        assert_eq!(ap_security(1, 0, KEY_MGMT_PSK), WifiSecurity::Wpa);
+        assert_eq!(
+            ap_security(1, 0, KEY_MGMT_PSK | KEY_MGMT_SAE),
+            WifiSecurity::Wpa
+        );
+        assert_eq!(ap_security(1, 0, KEY_MGMT_SAE), WifiSecurity::Wpa3);
+        assert_eq!(ap_security(1, KEY_MGMT_802_1X, 0), WifiSecurity::Enterprise);
+    }
+
+    #[test]
+    fn one_entry_per_network_strongest_first() {
+        let n = |ssid: &str, signal| WifiNetwork {
+            ssid: ssid.into(),
+            signal,
+            security: WifiSecurity::Wpa,
+            known: false,
+            active: false,
+        };
+        let out = dedup_networks(vec![n("A", 30), n("B", 60), n("A", 80), n("", 99)]);
+        let names: Vec<_> = out.iter().map(|x| (x.ssid.as_str(), x.signal)).collect();
+        assert_eq!(names, vec![("A", 80), ("B", 60)]);
+    }
+
+    #[test]
+    fn a_uuid_is_version_4() {
+        let u = new_uuid();
+        assert_eq!(u.len(), 36);
+        assert_eq!(&u[14..15], "4");
+        assert!(matches!(&u[19..20], "8" | "9" | "a" | "b"));
+    }
+
+    #[test]
+    fn the_hotspot_shares_its_address() {
+        let h = Hotspot {
+            enabled: true,
+            ssid: "sws-06e990".into(),
+            password: "segreta123".into(),
+        };
+        let s = hotspot_settings(&h, "wlan0", new_uuid()).unwrap();
+        let get = |sec: &str, k: &str| s.get(sec).and_then(|x| prop::<String>(x, k));
+        assert_eq!(get("802-11-wireless", "mode").as_deref(), Some("ap"));
+        assert_eq!(get("ipv4", "method").as_deref(), Some("shared"));
+        assert_eq!(
+            get("802-11-wireless-security", "key-mgmt").as_deref(),
+            Some("wpa-psk")
+        );
     }
 
     #[test]

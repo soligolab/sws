@@ -266,6 +266,10 @@ static SCHERMO: OnceLock<Mutex<Schermo>> = OnceLock::new();
 /// Le impostazioni arrivate prima di [`avvia`]: il progetto si legge prima che
 /// il backend apra lo schermo.
 static IN_ATTESA: Mutex<Option<PannelloConfig>> = Mutex::new(None);
+/// The device's own brightness, set from the control panel
+/// (`config/control_panel.json` of the runtime): it wins over the project's
+/// `luminosita` until it is set back to `None` (decision of 14-11-2026).
+static DEVICE_BRIGHTNESS: Mutex<Option<u8>> = Mutex::new(None);
 
 fn minuti(m: Option<u32>) -> Option<Duration> {
     m.map(|m| Duration::from_secs(m as u64 * 60))
@@ -274,8 +278,9 @@ fn minuti(m: Option<u32>) -> Option<Duration> {
 impl Schermo {
     fn applica_luce(&self) {
         if let Some(l) = &self.luce {
+            let device = *DEVICE_BRIGHTNESS.lock().unwrap_or_else(|e| e.into_inner());
             l.scrivi(l.valore(
-                self.cfg.luminosita,
+                device.or(self.cfg.luminosita),
                 self.cfg.dimmed_brightness,
                 self.riposo.fase(),
             ));
@@ -297,6 +302,20 @@ pub fn configura(cfg: PannelloConfig) {
     match SCHERMO.get() {
         Some(m) => m.lock().unwrap_or_else(|e| e.into_inner()).applica(cfg),
         None => *IN_ATTESA.lock().unwrap_or_else(|e| e.into_inner()) = Some(cfg),
+    }
+}
+
+/// The control panel's brightness, `None` = the project's. Applied at once,
+/// also while the slider moves.
+pub fn device_brightness(percent: Option<u8>) {
+    let mut d = DEVICE_BRIGHTNESS.lock().unwrap_or_else(|e| e.into_inner());
+    if *d == percent {
+        return;
+    }
+    *d = percent;
+    drop(d);
+    if let Some(m) = SCHERMO.get() {
+        m.lock().unwrap_or_else(|e| e.into_inner()).applica_luce();
     }
 }
 

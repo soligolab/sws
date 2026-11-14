@@ -90,9 +90,46 @@ pub fn word(lang: &str, key: &str, values: &[(&str, &str)]) -> String {
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct Capabilities {
     pub network: bool,
+    #[serde(default)]
+    pub wifi: bool,
     pub time: bool,
     pub reboot: bool,
     pub power_off: bool,
+    #[serde(default)]
+    pub display: bool,
+    #[serde(default)]
+    pub touch_calibration_service: bool,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct WifiNetwork {
+    pub ssid: String,
+    pub signal: u8,
+    /// `open`, `wpa`, `wpa3`, `enterprise`.
+    pub security: String,
+    pub known: bool,
+    pub active: bool,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct WifiState {
+    pub card: Option<String>,
+    pub radio: bool,
+    /// `client`, `hotspot`, `idle`, `off`.
+    pub mode: String,
+    pub active_ssid: Option<String>,
+    pub networks: Vec<WifiNetwork>,
+    pub can_hotspot: bool,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct Hotspot {
+    pub ssid: String,
+    pub password: String,
+    #[serde(default)]
+    pub proposed: bool,
+    #[serde(default)]
+    pub qr: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -150,7 +187,9 @@ pub enum Screen {
 pub enum Section {
     #[default]
     Network,
+    Wifi,
     Time,
+    Screen,
     Device,
 }
 
@@ -241,6 +280,54 @@ pub struct Pending {
     pub before: String,
 }
 
+/// SSID and password being typed on the on-screen keyboard: to join a
+/// network, or to turn the hotspot on.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct WifiForm {
+    pub hotspot: bool,
+    /// The SSID can be typed: a hidden network, or the hotspot.
+    pub ssid_editable: bool,
+    pub ssid: String,
+    pub password: String,
+    /// 0 = SSID, 1 = password.
+    pub focus: usize,
+    pub reveal: bool,
+    pub shift: bool,
+    pub symbols: bool,
+    pub proposed: bool,
+    /// A protected network not saved yet: no joining without its password.
+    pub needs_password: bool,
+}
+
+/// WPA2-PSK: 8 to 63 printable ASCII characters.
+pub fn is_psk(p: &str) -> bool {
+    (8..=63).contains(&p.chars().count()) && p.chars().all(|c| (' '..='~').contains(&c))
+}
+
+impl WifiForm {
+    pub fn valid(&self) -> bool {
+        !self.ssid.is_empty()
+            && self.ssid.len() <= 32
+            && if self.hotspot || self.needs_password {
+                is_psk(&self.password)
+            } else {
+                self.password.is_empty() || is_psk(&self.password)
+            }
+    }
+}
+
+/// The calibration of a resistive screen, on top of everything.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Calibration {
+    /// The crosses: waiting for cross `n`.
+    Cross(usize),
+    /// The fit is live: try it, then Save or Redo.
+    Trying {
+        since: Instant,
+    },
+    Failed,
+}
+
 /// The date and time typed by hand, with the field in focus.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ManualTime {
@@ -274,6 +361,20 @@ pub struct State {
     pub manual_time: Option<ManualTime>,
     pub ask: Option<Power>,
     pub powering: Option<Power>,
+    pub wifi: Option<WifiState>,
+    pub hotspot: Option<Hotspot>,
+    pub wifi_form: Option<WifiForm>,
+    /// The device's brightness as the runtime has it: `Some(None)` = the
+    /// project's. `None` = not read yet.
+    pub brightness: Option<Option<u8>>,
+    /// The slider, also while it moves.
+    pub brightness_draft: u8,
+    pub calibration: Option<Calibration>,
+    /// The matrix in use before the calibration: back to it on Redo, on
+    /// Cancel and when nobody touches.
+    calibration_previous: Option<crate::touch_calibration::Matrix>,
+    /// A note under the Screen section after a calibration ends.
+    pub calibration_note: Option<&'static str>,
     pub error: Option<String>,
     reload_network_at: Option<Instant>,
     boot_shown: bool,
@@ -346,10 +447,17 @@ pub fn try_out(spec: &str) {
         s.section = match section {
             "time" => Section::Time,
             "device" => Section::Device,
+            "wifi" => Section::Wifi,
+            "screen" | "calibration" => Section::Screen,
             _ => Section::Network,
         };
     });
     pin_submit();
+    // The crosses of the calibration, for a snapshot on a machine with no
+    // resistive touch.
+    if section == "calibration" {
+        calibrate_start();
+    }
 }
 
 /// The project may have changed (a reload): read `enabled` again.
@@ -412,12 +520,21 @@ pub fn select(section: Section) {
         s.ask = None;
         s.error = None;
     });
+    change(|s| {
+        s.wifi_form = None;
+        s.calibration_note = None;
+    });
     match section {
         Section::Network => send(Job::Network),
+        Section::Wifi => {
+            send(Job::Wifi);
+            send(Job::Hotspot);
+        }
         Section::Time => {
             send(Job::Time);
             send(Job::Timezones);
         }
+        Section::Screen => send(Job::Display),
         Section::Device => {}
     }
 }
@@ -589,6 +706,284 @@ pub fn manual_time_apply() {
     }
 }
 
+// Wi-Fi
+
+/// What the Wi-Fi was before a change, for the confirmation bar: an SSID is
+/// the same in every language.
+fn wifi_before(s: &State) -> String {
+    match s.wifi.as_ref() {
+        Some(w) if w.mode == "client" => {
+            format!("Wi-Fi {}", w.active_ssid.as_deref().unwrap_or("—"))
+        }
+        Some(w) if w.mode == "hotspot" => {
+            format!("hotspot {}", w.active_ssid.as_deref().unwrap_or("—"))
+        }
+        _ => "Wi-Fi —".into(),
+    }
+}
+
+pub fn wifi_scan() {
+    send(Job::WifiScan);
+}
+
+pub fn wifi_radio(on: bool) {
+    send(Job::WifiRadio(on));
+}
+
+pub fn wifi_forget(ssid: &str) {
+    send(Job::WifiForget(ssid.to_string()));
+}
+
+/// A network of the list: a saved or open one joins at once, the others open
+/// the keyboard for the password. `None` = a hidden network.
+pub fn wifi_join(ssid: Option<&str>) {
+    let direct = with_state(|s| {
+        let net = ssid.and_then(|n| {
+            s.wifi
+                .as_ref()?
+                .networks
+                .iter()
+                .find(|x| x.ssid == n)
+                .cloned()
+        })?;
+        (net.known || net.security == "open").then(|| (net.ssid, wifi_before(s)))
+    });
+    match direct {
+        Some((ssid, before)) => {
+            change(|s| s.busy = true);
+            send(Job::WifiConnect {
+                body: serde_json::json!({ "ssid": ssid }),
+                before,
+            });
+        }
+        None => change(|s| {
+            s.wifi_form = Some(WifiForm {
+                ssid_editable: ssid.is_none(),
+                needs_password: ssid.is_some(),
+                ssid: ssid.unwrap_or_default().to_string(),
+                focus: if ssid.is_some() { 1 } else { 0 },
+                ..WifiForm::default()
+            })
+        }),
+    }
+}
+
+/// «Turn the hotspot on»: the form with the saved SSID and password, or the
+/// runtime's proposal.
+pub fn hotspot_start() {
+    change(|s| {
+        let Some(h) = s.hotspot.as_ref() else { return };
+        s.wifi_form = Some(WifiForm {
+            hotspot: true,
+            ssid_editable: true,
+            ssid: h.ssid.clone(),
+            password: h.password.clone(),
+            focus: 1,
+            reveal: true,
+            proposed: h.proposed,
+            ..WifiForm::default()
+        });
+    });
+}
+
+pub fn hotspot_off() {
+    let job = with_state(|s| {
+        let h = s.hotspot.as_ref()?;
+        Some(Job::SetHotspot {
+            body: serde_json::json!({ "enabled": false, "ssid": h.ssid, "password": h.password }),
+            before: wifi_before(s),
+        })
+    });
+    if let Some(j) = job {
+        change(|s| s.busy = true);
+        send(j);
+    }
+}
+
+pub fn form_focus(i: usize) {
+    change(|s| {
+        if let Some(f) = s.wifi_form.as_mut() {
+            if i == 1 || f.ssid_editable {
+                f.focus = i.min(1);
+            }
+        }
+    });
+}
+
+/// A key of the on-screen keyboard: a character, `⌫`, `⇧` (capitals),
+/// `?123`/`abc` (symbols), `👁` (show the password).
+pub fn form_key(k: &str) {
+    change(|s| {
+        let Some(f) = s.wifi_form.as_mut() else {
+            return;
+        };
+        match k {
+            "⇧" => f.shift = !f.shift,
+            "?123" | "abc" => f.symbols = !f.symbols,
+            "👁" => f.reveal = !f.reveal,
+            _ => {
+                let (field, max) = if f.focus == 0 {
+                    (&mut f.ssid, 32)
+                } else {
+                    (&mut f.password, 63)
+                };
+                if k == "⌫" {
+                    field.pop();
+                } else if field.chars().count() < max {
+                    field.push_str(k);
+                }
+                f.proposed = false;
+            }
+        }
+    });
+}
+
+pub fn form_cancel() {
+    change(|s| s.wifi_form = None);
+}
+
+pub fn form_submit() {
+    let job = with_state(|s| {
+        let f = s.wifi_form.as_ref().filter(|f| f.valid() && !s.busy)?;
+        let before = wifi_before(s);
+        Some(if f.hotspot {
+            Job::SetHotspot {
+                body: serde_json::json!({ "enabled": true, "ssid": f.ssid, "password": f.password }),
+                before,
+            }
+        } else {
+            let mut body = serde_json::json!({ "ssid": f.ssid, "hidden": f.ssid_editable });
+            if !f.password.is_empty() {
+                body["password"] = serde_json::Value::String(f.password.clone());
+            }
+            Job::WifiConnect { body, before }
+        })
+    });
+    if let Some(j) = job {
+        change(|s| s.busy = true);
+        send(j);
+    }
+}
+
+// Screen
+
+/// The slider moves: the light follows at once, nothing is saved yet.
+pub fn brightness_preview(percent: u8) {
+    let p = percent.clamp(5, 100);
+    crate::schermo::device_brightness(Some(p));
+    // No `change`: rebuilding under a finger dragging the slider would drop it.
+    state()
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .brightness_draft = p;
+}
+
+/// Saves the brightness: `None` = back to the project's.
+pub fn brightness_set(percent: Option<u8>) {
+    let p = percent.map(|p| p.clamp(5, 100));
+    crate::schermo::device_brightness(p);
+    change(|s| {
+        s.brightness = Some(p);
+        if let Some(p) = p {
+            s.brightness_draft = p;
+        }
+    });
+    send(Job::SetDisplay(p));
+}
+
+pub fn pixsys_calibration() {
+    send(Job::TouchCalibration);
+}
+
+/// The five crosses of a resistive screen.
+pub fn calibrate_start() {
+    let (w, h) = crate::lvgl_display::dims();
+    let (w, h) = (w as i32, h as i32);
+    change(|s| {
+        s.calibration_previous = crate::touch_calibration::live();
+        s.calibration = Some(Calibration::Cross(0));
+        s.calibration_note = None;
+    });
+    crate::touch_calibration::begin(w, h);
+}
+
+pub fn calibrate_redo() {
+    let previous = with_state(|s| s.calibration_previous);
+    crate::touch_calibration::set_live(previous);
+    let (w, h) = crate::lvgl_display::dims();
+    change(|s| s.calibration = Some(Calibration::Cross(0)));
+    crate::touch_calibration::begin(w as i32, h as i32);
+}
+
+pub fn calibrate_cancel() {
+    crate::touch_calibration::cancel_capture();
+    let previous = with_state(|s| s.calibration_previous);
+    crate::touch_calibration::set_live(previous);
+    change(|s| s.calibration = None);
+}
+
+pub fn calibrate_save() {
+    let note = match crate::touch_calibration::live() {
+        Some(m) => match crate::touch_calibration::save(
+            &m,
+            std::path::Path::new(crate::touch_calibration::OWN_FILE),
+        ) {
+            Ok(()) => "calibrationSaved",
+            Err(e) => {
+                eprintln!("[touch] calibration not saved: {e}");
+                "calibrationNotSaved"
+            }
+        },
+        None => "calibrationNotSaved",
+    };
+    change(|s| {
+        s.calibration = None;
+        s.calibration_note = Some(note);
+    });
+}
+
+/// The calibration at every frame: crosses touched, the fit, the try, and the
+/// 30 s without touches that put the previous one back.
+fn calibration_tick(s: &mut State, now: Instant) -> bool {
+    use crate::touch_calibration::{self as tc, Progress};
+    match s.calibration {
+        Some(Calibration::Cross(n)) => match tc::step(now) {
+            Some(Progress::Cross(m)) if m != n => {
+                s.calibration = Some(Calibration::Cross(m));
+                true
+            }
+            Some(Progress::Trying) => {
+                s.calibration = Some(Calibration::Trying { since: now });
+                true
+            }
+            Some(Progress::Failed) => {
+                s.calibration = Some(Calibration::Failed);
+                tc::set_live(s.calibration_previous);
+                true
+            }
+            Some(Progress::GaveUp) | None => {
+                s.calibration = None;
+                tc::set_live(s.calibration_previous);
+                s.calibration_note = Some("calibrationGaveUp");
+                true
+            }
+            _ => false,
+        },
+        Some(Calibration::Trying { since }) => {
+            let last = tc::last_touch().map_or(since, |(_, t)| t.max(since));
+            if now.duration_since(last) > tc::GIVE_UP {
+                s.calibration = None;
+                tc::set_live(s.calibration_previous);
+                s.calibration_note = Some("calibrationGaveUp");
+                true
+            } else {
+                false
+            }
+        }
+        _ => false,
+    }
+}
+
 // Device
 
 pub fn ask(p: Option<Power>) {
@@ -616,12 +1011,22 @@ pub fn tick(now: Instant) {
             if now > p.until + Duration::from_secs(2) {
                 s.pending = None;
                 jobs.push(Job::Network);
+                jobs.push(Job::Wifi);
                 changed = true;
             }
         }
         if s.reload_network_at.is_some_and(|t| now >= t) {
             s.reload_network_at = None;
-            jobs.push(Job::Network);
+            match s.section {
+                Section::Wifi => {
+                    jobs.push(Job::Wifi);
+                    jobs.push(Job::Hotspot);
+                }
+                _ => jobs.push(Job::Network),
+            }
+        }
+        if s.calibration.is_some() && calibration_tick(&mut s, now) {
+            changed = true;
         }
         if !s.boot_shown && s.boot_until.is_some_and(|t| now >= t) {
             s.boot_shown = true;
@@ -775,6 +1180,22 @@ enum Job {
     Timezones,
     SetTime(serde_json::Value),
     Power(Power),
+    Wifi,
+    WifiScan,
+    WifiRadio(bool),
+    WifiForget(String),
+    WifiConnect {
+        body: serde_json::Value,
+        before: String,
+    },
+    Hotspot,
+    SetHotspot {
+        body: serde_json::Value,
+        before: String,
+    },
+    Display,
+    SetDisplay(Option<u8>),
+    TouchCalibration,
 }
 
 fn send(job: Job) {
@@ -863,6 +1284,25 @@ async fn session_call(
     out
 }
 
+/// A change under the 60-second checkpoint: on success, the confirmation bar.
+async fn confirmable(method: reqwest::Method, path: &str, body: serde_json::Value, before: String) {
+    if let Some(r) = session_call(method, path, Some(body)).await {
+        let secs = r
+            .get("confirm_within_secs")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(60);
+        change(|s| {
+            s.pending = Some(Pending {
+                until: Instant::now() + Duration::from_secs(secs),
+                before,
+            });
+            s.draft = None;
+            s.wifi_form = None;
+            s.reload_network_at = Some(Instant::now() + Duration::from_secs(3));
+        });
+    }
+}
+
 fn parse<T: serde::de::DeserializeOwned>(v: Option<serde_json::Value>) -> Option<T> {
     v.and_then(|v| serde_json::from_value(v).ok())
 }
@@ -874,6 +1314,16 @@ async fn run(job: Job) {
             if let Ok(r) = call(M::GET, "", None).await {
                 if let Some(on) = r.body.get("enabled").and_then(|e| e.as_bool()) {
                     change(|s| s.enabled = on);
+                }
+                // The device's brightness wins over the project's, also
+                // before anyone opens the panel.
+                if r.body.get("brightness").is_some() {
+                    let b = r
+                        .body
+                        .get("brightness")
+                        .and_then(|b| b.as_u64())
+                        .map(|b| b.clamp(5, 100) as u8);
+                    crate::schermo::device_brightness(b);
                 }
             }
         }
@@ -950,7 +1400,13 @@ async fn run(job: Job) {
         Job::Confirm => {
             session_call(M::POST, "/network/confirm", None).await;
             change(|s| s.pending = None);
-            send(Job::Network);
+            match with_state(|s| s.section) {
+                Section::Wifi => {
+                    send(Job::Wifi);
+                    send(Job::Hotspot);
+                }
+                _ => send(Job::Network),
+            }
         }
         Job::Rollback => {
             session_call(M::POST, "/network/rollback", None).await;
@@ -972,6 +1428,67 @@ async fn run(job: Job) {
         Job::SetTime(body) => {
             session_call(M::PUT, "/time", Some(body)).await;
             send(Job::Time);
+        }
+        Job::Wifi => {
+            if let Some(w) = parse::<WifiState>(session_call(M::GET, "/wifi", None).await) {
+                change(|s| s.wifi = Some(w));
+            }
+        }
+        Job::Hotspot => {
+            if let Some(h) = parse::<Hotspot>(session_call(M::GET, "/wifi/hotspot", None).await) {
+                change(|s| s.hotspot = Some(h));
+            }
+        }
+        Job::WifiScan => {
+            session_call(M::POST, "/wifi/scan", None).await;
+            change(|s| s.reload_network_at = Some(Instant::now() + Duration::from_secs(3)));
+        }
+        Job::WifiRadio(on) => {
+            session_call(
+                M::PUT,
+                "/wifi/radio",
+                Some(serde_json::json!({ "enabled": on })),
+            )
+            .await;
+            change(|s| s.reload_network_at = Some(Instant::now() + Duration::from_secs(2)));
+        }
+        Job::WifiForget(ssid) => {
+            session_call(
+                M::POST,
+                "/wifi/forget",
+                Some(serde_json::json!({ "ssid": ssid })),
+            )
+            .await;
+            send(Job::Wifi);
+        }
+        Job::WifiConnect { body, before } => {
+            confirmable(M::POST, "/wifi/connect", body, before).await;
+        }
+        Job::SetHotspot { body, before } => {
+            confirmable(M::PUT, "/wifi/hotspot", body, before).await;
+        }
+        Job::Display => {
+            if let Some(d) = session_call(M::GET, "/display", None).await {
+                let b = d
+                    .get("brightness")
+                    .and_then(|b| b.as_u64())
+                    .map(|b| b.clamp(5, 100) as u8);
+                change(|s| {
+                    s.brightness = Some(b);
+                    s.brightness_draft = b.unwrap_or(80);
+                });
+            }
+        }
+        Job::SetDisplay(b) => {
+            session_call(
+                M::PUT,
+                "/display",
+                Some(serde_json::json!({ "brightness": b })),
+            )
+            .await;
+        }
+        Job::TouchCalibration => {
+            session_call(M::POST, "/touch-calibration", None).await;
         }
         Job::Power(p) => {
             let path = match p {
@@ -1000,6 +1517,26 @@ mod tests {
         assert_eq!(panel_language("it-IT"), "it");
         assert_eq!(panel_language("de"), "en");
         assert_eq!(panel_language(""), "en");
+    }
+
+    #[test]
+    fn the_wifi_form_wants_a_wpa_password() {
+        let mut f = WifiForm {
+            ssid: "Officina".into(),
+            ..WifiForm::default()
+        };
+        assert!(f.valid(), "an open network needs none");
+        f.password = "corta".into();
+        assert!(!f.valid());
+        f.password = "abbastanza".into();
+        assert!(f.valid());
+        f.password.clear();
+        f.needs_password = true;
+        assert!(!f.valid(), "a WPA network not saved yet needs one");
+        f.needs_password = false;
+        f.hotspot = true;
+        assert!(!f.valid(), "the hotspot always has one");
+        assert!(!is_psk("pàssword1"));
     }
 
     #[test]

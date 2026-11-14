@@ -11,6 +11,11 @@
 //! eventi SDL2 — un solo indev puntatore condiviso, la sorgente (mouse SDL2
 //! o touch evdev) è solo un dettaglio di chi lo chiama.
 //!
+//! That holds on PixsysOS (TC/WP). The Tiny TY has no `ts-uinput`: its
+//! resistive TSC2007 arrives raw, and the tslib matrix is applied here
+//! (`touch_calibration.rs`, 14-11-2026). The min-max stretch below remains for
+//! capacitive screens and for a resistive one never calibrated.
+//!
 //! Calibrazione dinamica via `EVIOCGABS` (non costanti fisse come
 //! `lv_drivers/indev/evdev.c`, che le vuole configurate a mano in
 //! `lv_drv_conf.h`): più robusto, si adatta a qualunque range riporti
@@ -71,6 +76,21 @@ fn eviocgabs(abs: u16) -> libc::Ioctl {
         | (SIZE << size_shift)) as libc::Ioctl
 }
 
+/// `EVIOCGNAME`: the name the kernel gives the device (`TSC2007
+/// Touchscreen`, `ILITEK ILITEK-TP`): it tells a resistive screen, which
+/// needs a calibration, from a capacitive one.
+fn device_name(fd: i32) -> String {
+    const IOC_READ: u32 = 2;
+    let mut buf = [0u8; 128];
+    let req = (IOC_READ << 30) | ((buf.len() as u32) << 16) | ((b'E' as u32) << 8) | 0x06;
+    let n = unsafe { libc::ioctl(fd, req as libc::Ioctl, buf.as_mut_ptr()) };
+    if n <= 0 {
+        return String::new();
+    }
+    let end = buf.iter().position(|b| *b == 0).unwrap_or(buf.len());
+    String::from_utf8_lossy(&buf[..end]).into_owned()
+}
+
 fn query_absinfo(fd: i32, abs: u16) -> anyhow::Result<InputAbsinfo> {
     let mut info = InputAbsinfo::default();
     let ret = unsafe { libc::ioctl(fd, eviocgabs(abs), &mut info as *mut _) };
@@ -98,6 +118,10 @@ pub fn spawn(device_path: &str, hor_res: u32, ver_res: u32) -> anyhow::Result<()
     let file = File::open(&device_path)
         .map_err(|e| anyhow::anyhow!("apertura device touch '{device_path}' fallita: {e}"))?;
     let fd = file.as_raw_fd();
+
+    // A resistive screen applies its tslib calibration, if there is one
+    // (`touch_calibration.rs`, 14-11-2026).
+    crate::touch_calibration::init(&device_name(fd));
 
     let x_info = query_absinfo(fd, ABS_X)?;
     let y_info = query_absinfo(fd, ABS_Y)?;
@@ -137,8 +161,16 @@ pub fn spawn(device_path: &str, hor_res: u32, ver_res: u32) -> anyhow::Result<()
                 (w, h) if w > 0 && h > 0 => (w, h),
                 _ => (hor_res, ver_res),
             };
-            let x = map_range(x_raw, x_info.minimum, x_info.maximum, w as i32);
-            let y = map_range(y_raw, y_info.minimum, y_info.maximum, h as i32);
+            let (x, y) =
+                match crate::touch_calibration::route(x_raw, y_raw, pressed, w as i32, h as i32) {
+                    crate::touch_calibration::Routed::Calibrated(x, y) => (x, y),
+                    // The crosses of a calibration: LVGL sees nothing.
+                    crate::touch_calibration::Routed::Captured => continue,
+                    crate::touch_calibration::Routed::Uncalibrated => (
+                        map_range(x_raw, x_info.minimum, x_info.maximum, w as i32),
+                        map_range(y_raw, y_info.minimum, y_info.maximum, h as i32),
+                    ),
+                };
             // Il riposo decide se il tocco arriva a LVGL: quello che sveglia
             // lo schermo no (`schermo.rs`). Qui parte anche il beep.
             lvgl_indev::set_pointer_state(x, y, crate::schermo::tocco(pressed));

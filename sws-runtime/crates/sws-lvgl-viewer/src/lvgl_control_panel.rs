@@ -46,6 +46,7 @@ const fn pct(v: i16) -> i16 {
 }
 
 /// What a button does. A callback only calls into `control_panel`.
+#[derive(Clone)]
 enum Action {
     Open,
     Close,
@@ -69,6 +70,22 @@ enum Action {
     ManualApply,
     Ask(Option<Power>),
     Power(Power),
+    WifiScan,
+    WifiRadio(bool),
+    WifiJoin(Option<String>),
+    WifiForget(String),
+    HotspotStart,
+    HotspotOff,
+    FormFocus(usize),
+    FormKey(String),
+    FormCancel,
+    FormSubmit,
+    BrightnessMode(bool),
+    PixsysCalibration,
+    CalibrateStart,
+    CalibrateSave,
+    CalibrateRedo,
+    CalibrateCancel,
 }
 
 unsafe extern "C" fn sws_control_panel_cb(e: *mut lvgl_sys::lv_event_t) {
@@ -99,6 +116,41 @@ unsafe extern "C" fn sws_control_panel_cb(e: *mut lvgl_sys::lv_event_t) {
         Action::ManualApply => cp::manual_time_apply(),
         Action::Ask(p) => cp::ask(*p),
         Action::Power(p) => cp::power(*p),
+        Action::WifiScan => cp::wifi_scan(),
+        Action::WifiRadio(on) => cp::wifi_radio(*on),
+        Action::WifiJoin(ssid) => cp::wifi_join(ssid.as_deref()),
+        Action::WifiForget(ssid) => cp::wifi_forget(ssid),
+        Action::HotspotStart => cp::hotspot_start(),
+        Action::HotspotOff => cp::hotspot_off(),
+        Action::FormFocus(i) => cp::form_focus(*i),
+        Action::FormKey(k) => cp::form_key(k),
+        Action::FormCancel => cp::form_cancel(),
+        Action::FormSubmit => cp::form_submit(),
+        Action::BrightnessMode(here) => {
+            let draft = cp::with_state(|s| s.brightness_draft);
+            cp::brightness_set(here.then_some(draft));
+        }
+        Action::PixsysCalibration => cp::pixsys_calibration(),
+        Action::CalibrateStart => cp::calibrate_start(),
+        Action::CalibrateSave => cp::calibrate_save(),
+        Action::CalibrateRedo => cp::calibrate_redo(),
+        Action::CalibrateCancel => cp::calibrate_cancel(),
+    }
+}
+
+/// The brightness slider: the light follows while it moves, and is saved
+/// when the finger lifts.
+unsafe extern "C" fn sws_control_panel_slider_cb(e: *mut lvgl_sys::lv_event_t) {
+    let slider = lvgl_sys::lv_event_get_target(e);
+    let v = lvgl_sys::lv_bar_get_value(slider).clamp(5, 100) as u8;
+    if lvgl_sys::lv_event_get_code(e) == lvgl_sys::lv_event_code_t_LV_EVENT_VALUE_CHANGED {
+        cp::brightness_preview(v);
+        let l = lvgl_sys::lv_event_get_user_data(e) as P;
+        if !l.is_null() {
+            testo_etichetta(l, text_cstring(&format!("{v} %")).as_ptr());
+        }
+    } else {
+        cp::brightness_set(Some(v));
     }
 }
 
@@ -121,6 +173,8 @@ enum Tick {
     Date,
     Countdown,
     ConfirmHelp,
+    /// The dot under the finger while a calibration is tried.
+    CalibrationDot,
 }
 
 #[derive(Default)]
@@ -152,6 +206,7 @@ impl Overlay {
                     Screen::Closed if boot => self.build_boot(lang),
                     Screen::Closed => {}
                     Screen::Pin => self.build_pin(s, lang),
+                    Screen::Panel if s.calibration.is_some() => self.build_calibration(s, lang),
                     Screen::Panel => self.build_panel(s, lang),
                 }
             });
@@ -201,6 +256,13 @@ impl Overlay {
                 .with_timezone(&chrono::Local)
         });
         for (label, tick) in &self.ticks {
+            if let Tick::CalibrationDot = tick {
+                if let Some(((x, y), _)) = crate::touch_calibration::last_touch() {
+                    lvgl_sys::lv_obj_set_pos(*label, x as i16 - 12, y as i16 - 12);
+                    lvgl_sys::lv_obj_clear_flag(*label, lvgl_sys::LV_OBJ_FLAG_HIDDEN);
+                }
+                continue;
+            }
             let text = match tick {
                 Tick::BootSeconds => boot.map(|t| secs_to(t).to_string()),
                 Tick::Clock => clock.map(|c| c.format("%H:%M:%S").to_string()),
@@ -216,6 +278,7 @@ impl Overlay {
                         &[("secs", &secs_to(*u).to_string()), ("before", before)],
                     )
                 }),
+                Tick::CalibrationDot => None,
             };
             if let Some(t) = text {
                 testo_etichetta(*label, text_cstring(&t).as_ptr());
@@ -451,11 +514,14 @@ impl Overlay {
             time: true,
             ..Default::default()
         });
+        // The resistive calibration is the viewer's: the runtime cannot know.
+        let screen_on =
+            caps.display || caps.touch_calibration_service || crate::touch_calibration::resistive();
         let sections = [
             (Some(Section::Network), "network", caps.network),
-            (None, "wifi", false),
+            (Some(Section::Wifi), "wifi", caps.wifi),
             (Some(Section::Time), "time", caps.time),
-            (None, "screen", false),
+            (Some(Section::Screen), "screen", screen_on),
             (Some(Section::Device), "device", true),
         ];
         for (section, key, on) in sections {
@@ -493,10 +559,14 @@ impl Overlay {
         // bar of a network change waiting for confirmation.
         let typing_ip = s.section == Section::Network && s.draft.as_ref().is_some_and(|d| d.manual);
         let typing_time = s.section == Section::Time && s.manual_time.is_some();
-        let pending = s.section == Section::Network && s.pending.is_some();
+        let typing_text = s.section == Section::Wifi && s.wifi_form.is_some();
+        let pending = matches!(s.section, Section::Network | Section::Wifi) && s.pending.is_some();
         let keypad_h: i16 = if h < 520 { 104 } else { 116 };
+        let keyboard_h: i16 = if h < 520 { 196 } else { 220 };
         let bottom = if typing_ip || typing_time {
             keypad_h
+        } else if typing_text {
+            keyboard_h
         } else if pending {
             84
         } else {
@@ -529,7 +599,9 @@ impl Overlay {
         let mut focused = None;
         match s.section {
             Section::Network => focused = self.network(main, s, lang),
+            Section::Wifi => focused = self.wifi(main, s, lang),
             Section::Time => focused = self.time(main, s, lang),
+            Section::Screen => self.screen(main, s, lang, &caps),
             Section::Device => self.device(main, s, lang, &caps),
         }
 
@@ -563,6 +635,9 @@ impl Overlay {
                 cp::manual_time_usec(m).is_some(),
                 false,
             );
+        } else if typing_text {
+            let f = s.wifi_form.as_ref().expect("typing_text");
+            self.keyboard(root, nav_w, w - nav_w, keyboard_h, f, lang);
         } else if pending {
             self.confirm_bar(root, w, lang);
         }
@@ -769,12 +844,7 @@ impl Overlay {
             let l = label(b, text, 15, if *on { (255, 255, 255) } else { MUTED });
             lvgl_sys::lv_obj_align(l, lvgl_sys::LV_ALIGN_CENTER as lvgl_sys::lv_align_t, 0, 0);
             lvgl_sys::lv_obj_add_flag(b, lvgl_sys::LV_OBJ_FLAG_CLICKABLE);
-            let a = match action {
-                Action::EditManual(m) => Action::EditManual(*m),
-                Action::Ntp(n) => Action::Ntp(*n),
-                _ => continue,
-            };
-            self.on(b, a);
+            self.on(b, action.clone());
         }
     }
 
@@ -997,6 +1067,501 @@ impl Overlay {
         }
     }
 
+    // ── Wi-Fi ────────────────────────────────────────────────────────────────
+
+    unsafe fn wifi(&mut self, main: P, s: &State, lang: &str) -> Option<P> {
+        let Some(wf) = &s.wifi else {
+            label(main, &cp::word(lang, "loading", &[]), 15, MUTED);
+            return None;
+        };
+        let Some(card_name) = &wf.card else {
+            card(main, |c| {
+                wrap(
+                    label(c, &cp::word(lang, "noWifiCard", &[]), 15, TEXT),
+                    pct(100),
+                );
+            });
+            return None;
+        };
+        let pending = s.pending.is_some();
+        let hotspot_on = wf.mode == "hotspot";
+        // Typing: only the form, so that the keyboard below leaves it in view.
+        if let Some(f) = &s.wifi_form {
+            return self.wifi_form(main, f, lang);
+        }
+
+        let c = card(main, |_| {});
+        let r = row(c, &cp::word(lang, "wifiCard", &[]));
+        dot(
+            r,
+            if pending {
+                WARN
+            } else if wf.mode == "client" || hotspot_on {
+                OK
+            } else {
+                LINE
+            },
+        );
+        let mut line = format!(
+            "{card_name} · {}",
+            cp::word(lang, &format!("wifiState.{}", wf.mode), &[])
+        );
+        if let Some(ssid) = &wf.active_ssid {
+            line.push_str(&format!(" · {ssid}"));
+        }
+        label(r, &line, 16, TEXT);
+        let r = row(c, &cp::word(lang, "radio", &[]));
+        self.segmented(
+            r,
+            &[
+                (cp::word(lang, "on", &[]), wf.radio, Action::WifiRadio(true)),
+                (
+                    cp::word(lang, "off", &[]),
+                    !wf.radio,
+                    Action::WifiRadio(false),
+                ),
+            ],
+        );
+
+        if wf.radio && !hotspot_on {
+            let c = card(main, |_| {});
+            let head = transparent(c);
+            lvgl_sys::lv_obj_set_size(head, pct(100), LV_SIZE_CONTENT);
+            flex(head, lvgl_sys::lv_flex_flow_t_LV_FLEX_FLOW_ROW, 8);
+            center_items(head);
+            let t = label(head, &cp::word(lang, "networks", &[]), 16, TEXT);
+            lvgl_sys::lv_obj_set_flex_grow(t, 1);
+            let b = button(
+                head,
+                &cp::word(lang, "hiddenNetwork", &[]),
+                PANEL2,
+                TEXT,
+                14,
+            );
+            self.on(b, Action::WifiJoin(None));
+            let b = button(head, &cp::word(lang, "scan", &[]), PANEL2, TEXT, 14);
+            self.on(b, Action::WifiScan);
+            if wf.networks.is_empty() {
+                label(c, &cp::word(lang, "noNetworks", &[]), 15, MUTED);
+            }
+            for n in &wf.networks {
+                let r = transparent(c);
+                // A fixed height: LVGL 8 does not centre the items of a row
+                // that only has a minimum one.
+                lvgl_sys::lv_obj_set_size(r, pct(100), 50);
+                lvgl_sys::lv_obj_set_style_border_side(
+                    r,
+                    lvgl_sys::LV_BORDER_SIDE_TOP as u8,
+                    stile::MAIN,
+                );
+                stile::bordo(r, Some(LINE), 1.0, stile::MAIN);
+                flex(r, lvgl_sys::lv_flex_flow_t_LV_FLEX_FLOW_ROW, 10);
+                center_items(r);
+                let enterprise = n.security == "enterprise";
+                if enterprise {
+                    lvgl_sys::lv_obj_set_style_opa(r, 128, stile::MAIN);
+                }
+                bars(r, n.signal);
+                let name = label(r, &n.ssid, 16, TEXT);
+                lvgl_sys::lv_obj_set_style_max_width(name, 260, stile::MAIN);
+                label(
+                    r,
+                    &cp::word(lang, &format!("security.{}", n.security), &[]),
+                    13,
+                    MUTED,
+                );
+                if n.active {
+                    tag(r, &cp::word(lang, "connected", &[]), true);
+                } else if n.known {
+                    tag(r, &cp::word(lang, "saved", &[]), false);
+                }
+                spacer(r);
+                if n.known && !n.active {
+                    let b = button(r, &cp::word(lang, "forget", &[]), PANEL2, MUTED, 14);
+                    self.on(b, Action::WifiForget(n.ssid.clone()));
+                }
+                if !n.active && !enterprise && !pending {
+                    let b = button(r, &cp::word(lang, "join", &[]), PANEL2, TEXT, 14);
+                    if s.busy {
+                        dim(b);
+                    } else {
+                        self.on(b, Action::WifiJoin(Some(n.ssid.clone())));
+                    }
+                }
+            }
+        }
+
+        let c = card(main, |_| {});
+        let head = transparent(c);
+        lvgl_sys::lv_obj_set_size(head, pct(100), LV_SIZE_CONTENT);
+        flex(head, lvgl_sys::lv_flex_flow_t_LV_FLEX_FLOW_ROW, 8);
+        center_items(head);
+        label(head, &cp::word(lang, "hotspot", &[]), 16, TEXT);
+        if hotspot_on {
+            tag(head, &cp::word(lang, "on", &[]), true);
+        }
+        spacer(head);
+        if !wf.can_hotspot {
+            wrap(
+                label(c, &cp::word(lang, "hotspotCannot", &[]), 14, MUTED),
+                pct(100),
+            );
+            return None;
+        }
+        if s.hotspot.is_some() && !pending {
+            if hotspot_on {
+                let b = button(
+                    head,
+                    &cp::word(lang, "hotspotTurnOff", &[]),
+                    PANEL2,
+                    TEXT,
+                    14,
+                );
+                self.on(b, Action::HotspotOff);
+            } else {
+                let b = button(
+                    head,
+                    &cp::word(lang, "hotspotTurnOn", &[]),
+                    ACCENT,
+                    (255, 255, 255),
+                    14,
+                );
+                self.on(b, Action::HotspotStart);
+            }
+        }
+        wrap(
+            label(
+                c,
+                &format!(
+                    "{} {}",
+                    cp::word(lang, "hotspotHelp", &[]),
+                    cp::word(lang, "hotspotExcludes", &[])
+                ),
+                14,
+                MUTED,
+            ),
+            pct(100),
+        );
+        if let (true, Some(h)) = (hotspot_on, &s.hotspot) {
+            let r = transparent(c);
+            lvgl_sys::lv_obj_set_size(r, pct(100), LV_SIZE_CONTENT);
+            flex(r, lvgl_sys::lv_flex_flow_t_LV_FLEX_FLOW_ROW, 18);
+            center_items(r);
+            qr(r, &h.qr, 140);
+            let col = transparent(r);
+            lvgl_sys::lv_obj_set_size(col, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+            flex(col, lvgl_sys::lv_flex_flow_t_LV_FLEX_FLOW_COLUMN, 4);
+            label(col, &cp::word(lang, "hotspotScan", &[]), 14, MUTED);
+            label(
+                col,
+                &format!("{}: {}", cp::word(lang, "ssid", &[]), h.ssid),
+                16,
+                TEXT,
+            );
+            label(
+                col,
+                &format!("{}: {}", cp::word(lang, "password", &[]), h.password),
+                16,
+                TEXT,
+            );
+        }
+        None
+    }
+
+    /// SSID and password, typed on the keyboard below.
+    unsafe fn wifi_form(&mut self, main: P, f: &cp::WifiForm, lang: &str) -> Option<P> {
+        let c = card(main, |_| {});
+        stile::bordo(c, Some(ACCENT), 1.0, stile::MAIN);
+        let r = row(c, &cp::word(lang, "ssid", &[]));
+        let mut focused = None;
+        if f.ssid_editable {
+            let bad = f.ssid.len() > 32;
+            let t = self.text_field(r, &f.ssid, 260, f.focus == 0, bad);
+            self.on(t, Action::FormFocus(0));
+            if f.focus == 0 {
+                focused = Some(t);
+            }
+        } else {
+            label(r, &f.ssid, 16, TEXT);
+        }
+        let r = row(c, &cp::word(lang, "password", &[]));
+        let shown = if f.reveal {
+            f.password.clone()
+        } else {
+            "•".repeat(f.password.chars().count())
+        };
+        let bad = !f.password.is_empty() && !cp::is_psk(&f.password);
+        let t = self.text_field(r, &shown, 260, f.focus == 1, bad);
+        self.on(t, Action::FormFocus(1));
+        if f.focus == 1 {
+            focused = Some(t);
+        }
+        let b = button(
+            r,
+            &cp::word(lang, if f.reveal { "hide" } else { "show" }, &[]),
+            PANEL2,
+            TEXT,
+            14,
+        );
+        self.on(b, Action::FormKey("👁".into()));
+        if bad {
+            label(
+                c,
+                &cp::word(lang, "passwordShort", &[]),
+                13,
+                (241, 176, 173),
+            );
+        } else if f.hotspot && f.proposed {
+            label(c, &cp::word(lang, "hotspotProposed", &[]), 13, MUTED);
+        }
+        focused
+    }
+
+    /// Letters, capitals and symbols, then Cancel and Done (join, or turn the
+    /// hotspot on): four rows over the bottom of the section.
+    unsafe fn keyboard(&mut self, root: P, x: i16, w: i16, h: i16, f: &cp::WifiForm, lang: &str) {
+        const LETTERS: [&str; 3] = ["qwertyuiop", "asdfghjkl", "zxcvbnm"];
+        const SYMBOLS: [&str; 3] = ["1234567890", "-_@#&*+=()", ".,:;!?'\"/"];
+        let k = panel_box(root, (20, 24, 29));
+        stile::raggio(k, 0.0, stile::MAIN);
+        lvgl_sys::lv_obj_set_style_border_side(k, lvgl_sys::LV_BORDER_SIDE_TOP as u8, stile::MAIN);
+        lvgl_sys::lv_obj_set_pos(k, x, screen_size().1 - h);
+        lvgl_sys::lv_obj_set_size(k, w, h);
+        stile::margini(k, 6, 8, stile::MAIN);
+        flex(k, lvgl_sys::lv_flex_flow_t_LV_FLEX_FLOW_COLUMN, 5);
+        let kh = (h - 12 - 3 * 5) / 4;
+        let kw = (w - 16 - 9 * 5) / 10;
+        let rows = if f.symbols { SYMBOLS } else { LETTERS };
+        for (i, keys) in rows.iter().enumerate() {
+            let r = transparent(k);
+            lvgl_sys::lv_obj_set_size(r, pct(100), kh);
+            flex(r, lvgl_sys::lv_flex_flow_t_LV_FLEX_FLOW_ROW, 5);
+            lvgl_sys::lv_obj_set_flex_align(
+                r,
+                lvgl_sys::lv_flex_align_t_LV_FLEX_ALIGN_CENTER,
+                lvgl_sys::lv_flex_align_t_LV_FLEX_ALIGN_CENTER,
+                lvgl_sys::lv_flex_align_t_LV_FLEX_ALIGN_CENTER,
+            );
+            if i == 2 && !f.symbols {
+                let b = button(r, "⇧", if f.shift { ACCENT } else { PANEL2 }, TEXT, 18);
+                lvgl_sys::lv_obj_set_size(b, kw * 3 / 2, kh);
+                self.on(b, Action::FormKey("⇧".into()));
+            }
+            for c in keys.chars() {
+                let ch = if f.shift && !f.symbols {
+                    c.to_ascii_uppercase()
+                } else {
+                    c
+                };
+                let b = button(r, &ch.to_string(), PANEL2, TEXT, 18);
+                lvgl_sys::lv_obj_set_size(b, kw, kh);
+                stile::margini(b, 0, 0, stile::MAIN);
+                self.on(b, Action::FormKey(ch.to_string()));
+            }
+            if i == 2 {
+                let b = button(r, "⌫", PANEL2, TEXT, 18);
+                lvgl_sys::lv_obj_set_size(b, kw * 3 / 2, kh);
+                self.on(b, Action::FormKey("⌫".into()));
+            }
+        }
+        let r = transparent(k);
+        lvgl_sys::lv_obj_set_size(r, pct(100), kh);
+        flex(r, lvgl_sys::lv_flex_flow_t_LV_FLEX_FLOW_ROW, 5);
+        let toggle = if f.symbols { "kbLetters" } else { "kbSymbols" };
+        let b = button(r, &cp::word(lang, toggle, &[]), PANEL2, TEXT, 14);
+        lvgl_sys::lv_obj_set_size(b, kw * 3 / 2, kh);
+        self.on(
+            b,
+            Action::FormKey(if f.symbols { "abc" } else { "?123" }.into()),
+        );
+        let b = button(r, &cp::word(lang, "kbSpace", &[]), PANEL2, MUTED, 14);
+        lvgl_sys::lv_obj_set_height(b, kh);
+        lvgl_sys::lv_obj_set_flex_grow(b, 1);
+        self.on(b, Action::FormKey(" ".into()));
+        let b = button(r, &cp::word(lang, "cancel", &[]), PANEL2, TEXT, 14);
+        lvgl_sys::lv_obj_set_size(b, kw * 2, kh);
+        self.on(b, Action::FormCancel);
+        let done = if f.hotspot { "hotspotTurnOn" } else { "join" };
+        let b = button(r, &cp::word(lang, done, &[]), ACCENT, (255, 255, 255), 14);
+        lvgl_sys::lv_obj_set_size(b, kw * 3, kh);
+        if f.valid() {
+            self.on(b, Action::FormSubmit);
+        } else {
+            dim(b);
+        }
+    }
+
+    // ── Screen ───────────────────────────────────────────────────────────────
+
+    unsafe fn screen(&mut self, main: P, s: &State, lang: &str, caps: &cp::Capabilities) {
+        if let Some(note) = s.calibration_note {
+            card(main, |c| {
+                wrap(label(c, &cp::word(lang, note, &[]), 15, TEXT), pct(100));
+            });
+        }
+        if caps.display {
+            let c = card(main, |_| {});
+            match s.brightness {
+                None => {
+                    label(c, &cp::word(lang, "loading", &[]), 15, MUTED);
+                }
+                Some(b) => {
+                    let r = row(c, &cp::word(lang, "brightness", &[]));
+                    self.segmented(
+                        r,
+                        &[
+                            (
+                                cp::word(lang, "brightnessProject", &[]),
+                                b.is_none(),
+                                Action::BrightnessMode(false),
+                            ),
+                            (
+                                cp::word(lang, "brightnessHere", &[]),
+                                b.is_some(),
+                                Action::BrightnessMode(true),
+                            ),
+                        ],
+                    );
+                    if b.is_some() {
+                        let r = row(c, "");
+                        let sl = lvgl_sys::lv_slider_create(r);
+                        let value = label(r, &format!("{} %", s.brightness_draft), 16, TEXT);
+                        if !sl.is_null() {
+                            lvgl_sys::lv_obj_set_width(sl, 300);
+                            lvgl_sys::lv_bar_set_range(sl, 5, 100);
+                            lvgl_sys::lv_bar_set_value(
+                                sl,
+                                s.brightness_draft as i32,
+                                lvgl_sys::lv_anim_enable_t_LV_ANIM_OFF,
+                            );
+                            stile::sfondo(sl, LINE, stile::MAIN);
+                            stile::sfondo(sl, ACCENT, stile::INDICATORE);
+                            stile::sfondo(sl, TEXT, lvgl_sys::LV_PART_KNOB);
+                            // A finger is not a mouse: room around the knob.
+                            lvgl_sys::lv_obj_set_ext_click_area(sl, 20);
+                            for code in [
+                                lvgl_sys::lv_event_code_t_LV_EVENT_VALUE_CHANGED,
+                                lvgl_sys::lv_event_code_t_LV_EVENT_RELEASED,
+                            ] {
+                                lvgl_sys::lv_obj_add_event_cb(
+                                    sl,
+                                    Some(sws_control_panel_slider_cb),
+                                    code,
+                                    value as *mut c_void,
+                                );
+                            }
+                        }
+                    }
+                    wrap(
+                        label(c, &cp::word(lang, "brightnessHelp", &[]), 13, MUTED),
+                        pct(100),
+                    );
+                }
+            }
+        }
+        let resistive = crate::touch_calibration::resistive();
+        if resistive || caps.touch_calibration_service {
+            let c = card(main, |_| {});
+            let r = row(c, &cp::word(lang, "calibration", &[]));
+            if resistive {
+                label(r, &cp::word(lang, "calibrationResistive", &[]), 15, MUTED);
+            }
+            let b = button(r, &cp::word(lang, "calibrate", &[]), PANEL2, TEXT, 15);
+            self.on(
+                b,
+                if resistive {
+                    Action::CalibrateStart
+                } else {
+                    Action::PixsysCalibration
+                },
+            );
+        }
+    }
+
+    /// The crosses, the try and the failure: on top of the panel, the whole
+    /// screen. While the crosses show the touch does not reach LVGL, so there
+    /// are no buttons: 30 s without touches give up.
+    unsafe fn build_calibration(&mut self, s: &State, lang: &str) {
+        let (w, h) = screen_size();
+        let root = full_screen((0, 0, 0));
+        self.root = Some(root);
+        let msg = |text: &str, y: i16| {
+            let l = label(root, text, 17, TEXT);
+            wrap(l, w - 160);
+            lvgl_sys::lv_obj_set_style_text_align(
+                l,
+                lvgl_sys::LV_TEXT_ALIGN_CENTER as u8,
+                stile::MAIN,
+            );
+            lvgl_sys::lv_obj_align(l, lvgl_sys::LV_ALIGN_TOP_MID as lvgl_sys::lv_align_t, 0, y);
+        };
+        match s.calibration {
+            Some(cp::Calibration::Cross(n)) => {
+                let (tx, ty) = crate::touch_calibration::targets(w as i32, h as i32)[n.min(4)];
+                for (bw, bh) in [(40i16, 2i16), (2, 40)] {
+                    let line = transparent(root);
+                    stile::sfondo(line, (255, 255, 255), stile::MAIN);
+                    lvgl_sys::lv_obj_set_size(line, bw, bh);
+                    lvgl_sys::lv_obj_set_pos(line, tx as i16 - bw / 2, ty as i16 - bh / 2);
+                }
+                let ring = transparent(root);
+                lvgl_sys::lv_obj_set_size(ring, 16, 16);
+                stile::raggio(ring, 8.0, stile::MAIN);
+                stile::bordo(ring, Some(ACCENT), 2.0, stile::MAIN);
+                lvgl_sys::lv_obj_set_pos(ring, tx as i16 - 8, ty as i16 - 8);
+                msg(
+                    &format!(
+                        "{}\n{}",
+                        cp::word(lang, "calibrationCross", &[("n", &(n + 1).to_string())]),
+                        cp::word(lang, "calibrationHelp", &[])
+                    ),
+                    h / 2 - 90,
+                );
+            }
+            Some(cp::Calibration::Trying { .. }) => {
+                msg(&cp::word(lang, "calibrationTry", &[]), 60);
+                for (tx, ty) in crate::touch_calibration::targets(w as i32, h as i32) {
+                    let d = transparent(root);
+                    lvgl_sys::lv_obj_set_size(d, 6, 6);
+                    stile::raggio(d, 3.0, stile::MAIN);
+                    stile::sfondo(d, MUTED, stile::MAIN);
+                    lvgl_sys::lv_obj_set_pos(d, tx as i16 - 3, ty as i16 - 3);
+                }
+                let d = transparent(root);
+                lvgl_sys::lv_obj_set_size(d, 24, 24);
+                stile::raggio(d, 12.0, stile::MAIN);
+                stile::sfondo(d, ACCENT, stile::MAIN);
+                lvgl_sys::lv_obj_add_flag(d, lvgl_sys::LV_OBJ_FLAG_HIDDEN);
+                self.ticks.push((d, Tick::CalibrationDot));
+                self.calibration_buttons(root, lang, true);
+            }
+            _ => {
+                msg(&cp::word(lang, "calibrationFailed", &[]), h / 2 - 60);
+                self.calibration_buttons(root, lang, false);
+            }
+        }
+    }
+
+    unsafe fn calibration_buttons(&mut self, root: P, lang: &str, can_save: bool) {
+        let r = transparent(root);
+        lvgl_sys::lv_obj_set_size(r, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+        flex(r, lvgl_sys::lv_flex_flow_t_LV_FLEX_FLOW_ROW, 14);
+        lvgl_sys::lv_obj_align(
+            r,
+            lvgl_sys::LV_ALIGN_BOTTOM_MID as lvgl_sys::lv_align_t,
+            0,
+            -110,
+        );
+        let b = button(r, &cp::word(lang, "cancel", &[]), PANEL2, TEXT, 16);
+        self.on(b, Action::CalibrateCancel);
+        let b = button(r, &cp::word(lang, "redo", &[]), PANEL2, TEXT, 16);
+        self.on(b, Action::CalibrateRedo);
+        if can_save {
+            let b = button(r, &cp::word(lang, "save", &[]), ACCENT, (255, 255, 255), 16);
+            self.on(b, Action::CalibrateSave);
+        }
+    }
+
     unsafe fn device(&mut self, main: P, s: &State, lang: &str, caps: &cp::Capabilities) {
         let c = card(main, |_| {});
         let Some(i) = &s.info else {
@@ -1215,6 +1780,58 @@ unsafe fn actions(parent: P) -> P {
         lvgl_sys::lv_flex_align_t_LV_FLEX_ALIGN_CENTER,
     );
     r
+}
+
+/// Pushes what follows to the right of a flex row. One pixel high: LVGL's
+/// default object size would make the row 100 px tall.
+unsafe fn spacer(parent: P) {
+    let s = transparent(parent);
+    lvgl_sys::lv_obj_set_size(s, 1, 1);
+    lvgl_sys::lv_obj_set_flex_grow(s, 1);
+}
+
+unsafe fn dot(parent: P, rgb: Rgb) {
+    let d = lvgl_sys::lv_obj_create(parent);
+    plain(d);
+    lvgl_sys::lv_obj_set_size(d, 10, 10);
+    stile::raggio(d, 5.0, stile::MAIN);
+    stile::sfondo(d, rgb, stile::MAIN);
+}
+
+/// Four bars of signal, as on a phone.
+unsafe fn bars(parent: P, signal: u8) {
+    let n = match signal {
+        75.. => 4,
+        50.. => 3,
+        25.. => 2,
+        _ => 1,
+    };
+    let b = transparent(parent);
+    lvgl_sys::lv_obj_set_size(b, 4 * 4 + 3 * 2, 16);
+    for i in 1..=4i16 {
+        let bar = transparent(b);
+        lvgl_sys::lv_obj_set_size(bar, 4, 4 * i);
+        lvgl_sys::lv_obj_set_pos(bar, (i - 1) * 6, 16 - 4 * i);
+        stile::sfondo(bar, if i <= n { TEXT } else { LINE }, stile::MAIN);
+    }
+}
+
+/// The joining QR of the hotspot. `lv_qrcode` keeps a canvas in the LVGL heap
+/// (`size`² × 2 bytes, 39 KB at 140): freed with the panel.
+unsafe fn qr(parent: P, text: &str, size: i16) {
+    let dark: lvgl_sys::lv_color_t = Color::from_rgb((0, 0, 0)).into();
+    let light: lvgl_sys::lv_color_t = Color::from_rgb((255, 255, 255)).into();
+    // A white frame: phones read a QR badly without its quiet zone.
+    let frame = transparent(parent);
+    stile::sfondo(frame, (255, 255, 255), stile::MAIN);
+    stile::raggio(frame, 6.0, stile::MAIN);
+    lvgl_sys::lv_obj_set_size(frame, size + 16, size + 16);
+    let q = lvgl_sys::lv_qrcode_create(frame, size, dark, light);
+    if q.is_null() {
+        return;
+    }
+    lvgl_sys::lv_obj_align(q, lvgl_sys::LV_ALIGN_CENTER as lvgl_sys::lv_align_t, 0, 0);
+    lvgl_sys::lv_qrcode_update(q, text.as_ptr().cast(), text.len() as u32);
 }
 
 unsafe fn tag(parent: P, text: &str, ok: bool) {

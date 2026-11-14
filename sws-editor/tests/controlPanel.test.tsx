@@ -130,6 +130,87 @@ describe("ControlPanel", () => {
   });
 });
 
+const WIFI = {
+  card: "wlan0", radio: true, mode: "client", active_ssid: "Casa", can_hotspot: true, saved: ["Casa"],
+  networks: [
+    { ssid: "Casa", signal: 78, security: "wpa", known: true, active: true },
+    { ssid: "Officina", signal: 54, security: "wpa3", known: false, active: false },
+    { ssid: "Aziendale", signal: 33, security: "enterprise", known: false, active: false },
+  ],
+};
+
+function wifiRuntime(over: Record<string, () => Promise<Response>> = {}) {
+  return fakeRuntime({
+    "GET /api/control-panel/capabilities": () => reply(200, { network: true, wifi: true, time: true, reboot: true, power_off: false, display: true }),
+    "GET /api/control-panel/wifi": () => reply(200, WIFI),
+    "GET /api/control-panel/wifi/hotspot": () => reply(200, { enabled: false, ssid: "sws-06e990", password: "abcdefgh23", proposed: true, qr: "WIFI:T:WPA;S:sws-06e990;P:abcdefgh23;;" }),
+    "POST /api/control-panel/wifi/connect": () => reply(200, { confirm_within_secs: 60 }),
+    "PUT /api/control-panel/wifi/hotspot": () => reply(200, { confirm_within_secs: 60 }),
+    "GET /api/control-panel/display": () => reply(200, { brightness: null }),
+    "PUT /api/control-panel/display": () => reply(204),
+    ...over,
+  });
+}
+
+describe("ControlPanel, Wi-Fi and screen (phase 4)", () => {
+  beforeEach(() => vi.unstubAllGlobals());
+  afterEach(() => vi.unstubAllGlobals());
+
+  async function openSection(id: string) {
+    render(<ControlPanel onClose={() => {}} />);
+    await typePin("06e990");
+    await screen.findByTestId("card-eth0");
+    await vi.waitFor(() => expect((screen.getByTestId(`control-panel-section-${id}`) as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(screen.getByTestId(`control-panel-section-${id}`));
+  }
+
+  it("lists the networks; an 802.1X one cannot be joined", async () => {
+    wifiRuntime();
+    await openSection("wifi");
+    const ent = await screen.findByTestId("wifi-Aziendale");
+    expect(ent.textContent).toMatch(/802.1X/);
+    expect(ent.querySelector("button")).toBeNull();
+    expect(screen.getByTestId("wifi-Casa").textContent).toMatch(/collegata|connected/);
+  });
+
+  it("a new network asks for its password on the on-screen keyboard, then waits for the confirmation", async () => {
+    const calls = wifiRuntime();
+    await openSection("wifi");
+    const row = await screen.findByTestId("wifi-Officina");
+    fireEvent.click(row.querySelector("button")!);
+    expect(screen.getByTestId("text-keyboard")).toBeTruthy();
+    for (const k of "officina") fireEvent.click(screen.getByRole("button", { name: k }));
+    fireEvent.click(screen.getByRole("button", { name: /Fatto|Done/ }));
+    await screen.findByTestId("network-confirm");
+    const post = calls.find((c) => c.path === "/api/control-panel/wifi/connect")!;
+    expect(JSON.parse(post.body!)).toMatchObject({ ssid: "Officina", password: "officina", hidden: false });
+  });
+
+  it("the hotspot starts from the proposal and sends SSID and password", async () => {
+    const calls = wifiRuntime();
+    await openSection("wifi");
+    fireEvent.click(await screen.findByRole("button", { name: /Accendi l'hotspot|Turn the hotspot on/ }));
+    expect((screen.getByTestId("wifi-password") as HTMLInputElement).value).toBe("abcdefgh23");
+    const buttons = screen.getAllByRole("button", { name: /Accendi l'hotspot|Turn the hotspot on/ });
+    fireEvent.click(buttons[buttons.length - 1]);
+    await screen.findByTestId("network-confirm");
+    const put = calls.find((c) => c.path === "/api/control-panel/wifi/hotspot" && c.method === "PUT")!;
+    expect(JSON.parse(put.body!)).toEqual({ enabled: true, ssid: "sws-06e990", password: "abcdefgh23" });
+  });
+
+  it("the brightness is the device's until set back to the project's", async () => {
+    const calls = wifiRuntime();
+    await openSection("screen");
+    fireEvent.click(await screen.findByRole("button", { name: /Regolata qui|Set here/ }));
+    await vi.waitFor(() => expect(calls.some((c) => c.method === "PUT" && c.path === "/api/control-panel/display")).toBe(true));
+    expect(JSON.parse(calls.find((c) => c.method === "PUT" && c.path === "/api/control-panel/display")!.body!)).toEqual({ brightness: 80 });
+    await screen.findByTestId("brightness");
+    fireEvent.click(screen.getByRole("button", { name: /Come dice il progetto|As the project says/ }));
+    await vi.waitFor(() => expect(calls.filter((c) => c.method === "PUT" && c.path === "/api/control-panel/display").length).toBe(2));
+    expect(JSON.parse(calls.filter((c) => c.method === "PUT" && c.path === "/api/control-panel/display")[1].body!)).toEqual({ brightness: null });
+  });
+});
+
 describe("ControlPanelLauncher", () => {
   afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 

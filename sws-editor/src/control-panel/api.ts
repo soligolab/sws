@@ -11,6 +11,8 @@ export type PinSource = "project" | "device" | "none";
 export interface ControlPanelStatus {
   enabled: boolean;
   pin: PinSource;
+  /** The device's own brightness, `null` = the project's. */
+  brightness?: number | null;
 }
 
 export interface Capabilities {
@@ -19,6 +21,9 @@ export interface Capabilities {
   time: boolean;
   reboot: boolean;
   power_off: boolean;
+  display: boolean;
+  /** PixsysOS' own touch calibration can be started. */
+  touch_calibration_service: boolean;
 }
 
 export type Ipv4Method = "auto" | "manual" | "disabled" | "other";
@@ -48,6 +53,37 @@ export interface TimeState {
   can_ntp: boolean;
   ntp_synchronized: boolean;
   time_usec: number;
+}
+
+export type WifiMode = "client" | "hotspot" | "idle" | "off";
+export type WifiSecurity = "open" | "wpa" | "wpa3" | "enterprise";
+
+export interface WifiNetwork {
+  ssid: string;
+  signal: number;
+  security: WifiSecurity;
+  known: boolean;
+  active: boolean;
+}
+
+export interface WifiState {
+  card: string | null;
+  radio: boolean;
+  mode: WifiMode;
+  active_ssid: string | null;
+  networks: WifiNetwork[];
+  saved: string[];
+  can_hotspot: boolean;
+}
+
+export interface Hotspot {
+  enabled: boolean;
+  ssid: string;
+  password: string;
+  /** Never saved: SSID and password are only a proposal. */
+  proposed?: boolean;
+  /** The `WIFI:` string for the joining QR code. */
+  qr?: string;
 }
 
 export interface DeviceInfo {
@@ -127,10 +163,28 @@ export function session(token: string) {
     timezones: () => call<string[]>("/timezones"),
     reboot: () => call<void>("/reboot", { method: "POST" }),
     powerOff: () => call<void>("/power-off", { method: "POST" }),
+    wifi: () => call<WifiState>("/wifi"),
+    wifiScan: () => call<void>("/wifi/scan", { method: "POST" }),
+    wifiConnect: (req: { ssid: string; password?: string; hidden?: boolean }) =>
+      call<{ confirm_within_secs: number }>("/wifi/connect", { method: "POST", body: JSON.stringify(req) }),
+    wifiForget: (ssid: string) => call<void>("/wifi/forget", { method: "POST", body: JSON.stringify({ ssid }) }),
+    wifiRadio: (enabled: boolean) => call<void>("/wifi/radio", { method: "PUT", body: JSON.stringify({ enabled }) }),
+    hotspot: () => call<Hotspot>("/wifi/hotspot"),
+    setHotspot: (h: { enabled: boolean; ssid: string; password: string }) =>
+      call<{ confirm_within_secs: number }>("/wifi/hotspot", { method: "PUT", body: JSON.stringify(h) }),
+    startTouchCalibration: () => call<void>("/touch-calibration", { method: "POST" }),
+    display: () => call<{ brightness: number | null }>("/display"),
+    setDisplay: (brightness: number | null) =>
+      call<void>("/display", { method: "PUT", body: JSON.stringify({ brightness }) }),
   };
 }
 
 export type ControlPanelSession = ReturnType<typeof session>;
+
+/** WPA2-PSK: 8 to 63 printable ASCII characters (the runtime checks it too). */
+export function isPsk(s: string): boolean {
+  return s.length >= 8 && s.length <= 63 && /^[\x20-\x7e]*$/.test(s);
+}
 
 /** `a.b.c.d` with four numbers 0-255. */
 export function isIpv4(s: string): boolean {

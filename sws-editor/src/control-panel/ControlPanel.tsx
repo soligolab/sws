@@ -1,16 +1,19 @@
 // The device control panel on the web viewer: service PIN, then network,
-// time and device sections over `/api/control-panel/*`. Plan
-// docs/plans/2026-11-13-pannello-di-controllo.md, phase 2; the look follows
-// the preview the maintainer approved on 13-11-2026.
+// Wi-Fi, time, screen and device sections over `/api/control-panel/*`. Plan
+// docs/plans/2026-11-13-pannello-di-controllo.md, phases 2 and 4; the look
+// follows the preview the maintainer approved on 13-11-2026.
 //
 // It covers the whole screen and works with a finger only: the panels have no
 // keyboard, so PIN and addresses have their own keypads. A physical keyboard
 // still types in the fields.
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { CampoPassword } from "@/components/CampoPassword";
+import { QrCode } from "@/components/QrCode";
 import { usePanelTranslation } from "./language";
 import {
   isIpv4,
+  isPsk,
   openSession,
   PinError,
   session as makeSession,
@@ -20,7 +23,10 @@ import {
   type Card,
   type ControlPanelSession,
   type DeviceInfo,
+  type Hotspot,
   type TimeState,
+  type WifiNetwork,
+  type WifiState,
 } from "./api";
 
 const C = {
@@ -165,9 +171,11 @@ function Panel({ api, onClose, onExpired }: { api: ControlPanelSession; onClose:
 
   const sections: { id: Section; label: string; on: boolean }[] = [
     { id: "network", label: t("controlPanel.network"), on: caps?.network ?? true },
-    { id: "wifi", label: t("controlPanel.wifi"), on: false },
+    { id: "wifi", label: t("controlPanel.wifi"), on: caps?.wifi ?? false },
     { id: "time", label: t("controlPanel.time"), on: caps?.time ?? true },
-    { id: "screen", label: t("controlPanel.screen"), on: false },
+    // On the web: the brightness and PixsysOS' calibration. The resistive
+    // calibration of the Tiny TY is the LVGL viewer's.
+    { id: "screen", label: t("controlPanel.screen"), on: (caps?.display || caps?.touch_calibration_service) ?? false },
     { id: "device", label: t("controlPanel.device"), on: true },
   ];
 
@@ -202,7 +210,9 @@ function Panel({ api, onClose, onExpired }: { api: ControlPanelSession; onClose:
       <main style={{ padding: "18px 22px", overflow: "auto", position: "relative" }}>
         {error && <div role="alert" style={{ ...card, borderColor: C.bad, color: "#f1b0ad" }}>{error}</div>}
         {section === "network" && <NetworkSection api={api} guard={guard} />}
+        {section === "wifi" && <WifiSection api={api} guard={guard} />}
         {section === "time" && <TimeSection api={api} guard={guard} />}
+        {section === "screen" && <ScreenSection api={api} guard={guard} caps={caps} />}
         {section === "device" && <DeviceSection api={api} guard={guard} info={info} caps={caps} />}
       </main>
     </div>
@@ -374,28 +384,343 @@ function NetworkSection({ api, guard }: { api: ControlPanelSession; guard: Guard
         </div>
       )}
       {pending && (
-        <div data-testid="network-confirm" style={{
-          position: "fixed", left: 0, right: 0, bottom: 0, background: "#3b2f12", borderTop: `2px solid ${C.warn}`,
-          display: "flex", alignItems: "center", gap: 16, padding: "14px 22px", zIndex: 1,
-        }}>
-          <div style={{ fontSize: 30, fontWeight: "bold", color: C.warn, width: 60, textAlign: "center" }}>
-            {Math.max(0, Math.ceil((pending.until - now) / 1000))}
-          </div>
-          <div style={{ flex: 1 }}>
-            <b style={{ display: "block", fontSize: 17 }}>{t("controlPanel.confirmQuestion")}</b>
-            <span style={{ color: "#e9d8b0", fontSize: 14 }}>
-              {t("controlPanel.confirmHelp", {
-                secs: Math.max(0, Math.ceil((pending.until - now) / 1000)),
-                before: pending.before.method === "manual" ? pending.before.addresses[0] ?? "" : `DHCP (${pending.before.addresses[0] ?? "—"})`,
-              })}
-            </span>
-          </div>
-          <button type="button" style={btn} onClick={() => void rollbackChange()}>{t("controlPanel.rollback")}</button>
-          <button type="button" style={btnPrimary} onClick={() => void confirmChange()}>{t("controlPanel.confirm")}</button>
-        </div>
+        <ConfirmBar until={pending.until} now={now}
+          before={pending.before.method === "manual" ? pending.before.addresses[0] ?? "" : `DHCP (${pending.before.addresses[0] ?? "—"})`}
+          onConfirm={() => void confirmChange()} onRollback={() => void rollbackChange()} />
       )}
     </div>
   );
+}
+
+/** The 60-second bar of a network change: confirm it, or it goes back. */
+function ConfirmBar({ until, now, before, onConfirm, onRollback }: {
+  until: number; now: number; before: string; onConfirm: () => void; onRollback: () => void;
+}) {
+  const { t } = usePanelTranslation();
+  const secs = Math.max(0, Math.ceil((until - now) / 1000));
+  return (
+    <div data-testid="network-confirm" style={{
+      position: "fixed", left: 0, right: 0, bottom: 0, background: "#3b2f12", borderTop: `2px solid ${C.warn}`,
+      display: "flex", alignItems: "center", gap: 16, padding: "14px 22px", zIndex: 1,
+    }}>
+      <div style={{ fontSize: 30, fontWeight: "bold", color: C.warn, width: 60, textAlign: "center" }}>{secs}</div>
+      <div style={{ flex: 1 }}>
+        <b style={{ display: "block", fontSize: 17 }}>{t("controlPanel.confirmQuestion")}</b>
+        <span style={{ color: "#e9d8b0", fontSize: 14 }}>{t("controlPanel.confirmHelp", { secs, before })}</span>
+      </div>
+      <button type="button" style={btn} onClick={onRollback}>{t("controlPanel.rollback")}</button>
+      <button type="button" style={btnPrimary} onClick={onConfirm}>{t("controlPanel.confirm")}</button>
+    </div>
+  );
+}
+
+/** A pending change: the deadline, what it goes back to, and a clock. */
+function usePending(reload: () => void) {
+  const [pending, setPending] = useState<{ until: number; before: string } | null>(null);
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    if (!pending) return;
+    const id = window.setInterval(() => {
+      setNow(Date.now());
+      if (Date.now() > pending.until + 2_000) { setPending(null); reload(); }
+    }, 1_000);
+    return () => window.clearInterval(id);
+  }, [pending, reload]);
+  const start = (secs: number, before: string) => { setPending({ until: Date.now() + secs * 1000, before }); setNow(Date.now()); };
+  return { pending, now, start, clear: () => setPending(null) };
+}
+
+// ── On-screen keyboard ───────────────────────────────────────────────────────
+
+const LETTERS = ["qwertyuiop", "asdfghjkl", "zxcvbnm"];
+const SYMBOLS = ["1234567890", "-_@#&*+=()", ".,:;!?'\"/"];
+
+/** Letters, capitals and symbols for SSIDs and passwords: the devices have no
+ * keyboard. `onKey` gets a character, `⌫`, or `⏎` for Done. */
+function TextKeyboard({ onKey }: { onKey: (k: string) => void }) {
+  const { t } = usePanelTranslation();
+  const [shift, setShift] = useState(false);
+  const [symbols, setSymbols] = useState(false);
+  const rows = symbols ? SYMBOLS : LETTERS;
+  const key: CSSProperties = { ...btn, height: 42, fontSize: 18, padding: 0, flex: 1 };
+  return (
+    <div data-testid="text-keyboard" style={{
+      position: "fixed", left: 220, right: 0, bottom: 0, background: "#14181d", borderTop: `1px solid ${C.line}`,
+      padding: 8, display: "flex", flexDirection: "column", gap: 6, zIndex: 2,
+    }}>
+      {rows.map((r, i) => (
+        <div key={i} style={{ display: "flex", gap: 6, padding: i === 1 && !symbols ? "0 24px" : 0 }}>
+          {i === 2 && !symbols && (
+            <button type="button" style={{ ...key, flex: 1.5, background: shift ? C.accent : C.panel2 }} onClick={() => setShift(!shift)}>⇧</button>
+          )}
+          {[...r].map((c) => {
+            const ch = shift && !symbols ? c.toUpperCase() : c;
+            return <button key={c} type="button" style={key} onClick={() => onKey(ch)}>{ch}</button>;
+          })}
+          {i === 2 && <button type="button" style={{ ...key, flex: 1.5 }} onClick={() => onKey("⌫")} aria-label="backspace">⌫</button>}
+        </div>
+      ))}
+      <div style={{ display: "flex", gap: 6 }}>
+        <button type="button" style={{ ...key, flex: 1.5, fontSize: 15 }} onClick={() => setSymbols(!symbols)}>
+          {symbols ? t("controlPanel.kbLetters") : t("controlPanel.kbSymbols")}
+        </button>
+        <button type="button" style={{ ...key, flex: 6, fontSize: 15, color: C.muted }} onClick={() => onKey(" ")}>{t("controlPanel.kbSpace")}</button>
+        <button type="button" style={{ ...btnPrimary, height: 42, flex: 2, padding: 0 }} onClick={() => onKey("⏎")}>{t("controlPanel.kbDone")}</button>
+      </div>
+    </div>
+  );
+}
+
+function typeInto(value: string, k: string, max = 63): string {
+  if (k === "⌫") return value.slice(0, -1);
+  return value.length < max ? value + k : value;
+}
+
+function fieldStyle(active: boolean, bad: boolean | undefined, width: number): CSSProperties {
+  return {
+    ...field, width, fontFamily: "inherit",
+    borderColor: bad ? C.bad : active ? C.accent : C.line,
+    boxShadow: active ? "0 0 0 2px #4f9cf040" : "none",
+  };
+}
+
+function TextField({ value, onChange, active, onFocus, secret, testId, width = 260, bad }: {
+  value: string; onChange: (v: string) => void; active: boolean; onFocus: () => void;
+  secret?: boolean; testId?: string; width?: number; bad?: boolean;
+}) {
+  // A password goes through the shared field with the eye (check_campi_password).
+  if (secret) {
+    return (
+      <CampoPassword value={value} data-testid={testId} autoComplete="off"
+        onFocus={onFocus} onChange={(e) => onChange(e.target.value)} style={fieldStyle(active, bad, width)} />
+    );
+  }
+  return (
+    <input value={value} data-testid={testId} autoComplete="off"
+      onFocus={onFocus} onChange={(e) => onChange(e.target.value)} style={fieldStyle(active, bad, width)} />
+  );
+}
+
+// ── Wi-Fi ────────────────────────────────────────────────────────────────────
+
+function Bars({ signal }: { signal: number }) {
+  const n = signal >= 75 ? 4 : signal >= 50 ? 3 : signal >= 25 ? 2 : 1;
+  return (
+    <span aria-label={`${signal}%`} style={{ display: "inline-flex", alignItems: "flex-end", gap: 2, height: 16, marginRight: 10 }}>
+      {[1, 2, 3, 4].map((i) => (
+        <span key={i} style={{ width: 4, height: 4 * i, borderRadius: 1, background: i <= n ? C.text : C.line }} />
+      ))}
+    </span>
+  );
+}
+
+type WifiForm =
+  | { kind: "join"; ssid: string; password: string; hidden: boolean; focus: "ssid" | "password" }
+  | { kind: "hotspot"; ssid: string; password: string; focus: "ssid" | "password" };
+
+function WifiSection({ api, guard }: { api: ControlPanelSession; guard: Guard }) {
+  const { t } = usePanelTranslation();
+  const [wifi, setWifi] = useState<WifiState | null>(null);
+  const [hotspot, setHotspot] = useState<Hotspot | null>(null);
+  const [form, setForm] = useState<WifiForm | null>(null);
+
+  const reload = useCallback(() => {
+    void guard(api.wifi()).then((w) => w && setWifi(w));
+    void guard(api.hotspot()).then((h) => h && setHotspot(h));
+  }, [api, guard]);
+  const { pending, now, start, clear } = usePending(reload);
+  useEffect(() => { reload(); }, [reload]);
+
+  const scan = async () => {
+    await guard(api.wifiScan());
+    window.setTimeout(reload, 3_000);
+  };
+  const beforeText = (w: WifiState) =>
+    w.mode === "client" && w.active_ssid ? t("controlPanel.wifiBefore", { ssid: w.active_ssid })
+      : w.mode === "hotspot" && w.active_ssid ? t("controlPanel.hotspotBefore", { ssid: w.active_ssid })
+        : t("controlPanel.wifiNothing");
+
+  const join = async (n: WifiNetwork | null) => {
+    if (!wifi) return;
+    // A saved or open network joins at once; the others ask for the password.
+    if (n && (n.known || n.security === "open")) {
+      const r = await guard(api.wifiConnect({ ssid: n.ssid }));
+      if (r) { start(r.confirm_within_secs, beforeText(wifi)); window.setTimeout(reload, 3_000); }
+      return;
+    }
+    setForm({ kind: "join", ssid: n?.ssid ?? "", password: "", hidden: !n, focus: n ? "password" : "ssid" });
+  };
+
+  const submit = async () => {
+    if (!form || !wifi) return;
+    const r = form.kind === "join"
+      ? await guard(api.wifiConnect({ ssid: form.ssid, password: form.password || undefined, hidden: form.hidden }))
+      : await guard(api.setHotspot({ enabled: true, ssid: form.ssid, password: form.password }));
+    if (!r) return;
+    setForm(null);
+    start(r.confirm_within_secs, beforeText(wifi));
+    window.setTimeout(reload, 3_000);
+  };
+
+  const hotspotOff = async () => {
+    if (!wifi || !hotspot) return;
+    const r = await guard(api.setHotspot({ enabled: false, ssid: hotspot.ssid, password: hotspot.password }));
+    if (r) { start(r.confirm_within_secs, beforeText(wifi)); window.setTimeout(reload, 3_000); }
+  };
+
+  const confirmChange = async () => { await guard(api.confirmNetwork()); clear(); reload(); };
+  const rollbackChange = async () => { await guard(api.rollbackNetwork()); clear(); window.setTimeout(reload, 2_000); };
+
+  if (!wifi) return <div style={{ color: C.muted }}>{t("controlPanel.loading")}</div>;
+  if (!wifi.card) return <div style={card}>{t("controlPanel.noWifiCard")}</div>;
+
+  const formInvalid = !form || form.ssid.length === 0 || form.ssid.length > 32
+    || (form.kind === "hotspot" ? !isPsk(form.password) : form.password !== "" && !isPsk(form.password));
+  const onKey = (k: string) => {
+    if (!form) return;
+    if (k === "⏎") { if (!formInvalid) void submit(); return; }
+    setForm({ ...form, [form.focus]: typeInto(form[form.focus], k, form.focus === "ssid" ? 32 : 63) });
+  };
+  const hotspotOn = wifi.mode === "hotspot";
+
+  return (
+    <div style={{ paddingBottom: form ? 230 : pending ? 80 : 0 }}>
+      <div style={card}>
+        <Row label={t("controlPanel.wifiCard")}>
+          <span style={{
+            width: 10, height: 10, borderRadius: "50%", display: "inline-block", marginRight: 8,
+            background: pending ? C.warn : wifi.mode === "client" || hotspotOn ? C.ok : C.line,
+          }} />
+          {wifi.card} · {t(`controlPanel.wifiState.${wifi.mode}`)}{wifi.active_ssid ? ` · ${wifi.active_ssid}` : ""}
+        </Row>
+        <Row label={t("controlPanel.radio")}>
+          <Segmented value={wifi.radio ? "on" : "off"} onChange={(v) => void guard(api.wifiRadio(v === "on")).then(() => window.setTimeout(reload, 1_500))}
+            options={[{ value: "on", label: t("controlPanel.on") }, { value: "off", label: t("controlPanel.off") }]} />
+        </Row>
+      </div>
+
+      {wifi.radio && !hotspotOn && (
+        <div style={card} data-testid="wifi-networks">
+          <div style={{ ...row, justifyContent: "space-between" }}>
+            <b style={{ fontSize: 16 }}>{t("controlPanel.networks")}</b>
+            <span style={{ display: "flex", gap: 8 }}>
+              <button type="button" style={btn} onClick={() => void join(null)}>{t("controlPanel.hiddenNetwork")}</button>
+              <button type="button" style={btn} onClick={() => void scan()}>{t("controlPanel.scan")}</button>
+            </span>
+          </div>
+          {wifi.networks.length === 0 && <div style={{ color: C.muted, padding: "8px 0" }}>{t("controlPanel.noNetworks")}</div>}
+          {wifi.networks.map((n) => (
+            <div key={n.ssid} style={{ ...row, borderTop: `1px solid ${C.line}`, opacity: n.security === "enterprise" ? 0.5 : 1 }} data-testid={`wifi-${n.ssid}`}>
+              <Bars signal={n.signal} />
+              <span style={{ flex: 1, fontSize: 16 }}>
+                {n.ssid}
+                <small style={{ color: C.muted, marginLeft: 8 }}>{t(`controlPanel.security.${n.security}`)}</small>
+                {n.active ? <Tag>{t("controlPanel.connected")}</Tag> : n.known ? <Tag tone="warn">{t("controlPanel.saved")}</Tag> : null}
+              </span>
+              {n.known && !n.active && <button type="button" style={{ ...btn, color: C.muted }} onClick={() => void guard(api.wifiForget(n.ssid)).then(reload)}>{t("controlPanel.forget")}</button>}
+              {!n.active && n.security !== "enterprise" && !pending && (
+                <button type="button" style={btn} onClick={() => void join(n)}>{t("controlPanel.join")}</button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div style={card} data-testid="wifi-hotspot">
+        <div style={{ ...row, justifyContent: "space-between" }}>
+          <b style={{ fontSize: 16 }}>{t("controlPanel.hotspot")}{hotspotOn && <Tag>{t("controlPanel.on")}</Tag>}</b>
+          {wifi.can_hotspot && hotspot && !pending && (hotspotOn
+            ? <button type="button" style={btn} onClick={() => void hotspotOff()}>{t("controlPanel.hotspotTurnOff")}</button>
+            : <button type="button" style={btnPrimary} onClick={() => setForm({ kind: "hotspot", ssid: hotspot.ssid, password: hotspot.password, focus: "password" })}>
+              {t("controlPanel.hotspotTurnOn")}
+            </button>)}
+        </div>
+        {!wifi.can_hotspot ? <div style={{ color: C.muted, fontSize: 14 }}>{t("controlPanel.hotspotCannot")}</div> : (<>
+          <div style={{ color: C.muted, fontSize: 14, marginBottom: 6 }}>{t("controlPanel.hotspotHelp")} {t("controlPanel.hotspotExcludes")}</div>
+          {hotspotOn && hotspot?.qr && (
+            <div style={{ display: "flex", gap: 18, alignItems: "center" }}>
+              <QrCode text={hotspot.qr} size={150} label={t("controlPanel.hotspotScan")} />
+              <div>
+                <Row label={t("controlPanel.ssid")}>{hotspot.ssid}</Row>
+                <Row label={t("controlPanel.password")}><span style={{ fontFamily: "'DejaVu Sans Mono', monospace" }}>{hotspot.password}</span></Row>
+              </div>
+            </div>
+          )}
+        </>)}
+      </div>
+
+      {form && (
+        <div style={{ ...card, borderColor: C.accent }} data-testid="wifi-form">
+          <Row label={t("controlPanel.ssid")}>
+            {form.kind === "join" && !form.hidden ? <b>{form.ssid}</b> : (
+              <TextField value={form.ssid} testId="wifi-ssid" active={form.focus === "ssid"}
+                onFocus={() => setForm({ ...form, focus: "ssid" })} onChange={(v) => setForm({ ...form, ssid: v })} />
+            )}
+          </Row>
+          <Row label={t("controlPanel.password")}>
+            <TextField value={form.password} testId="wifi-password" secret active={form.focus === "password"}
+              bad={form.password !== "" && !isPsk(form.password)}
+              onFocus={() => setForm({ ...form, focus: "password" })} onChange={(v) => setForm({ ...form, password: v })} />
+          </Row>
+          {form.kind === "hotspot" && hotspot?.proposed && <div style={{ color: C.muted, fontSize: 13 }}>{t("controlPanel.hotspotProposed")}</div>}
+          {form.password !== "" && !isPsk(form.password) && <div style={{ color: "#f1b0ad", fontSize: 13 }}>{t("controlPanel.passwordShort")}</div>}
+          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 10 }}>
+            <button type="button" style={btn} onClick={() => setForm(null)}>{t("controlPanel.cancel")}</button>
+            <button type="button" style={{ ...btnPrimary, opacity: formInvalid ? 0.5 : 1 }} disabled={formInvalid} onClick={() => void submit()}>
+              {form.kind === "join" ? t("controlPanel.join") : t("controlPanel.hotspotTurnOn")}
+            </button>
+          </div>
+        </div>
+      )}
+      {form && <TextKeyboard onKey={onKey} />}
+      {pending && !form && (
+        <ConfirmBar until={pending.until} now={now} before={pending.before}
+          onConfirm={() => void confirmChange()} onRollback={() => void rollbackChange()} />
+      )}
+    </div>
+  );
+}
+
+// ── Screen ───────────────────────────────────────────────────────────────────
+
+function ScreenSection({ api, guard, caps }: { api: ControlPanelSession; guard: Guard; caps: Capabilities | null }) {
+  const { t } = usePanelTranslation();
+  const [brightness, setBrightness] = useState<number | null | undefined>(undefined);
+  const [draft, setDraft] = useState(80);
+  useEffect(() => {
+    if (!caps?.display) return;
+    void guard(api.display()).then((d) => { if (d) { setBrightness(d.brightness); if (d.brightness != null) setDraft(d.brightness); } });
+  }, [api, guard, caps]);
+  const calibration = caps?.touch_calibration_service && (
+    <div style={card}>
+      <Row label={t("controlPanel.calibration")}>
+        <button type="button" style={btn} onClick={() => void guard(api.startTouchCalibration())}>{t("controlPanel.calibrate")}</button>
+      </Row>
+    </div>
+  );
+  if (!caps?.display) return <>{calibration}</>;
+  if (brightness === undefined) return <div style={{ color: C.muted }}>{t("controlPanel.loading")}</div>;
+  const save = (v: number | null) => void guard(api.setDisplay(v)).then(() => setBrightness(v));
+  return (<>
+    <div style={card} data-testid="screen-section">
+      <Row label={t("controlPanel.brightness")}>
+        <Segmented value={brightness === null ? "project" : "here"}
+          onChange={(v) => save(v === "project" ? null : draft)}
+          options={[{ value: "project", label: t("controlPanel.brightnessProject") }, { value: "here", label: t("controlPanel.brightnessHere") }]} />
+      </Row>
+      {brightness !== null && (
+        <Row label="">
+          <input type="range" min={5} max={100} value={draft} data-testid="brightness"
+            onChange={(e) => setDraft(Number(e.target.value))}
+            onPointerUp={() => save(draft)} onKeyUp={() => save(draft)}
+            style={{ width: 320 }} />
+          <span style={{ marginLeft: 12, width: 50, display: "inline-block" }}>{draft} %</span>
+        </Row>
+      )}
+      <div style={{ color: C.muted, fontSize: 13 }}>{t("controlPanel.brightnessHelp")}</div>
+    </div>
+    {calibration}
+  </>);
 }
 
 function IpField({ name, draft, setDraft, focus, setFocus, width }: {

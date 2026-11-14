@@ -12,6 +12,17 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Aggiunto
+- **Pannello di controllo del dispositivo, fase 4: Wi-Fi, hotspot, luce e calibrazione** (web e LVGL). Wi-Fi via
+  NetworkManager: reti visibili con segnale e sicurezza, collegamento con la tastiera a schermo, dimentica, radio; le
+  802.1X si vedono ma non si collegano. **Hotspot**: il dispositivo fa da access point (`sws-hotspot`, modo `ap`,
+  WPA2-PSK, `ipv4.method=shared`), con SSID `sws-<6 caratteri del MAC>` e una password casuale proposti, e il QR per
+  collegarsi col telefono; esclude il client, una chiavetta ha una scheda sola. Collegarsi e accendere o spegnere
+  l'hotspot passano dalla stessa conferma dei 60 s della rete cablata. **Luce del dispositivo** in
+  `config/control_panel.json`, sopra quella del progetto finché non si torna a «come dice il progetto»: sul Tiny TY la
+  applica il viewer, su PixsysOS il runtime via `net.pixsys.Config1.Display`. **Calibrazione**: sui resistivi del
+  Tiny TY il viewer ora applica la matrice tslib (la sua, poi quella di fabbrica di Pixsys, che prima ignorava) e la
+  rifà con cinque croci; su PixsysOS il pannello avvia `touch-calibration.service`. Polkit del Tiny TY:
+  `wifi.share.protected/open`. La calibrazione dei resistivi non è collaudata: manca un dispositivo.
 - **Pannello di controllo del dispositivo, fase 3: le stesse schermate nel viewer LVGL** (Tiny TY, TC/WP col motore
   LVGL; `control_panel.rs` per stato, gesto e rete, `lvgl_control_panel.rs` per il disegno): PIN, Rete con tastiera e
   barra di conferma, Ora, Dispositivo, sul layer di sistema sopra pagina, finestre e avviso di aggiornamento. Le parole

@@ -27,6 +27,10 @@ if [ -f /etc/sws/runtime.env ]; then
     set +a
 fi
 
+# The viewer drives the backlight here (schermo.rs, --retroilluminazione): the
+# control panel only saves the brightness, and the viewer applies it.
+export SWS_BACKLIGHT_BY_VIEWER=1
+
 # PyO3 avvia l'interprete di sistema (python3.10), che legge PYTHONPATH.
 PYTHONPATH="$SWS_INSTALL/python${PYTHONPATH:+:$PYTHONPATH}"
 export PYTHONPATH

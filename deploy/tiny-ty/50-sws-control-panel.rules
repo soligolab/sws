@@ -9,6 +9,8 @@ polkit.addRule(function(action, subject) {
         "org.freedesktop.NetworkManager.checkpoint-rollback",
         "org.freedesktop.NetworkManager.wifi.scan",
         "org.freedesktop.NetworkManager.enable-disable-wifi",
+        "org.freedesktop.NetworkManager.wifi.share.protected",
+        "org.freedesktop.NetworkManager.wifi.share.open",
         "org.freedesktop.timedate1.set-time",
         "org.freedesktop.timedate1.set-timezone",
         "org.freedesktop.timedate1.set-ntp",

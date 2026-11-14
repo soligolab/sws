@@ -139,6 +139,7 @@ mod tabella;
 mod tempi;
 mod testi_sistema;
 mod tls;
+mod touch_calibration;
 mod touch_indev;
 mod trend;
 mod tubo;
@@ -282,7 +283,8 @@ struct Args {
 
     /// Opens the device control panel at start and types this PIN, to look at
     /// it with `--istantanea` without touching a device: `PIN` or
-    /// `PIN:sezione` (`network`, `time`, `device`), or `pin` alone for the PIN
+    /// `PIN:sezione` (`network`, `wifi`, `time`, `screen`, `device`, or `calibration`
+    /// for the crosses), or `pin` alone for the PIN
     /// screen. The runtime must answer `/api/control-panel` — a test runtime
     /// with `SWS_CONTROL_PANEL_FAKE=1` does.
     #[arg(long)]

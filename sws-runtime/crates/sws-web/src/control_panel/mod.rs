@@ -31,7 +31,7 @@ use axum::{
     routing::{get, post, put},
     Json, Router,
 };
-use backend::{Backend, Ipv4Change, TimeChange, CONFIRM_WITHIN_SECS};
+use backend::{Backend, Hotspot, Ipv4Change, TimeChange, WifiConnect, CONFIRM_WITHIN_SECS};
 use serde::Deserialize;
 use serde_json::json;
 use std::collections::HashMap;
@@ -67,13 +67,17 @@ fn backend() -> &'static Backend {
     BACKEND.get_or_init(Backend::from_env)
 }
 
-fn new_token() -> String {
-    use base64::Engine;
-    let mut bytes = [0u8; 32];
+pub(crate) fn random_bytes<const N: usize>() -> [u8; N] {
+    let mut bytes = [0u8; N];
     if let Ok(mut f) = std::fs::File::open("/dev/urandom") {
         let _ = std::io::Read::read_exact(&mut f, &mut bytes);
     }
-    base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes)
+    bytes
+}
+
+fn new_token() -> String {
+    use base64::Engine;
+    base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(random_bytes::<32>())
 }
 
 /// The project's settings, or the defaults when no project is open or it
@@ -102,11 +106,28 @@ pub fn routes() -> Router<AppState> {
         .route("/api/control-panel/network", get(network))
         .route("/api/control-panel/network/:card", put(set_network))
         .route("/api/control-panel/network/confirm", post(confirm_network))
-        .route("/api/control-panel/network/rollback", post(rollback_network))
+        .route(
+            "/api/control-panel/network/rollback",
+            post(rollback_network),
+        )
         .route("/api/control-panel/time", get(time).put(set_time))
         .route("/api/control-panel/timezones", get(timezones))
         .route("/api/control-panel/reboot", post(reboot))
         .route("/api/control-panel/power-off", post(power_off))
+        .route("/api/control-panel/wifi", get(wifi))
+        .route("/api/control-panel/wifi/scan", post(wifi_scan))
+        .route("/api/control-panel/wifi/connect", post(wifi_connect))
+        .route("/api/control-panel/wifi/forget", post(wifi_forget))
+        .route("/api/control-panel/wifi/radio", put(wifi_radio))
+        .route(
+            "/api/control-panel/wifi/hotspot",
+            get(hotspot).put(set_hotspot),
+        )
+        .route("/api/control-panel/display", get(display).put(set_display))
+        .route(
+            "/api/control-panel/touch-calibration",
+            post(start_touch_calibration),
+        )
         .route_layer(middleware::from_fn(require_session));
     open.merge(guarded)
 }
@@ -119,6 +140,8 @@ async fn status(State(s): State<AppState>) -> Response {
     Json(json!({
         "enabled": cfg.enabled,
         "pin": pin::pin_source(cfg.pin_hash.as_deref(), initial.as_deref()),
+        // Public because the viewer applies it before anyone opens the panel.
+        "brightness": DeviceSettings::load(&s.config_dir).brightness,
     }))
     .into_response()
 }
@@ -295,5 +318,216 @@ async fn power_off(State(s): State<AppState>) -> Response {
     match backend().power_off().await {
         Ok(()) => StatusCode::ACCEPTED.into_response(),
         Err(e) => failed(e),
+    }
+}
+
+// ── Wi-Fi ───────────────────────────────────────────────────────────────────
+
+async fn wifi() -> Response {
+    match backend().wifi().await {
+        Ok(w) => Json(w).into_response(),
+        Err(e) => failed(e),
+    }
+}
+
+async fn wifi_scan() -> Response {
+    match backend().wifi_scan().await {
+        Ok(()) => StatusCode::ACCEPTED.into_response(),
+        Err(e) => failed(e),
+    }
+}
+
+fn bad_request(e: String) -> Response {
+    (StatusCode::BAD_REQUEST, Json(json!({"error": e}))).into_response()
+}
+
+/// `POST /api/control-panel/wifi/connect` — like a network change: undone
+/// after [`CONFIRM_WITHIN_SECS`] unless confirmed.
+async fn wifi_connect(State(s): State<AppState>, Json(req): Json<WifiConnect>) -> Response {
+    if let Err(e) = req.validate() {
+        return bad_request(e);
+    }
+    match backend().wifi_connect(&req).await {
+        Ok(()) => {
+            s.audit
+                .log("control_panel.wifi", None, json!({"ssid": req.ssid}));
+            Json(json!({"confirm_within_secs": CONFIRM_WITHIN_SECS})).into_response()
+        }
+        Err(e) => failed(e),
+    }
+}
+
+#[derive(Deserialize)]
+struct SsidBody {
+    ssid: String,
+}
+
+async fn wifi_forget(State(s): State<AppState>, Json(body): Json<SsidBody>) -> Response {
+    match backend().wifi_forget(&body.ssid).await {
+        Ok(()) => {
+            s.audit.log(
+                "control_panel.wifi_forget",
+                None,
+                json!({"ssid": body.ssid}),
+            );
+            StatusCode::NO_CONTENT.into_response()
+        }
+        Err(e) => failed(e),
+    }
+}
+
+#[derive(Deserialize)]
+struct EnabledBody {
+    enabled: bool,
+}
+
+async fn wifi_radio(Json(body): Json<EnabledBody>) -> Response {
+    match backend().wifi_radio(body.enabled).await {
+        Ok(()) => StatusCode::NO_CONTENT.into_response(),
+        Err(e) => failed(e),
+    }
+}
+
+/// A password for a new hotspot: 10 characters with no look-alikes (no
+/// `0/o`, `1/l/i`), so it can be read off the screen and typed on a phone.
+fn proposed_password() -> String {
+    const ALPHABET: &[u8] = b"abcdefghjkmnpqrstuvwxyz23456789";
+    random_bytes::<10>()
+        .iter()
+        .map(|b| ALPHABET[*b as usize % ALPHABET.len()] as char)
+        .collect()
+}
+
+/// `GET /api/control-panel/wifi/hotspot` — the saved hotspot, or a proposal
+/// (`proposed: true`): SSID `sws-<the initial PIN>`, the same suffix as the
+/// device's network name, and a random password. Never the PIN as password:
+/// anyone who sees the MAC knows it.
+async fn hotspot() -> Response {
+    let (h, proposed) = match backend().hotspot().await {
+        Ok(Some(h)) => (h, false),
+        Ok(None) => (
+            Hotspot {
+                enabled: false,
+                ssid: format!("sws-{}", initial_pin().unwrap_or_else(|| "device".into())),
+                password: proposed_password(),
+            },
+            true,
+        ),
+        Err(e) => return failed(e),
+    };
+    Json(json!({
+        "enabled": h.enabled,
+        "ssid": h.ssid,
+        "password": h.password,
+        "proposed": proposed,
+        "qr": backend::wifi_qr(&h.ssid, &h.password),
+    }))
+    .into_response()
+}
+
+async fn set_hotspot(State(s): State<AppState>, Json(h): Json<Hotspot>) -> Response {
+    if let Err(e) = h.validate() {
+        return bad_request(e);
+    }
+    match backend().set_hotspot(&h).await {
+        Ok(()) => {
+            s.audit.log(
+                "control_panel.hotspot",
+                None,
+                json!({"enabled": h.enabled, "ssid": h.ssid}),
+            );
+            Json(json!({"confirm_within_secs": CONFIRM_WITHIN_SECS})).into_response()
+        }
+        Err(e) => failed(e),
+    }
+}
+
+// ── Display ─────────────────────────────────────────────────────────────────
+
+/// The device's own settings, which no deploy rewrites:
+/// `<config>/control_panel.json`. Today only the brightness, which wins over
+/// the project's (`pannello.luminosita`) until it is set back to `null`
+/// (decision of the maintainer, 14-11-2026).
+#[derive(Debug, Default, Clone, PartialEq, serde::Serialize, Deserialize)]
+pub struct DeviceSettings {
+    #[serde(default)]
+    pub brightness: Option<u8>,
+}
+
+/// Below 5 % many screens are already dark: same floor as the project.
+const MIN_BRIGHTNESS: u8 = 5;
+
+impl DeviceSettings {
+    const FILE: &'static str = "control_panel.json";
+
+    pub fn load(config_dir: &std::path::Path) -> Self {
+        std::fs::read_to_string(config_dir.join(Self::FILE))
+            .ok()
+            .and_then(|t| serde_json::from_str(&t).ok())
+            .unwrap_or_default()
+    }
+
+    pub fn save(&self, config_dir: &std::path::Path) -> std::io::Result<()> {
+        let path = config_dir.join(Self::FILE);
+        let tmp = path.with_extension("json.tmp");
+        std::fs::write(&tmp, serde_json::to_vec_pretty(self)?)?;
+        std::fs::rename(tmp, path)
+    }
+}
+
+async fn display(State(s): State<AppState>) -> Response {
+    Json(DeviceSettings::load(&s.config_dir)).into_response()
+}
+
+/// `PUT /api/control-panel/display` `{brightness: 5-100 | null}`.
+async fn set_display(State(s): State<AppState>, Json(body): Json<DeviceSettings>) -> Response {
+    if let Some(b) = body.brightness {
+        if !(MIN_BRIGHTNESS..=100).contains(&b) {
+            return bad_request(format!(
+                "brightness {b} is not between {MIN_BRIGHTNESS} and 100"
+            ));
+        }
+        if let Err(e) = backend().apply_brightness(b).await {
+            return failed(e);
+        }
+    }
+    let mut settings = DeviceSettings::load(&s.config_dir);
+    settings.brightness = body.brightness;
+    if let Err(e) = settings.save(&s.config_dir) {
+        return failed(format!("cannot save the brightness: {e}"));
+    }
+    StatusCode::NO_CONTENT.into_response()
+}
+
+async fn start_touch_calibration(State(s): State<AppState>) -> Response {
+    s.audit
+        .log("control_panel.touch_calibration", None, json!({}));
+    match backend().start_touch_calibration().await {
+        Ok(()) => StatusCode::ACCEPTED.into_response(),
+        Err(e) => failed(e),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn device_settings_round_trip() {
+        let d = tempfile::tempdir().unwrap();
+        assert_eq!(DeviceSettings::load(d.path()), DeviceSettings::default());
+        let s = DeviceSettings {
+            brightness: Some(40),
+        };
+        s.save(d.path()).unwrap();
+        assert_eq!(DeviceSettings::load(d.path()), s);
+    }
+
+    #[test]
+    fn a_proposed_password_has_no_look_alikes() {
+        let p = proposed_password();
+        assert_eq!(p.len(), 10);
+        assert!(!p.contains(['0', 'o', '1', 'l', 'i']));
+        assert!(backend::validate_psk(&p).is_ok());
     }
 }
