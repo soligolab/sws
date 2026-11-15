@@ -31,6 +31,24 @@ fi
 # control panel only saves the brightness, and the viewer applies it.
 export SWS_BACKLIGHT_BY_VIEWER=1
 
+# No launcher of Pixsys here: the corner that reboots when held is watched by
+# the viewer too, and the control panel saves which one and how.
+export SWS_REBOOT_CORNER_BY_VIEWER=1
+# So is the rotation: a portrait project and a device mounted upside down are
+# turned by the viewer, which owns the framebuffer here.
+export SWS_ROTATION_BY_VIEWER=1
+
+# The boot image here is a raw framebuffer dump that Pixsys' rc.local copies
+# to the screen (/data/plc/bootlogo.raw, linked to this file by install.sh).
+export SWS_BOOT_IMAGE_RAW="$SWS_DATA/config/boot-image/bootlogo.raw"
+# The NTP servers of the control panel: chrony's sources file, which the
+# installer hands to this user (remove-panelcontrol.sh).
+export SWS_NTP_SOURCES=/etc/chrony/sources.d/sws.sources
+# The diagnostic export: the helper that reads the system's logs and writes
+# on the USB stick, run through sudo (see install.sh).
+# The path sudoers names, to the letter.
+export SWS_DIAGNOSTICS_HELPER=/opt/sws/bin/sws-diagnostics
+
 # PyO3 avvia l'interprete di sistema (python3.10), che legge PYTHONPATH.
 PYTHONPATH="$SWS_INSTALL/python${PYTHONPATH:+:$PYTHONPATH}"
 export PYTHONPATH
@@ -43,6 +61,16 @@ case "${SWS_ENABLE_IDE:-}" in
     1|true|yes|on) NO_ADMIN=
         echo "[sws] SWS_ENABLE_IDE: IDE COMPLETO abilitato su questo dispositivo" >&2 ;;
 esac
+
+# The UPS: on the boards that have one rc.local makes GPIO36 an input, reading
+# 1 while mains is present; on the others an output held at 1. The runtime
+# watches it and reboots the device when it falls (`power_fail.rs`); Pixsys'
+# tyx_panelcontrol did it before remove-panelcontrol.sh took it off.
+# Not tested for here: at boot this runs before rc.local has exported the pin
+# (TY570, 15-11-2026: the watch never started), and the runtime simply reads
+# nothing until the file is there.
+: "${SWS_POWER_FAIL_INPUT:=/sys/class/gpio/gpio36/value}"
+export SWS_POWER_FAIL_INPUT
 
 # shellcheck disable=SC2086  # $NO_ADMIN vuoto non deve diventare un argomento
 exec "$SWS_INSTALL/bin/sws-runtime" \

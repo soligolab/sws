@@ -136,6 +136,12 @@ function Fornitore({ f, onCambiato }: { f: AiConfig["fornitori"][number]; onCamb
         {f.chiave ? t("ia.fornitori.conChiave") : t("ia.fornitori.senzaChiave")}
         {" · "}{t("ia.fornitori.serve", { scopi: f.scopi.map((s) => t(`ia.scopi.nome.${s}`)).join(", ") })}
       </Stato>
+      {/* Which key this project would use (15-11-2026): its own, the key of whoever is looking (cloud), or none. */}
+      {f.source !== undefined && (
+        <div data-testid={`ia-fonte-${f.id}`} style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", margin: "2px 0 6px" }}>
+          {t(f.source === "project" ? "ia.fornitori.usaProgetto" : f.source === "user" ? "ia.fornitori.usaTua" : "ia.fornitori.usaNessuna")}
+        </div>
+      )}
       <label style={etichetta}>
         {t("cfgUi.apiKey")}
         <CampoPassword value={chiave} data-testid={`ia-chiave-${f.id}`}

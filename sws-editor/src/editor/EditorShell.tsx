@@ -74,7 +74,7 @@ import { CampoFormato } from "@/components/CampoFormato";
 import type { AlignMode } from "@/store";
 import type { AlarmSeverity, ButtonAction, FunctionDef, GridCell, PageLayoutConfig, PageSizeMode, ProjectTargetKind, RadioOption, SubCellEntry, SubGrid, SynopticObject, SynopticPage, TableRow, TagDef, TypeDef, TextListEntry, TrendTrace, XySeries } from "@/types";
 import { eBoot, paginePerNavigazione } from "@/boot/tipi";
-import { aggiornaPagina, applicaATutte, applicaPredefinito, generePagina, salvaLayout } from "@/formatoProgettoAzioni";
+import { aggiornaPagina, applicaATutte, applicaPredefinito, cambiaOrientamento, generePagina, salvaLayout } from "@/formatoProgettoAzioni";
 import { dalTag, descrizioniDeiTag } from "@/tag/forma";
 import { patchSovrascrittura, seguePredefinito, SPUNTATA_DI_PARTENZA, type GenerePagina } from "@/formatoProgetto";
 import { impostaBootAbilitata } from "@/boot/abilitata";
@@ -534,6 +534,12 @@ function FormatoPredefinitoProgetto() {
   const layout = useAppStore((s) => s.project?.page_layout);
   const [applicate, setApplicate] = useState<number | null>(null);
   const [errore, setErrore] = useState<string | null>(null);
+  const [girate, setGirate] = useState<number | null>(null);
+  const verticale = layout?.orientation === "portrait";
+  const gira = (o: "landscape" | "portrait") => {
+    setErrore(null); setApplicate(null); setGirate(null);
+    cambiaOrientamento(o).then(setGirate, (e) => setErrore(e instanceof Error ? e.message : String(e)));
+  };
 
   // «Applica a tutte le pagine» (05-11-2026): sopra le impostazioni, come modulo
   // annidato; restituisce quante pagine ha cambiato.
@@ -562,8 +568,24 @@ function FormatoPredefinitoProgetto() {
         width={layout?.default_width}
         height={layout?.default_height}
         segnaposto={t("shell.notSet")}
-        onChange={(m) => { void scrivi({ default_width: m.width, default_height: m.height, dispositivo: m.dispositivo }); }}
+        // A preset is the panel as built, landscape: a portrait project takes it turned.
+        onChange={(m) => {
+          const [w, h] = verticale && m.dispositivo ? [m.height, m.width] : [m.width, m.height];
+          void scrivi({ default_width: w, default_height: h, dispositivo: m.dispositivo });
+        }}
       />
+      <div style={{ marginTop: 6 }}>
+        <div style={LABEL}>{t("shell.orientation")}</div>
+        <select data-testid="project-orientation" value={verticale ? "portrait" : "landscape"}
+          onChange={(e) => gira(e.target.value as "landscape" | "portrait")}
+          style={{ background: "var(--brand-surface-2, #334155)", color: "var(--brand-text-2, #cbd5e1)", border: "1px solid var(--brand-border, #475569)", borderRadius: 4, padding: "3px 6px", fontSize: 12 }}>
+          <option value="landscape">{t("shell.orientationLandscape")}</option>
+          <option value="portrait">{t("shell.orientationPortrait")}</option>
+        </select>
+        <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "4px 0 0" }}>
+          {girate !== null && girate > 0 ? t("shell.orientationTurned", { count: girate }) : t("shell.orientationHelp")}
+        </p>
+      </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginTop: 6 }}>
         <div style={{ minWidth: 0 }}>
           <div style={LABEL}>{t("props.backgroundLight")}</div>

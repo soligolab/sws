@@ -112,6 +112,7 @@ mod aggiornamento;
 mod barre;
 mod client;
 mod control_panel;
+mod control_panel_about;
 mod drm_display;
 mod effects;
 mod lvgl_avviso;
@@ -130,6 +131,7 @@ mod pixel;
 mod riavvio;
 mod ritardo;
 mod ritmo;
+mod rotation;
 mod schermo;
 mod session;
 mod simbolo_lib;
@@ -283,8 +285,9 @@ struct Args {
 
     /// Opens the device control panel at start and types this PIN, to look at
     /// it with `--istantanea` without touching a device: `PIN` or
-    /// `PIN:sezione` (`network`, `wifi`, `time`, `screen`, `device`, or `calibration`
-    /// for the crosses), or `pin` alone for the PIN
+    /// `PIN:sezione` (`network`, `wifi`, `time`, `screen`, `device`, `calibration`
+    /// for the crosses, `timezone`, `timezone-america`, `timezone-us` or
+    /// `timezone-filter` for the time zone picker), or `pin` alone for the PIN
     /// screen. The runtime must answer `/api/control-panel` — a test runtime
     /// with `SWS_CONTROL_PANEL_FAKE=1` does.
     #[arg(long)]
@@ -1667,15 +1670,20 @@ fn run_drm(
     }
 
     let mut drm = drm_display::DrmDisplay::open(card_path)?;
+    // On the framebuffer the glass is ours: a portrait project and a device
+    // mounted upside down are turned here (`rotation.rs`).
+    rotation::activate();
+    drm.rotation = rotation::current();
     // F2 — la pagina e il display possono non coincidere, e prima questo era un
     // avviso seguito da un panic: il buffer si dimensionava sulla **pagina** e
     // `flush_rgb888` iterava sul **display**. Ora il frame si centra e si
     // ritaglia come già fa il backend SDL2, e l'avviso dice cosa succede invece
     // di dire che «potrebbe» succedere qualcosa.
     let (mut hor_res, mut ver_res) = (hor_res, ver_res);
-    let mut drm_off = page_offset(hor_res, ver_res, drm.width, drm.height);
-    if drm.width != hor_res || drm.height != ver_res {
-        let (dw, dh) = (drm.width, drm.height);
+    let (seen_w, seen_h) = drm.seen();
+    let mut drm_off = page_offset(hor_res, ver_res, seen_w, seen_h);
+    if (seen_w, seen_h) != (hor_res, ver_res) {
+        let (dw, dh) = (seen_w, seen_h);
         if hor_res > dw || ver_res > dh {
             eprintln!(
                 "[drm] la pagina {hor_res}x{ver_res} è più grande del display {dw}x{dh}: \
@@ -1898,9 +1906,14 @@ fn run_drm(
         // rileggono, e il margine si ridipinge perché la pagina di prima
         // poteva coprirne una parte.
         let ora = lvgl_display::dims();
-        if ora != (hor_res, ver_res) && ora.0 > 0 && ora.1 > 0 {
+        // The same when the picture turns: another project, or the device
+        // set upside down from the control panel.
+        let turned = rotation::current() != drm.rotation;
+        if (ora != (hor_res, ver_res) || turned) && ora.0 > 0 && ora.1 > 0 {
             (hor_res, ver_res) = ora;
-            drm_off = page_offset(hor_res, ver_res, drm.width, drm.height);
+            drm.rotation = rotation::current();
+            let (seen_w, seen_h) = drm.seen();
+            drm_off = page_offset(hor_res, ver_res, seen_w, seen_h);
             {
                 let (r, g, b) = lvgl_display::as_rendered(0x0f, 0x17, 0x2a);
                 drm.riempi(r, g, b);

@@ -26,6 +26,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { useAppStore, type VoceElencoConfig } from "@/store";
+import { prefissoGateway } from "@/api/prefisso";
 import { RAMI, SCHEDE, SOTTORAMI, schedeVisibili, type IdScheda, type RamoConfig, type SchedaConfig, type SottoRamo } from "@/config/schede";
 import { useRepoDisponibile } from "@/config/repoDisponibile";
 import { AlberoTagLive } from "./AlberoTagLive";
@@ -408,7 +409,7 @@ function Ramo({ ramo, icona, elementiDi, repo }: {
   const [aperto, commuta] = useSezioneAperta(`config.${ramo}`, true);
 
   const modificataFn = useSchedaModificata();
-  const foglie: FogliaCalcolata[] = schedeVisibili(isAdmin, repo).filter((s) => s.ramo === ramo).map((s) => {
+  const foglie: FogliaCalcolata[] = schedeVisibili(isAdmin, repo, !!prefissoGateway()).filter((s) => s.ramo === ramo).map((s) => {
     const elementi = "elementi" in s && s.elementi ? elementiDi(s.id) : null;
     return { s, elementi, modificata: modificataFn(s, elementi) };
   });
@@ -452,7 +453,7 @@ export function FoglieConfigurazione({ schede }: { schede: readonly IdScheda[] }
   const elementiDi = useElementi(isAdmin);
   const repo = useRepoDisponibile();
   const modificataFn = useSchedaModificata();
-  const foglie: FogliaCalcolata[] = schedeVisibili(isAdmin, repo).filter((s) => schede.includes(s.id)).map((s) => {
+  const foglie: FogliaCalcolata[] = schedeVisibili(isAdmin, repo, !!prefissoGateway()).filter((s) => schede.includes(s.id)).map((s) => {
     const elementi = "elementi" in s && s.elementi ? elementiDi(s.id) : null;
     return { s, elementi, modificata: modificataFn(s, elementi) };
   });
@@ -474,7 +475,7 @@ export function FoglieConfigurazione({ schede }: { schede: readonly IdScheda[] }
 export function useSchedeVisibili(schede: readonly IdScheda[]): IdScheda[] {
   const isAdmin = useAppStore((s) => s.authRole === "Admin");
   const repo = useRepoDisponibile();
-  return schedeVisibili(isAdmin, repo).filter((s) => schede.includes(s.id)).map((s) => s.id);
+  return schedeVisibili(isAdmin, repo, !!prefissoGateway()).filter((s) => schede.includes(s.id)).map((s) => s.id);
 }
 
 /** I rami di configurazione. Stanno in fondo all'albero unico del pannello

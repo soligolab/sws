@@ -285,6 +285,13 @@ struct Args {
     #[arg(long)]
     http_port: Option<u16>,
 
+    /// The power-fail input of a device with a UPS: a sysfs GPIO value file
+    /// that reads 1 while mains is present. When it falls the device reboots
+    /// (`sws_web::power_fail`). Passed by the Tiny TY launcher on the boards
+    /// that have a UPS; absent, nothing is watched.
+    #[arg(long, env = "SWS_POWER_FAIL_INPUT")]
+    power_fail_input: Option<PathBuf>,
+
     /// Default automatic-backup interval in minutes when a project doesn't
     /// set its own `auto_backup_interval_minutes` in `project.yaml` (Config →
     /// Backup in the editor). 0 (default) means disabled by default — a
@@ -1585,6 +1592,26 @@ async fn main() -> anyhow::Result<()> {
             sws_web::boot_image::Occasione::Avvio,
         )
         .await;
+        sws_web::control_panel::enforce_project(&app_state.config_dir, &dir).await;
+        // The page backgrounds at the panel's size, in the background: the
+        // first visit of a page then finds its variant ready.
+        if !ide_only {
+            let config = app_state.config_dir.as_ref().clone();
+            tokio::task::spawn_blocking(move || sws_web::sized_image::prepare(&dir, &config));
+        }
+    }
+
+    if let Some(input) = args.power_fail_input.clone() {
+        info!("power-fail input watched: {}", input.display());
+        let tokio = tokio::runtime::Handle::current();
+        sws_web::power_fail::watch(input, move || {
+            warn!("mains power lost: rebooting");
+            tokio.spawn(async {
+                if let Err(e) = sws_web::control_panel::dbus::reboot(false).await {
+                    error!("reboot on power loss failed: {e}");
+                }
+            });
+        });
     }
 
     // `--mcp`: da qui in poi non si apre nessuna porta. Il bivio sta **dopo**

@@ -98,9 +98,17 @@ pub struct DrmDisplay {
     pitch: u32,
     pub width: u32,
     pub height: u32,
+    /// How the picture sits on the glass (`rotation.rs`). The caller sets it;
+    /// zones, offsets and the page are in the space of [`Self::seen`].
+    pub rotation: crate::rotation::Rotation,
 }
 
 impl DrmDisplay {
+    /// The size of the screen as the person in front of it sees it.
+    pub fn seen(&self) -> (u32, u32) {
+        self.rotation.seen(self.width, self.height)
+    }
+
     /// Apre `card_path` (es. `/dev/dri/card1` — su questo device NON è
     /// card0, verificato: è quello che Weston usa, vedi
     /// `docs/OPEN_QUESTIONS.md` Q14), trova il primo connettore attivo,
@@ -217,6 +225,7 @@ impl DrmDisplay {
             pitch,
             width,
             height,
+            rotation: crate::rotation::Rotation::default(),
         })
     }
 
@@ -314,18 +323,38 @@ impl DrmDisplay {
         off: (i32, i32),
         zona: crate::lvgl_display::Zona,
     ) {
+        let (seen_w, seen_h) = self.seen();
         let (off_x, off_y, copy_w, copy_h) =
-            ritaglio(src_w, src_h, self.width, self.height, off, page.len());
+            ritaglio(src_w, src_h, seen_w, seen_h, off, page.len());
         let Some((x0, y0, x1, y1)) = dentro(zona, copy_w, copy_h) else {
             return;
         };
         let map = self.buffers[i].map;
         let src_row = src_w as usize * 4;
-        let n = (x1 - x0 + 1) * 4;
+        if self.rotation == crate::rotation::Rotation::R0 {
+            let n = (x1 - x0 + 1) * 4;
+            for y in y0..=y1 {
+                let src = &page[y * src_row + x0 * 4..y * src_row + x0 * 4 + n];
+                let dst_off =
+                    (y + off_y as usize) * self.pitch as usize + (x0 + off_x as usize) * 4;
+                unsafe { ptr::copy_nonoverlapping(src.as_ptr(), map.add(dst_off), n) };
+            }
+            return;
+        }
+        // Turned: pixel by pixel, each to its place on the glass. Only the
+        // zone LVGL redrew, so a still page costs nothing here either.
         for y in y0..=y1 {
-            let src = &page[y * src_row + x0 * 4..y * src_row + x0 * 4 + n];
-            let dst_off = (y + off_y as usize) * self.pitch as usize + (x0 + off_x as usize) * 4;
-            unsafe { ptr::copy_nonoverlapping(src.as_ptr(), map.add(dst_off), n) };
+            for x in x0..=x1 {
+                let (gx, gy) = self.rotation.to_glass(
+                    x as u32 + off_x,
+                    y as u32 + off_y,
+                    self.width,
+                    self.height,
+                );
+                let src = y * src_row + x * 4;
+                let dst = gy as usize * self.pitch as usize + gx as usize * 4;
+                unsafe { ptr::copy_nonoverlapping(page.as_ptr().add(src), map.add(dst), 4) };
+            }
         }
     }
 }

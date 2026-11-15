@@ -24,6 +24,8 @@ use serde::Serialize;
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 
+pub use crate::ai::user_keys::UserKeys;
+
 /// Il modello di riferimento. Opus 5.5 (03-11-2026, era Opus 5): contesto da 1M,
 /// pensiero sempre acceso, e costa meno (4 $ e 20 $ per Mtok contro 5 e 25). Il
 /// suo `effort` di default è `medium`: qui lo si manda sempre esplicito, `high`.
@@ -149,10 +151,28 @@ pub async fn saldo(scelta: &Scelta) -> Option<f64> {
     v.get("data")?.get("available_balance")?.as_f64()
 }
 
+/// Where the key in use comes from: the project's own (file or environment, as
+/// it always was) or the user's, asked to the gateway (15-11-2026).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum KeySource {
+    Project,
+    User,
+}
+
+impl KeySource {
+    pub fn name(self) -> &'static str {
+        match self {
+            KeySource::Project => "project",
+            KeySource::User => "user",
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Scelta {
     pub fornitore: Fornitore,
     pub chiave: String,
+    pub source: KeySource,
     pub modello: String,
     /// Quanto può spendere una conversazione, in dollari, prima che il giro
     /// successivo si rifiuti di partire. Vedi [`tetto_usd`].
@@ -396,6 +416,24 @@ pub fn cancella_chiave(config_dir: &Path, f: Fornitore) -> std::io::Result<bool>
 /// modo prevedibile invece di dipendere dall'ordine di lettura dei file, e chi
 /// vuole l'altro lo scrive: `SWS_AI_FORNITORE=kimi`.
 pub fn carica(config_dir: &Path) -> Option<Scelta> {
+    carica_con(config_dir, &UserKeys::default())
+}
+
+/// The key of a provider: the project's first, then the user's. `None` if
+/// neither has one.
+pub(crate) fn resolve_key(
+    config_dir: &Path,
+    f: Fornitore,
+    user: &UserKeys,
+) -> Option<(String, KeySource)> {
+    chiave_di(config_dir, f)
+        .map(|k| (k, KeySource::Project))
+        .or_else(|| user.get(f).map(|k| (k.to_string(), KeySource::User)))
+}
+
+/// [`carica`] with the keys of the user who is writing, if the project has none
+/// of its own for a provider. The project's key always wins.
+pub fn carica_con(config_dir: &Path, user: &UserKeys) -> Option<Scelta> {
     let salvata = Impostazioni::carica(config_dir).assistente();
 
     // L'ambiente vince sul file, e la UI lo dice quando trova una variabile
@@ -433,13 +471,14 @@ pub fn carica(config_dir: &Path) -> Option<Scelta> {
     };
 
     for f in candidati {
-        if let Some(chiave) = chiave_di(config_dir, f) {
+        if let Some((chiave, source)) = resolve_key(config_dir, f, user) {
             let modello = modello_imposto
                 .clone()
                 .unwrap_or_else(|| f.modello_default().to_string());
             return Some(Scelta {
                 fornitore: f,
                 chiave,
+                source,
                 modello,
                 tetto_usd: tetto_usd(salvata.tetto_usd),
             });
@@ -1083,10 +1122,62 @@ mod tests {
         );
     }
 
+    #[test]
+    fn the_projects_key_wins_and_the_users_fills_the_gap() {
+        let d = tempfile::tempdir().unwrap();
+        // The machine of the one who runs the tests may have keys of its own
+        // (environment, `~/.config/sws`): then there is nothing to prove here.
+        if chiave_di(d.path(), Fornitore::Kimi).is_some()
+            || chiave_di(d.path(), Fornitore::Anthropic).is_some()
+            || std::env::var_os("SWS_AI_FORNITORE").is_some()
+        {
+            return;
+        }
+        let user = UserKeys::from_pairs([
+            (Fornitore::Kimi, "sk-user-kimi".to_string()),
+            (Fornitore::Anthropic, "sk-user-ant".to_string()),
+        ]);
+        // The project has none: the user's.
+        assert_eq!(
+            resolve_key(d.path(), Fornitore::Kimi, &user),
+            Some(("sk-user-kimi".into(), KeySource::User))
+        );
+        // The project writes its own for Kimi: it wins, Anthropic stays the user's.
+        salva_chiave(d.path(), Fornitore::Kimi, "sk-project-kimi").unwrap();
+        assert_eq!(
+            resolve_key(d.path(), Fornitore::Kimi, &user),
+            Some(("sk-project-kimi".into(), KeySource::Project))
+        );
+        assert_eq!(
+            resolve_key(d.path(), Fornitore::Anthropic, &user),
+            Some(("sk-user-ant".into(), KeySource::User))
+        );
+        // Without the user, as before: the project's, or nothing.
+        let none = UserKeys::default();
+        assert_eq!(
+            resolve_key(d.path(), Fornitore::Kimi, &none),
+            Some(("sk-project-kimi".into(), KeySource::Project))
+        );
+        assert_eq!(resolve_key(d.path(), Fornitore::Anthropic, &none), None);
+        // No preference anywhere: Anthropic first, and here it is the user's.
+        let choice = carica_con(d.path(), &user).unwrap();
+        assert_eq!(
+            (choice.fornitore, choice.source),
+            (Fornitore::Anthropic, KeySource::User)
+        );
+        // And with no user: Kimi, the project's.
+        let choice = carica(d.path()).unwrap();
+        assert_eq!(
+            (choice.fornitore, choice.source),
+            (Fornitore::Kimi, KeySource::Project)
+        );
+    }
+
     fn scelta(f: Fornitore) -> Scelta {
         Scelta {
             fornitore: f,
             chiave: "k".into(),
+            source: KeySource::Project,
             modello: f.modello_default().into(),
             tetto_usd: TETTO_DEFAULT_USD,
         }

@@ -13,6 +13,7 @@ tracing.workspace  = true
 anyhow.workspace   = true
 uuid.workspace     = true
 sha2.workspace     = true
+ring.workspace     = true
 
 [dev-dependencies]
 # Lo schema, le migrazioni e la scadenza delle sessioni si provano solo su un

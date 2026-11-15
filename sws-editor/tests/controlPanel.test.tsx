@@ -6,9 +6,10 @@ import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 import "../src/i18n/index";
 import { ControlPanel } from "../src/control-panel/ControlPanel";
 import { ControlPanelLauncher, BOOT_BUTTON_MS, openControlPanel } from "../src/control-panel/ControlPanelLauncher";
-import { HOLD_MS, holdComplete, holdProgress, inCorner, startHold, stillHolding } from "../src/control-panel/cornerHold";
+import { GRACE_MS, HOLD_MS, holdComplete, holdProgress, inCorner, startHold, stillHolding } from "../src/control-panel/cornerHold";
 import { isIpv4, splitCidr } from "../src/control-panel/api";
 import { panelLanguage } from "../src/control-panel/language";
+import { cityOf, continentsIn, countriesIn, search, zoneLabel } from "../src/control-panel/timezones";
 
 function reply(status: number, body?: unknown) {
   return Promise.resolve(new Response(body === undefined ? null : JSON.stringify(body), { status }));
@@ -49,16 +50,29 @@ async function typePin(pin: string) {
 }
 
 describe("the corner gesture", () => {
-  it("starts only in the top-right corner, and only a still finger completes it", () => {
-    expect(inCorner(1000, 20, 1024)).toBe(true);
-    expect(inCorner(500, 20, 1024)).toBe(false);
-    expect(startHold(500, 20, 1024, 0)).toBeNull();
-    const h = startHold(1000, 20, 1024, 0)!;
-    expect(holdProgress(h, HOLD_MS / 2)).toBeCloseTo(0.5);
-    expect(holdComplete(h, HOLD_MS - 1)).toBe(false);
-    expect(holdComplete(h, HOLD_MS)).toBe(true);
-    expect(stillHolding(h, 1005, 25)).toBe(true);
-    expect(stillHolding(h, 1000, 60)).toBe(false);
+  it("starts only in the chosen corner, and lasts while the finger stays in it", () => {
+    expect(inCorner(1000, 20, 1024, 600, "top_right")).toBe(true);
+    expect(inCorner(500, 20, 1024, 600, "top_right")).toBe(false);
+    expect(inCorner(1000, 20, 1024, 600, "none")).toBe(false);
+    expect(inCorner(20, 580, 1024, 600, "bottom_left")).toBe(true);
+    expect(startHold(500, 20, 1024, 600, "top_right", 0)).toBeNull();
+    expect(startHold(1000, 20, 1024, 600, "bottom_left", 0)).toBeNull();
+    const h = startHold(1000, 20, 1024, 600, "top_right", 0)!;
+    // The first moment counts for nothing: no ring, and the hold starts after it.
+    expect(holdProgress(h, GRACE_MS)).toBe(0);
+    expect(holdProgress(h, GRACE_MS + HOLD_MS / 2)).toBeCloseTo(0.5);
+    expect(holdComplete(h, HOLD_MS)).toBe(false);
+    expect(holdComplete(h, GRACE_MS + HOLD_MS - 1)).toBe(false);
+    expect(holdComplete(h, GRACE_MS + HOLD_MS)).toBe(true);
+    expect(stillHolding(h, 960, 70, 1024, 600)).toBe(true);
+    expect(stillHolding(h, 1000, 120, 1024, 600)).toBe(false);
+    // The device's own measures: a larger corner, a shorter hold.
+    expect(startHold(900, 100, 1024, 600, "top_right", 0)).toBeNull();
+    const wide = startHold(900, 100, 1024, 600, "top_right", 0, 160, 2_000)!;
+    expect(stillHolding(wide, 860, 150, 1024, 600)).toBe(true);
+    expect(holdComplete(wide, GRACE_MS + 1_999)).toBe(false);
+    expect(holdComplete(wide, GRACE_MS + 2_000)).toBe(true);
+    expect(holdProgress(wide, GRACE_MS + 1_000)).toBeCloseTo(0.5);
   });
 
   it("checks addresses", () => {
@@ -101,6 +115,31 @@ describe("ControlPanel", () => {
     expect(calls.filter((c) => c.path === "/api/control-panel/network").every((c) => c.token === "tok")).toBe(true);
     // Wi-Fi is off: this device has no card for it.
     expect((screen.getByTestId("control-panel-section-wifi") as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("giving the device back asks the PIN again, says so when it is wrong, and goes through with the right one", async () => {
+    let pinOk = false;
+    const calls = fakeRuntime({
+      "POST /api/control-panel/reset": () => (pinOk ? reply(202) : reply(403)),
+    });
+    render(<ControlPanel onClose={() => {}} />);
+    await typePin("06e990");
+    await screen.findByTestId("card-eth0");
+    fireEvent.click(screen.getByTestId("control-panel-section-device"));
+    fireEvent.click(await screen.findByTestId("reset-ask"));
+    // Nothing is sent before the PIN is typed.
+    expect((screen.getByTestId("reset-confirm") as HTMLButtonElement).disabled).toBe(true);
+    expect(calls.some((c) => c.path === "/api/control-panel/reset")).toBe(false);
+    fireEvent.change(screen.getByTestId("reset-pin"), { target: { value: "000000" } });
+    fireEvent.click(screen.getByTestId("reset-confirm"));
+    expect((await screen.findByText(/PIN sbagliato|Wrong PIN/)).textContent).toBeTruthy();
+    pinOk = true;
+    fireEvent.change(screen.getByTestId("reset-pin"), { target: { value: "06e990" } });
+    fireEvent.click(screen.getByTestId("reset-confirm"));
+    expect(await screen.findByText(/Fatto|Done/)).toBeTruthy();
+    const sent = calls.filter((c) => c.path === "/api/control-panel/reset");
+    expect(sent.map((c) => c.body)).toEqual([JSON.stringify({ pin: "000000" }), JSON.stringify({ pin: "06e990" })]);
+    expect(sent.every((c) => c.token === "tok")).toBe(true);
   });
 
   it("a static address is sent, then the confirmation bar counts down and confirms", async () => {
@@ -186,6 +225,62 @@ describe("ControlPanel, Wi-Fi and screen (phase 4)", () => {
     expect(JSON.parse(post.body!)).toMatchObject({ ssid: "Officina", password: "officina", hidden: false });
   });
 
+  it("a refused password says so, without a confirmation to give (TY570, 14-11-2026)", async () => {
+    wifiRuntime({ "POST /api/control-panel/wifi/connect": () => reply(502, { error: "wifi-wrong-password" }) });
+    await openSection("wifi");
+    fireEvent.click((await screen.findByTestId("wifi-Officina")).querySelector("button")!);
+    for (const k of "sbagliata") fireEvent.click(screen.getByRole("button", { name: k }));
+    fireEvent.click(screen.getByRole("button", { name: /Fatto|Done/ }));
+    expect((await screen.findByRole("alert")).textContent).toMatch(/rifiutato la password|refused the password/);
+    expect(screen.queryByTestId("network-confirm")).toBeNull();
+  });
+
+  it("the joined network shows its addresses", async () => {
+    wifiRuntime({ "GET /api/control-panel/network": () => reply(200, [CARD, { ...CARD, name: "wlan0", kind: "wifi", addresses: ["192.168.1.77/24"] }]) });
+    await openSection("wifi");
+    expect((await screen.findByTestId("wifi-addresses")).textContent).toBe("192.168.1.77/24");
+  });
+
+  it("joined with no IPv4 (the network's DHCP does not answer): the IPv6 address and a line that says so (TY570, 15-11-2026)", async () => {
+    wifiRuntime({ "GET /api/control-panel/network": () => reply(200, [CARD, {
+      ...CARD, name: "wlan0", kind: "wifi", addresses: [], addresses6: ["2001:b07:aac:2cae:4aa0:c12f:5adf:6f64/64"],
+    }]) });
+    await openSection("wifi");
+    expect((await screen.findByTestId("wifi-addresses")).textContent).toBe("2001:b07:aac:2cae:4aa0:c12f:5adf:6f64/64");
+    expect(screen.getByTestId("wifi-no-ipv4").textContent).toMatch(/IPv4/);
+  });
+
+  it("a Wi-Fi dongle plugged in shows up without reopening the section (TY570, 14-11-2026)", async () => {
+    let cards: unknown[] = [CARD];
+    const calls = wifiRuntime({ "GET /api/control-panel/network": () => reply(200, cards) });
+    await openSection("wifi");
+    await screen.findByTestId("wifi-Casa");
+    const wifiReads = () => calls.filter((c) => c.path === "/api/control-panel/wifi").length;
+    const before = wifiReads();
+    cards = [CARD, { ...CARD, name: "wlan0", kind: "wifi", addresses: ["192.168.1.77/24"] }];
+    await vi.waitFor(() => expect(wifiReads()).toBeGreaterThan(before), { timeout: 5_000 });
+    expect((await screen.findByTestId("wifi-addresses")).textContent).toBe("192.168.1.77/24");
+  });
+
+  it("a dongle plugged in turns the Wi-Fi section on; the watch does not keep the session alive", async () => {
+    let cards: unknown[] = [CARD];
+    let wifi = false;
+    fakeRuntime({
+      "GET /api/control-panel/network": () => reply(200, cards),
+      "GET /api/control-panel/capabilities": () => reply(200, { network: true, wifi, time: true, reboot: true, power_off: false }),
+    });
+    render(<ControlPanel onClose={() => {}} />);
+    await typePin("06e990");
+    await screen.findByTestId("card-eth0");
+    const button = () => screen.getByTestId("control-panel-section-wifi") as HTMLButtonElement;
+    expect(button().disabled).toBe(true);
+    cards = [CARD, { ...CARD, name: "wlan0", kind: "wifi", addresses: [] }];
+    wifi = true;
+    await vi.waitFor(() => expect(button().disabled).toBe(false), { timeout: 5_000 });
+    const watches = vi.mocked(fetch).mock.calls.filter(([, init]) => new Headers(init?.headers).has("x-sws-control-panel-watch"));
+    expect(watches.length).toBeGreaterThan(0);
+  });
+
   it("the hotspot starts from the proposal and sends SSID and password", async () => {
     const calls = wifiRuntime();
     await openSection("wifi");
@@ -241,5 +336,66 @@ describe("ControlPanelLauncher", () => {
     expect(screen.queryByTestId("control-panel-pin")).toBeNull();
     // The boot button stays: it is the way back.
     expect(screen.getByTestId("control-panel-boot")).toBeTruthy();
+  });
+});
+
+describe("the time zone picker (TY570, 14-11-2026)", () => {
+  beforeEach(() => vi.unstubAllGlobals());
+  afterEach(() => vi.unstubAllGlobals());
+
+  const ZONES = [
+    { zone: "Europe/Rome", country: "IT" }, { zone: "Europe/Paris", country: "FR" },
+    { zone: "America/New_York", country: "US" }, { zone: "America/Chicago", country: "US" },
+    { zone: "America/Argentina/Buenos_Aires", country: "AR" }, { zone: "UTC", country: null },
+    { zone: "US/Eastern", country: null }, { zone: "Europe/Belfast", country: null },
+  ];
+
+  it("groups by continent and country, accents ignored by the filter", () => {
+    expect(continentsIn(ZONES)).toEqual(["Europe", "America", "other"]);
+    const am = countriesIn(ZONES, "America", "it");
+    expect(am.map((c) => c.name)).toEqual(["Argentina", "Stati Uniti"]);
+    expect(am[1].zones).toEqual(["America/New_York", "America/Chicago"]);
+    expect(cityOf("America/Argentina/Buenos_Aires")).toBe("Buenos Aires");
+    expect(zoneLabel(ZONES[0], "it")).toBe("Rome — Italia");
+    expect(search(ZONES, "itàl", "it").map((z) => z.zone)).toEqual(["Europe/Rome"]);
+    expect(search(ZONES, "buenos", "en").map((z) => z.zone)).toEqual(["America/Argentina/Buenos_Aires"]);
+    expect(search(ZONES, "ro", "en").map((z) => z.zone)).toEqual(["Europe/Rome"]);
+    // The old aliases without a country are not offered.
+    expect(search(ZONES, "belfast", "en")).toEqual([]);
+    expect(countriesIn(ZONES, "Europe", "en").every((c) => c.code !== null)).toBe(true);
+  });
+
+  async function openTime(calls = fakeRuntime({
+    "GET /api/control-panel/time": () => reply(200, { timezone: "UTC", ntp: true, can_ntp: true, ntp_synchronized: true, time_usec: 1_794_000_000_000_000 }),
+    "GET /api/control-panel/timezones": () => reply(200, ZONES),
+    "PUT /api/control-panel/time": () => reply(204),
+  })) {
+    render(<ControlPanel onClose={() => {}} />);
+    await typePin("06e990");
+    await screen.findByTestId("card-eth0");
+    fireEvent.click(screen.getByTestId("control-panel-section-time"));
+    fireEvent.click(await screen.findByTestId("timezone-change"));
+    return calls;
+  }
+
+  it("continent, then a country with one zone: chosen at once", async () => {
+    const calls = await openTime();
+    fireEvent.click(screen.getByRole("button", { name: /Europa|Europe/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^Italia|^Italy/ }));
+    await vi.waitFor(() => expect(calls.some((c) => c.method === "PUT" && c.path === "/api/control-panel/time")).toBe(true));
+    const put = calls.find((c) => c.method === "PUT" && c.path === "/api/control-panel/time")!;
+    expect(JSON.parse(put.body!)).toEqual({ timezone: "Europe/Rome" });
+  });
+
+  it("a country with more zones asks for the city; the filter lists matches directly", async () => {
+    const calls = await openTime();
+    fireEvent.click(screen.getByRole("button", { name: /America/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Stati Uniti|United States/ }));
+    expect(screen.getByTestId("timezone-cities").textContent).toMatch(/Chicago/);
+    fireEvent.click(screen.getByRole("button", { name: /Chicago/ }));
+    await vi.waitFor(() => expect(calls.some((c) => c.method === "PUT" && c.body?.includes("America/Chicago"))).toBe(true));
+    fireEvent.click(await screen.findByTestId("timezone-change"));
+    fireEvent.change(screen.getByTestId("timezone-filter"), { target: { value: "par" } });
+    expect(screen.getByTestId("timezone-results").textContent).toMatch(/Paris/);
   });
 });

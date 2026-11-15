@@ -40,6 +40,28 @@ sezione «Code annotate il 10-11-2026». Nell'IDE (cloud o 8460), con una chiave
 3. [ ] **Il banco dei tubi** (F5): un giudizio da 1 a 5 sulle due pagine del 04-11 (`tmp/ai-misure/`, solo su
        theobroma). È l'ingresso del piano «secondo giro».
 
+## Collaudo 2.26.0-rc.19 (15-11-2026) — il Tiny TY, la rotazione, le chiavi IA
+
+Il lavoro del 15-11. Le voci confermate dal maintainer il giorno stesso sono in `STATUS.md`; qui quello che resta.
+
+**Sul TY570** (pacchetto dell'rc.19, dal sito: `curl` dalla guida «Installa su dispositivo»):
+1. [ ] **Diagnostica su chiavetta**: con una chiavetta FAT32/exFAT appena inserita il pannello aspetta il montaggio e scrive il file; con
+       una NTFS dice «usa FAT32 o exFAT»; senza chiavetta dice che non c'è.
+2. [ ] **Tastiera**: «?123» e «abc» non rimbalzano (server NTP a mano, Wi-Fi).
+3. [ ] **Angoli**: un secondo di attesa prima che compaia l'anello e che inizi il conto.
+4. [ ] **Progetto verticale**: Impostazioni progetto → Orientamento → Verticale, deploy, pannello girato di 90° in senso orario:
+       pagine dritte, tocco giusto, angoli giusti, pannello di controllo con le schede in alto, immagine di avvio.
+5. [ ] **Voce divisa**: gesto spento + pulsante acceso (e viceversa) in Impostazioni progetto; e «Il dispositivo può avere un angolo che lo riavvia».
+6. [ ] **Elimina progetto e abbinamento**: PIN sbagliato rifiutato, PIN giusto: il runtime riparte senza progetto e col codice di abbinamento.
+7. [ ] **UPS** a corrente staccata, **chiavetta Wi-Fi dopo il riavvio**; un collegamento Wi-Fi senza IPv4 mostra l'IPv6 e la riga che lo dice.
+**Sul TC620**:
+8. [ ] **Rotazione**: progetto verticale → un riavvio e poi dritto; stesso progetto di nuovo → nessun riavvio; di nuovo orizzontale → un riavvio.
+**Nel cloud (VPS)**:
+9. [ ] **Chiavi IA**: un utente senza chiave di progetto aggiunge la sua in 👤 → Le mie chiavi IA e la chat dell'assistente parte; la toglie e dice «nessuna chiave»; un progetto con chiave sua usa quella
+       (la riga «Questo progetto usa…» in Fornitori e chiavi); un secondo utente senza chiave non ne ha.
+10. [ ] **Pagina di installazione**: «Installa su dispositivo» → «Tiny TY (pacchetto)» dà i passi, e `curl` + `sha256sum -c` dal sito funzionano.
+11. [ ] **«Container»** non compare nel cloud, e il titolo di una scheda porta il nome del menù («Device ›», non «Instance ›»).
+
 ## Collaudo 2.26.0-rc.15 (12-11-2026) — la rc.14 è solo un tag, il suo contenuto è qui dentro
 
 Costruita senza collaudo, su richiesta del maintainer («le rc possono permettere questa eccezione»): il collaudo

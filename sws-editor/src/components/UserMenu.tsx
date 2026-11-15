@@ -4,6 +4,8 @@ import { DROP_LABEL, DROP_ITEM, DROP_PANEL, DROP_SEP, HDR_BTN, useOutsideClose }
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { UiLangSelect } from "@/components/UiLangSelect";
 import { useAppStore, type Role } from "@/store";
+import { prefissoGateway } from "@/api/prefisso";
+import { openMyAiKeys } from "@/components/MyAiKeys";
 
 /** Role pill colours. The three dark ones keep a fixed light text; Viewer uses
  *  the themed surface and therefore the themed text colour. */
@@ -67,6 +69,13 @@ export function UserMenu({ onLogout }: { onLogout: () => void }) {
             <span>{t("theme.label")}</span>
             <ThemeToggle compact />
           </div>
+          {/* The user's own AI keys: only in the cloud, where there is an account (15-11-2026). */}
+          {prefissoGateway() !== "" && (
+            <button style={DROP_ITEM} data-testid="user-menu-ai-keys"
+              onClick={() => { setOpen(false); void openMyAiKeys(t("myAiKeys.title")); }}>
+              {t("myAiKeys.title")}
+            </button>
+          )}
           <div style={DROP_SEP} />
           <button style={DROP_ITEM} onClick={() => { onLogout(); setOpen(false); }}>
             {t("menu.logout")}

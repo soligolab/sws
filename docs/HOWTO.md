@@ -2194,3 +2194,27 @@ Le «inverter definitions» dell'integrazione Home Assistant solarman descrivono
 | Un giro Bad ogni tanto, `diagnostics.timeouts` che sale | la chiavetta perde richieste; il runtime ne rimanda una e si riprende da solo |
 | `diagnostics.implausible` che sale | un registro fuori dai limiti della mappa: valore Bad, non entra nello storico come buono |
 | I contatori «di oggi» si azzerano a un'ora strana | l'orologio dell'inverter (per esempio rimasto all'ora legale): si regola dall'app dell'inverter |
+
+## 32. Usare l'assistente IA con la propria chiave, senza metterla in ogni progetto
+
+Nel cloud, chi lavora su più progetti può mettere la chiave del fornitore (Anthropic o Kimi) **una volta, nel proprio
+account**, invece che in ognuno.
+
+1. In alto a destra, il menu 👤 con il tuo nome → **Le mie chiavi IA**.
+2. Scrivi la chiave del fornitore e premi **Salva**. Da quel momento si vedono solo le ultime quattro lettere.
+3. Apri un progetto e usa l'assistente: se il progetto **non ha una chiave sua** per quel fornitore, usa la tua.
+
+La regola è una sola: **la chiave del progetto vince**, e la tua si usa dove il progetto non ne ha. In
+Configurazione → IA → Fornitori e chiavi, sotto ogni fornitore, una riga dice quale usa quel progetto: «la chiave del
+progetto», «la tua chiave» o «nessuna».
+
+- **È tua, per tutti i progetti che apri.** Se un progetto di un cliente deve pagare lui il consumo, il progetto ha una
+  chiave sua e la tua non viene toccata.
+- **Non esce dal cloud.** La chiave sta cifrata nel database dell'identità (AES-256-GCM); il progetto la chiede al
+  gateway all'apertura della chat, la tiene in memoria per quella sessione e non la scrive da nessuna parte. Un progetto
+  può chiederla solo per chi sta lavorando in quel momento nel progetto.
+- **Per toglierla**: stessa finestra, **Togli** e un secondo tocco per confermare. Vale dalla chat dopo.
+- **Dopo un ripristino da backup** le chiavi cifrate ci sono ma non si leggono (la chiave-madre non è nella copia): la
+  finestra lo dice e basta riscriverle.
+- Sul pannello senza cloud non c'è un account: lì resta solo la chiave dell'istanza.
+

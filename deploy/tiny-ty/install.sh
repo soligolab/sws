@@ -6,7 +6,14 @@
 #
 # Uso, come root, dalla cartella del pacchetto scompattato:
 #   sudo ./install.sh              # installa o aggiorna
+#   sudo ./install.sh --chiave id_ed25519.pub   # e aggiunge una chiave SSH a pixsys
 #   sudo ./install.sh --uninstall  # toglie programmi e servizi, i dati restano
+#
+# Un solo comando per un TY nuovo (maintainer, 14-11-2026): prima prepara il
+# dispositivo con prepara-dispositivo.sh --applica (nome mDNS, avahi, chiavi
+# SSH, IPv4 al riavvio), poi installa SWS. Gli altri argomenti (--modello,
+# --chiave, --utente) vanno a prepara-dispositivo.sh. Rilanciarlo per un
+# aggiornamento non cambia niente di quello che è già a posto.
 #
 # Dove va cosa:
 #   /opt/sws/          programmi, pagine web, template, RestrictedPython
@@ -14,6 +21,7 @@
 #   /etc/sws/          runtime.env e viewer.env, mai sovrascritti
 #   /etc/systemd/system/sws-runtime.service, sws-lvgl-viewer.service
 #   /etc/udev/rules.d/99-sws-tiny-ty.rules
+#   /etc/sudoers.d/50-sws-clock  (solo con il chrony di Pixsys, vedi sotto)
 
 set -euo pipefail
 
@@ -26,6 +34,11 @@ REGOLA=/etc/udev/rules.d/99-sws-tiny-ty.rules
 # Control panel permissions: one file per polkit generation (see the files).
 POLKIT_PKLA=/etc/polkit-1/localauthority/50-local.d/50-sws-control-panel.pkla
 POLKIT_RULES=/etc/polkit-1/rules.d/50-sws-control-panel.rules
+# The rule of 14-11-2026 for Pixsys' chrony launcher: gone with the launcher
+# (remove-panelcontrol.sh), removed from a device that still has it.
+SUDOERS_CLOCK=/etc/sudoers.d/50-sws-clock
+# The diagnostic export of the control panel: see sws-diagnostics.
+SUDOERS_DIAGNOSTICS=/etc/sudoers.d/50-sws-diagnostics
 
 QUI="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -54,8 +67,18 @@ if [ "${1:-}" = "--uninstall" ]; then
         rm -f "/etc/systemd/system/$s.service"
     done
     systemctl daemon-reload
-    rm -f "$REGOLA" "$POLKIT_PKLA" "$POLKIT_RULES"
+    rm -f "$REGOLA" "$POLKIT_PKLA" "$POLKIT_RULES" "$SUDOERS_CLOCK" "$SUDOERS_DIAGNOSTICS"
     rm -rf "$INSTALL_DIR"
+    # The boot logo as it was: ours is a link into the data that stay.
+    if [ -L /data/plc/bootlogo.raw ]; then
+        rm -f /data/plc/bootlogo.raw
+        [ -f /var/lib/sws-pixsys-backup/bootlogo.raw ] &&
+            mv /var/lib/sws-pixsys-backup/bootlogo.raw /data/plc/bootlogo.raw
+    fi
+    # Pixsys' panelcontrol back where it was, if this installer took it off.
+    if [ -f /var/lib/sws-pixsys-backup/tyx_panelcontrol.tar.gz ]; then
+        "$QUI/remove-panelcontrol.sh" --restore | sed 's/^/    /' || true
+    fi
     echo "==> SWS tolto. Dati e configurazione restano:"
     echo "    $DATA_DIR e $CONF_DIR (sudo rm -rf $DATA_DIR $CONF_DIR per cancellarli)"
     echo "    l'utente $UTENTE (sudo userdel $UTENTE)"
@@ -71,7 +94,8 @@ esac
 
 for f in bin/sws-runtime bin/sws-lvgl-viewer www/index.html \
          sws-runtime.service sws-lvgl-viewer.service 99-sws-tiny-ty.rules \
-         50-sws-control-panel.pkla 50-sws-control-panel.rules; do
+         50-sws-control-panel.pkla 50-sws-control-panel.rules prepara-dispositivo.sh \
+         remove-panelcontrol.sh; do
     [ -e "$QUI/$f" ] || die "manca $f: lancialo dalla cartella del pacchetto scompattato"
 done
 
@@ -112,6 +136,8 @@ install -m 755 "$QUI/bin/sws-lvgl-viewer"             "$INSTALL_DIR/bin/"
 install -m 755 "$QUI/bin/sws-runtime-launch.sh"       "$INSTALL_DIR/bin/"
 install -m 755 "$QUI/bin/sws-lvgl-viewer-launch.sh"   "$INSTALL_DIR/bin/"
 install -m 755 "$QUI/bin/sws-hw-access.sh"            "$INSTALL_DIR/bin/"
+# Run as root through sudo: root's, and in a folder only root writes.
+[ -f "$QUI/bin/sws-diagnostics" ] && install -m 755 -o root -g root "$QUI/bin/sws-diagnostics" "$INSTALL_DIR/bin/"
 for d in www templates catalogo; do
     rm -rf "${INSTALL_DIR:?}/$d"
     [ -d "$QUI/$d" ] && cp -r "$QUI/$d" "$INSTALL_DIR/$d"
@@ -181,7 +207,6 @@ fi
 
 echo "==> Regola udev per luce e cicalino"
 mkdir -p "$(dirname "$REGOLA")"
-mkdir -p "$(dirname "$REGOLA")"
 install -m 644 "$QUI/99-sws-tiny-ty.rules" "$REGOLA"
 udevadm control --reload
 udevadm trigger --action=add --subsystem-match=backlight --subsystem-match=pwm || true
@@ -192,6 +217,87 @@ install -d -m 755 "$(dirname "$POLKIT_PKLA")" "$(dirname "$POLKIT_RULES")"
 install -m 644 "$QUI/50-sws-control-panel.pkla" "$POLKIT_PKLA"
 install -m 644 "$QUI/50-sws-control-panel.rules" "$POLKIT_RULES"
 
+rm -f "$SUDOERS_CLOCK"
+
+# The diagnostic export: the runtime's user may run the helper as root, with
+# these three arguments and no other. Checked before it goes in: a broken file
+# in sudoers.d locks sudo for everyone.
+if [ -x "$INSTALL_DIR/bin/sws-diagnostics" ]; then
+    tmp="$(mktemp)"
+    for cmd in journal dmesg check-usb to-usb; do
+        echo "sws ALL=(root) NOPASSWD: $INSTALL_DIR/bin/sws-diagnostics $cmd"
+    done > "$tmp"
+    if visudo -cf "$tmp" >/dev/null; then
+        install -m 440 -o root -g root "$tmp" "$SUDOERS_DIAGNOSTICS"
+    else
+        echo "    ATTENZIONE: regola sudoers della diagnostica non valida, non installata" >&2
+    fi
+    rm -f "$tmp"
+fi
+
+# ── Firmware Wi-Fi ────────────────────────────────────────────────────────────
+#
+# Pixsys' kernel has the `rtl8xxxu` and `rtl8192cu` drivers but not all their
+# firmware: RTL8723BU, RTL8192EU and RTL8723AU dongles were read and never
+# became a Wi-Fi card (TY570, 15-11-2026). The files come from linux-firmware,
+# redistributable (LICENCE.rtlwifi_firmware.txt, next to them). Only the
+# missing ones are added: a file of the system is never replaced.
+if [ -d "$QUI/firmware/rtlwifi" ]; then
+    install -d -m 755 /lib/firmware/rtlwifi
+    added=0
+    for f in "$QUI"/firmware/rtlwifi/*.bin; do
+        if [ ! -e "/lib/firmware/rtlwifi/$(basename "$f")" ]; then
+            install -m 644 "$f" /lib/firmware/rtlwifi/
+            added=$((added + 1))
+        fi
+    done
+    [ "$added" -gt 0 ] && echo "==> Firmware Wi-Fi: aggiunti $added file in /lib/firmware/rtlwifi"
+    install -m 644 "$QUI/firmware/LICENCE.rtlwifi_firmware.txt" /lib/firmware/rtlwifi/ 2>/dev/null || true
+fi
+
+# ── L'immagine di avvio ───────────────────────────────────────────────────────
+#
+# Pixsys' rc.local copies /data/plc/bootlogo.raw to the screen early in the
+# boot. That name becomes a link to the file the runtime writes from the
+# project's boot page (SWS_BOOT_IMAGE_RAW in its launcher). A logo already
+# there is kept aside, and --uninstall puts it back.
+BOOT_LOGO=/data/plc/bootlogo.raw
+BOOT_LOGO_SWS="$DATA_DIR/config/boot-image/bootlogo.raw"
+BOOT_LOGO_KEPT=/var/lib/sws-pixsys-backup/bootlogo.raw
+if [ -d "$(dirname "$BOOT_LOGO")" ] && [ "$(readlink "$BOOT_LOGO" 2>/dev/null)" != "$BOOT_LOGO_SWS" ]; then
+    echo "==> Immagine di avvio: $BOOT_LOGO diventa quella del progetto"
+    if [ -f "$BOOT_LOGO" ] && [ ! -L "$BOOT_LOGO" ] && [ ! -e "$BOOT_LOGO_KEPT" ]; then
+        install -d -m 700 "$(dirname "$BOOT_LOGO_KEPT")"
+        mv "$BOOT_LOGO" "$BOOT_LOGO_KEPT"
+    fi
+    ln -sfn "$BOOT_LOGO_SWS" "$BOOT_LOGO"
+fi
+
+# ── Un sistema pulito ─────────────────────────────────────────────────────────
+#
+# `tyx_panelcontrol` di Pixsys va via: UPS, USB, orologio e Device Finder
+# passano a SWS e a systemd (decisione del maintainer, 14-11-2026: «essere
+# svincolati dal loro tyx_panelcontrol e poter lavorare su un sistema pulito»).
+# Prima dei servizi: il runtime parte già col sistema nuovo. Se non riesce,
+# l'installazione continua e tyx_panelcontrol resta dov'è.
+echo "==> Sistema pulito (remove-panelcontrol.sh)"
+if ! "$QUI/remove-panelcontrol.sh" 2>&1 | sed 's/^/    /'; then
+    echo "    attenzione: tyx_panelcontrol non è stato tolto del tutto; rilancia"
+    echo "    sudo $QUI/remove-panelcontrol.sh"
+fi
+
+# ── Il dispositivo ────────────────────────────────────────────────────────────
+#
+# Nome in rete, avahi, chiavi SSH e IPv4 al riavvio: le correzioni del sistema
+# Pixsys che SWS dà per scontate. Prima dei servizi, così il runtime si annuncia
+# col nome nuovo. Una preparazione che non riesce (per esempio avahi senza
+# internet) non ferma l'installazione: lo dice, e si può rilanciare a parte.
+echo "==> Preparazione del dispositivo (prepara-dispositivo.sh --applica)"
+if ! "$QUI/prepara-dispositivo.sh" --applica "$@" 2>&1 | sed 's/^/    /'; then
+    echo "    attenzione: la preparazione non è finita; rilanciala con"
+    echo "    sudo $QUI/prepara-dispositivo.sh --applica"
+fi
+
 echo "==> Servizi"
 for s in "${SERVIZI[@]}"; do
     install -m 644 "$QUI/$s.service" "/etc/systemd/system/$s.service"
@@ -201,21 +307,6 @@ for s in "${SERVIZI[@]}"; do
     systemctl enable "$s"
     systemctl restart "$s"
 done
-
-# ── Chi tiene lo schermo ──────────────────────────────────────────────────────
-#
-# `tyx_panelcontrol` di Pixsys gestisce UPS, cicalino e i servizi del PLC, e
-# resta acceso: SWS ci convive. Lo schermo lo contende solo la sua finestra di
-# setup (`tyx_panelcontrol gui`, aperta toccando lo schermo all'avvio), e il
-# viewer aspetta che si chiuda (`sws-lvgl-viewer-launch.sh`). Avvisare per il
-# processo senza `gui` era l'avviso vecchio del 12-11-2026.
-# Matched on the executable path: the process renames itself (comm is
-# `tyx-pc-gui`), so `pgrep -x tyx_panelcontrol` never finds it.
-if pgrep -f '^/data/tyx_panelcontrol/tyx_panelcontrol gui' >/dev/null 2>&1; then
-    echo ""
-    echo "    ATTENZIONE: il setup di Pixsys è aperto sullo schermo."
-    echo "    Il viewer di SWS comparirà quando lo si chiude."
-fi
 
 # ── Com'è andata ──────────────────────────────────────────────────────────────
 

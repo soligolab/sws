@@ -76,10 +76,23 @@ fn solo_ide(s: &AppState) -> Result<(), Response> {
 /// scelta salvata e quella **effettiva** (cosa userà davvero), le variabili
 /// d'ambiente che scavalcano il file. Non restituisce **niente** della chiave,
 /// nemmeno mascherata: al pannello serve sapere *se* è configurata.
-pub async fn get_ai_config(State(s): State<AppState>) -> Response {
+pub async fn get_ai_config(State(s): State<AppState>, req: axum::extract::Request) -> Response {
     if let Err(r) = solo_ide(&s) {
         return r;
     }
+    // The key the project would use for each provider: its own, or that of the
+    // user asking (behind the gateway), or none (`source`). Read before any
+    // await: the request is not held across them.
+    let username = req
+        .extensions()
+        .get::<crate::router::AuthUser>()
+        .map(|a| a.username.clone())
+        .unwrap_or_default();
+    let missing: Vec<Fornitore> = [Fornitore::Anthropic, Fornitore::Kimi]
+        .into_iter()
+        .filter(|f| !client::ha_chiave(&s.config_dir, *f))
+        .collect();
+    let user_keys = crate::ai::user_keys::fetch(&s, &username, &missing).await;
 
     let imp = Impostazioni::carica(&s.config_dir);
     let ambiente: Vec<&str> = [
@@ -107,6 +120,11 @@ pub async fn get_ai_config(State(s): State<AppState>) -> Response {
                 "nome": nome,
                 "scopi": sa,
                 "chiave": scopi::ha_chiave(&s.config_dir, id),
+                // Which key the project would use: `project`, `user` (the key
+                // of whoever opens this menu) or null.
+                "source": Fornitore::da_nome(id).and_then(|f| {
+                    client::resolve_key(&s.config_dir, f, &user_keys).map(|(_, src)| src.name())
+                }),
                 "modello_default": match *id {
                     "openai" => scopi::MODELLO_SFONDI,
                     f => Fornitore::da_nome(f).map(|f| f.modello_default()).unwrap_or(""),

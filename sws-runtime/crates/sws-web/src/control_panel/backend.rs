@@ -30,6 +30,114 @@ pub struct Capabilities {
     /// viewer is the viewer's own and is not here.
     #[serde(default)]
     pub touch_calibration_service: bool,
+    /// A corner of the screen, held for a few seconds, reboots the device:
+    /// Pixsys' `Config1.TouchReboot` (TC/WP) or the LVGL viewer (Tiny TY).
+    #[serde(default)]
+    pub reboot_corner: bool,
+}
+
+/// The corner that reboots the device when held. The order is the one of
+/// Pixsys' `Config1.TouchReboot` (measured on the TC620, 15-11-2026).
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum RebootCorner {
+    #[default]
+    None,
+    TopLeft,
+    TopRight,
+    BottomRight,
+    BottomLeft,
+}
+
+impl RebootCorner {
+    pub const ALL: [RebootCorner; 5] = [
+        RebootCorner::None,
+        RebootCorner::TopLeft,
+        RebootCorner::TopRight,
+        RebootCorner::BottomRight,
+        RebootCorner::BottomLeft,
+    ];
+
+    pub fn pixsys(self) -> u32 {
+        Self::ALL.iter().position(|c| *c == self).unwrap_or(0) as u32
+    }
+
+    pub fn from_pixsys(v: u32) -> Option<Self> {
+        Self::ALL.get(v as usize).copied()
+    }
+}
+
+/// How the corner behaves where the LVGL viewer watches it (Tiny TY). The
+/// defaults are PixsysOS' behaviour, measured by the maintainer on the TC620
+/// (15-11-2026): 5 seconds, about 2 cm of screen, no confirmation.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
+pub struct RebootCornerOptions {
+    pub hold_secs: u8,
+    /// The side of the corner in pixels: the viewer does not know the
+    /// screen's physical size. 100 px are about 2 cm on a Tiny TY.
+    pub size_px: u16,
+    /// Ask before rebooting.
+    pub confirm: bool,
+}
+
+/// How the corner that opens the control panel behaves: the same two
+/// measures as the reboot corner's (maintainer, 15-11-2026: «lo stesso
+/// meccanismo»), without the question.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
+pub struct PanelCornerOptions {
+    pub hold_secs: u8,
+    pub size_px: u16,
+}
+
+impl Default for PanelCornerOptions {
+    fn default() -> Self {
+        // What the gesture always was: 5 seconds in an 80 px square.
+        Self {
+            hold_secs: 5,
+            size_px: 80,
+        }
+    }
+}
+
+impl PanelCornerOptions {
+    pub fn validate(&self) -> Result<(), String> {
+        RebootCornerOptions {
+            hold_secs: self.hold_secs,
+            size_px: self.size_px,
+            confirm: false,
+        }
+        .validate()
+    }
+}
+
+impl Default for RebootCornerOptions {
+    fn default() -> Self {
+        Self {
+            hold_secs: 5,
+            size_px: 100,
+            confirm: false,
+        }
+    }
+}
+
+impl RebootCornerOptions {
+    pub fn validate(&self) -> Result<(), String> {
+        if !(2..=15).contains(&self.hold_secs) {
+            return Err(format!(
+                "hold_secs {} is not between 2 and 15",
+                self.hold_secs
+            ));
+        }
+        if !(40..=200).contains(&self.size_px) {
+            return Err(format!(
+                "size_px {} is not between 40 and 200",
+                self.size_px
+            ));
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -54,6 +162,10 @@ pub struct Card {
     pub mac: Option<String>,
     /// The addresses the card has now, `a.b.c.d/prefix`.
     pub addresses: Vec<String>,
+    /// The IPv6 addresses that are not link-local, `addr/prefix`. A Wi-Fi card
+    /// whose network gives no DHCP answer has only these (TY570, 15-11-2026):
+    /// without them the panel showed nothing of a connection that works.
+    pub addresses6: Vec<String>,
     pub gateway: Option<String>,
     pub dns: Vec<String>,
     /// How the active profile asks for IPv4. `None` = no profile active.
@@ -127,6 +239,122 @@ pub struct TimeState {
     pub ntp_synchronized: bool,
     /// Microseconds since the epoch, UTC.
     pub time_usec: u64,
+    /// What the NTP client measured, where it can be asked.
+    pub drift: Option<ClockDrift>,
+    /// Which servers the clock follows; `None` where this system gives no
+    /// clean way to choose them.
+    pub ntp_servers: Option<NtpServers>,
+}
+
+/// The NTP servers: the system's own list, or one to four written by hand
+/// (a plant without internet has its own: the PLC, the factory's server).
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct NtpServers {
+    pub manual: bool,
+    /// Kept when `manual` goes off, so that they come back.
+    #[serde(default)]
+    pub servers: Vec<String>,
+}
+
+pub const MAX_NTP_SERVERS: usize = 4;
+
+/// The servers of the automatic mode on chrony: the same the installer of the
+/// Tiny TY writes (`deploy/tiny-ty/remove-panelcontrol.sh`).
+const CHRONY_POOLS: [&str; 4] = [
+    "0.ubuntu.pool.ntp.org",
+    "1.ubuntu.pool.ntp.org",
+    "2.ubuntu.pool.ntp.org",
+    "ntp.ubuntu.com",
+];
+const CHRONY_MANUAL: &str = "# sws: manual";
+const CHRONY_AUTO: &str = "# sws: automatic";
+const CHRONY_KEPT: &str = "# kept: ";
+
+/// A host name or an address, as it goes into a configuration file: nothing
+/// that could start another directive.
+pub fn valid_ntp_server(s: &str) -> bool {
+    !s.is_empty()
+        && s.len() <= 253
+        && s.chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | ':'))
+        && !s.starts_with(['-', '.'])
+}
+
+impl NtpServers {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.servers.len() > MAX_NTP_SERVERS {
+            return Err(format!("at most {MAX_NTP_SERVERS} NTP servers"));
+        }
+        if self.manual && self.servers.is_empty() {
+            return Err("the manual mode needs at least one NTP server".into());
+        }
+        match self.servers.iter().find(|s| !valid_ntp_server(s)) {
+            Some(bad) => Err(format!("\"{bad}\" is not a host name or an address")),
+            None => Ok(()),
+        }
+    }
+
+    /// The sources file of chrony for these servers.
+    pub fn to_chrony(&self) -> String {
+        let mut out = String::from("# Written by the SWS control panel (Time → NTP servers).\n");
+        if self.manual {
+            out.push_str(CHRONY_MANUAL);
+            out.push('\n');
+            for s in &self.servers {
+                out.push_str(&format!("server {s} iburst\n"));
+            }
+        } else {
+            out.push_str(CHRONY_AUTO);
+            out.push('\n');
+            for s in &self.servers {
+                out.push_str(&format!("{CHRONY_KEPT}{s}\n"));
+            }
+            for p in CHRONY_POOLS {
+                out.push_str(&format!("pool {p} iburst\n"));
+            }
+        }
+        out
+    }
+
+    /// A sources file read back. One this panel did not write is automatic.
+    pub fn from_chrony(text: &str) -> Self {
+        let manual = text.lines().any(|l| l.trim() == CHRONY_MANUAL);
+        let servers = text
+            .lines()
+            .filter_map(|l| {
+                let l = l.trim();
+                if manual {
+                    let mut words = l.split_whitespace();
+                    (words.next() == Some("server")).then(|| words.next())?
+                } else {
+                    l.strip_prefix(CHRONY_KEPT)
+                }
+            })
+            .filter(|s| valid_ntp_server(s))
+            .take(MAX_NTP_SERVERS)
+            .map(str::to_string)
+            .collect();
+        Self { manual, servers }
+    }
+}
+
+/// The clock against its NTP sources.
+#[derive(Debug, Clone, Copy, Serialize, PartialEq)]
+pub struct ClockDrift {
+    /// How much the clock runs fast (positive) or slow, in parts per million.
+    pub ppm: f64,
+    /// The last distance from the NTP time, in seconds.
+    pub offset_secs: f64,
+}
+
+/// One line of `chronyc -c tracking`: the last offset is the sixth field, the
+/// frequency the eighth.
+pub fn parse_chrony_tracking(line: &str) -> Option<ClockDrift> {
+    let f: Vec<&str> = line.trim().split(',').collect();
+    Some(ClockDrift {
+        offset_secs: f.get(5)?.parse().ok()?,
+        ppm: f.get(7)?.parse().ok()?,
+    })
 }
 
 #[derive(Debug, Clone, Default, Deserialize, PartialEq)]
@@ -139,6 +367,8 @@ pub struct TimeChange {
     /// as `timedatectl` requires.
     #[serde(default)]
     pub time_usec: Option<u64>,
+    #[serde(default)]
+    pub ntp_servers: Option<NtpServers>,
 }
 
 /// What the Wi-Fi card is doing.
@@ -422,6 +652,61 @@ impl Backend {
         }
     }
 
+    /// The reboot corner is the LVGL viewer's work (Tiny TY): the value lives
+    /// in the device's settings and the viewer reads it from there.
+    /// Whether the viewer turns the picture itself (a portrait project, a
+    /// device upside down): where it owns the glass, not under a compositor.
+    pub fn rotation_by_viewer(&self) -> bool {
+        match self {
+            Backend::Dbus => super::dbus::rotation_by_viewer(),
+            Backend::Fake(_) => true,
+        }
+    }
+
+    /// PixsysOS turns the screen (and restarts the panel to do it).
+    pub async fn rotation_by_system(&self) -> bool {
+        match self {
+            Backend::Dbus => super::dbus::rotation_by_system().await,
+            Backend::Fake(_) => false,
+        }
+    }
+
+    pub async fn system_rotation(&self) -> Result<u32, String> {
+        match self {
+            Backend::Dbus => super::dbus::system_rotation().await,
+            Backend::Fake(_) => Err("the viewer turns the screen".into()),
+        }
+    }
+
+    pub async fn set_system_rotation(&self, quarter_turns: u32) -> Result<(), String> {
+        match self {
+            Backend::Dbus => super::dbus::set_system_rotation(quarter_turns).await,
+            Backend::Fake(_) => Err("the viewer turns the screen".into()),
+        }
+    }
+
+    pub fn reboot_corner_by_viewer(&self) -> bool {
+        match self {
+            Backend::Dbus => super::dbus::reboot_corner_by_viewer(),
+            Backend::Fake(_) => true,
+        }
+    }
+
+    /// The corner as PixsysOS has it. Not for [`Self::reboot_corner_by_viewer`].
+    pub async fn reboot_corner(&self) -> Result<RebootCorner, String> {
+        match self {
+            Backend::Dbus => super::dbus::reboot_corner().await,
+            Backend::Fake(_) => Err("the reboot corner is the viewer's".into()),
+        }
+    }
+
+    pub async fn set_reboot_corner(&self, corner: RebootCorner) -> Result<(), String> {
+        match self {
+            Backend::Dbus => super::dbus::set_reboot_corner(corner).await,
+            Backend::Fake(_) => Err("the reboot corner is the viewer's".into()),
+        }
+    }
+
     /// Starts PixsysOS' calibration, which takes the screen by itself.
     pub async fn start_touch_calibration(&self) -> Result<(), String> {
         match self {
@@ -455,15 +740,41 @@ impl Backend {
                 if let Some(ntp) = change.ntp {
                     t.ntp = ntp;
                 }
+                if let Some(servers) = &change.ntp_servers {
+                    t.ntp_servers = Some(servers.clone());
+                }
                 Ok(())
             }
         }
     }
 
-    pub async fn timezones(&self) -> Result<Vec<String>, String> {
+    /// Every time zone, with the country it belongs to: the screen picks
+    /// continent, then country, then city (TY570, 14-11-2026: one list of 400
+    /// names could not be used on a 7" screen).
+    pub async fn timezones(&self) -> Result<Vec<Zone>, String> {
         match self {
-            Backend::Dbus => super::dbus::timezones().await,
-            Backend::Fake(_) => Ok(vec!["Europe/Rome".into(), "UTC".into()]),
+            Backend::Dbus => {
+                let zones = super::dbus::timezones().await?;
+                let countries = std::fs::read_to_string(ZONE_TAB)
+                    .map(|t| zone_countries(&t))
+                    .unwrap_or_default();
+                Ok(with_countries(zones, &countries))
+            }
+            Backend::Fake(_) => Ok([
+                ("America/Argentina/Buenos_Aires", Some("AR")),
+                ("America/Chicago", Some("US")),
+                ("America/New_York", Some("US")),
+                ("Asia/Tokyo", Some("JP")),
+                ("Europe/Paris", Some("FR")),
+                ("Europe/Rome", Some("IT")),
+                ("UTC", None),
+            ]
+            .into_iter()
+            .map(|(z, c)| Zone {
+                zone: z.into(),
+                country: c.map(Into::into),
+            })
+            .collect()),
         }
     }
 
@@ -511,6 +822,7 @@ impl Default for Fake {
                 state: CardState::Connected,
                 mac: Some("7c:6c:39:06:e9:90".into()),
                 addresses: vec!["192.168.1.242/24".into()],
+                addresses6: vec![],
                 gateway: Some("192.168.1.1".into()),
                 dns: vec!["192.168.1.1".into()],
                 method: Some(Ipv4Method::Auto),
@@ -522,6 +834,11 @@ impl Default for Fake {
                 can_ntp: true,
                 ntp_synchronized: true,
                 time_usec: 1_794_600_000_000_000,
+                drift: Some(ClockDrift {
+                    ppm: 21.136,
+                    offset_secs: 0.000_138,
+                }),
+                ntp_servers: Some(NtpServers::default()),
             }),
             last_power: Mutex::new(None),
             wifi: Mutex::new(WifiState {
@@ -554,6 +871,7 @@ impl Fake {
             power_off: true,
             display: true,
             touch_calibration_service: false,
+            reboot_corner: true,
         }
     }
 
@@ -688,9 +1006,133 @@ fn fake_net(
     }
 }
 
+/// One time zone and its country (ISO 3166 code), as `zone.tab` says.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Zone {
+    pub zone: String,
+    pub country: Option<String>,
+}
+
+/// Where tzdata says which country each zone belongs to. Present on Ubuntu
+/// (the Tiny TY, 14-11-2026); without it every zone has no country and the
+/// screen falls back to continent and city.
+pub const ZONE_TAB: &str = "/usr/share/zoneinfo/zone.tab";
+
+/// `zone.tab`: `CC<TAB>coordinates<TAB>Zone[<TAB>comment]`, `#` for comments.
+pub fn zone_countries(text: &str) -> std::collections::HashMap<String, String> {
+    text.lines()
+        .filter(|l| !l.starts_with('#'))
+        .filter_map(|l| {
+            let mut f = l.split('\t');
+            let cc = f.next()?.trim();
+            let zone = f.nth(1)?.trim();
+            (cc.len() == 2 && !zone.is_empty()).then(|| (zone.to_string(), cc.to_string()))
+        })
+        .collect()
+}
+
+pub fn with_countries(
+    zones: Vec<String>,
+    countries: &std::collections::HashMap<String, String>,
+) -> Vec<Zone> {
+    zones
+        .into_iter()
+        .map(|zone| Zone {
+            country: countries.get(&zone).cloned(),
+            zone,
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_ntp_servers_go_to_chrony_and_come_back() {
+        let manual = NtpServers {
+            manual: true,
+            servers: vec!["192.168.1.10".into(), "ntp.plant.example".into()],
+        };
+        assert_eq!(manual.validate(), Ok(()));
+        let text = manual.to_chrony();
+        assert!(text.contains("server 192.168.1.10 iburst\n"));
+        assert!(!text.contains("pool "));
+        assert_eq!(NtpServers::from_chrony(&text), manual);
+        // Back to automatic: the pools, and the servers kept for next time.
+        let auto = NtpServers {
+            manual: false,
+            ..manual.clone()
+        };
+        let text = auto.to_chrony();
+        assert!(text.contains("pool 0.ubuntu.pool.ntp.org iburst\n"));
+        assert!(!text.contains("server 192.168.1.10"));
+        assert_eq!(NtpServers::from_chrony(&text), auto);
+        // The installer's file, which this panel never wrote.
+        assert_eq!(
+            NtpServers::from_chrony("pool 0.ubuntu.pool.ntp.org iburst\n"),
+            NtpServers::default()
+        );
+        // Nothing that could become another directive.
+        for bad in ["", "a b", "x\nserver evil", "-x", "a;b", "a#b"] {
+            assert!(!valid_ntp_server(bad), "{bad:?}");
+        }
+        let none = NtpServers {
+            manual: true,
+            servers: vec![],
+        };
+        assert!(none.validate().is_err());
+        let many = NtpServers {
+            manual: true,
+            servers: vec!["a".into(); 5],
+        };
+        assert!(many.validate().is_err());
+    }
+
+    #[test]
+    fn the_drift_is_read_from_chrony() {
+        let line = "8E4E8C97,2a00:dcc0::123,3,1794733220.371,0.000014152,0.000138435,0.000128346,21.136,0.012,0.428,0.0131,0.0010,64.3,Normal\n";
+        assert_eq!(
+            parse_chrony_tracking(line),
+            Some(ClockDrift {
+                ppm: 21.136,
+                offset_secs: 0.000138435
+            })
+        );
+        assert_eq!(parse_chrony_tracking("506 Cannot talk to daemon"), None);
+    }
+
+    #[test]
+    fn the_reboot_corner_keeps_pixsys_numbers() {
+        assert_eq!(RebootCorner::None.pixsys(), 0);
+        assert_eq!(RebootCorner::BottomLeft.pixsys(), 4);
+        for c in RebootCorner::ALL {
+            assert_eq!(RebootCorner::from_pixsys(c.pixsys()), Some(c));
+        }
+        assert_eq!(RebootCorner::from_pixsys(5), None);
+        assert!(RebootCornerOptions::default().validate().is_ok());
+        let long = RebootCornerOptions {
+            hold_secs: 60,
+            ..Default::default()
+        };
+        assert!(long.validate().is_err());
+        assert_eq!(
+            serde_json::to_string(&RebootCorner::TopLeft).unwrap(),
+            "\"top_left\""
+        );
+    }
+
+    #[test]
+    fn zone_tab_gives_each_zone_its_country() {
+        let tab = "# comment\nIT\t+4154+01229\tEurope/Rome\nUS\t+404251-0740023\tAmerica/New_York\tEastern (most areas)\nbad line\n";
+        let m = zone_countries(tab);
+        assert_eq!(m.get("Europe/Rome").map(String::as_str), Some("IT"));
+        assert_eq!(m.get("America/New_York").map(String::as_str), Some("US"));
+        assert_eq!(m.len(), 2);
+        let z = with_countries(vec!["Europe/Rome".into(), "UTC".into()], &m);
+        assert_eq!(z[0].country.as_deref(), Some("IT"));
+        assert_eq!(z[1].country, None);
+    }
 
     fn manual(addr: &str, prefix: u8) -> Ipv4Change {
         Ipv4Change {

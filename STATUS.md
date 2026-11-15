@@ -12,6 +12,40 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — rc.19: il Tiny TY, la rotazione, le chiavi IA nell'account (2026-11-15)
+
+Giornata sul TY570 (casa) con il maintainer che provava un test alla volta. Tutto in `main` con un commit solo, rc.19.
+
+**Cosa c'è, per chi apre l'IDE o il pannello:**
+- **Pannello di controllo** (web e LVGL): angoli che riavviano o aprono il pannello (quattro angoli, tempo e lato
+  regolabili, anello rosso o verde, riquadro d'anteprima, un secondo di attesa prima di contare), «Capovolto di 180°», Informazioni
+  (SWS, progetto con data e spazio, sistema, stato) e diagnostica su chiavetta o scaricabile, server NTP a mano con tastiera,
+  deriva dell'orologio, elimina progetto e abbinamento (con il PIN di nuovo), disposizione per schermi stretti, un collegamento
+  Wi-Fi senza IPv4 mostra l'IPv6. Le sezioni più alte dello schermo scorrono.
+- **Rotazione**: orientamento orizzontale/verticale del progetto (Impostazioni progetto), il viewer LVGL gira disegno, tocco, angoli e
+  immagine di avvio; sui TC/WP la rotazione di PixsysOS (1 = 90° orari, riavvia il pannello una volta).
+- **Progetto**: il pannello si apre dal gesto e dal pulsante (due caselle, il vecchio `enabled` resta il master); l'angolo che
+  riavvia si può vietare; «Container» non si disegna nel cloud.
+- **Chiavi IA nell'account** (cloud): menu 👤 → «Le mie chiavi IA»; vale dove il progetto non ha la sua. Cifrate in `identita.db`,
+  chiave-madre `chiave_segreti` fuori dal backup. HOWTO 32.
+- **Pacchetto del Tiny TY dal sito**: `sws.soligo.net/download/tiny-ty/latest.tar.gz`, con la guida «Installa su dispositivo» che
+  apre con la scelta del dispositivo. `scripts/publish_tiny_ty_package.sh` lo pubblica a ogni rc.
+
+**Confermato dal maintainer sul TY570 il 15-11-2026:** luce, immagine di avvio (anche capovolta), angoli (tutti e quattro), Ora
+automatica/manuale, deriva, server NTP, 180° con gesti che seguono il disegno, Schermo e Informazioni che scorrono, Informazioni
+giuste, Wi-Fi con la chiavetta RTL8188EUS (rete solo WPA2) e HVAC fluido.
+
+**Da collaudare sulla rc.19 (domani, «il debug lo completo domani»)**: diagnostica su chiavetta con la build nuova (aspetta il
+montaggio; una chiavetta NTFS non si legge, il kernel non ha NTFS), il tasto «abc» della tastiera (non rimbalza più), l'attesa di un
+secondo degli angoli, progetto verticale sul TY570, la casella gesto/pulsante e il divieto dell'angolo (serve un IDE con
+l'rc.19), «Elimina progetto e abbinamento», UPS a corrente staccata, le chiavi IA nel cloud con una chiave vera, la rotazione sul
+TC620, e la pagina di installazione del Tiny TY. Il Wi-Fi di casa non inoltra il DHCP dei client Wi-Fi al cavo (provato con
+`tcpdump`): è da sistemare sul router, non in SWS.
+
+**Resta (seme `docs/plans/semi/2026-11-15-tiny-ty-funzioni-rimaste.md`)**: IP statico sul Wi-Fi, sezione Servizi, beep e luce sui
+TC/WP, backup su chiavetta (PixsysOS ≥ 2.2.0). CasaDomotica: i pulsanti e le sezioni nuove del pannello di controllo (con il
+maintainer, regola di `CLAUDE.md`). Bug piccolo annotato: «Later» al cambio password (seme `cambio-password-later-errore`).
+
 ## ▶ Riprendere da qui — rc.18: pannello di controllo, Device → Schermo e accesso, stile sobrio (2026-11-14)
 
 Su richiesta del maintainer («fai lo squash merge di tutto su main e rilascia la rc di tutto») la catena annidata è

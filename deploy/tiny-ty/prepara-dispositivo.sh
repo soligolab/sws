@@ -117,12 +117,19 @@ if [ -n "$NOME" ] && [ "$(hostname)" != "$NOME" ]; then
 fi
 if [ "$AVAHI" -eq 0 ]; then
     # The Pixsys image ships with empty package lists (/var/lib/apt/lists).
-    fai apt-get update
-    fai env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends avahi-daemon
+    # Without internet this fails: said, and the SSH and IPv4 steps still run.
+    if fai apt-get update && \
+       fai env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends avahi-daemon; then
+        [ "$APPLICA" -eq 1 ] && AVAHI=1
+    else
+        echo "  ✗ avahi not installed (no internet towards ports.ubuntu.com?): the .local name will not be published"
+    fi
 fi
-fai systemctl enable --now avahi-daemon
-# Avahi rilegge il nome della macchina solo all'avvio.
-[ -n "$NOME" ] && fai systemctl restart avahi-daemon
+if [ "$AVAHI" -eq 1 ]; then
+    fai systemctl enable --now avahi-daemon
+    # Avahi rilegge il nome della macchina solo all'avvio.
+    [ -n "$NOME" ] && fai systemctl restart avahi-daemon
+fi
 
 # ── 2. SSH con chiave ─────────────────────────────────────────────────────────
 

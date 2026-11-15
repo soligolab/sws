@@ -217,6 +217,9 @@ pub async fn inoltra_al_progetto(
     };
     let regia = s.regia.as_ref().expect("verificata sopra");
     let segreto = regia.segreto().to_string();
+    // Who is working in this project right now: the AI key of the user is handed
+    // to its container only for someone noted here (`ai_keys.rs`).
+    crate::ai_keys::forwarded().note(&aperto.riferimento, &utente, std::time::Instant::now());
 
     if let Some(ws) = ws {
         // Una finestra in più collegata: è questo che tiene acceso il

@@ -113,6 +113,7 @@ pub fn origine_della_richiesta(h: &axum::http::HeaderMap) -> Option<String> {
 pub fn va_aggiunta(url: &str, origine: &str) -> bool {
     url.strip_prefix(origine).is_some_and(|resto| {
         resto.starts_with("/dev/")
+            || resto.starts_with("/api/internal/ai-key/")
             || resto == "/api/pannelli"
             || resto == "/api/pannelli/abbina"
             || (resto.starts_with("/api/pannelli/") && resto.ends_with("/rinomina"))
@@ -215,6 +216,12 @@ mod tests {
             "https://sws.soligo.net/dev/tc620-casa/api/projects",
             o
         ));
+        // The AI key of the user (15-11-2026), and nothing else under /api/internal.
+        assert!(va_aggiunta(
+            "https://sws.soligo.net/api/internal/ai-key/anthropic?user=m%40soligo.net",
+            o
+        ));
+        assert!(!va_aggiunta("https://sws.soligo.net/api/internal/other", o));
         assert!(!va_aggiunta("https://sws.soligo.net/p/acme/x/api", o));
         assert!(va_aggiunta("https://sws.soligo.net/api/pannelli", o));
         assert!(!va_aggiunta("https://sws.soligo.net/api/pannelli/x", o));

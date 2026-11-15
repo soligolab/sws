@@ -10,8 +10,9 @@
 //! as an error string and the panel shows it; nothing here asks for a password.
 
 use super::backend::{
-    Capabilities, Card, CardKind, CardState, Hotspot, Ipv4Change, Ipv4Method, TimeChange,
-    TimeState, WifiConnect, WifiMode, WifiNetwork, WifiSecurity, WifiState,
+    Capabilities, Card, CardKind, CardState, Hotspot, Ipv4Change, Ipv4Method, NtpServers,
+    RebootCorner, TimeChange, TimeState, WifiConnect, WifiMode, WifiNetwork, WifiSecurity,
+    WifiState,
 };
 use std::collections::HashMap;
 use std::net::Ipv4Addr;
@@ -22,6 +23,7 @@ const NM: &str = "org.freedesktop.NetworkManager";
 const NM_PATH: &str = "/org/freedesktop/NetworkManager";
 const NM_DEVICE: &str = "org.freedesktop.NetworkManager.Device";
 const NM_IP4: &str = "org.freedesktop.NetworkManager.IP4Config";
+const NM_IP6: &str = "org.freedesktop.NetworkManager.IP6Config";
 const NM_ACTIVE: &str = "org.freedesktop.NetworkManager.Connection.Active";
 const NM_SETTINGS_CONN: &str = "org.freedesktop.NetworkManager.Settings.Connection";
 const NM_SETTINGS: &str = "org.freedesktop.NetworkManager.Settings";
@@ -37,6 +39,10 @@ const TOUCH_CALIBRATION_UNIT: &str = "touch-calibration.service";
 const PIXSYS: &str = "net.pixsys.Config1";
 const PIXSYS_DISPLAY_PATH: &str = "/net/pixsys/Config1/Display";
 const PIXSYS_DISPLAY: &str = "net.pixsys.Config1.Display";
+const PIXSYS_TOUCH_REBOOT_PATH: &str = "/net/pixsys/Config1/TouchReboot";
+const PIXSYS_TOUCH_REBOOT: &str = "net.pixsys.Config1.TouchReboot";
+const PIXSYS_TIME_PATH: &str = "/net/pixsys/Config1/Time";
+const PIXSYS_TIME: &str = "net.pixsys.Config1.Time";
 const TIMEDATE: &str = "org.freedesktop.timedate1";
 const TIMEDATE_PATH: &str = "/org/freedesktop/timedate1";
 const LOGIN: &str = "org.freedesktop.login1";
@@ -133,7 +139,89 @@ pub async fn capabilities() -> Capabilities {
         power_off: can("CanPowerOff").await,
         display: backlight_by_viewer() || pixsys_display(&c).await,
         touch_calibration_service: unit_loaded(&c, TOUCH_CALIBRATION_UNIT).await,
+        reboot_corner: reboot_corner_by_viewer() || reboot_corner().await.is_ok(),
     }
+}
+
+/// The Tiny TY's runtime launcher says so: there is no launcher of Pixsys
+/// there, and the LVGL viewer watches the corner itself.
+/// PixsysOS turns the screen itself: `Config1.Display.GetRotation`, in quarter
+/// turns clockwise (1 = 90°, 2 = 180°, 3 = 270°; maintainer, 15-11-2026). The
+/// system **restarts the panel** when the value changes.
+pub async fn system_rotation() -> Result<u32, String> {
+    let c = system().await?;
+    c.call_method(
+        Some(PIXSYS),
+        PIXSYS_DISPLAY_PATH,
+        Some(PIXSYS_DISPLAY),
+        "GetRotation",
+        &(),
+    )
+    .await
+    .map_err(|e| format!("rotation: {e}"))?
+    .body()
+    .deserialize::<u32>()
+    .map_err(|e| format!("rotation: {e}"))
+}
+
+pub async fn set_system_rotation(quarter_turns: u32) -> Result<(), String> {
+    let c = system().await?;
+    c.call_method(
+        Some(PIXSYS),
+        PIXSYS_DISPLAY_PATH,
+        Some(PIXSYS_DISPLAY),
+        "SetRotation",
+        &(quarter_turns,),
+    )
+    .await
+    .map_err(|e| format!("rotation: {e}"))?;
+    Ok(())
+}
+
+/// The system turns the screen: there is no viewer doing it and PixsysOS answers.
+pub async fn rotation_by_system() -> bool {
+    !rotation_by_viewer() && system_rotation().await.is_ok()
+}
+
+pub fn rotation_by_viewer() -> bool {
+    std::env::var("SWS_ROTATION_BY_VIEWER").is_ok_and(|v| v == "1")
+}
+
+pub fn reboot_corner_by_viewer() -> bool {
+    std::env::var("SWS_REBOOT_CORNER_BY_VIEWER").is_ok_and(|v| v == "1")
+}
+
+/// PixsysOS: `net.pixsys.Config1.TouchReboot`, held 5 seconds.
+pub async fn reboot_corner() -> Result<RebootCorner, String> {
+    let c = system().await?;
+    let v = c
+        .call_method(
+            Some(PIXSYS),
+            PIXSYS_TOUCH_REBOOT_PATH,
+            Some(PIXSYS_TOUCH_REBOOT),
+            "GetActiveCorner",
+            &(),
+        )
+        .await
+        .map_err(|e| format!("reboot corner: {e}"))?
+        .body()
+        .deserialize::<u32>()
+        .map_err(|e| format!("reboot corner: {e}"))?;
+    RebootCorner::from_pixsys(v).ok_or_else(|| format!("reboot corner: unknown value {v}"))
+}
+
+pub async fn set_reboot_corner(corner: RebootCorner) -> Result<(), String> {
+    let c = system().await?;
+    c.call_method(
+        Some(PIXSYS),
+        PIXSYS_TOUCH_REBOOT_PATH,
+        Some(PIXSYS_TOUCH_REBOOT),
+        "SetActiveCorner",
+        &(corner.pixsys(),),
+    )
+    .await
+    .map_err(|e| format!("reboot corner: {e}"))?;
+    Ok(())
 }
 
 /// The unit exists on this system: `LoadUnit` answers for any name, so the
@@ -261,6 +349,20 @@ fn address_list(props: &HashMap<String, OwnedValue>, key: &str, with_prefix: boo
         .collect()
 }
 
+/// The IPv6 addresses worth showing: not link-local (`fe80::/10`), which every
+/// card has and which says nothing about the network it joined.
+fn global_ipv6(all: Vec<String>) -> Vec<String> {
+    all.into_iter()
+        .filter(|a| {
+            let host = a.split('/').next().unwrap_or("").to_ascii_lowercase();
+            !(host.starts_with("fe8")
+                || host.starts_with("fe9")
+                || host.starts_with("fea")
+                || host.starts_with("feb"))
+        })
+        .collect()
+}
+
 pub async fn cards() -> Result<Vec<Card>, String> {
     let c = system().await?;
     let mut out = Vec::new();
@@ -280,6 +382,7 @@ pub async fn cards() -> Result<Vec<Card>, String> {
             kind,
             state: card_state(prop::<u32>(&p, "State").unwrap_or(0)),
             addresses: vec![],
+            addresses6: vec![],
             gateway: None,
             dns: vec![],
             method: None,
@@ -289,6 +392,11 @@ pub async fn cards() -> Result<Vec<Card>, String> {
                 card.addresses = address_list(&ip, "AddressData", true);
                 card.gateway = prop::<String>(&ip, "Gateway").filter(|g| !g.is_empty());
                 card.dns = address_list(&ip, "NameserverData", false);
+            }
+        }
+        if let Some(ip6) = path_or_none(prop(&p, "Ip6Config")) {
+            if let Ok(ip) = get_all(&c, NM, ip6.as_str(), NM_IP6).await {
+                card.addresses6 = global_ipv6(address_list(&ip, "AddressData", true));
             }
         }
         if let Some(settings) = active_settings(&c, &p).await {
@@ -744,6 +852,13 @@ fn section(pairs: Vec<(&str, Value<'_>)>) -> Result<HashMap<String, OwnedValue>,
         .collect()
 }
 
+/// `802-11-wireless.powersave`: 2 = disabled. Ubuntu's NetworkManager enables it
+/// (`default-wifi-powersave-on.conf`, `wifi.powersave = 3`), and with it a card
+/// can miss the DHCP offer, a broadcast that the access point delivers only at
+/// some beacons: the TY570 with an RTL8723BU joined its router and never got an
+/// IPv4 address (15-11-2026). A panel that stays on a wall has no use for it.
+const WIFI_POWERSAVE_DISABLED: u32 = 2;
+
 /// A new client profile for `req`. `wpa3` = the network only offers SAE.
 fn client_settings(req: &WifiConnect, card: &str, wpa3: bool) -> Result<Settings, String> {
     let mut s = Settings::new();
@@ -763,6 +878,7 @@ fn client_settings(req: &WifiConnect, card: &str, wpa3: bool) -> Result<Settings
             ("ssid", Value::from(req.ssid.as_bytes().to_vec())),
             ("mode", Value::from("infrastructure")),
             ("hidden", Value::from(req.hidden)),
+            ("powersave", Value::from(WIFI_POWERSAVE_DISABLED)),
         ])?,
     );
     if let Some(pw) = req.password.as_deref().filter(|p| !p.is_empty()) {
@@ -811,6 +927,7 @@ fn hotspot_settings(h: &Hotspot, card: &str, uuid: String) -> Result<Settings, S
             ("ssid", Value::from(h.ssid.as_bytes().to_vec())),
             ("mode", Value::from("ap")),
             ("band", Value::from("bg")),
+            ("powersave", Value::from(WIFI_POWERSAVE_DISABLED)),
         ])?,
     );
     s.insert(
@@ -966,7 +1083,70 @@ pub async fn wifi_connect(req: &WifiConnect, rollback_secs: u32) -> Result<(), S
         }
         None => add_profile(&c, client_settings(req, &card, wpa3)?).await?,
     };
-    activate(&c, &path, &device).await
+    activate(&c, &path, &device).await?;
+    // Wait for the outcome before asking for a confirmation (TY570,
+    // 14-11-2026: a refused key failed in 5 s and the panel still asked to
+    // confirm a network that never came up). A failure undoes the change now.
+    match activation_outcome(&c, &device, std::time::Duration::from_secs(12)).await {
+        Activation::Failed(reason) => {
+            let _ = rollback_network().await;
+            Err(
+                if reason == NM_REASON_NO_SECRETS || reason == NM_REASON_SUPPLICANT_DISCONNECT {
+                    WIFI_WRONG_PASSWORD.to_string()
+                } else {
+                    format!("{WIFI_FAILED} ({reason})")
+                },
+            )
+        }
+        Activation::Activated | Activation::Pending => Ok(()),
+    }
+}
+
+/// What the panel shows for a key the network refused, and for any other
+/// failure: stable tokens the web and the viewer translate.
+pub const WIFI_WRONG_PASSWORD: &str = "wifi-wrong-password";
+pub const WIFI_FAILED: &str = "wifi-failed";
+/// `NMDeviceStateReason`: no secrets (the key asked again after a refused
+/// handshake), and the supplicant dropping the association.
+const NM_REASON_NO_SECRETS: u32 = 7;
+const NM_REASON_SUPPLICANT_DISCONNECT: u32 = 8;
+/// `NMDeviceState`.
+const NM_STATE_DISCONNECTED: u32 = 30;
+const NM_STATE_ACTIVATED: u32 = 100;
+const NM_STATE_FAILED: u32 = 120;
+
+enum Activation {
+    Activated,
+    Failed(u32),
+    /// Still on its way after the wait: the confirmation decides.
+    Pending,
+}
+
+/// Polls the device until it is up, or it failed (straight to `failed`, or
+/// back to `disconnected` after trying), or the time is over.
+async fn activation_outcome(
+    c: &zbus::Connection,
+    device: &OwnedObjectPath,
+    within: std::time::Duration,
+) -> Activation {
+    let start = std::time::Instant::now();
+    let mut tried = false;
+    while start.elapsed() < within {
+        tokio::time::sleep(std::time::Duration::from_millis(400)).await;
+        let Ok(p) = get_all(c, NM, device.as_str(), NM_DEVICE).await else {
+            continue;
+        };
+        let (state, reason) = prop::<(u32, u32)>(&p, "StateReason")
+            .unwrap_or((prop::<u32>(&p, "State").unwrap_or(0), 0));
+        match state {
+            NM_STATE_ACTIVATED => return Activation::Activated,
+            NM_STATE_FAILED => return Activation::Failed(reason),
+            NM_STATE_DISCONNECTED if tried => return Activation::Failed(reason),
+            s if s > NM_STATE_DISCONNECTED => tried = true,
+            _ => {}
+        }
+    }
+    Activation::Pending
 }
 
 pub async fn wifi_forget(ssid: &str) -> Result<(), String> {
@@ -1062,12 +1242,37 @@ pub async fn set_hotspot(h: &Hotspot, rollback_secs: u32) -> Result<(), String> 
     }
 }
 
+/// The drift chrony measured. `None` where chrony is not the NTP client, is
+/// not running, or has no source yet.
+async fn clock_drift() -> Option<super::backend::ClockDrift> {
+    let run = tokio::process::Command::new("chronyc")
+        .args(["-c", "tracking"])
+        .kill_on_drop(true)
+        .output();
+    let out = tokio::time::timeout(std::time::Duration::from_secs(2), run)
+        .await
+        .ok()?
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let line = String::from_utf8_lossy(&out.stdout);
+    // Stratum 0: started, nothing measured yet.
+    if line.split(',').nth(2) == Some("0") {
+        return None;
+    }
+    super::backend::parse_chrony_tracking(&line)
+}
+
 pub async fn time() -> Result<TimeState, String> {
     let c = system().await?;
     let p = get_all(&c, TIMEDATE, TIMEDATE_PATH, TIMEDATE).await?;
+    let ntp = prop(&p, "NTP").unwrap_or(false);
     Ok(TimeState {
+        ntp_servers: ntp_servers(&c).await,
+        drift: if ntp { clock_drift().await } else { None },
         timezone: prop(&p, "Timezone").unwrap_or_default(),
-        ntp: prop(&p, "NTP").unwrap_or(false),
+        ntp,
         can_ntp: prop(&p, "CanNTP").unwrap_or(false),
         ntp_synchronized: prop(&p, "NTPSynchronized").unwrap_or(false),
         time_usec: prop(&p, "TimeUSec").unwrap_or(0),
@@ -1119,6 +1324,78 @@ pub async fn set_time(change: &TimeChange) -> Result<(), String> {
         )
         .await
         .map_err(|e| format!("ntp: {e}"))?;
+    }
+    if let Some(servers) = &change.ntp_servers {
+        set_ntp_servers(&c, servers).await?;
+    }
+    Ok(())
+}
+
+/// The chrony sources file this runtime may write (`SWS_NTP_SOURCES`, set by
+/// the launcher of the Tiny TY, whose installer hands the file to `sws`).
+fn ntp_sources_file() -> Option<std::path::PathBuf> {
+    std::env::var_os("SWS_NTP_SOURCES")
+        .filter(|v| !v.is_empty())
+        .map(Into::into)
+}
+
+/// The servers, from whoever keeps them here: chrony's sources file, or
+/// PixsysOS (`Config1.Time`, measured on the TC620 with 2.1.3). `None`
+/// elsewhere.
+async fn ntp_servers(c: &zbus::Connection) -> Option<NtpServers> {
+    if let Some(file) = ntp_sources_file() {
+        // No file yet: chrony follows its own configuration.
+        let text = std::fs::read_to_string(file).unwrap_or_default();
+        return Some(NtpServers::from_chrony(&text));
+    }
+    let (manual, servers) = c
+        .call_method(
+            Some(PIXSYS),
+            PIXSYS_TIME_PATH,
+            Some(PIXSYS_TIME),
+            "GetCustomNTPServers",
+            &(),
+        )
+        .await
+        .ok()?
+        .body()
+        .deserialize::<(bool, Vec<String>)>()
+        .ok()?;
+    Some(NtpServers { manual, servers })
+}
+
+async fn set_ntp_servers(c: &zbus::Connection, servers: &NtpServers) -> Result<(), String> {
+    servers.validate()?;
+    let Some(file) = ntp_sources_file() else {
+        c.call_method(
+            Some(PIXSYS),
+            PIXSYS_TIME_PATH,
+            Some(PIXSYS_TIME),
+            "SetCustomNTPServers",
+            &(servers.manual, servers.servers.clone()),
+        )
+        .await
+        .map_err(|e| format!("ntp servers: {e}"))?;
+        return Ok(());
+    };
+    // In place: the file is this user's, its folder is not.
+    std::fs::write(&file, servers.to_chrony())
+        .map_err(|e| format!("ntp servers: {}: {e}", file.display()))?;
+    // chrony reads its sources when it starts: off and on again, through the
+    // same switch the panel already has. Nothing to do while NTP is off.
+    let p = get_all(c, TIMEDATE, TIMEDATE_PATH, TIMEDATE).await?;
+    if prop(&p, "NTP").unwrap_or(false) {
+        for on in [false, true] {
+            c.call_method(
+                Some(TIMEDATE),
+                TIMEDATE_PATH,
+                Some(TIMEDATE),
+                "SetNTP",
+                &(on, false),
+            )
+            .await
+            .map_err(|e| format!("ntp: {e}"))?;
+        }
     }
     Ok(())
 }
@@ -1236,6 +1513,46 @@ mod tests {
         assert_eq!(u.len(), 36);
         assert_eq!(&u[14..15], "4");
         assert!(matches!(&u[19..20], "8" | "9" | "a" | "b"));
+    }
+
+    #[test]
+    fn only_the_global_ipv6_addresses_are_shown() {
+        let all = vec![
+            "fe80::baea:2e20:c250:5984/64".to_string(),
+            "2001:b07:aac:2cae:4aa0:c12f:5adf:6f64/64".to_string(),
+            "FEB0::1/64".to_string(),
+        ];
+        assert_eq!(
+            global_ipv6(all),
+            vec!["2001:b07:aac:2cae:4aa0:c12f:5adf:6f64/64".to_string()]
+        );
+    }
+
+    #[test]
+    fn the_wifi_profiles_have_the_power_save_off() {
+        let req = WifiConnect {
+            ssid: "Casa01".into(),
+            password: Some("unapassword".into()),
+            hidden: false,
+        };
+        let client = client_settings(&req, "wlan0", false).unwrap();
+        let hotspot = hotspot_settings(
+            &Hotspot {
+                enabled: true,
+                ssid: "sws-06e990".into(),
+                password: "segreta123".into(),
+            },
+            "wlan0",
+            new_uuid(),
+        )
+        .unwrap();
+        for s in [&client, &hotspot] {
+            assert_eq!(
+                s.get("802-11-wireless")
+                    .and_then(|x| prop::<u32>(x, "powersave")),
+                Some(2)
+            );
+        }
     }
 
     #[test]

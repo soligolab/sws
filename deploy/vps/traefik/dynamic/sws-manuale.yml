@@ -3,7 +3,7 @@
 http:
   routers:
     sws-manuale:
-      rule: "Host(`sws.soligo.net`) && (PathPrefix(`/manuale`) || Path(`/robots.txt`))"
+      rule: "Host(`sws.soligo.net`) && (PathPrefix(`/manuale`) || PathPrefix(`/download`) || Path(`/robots.txt`))"
       entryPoints: [websecure]
       service: sws-manuale
       tls:

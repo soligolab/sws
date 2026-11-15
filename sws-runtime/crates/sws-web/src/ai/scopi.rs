@@ -124,7 +124,13 @@ impl Impostazioni {
 /// loro (o con un fornitore senza chiave) sono l'assistente: meglio un modello
 /// più caro che uno strumento spento senza dire perché.
 pub fn carica_per(config_dir: &Path, s: Scopo) -> Option<Scelta> {
-    let assistente = client::carica(config_dir);
+    carica_per_con(config_dir, s, &client::UserKeys::default())
+}
+
+/// [`carica_per`] with the keys of the user who is writing: for a provider the
+/// project has no key for, the user's.
+pub fn carica_per_con(config_dir: &Path, s: Scopo, user: &client::UserKeys) -> Option<Scelta> {
+    let assistente = client::carica_con(config_dir, user);
     if s == Scopo::Assistente || s.immagini() {
         return assistente;
     }
@@ -135,7 +141,7 @@ pub fn carica_per(config_dir: &Path, s: Scopo) -> Option<Scelta> {
     let Some(f) = cfg.fornitore.as_deref().and_then(Fornitore::da_nome) else {
         return assistente;
     };
-    let Some(chiave) = client::chiave_di(config_dir, f) else {
+    let Some((chiave, source)) = client::resolve_key(config_dir, f, user) else {
         tracing::warn!(
             scopo = s.nome(),
             fornitore = f.nome(),
@@ -146,6 +152,7 @@ pub fn carica_per(config_dir: &Path, s: Scopo) -> Option<Scelta> {
     Some(Scelta {
         fornitore: f,
         chiave,
+        source,
         modello: cfg
             .modello
             .clone()
@@ -163,7 +170,14 @@ pub fn carica_per(config_dir: &Path, s: Scopo) -> Option<Scelta> {
 /// la conversazione riceve `disegna_simbolo` (un modello a parte) o
 /// `bozza_simbolo` (il modello della conversazione disegna da sé).
 pub fn ha_scelta_propria(config_dir: &Path, s: Scopo) -> bool {
-    match (carica_per(config_dir, s), client::carica(config_dir)) {
+    ha_scelta_propria_con(config_dir, s, &client::UserKeys::default())
+}
+
+pub fn ha_scelta_propria_con(config_dir: &Path, s: Scopo, user: &client::UserKeys) -> bool {
+    match (
+        carica_per_con(config_dir, s, user),
+        client::carica_con(config_dir, user),
+    ) {
         (Some(a), Some(b)) => a.fornitore != b.fornitore || a.modello != b.modello,
         _ => false,
     }

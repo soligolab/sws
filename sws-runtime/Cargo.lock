@@ -1093,7 +1093,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1828,6 +1828,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "image"
+version = "0.25.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "85ab80394333c02fe689eaf900ab500fbd0c2213da414687ebf995a65d5a6104"
+dependencies = [
+ "bytemuck",
+ "byteorder-lite",
+ "moxcms",
+ "num-traits",
+ "png 0.18.1",
+ "zune-core 0.5.3",
+ "zune-jpeg 0.5.15",
+]
+
+[[package]]
 name = "image-webp"
 version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2279,7 +2294,17 @@ dependencies = [
  "mio",
  "nix 0.31.3",
  "serialport",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "moxcms"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bb85c154ba489f01b25c0d36ae69a87e4a1c73a72631fc6c0eb6dde34a73e44b"
+dependencies = [
+ "num-traits",
+ "pxfm",
 ]
 
 [[package]]
@@ -2345,7 +2370,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -2631,6 +2656,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "png"
+version = "0.18.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "60769b8b31b2a9f263dae2776c37b1b28ae246943cf719eb6946a1db05128a61"
+dependencies = [
+ "bitflags 2.13.1",
+ "crc32fast",
+ "fdeflate",
+ "flate2",
+ "miniz_oxide 0.8.9",
+]
+
+[[package]]
 name = "portable-atomic"
 version = "1.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2742,6 +2780,12 @@ dependencies = [
  "quote",
  "syn 2.0.119",
 ]
+
+[[package]]
+name = "pxfm"
+version = "0.1.30"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d55d956fa96f5ec02be2e13af0e20391a5aa83d6a074e3ad368959d0fab299ea"
 
 [[package]]
 name = "pyo3"
@@ -2874,7 +2918,7 @@ dependencies = [
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3089,7 +3133,7 @@ dependencies = [
  "svgtypes",
  "tiny-skia",
  "usvg",
- "zune-jpeg",
+ "zune-jpeg 0.4.21",
 ]
 
 [[package]]
@@ -3297,7 +3341,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.12.1",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3811,7 +3855,7 @@ dependencies = [
 
 [[package]]
 name = "sws-audit"
-version = "2.26.0-rc.18"
+version = "2.26.0-rc.19"
 dependencies = [
  "anyhow",
  "hmac 0.12.1",
@@ -3824,7 +3868,7 @@ dependencies = [
 
 [[package]]
 name = "sws-auth"
-version = "2.26.0-rc.18"
+version = "2.26.0-rc.19"
 dependencies = [
  "anyhow",
  "argon2",
@@ -3838,7 +3882,7 @@ dependencies = [
 
 [[package]]
 name = "sws-banco"
-version = "2.26.0-rc.18"
+version = "2.26.0-rc.19"
 dependencies = [
  "anyhow",
  "clap",
@@ -3854,7 +3898,7 @@ dependencies = [
 
 [[package]]
 name = "sws-core"
-version = "2.26.0-rc.18"
+version = "2.26.0-rc.19"
 dependencies = [
  "anyhow",
  "libc",
@@ -3874,7 +3918,7 @@ dependencies = [
 
 [[package]]
 name = "sws-historian"
-version = "2.26.0-rc.18"
+version = "2.26.0-rc.19"
 dependencies = [
  "anyhow",
  "rusqlite",
@@ -3890,10 +3934,11 @@ dependencies = [
 
 [[package]]
 name = "sws-identita"
-version = "2.26.0-rc.18"
+version = "2.26.0-rc.19"
 dependencies = [
  "anyhow",
  "argon2",
+ "ring",
  "rusqlite",
  "serde",
  "serde_json",
@@ -3906,7 +3951,7 @@ dependencies = [
 
 [[package]]
 name = "sws-lvgl-viewer"
-version = "2.26.0-rc.18"
+version = "2.26.0-rc.19"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -3928,11 +3973,12 @@ dependencies = [
  "tempfile",
  "tokio",
  "tokio-tungstenite",
+ "zune-jpeg 0.4.21",
 ]
 
 [[package]]
 name = "sws-plugin-enip"
-version = "2.26.0-rc.18"
+version = "2.26.0-rc.19"
 dependencies = [
  "anyhow",
  "rseip",
@@ -3944,7 +3990,7 @@ dependencies = [
 
 [[package]]
 name = "sws-plugin-homeassistant"
-version = "2.26.0-rc.18"
+version = "2.26.0-rc.19"
 dependencies = [
  "anyhow",
  "futures-util",
@@ -3960,7 +4006,7 @@ dependencies = [
 
 [[package]]
 name = "sws-plugin-host"
-version = "2.26.0-rc.18"
+version = "2.26.0-rc.19"
 dependencies = [
  "sws-core",
  "sysinfo",
@@ -3971,7 +4017,7 @@ dependencies = [
 
 [[package]]
 name = "sws-plugin-modbus"
-version = "2.26.0-rc.18"
+version = "2.26.0-rc.19"
 dependencies = [
  "anyhow",
  "serde_json",
@@ -3986,7 +4032,7 @@ dependencies = [
 
 [[package]]
 name = "sws-plugin-mqtt"
-version = "2.26.0-rc.18"
+version = "2.26.0-rc.19"
 dependencies = [
  "anyhow",
  "prost",
@@ -4000,7 +4046,7 @@ dependencies = [
 
 [[package]]
 name = "sws-plugin-opcua"
-version = "2.26.0-rc.18"
+version = "2.26.0-rc.19"
 dependencies = [
  "anyhow",
  "async-opcua",
@@ -4015,7 +4061,7 @@ dependencies = [
 
 [[package]]
 name = "sws-plugin-s7"
-version = "2.26.0-rc.18"
+version = "2.26.0-rc.19"
 dependencies = [
  "anyhow",
  "byteorder",
@@ -4029,7 +4075,7 @@ dependencies = [
 
 [[package]]
 name = "sws-pyscript"
-version = "2.26.0-rc.18"
+version = "2.26.0-rc.19"
 dependencies = [
  "pyo3",
  "serde",
@@ -4041,7 +4087,7 @@ dependencies = [
 
 [[package]]
 name = "sws-runtime"
-version = "2.26.0-rc.18"
+version = "2.26.0-rc.19"
 dependencies = [
  "anyhow",
  "axum",
@@ -4072,7 +4118,7 @@ dependencies = [
 
 [[package]]
 name = "sws-web"
-version = "2.26.0-rc.18"
+version = "2.26.0-rc.19"
 dependencies = [
  "anyhow",
  "axum",
@@ -4085,12 +4131,13 @@ dependencies = [
  "hyper",
  "hyper-util",
  "if-addrs",
+ "image",
  "lettre",
  "mdns-sd",
  "metrics",
  "metrics-exporter-prometheus",
  "percent-encoding",
- "png",
+ "png 0.17.16",
  "rcgen",
  "reqwest",
  "rusqlite",
@@ -4214,7 +4261,7 @@ dependencies = [
  "getrandom 0.4.3",
  "once_cell",
  "rustix 1.1.4",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -4296,7 +4343,7 @@ dependencies = [
  "bytemuck",
  "cfg-if",
  "log",
- "png",
+ "png 0.17.16",
  "tiny-skia-path",
 ]
 
@@ -5596,12 +5643,27 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3f423a2c17029964870cfaabb1f13dfab7d092a62a29a89264f4d36990ca414a"
 
 [[package]]
+name = "zune-core"
+version = "0.5.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d56377fd46368984a170bc5aac5567e52ca5da874caa60bea39fcbca78fb658b"
+
+[[package]]
 name = "zune-jpeg"
 version = "0.4.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "29ce2c8a9384ad323cf564b67da86e21d3cfdff87908bc1223ed5c99bc792713"
 dependencies = [
- "zune-core",
+ "zune-core 0.4.12",
+]
+
+[[package]]
+name = "zune-jpeg"
+version = "0.5.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "27bc9d5b815bc103f142aa054f561d9187d191692ec7c2d1e2b4737f8dbd7296"
+dependencies = [
+ "zune-core 0.5.3",
 ]
 
 [[package]]

@@ -2031,7 +2031,13 @@ export interface PageLayoutConfig {
    *  più preset hanno la stessa misura, e dalla sola misura un WP630 tornava
    *  «Full HD 16:9». Solo per la finestra; contano le misure. */
   dispositivo?: string;
+  /** How the panel is mounted for this project; absent = landscape. A
+   *  portrait project has pages taller than wide, and the viewer that owns
+   *  the screen turns the picture 90° (plan docs/archive/2026-11-15-rotazione-dello-schermo). */
+  orientation?: Orientation;
 }
+
+export type Orientation = "landscape" | "portrait";
 
 /** Motore di rendering a cui è destinato il progetto — vedi
  *  docs/adr/0002-lvgl-rendering-engine.md. `undefined` = "web" (default
@@ -2080,11 +2086,17 @@ export interface PannelloConfig {
 
 /** `control_panel` of the project: mirror of `ControlPanelConfig` in `sws-core`. */
 export interface ControlPanelConfig {
-  /** Absent = true: the runtime gesture and the synoptic action open it. */
+  /** The master; absent = true. Off, neither the gesture nor the synoptic action open it. */
   enabled?: boolean;
+  /** Absent = true: the finger held in a corner opens it (under the master). */
+  gesture_enabled?: boolean;
+  /** Absent = true: the synoptic action `open_control_panel` opens it (under the master). */
+  button_enabled?: boolean;
   /** Masked by the server ("********") when the project sets a PIN; absent =
    *  the device's initial PIN. */
   pin_hash?: string;
+  /** Absent = true: the device may have a corner that reboots it when held. */
+  reboot_corner_enabled?: boolean;
 }
 
 export interface BeepTocco {
@@ -2612,8 +2624,20 @@ export interface RegoleIa {
   regole?: Partial<Record<"generali" | ScopoIa, string>>;
 }
 
+/** A key of the user in the list: never the value. */
+export interface MyAiKey {
+  provider: string;
+  last4: string;
+  /** `false` after a restore without the master key: it has to be written again. */
+  readable: boolean;
+}
+
 export interface AiConfig {
-  fornitori: { id: string; nome: string; scopi: ScopoIa[]; chiave: boolean; modello_default: string }[];
+  fornitori: {
+    id: string; nome: string; scopi: ScopoIa[]; chiave: boolean; modello_default: string;
+    /** Which key this project would use for the provider: its own, the user's, or none. */
+    source?: "project" | "user" | null;
+  }[];
   scopi: Record<ScopoIa, {
     salvato: ScopoIaCfg | null;
     /** C'è un modello pronto per questo scopo (con la sua chiave). */

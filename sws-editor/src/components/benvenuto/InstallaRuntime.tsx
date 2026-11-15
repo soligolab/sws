@@ -320,12 +320,33 @@ function Comando({ testo }: { testo: string }) {
  *  niente `--tunnel-nome` né `--tunnel-token`, che servono alla strada del
  *  pannello dichiarato a mano. L'indirizzo del gateway viaggia nell'immagine.
  */
+/** Where the package of the Tiny TY is published: the same site, `/download/tiny-ty/`
+ *  (`deploy/vps`, `scripts/publish_tiny_ty_package.sh`). `latest.tar.gz` and its
+ *  checksum always point at the newest release candidate or release. */
+export const TINY_TY_DOWNLOAD = "/download/tiny-ty";
+
+/** The steps for a Tiny TY: no podman there, so a package, downloaded from this
+ *  site and checked against its checksum before it is unpacked and installed. */
+export function passiTinyTy(origine: string, t: (k: string) => string): [string, string][] {
+  const base = `${origine}${TINY_TY_DOWNLOAD}`;
+  return [
+    [t("welcome.installTyPasso1"), `ssh pixsys@<${t("welcome.installCloudIndirizzo")}>`],
+    // In the home of the user: the temporary folder of the panel is a small memory disk.
+    [t("welcome.installTyPasso2"), `cd ~ && curl -fSL -O ${base}/latest.tar.gz -O ${base}/latest.tar.gz.sha256`],
+    [t("welcome.installTyPasso3"), "sha256sum -c latest.tar.gz.sha256"],
+    [t("welcome.installTyPasso4"), "tar xzf latest.tar.gz && cd sws-*-tiny-ty-armv7"],
+    [t("welcome.installTyPasso5"), "sudo ./install.sh"],
+  ];
+}
+
 export function GuidaInstallazione() {
   const { t } = useTranslation();
   const IMG = "ghcr.io/soligolab/sws-runtime:rc-arm64";
+  // The device first: the same page serves the panels with podman and the Tiny TY (15-11-2026).
+  const [prodotto, setProdotto] = useState<"container" | "tiny-ty">("container");
   // OpenPLC a richiesta (30-10-2026): una flag in fondo all'ultimo comando.
   const [conOpenplc, setConOpenplc] = useState(false);
-  const passi: [string, string][] = [
+  const passiContainer: [string, string][] = [
     // Il segnaposto segue la lingua come tutto il resto: cablato in italiano
     // stonava in mezzo a una guida in inglese (maintainer, 21-10-2026).
     [t("welcome.installCloudPasso1"), `ssh user@<${t("welcome.installCloudIndirizzo")}>`],
@@ -342,17 +363,36 @@ export function GuidaInstallazione() {
   // `&&` e non `;`: se un passo fallisce i successivi non partono. Con `;` un
   // `podman pull` andato male lascerebbe proseguire l'estrazione dei quadlet,
   // che fallirebbe in un modo che non somiglia alla causa.
+  const passi = prodotto === "tiny-ty"
+    ? passiTinyTy(typeof window !== "undefined" ? window.location.origin : "", t)
+    : passiContainer;
   const aggregato = passi.slice(1).map(([, cmd]) => cmd).join(" && \\\n  ");
   const [unaRiga, setUnaRiga] = useState(false);
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }} data-testid="guida-prodotto">
+        <span style={{ fontSize: 13, color: "var(--brand-text-muted, #94a3b8)" }}>{t("welcome.installProdotto")}</span>
+        {([["container", t("welcome.installProdottoContainer")], ["tiny-ty", t("welcome.installProdottoTinyTy")]] as const).map(([v, etichetta]) => (
+          <button key={v} type="button" data-testid={`guida-prodotto-${v}`} onClick={() => setProdotto(v)}
+            style={{
+              padding: "4px 10px", borderRadius: 4, fontSize: 12, cursor: "pointer",
+              border: "1px solid var(--brand-surface-2, #334155)",
+              background: prodotto === v ? "var(--brand-primary, #3b82f6)" : "transparent",
+              color: prodotto === v ? "#fff" : "var(--brand-text-muted, #94a3b8)",
+            }}>
+            {etichetta}
+          </button>
+        ))}
+      </div>
       <p style={{ margin: 0, fontSize: 13, color: "var(--brand-text-muted, #94a3b8)", lineHeight: 1.6 }}>
-        {t("welcome.installCloudIntro")}
+        {t(prodotto === "tiny-ty" ? "welcome.installTyIntro" : "welcome.installCloudIntro")}
       </p>
-      <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "var(--brand-text-2, #cbd5e1)", cursor: "pointer" }}>
-        <input type="checkbox" data-testid="guida-openplc" checked={conOpenplc} onChange={(e) => setConOpenplc(e.target.checked)} />
-        {t("openplc.guida")}
-      </label>
+      {prodotto === "container" && (
+        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "var(--brand-text-2, #cbd5e1)", cursor: "pointer" }}>
+          <input type="checkbox" data-testid="guida-openplc" checked={conOpenplc} onChange={(e) => setConOpenplc(e.target.checked)} />
+          {t("openplc.guida")}
+        </label>
+      )}
       <div style={{ display: "flex", gap: 6 }}>
         {([[false, t("welcome.installCloudAPassi")], [true, t("welcome.installCloudAggregato")]] as const).map(([v, etichetta]) => (
           <button key={String(v)} type="button" onClick={() => setUnaRiga(v)}

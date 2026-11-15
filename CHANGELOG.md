@@ -12,6 +12,175 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Aggiunto
+- **Pannello di controllo: l'angolo che riavvia.** In «Schermo» si sceglie l'angolo che, tenuto premuto, riavvia
+  il dispositivo (o nessuno). Sui TC/WP è l'impostazione di PixsysOS (`Config1.TouchReboot`); sul Tiny TY lo
+  sorveglia il viewer LVGL, e lì si scelgono anche il tempo di pressione, il lato dell'angolo e se chiedere
+  conferma. Web e LVGL; `PUT /api/control-panel/reboot-corner`. Sul Tiny TY, mentre lo si imposta, un riquadro rosso
+  mostra l'area vera nell'angolo scelto; e il dito può muoversi dentro l'angolo senza perdere la pressione (vale anche
+  per l'angolo che apre il pannello di controllo).
+  L'anello della pressione è largo un terzo del lato corto dello schermo, per vederlo attorno al dito.
+
+- **Progetto: l'angolo che riavvia si può vietare.** In Impostazioni progetto, accanto al pannello di controllo, una
+  casella «Il dispositivo può avere un angolo che lo riavvia» (`control_panel.reboot_corner_enabled`, acceso se
+  manca). Spenta, il viewer LVGL non sorveglia più l'angolo, il runtime rifiuta di impostarne uno e la scheda nel
+  pannello di controllo dice che lo vieta il progetto. Posizione, tempo e lato restano del dispositivo.
+  Sui TC/WP, dove l'angolo è di PixsysOS, un progetto che lo vieta lo spegne nel sistema all'avvio e a ogni
+  modifica.
+
+- **Tiny TY: firmware Wi-Fi nel pacchetto.** L'installatore aggiunge in `/lib/firmware/rtlwifi` i sette file Realtek
+  che l'immagine Pixsys non ha (da linux-firmware, ridistribuibili): le chiavette RTL8723BU, RTL8192EU e RTL8723AU
+  venivano lette ma non diventavano una scheda Wi-Fi. Non sostituisce mai un file del sistema.
+
+- **Pannello di controllo: la sezione «Informazioni».** In sola lettura, quattro schede: SWS (versione, commit,
+  data di costruzione, da quanto gira), Progetto (nome, data di caricamento, spazio del progetto e dello storico
+  contati a parte, pagine, tag e sorgenti), Sistema (sistema operativo, kernel, immagine del costruttore, disco,
+  memoria, temperatura, acceso da) e Stato (sorgenti in funzione, allarmi attivi, cloud, aggiornamento disponibile,
+  scadenza del certificato). Web e LVGL; `GET /api/control-panel/about`.
+
+- **Pannello di controllo: l'angolo che lo apre si sceglie.** In «Schermo», su ogni dispositivo: uno dei quattro
+  angoli o nessuno (allora resta il tasto all'avvio, e la scheda lo avvisa). Parte in alto a destra, com'era. Lo
+  stesso angolo non può aprire il pannello e riavviare: ognuna delle due schede non offre quello dell'altra, e il
+  runtime lo rifiuta. Il progetto continua a poterlo spegnere (`control_panel.enabled`). Web e LVGL;
+  `PUT /api/control-panel/panel-corner`. Sul viewer web la pressione ora dura finché il dito resta nell'angolo,
+  come su LVGL, e l'anello è largo un terzo del lato corto. Come per l'angolo che riavvia si regolano il tempo di
+  pressione (2-15 s) e il lato dell'area (40-200 px), con un riquadro verde che mostra l'area vera mentre la si
+  imposta; l'anello di avanzamento è verde (rosso resta quello del riavvio).
+
+- **Pannello di controllo, Ora: la scelta fra automatica e manuale si vede subito.** Il sistema impiega qualche secondo
+  a cambiare e nel frattempo il tasto restava fermo: ora cambia al tocco, con «non ancora sincronizzato» finché l'ora
+  non arriva. Passando ad automatica si chiude anche l'ora manuale lasciata a metà, che applicata dopo rispegneva
+  l'NTP. Web e LVGL. Sul Tiny TY chrony può di nuovo salvare la deriva (`/var/lib/chrony` era di root).
+
+- **Progetto: il pannello di controllo si apre dal gesto e dal pulsante, due caselle.** La voce «Si apre col gesto e
+  dai pulsanti del sinottico» è diventata due, in Impostazioni progetto → Device: «col gesto» (un dito tenuto nell'angolo) e
+  «dai pulsanti del sinottico» (`gesture_enabled`, `button_enabled`, accesi se mancano). Il vecchio `enabled` resta il
+  master: spento, tutte e due le strade restano chiuse come prima, quindi nessun progetto cambia comportamento. La finestra
+  all'avvio resta sempre.
+
+- **Rotazione anche sui TC/WP.** Dove la rotazione è di PixsysOS (`Config1.Display`: 1 = 90° in senso orario), il
+  runtime la porta a quella del progetto verticale e del capovolgimento: all'avvio, a ogni deploy e dalla scheda
+  «Capovolto di 180°». PixsysOS riavvia il pannello **una volta** quando il valore cambia; se non lo prende, il
+  runtime non lo richiede prima di dieci minuti, così non si crea un ciclo di riavvii.
+
+- **Wi-Fi: un collegamento senza IPv4 si vede.** Il pannello mostrava i dettagli della rete solo con un indirizzo IPv4:
+  su una rete il cui DHCP non risponde (sul TY570, a casa, anche un altro dispositivo restava senza risposta) il Wi-Fi era
+  collegato e la scheda taceva. Ora, senza IPv4, compaiono l'indirizzo IPv6 e la riga «collegato, ma senza indirizzo IPv4:
+  il DHCP della rete non ha risposto». Web e LVGL; `addresses6` in `GET /api/control-panel/network`.
+
+- **Wi-Fi: risparmio energetico spento sulle reti del pannello.** L'immagine Ubuntu accende il risparmio energetico del
+  Wi-Fi (`wifi.powersave = 3`) e con alcune chiavette l'offerta del DHCP, un pacchetto broadcast, va persa: sul
+  TY570 una RTL8723BU si collegava al router e restava senza indirizzo IPv4 (15-11-2026). Le reti salvate e l'hotspot
+  creati dal pannello nascono con `802-11-wireless.powersave = 2`; quelle già salvate restano come sono finché non si
+  ricollega la rete.
+
+- **Angoli: un secondo di attesa prima di contare.** Il tocco nell'angolo del pannello o del riavvio non fa più
+  partire subito l'anello: per il primo secondo non conta niente (un tocco normale su un pulsante lì sotto non
+  sembra l'inizio del gesto), e i secondi di pressione si contano dopo. Vale su LVGL e sul viewer web.
+
+- **Tastiera del pannello: «?123» e «abc» non rimbalzano più.** Il tasto che cambia layout sta nello stesso punto nei
+  due layout: il tocco ridisegnava la tastiera e il tasto nuovo sotto il dito riceveva una pressione, che cambiava
+  di nuovo, un fotogramma dopo l'altro. Ora i tasti che cambiano layout (`?123`, `abc`, maiuscole, occhio) non
+  rispondono due volte entro mezzo secondo. Vale anche per la tastiera del Wi-Fi.
+
+- **Diagnostica su chiavetta: il motivo vero.** Su due chiavette il pannello diceva «Broken pipe»: l'aiutante si
+  fermava prima di leggere lo zip (nessuna chiavetta montata, il montaggio di Pixsys arriva dopo una decina di
+  secondi) e la scrittura sulla pipe falliva coprendo il messaggio. Ora si controlla la chiavetta prima di
+  costruire lo zip, e se la chiavetta è appena inserita il pannello la aspetta fino a 8 secondi (il montaggio di Pixsys
+  arriva dopo qualche secondo); senza chiavetta dice «Nessuna chiavetta montata. Inseriscila e riprova». Una chiavetta in un formato che il kernel non legge (NTFS: il TY ha solo ext4, FAT ed exFAT) non si monta mai: il pannello dice «usa una chiavetta FAT32 o exFAT» invece di aspettarla.
+
+- **Pannello di controllo: elimina progetto e abbinamento.** In Dispositivo, sotto Riavvia e Spegni, un pulsante
+  rosso che chiede di nuovo il PIN e poi toglie il progetto con il suo storico, gli utenti e l'abbinamento al
+  cloud: il runtime riparte senza progetto, in attesa di un nuovo abbinamento. Restano le impostazioni del
+  dispositivo (angoli, luce, capovolgimento, server NTP) e quelle del sistema (rete, Wi-Fi, ora). Web e LVGL;
+  `POST /api/control-panel/reset`, con l'audit.
+
+- **Pannello di controllo su schermi stretti.** Sotto i 700 px di larghezza (progetto verticale: 600×1024 sul 7",
+  480×800 sul 5") il menu diventa una fila di schede sotto l'intestazione e il contenuto prende tutta la larghezza;
+  righe e scelte vanno a capo quando non ci stanno. Solo LVGL, non ancora visto a schermo.
+
+- **Rotazione: progetto verticale e dispositivo capovolto.** In Impostazioni progetto, sotto il formato, la scelta
+  «Orientamento: orizzontale / verticale» (`page_layout.orientation`): cambiandola il formato e le pagine grandi
+  quanto lo schermo (pagine, boot, cornici) scambiano larghezza e altezza; finestre e faceplate no. Un preset di
+  dispositivo scelto in un progetto verticale entra già girato. Il viewer LVGL sul framebuffer (Tiny TY) gira il
+  disegno e il tocco: verticale = pannello girato di 90° in senso orario; in più, da Schermo nel pannello di
+  controllo, «Capovolto di 180°» (`PUT /api/control-panel/flip`). Angoli e riquadro seguono la pagina come la vede
+  chi sta davanti. L'immagine di avvio del Tiny TY segue la rotazione. In finestra (SDL) e sul viewer web non c'è
+  niente da girare; sui TC/WP la rotazione è di PixsysOS e non è ancora collegata.
+
+- **Pannello di controllo: esportazione diagnostica.** In «Informazioni», un file zip per l'assistenza: le
+  informazioni della sezione, i registri del runtime (ultimi 14 giorni), il registro delle modifiche e le
+  impostazioni del dispositivo. Né il progetto né lo storico. Dal web si scarica (`GET
+  /api/control-panel/diagnostics`); sul Tiny TY va anche sulla chiavetta USB e porta dentro il registro di sistema
+  e del kernel, con un aiutante di root che fa solo quello (`sws-diagnostics`, regola sudoers
+  `50-sws-diagnostics`). Sui TC/WP solo dal web e solo i registri di SWS, finché PixsysOS non offre altro.
+
+- **Pannello di controllo, Ora: server NTP scelti a mano.** Automatici (quelli del sistema) o da uno a quattro
+  scritti a mano, nomi o indirizzi: serve a un impianto senza internet, che ha il suo. Sul Tiny TY è il file delle
+  sorgenti di chrony (dell'utente `sws`, `SWS_NTP_SOURCES`), riletto spegnendo e riaccendendo l'NTP; sui TC/WP è
+  `Config1.Time` di PixsysOS. Sul pannello LVGL si scrivono con la tastiera del Wi-Fi, ora generica. I server scritti
+  restano ricordati quando si torna ad automatici. `ntp_servers` in `GET`/`PUT /api/control-panel/time`.
+
+- **Pannello di controllo, Ora: la deriva dell'orologio.** Con l'ora automatica, dove il client NTP è chrony (Tiny
+  TY), sotto la sincronizzazione compare quanto l'orologio corre avanti o indietro (ppm e secondi al giorno) e
+  l'ultimo scarto dall'ora NTP. Web e LVGL; `drift` in `GET /api/control-panel/time`.
+
+- **Tiny TY: l'immagine di avvio del progetto.** La pagina di boot abilitata nell'IDE vale anche sul Tiny TY: il
+  runtime la scrive come file raw del framebuffer (`SWS_BOOT_IMAGE_RAW`), e l'installatore collega a quel file il
+  `bootlogo.raw` che `rc.local` di Pixsys mostra all'avvio.
+
+- **Il pacchetto del Tiny TY dal sito.** `sws.soligo.net/download/tiny-ty/latest.tar.gz` (con la somma di controllo
+  e `latest.txt`), pubblicato a ogni rc da `scripts/publish_tiny_ty_package.sh`; la guida «Installa su dispositivo»
+  apre con la scelta «TC / WP (container)» o «Tiny TY (pacchetto)» e per il Tiny TY dà i passi: scarica, controlla la
+  somma, scompatta, `sudo ./install.sh`. Lo serve il container nginx del manuale, senza elenco e con i crawler IA
+  respinti; i passi per i TC/WP non cambiano.
+
+- **Chiavi IA nell'account.** Nel cloud, menu 👤 → «Le mie chiavi IA»: la chiave del fornitore (Anthropic, Kimi) si mette una
+  volta nell'account e vale sui progetti che non ne hanno una loro (quella del progetto vince, sempre). Cifrate nel database
+  dell'identità (AES-256-GCM, chiave-madre in `chiave_segreti`, fuori dalla copia giornaliera: dopo un ripristino si
+  riscrivono); il container le chiede al gateway all'apertura della chat, solo per chi lavora in quel progetto in quel
+  momento, e le tiene in memoria. `/api/identity/ai-keys` (utente), `/api/internal/ai-key/:provider` (container). In
+  Fornitori e chiavi una riga dice quale chiave usa il progetto. HOWTO 32.
+
+### Corretto
+- **Tiny TY: l'installatore toglie `tyx_panelcontrol` di Pixsys** e SWS lavora su un sistema pulito
+  (`deploy/tiny-ty/remove-panelcontrol.sh`, con `--restore` per rimetterlo). L'UPS lo sorveglia il runtime
+  (`--power-fail-input`: luce a zero e riavvio a corrente mancata), l'alimentazione USB la accende
+  `sws-usb-power.service`, chrony torna quello di sistema e l'interruttore NTP quello di `timedated`. Piano:
+  `docs/archive/2026-11-14-funzioni-di-tyx-panelcontrol.md`.
+- **LVGL: lo sfondo di una pagina spariva dalla seconda visita** (TY570, pagina HVAC). La cache degli sfondi della rc.18
+  si segnava la misura del canvas prima che LVGL calcolasse il layout, cioè 0 × 0, e dalla cache usciva un canvas
+  vuoto. Ora la misura viene dall'immagine del canvas, e una misura nulla non entra in cache.
+- **Tiny TY: un solo comando per un dispositivo nuovo.** `install.sh` lancia da sé `prepara-dispositivo.sh --applica`
+  (nome mDNS, avahi, chiavi SSH, IPv4 al riavvio) e gli passa `--modello`, `--chiave`, `--utente`. Senza internet
+  avahi non si installa: lo dice, e SSH e IPv4 si sistemano lo stesso. Il pacchetto porta lo script.
+- **Tiny TY: l'NTP del pannello di controllo corregge davvero l'orologio.** Pixsys avvia chrony col suo
+  `chrony_control.py`, che di serie è in `monitor` (`chronyd -x`: misura e non tocca l'ora). Sul TY570 il pannello
+  diceva «NTP acceso» con l'orologio avanti di 80 s. Ora sui TY l'interruttore NTP è quel modo (`--set sync` /
+  `--set monitor`, via `sudo` con una regola limitata a quei due comandi, `/etc/sudoers.d/50-sws-clock`), e il
+  pannello mostra «acceso» solo in `sync`. L'installatore non cambia il modo (decisione del maintainer).
+  `deploy/tiny-ty/ty570-1ad-p1.md` ha il punto 12, e il punto 5 misurato: l'aggiornamento da SD riscrive tutte le
+  partizioni e legge la lista dei file da salvare dalla SD, quindi SWS non può proteggersi da sé.
+- **LVGL: le pagine con una foto di sfondo si aprono subito** (piano `docs/plans/2026-11-14-sfondi-alla-misura.md`).
+  Sul TY570 la prima visita di HVAC costava 1,84 s: lo sfondo era 1536×1024 e il pannello lo decodificava dentro un SVG,
+  poi lo scalava e lo ritagliava all'area della cornice. Ora `GET /api/project/images/<nome>?w=&h=` serve un JPEG
+  già alla misura (`cover`), calcolato una volta e tenuto in `<config>/cache/sized-images`, fuori dal progetto. Il
+  runtime prepara le varianti all'avvio e a ogni cambio del progetto, e il viewer decodifica il JPEG direttamente con
+  `zune-jpeg`. In locale (build di debug) la prima apertura scende da 3,9 s a 0,18 s; un runtime vecchio o un SVG
+  passano dalla strada di prima. Dipendenza nuova: `image` 0.25 in sws-web, solo JPEG e PNG.
+- **Pannello di controllo: una chiavetta Wi-Fi inserita o tolta si vede subito.** Col pannello aperto le schede si
+  rileggono ogni 3 s (viewer LVGL e web); la sezione Wi-Fi si accende o si spegne, e se è aperta ricarica il suo
+  stato. Lo schermo si ricostruisce solo se qualcosa è cambiato. Quelle letture portano `x-sws-control-panel-watch`
+  e non rinnovano la sessione: un pannello lasciato aperto si richiude lo stesso dopo 15 minuti.
+
+### Aggiunto
+- **Pannello di controllo: le correzioni del primo collaudo sul TY570** (piano
+  `docs/plans/2026-11-14-pannello-di-controllo-correzioni-ty.md`). I tasti dei tastierini (PIN, indirizzi, ora,
+  tastiera Wi-Fi) reagiscono alla pressione: al rilascio, il pannello ricostruito sotto il dito perdeva i tasti
+  scritti veloci. Il fuso orario si sceglie per continente, paese e città, o con un filtro (`zone.tab` dà il paese,
+  `countries.json` i nomi in italiano e inglese), al posto di una tendina di 400 voci che sul TY si apriva sotto il
+  pannello e non si toccava. Collegarsi a una rete Wi-Fi aspetta l'esito: una password rifiutata lo dice e torna
+  subito com'era, invece di chiedere una conferma per una rete mai collegata. La sezione Wi-Fi mostra gli indirizzi
+  della rete collegata.
 - **IDE: lo stile sobrio, prima sessione** (piano `docs/plans/2026-11-14-stile-sobrio.md`). In Configurazione → IDE
   la scelta «Colorato / Sobrio», della persona e di questo browser. Il sobrio è fatto di tre colori per tema, scelti coi
   selettori (sfondo, inchiostro, accento e un colore unico per le linee di tutte le icone; predefiniti grafite, grigio

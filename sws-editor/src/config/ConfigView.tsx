@@ -21,6 +21,7 @@ import { DatastoresTab } from "@/config/schede/DatastoresTab";
 import { GlobalScriptsTab } from "@/config/schede/GlobalScriptsTab";
 import { RecipesTab } from "@/config/schede/RecipesTab";
 import { NotificationsTab } from "@/config/schede/NotificationsTab";
+import { VOCI_SINISTRA } from "@/editor/LeftPanel";
 import { useRepoDisponibile } from "./repoDisponibile";
 import { ContainerTab } from "./schede/ContainerTab";
 import { InstallTab } from "./schede/InstallTab";
@@ -123,11 +124,21 @@ export function ConfigView() {
   // to keep React's rules-of-hooks invariant intact across role changes.
   if (!canConfigureProject(authRole)) return null;
 
+  const voceId = VOCI_SINISTRA.find((v) => "schede" in v && (v.schede as readonly string[]).includes(tab))?.id;
+  const titoloVoce = voceId ? t(`leftPanel.att.${voceId}`) : t(`config.rami.${corrente.ramo}`);
+  const voce = titoloVoce === t(`config.tabs.${tab}`) ? null : titoloVoce;
+
   return (
     <div style={S.page}>
       <div style={S.intestazione}>
-        <span style={{ color: "var(--brand-text-subtle, #64748b)" }}>{t(`config.rami.${corrente.ramo}`)}</span>
-        <span aria-hidden="true" style={{ color: "var(--brand-text-subtle, #64748b)" }}>›</span>
+        {/* Il nome del menù da cui si arriva, quello che si vede a sinistra
+            («Device»), non il ramo interno del registro («Instance»), che
+            nell'interfaccia non esiste (maintainer, 15-11-2026). Se è lo
+            stesso nome della scheda («Tags › Tags») si scrive una volta. */}
+        {voce !== null && (<>
+          <span style={{ color: "var(--brand-text-subtle, #64748b)" }}>{voce}</span>
+          <span aria-hidden="true" style={{ color: "var(--brand-text-subtle, #64748b)" }}>›</span>
+        </>)}
         <span aria-hidden="true">{corrente.icona}</span>
         <span style={{ color: "var(--brand-text, #e2e8f0)", fontWeight: 600 }}>{t(`config.tabs.${tab}`)}</span>
         {focus !== null && (<>

@@ -58,6 +58,7 @@ import type {
   TagDef,
   TemplateEntry,
   AiConfig,
+  MyAiKey,
   ScopoIa,
   ScopoIaCfg,
   ConfigTraduzione,
@@ -819,7 +820,10 @@ export const sulGateway = (path: string) =>
   || path === "/api/identita/marchio" || path === "/api/identita/marchio/privato"
   // Il biglietto dello schermo di un pannello (29-10-2026): lo dà il gateway a
   // una **persona**, e dal container del progetto arriverebbe a nome suo.
-  || /^\/api\/pannelli\/[^/]+\/schermo$/.test(path);
+  || /^\/api\/pannelli\/[^/]+\/schermo$/.test(path)
+  // The user's own AI keys (15-11-2026): the account is the gateway's, the
+  // project's container knows nothing of it.
+  || path === "/api/identity/ai-keys" || path.startsWith("/api/identity/ai-keys/");
 
 /** La base a cui mandare una richiesta: il prefisso del progetto, o la radice
  *  per le rotte del gateway quando siamo nel cloud. */
@@ -2382,6 +2386,16 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ scopi }),
     }),
+  /** The AI keys of the logged-in user (cloud): provider and last four letters, never the value. */
+  getMyAiKeys: () => request<MyAiKey[]>("/api/identity/ai-keys"),
+  putMyAiKey: (provider: string, key: string) =>
+    request<void>(`/api/identity/ai-keys/${encodeURIComponent(provider)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key }),
+    }),
+  deleteMyAiKey: (provider: string) =>
+    request<void>(`/api/identity/ai-keys/${encodeURIComponent(provider)}`, { method: "DELETE" }),
   putAiChiave: (fornitore: string, chiave: string) =>
     request<{ ok: boolean; cambiata: boolean }>("/api/ai/chiavi", {
       method: "PUT",
@@ -2734,7 +2748,7 @@ export const api = {
   /** The device control panel of the project: the switch and, when given, a
    *  new service PIN (sent in plain, stored hashed). `reset_pin` goes back to
    *  the device's initial PIN. */
-  updateControlPanel: (body: { enabled: boolean; pin?: string; reset_pin?: boolean }) =>
+  updateControlPanel: (body: { enabled: boolean; gesture_enabled?: boolean; button_enabled?: boolean; pin?: string; reset_pin?: boolean; reboot_corner_enabled?: boolean }) =>
     request<void>("/api/project/control-panel", {
       method: "PUT",
       headers: { "Content-Type": "application/json", ...seVersionato("/api/project/control-panel") },

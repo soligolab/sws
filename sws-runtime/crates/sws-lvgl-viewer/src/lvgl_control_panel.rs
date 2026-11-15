@@ -40,6 +40,11 @@ const WARN: Rgb = (224, 164, 58);
 const BAD: Rgb = (217, 83, 79);
 
 const HEADER_H: i16 = 50;
+/// Under this width the panel is laid out for a narrow screen: a portrait
+/// project (600×1024 on the 7", 480×800 on the 5") has no room for a menu on
+/// the left. The menu becomes a bar of tabs under the header.
+const NARROW_W: i16 = 700;
+const TABS_H: i16 = 48;
 const LV_SIZE_CONTENT: i16 = 2001 | (1 << 13);
 const fn pct(v: i16) -> i16 {
     v | (1 << 13)
@@ -63,6 +68,9 @@ enum Action {
     Confirm,
     Rollback,
     Ntp(bool),
+    NtpServersMode(bool),
+    NtpServersEdit,
+    DiagnosticsUsb,
     ManualStart,
     ManualFocus(usize),
     ManualKey(&'static str),
@@ -86,6 +94,25 @@ enum Action {
     CalibrateSave,
     CalibrateRedo,
     CalibrateCancel,
+    PanelCorner(cp::RebootCorner),
+    ResetAsk,
+    ResetCancel,
+    PanelHold(i8),
+    PanelSize(i16),
+    Flip(bool),
+    RebootCorner(cp::RebootCorner),
+    RebootHold(i8),
+    RebootSize(i16),
+    RebootConfirm(bool),
+    RebootAnswer(bool),
+    TzOpen,
+    TzCancel,
+    TzBack(u8),
+    TzContinent(&'static str),
+    TzCountry(String),
+    TzPick(String),
+    TzFocus,
+    TzKey(String),
 }
 
 unsafe extern "C" fn sws_control_panel_cb(e: *mut lvgl_sys::lv_event_t) {
@@ -109,6 +136,9 @@ unsafe extern "C" fn sws_control_panel_cb(e: *mut lvgl_sys::lv_event_t) {
         Action::Confirm => cp::confirm_network(),
         Action::Rollback => cp::rollback_network(),
         Action::Ntp(on) => cp::set_ntp(*on),
+        Action::NtpServersMode(manual) => cp::ntp_servers_mode(*manual),
+        Action::NtpServersEdit => cp::ntp_servers_edit(),
+        Action::DiagnosticsUsb => cp::diagnostics_to_usb(),
         Action::ManualStart => cp::manual_time_start(),
         Action::ManualFocus(i) => cp::manual_time_focus(*i),
         Action::ManualKey(k) => cp::manual_time_key(k),
@@ -122,6 +152,14 @@ unsafe extern "C" fn sws_control_panel_cb(e: *mut lvgl_sys::lv_event_t) {
         Action::WifiForget(ssid) => cp::wifi_forget(ssid),
         Action::HotspotStart => cp::hotspot_start(),
         Action::HotspotOff => cp::hotspot_off(),
+        Action::TzOpen => cp::tz_open(),
+        Action::TzCancel => cp::tz_cancel(),
+        Action::TzBack(step) => cp::tz_back(*step),
+        Action::TzContinent(c) => cp::tz_continent(c),
+        Action::TzCountry(code) => cp::tz_country(code),
+        Action::TzPick(zone) => cp::tz_pick(zone),
+        Action::TzFocus => cp::tz_focus(),
+        Action::TzKey(k) => cp::tz_key(k),
         Action::FormFocus(i) => cp::form_focus(*i),
         Action::FormKey(k) => cp::form_key(k),
         Action::FormCancel => cp::form_cancel(),
@@ -135,6 +173,17 @@ unsafe extern "C" fn sws_control_panel_cb(e: *mut lvgl_sys::lv_event_t) {
         Action::CalibrateSave => cp::calibrate_save(),
         Action::CalibrateRedo => cp::calibrate_redo(),
         Action::CalibrateCancel => cp::calibrate_cancel(),
+        Action::PanelCorner(c) => cp::panel_corner_set(*c),
+        Action::ResetAsk => cp::reset_ask(),
+        Action::ResetCancel => cp::reset_cancel(),
+        Action::PanelHold(d) => cp::panel_hold_step(*d),
+        Action::PanelSize(d) => cp::panel_size_step(*d),
+        Action::Flip(on) => cp::flip_set(*on),
+        Action::RebootCorner(c) => cp::reboot_corner_set(*c),
+        Action::RebootHold(d) => cp::reboot_hold_step(*d),
+        Action::RebootSize(d) => cp::reboot_size_step(*d),
+        Action::RebootConfirm(on) => cp::reboot_confirm_set(*on),
+        Action::RebootAnswer(yes) => cp::reboot_answer(*yes),
     }
 }
 
@@ -151,18 +200,6 @@ unsafe extern "C" fn sws_control_panel_slider_cb(e: *mut lvgl_sys::lv_event_t) {
         }
     } else {
         cp::brightness_set(Some(v));
-    }
-}
-
-unsafe extern "C" fn sws_control_panel_zone_cb(e: *mut lvgl_sys::lv_event_t) {
-    let dd = lvgl_sys::lv_event_get_target(e);
-    let mut buf = [0 as std::ffi::c_char; 64];
-    lvgl_sys::lv_dropdown_get_selected_str(dd, buf.as_mut_ptr(), buf.len() as u32);
-    let zone = std::ffi::CStr::from_ptr(buf.as_ptr())
-        .to_string_lossy()
-        .into_owned();
-    if !zone.is_empty() {
-        cp::set_timezone(&zone);
     }
 }
 
@@ -184,6 +221,11 @@ pub struct Overlay {
     ctxs: Vec<*mut Action>,
     key: Option<(u64, &'static str)>,
     ticks: Vec<(P, Tick)>,
+    /// The scrolling area of the section on screen, and how far it was
+    /// scrolled when the panel was last rebuilt: a tap on a choice redraws
+    /// everything, and must not jump back to the top.
+    main: Option<(P, Section)>,
+    scrolled: Option<(Section, i16)>,
 }
 
 impl Overlay {
@@ -203,6 +245,9 @@ impl Overlay {
             let boot = cp::boot_button(now).is_some();
             cp::with_state(|s| unsafe {
                 match s.screen {
+                    Screen::Closed if s.rebooting || s.reboot_ask.is_some() => {
+                        self.build_reboot_corner(s, lang)
+                    }
                     Screen::Closed if boot => self.build_boot(lang),
                     Screen::Closed => {}
                     Screen::Pin => self.build_pin(s, lang),
@@ -216,6 +261,10 @@ impl Overlay {
     }
 
     fn destroy(&mut self) {
+        self.scrolled = self
+            .main
+            .take()
+            .map(|(m, section)| (section, unsafe { lvgl_sys::lv_obj_get_scroll_y(m) }));
         if let Some(r) = self.root.take() {
             unsafe { lvgl_sys::lv_obj_del(r) };
         }
@@ -233,6 +282,23 @@ impl Overlay {
             p,
             Some(sws_control_panel_cb),
             lvgl_sys::lv_event_code_t_LV_EVENT_CLICKED,
+            ctx as *mut c_void,
+        );
+    }
+
+    /// A key of a keypad or keyboard: it acts when pressed, not when released.
+    /// Every key changes the state and the next frame rebuilds the panel, so a
+    /// key typed quickly could be rebuilt under the finger between press and
+    /// release, and its click was lost (TY570, 14-11-2026: «il tastierino del
+    /// PIN spesso perde la pressione del tasto»). Lists that scroll stay on
+    /// `on`: a click does not fire after a drag, a press would.
+    unsafe fn on_press(&mut self, p: P, a: Action) {
+        let ctx = Box::into_raw(Box::new(a));
+        self.ctxs.push(ctx);
+        lvgl_sys::lv_obj_add_event_cb(
+            p,
+            Some(sws_control_panel_cb),
+            lvgl_sys::lv_event_code_t_LV_EVENT_PRESSED,
             ctx as *mut c_void,
         );
     }
@@ -290,7 +356,7 @@ impl Overlay {
     fn update_ring(&mut self, now: Instant) {
         unsafe {
             match (cp::hold_progress(now), self.ring) {
-                (Some(f), ring) => {
+                (Some((f, corner, reboot)), ring) => {
                     let arc = match ring {
                         Some(a) => a,
                         None => {
@@ -300,7 +366,11 @@ impl Overlay {
                             if a.is_null() {
                                 return;
                             }
-                            lvgl_sys::lv_obj_set_size(a, 64, 64);
+                            // Wider than the finger that covers the corner:
+                            // about 3 cm on a 7" screen.
+                            let (w, h) = screen_size();
+                            let d = (w.min(h) / 3).max(64);
+                            lvgl_sys::lv_obj_set_size(a, d, d);
                             lvgl_sys::lv_obj_align(
                                 a,
                                 lvgl_sys::LV_ALIGN_TOP_RIGHT as lvgl_sys::lv_align_t,
@@ -326,12 +396,29 @@ impl Overlay {
                                 Color::from_rgb(ACCENT).into(),
                                 stile::INDICATORE,
                             );
-                            lvgl_sys::lv_obj_set_style_arc_width(a, 6, stile::MAIN);
-                            lvgl_sys::lv_obj_set_style_arc_width(a, 6, stile::INDICATORE);
+                            lvgl_sys::lv_obj_set_style_arc_width(a, 12, stile::MAIN);
+                            lvgl_sys::lv_obj_set_style_arc_width(a, 12, stile::INDICATORE);
                             self.ring = Some(a);
                             a
                         }
                     };
+                    // In the corner the finger is in: red where it reboots.
+                    let (align, dx, dy) = match corner {
+                        cp::RebootCorner::TopLeft => (lvgl_sys::LV_ALIGN_TOP_LEFT, 10, 10),
+                        cp::RebootCorner::BottomLeft => (lvgl_sys::LV_ALIGN_BOTTOM_LEFT, 10, -10),
+                        cp::RebootCorner::BottomRight => {
+                            (lvgl_sys::LV_ALIGN_BOTTOM_RIGHT, -10, -10)
+                        }
+                        _ => (lvgl_sys::LV_ALIGN_TOP_RIGHT, -10, 10),
+                    };
+                    lvgl_sys::lv_obj_align(arc, align as lvgl_sys::lv_align_t, dx, dy);
+                    // Red: it reboots. Green: it opens the panel.
+                    let color = if reboot { BAD } else { OK };
+                    lvgl_sys::lv_obj_set_style_arc_color(
+                        arc,
+                        Color::from_rgb(color).into(),
+                        stile::INDICATORE,
+                    );
                     lvgl_sys::lv_arc_set_value(arc, (f * 100.0) as i16);
                 }
                 (None, Some(a)) => {
@@ -341,6 +428,44 @@ impl Overlay {
                 (None, None) => {}
             }
         }
+    }
+
+    // ── Reboot corner ────────────────────────────────────────────────────────
+
+    /// After the corner was held: the question, or the notice that the device
+    /// is going down. Over the page, without a PIN: the corner has none.
+    unsafe fn build_reboot_corner(&mut self, s: &State, lang: &str) {
+        let (w, _) = screen_size();
+        let root = full_screen(BG);
+        lvgl_sys::lv_obj_set_style_bg_opa(root, lvgl_sys::LV_OPA_70 as u8, stile::MAIN);
+        lvgl_sys::lv_obj_set_style_bg_color(root, Color::from_rgb((0, 0, 0)).into(), stile::MAIN);
+        self.root = Some(root);
+        let card = panel_box(root, PANEL);
+        lvgl_sys::lv_obj_set_size(card, (w - 32).min(420), LV_SIZE_CONTENT);
+        stile::margini(card, 16, 20, stile::MAIN);
+        flex(card, lvgl_sys::lv_flex_flow_t_LV_FLEX_FLOW_COLUMN, 12);
+        lvgl_sys::lv_obj_align(
+            card,
+            lvgl_sys::LV_ALIGN_CENTER as lvgl_sys::lv_align_t,
+            0,
+            0,
+        );
+        if s.rebooting {
+            wrap(
+                label(card, &cp::word(lang, "rebooting", &[]), 18, TEXT),
+                pct(100),
+            );
+            return;
+        }
+        wrap(
+            label(card, &cp::word(lang, "rebootAsk", &[]), 18, TEXT),
+            pct(100),
+        );
+        let r = actions(card);
+        let b = button(r, &cp::word(lang, "cancel", &[]), PANEL2, TEXT, 15);
+        self.on(b, Action::RebootAnswer(false));
+        let b = button(r, &cp::word(lang, "reboot", &[]), BAD, (255, 255, 255), 15);
+        self.on(b, Action::RebootAnswer(true));
     }
 
     // ── Boot button ──────────────────────────────────────────────────────────
@@ -381,8 +506,26 @@ impl Overlay {
         lvgl_sys::lv_obj_set_size(card, cw, LV_SIZE_CONTENT);
         stile::margini(card, 16, 20, stile::MAIN);
         flex(card, lvgl_sys::lv_flex_flow_t_LV_FLEX_FLOW_COLUMN, 8);
-        label(card, &cp::word(lang, "title", &[]), 20, TEXT);
-        let help = label(card, &cp::word(lang, "pinHelp", &[]), 14, MUTED);
+        label(
+            card,
+            &cp::word(lang, if s.resetting { "resetTitle" } else { "title" }, &[]),
+            20,
+            if s.resetting { BAD } else { TEXT },
+        );
+        let help = label(
+            card,
+            &cp::word(
+                lang,
+                if s.resetting {
+                    "resetPinHelp"
+                } else {
+                    "pinHelp"
+                },
+                &[],
+            ),
+            14,
+            MUTED,
+        );
         wrap(help, pct(100));
 
         // The six boxes.
@@ -441,18 +584,29 @@ impl Overlay {
                 20,
             );
             lvgl_sys::lv_obj_set_size(b, kw, key_h);
-            self.on(b, Action::PinKey(k));
+            self.on_press(b, Action::PinKey(k));
         }
         let cancel = button(keys, &cp::word(lang, "cancel", &[]), PANEL2, MUTED, 15);
         lvgl_sys::lv_obj_set_size(cancel, kw * 2 + 8, key_h);
-        self.on(cancel, Action::Close);
+        self.on(
+            cancel,
+            if s.resetting {
+                Action::ResetCancel
+            } else {
+                Action::Close
+            },
+        );
         let back = button(keys, "⌫", PANEL2, MUTED, 18);
         lvgl_sys::lv_obj_set_size(back, kw, key_h);
-        self.on(back, Action::PinBack);
+        self.on_press(back, Action::PinBack);
         let enter = button(
             keys,
-            &cp::word(lang, "enter", &[]),
-            ACCENT,
+            &cp::word(
+                lang,
+                if s.resetting { "resetConfirm" } else { "enter" },
+                &[],
+            ),
+            if s.resetting { BAD } else { ACCENT },
             (255, 255, 255),
             15,
         );
@@ -476,7 +630,10 @@ impl Overlay {
         let (w, h) = screen_size();
         let root = full_screen(BG);
         self.root = Some(root);
-        let nav_w = (w / 5).clamp(150, 220);
+        let narrow = w < NARROW_W;
+        // The width the menu takes from the sections: none when it is on top.
+        let nav_w = if narrow { 0 } else { (w / 5).clamp(150, 220) };
+        let top = HEADER_H + if narrow { TABS_H } else { 0 };
 
         // Header: title, host name, Close.
         let header = panel_box(root, PANEL);
@@ -487,7 +644,7 @@ impl Overlay {
         flex(header, lvgl_sys::lv_flex_flow_t_LV_FLEX_FLOW_ROW, 10);
         center_items(header);
         label(header, &cp::word(lang, "title", &[]), 19, TEXT);
-        if let Some(i) = &s.info {
+        if let Some(i) = s.info.as_ref().filter(|_| !narrow) {
             let host = label(header, &i.hostname, 13, MUTED);
             lvgl_sys::lv_obj_set_flex_grow(host, 1);
         } else {
@@ -506,38 +663,60 @@ impl Overlay {
         let nav = panel_box(root, PANEL);
         stile::raggio(nav, 0.0, stile::MAIN);
         lvgl_sys::lv_obj_set_pos(nav, 0, HEADER_H);
-        lvgl_sys::lv_obj_set_size(nav, nav_w, h - HEADER_H);
-        stile::margini(nav, 10, 0, stile::MAIN);
-        flex(nav, lvgl_sys::lv_flex_flow_t_LV_FLEX_FLOW_COLUMN, 0);
+        if narrow {
+            // A row of tabs, dragged sideways when they are more than fit.
+            lvgl_sys::lv_obj_set_size(nav, w, TABS_H);
+            flex(nav, lvgl_sys::lv_flex_flow_t_LV_FLEX_FLOW_ROW, 0);
+            lvgl_sys::lv_obj_add_flag(nav, lvgl_sys::LV_OBJ_FLAG_SCROLLABLE);
+            lvgl_sys::lv_obj_add_flag(nav, lvgl_sys::LV_OBJ_FLAG_CLICKABLE);
+            lvgl_sys::lv_obj_set_scroll_dir(nav, lvgl_sys::LV_DIR_HOR as lvgl_sys::lv_dir_t);
+            lvgl_sys::lv_obj_set_scrollbar_mode(
+                nav,
+                lvgl_sys::LV_SCROLLBAR_MODE_OFF as lvgl_sys::lv_scrollbar_mode_t,
+            );
+        } else {
+            lvgl_sys::lv_obj_set_size(nav, nav_w, h - HEADER_H);
+            stile::margini(nav, 10, 0, stile::MAIN);
+            flex(nav, lvgl_sys::lv_flex_flow_t_LV_FLEX_FLOW_COLUMN, 0);
+        }
+        let mut active_tab = None;
         let caps = s.caps.clone().unwrap_or(cp::Capabilities {
             network: true,
             time: true,
             ..Default::default()
         });
         // The resistive calibration is the viewer's: the runtime cannot know.
-        let screen_on =
-            caps.display || caps.touch_calibration_service || crate::touch_calibration::resistive();
+        // The corner that opens this panel is chosen there, on every device.
+        let screen_on = true;
         let sections = [
             (Some(Section::Network), "network", caps.network),
             (Some(Section::Wifi), "wifi", caps.wifi),
             (Some(Section::Time), "time", caps.time),
             (Some(Section::Screen), "screen", screen_on),
             (Some(Section::Device), "device", true),
+            (Some(Section::About), "about", true),
         ];
         for (section, key, on) in sections {
             let active = section == Some(s.section);
             let b = lvgl_sys::lv_obj_create(nav);
             plain(b);
-            lvgl_sys::lv_obj_set_size(b, pct(100), 50);
-            stile::margini(b, 0, 20, stile::MAIN);
+            if narrow {
+                lvgl_sys::lv_obj_set_size(b, LV_SIZE_CONTENT, TABS_H);
+                stile::margini(b, 0, 16, stile::MAIN);
+            } else {
+                lvgl_sys::lv_obj_set_size(b, pct(100), 50);
+                stile::margini(b, 0, 20, stile::MAIN);
+            }
             if active {
                 stile::sfondo(b, PANEL2, stile::MAIN);
-                lvgl_sys::lv_obj_set_style_border_side(
-                    b,
-                    lvgl_sys::LV_BORDER_SIDE_LEFT as u8,
-                    stile::MAIN,
-                );
+                let side = if narrow {
+                    lvgl_sys::LV_BORDER_SIDE_BOTTOM
+                } else {
+                    lvgl_sys::LV_BORDER_SIDE_LEFT
+                };
+                lvgl_sys::lv_obj_set_style_border_side(b, side as u8, stile::MAIN);
                 stile::bordo(b, Some(ACCENT), 4.0, stile::MAIN);
+                active_tab = Some(b);
             }
             let l = label(
                 b,
@@ -558,14 +737,16 @@ impl Overlay {
         // What sits at the bottom: the keypad of a field being typed, or the
         // bar of a network change waiting for confirmation.
         let typing_ip = s.section == Section::Network && s.draft.as_ref().is_some_and(|d| d.manual);
-        let typing_time = s.section == Section::Time && s.manual_time.is_some();
-        let typing_text = s.section == Section::Wifi && s.wifi_form.is_some();
+        let typing_time = s.section == Section::Time && s.manual_time.is_some() && s.tz.is_none();
+        let typing_ntp = s.section == Section::Time && s.ntp_form.is_some();
+        let typing_text = typing_ntp || (s.section == Section::Wifi && s.wifi_form.is_some());
+        let typing_tz = s.section == Section::Time && s.tz.as_ref().is_some_and(|p| p.typing);
         let pending = matches!(s.section, Section::Network | Section::Wifi) && s.pending.is_some();
         let keypad_h: i16 = if h < 520 { 104 } else { 116 };
         let keyboard_h: i16 = if h < 520 { 196 } else { 220 };
         let bottom = if typing_ip || typing_time {
             keypad_h
-        } else if typing_text {
+        } else if typing_text || typing_tz {
             keyboard_h
         } else if pending {
             84
@@ -574,18 +755,32 @@ impl Overlay {
         };
 
         let main = transparent(root);
-        lvgl_sys::lv_obj_set_pos(main, nav_w, HEADER_H);
-        lvgl_sys::lv_obj_set_size(main, w - nav_w, h - HEADER_H - bottom);
+        lvgl_sys::lv_obj_set_pos(main, nav_w, top);
+        lvgl_sys::lv_obj_set_size(main, w - nav_w, h - top - bottom);
         lvgl_sys::lv_obj_add_flag(main, lvgl_sys::LV_OBJ_FLAG_SCROLLABLE);
-        stile::margini(main, 14, 18, stile::MAIN);
+        // It must take the finger too: cards and labels do not, and a drag
+        // that lands on nothing scrolls nothing (TY570, 15-11-2026: Screen and
+        // About were taller than the page and stayed still).
+        lvgl_sys::lv_obj_add_flag(main, lvgl_sys::LV_OBJ_FLAG_CLICKABLE);
+        lvgl_sys::lv_obj_set_scroll_dir(main, lvgl_sys::LV_DIR_VER as lvgl_sys::lv_dir_t);
+        self.main = Some((main, s.section));
+        stile::margini(main, 14, if narrow { 10 } else { 18 }, stile::MAIN);
         flex(main, lvgl_sys::lv_flex_flow_t_LV_FLEX_FLOW_COLUMN, 12);
+        // The tab of the section on screen, in view among the others.
+        if let Some(tab) = active_tab.filter(|_| narrow) {
+            lvgl_sys::lv_obj_update_layout(nav);
+            lvgl_sys::lv_obj_scroll_to_view(tab, lvgl_sys::lv_anim_enable_t_LV_ANIM_OFF);
+        }
 
         if let Some(e) = &s.error {
             let c = panel_box(main, PANEL);
             stile::bordo(c, Some(BAD), 1.0, stile::MAIN);
             lvgl_sys::lv_obj_set_size(c, pct(100), LV_SIZE_CONTENT);
             stile::margini(c, 10, 14, stile::MAIN);
-            wrap(label(c, e, 15, (241, 176, 173)), pct(100));
+            wrap(
+                label(c, &cp::error_text(e, lang), 15, (241, 176, 173)),
+                pct(100),
+            );
         }
         if let Some(p) = s.powering {
             let key = if p == Power::Reboot {
@@ -603,6 +798,7 @@ impl Overlay {
             Section::Time => focused = self.time(main, s, lang),
             Section::Screen => self.screen(main, s, lang, &caps),
             Section::Device => self.device(main, s, lang, &caps),
+            Section::About => self.about(main, s, lang),
         }
 
         if typing_ip {
@@ -635,13 +831,39 @@ impl Overlay {
                 cp::manual_time_usec(m).is_some(),
                 false,
             );
+        } else if typing_ntp {
+            let f = s.ntp_form.as_ref().expect("typing_ntp");
+            let keys = Keys {
+                shift: f.shift,
+                symbols: f.symbols,
+                done: cp::word(lang, "apply", &[]),
+                valid: f.valid(),
+            };
+            self.keyboard(root, nav_w, w - nav_w, keyboard_h, &keys, lang);
         } else if typing_text {
             let f = s.wifi_form.as_ref().expect("typing_text");
-            self.keyboard(root, nav_w, w - nav_w, keyboard_h, f, lang);
+            let done = if f.hotspot { "hotspotTurnOn" } else { "join" };
+            let keys = Keys {
+                shift: f.shift,
+                symbols: f.symbols,
+                done: cp::word(lang, done, &[]),
+                valid: f.valid(),
+            };
+            self.keyboard(root, nav_w, w - nav_w, keyboard_h, &keys, lang);
+        } else if typing_tz {
+            self.tz_keyboard(root, nav_w, w - nav_w, keyboard_h, lang);
         } else if pending {
             self.confirm_bar(root, w, lang);
         }
 
+        // Where it was, if the section is the same one.
+        if let Some((_, y)) = self
+            .scrolled
+            .filter(|(section, y)| *section == s.section && *y > 0)
+        {
+            lvgl_sys::lv_obj_update_layout(root);
+            lvgl_sys::lv_obj_scroll_to_y(main, y, lvgl_sys::lv_anim_enable_t_LV_ANIM_OFF);
+        }
         // The field being typed stays in view above the keypad.
         if let Some(f) = focused {
             lvgl_sys::lv_obj_update_layout(root);
@@ -832,7 +1054,9 @@ impl Overlay {
         lvgl_sys::lv_obj_set_size(g, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
         stile::raggio(g, 6.0, stile::MAIN);
         lvgl_sys::lv_obj_set_style_clip_corner(g, true, stile::MAIN);
-        flex(g, lvgl_sys::lv_flex_flow_t_LV_FLEX_FLOW_ROW, 0);
+        // More choices than fit in the card go on a second line.
+        flex(g, lvgl_sys::lv_flex_flow_t_LV_FLEX_FLOW_ROW_WRAP, 0);
+        lvgl_sys::lv_obj_set_style_max_width(g, pct(100), stile::MAIN);
         for (text, on, action) in options {
             let b = lvgl_sys::lv_obj_create(g);
             plain(b);
@@ -887,7 +1111,7 @@ impl Overlay {
             );
             let wide = matches!(*key, "←" | "→");
             lvgl_sys::lv_obj_set_size(b, if wide { kw * 2 + 6 } else { kw }, kh);
-            self.on(
+            self.on_press(
                 b,
                 if ip {
                     Action::EditKey(key)
@@ -973,6 +1197,19 @@ impl Overlay {
             label(main, &cp::word(lang, "loading", &[]), 15, MUTED);
             return None;
         };
+        // Typing: only the form, so that the keyboard below leaves it in view.
+        if let Some(f) = &s.ntp_form {
+            let c = card(main, |_| {});
+            stile::bordo(c, Some(ACCENT), 1.0, stile::MAIN);
+            let r = row(c, &cp::word(lang, "ntpServers", &[]));
+            let bad = !f.text.trim().is_empty() && !f.valid();
+            let field = self.text_field(r, &f.text, 420, true, bad);
+            wrap(
+                label(c, &cp::word(lang, "ntpServersManualHelp", &[]), 13, MUTED),
+                pct(100),
+            );
+            return Some(field);
+        }
         let c = card(main, |_| {});
         let r = row(c, &cp::word(lang, "deviceTime", &[]));
         let clock = label(r, "", 30, TEXT);
@@ -1003,43 +1240,61 @@ impl Overlay {
             };
             tag(r, &cp::word(lang, key, &[]), ok);
         }
-        let r = row(c, &cp::word(lang, "timezone", &[]));
-        if !s.zones.is_empty() {
-            let dd = lvgl_sys::lv_dropdown_create(r);
-            if !dd.is_null() {
-                let options = std::ffi::CString::new(s.zones.join("\n")).unwrap_or_default();
-                lvgl_sys::lv_dropdown_set_options(dd, options.as_ptr());
-                if let Some(i) = s.zones.iter().position(|z| z == &t.timezone) {
-                    lvgl_sys::lv_dropdown_set_selected(dd, i as u16);
-                }
-                lvgl_sys::lv_obj_set_width(dd, 260);
-                stile::font(dd, 15, stile::MAIN);
-                lvgl_sys::lv_obj_set_style_text_font(
-                    dd,
-                    &lvgl_sys::lv_font_montserrat_14 as *const lvgl_sys::lv_font_t,
-                    lvgl_sys::LV_PART_INDICATOR,
-                );
-                stile::sfondo(dd, BG, stile::MAIN);
-                stile::testo(dd, TEXT, stile::MAIN);
-                stile::bordo(dd, Some(LINE), 1.0, stile::MAIN);
-                lvgl_sys::lv_obj_add_event_cb(
-                    dd,
-                    Some(sws_control_panel_zone_cb),
-                    lvgl_sys::lv_event_code_t_LV_EVENT_VALUE_CHANGED,
-                    core::ptr::null_mut(),
-                );
-                // The list LVGL opens below: dark, like the rest.
-                let list = lvgl_sys::lv_dropdown_get_list(dd);
-                if !list.is_null() {
-                    stile::sfondo(list, PANEL2, stile::MAIN);
-                    stile::testo(list, TEXT, stile::MAIN);
-                    stile::bordo(list, Some(LINE), 1.0, stile::MAIN);
-                    stile::font(list, 15, stile::MAIN);
-                    lvgl_sys::lv_obj_set_style_max_height(list, screen_size().1 / 2, stile::MAIN);
-                }
+        if let Some(d) = t.drift.filter(|_| t.ntp) {
+            let r = row(c, &cp::word(lang, "clockDrift", &[]));
+            let words = cp::drift_words(&d);
+            let args: Vec<(&str, &str)> = words.iter().map(|(k, v)| (*k, v.as_str())).collect();
+            let key = if d.ppm >= 0.0 {
+                "clockDriftFast"
+            } else {
+                "clockDriftSlow"
+            };
+            label(r, &cp::word(lang, key, &args), 15, TEXT);
+        }
+        if let Some(n) = &t.ntp_servers {
+            let r = row(c, &cp::word(lang, "ntpServers", &[]));
+            self.segmented(
+                r,
+                &[
+                    (
+                        cp::word(lang, "ntpServersAuto", &[]),
+                        !n.manual,
+                        Action::NtpServersMode(false),
+                    ),
+                    (
+                        cp::word(lang, "ntpServersManual", &[]),
+                        n.manual,
+                        Action::NtpServersMode(true),
+                    ),
+                ],
+            );
+            if n.manual {
+                let r = row(c, "");
+                label(r, &n.servers.join("  "), 15, TEXT);
+                let b = button(r, &cp::word(lang, "tzChange", &[]), PANEL2, TEXT, 15);
+                self.on(b, Action::NtpServersEdit);
             }
-        } else {
-            label(r, &t.timezone, 16, TEXT);
+        }
+        let r = row(c, &cp::word(lang, "timezone", &[]));
+        let current = s
+            .zones
+            .iter()
+            .find(|z| z.zone == t.timezone)
+            .cloned()
+            .unwrap_or(cp::Zone {
+                zone: t.timezone.clone(),
+                country: None,
+            });
+        label(r, &cp::zone_label(&current, lang), 16, TEXT);
+        label(r, &t.timezone, 13, MUTED);
+        if !s.zones.is_empty() && s.tz.is_none() {
+            let b = button(r, &cp::word(lang, "tzChange", &[]), PANEL2, TEXT, 15);
+            self.on(b, Action::TzOpen);
+        }
+        if let Some(p) = &s.tz {
+            let focused = self.tz_picker(main, s, p, lang);
+            // The picker takes the place of the manual time while it is open.
+            return focused;
         }
         let r = row(c, &cp::word(lang, "dateTime", &[]));
         if t.ntp {
@@ -1110,6 +1365,48 @@ impl Overlay {
             line.push_str(&format!(" · {ssid}"));
         }
         label(r, &line, 16, TEXT);
+        // The addresses of the network joined (maintainer, 14-11-2026).
+        let joined = s
+            .cards
+            .as_ref()
+            .and_then(|cs| cs.iter().find(|x| Some(&x.name) == wf.card.as_ref()))
+            .filter(|x| {
+                wf.mode == "client" && !(x.addresses.is_empty() && x.addresses6.is_empty())
+            });
+        // Joined, but the network gave no IPv4 (its DHCP did not answer): the
+        // IPv6 address, and a line that says so.
+        if let Some(x) = joined.filter(|x| x.addresses.is_empty()) {
+            let r = row(c, &cp::word(lang, "wifiDetails", &[]));
+            label(r, &x.addresses6.join(", "), 16, TEXT);
+            tag(r, &cp::word(lang, "wifiNoIpv4Tag", &[]), false);
+            wrap(
+                label(c, &cp::word(lang, "wifiNoIpv4", &[]), 13, WARN),
+                pct(100),
+            );
+        } else if let Some(x) = joined {
+            let r = row(c, &cp::word(lang, "wifiDetails", &[]));
+            label(r, &x.addresses.join(", "), 16, TEXT);
+            let manual = x.method.as_deref() == Some("manual");
+            tag(
+                r,
+                &if manual {
+                    cp::word(lang, "static", &[])
+                } else {
+                    "DHCP".into()
+                },
+                true,
+            );
+            if x.gateway.is_some() || !x.dns.is_empty() {
+                let r = row(c, &cp::word(lang, "gatewayDns", &[]));
+                let gw = x.gateway.clone().unwrap_or_else(|| "—".into());
+                let dns = if x.dns.is_empty() {
+                    "—".into()
+                } else {
+                    x.dns.join(", ")
+                };
+                label(r, &format!("{gw} · {dns}"), 15, TEXT);
+            }
+        }
         let r = row(c, &cp::word(lang, "radio", &[]));
         self.segmented(
             r,
@@ -1317,9 +1614,191 @@ impl Overlay {
         focused
     }
 
+    /// The time zone picker (TY570, 14-11-2026): the filter, then continent,
+    /// country and city as lists inside the panel. A `lv_dropdown` opened its
+    /// list on `lv_layer_top`, under the system layer that holds this panel:
+    /// the list showed, and the finger touched the panel above it.
+    unsafe fn tz_picker(&mut self, main: P, s: &State, p: &cp::TzPicker, lang: &str) -> Option<P> {
+        let c = card(main, |_| {});
+        stile::bordo(c, Some(ACCENT), 1.0, stile::MAIN);
+        let head = transparent(c);
+        lvgl_sys::lv_obj_set_size(head, pct(100), LV_SIZE_CONTENT);
+        flex(head, lvgl_sys::lv_flex_flow_t_LV_FLEX_FLOW_ROW_WRAP, 8);
+        center_items(head);
+        let field = self.text_field(head, &p.filter, 220, p.typing, false);
+        self.on(field, Action::TzFocus);
+        let filtering = !p.filter.trim().is_empty();
+        if !filtering {
+            let b = button(head, &cp::word(lang, "tzContinents", &[]), PANEL2, TEXT, 14);
+            if p.continent.is_some() {
+                self.on(b, Action::TzBack(0));
+            } else {
+                dim(b);
+            }
+            if let Some(cont) = &p.continent {
+                let b = button(
+                    head,
+                    &cp::word(lang, &format!("continent_{cont}"), &[]),
+                    PANEL2,
+                    TEXT,
+                    14,
+                );
+                if p.country.is_some() {
+                    self.on(b, Action::TzBack(1));
+                } else {
+                    dim(b);
+                }
+            }
+            if let Some(code) = &p.country {
+                dim(button(
+                    head,
+                    &cp::country_name(code, lang),
+                    PANEL2,
+                    TEXT,
+                    14,
+                ));
+            }
+        }
+        spacer(head);
+        let b = button(head, &cp::word(lang, "cancel", &[]), PANEL2, TEXT, 14);
+        self.on(b, Action::TzCancel);
+        if !filtering && p.continent.is_none() {
+            wrap(
+                label(c, &cp::word(lang, "tzFilterHelp", &[]), 13, MUTED),
+                pct(100),
+            );
+        }
+
+        // The rows: wide buttons, one per line, in the scrolling section.
+        let list = transparent(c);
+        lvgl_sys::lv_obj_set_size(list, pct(100), LV_SIZE_CONTENT);
+        stile::margini(list, 8, 0, stile::MAIN);
+        flex(list, lvgl_sys::lv_flex_flow_t_LV_FLEX_FLOW_ROW_WRAP, 6);
+        let item = |this: &mut Self, text: &str, note: &str, a: Action, wide: bool| {
+            let b = button(list, text, PANEL2, TEXT, 16);
+            lvgl_sys::lv_obj_set_size(b, if wide { pct(100) } else { pct(32) }, 46);
+            if !note.is_empty() {
+                let n = label(b, note, 12, MUTED);
+                lvgl_sys::lv_obj_align(
+                    n,
+                    lvgl_sys::LV_ALIGN_RIGHT_MID as lvgl_sys::lv_align_t,
+                    0,
+                    0,
+                );
+            }
+            this.on(b, a);
+        };
+        if filtering {
+            let found = cp::search_zones(&s.zones, &p.filter, lang, 40);
+            if found.is_empty() {
+                label(list, &cp::word(lang, "tzNoMatch", &[]), 15, MUTED);
+            }
+            for z in found {
+                item(
+                    self,
+                    &cp::zone_label(&z, lang),
+                    &z.zone,
+                    Action::TzPick(z.zone.clone()),
+                    true,
+                );
+            }
+        } else if let Some(code) = &p.country {
+            let mut zones: Vec<&cp::Zone> = s
+                .zones
+                .iter()
+                .filter(|z| z.country.as_deref() == Some(code.as_str()))
+                .collect();
+            zones.sort_by_key(|z| cp::fold(&cp::city_of(&z.zone)));
+            for z in zones {
+                item(
+                    self,
+                    &cp::city_of(&z.zone),
+                    &z.zone,
+                    Action::TzPick(z.zone.clone()),
+                    true,
+                );
+            }
+        } else if let Some(cont) = &p.continent {
+            for e in cp::countries_in(&s.zones, cont, lang) {
+                let note = if e.zones.len() > 1 {
+                    e.zones.len().to_string()
+                } else {
+                    String::new()
+                };
+                let a = match &e.code {
+                    Some(code) => Action::TzCountry(code.clone()),
+                    None => Action::TzPick(e.zones[0].clone()),
+                };
+                item(self, &e.name, &note, a, true);
+            }
+        } else {
+            for cont in cp::continents_in(&s.zones) {
+                item(
+                    self,
+                    &cp::word(lang, &format!("continent_{cont}"), &[]),
+                    "",
+                    Action::TzContinent(cont),
+                    false,
+                );
+            }
+        }
+        p.typing.then_some(field)
+    }
+
+    /// The letters of the time zone filter: three rows, then ⌫, space and Done.
+    /// Keys act on press (see `on_press`).
+    unsafe fn tz_keyboard(&mut self, root: P, x: i16, w: i16, h: i16, lang: &str) {
+        const LETTERS: [&str; 3] = ["qwertyuiop", "asdfghjkl", "zxcvbnm"];
+        let k = panel_box(root, (20, 24, 29));
+        stile::raggio(k, 0.0, stile::MAIN);
+        lvgl_sys::lv_obj_set_style_border_side(k, lvgl_sys::LV_BORDER_SIDE_TOP as u8, stile::MAIN);
+        lvgl_sys::lv_obj_set_pos(k, x, screen_size().1 - h);
+        lvgl_sys::lv_obj_set_size(k, w, h);
+        stile::margini(k, 6, 8, stile::MAIN);
+        flex(k, lvgl_sys::lv_flex_flow_t_LV_FLEX_FLOW_COLUMN, 5);
+        let kh = (h - 12 - 3 * 5) / 4;
+        let kw = (w - 16 - 9 * 5) / 10;
+        for keys in LETTERS {
+            let r = transparent(k);
+            lvgl_sys::lv_obj_set_size(r, pct(100), kh);
+            flex(r, lvgl_sys::lv_flex_flow_t_LV_FLEX_FLOW_ROW, 5);
+            lvgl_sys::lv_obj_set_flex_align(
+                r,
+                lvgl_sys::lv_flex_align_t_LV_FLEX_ALIGN_CENTER,
+                lvgl_sys::lv_flex_align_t_LV_FLEX_ALIGN_CENTER,
+                lvgl_sys::lv_flex_align_t_LV_FLEX_ALIGN_CENTER,
+            );
+            for c in keys.chars() {
+                let b = button(r, &c.to_string(), PANEL2, TEXT, 18);
+                lvgl_sys::lv_obj_set_size(b, kw, kh);
+                stile::margini(b, 0, 0, stile::MAIN);
+                self.on_press(b, Action::TzKey(c.to_string()));
+            }
+        }
+        let r = transparent(k);
+        lvgl_sys::lv_obj_set_size(r, pct(100), kh);
+        flex(r, lvgl_sys::lv_flex_flow_t_LV_FLEX_FLOW_ROW, 5);
+        let b = button(r, "⌫", PANEL2, TEXT, 18);
+        lvgl_sys::lv_obj_set_size(b, kw * 3 / 2, kh);
+        self.on_press(b, Action::TzKey("⌫".into()));
+        let b = button(r, &cp::word(lang, "kbSpace", &[]), PANEL2, MUTED, 14);
+        lvgl_sys::lv_obj_set_height(b, kh);
+        lvgl_sys::lv_obj_set_flex_grow(b, 1);
+        self.on_press(b, Action::TzKey(" ".into()));
+        let b = button(
+            r,
+            &cp::word(lang, "kbDone", &[]),
+            ACCENT,
+            (255, 255, 255),
+            14,
+        );
+        lvgl_sys::lv_obj_set_size(b, kw * 3, kh);
+        self.on(b, Action::TzKey("⏎".into()));
+    }
+
     /// Letters, capitals and symbols, then Cancel and Done (join, or turn the
     /// hotspot on): four rows over the bottom of the section.
-    unsafe fn keyboard(&mut self, root: P, x: i16, w: i16, h: i16, f: &cp::WifiForm, lang: &str) {
+    unsafe fn keyboard(&mut self, root: P, x: i16, w: i16, h: i16, f: &Keys, lang: &str) {
         const LETTERS: [&str; 3] = ["qwertyuiop", "asdfghjkl", "zxcvbnm"];
         const SYMBOLS: [&str; 3] = ["1234567890", "-_@#&*+=()", ".,:;!?'\"/"];
         let k = panel_box(root, (20, 24, 29));
@@ -1345,7 +1824,7 @@ impl Overlay {
             if i == 2 && !f.symbols {
                 let b = button(r, "⇧", if f.shift { ACCENT } else { PANEL2 }, TEXT, 18);
                 lvgl_sys::lv_obj_set_size(b, kw * 3 / 2, kh);
-                self.on(b, Action::FormKey("⇧".into()));
+                self.on_press(b, Action::FormKey("⇧".into()));
             }
             for c in keys.chars() {
                 let ch = if f.shift && !f.symbols {
@@ -1356,12 +1835,12 @@ impl Overlay {
                 let b = button(r, &ch.to_string(), PANEL2, TEXT, 18);
                 lvgl_sys::lv_obj_set_size(b, kw, kh);
                 stile::margini(b, 0, 0, stile::MAIN);
-                self.on(b, Action::FormKey(ch.to_string()));
+                self.on_press(b, Action::FormKey(ch.to_string()));
             }
             if i == 2 {
                 let b = button(r, "⌫", PANEL2, TEXT, 18);
                 lvgl_sys::lv_obj_set_size(b, kw * 3 / 2, kh);
-                self.on(b, Action::FormKey("⌫".into()));
+                self.on_press(b, Action::FormKey("⌫".into()));
             }
         }
         let r = transparent(k);
@@ -1370,21 +1849,20 @@ impl Overlay {
         let toggle = if f.symbols { "kbLetters" } else { "kbSymbols" };
         let b = button(r, &cp::word(lang, toggle, &[]), PANEL2, TEXT, 14);
         lvgl_sys::lv_obj_set_size(b, kw * 3 / 2, kh);
-        self.on(
+        self.on_press(
             b,
             Action::FormKey(if f.symbols { "abc" } else { "?123" }.into()),
         );
         let b = button(r, &cp::word(lang, "kbSpace", &[]), PANEL2, MUTED, 14);
         lvgl_sys::lv_obj_set_height(b, kh);
         lvgl_sys::lv_obj_set_flex_grow(b, 1);
-        self.on(b, Action::FormKey(" ".into()));
+        self.on_press(b, Action::FormKey(" ".into()));
         let b = button(r, &cp::word(lang, "cancel", &[]), PANEL2, TEXT, 14);
         lvgl_sys::lv_obj_set_size(b, kw * 2, kh);
         self.on(b, Action::FormCancel);
-        let done = if f.hotspot { "hotspotTurnOn" } else { "join" };
-        let b = button(r, &cp::word(lang, done, &[]), ACCENT, (255, 255, 255), 14);
+        let b = button(r, &f.done, ACCENT, (255, 255, 255), 14);
         lvgl_sys::lv_obj_set_size(b, kw * 3, kh);
-        if f.valid() {
+        if f.valid {
             self.on(b, Action::FormSubmit);
         } else {
             dim(b);
@@ -1459,6 +1937,25 @@ impl Overlay {
                 }
             }
         }
+        if let Some(flipped) = s.flipped {
+            let c = card(main, |_| {});
+            let r = row(c, &cp::word(lang, "flipped", &[]));
+            self.segmented(
+                r,
+                &[
+                    (cp::word(lang, "no", &[]), !flipped, Action::Flip(false)),
+                    (cp::word(lang, "yes", &[]), flipped, Action::Flip(true)),
+                ],
+            );
+            wrap(
+                label(c, &cp::word(lang, "flippedHelp", &[]), 13, MUTED),
+                pct(100),
+            );
+        }
+        self.panel_corner(main, s, lang);
+        if caps.reboot_corner {
+            self.reboot_corner(main, s, lang);
+        }
         let resistive = crate::touch_calibration::resistive();
         if resistive || caps.touch_calibration_service {
             let c = card(main, |_| {});
@@ -1476,6 +1973,220 @@ impl Overlay {
                 },
             );
         }
+    }
+
+    /// What runs here, read only: SWS, the project, the system, the state.
+    /// Below, the diagnostic export to a USB stick where the device can.
+    unsafe fn about(&mut self, main: P, s: &State, lang: &str) {
+        let Some(a) = &s.about else {
+            label(main, &cp::word(lang, "loading", &[]), 15, MUTED);
+            return;
+        };
+        for c in crate::control_panel_about::cards(a, lang) {
+            let box_ = card(main, |_| {});
+            label(box_, &c.title, 15, MUTED);
+            for (name, value) in &c.rows {
+                let r = row(box_, name);
+                label(r, value, 16, TEXT);
+            }
+        }
+        if a.get("diagnostics_usb").and_then(|v| v.as_bool()) != Some(true) {
+            return;
+        }
+        let c = card(main, |_| {});
+        let r = row(c, &cp::word(lang, "diagnostics", &[]));
+        let b = button(r, &cp::word(lang, "diagnosticsUsb", &[]), PANEL2, TEXT, 15);
+        if s.diagnostics_busy {
+            dim(b);
+            label(r, &cp::word(lang, "diagnosticsWriting", &[]), 14, MUTED);
+        } else {
+            self.on(b, Action::DiagnosticsUsb);
+        }
+        match &s.diagnostics {
+            Some(Ok(file)) => {
+                wrap(
+                    label(
+                        c,
+                        &cp::word(lang, "diagnosticsWritten", &[("file", file)]),
+                        13,
+                        OK,
+                    ),
+                    pct(100),
+                );
+            }
+            Some(Err(e)) => {
+                wrap(label(c, &cp::error_text(e, lang), 13, BAD), pct(100));
+            }
+            None => {}
+        }
+        wrap(
+            label(c, &cp::word(lang, "diagnosticsHelp", &[]), 13, MUTED),
+            pct(100),
+        );
+    }
+
+    /// The corner that opens this panel when held, or none: then the button
+    /// at start-up is the only way in, and the card says so.
+    unsafe fn panel_corner(&mut self, main: P, s: &State, lang: &str) {
+        let Some(corner) = s.panel_corner else {
+            return;
+        };
+        let c = card(main, |_| {});
+        label(c, &cp::word(lang, "panelCorner", &[]), 15, TEXT);
+        let r = row(c, "");
+        let taken = s
+            .reboot_corner
+            .map_or(cp::RebootCorner::None, |(reboot, _)| reboot);
+        self.segmented(r, &corner_choices(lang, corner, taken, Action::PanelCorner));
+        let o = s.panel_options;
+        if corner != cp::RebootCorner::None {
+            let r = row(c, &cp::word(lang, "rebootCornerHold", &[]));
+            self.stepper(
+                r,
+                &format!("{} s", o.hold_secs),
+                Action::PanelHold(-1),
+                Action::PanelHold(1),
+            );
+            let r = row(c, &cp::word(lang, "rebootCornerSize", &[]));
+            self.stepper(
+                r,
+                &format!("{} px", o.size_px),
+                Action::PanelSize(-20),
+                Action::PanelSize(20),
+            );
+            if let Some(root) = self.root {
+                self.corner_preview(root, corner, o.size_px as i16, OK);
+            }
+        }
+        let secs = o.hold_secs.to_string();
+        let (key, color) = if corner == cp::RebootCorner::None {
+            ("panelCornerNoneHelp", WARN)
+        } else {
+            ("panelCornerHelp", MUTED)
+        };
+        wrap(
+            label(c, &cp::word(lang, key, &[("secs", &secs)]), 13, color),
+            pct(100),
+        );
+    }
+
+    /// The corner that reboots when held. The options (time, size, question)
+    /// only where this viewer watches it: PixsysOS has its own, fixed.
+    unsafe fn reboot_corner(&mut self, main: P, s: &State, lang: &str) {
+        let c = card(main, |_| {});
+        let Some((corner, options)) = s.reboot_corner else {
+            label(c, &cp::word(lang, "loading", &[]), 15, MUTED);
+            return;
+        };
+        label(c, &cp::word(lang, "rebootCorner", &[]), 15, TEXT);
+        if !s.reboot_corner_allowed {
+            wrap(
+                label(
+                    c,
+                    &cp::word(lang, "rebootCornerOffByProject", &[]),
+                    14,
+                    MUTED,
+                ),
+                pct(100),
+            );
+            return;
+        }
+        let r = row(c, "");
+        let taken = s.panel_corner.unwrap_or(cp::RebootCorner::TopRight);
+        let options_row = corner_choices(lang, corner, taken, Action::RebootCorner);
+        self.segmented(r, &options_row);
+        if let Some(o) = options.filter(|_| corner != cp::RebootCorner::None) {
+            let r = row(c, &cp::word(lang, "rebootCornerHold", &[]));
+            self.stepper(
+                r,
+                &format!("{} s", o.hold_secs),
+                Action::RebootHold(-1),
+                Action::RebootHold(1),
+            );
+            let r = row(c, &cp::word(lang, "rebootCornerSize", &[]));
+            self.stepper(
+                r,
+                &format!("{} px", o.size_px),
+                Action::RebootSize(-20),
+                Action::RebootSize(20),
+            );
+            let r = row(c, &cp::word(lang, "rebootCornerConfirm", &[]));
+            self.segmented(
+                r,
+                &[
+                    (
+                        cp::word(lang, "no", &[]),
+                        !o.confirm,
+                        Action::RebootConfirm(false),
+                    ),
+                    (
+                        cp::word(lang, "yes", &[]),
+                        o.confirm,
+                        Action::RebootConfirm(true),
+                    ),
+                ],
+            );
+        }
+        if let (Some(o), Some(root)) = (options, self.root) {
+            self.corner_preview(root, corner, o.size_px as i16, BAD);
+        }
+        let secs = options.map_or(5, |o| o.hold_secs).to_string();
+        wrap(
+            label(
+                c,
+                &cp::word(lang, "rebootCornerHelp", &[("secs", &secs)]),
+                13,
+                MUTED,
+            ),
+            pct(100),
+        );
+    }
+
+    /// The area of a corner gesture, drawn where it is and as large as it is,
+    /// while its card is on screen: red the one that reboots, green the one
+    /// that opens the panel. It takes no touch: what is under it still works.
+    unsafe fn corner_preview(&mut self, root: P, corner: cp::RebootCorner, size: i16, color: Rgb) {
+        let (w, h) = screen_size();
+        let (x, y) = match corner {
+            cp::RebootCorner::None => return,
+            cp::RebootCorner::TopLeft => (0, 0),
+            cp::RebootCorner::TopRight => (w - size, 0),
+            cp::RebootCorner::BottomRight => (w - size, h - size),
+            cp::RebootCorner::BottomLeft => (0, h - size),
+        };
+        let area = transparent(root);
+        lvgl_sys::lv_obj_add_flag(area, lvgl_sys::LV_OBJ_FLAG_FLOATING);
+        lvgl_sys::lv_obj_set_pos(area, x, y);
+        lvgl_sys::lv_obj_set_size(area, size, size);
+        stile::sfondo(area, color, stile::MAIN);
+        lvgl_sys::lv_obj_set_style_bg_opa(area, 70, stile::MAIN);
+        stile::bordo(area, Some(color), 2.0, stile::MAIN);
+    }
+
+    /// `−  value  +`.
+    unsafe fn stepper(&mut self, parent: P, value: &str, less: Action, more: Action) {
+        let g = transparent(parent);
+        lvgl_sys::lv_obj_set_size(g, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+        flex(g, lvgl_sys::lv_flex_flow_t_LV_FLEX_FLOW_ROW, 10);
+        lvgl_sys::lv_obj_set_flex_align(
+            g,
+            lvgl_sys::lv_flex_align_t_LV_FLEX_ALIGN_START,
+            lvgl_sys::lv_flex_align_t_LV_FLEX_ALIGN_CENTER,
+            lvgl_sys::lv_flex_align_t_LV_FLEX_ALIGN_CENTER,
+        );
+        let b = button(g, "-", PANEL2, TEXT, 18);
+        lvgl_sys::lv_obj_set_width(b, 48);
+        self.on(b, less);
+        let l = label(g, value, 16, TEXT);
+        lvgl_sys::lv_obj_set_style_min_width(l, 64, stile::MAIN);
+        lvgl_sys::lv_obj_set_style_text_align(
+            l,
+            lvgl_sys::LV_TEXT_ALIGN_CENTER as lvgl_sys::lv_text_align_t,
+            stile::MAIN,
+        );
+        let b = button(g, "+", PANEL2, TEXT, 18);
+        lvgl_sys::lv_obj_set_width(b, 48);
+        self.on(b, more);
     }
 
     /// The crosses, the try and the failure: on top of the panel, the whole
@@ -1628,6 +2339,31 @@ impl Overlay {
                 }
             }
         }
+        // Give the device back: a card of its own, in red, under the buttons
+        // above. The PIN is asked again before anything goes.
+        if s.reset_done {
+            let c = card(main, |_| {});
+            wrap(
+                label(c, &cp::word(lang, "resetDone", &[]), 15, OK),
+                pct(100),
+            );
+        } else {
+            let c = card(main, |_| {});
+            stile::bordo(c, Some(BAD), 1.0, stile::MAIN);
+            let r = row(c, &cp::word(lang, "reset", &[]));
+            let b = button(
+                r,
+                &cp::word(lang, "resetButton", &[]),
+                BAD,
+                (255, 255, 255),
+                15,
+            );
+            self.on(b, Action::ResetAsk);
+            wrap(
+                label(c, &cp::word(lang, "resetHelp", &[]), 13, MUTED),
+                pct(100),
+            );
+        }
     }
 }
 
@@ -1644,6 +2380,36 @@ impl Drop for Overlay {
 
 fn layer() -> P {
     unsafe { lvgl_sys::lv_disp_get_layer_sys(core::ptr::null_mut()) }
+}
+
+/// What the on-screen keyboard needs from the form it types into.
+struct Keys {
+    shift: bool,
+    symbols: bool,
+    /// The label of the key that confirms.
+    done: String,
+    valid: bool,
+}
+
+/// None and the four corners, without the one the other gesture has: two long
+/// presses cannot share a corner.
+fn corner_choices(
+    lang: &str,
+    current: cp::RebootCorner,
+    taken: cp::RebootCorner,
+    action: fn(cp::RebootCorner) -> Action,
+) -> Vec<(String, bool, Action)> {
+    [
+        (cp::RebootCorner::None, "rebootCornerNone"),
+        (cp::RebootCorner::TopLeft, "cornerTopLeft"),
+        (cp::RebootCorner::TopRight, "cornerTopRight"),
+        (cp::RebootCorner::BottomLeft, "cornerBottomLeft"),
+        (cp::RebootCorner::BottomRight, "cornerBottomRight"),
+    ]
+    .iter()
+    .filter(|(v, _)| *v == cp::RebootCorner::None || *v != taken)
+    .map(|(v, key)| (cp::word(lang, key, &[]), *v == current, action(*v)))
+    .collect()
 }
 
 fn screen_size() -> (i16, i16) {
@@ -1760,10 +2526,19 @@ unsafe fn row(parent: P, text: &str) -> P {
     let r = transparent(parent);
     lvgl_sys::lv_obj_set_size(r, pct(100), LV_SIZE_CONTENT);
     lvgl_sys::lv_obj_set_style_min_height(r, 44, stile::MAIN);
-    flex(r, lvgl_sys::lv_flex_flow_t_LV_FLEX_FLOW_ROW, 10);
+    // What does not fit beside the label goes under it: on a narrow screen
+    // a row of choices is wider than the card.
+    flex(r, lvgl_sys::lv_flex_flow_t_LV_FLEX_FLOW_ROW_WRAP, 10);
+    lvgl_sys::lv_obj_set_style_pad_row(r, 6, stile::MAIN);
     center_items(r);
-    let l = label(r, text, 14, MUTED);
-    lvgl_sys::lv_obj_set_width(l, 140);
+    if !text.is_empty() {
+        let l = label(r, text, 14, MUTED);
+        lvgl_sys::lv_obj_set_width(l, 140);
+    } else if screen_size().0 >= NARROW_W {
+        // Aligned under the values of the rows above; on a narrow screen
+        // the whole width is for the content.
+        lvgl_sys::lv_obj_set_width(label(r, "", 14, MUTED), 140);
+    }
     r
 }
 

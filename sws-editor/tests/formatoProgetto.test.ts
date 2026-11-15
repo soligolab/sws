@@ -159,3 +159,30 @@ describe("nello store", () => {
     expect(stato().pages[1]).toMatchObject({ width: 800, height: 480 });
   });
 });
+
+describe("a project that changes orientation", () => {
+  it("turns the format and the screen-sized pages, and comes back", async () => {
+    const { cambioOrientamento } = await import("../src/formatoProgetto");
+    const pagina = (id: string, width: number, height: number) => ({ id, name: id, width, height, objects: [] }) as never;
+    const pagine = [
+      { pagina: pagina("home", 1024, 600), genere: "pagina" as const },
+      { pagina: pagina("boot", 1024, 600), genere: "boot" as const },
+      { pagina: pagina("popup", 400, 300), genere: "finestra" as const },
+    ];
+    const layout = { size_mode: "fixed" as const, default_width: 1024, default_height: 600, dispositivo: "TY570" };
+    const giro = cambioOrientamento(pagine, layout, "portrait");
+    expect(giro.layout).toMatchObject({ orientation: "portrait", default_width: 600, default_height: 1024, dispositivo: "TY570" });
+    // The window keeps its shape: it is a piece inside a page.
+    expect(giro.patches).toEqual([
+      { id: "home", patch: { width: 600, height: 1024 } },
+      { id: "boot", patch: { width: 600, height: 1024 } },
+    ]);
+    // The same orientation again changes nothing.
+    expect(cambioOrientamento(pagine, giro.layout, "portrait").patches).toEqual([]);
+    // Back: landscape is the absence of the field.
+    const indietro = cambioOrientamento([], giro.layout, "landscape").layout;
+    expect(indietro.orientation).toBeUndefined();
+    expect(indietro).toMatchObject({ default_width: 1024, default_height: 600 });
+  });
+});
+

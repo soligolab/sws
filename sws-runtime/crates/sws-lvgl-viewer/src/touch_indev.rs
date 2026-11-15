@@ -166,10 +166,20 @@ pub fn spawn(device_path: &str, hor_res: u32, ver_res: u32) -> anyhow::Result<()
                     crate::touch_calibration::Routed::Calibrated(x, y) => (x, y),
                     // The crosses of a calibration: LVGL sees nothing.
                     crate::touch_calibration::Routed::Captured => continue,
-                    crate::touch_calibration::Routed::Uncalibrated => (
-                        map_range(x_raw, x_info.minimum, x_info.maximum, w as i32),
-                        map_range(y_raw, y_info.minimum, y_info.maximum, h as i32),
-                    ),
+                    // The touch is the glass's: scaled to the glass as it is
+                    // mounted, then turned to the page (`rotation.rs`). A
+                    // calibration made with the picture turned already holds
+                    // the turn, so the calibrated branch stays as it is.
+                    crate::touch_calibration::Routed::Uncalibrated => {
+                        let rot = crate::rotation::current();
+                        let (gw, gh) = rot.seen(w, h);
+                        rot.to_seen(
+                            map_range(x_raw, x_info.minimum, x_info.maximum, gw as i32),
+                            map_range(y_raw, y_info.minimum, y_info.maximum, gh as i32),
+                            gw as i32,
+                            gh as i32,
+                        )
+                    }
                 };
             // Il riposo decide se il tocco arriva a LVGL: quello che sveglia
             // lo schermo no (`schermo.rs`). Qui parte anche il beep.

@@ -312,6 +312,8 @@ pub struct Identita {
     percorso: PathBuf,
 }
 
+mod ai_keys;
+pub use ai_keys::{AiKeyInfo, MASTER_KEY_FILE};
 mod registrazione;
 pub use registrazione::{Registrato, Scopo, VERSIONE_CONDIZIONI};
 mod ciclo_di_vita;
@@ -501,6 +503,19 @@ CREATE TABLE IF NOT EXISTS membri (
 );
 
 CREATE INDEX IF NOT EXISTS idx_membri_utente ON membri(utente_id);
+
+-- The user's AI provider keys (schema 8, 15-11-2026), encrypted: the value is
+-- in `ciphertext` (AES-256-GCM), never in the clear; the master key is a file of
+-- its own (`ai_keys.rs`). It goes with the user.
+CREATE TABLE IF NOT EXISTS ai_keys (
+    user_id     INTEGER NOT NULL REFERENCES utenti(id) ON DELETE CASCADE,
+    provider    TEXT    NOT NULL,
+    nonce       BLOB    NOT NULL,
+    ciphertext  BLOB    NOT NULL,
+    last4       TEXT    NOT NULL,
+    created_ms  INTEGER NOT NULL,
+    PRIMARY KEY (user_id, provider)
+);
 "#;
 
 /// `amministratore_piattaforma` arriva con lo schema 2 su una tabella che puo
@@ -690,7 +705,7 @@ impl Identita {
                     conn.execute(sql, [])?;
                 }
             }
-            conn.pragma_update(None, "user_version", 7)?;
+            conn.pragma_update(None, "user_version", 8)?;
             // Il file contiene hash di password e sessioni: non deve essere leggibile da altri.
             #[cfg(unix)]
             {
@@ -1081,6 +1096,37 @@ impl Identita {
                 })?
                 .collect::<Result<Vec<_>, _>>()?;
             Ok(righe)
+        })
+        .await?
+    }
+
+    /// The user with this email, if there is one (the email is the identity, and
+    /// does not tell upper from lower case).
+    pub async fn user_by_email(&self, email: &str) -> anyhow::Result<Option<Utente>> {
+        let conn = self.conn.clone();
+        let email = email.trim().to_string();
+        task::spawn_blocking(move || -> anyhow::Result<Option<Utente>> {
+            let c = conn.lock().unwrap_or_else(|e| e.into_inner());
+            Ok(c.query_row(
+                "SELECT id, email, nome, ruolo, attivo, deve_cambiare_password, creato_ms,
+                        amministratore_piattaforma
+                 FROM utenti WHERE email = ?1",
+                params![email],
+                |r| {
+                    Ok(Utente {
+                        id: r.get(0)?,
+                        email: r.get(1)?,
+                        nome: r.get(2)?,
+                        ruolo: Ruolo::da_testo(&r.get::<_, String>(3)?)
+                            .unwrap_or(Ruolo::Sviluppatore),
+                        attivo: r.get::<_, i64>(4)? != 0,
+                        deve_cambiare_password: r.get::<_, i64>(5)? != 0,
+                        creato_ms: r.get::<_, i64>(6)? as u64,
+                        amministratore_piattaforma: r.get::<_, i64>(7)? != 0,
+                    })
+                },
+            )
+            .optional()?)
         })
         .await?
     }
@@ -2059,6 +2105,27 @@ mod test {
     }
 
     #[tokio::test]
+    async fn user_by_email_does_not_tell_upper_from_lower_case() {
+        let (id, _d) = archivio().await;
+        id.crea_utente(
+            "M@Soligo.net",
+            "Mauro",
+            "unapassword",
+            Ruolo::Sviluppatore,
+            false,
+        )
+        .await
+        .unwrap();
+        let u = id.user_by_email("  m@soligo.NET ").await.unwrap().unwrap();
+        assert_eq!(u.nome, "Mauro");
+        assert!(id
+            .user_by_email("altro@soligo.net")
+            .await
+            .unwrap()
+            .is_none());
+    }
+
+    #[tokio::test]
     async fn archivio_nuovo_non_ha_utenti() {
         let (id, _d) = archivio().await;
         assert!(!id.ha_utenti().await.unwrap());
@@ -2249,8 +2316,8 @@ mod test {
                 .unwrap()
         };
         assert_eq!(
-            versione, 7,
-            "lo schema 7: la posta dell'azienda (10-11-2026)"
+            versione, 8,
+            "lo schema 8: le chiavi IA dell'utente (15-11-2026); il 7 era la posta dell'azienda"
         );
         // Lo schema 7 aggiunge la posta dell'azienda anche a un archivio v2,
         // vuota: l'azienda continua a usare la posta dell'installazione.

@@ -178,12 +178,23 @@ describe("la finestra «Impostazioni progetto»", () => {
     expect(put).toHaveBeenLastCalledWith({ enabled: true, pin: "12ab9f" });
     expect(screen.getByTestId("control-panel-pin-state")).toBeTruthy();
     expect(screen.queryByTestId("control-panel-pin-warning")).toBeNull();
-    // The switch keeps the PIN: it is not sent again.
-    await act(async () => { fireEvent.click(screen.getByTestId("control-panel-enabled")); });
-    expect(put).toHaveBeenLastCalledWith({ enabled: false });
-    expect(useAppStore.getState().project?.control_panel).toEqual({ enabled: false, pin_hash: "********" });
+    // The gesture goes off, the button stays on: the master stays on, the PIN is not sent again.
+    await act(async () => { fireEvent.click(screen.getByTestId("control-panel-gesture")); });
+    expect(put).toHaveBeenLastCalledWith({ enabled: true, gesture_enabled: false, button_enabled: true });
+    expect(useAppStore.getState().project?.control_panel).toEqual({
+      enabled: true, gesture_enabled: false, pin_hash: "********",
+    });
+    // Both off: the master goes off, and the PIN is still there.
+    await act(async () => { fireEvent.click(screen.getByTestId("control-panel-button")); });
+    expect(put).toHaveBeenLastCalledWith({ enabled: false, gesture_enabled: false, button_enabled: false });
+    expect(useAppStore.getState().project?.control_panel).toEqual({
+      enabled: false, gesture_enabled: false, button_enabled: false, pin_hash: "********",
+    });
+    // One of them back on: the master follows, the other stays off.
+    await act(async () => { fireEvent.click(screen.getByTestId("control-panel-gesture")); });
+    expect(put).toHaveBeenLastCalledWith({ enabled: true, gesture_enabled: true, button_enabled: false });
     await act(async () => { fireEvent.click(screen.getByTestId("control-panel-pin-reset")); });
-    expect(put).toHaveBeenLastCalledWith({ enabled: false, reset_pin: true });
+    expect(put).toHaveBeenLastCalledWith({ enabled: true, reset_pin: true });
     expect(screen.getByTestId("control-panel-pin-warning")).toBeTruthy();
   });
 

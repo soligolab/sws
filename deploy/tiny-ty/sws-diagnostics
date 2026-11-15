@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+# The root half of the diagnostic export of the SWS control panel (plan
+# docs/plans/2026-11-14-funzioni-di-tyx-panelcontrol.md, 15-11-2026). The
+# runtime's user runs it through sudo (/etc/sudoers.d/50-sws-diagnostics) and
+# it does three things only, none of which takes a path from the caller:
+#
+#   sws-diagnostics journal   the system journal of this boot, to stdout
+#   sws-diagnostics dmesg     the kernel log, to stdout
+#   sws-diagnostics check-usb exit 0 if a USB stick is mounted, 4 if one is
+#                             still mounting, 5 if its format cannot be read,
+#                             3 if there is none
+#   sws-diagnostics to-usb    the archive on stdin, written to the USB stick
+#                             Pixsys' rule mounted; prints the file's name
+set -euo pipefail
+
+USB=/media/usb
+# The journal of a device left on for months is long: the end is what matters.
+JOURNAL_LINES=20000
+# Nothing the runtime builds comes near this: a runaway input must not fill
+# someone's stick.
+MAX_BYTES=$((64 * 1024 * 1024))
+
+case "${1:-}" in
+    journal)
+        exec journalctl -b --no-pager -o short-iso -n "$JOURNAL_LINES"
+        ;;
+    dmesg)
+        exec dmesg
+        ;;
+    check-usb)
+        # Pixsys' rule mounts a stick a few seconds after it is inserted (TY570,
+        # 15-11-2026: two tries made in those seconds were refused): 0 mounted,
+        # 4 inserted and still mounting, 3 no stick.
+        if mountpoint -q "$USB"; then
+            exit 0
+        elif ls /sys/block/sd* >/dev/null 2>&1; then
+            # A stick the kernel cannot read (this one has ext4, vfat and
+            # exFAT, no NTFS: a stick called «king» on the TY570, 15-11-2026)
+            # is never mounted, and «still mounting» would be a lie.
+            supported=0
+            for fs in $(lsblk -rno FSTYPE /dev/sd[a-z] 2>/dev/null | sort -u); do
+                grep -qw "$fs" /proc/filesystems && supported=1
+            done
+            if [ "$supported" = 0 ]; then
+                echo "usb-format" >&2
+                exit 5
+            fi
+            echo "usb-mounting" >&2
+            exit 4
+        fi
+        echo "usb-not-mounted" >&2
+        exit 3
+        ;;
+    to-usb)
+        mountpoint -q "$USB" || { echo "usb-not-mounted" >&2; exit 3; }
+        name="sws-diagnostics-$(hostname)-$(date +%Y%m%d-%H%M%S).zip"
+        head -c "$MAX_BYTES" > "$USB/$name.tmp"
+        mv "$USB/$name.tmp" "$USB/$name"
+        sync
+        echo "$name"
+        ;;
+    *)
+        echo "usage: $0 journal | dmesg | check-usb | to-usb" >&2
+        exit 2
+        ;;
+esac

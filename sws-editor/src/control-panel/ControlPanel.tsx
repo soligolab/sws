@@ -11,7 +11,14 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties, type Reac
 import { CampoPassword } from "@/components/CampoPassword";
 import { QrCode } from "@/components/QrCode";
 import { usePanelTranslation } from "./language";
+import { cityOf, continentsIn, countriesIn, search, zoneLabel, type CountryEntry, type Zone } from "./timezones";
 import {
+  type About,
+  type NtpServers,
+  type PanelCornerOptions,
+  isNtpServer,
+  MAX_NTP_SERVERS,
+  splitNtpServers,
   isIpv4,
   isPsk,
   openSession,
@@ -23,7 +30,10 @@ import {
   type Card,
   type ControlPanelSession,
   type DeviceInfo,
+  type DisplaySettings,
   type Hotspot,
+  type RebootCorner,
+  type RebootCornerOptions,
   type TimeState,
   type WifiNetwork,
   type WifiState,
@@ -50,7 +60,7 @@ const field: CSSProperties = {
   fontSize: 16, fontFamily: "'DejaVu Sans Mono', monospace", width: 180,
 };
 
-type Section = "network" | "wifi" | "time" | "screen" | "device";
+type Section = "network" | "wifi" | "time" | "screen" | "device" | "about";
 
 export function ControlPanel({ onClose }: { onClose: () => void }) {
   const [api, setApi] = useState<ControlPanelSession | null>(null);
@@ -168,6 +178,12 @@ function Panel({ api, onClose, onExpired }: { api: ControlPanelSession; onClose:
     void guard(api.capabilities()).then((c) => c && setCaps(c));
     void guard(api.info()).then((i) => i && setInfo(i));
   }, [api, guard]);
+  // The cards as the panel last saw them, and a count of dongles come or gone.
+  const [watched, setWatched] = useState<{ cards: Card[]; plugs: number } | null>(null);
+  useCardWatch(api, onExpired, (cards, plugged) => {
+    setWatched((w) => ({ cards, plugs: (w?.plugs ?? 0) + (plugged ? 1 : 0) }));
+    if (plugged) void guard(api.capabilities()).then((c) => c && setCaps(c));
+  });
 
   const sections: { id: Section; label: string; on: boolean }[] = [
     { id: "network", label: t("controlPanel.network"), on: caps?.network ?? true },
@@ -175,8 +191,9 @@ function Panel({ api, onClose, onExpired }: { api: ControlPanelSession; onClose:
     { id: "time", label: t("controlPanel.time"), on: caps?.time ?? true },
     // On the web: the brightness and PixsysOS' calibration. The resistive
     // calibration of the Tiny TY is the LVGL viewer's.
-    { id: "screen", label: t("controlPanel.screen"), on: (caps?.display || caps?.touch_calibration_service) ?? false },
+    { id: "screen", label: t("controlPanel.screen"), on: true },
     { id: "device", label: t("controlPanel.device"), on: true },
+    { id: "about", label: t("controlPanel.about"), on: true },
   ];
 
   return (
@@ -208,18 +225,30 @@ function Panel({ api, onClose, onExpired }: { api: ControlPanelSession; onClose:
         ))}
       </nav>
       <main style={{ padding: "18px 22px", overflow: "auto", position: "relative" }}>
-        {error && <div role="alert" style={{ ...card, borderColor: C.bad, color: "#f1b0ad" }}>{error}</div>}
-        {section === "network" && <NetworkSection api={api} guard={guard} />}
-        {section === "wifi" && <WifiSection api={api} guard={guard} />}
+        {error && <div role="alert" style={{ ...card, borderColor: C.bad, color: "#f1b0ad" }}>{errorText(error, t)}</div>}
+        {section === "network" && <NetworkSection api={api} guard={guard} watched={watched?.cards ?? null} />}
+        {section === "wifi" && <WifiSection api={api} guard={guard} watched={watched} />}
         {section === "time" && <TimeSection api={api} guard={guard} />}
         {section === "screen" && <ScreenSection api={api} guard={guard} caps={caps} />}
         {section === "device" && <DeviceSection api={api} guard={guard} info={info} caps={caps} />}
+        {section === "about" && <AboutSection api={api} guard={guard} />}
       </main>
     </div>
   );
 }
 
 type Guard = <T>(p: Promise<T>) => Promise<T | undefined>;
+
+/** The runtime's error, in words when it is one of its stable codes: a Wi-Fi
+ *  key the network refused, or another failure, already undone. */
+function errorText(e: string, t: (k: string) => string): string {
+  if (e === "wifi-wrong-password") return t("controlPanel.wifiWrongPassword");
+  if (e.startsWith("wifi-failed")) return t("controlPanel.wifiFailed");
+  if (e === "usb-not-mounted") return t("controlPanel.diagnosticsNoUsb");
+  if (e === "usb-mounting") return t("controlPanel.diagnosticsMounting");
+  if (e === "usb-format") return t("controlPanel.diagnosticsFormat");
+  return e;
+}
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return <div style={row}><div style={lbl}>{label}</div><div style={{ fontSize: 16 }}>{children}</div></div>;
@@ -259,7 +288,33 @@ function draftOf(c: Card): Draft {
   };
 }
 
-function NetworkSection({ api, guard }: { api: ControlPanelSession; guard: Guard }) {
+/** While the panel is open, the cards again every 3 s: a Wi-Fi dongle plugged
+ *  in or pulled out shows up by itself (TY570, 14-11-2026). `changed` runs only
+ *  when the list differs, with whether a card came or went. Not through
+ *  `guard`: no error line, and the request does not keep the session alive. */
+function useCardWatch(api: ControlPanelSession, onExpired: () => void, changed: (cards: Card[], plugged: boolean) => void) {
+  const last = useRef<string | null>(null);
+  const cb = useRef(changed);
+  cb.current = changed;
+  const expired = useRef(onExpired);
+  expired.current = onExpired;
+  useEffect(() => {
+    const look = () => void api.watchNetwork().then((c) => {
+      const key = JSON.stringify(c);
+      const names = (k: string | null) => (k ? (JSON.parse(k) as Card[]).map((x) => x.name).join() : null);
+      if (key === last.current) return;
+      // The first look is the baseline, read with the section.
+      const plugged = last.current !== null && names(last.current) !== names(key);
+      last.current = key;
+      cb.current(c, plugged);
+    }, (e) => { if (e instanceof SessionExpired) expired.current(); });
+    look();
+    const id = window.setInterval(look, 3_000);
+    return () => window.clearInterval(id);
+  }, [api]);
+}
+
+function NetworkSection({ api, guard, watched }: { api: ControlPanelSession; guard: Guard; watched: Card[] | null }) {
   const { t } = usePanelTranslation();
   const [cards, setCards] = useState<Card[] | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
@@ -270,6 +325,7 @@ function NetworkSection({ api, guard }: { api: ControlPanelSession; guard: Guard
 
   const reload = useCallback(() => guard(api.network()).then((c) => c && setCards(c)), [api, guard]);
   useEffect(() => { void reload(); }, [reload]);
+  useEffect(() => { if (watched) setCards(watched); }, [watched]);
 
   // The countdown, and a fresh read every few seconds while a change waits.
   useEffect(() => {
@@ -518,18 +574,32 @@ type WifiForm =
   | { kind: "join"; ssid: string; password: string; hidden: boolean; focus: "ssid" | "password" }
   | { kind: "hotspot"; ssid: string; password: string; focus: "ssid" | "password" };
 
-function WifiSection({ api, guard }: { api: ControlPanelSession; guard: Guard }) {
+function WifiSection({ api, guard, watched }: {
+  api: ControlPanelSession; guard: Guard; watched: { cards: Card[]; plugs: number } | null;
+}) {
   const { t } = usePanelTranslation();
   const [wifi, setWifi] = useState<WifiState | null>(null);
   const [hotspot, setHotspot] = useState<Hotspot | null>(null);
   const [form, setForm] = useState<WifiForm | null>(null);
+  const [cards, setCards] = useState<Card[]>([]);
 
   const reload = useCallback(() => {
     void guard(api.wifi()).then((w) => w && setWifi(w));
     void guard(api.hotspot()).then((h) => h && setHotspot(h));
+    // The addresses of the network joined (maintainer, 14-11-2026): the card
+    // as the Network section shows it.
+    void guard(api.network()).then((c) => c && setCards(c));
   }, [api, guard]);
   const { pending, now, start, clear } = usePending(reload);
   useEffect(() => { reload(); }, [reload]);
+  useEffect(() => { if (watched) setCards(watched.cards); }, [watched]);
+  // A dongle came or went: the Wi-Fi state again. Not on the first render.
+  const plugs = useRef(watched?.plugs ?? 0);
+  useEffect(() => {
+    if (!watched || watched.plugs === plugs.current) return;
+    plugs.current = watched.plugs;
+    reload();
+  }, [watched, reload]);
 
   const scan = async () => {
     await guard(api.wifiScan());
@@ -593,6 +663,25 @@ function WifiSection({ api, guard }: { api: ControlPanelSession; guard: Guard })
           }} />
           {wifi.card} · {t(`controlPanel.wifiState.${wifi.mode}`)}{wifi.active_ssid ? ` · ${wifi.active_ssid}` : ""}
         </Row>
+        {(() => {
+          const c = cards.find((x) => x.name === wifi.card);
+          if (wifi.mode !== "client" || !c || (c.addresses.length === 0 && !c.addresses6?.length)) return null;
+          // Joined, but the network gave no IPv4 (its DHCP did not answer): the IPv6 address, and a line that says so.
+          if (c.addresses.length === 0) return (<>
+            <Row label={t("controlPanel.wifiDetails")}>
+              <span data-testid="wifi-addresses">{c.addresses6!.join(", ")}</span>
+              <Tag tone="warn">{t("controlPanel.wifiNoIpv4Tag")}</Tag>
+            </Row>
+            <div data-testid="wifi-no-ipv4" style={{ color: C.warn, fontSize: 13 }}>{t("controlPanel.wifiNoIpv4")}</div>
+          </>);
+          return (<>
+            <Row label={t("controlPanel.wifiDetails")}>
+              <span data-testid="wifi-addresses">{c.addresses.join(", ")}</span>
+              <Tag>{c.method === "manual" ? t("controlPanel.static") : "DHCP"}</Tag>
+            </Row>
+            {(c.gateway || c.dns.length > 0) && <Row label={t("controlPanel.gatewayDns")}>{[c.gateway ?? "—", c.dns.join(", ") || "—"].join(" · ")}</Row>}
+          </>);
+        })()}
         <Row label={t("controlPanel.radio")}>
           <Segmented value={wifi.radio ? "on" : "off"} onChange={(v) => void guard(api.wifiRadio(v === "on")).then(() => window.setTimeout(reload, 1_500))}
             options={[{ value: "on", label: t("controlPanel.on") }, { value: "off", label: t("controlPanel.off") }]} />
@@ -683,14 +772,138 @@ function WifiSection({ api, guard }: { api: ControlPanelSession; guard: Guard })
 
 // ── Screen ───────────────────────────────────────────────────────────────────
 
+function Stepper({ value, onLess, onMore }: { value: string; onLess: () => void; onMore: () => void }) {
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
+      <button type="button" style={{ ...btn, width: 48 }} onClick={onLess}>-</button>
+      <span style={{ minWidth: 64, textAlign: "center" }}>{value}</span>
+      <button type="button" style={{ ...btn, width: 48 }} onClick={onMore}>+</button>
+    </span>
+  );
+}
+
+const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
+
+/** None and the four corners, without the one the other gesture has: two long
+ *  presses cannot share a corner. */
+function cornerChoices(t: (k: string) => string, taken: RebootCorner): { value: RebootCorner; label: string }[] {
+  const all: { value: RebootCorner; label: string }[] = [
+    { value: "none", label: t("controlPanel.rebootCornerNone") },
+    { value: "top_left", label: t("controlPanel.cornerTopLeft") },
+    { value: "top_right", label: t("controlPanel.cornerTopRight") },
+    { value: "bottom_left", label: t("controlPanel.cornerBottomLeft") },
+    { value: "bottom_right", label: t("controlPanel.cornerBottomRight") },
+  ];
+  return all.filter((c) => c.value === "none" || c.value !== taken);
+}
+
+/** The corner that opens this panel when held, on every device: where, for
+ *  how long and how large. While the card is on screen a green square shows
+ *  the real area. */
+function PanelCornerCard({ api, guard, corner, options, taken, onChange }: {
+  api: ControlPanelSession; guard: Guard; corner: RebootCorner; options: PanelCornerOptions; taken: RebootCorner;
+  onChange: (c: RebootCorner, o: PanelCornerOptions) => void;
+}) {
+  const { t } = usePanelTranslation();
+  const save = (c: RebootCorner, o: PanelCornerOptions) =>
+    void guard(api.setPanelCorner(c, o)).then(() => onChange(c, o));
+  return (
+    <div style={card} data-testid="panel-corner">
+      <Row label={t("controlPanel.panelCorner")}>
+        <Segmented value={corner} options={cornerChoices(t, taken)} onChange={(c) => save(c, options)} />
+      </Row>
+      {corner !== "none" && (<>
+        <Row label={t("controlPanel.rebootCornerHold")}>
+          <Stepper value={`${options.hold_secs} s`}
+            onLess={() => save(corner, { ...options, hold_secs: clamp(options.hold_secs - 1, 2, 15) })}
+            onMore={() => save(corner, { ...options, hold_secs: clamp(options.hold_secs + 1, 2, 15) })} />
+        </Row>
+        <Row label={t("controlPanel.rebootCornerSize")}>
+          <Stepper value={`${options.size_px} px`}
+            onLess={() => save(corner, { ...options, size_px: clamp(options.size_px - 20, 40, 200) })}
+            onMore={() => save(corner, { ...options, size_px: clamp(options.size_px + 20, 40, 200) })} />
+        </Row>
+        <div data-testid="panel-corner-preview" style={{
+          position: "fixed", zIndex: 9700, pointerEvents: "none", width: options.size_px, height: options.size_px,
+          background: "#46b37a46", border: `2px solid ${C.ok}`, boxSizing: "border-box",
+          ...(corner.endsWith("left") ? { left: 0 } : { right: 0 }),
+          ...(corner.startsWith("bottom") ? { bottom: 0 } : { top: 0 }),
+        }} />
+      </>)}
+      <div style={{ color: corner === "none" ? C.warn : C.muted, fontSize: 13 }}>
+        {corner === "none" ? t("controlPanel.panelCornerNoneHelp") : t("controlPanel.panelCornerHelp", { secs: options.hold_secs })}
+      </div>
+    </div>
+  );
+}
+
+/** The corner that reboots when held. The options (time, size, question) only
+ *  where the LVGL viewer watches it: PixsysOS has its own, fixed. */
+function RebootCornerCard({ api, guard, initial, taken, onCorner }: {
+  api: ControlPanelSession; guard: Guard; initial: DisplaySettings; taken: RebootCorner; onCorner: (c: RebootCorner) => void;
+}) {
+  const { t } = usePanelTranslation();
+  const [corner, setCorner] = useState<RebootCorner>(initial.reboot_corner ?? "none");
+  const [options, setOptions] = useState<RebootCornerOptions | null>(initial.reboot_corner_options ?? null);
+  const save = (c: RebootCorner, o: RebootCornerOptions | null) =>
+    void guard(api.setRebootCorner(c, o)).then(() => { setCorner(c); setOptions(o); onCorner(c); });
+  const choices = cornerChoices(t, taken);
+  if (initial.reboot_corner_allowed === false) {
+    return (
+      <div style={card} data-testid="reboot-corner">
+        <Row label={t("controlPanel.rebootCorner")}>
+          <span style={{ color: C.muted, fontSize: 14 }}>{t("controlPanel.rebootCornerOffByProject")}</span>
+        </Row>
+      </div>
+    );
+  }
+  return (
+    <div style={card} data-testid="reboot-corner">
+      <Row label={t("controlPanel.rebootCorner")}>
+        <Segmented value={corner} options={choices} onChange={(c) => save(c, options)} />
+      </Row>
+      {options && corner !== "none" && (<>
+        <Row label={t("controlPanel.rebootCornerHold")}>
+          <Stepper value={`${options.hold_secs} s`}
+            onLess={() => save(corner, { ...options, hold_secs: clamp(options.hold_secs - 1, 2, 15) })}
+            onMore={() => save(corner, { ...options, hold_secs: clamp(options.hold_secs + 1, 2, 15) })} />
+        </Row>
+        <Row label={t("controlPanel.rebootCornerSize")}>
+          <Stepper value={`${options.size_px} px`}
+            onLess={() => save(corner, { ...options, size_px: clamp(options.size_px - 20, 40, 200) })}
+            onMore={() => save(corner, { ...options, size_px: clamp(options.size_px + 20, 40, 200) })} />
+        </Row>
+        <Row label={t("controlPanel.rebootCornerConfirm")}>
+          <Segmented value={options.confirm ? "yes" : "no"}
+            onChange={(v) => save(corner, { ...options, confirm: v === "yes" })}
+            options={[{ value: "no", label: t("controlPanel.no") }, { value: "yes", label: t("controlPanel.yes") }]} />
+        </Row>
+      </>)}
+      <div style={{ color: C.muted, fontSize: 13 }}>
+        {t("controlPanel.rebootCornerHelp", { secs: options?.hold_secs ?? 5 })}
+      </div>
+    </div>
+  );
+}
+
 function ScreenSection({ api, guard, caps }: { api: ControlPanelSession; guard: Guard; caps: Capabilities | null }) {
   const { t } = usePanelTranslation();
-  const [brightness, setBrightness] = useState<number | null | undefined>(undefined);
+  const [settings, setSettings] = useState<DisplaySettings | undefined>(undefined);
+  const [brightness, setBrightness] = useState<number | null>(null);
   const [draft, setDraft] = useState(80);
+  const [flipped, setFlipped] = useState<boolean | null>(null);
+  const [panelCorner, setPanelCorner] = useState<RebootCorner>("top_right");
+  const [panelOptions, setPanelOptions] = useState<PanelCornerOptions>({ hold_secs: 5, size_px: 80 });
+  const [rebootCorner, setRebootCorner] = useState<RebootCorner>("none");
   useEffect(() => {
-    if (!caps?.display) return;
-    void guard(api.display()).then((d) => { if (d) { setBrightness(d.brightness); if (d.brightness != null) setDraft(d.brightness); } });
-  }, [api, guard, caps]);
+    void guard(api.display()).then((d) => {
+      if (!d) return;
+      setSettings(d); setBrightness(d.brightness); if (d.brightness != null) setDraft(d.brightness);
+      setPanelCorner(d.panel_corner ?? "top_right"); setRebootCorner(d.reboot_corner ?? "none");
+      setFlipped(d.flipped ?? null);
+      if (d.panel_corner_options) setPanelOptions(d.panel_corner_options);
+    });
+  }, [api, guard]);
   const calibration = caps?.touch_calibration_service && (
     <div style={card}>
       <Row label={t("controlPanel.calibration")}>
@@ -698,27 +911,43 @@ function ScreenSection({ api, guard, caps }: { api: ControlPanelSession; guard: 
       </Row>
     </div>
   );
-  if (!caps?.display) return <>{calibration}</>;
-  if (brightness === undefined) return <div style={{ color: C.muted }}>{t("controlPanel.loading")}</div>;
+  if (settings === undefined) return <div style={{ color: C.muted }}>{t("controlPanel.loading")}</div>;
   const save = (v: number | null) => void guard(api.setDisplay(v)).then(() => setBrightness(v));
   return (<>
-    <div style={card} data-testid="screen-section">
-      <Row label={t("controlPanel.brightness")}>
-        <Segmented value={brightness === null ? "project" : "here"}
-          onChange={(v) => save(v === "project" ? null : draft)}
-          options={[{ value: "project", label: t("controlPanel.brightnessProject") }, { value: "here", label: t("controlPanel.brightnessHere") }]} />
-      </Row>
-      {brightness !== null && (
-        <Row label="">
-          <input type="range" min={5} max={100} value={draft} data-testid="brightness"
-            onChange={(e) => setDraft(Number(e.target.value))}
-            onPointerUp={() => save(draft)} onKeyUp={() => save(draft)}
-            style={{ width: 320 }} />
-          <span style={{ marginLeft: 12, width: 50, display: "inline-block" }}>{draft} %</span>
+    {caps?.display && (
+      <div style={card} data-testid="screen-section">
+        <Row label={t("controlPanel.brightness")}>
+          <Segmented value={brightness === null ? "project" : "here"}
+            onChange={(v) => save(v === "project" ? null : draft)}
+            options={[{ value: "project", label: t("controlPanel.brightnessProject") }, { value: "here", label: t("controlPanel.brightnessHere") }]} />
         </Row>
-      )}
-      <div style={{ color: C.muted, fontSize: 13 }}>{t("controlPanel.brightnessHelp")}</div>
-    </div>
+        {brightness !== null && (
+          <Row label="">
+            <input type="range" min={5} max={100} value={draft} data-testid="brightness"
+              onChange={(e) => setDraft(Number(e.target.value))}
+              onPointerUp={() => save(draft)} onKeyUp={() => save(draft)}
+              style={{ width: 320 }} />
+            <span style={{ marginLeft: 12, width: 50, display: "inline-block" }}>{draft} %</span>
+          </Row>
+        )}
+        <div style={{ color: C.muted, fontSize: 13 }}>{t("controlPanel.brightnessHelp")}</div>
+      </div>
+    )}
+    {flipped !== null && (
+      <div style={card} data-testid="flipped">
+        <Row label={t("controlPanel.flipped")}>
+          <Segmented value={flipped ? "yes" : "no"}
+            onChange={(v) => void guard(api.setFlip(v === "yes")).then(() => setFlipped(v === "yes"))}
+            options={[{ value: "no", label: t("controlPanel.no") }, { value: "yes", label: t("controlPanel.yes") }]} />
+        </Row>
+        <div style={{ color: C.muted, fontSize: 13 }}>{t("controlPanel.flippedHelp")}</div>
+      </div>
+    )}
+    <PanelCornerCard api={api} guard={guard} corner={panelCorner} options={panelOptions} taken={rebootCorner}
+      onChange={(c, o) => { setPanelCorner(c); setPanelOptions(o); }} />
+    {caps?.reboot_corner && (
+      <RebootCornerCard api={api} guard={guard} initial={settings} taken={panelCorner} onCorner={setRebootCorner} />
+    )}
     {calibration}
   </>);
 }
@@ -742,10 +971,49 @@ function IpField({ name, draft, setDraft, focus, setFocus, width }: {
 
 // ── Time ─────────────────────────────────────────────────────────────────────
 
+/** Which servers the clock follows: the system's, or one to four typed here. */
+function NtpServersCard({ api, guard, initial, onSaved }: {
+  api: ControlPanelSession; guard: Guard; initial: NtpServers; onSaved: () => void;
+}) {
+  const { t } = usePanelTranslation();
+  const [manual, setManual] = useState(initial.manual);
+  const [text, setText] = useState(initial.servers.join(" "));
+  const servers = splitNtpServers(text);
+  const bad = servers.length > MAX_NTP_SERVERS || servers.some((s) => !isNtpServer(s)) || (manual && servers.length === 0);
+  const save = (m: boolean, list: string[]) =>
+    void guard(api.setTime({ ntp_servers: { manual: m, servers: list } })).then(onSaved);
+  return (
+    <div style={card} data-testid="ntp-servers">
+      <Row label={t("controlPanel.ntpServers")}>
+        <Segmented value={manual ? "manual" : "auto"}
+          onChange={(v) => {
+            setManual(v === "manual");
+            // Automatic applies at once; manual waits for its servers.
+            if (v === "auto") save(false, servers.filter(isNtpServer).slice(0, MAX_NTP_SERVERS));
+          }}
+          options={[{ value: "auto", label: t("controlPanel.ntpServersAuto") }, { value: "manual", label: t("controlPanel.ntpServersManual") }]} />
+      </Row>
+      {manual && (
+        <Row label="">
+          <input type="text" value={text} data-testid="ntp-servers-input" spellCheck={false} autoCapitalize="off"
+            placeholder="192.168.1.10 ntp.example.com" onChange={(e) => setText(e.target.value)}
+            style={{ ...field, width: 360, borderColor: bad && text.trim() ? C.bad : C.line }} />
+          <button type="button" style={btnPrimary} disabled={bad} data-testid="ntp-servers-apply"
+            onClick={() => save(true, servers)}>{t("controlPanel.apply")}</button>
+        </Row>
+      )}
+      <div style={{ color: C.muted, fontSize: 13 }}>
+        {t(manual ? "controlPanel.ntpServersManualHelp" : "controlPanel.ntpServersAutoHelp")}
+      </div>
+    </div>
+  );
+}
+
 function TimeSection({ api, guard }: { api: ControlPanelSession; guard: Guard }) {
   const { t, lang } = usePanelTranslation();
   const [time, setTime] = useState<TimeState | null>(null);
-  const [zones, setZones] = useState<string[]>([]);
+  const [zones, setZones] = useState<Zone[]>([]);
+  const [picking, setPicking] = useState(false);
   const [readAt, setReadAt] = useState(Date.now());
   const [, tick] = useState(0);
   const [manual, setManual] = useState({ date: "", time: "" });
@@ -774,17 +1042,43 @@ function TimeSection({ api, guard }: { api: ControlPanelSession; guard: Guard })
       </Row>
       <Row label={t("controlPanel.sync")}>
         <Segmented value={time.ntp ? "ntp" : "manual"}
-          onChange={(v) => void guard(api.setTime({ ntp: v === "ntp" })).then(reload)}
+          onChange={(v) => {
+            // Shown at once: the system takes seconds to switch. The reload has the truth.
+            setTime({ ...time, ntp: v === "ntp", ntp_synchronized: false, drift: null });
+            void guard(api.setTime({ ntp: v === "ntp" })).then(reload);
+          }}
           options={[{ value: "ntp", label: t("controlPanel.ntp") }, { value: "manual", label: t("controlPanel.manual") }]} />
         {time.ntp && (time.ntp_synchronized ? <Tag>{t("controlPanel.synced")}</Tag> : <Tag tone="warn">{t("controlPanel.notSynced")}</Tag>)}
       </Row>
+      {time.ntp && time.drift && (
+        <Row label={t("controlPanel.clockDrift")}>
+          <span data-testid="clock-drift" style={{ fontSize: 15 }}>
+            {t(time.drift.ppm >= 0 ? "controlPanel.clockDriftFast" : "controlPanel.clockDriftSlow", {
+              ppm: Math.abs(time.drift.ppm).toFixed(1),
+              perDay: (Math.abs(time.drift.ppm) * 0.0864).toFixed(1),
+              offset: (Math.abs(time.drift.offset_secs) * 1000).toFixed(1),
+            })}
+          </span>
+        </Row>
+      )}
       <Row label={t("controlPanel.timezone")}>
-        <select value={time.timezone} onChange={(e) => void guard(api.setTime({ timezone: e.target.value })).then(reload)}
-          style={{ ...field, width: 260, fontFamily: "inherit" }}>
-          {(zones.length ? zones : [time.timezone]).map((z) => <option key={z} value={z}>{z}</option>)}
-        </select>
+        <span data-testid="timezone-current" style={{ fontSize: 16 }}>
+          {zoneLabel(zones.find((z) => z.zone === time.timezone) ?? { zone: time.timezone, country: null }, lang)}
+        </span>
+        <span style={{ color: C.muted, fontSize: 13 }}>{time.timezone}</span>
+        {zones.length > 0 && !picking && (
+          <button type="button" style={btn} data-testid="timezone-change" onClick={() => setPicking(true)}>{t("controlPanel.tzChange")}</button>
+        )}
       </Row>
     </div>
+    {picking && (
+      <TimezonePicker zones={zones} onCancel={() => setPicking(false)}
+        onPick={(zone) => { setPicking(false); void guard(api.setTime({ timezone: zone })).then(reload); }} />
+    )}
+    {time.ntp_servers && (
+      <NtpServersCard key={JSON.stringify(time.ntp_servers)} api={api} guard={guard} initial={time.ntp_servers}
+        onSaved={() => void reload()} />
+    )}
     <div style={{ ...card, opacity: time.ntp ? 0.55 : 1 }}>
       <Row label={t("controlPanel.dateTime")}>
         <input type="date" disabled={time.ntp} value={manual.date} onChange={(e) => setManual({ ...manual, date: e.target.value })} style={{ ...field, width: 170 }} />
@@ -796,7 +1090,181 @@ function TimeSection({ api, guard }: { api: ControlPanelSession; guard: Guard })
   </>);
 }
 
+/** Continent, then country, then city; or a filter over all three. A country
+ *  with one zone is chosen at once. Lists scroll inside the panel. */
+function TimezonePicker({ zones, onPick, onCancel }: {
+  zones: Zone[]; onPick: (zone: string) => void; onCancel: () => void;
+}) {
+  const { t, lang } = usePanelTranslation();
+  const [filter, setFilter] = useState("");
+  const [typing, setTyping] = useState(false);
+  const [continent, setContinent] = useState<string | null>(null);
+  const [country, setCountry] = useState<CountryEntry | null>(null);
+  const item: CSSProperties = { ...btn, textAlign: "left", width: "100%", fontSize: 16, padding: "10px 14px" };
+  const list: CSSProperties = { display: "flex", flexDirection: "column", gap: 6, maxHeight: 300, overflowY: "auto", marginTop: 10 };
+  const crumb = (label: string, onClick: (() => void) | null) => (
+    <button type="button" style={{ ...btn, padding: "4px 10px", fontSize: 14 }}
+      disabled={!onClick} onClick={onClick ?? undefined}>{label}</button>
+  );
+  const pickCountry = (c: CountryEntry) => (c.zones.length === 1 ? onPick(c.zones[0]) : setCountry(c));
+  const continentName = (c: string) => t(`controlPanel.continent_${c}`);
+  let body: ReactNode;
+  if (filter.trim()) {
+    const found = search(zones, filter, lang);
+    body = found.length === 0
+      ? <div style={{ color: C.muted, marginTop: 10 }}>{t("controlPanel.tzNoMatch")}</div>
+      : <div style={list} data-testid="timezone-results">{found.map((z) => (
+          <button key={z.zone} type="button" style={item} onClick={() => onPick(z.zone)}>
+            {zoneLabel(z, lang)} <span style={{ color: C.muted, fontSize: 13 }}>{z.zone}</span>
+          </button>))}</div>;
+  } else if (!continent) {
+    body = <div style={{ ...list, display: "grid", gridTemplateColumns: "repeat(3, 1fr)" }} data-testid="timezone-continents">
+      {continentsIn(zones).map((c) => <button key={c} type="button" style={item} onClick={() => setContinent(c)}>{continentName(c)}</button>)}
+    </div>;
+  } else if (!country) {
+    body = <div style={list} data-testid="timezone-countries">
+      {countriesIn(zones, continent, lang).map((c) => (
+        <button key={c.code ?? c.zones[0]} type="button" style={item} onClick={() => pickCountry(c)}>
+          {c.name}{c.zones.length > 1 && <span style={{ color: C.muted, fontSize: 13 }}> · {c.zones.length}</span>}
+        </button>))}
+    </div>;
+  } else {
+    body = <div style={list} data-testid="timezone-cities">
+      {[...country.zones].sort((a, b) => cityOf(a).localeCompare(cityOf(b), lang)).map((z) => (
+        <button key={z} type="button" style={item} onClick={() => onPick(z)}>
+          {cityOf(z)} <span style={{ color: C.muted, fontSize: 13 }}>{z}</span>
+        </button>))}
+    </div>;
+  }
+  return (
+    <div style={card} data-testid="timezone-picker">
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+        <TextField value={filter} onChange={setFilter} active={typing} onFocus={() => setTyping(true)} width={240}
+          testId="timezone-filter" />
+        {!filter.trim() && crumb(t("controlPanel.tzContinents"), continent ? () => { setContinent(null); setCountry(null); } : null)}
+        {!filter.trim() && continent && crumb(continentName(continent), country ? () => setCountry(null) : null)}
+        {!filter.trim() && country && crumb(country.name, null)}
+        <span style={{ flex: 1 }} />
+        <button type="button" style={btn} onClick={onCancel}>{t("controlPanel.cancel")}</button>
+      </div>
+      {!filter && <div style={{ color: C.muted, fontSize: 13, marginTop: 6 }}>{t("controlPanel.tzFilterHelp")}</div>}
+      {body}
+      {typing && <TextKeyboard onKey={(k) => (k === "⏎" ? setTyping(false) : setFilter((v) => typeInto(v, k, 30)))} />}
+    </div>
+  );
+}
+
 // ── Device ───────────────────────────────────────────────────────────────────
+
+// ── About ────────────────────────────────────────────────────────────────────
+
+/** «1.2 MB»: one decimal from the kilobyte up. */
+export function formatSize(bytes: number): string {
+  const units = ["B", "KB", "MB", "GB"];
+  let v = bytes, unit = 0;
+  while (v >= 1024 && unit < units.length - 1) { v /= 1024; unit += 1; }
+  return unit === 0 ? `${bytes} B` : `${v.toFixed(1)} ${units[unit]}`;
+}
+
+/** «3 d 4 h», «4 h 12 min», «12 min». */
+export function formatDuration(secs: number, days: string): string {
+  const d = Math.floor(secs / 86_400), h = Math.floor((secs % 86_400) / 3_600), m = Math.floor((secs % 3_600) / 60);
+  if (d > 0) return `${d} ${days} ${h} h`;
+  return h > 0 ? `${h} h ${m} min` : `${m} min`;
+}
+
+/** What runs here, read only: SWS, the project, the system, the state. */
+function AboutSection({ api, guard }: { api: ControlPanelSession; guard: Guard }) {
+  const { t, lang } = usePanelTranslation();
+  const [about, setAbout] = useState<About | null>(null);
+  useEffect(() => { void guard(api.about()).then((a) => a && setAbout(a)); }, [api, guard]);
+  const [exported, setExported] = useState<string | null>(null);
+  if (!about) return <div style={{ color: C.muted }}>{t("controlPanel.loading")}</div>;
+  const { sws, project: p, system: sys, state: st } = about;
+  const download = async () => {
+    const zip = await guard(api.diagnostics());
+    if (!zip) return;
+    const url = URL.createObjectURL(zip);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `sws-diagnostics-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.zip`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+  const toUsb = async () => {
+    setExported(null);
+    const r = await guard(api.diagnosticsToUsb());
+    if (r) setExported(r.file);
+  };
+  const date = (ms?: number | null) => ms == null ? null
+    : new Intl.DateTimeFormat(lang, { dateStyle: "medium", timeStyle: "short" }).format(ms);
+  const time = (s?: number | null) => s == null ? null : formatDuration(s, t("controlPanel.aboutDays"));
+  const of = (used: number | undefined, total: number | undefined, unit: string) =>
+    used == null || total == null ? null : t("controlPanel.aboutOf", { used, total, unit });
+  const title: CSSProperties = { color: C.muted, fontSize: 15 };
+  const rows = (list: [string, ReactNode | null][]) => list
+    .filter(([, v]) => v != null)
+    .map(([k, v]) => <Row key={k} label={t(`controlPanel.${k}`)}>{v}</Row>);
+  return (<div data-testid="about-section">
+    <div style={card}>
+      <div style={title}>SWS</div>
+      {rows([
+        ["aboutVersion", sws.git ? `${sws.version} (${sws.git})` : sws.version ?? "—"],
+        ["aboutBuilt", date(sws.build_ms)],
+        ["aboutEngine", "web"],
+        ["aboutRunning", time(sws.uptime_s)],
+      ])}
+    </div>
+    <div style={card}>
+      <div style={title}>{t("controlPanel.aboutProject")}</div>
+      {p ? rows([
+        ["aboutName", p.version ? `${p.name ?? "—"} · ${p.version}` : p.name ?? "—"],
+        ["aboutLoaded", date(p.loaded_ms)],
+        ["aboutSize", formatSize(p.size_bytes)],
+        ["aboutHistory", formatSize(p.history_bytes)],
+        ["aboutContents", t("controlPanel.aboutContentsValue", { pages: p.pages, tags: p.tags, sources: p.sources })],
+      ]) : rows([["aboutName", t("controlPanel.aboutNoProject")]])}
+    </div>
+    <div style={card}>
+      <div style={title}>{t("controlPanel.aboutSystem")}</div>
+      {rows([
+        ["aboutOs", sys.os ?? null],
+        ["aboutKernel", sys.kernel ?? null],
+        ["aboutImage", sys.image ?? null],
+        ["aboutDisk", of(sys.disk_used_gb, sys.disk_total_gb, "GB")],
+        ["aboutMemory", of(sys.mem_used_mb, sys.mem_total_mb, "MB")],
+        ["aboutTemp", sys.cpu_temp_c == null ? null : `${Math.round(sys.cpu_temp_c)} °C`],
+        ["aboutUptime", time(sys.uptime_s)],
+      ])}
+    </div>
+    <div style={card}>
+      <div style={title}>{t("controlPanel.aboutState")}</div>
+      {rows([
+        ["aboutSources", st.armed === false ? t("controlPanel.aboutStopped")
+          : t("controlPanel.aboutSourcesValue", { running: st.sources_running ?? 0, total: st.sources ?? 0 })],
+        ["aboutAlarms", st.alarms_active ?? 0],
+        ["aboutCloud", st.cloud ?? t("controlPanel.aboutCloudNone")],
+        ["aboutUpdate", st.update_available ?? t("controlPanel.aboutUpdateNone")],
+        ["aboutCertificate", st.certificate_expires_ms == null ? null
+          : t("controlPanel.aboutExpires", { date: date(st.certificate_expires_ms) })],
+      ])}
+    </div>
+    <div style={card} data-testid="diagnostics">
+      <Row label={t("controlPanel.diagnostics")}>
+        <button type="button" style={btn} data-testid="diagnostics-download" onClick={() => void download()}>
+          {t("controlPanel.diagnosticsDownload")}
+        </button>
+        {about.diagnostics_usb && (
+          <button type="button" style={{ ...btn, marginLeft: 8 }} data-testid="diagnostics-usb" onClick={() => void toUsb()}>
+            {t("controlPanel.diagnosticsUsb")}
+          </button>
+        )}
+      </Row>
+      {exported && <div style={{ color: C.ok, fontSize: 13 }}>{t("controlPanel.diagnosticsWritten", { file: exported })}</div>}
+      <div style={{ color: C.muted, fontSize: 13 }}>{t("controlPanel.diagnosticsHelp")}</div>
+    </div>
+  </div>);
+}
 
 function DeviceSection({ api, guard, info, caps }: {
   api: ControlPanelSession; guard: Guard; info: DeviceInfo | null; caps: Capabilities | null;
@@ -804,7 +1272,19 @@ function DeviceSection({ api, guard, info, caps }: {
   const { t } = usePanelTranslation();
   const [ask, setAsk] = useState<"reboot" | "power_off" | null>(null);
   const [done, setDone] = useState<string | null>(null);
+  // Giving the device back: the PIN again, then it goes.
+  const [reset, setReset] = useState<{ pin: string; wrong: boolean } | null>(null);
+  const [resetDone, setResetDone] = useState(false);
   if (!info) return <div style={{ color: C.muted }}>{t("controlPanel.loading")}</div>;
+  const doReset = async () => {
+    if (!reset || !reset.pin) return;
+    try {
+      if (await api.reset(reset.pin)) { setReset(null); setResetDone(true); }
+      else setReset({ pin: "", wrong: true });
+    } catch (e) {
+      void guard(Promise.reject(e));
+    }
+  };
   const go = async () => {
     const what = ask;
     setAsk(null);
@@ -843,6 +1323,28 @@ function DeviceSection({ api, guard, info, caps }: {
           {caps?.power_off && <button type="button" style={{ ...btn, borderColor: "#7b3633", color: "#f1b0ad" }} onClick={() => setAsk("power_off")}>{t("controlPanel.powerOff")}</button>}
         </div>
       )}
+    </div>
+    <div style={{ ...card, borderColor: "#7b3633" }} data-testid="reset-card">
+      {resetDone ? <div style={{ color: C.ok }}>{t("controlPanel.resetDone")}</div> : (<>
+        <Row label={t("controlPanel.reset")}>
+          {reset === null && (
+            <button type="button" style={{ ...btnPrimary, background: C.bad, borderColor: C.bad }}
+              data-testid="reset-ask" onClick={() => setReset({ pin: "", wrong: false })}>{t("controlPanel.resetButton")}</button>
+          )}
+        </Row>
+        {reset !== null && (
+          <div style={row}>
+            <span style={{ color: C.muted, fontSize: 13 }}>{t("controlPanel.resetPinHelp")}</span>
+            <CampoPassword value={reset.pin} autoComplete="off" autoFocus data-testid="reset-pin" style={{ ...field, width: 140 }}
+              onChange={(e) => setReset({ pin: e.target.value, wrong: false })} />
+            <button type="button" style={btn} onClick={() => setReset(null)}>{t("controlPanel.cancel")}</button>
+            <button type="button" style={{ ...btnPrimary, background: C.bad, borderColor: C.bad }} disabled={!reset.pin}
+              data-testid="reset-confirm" onClick={() => void doReset()}>{t("controlPanel.resetConfirm")}</button>
+          </div>
+        )}
+        {reset?.wrong && <div style={{ color: "#f1b0ad", fontSize: 13 }}>{t("controlPanel.resetPinWrong")}</div>}
+        <div style={{ color: C.muted, fontSize: 13 }}>{t("controlPanel.resetHelp")}</div>
+      </>)}
     </div>
   </>);
 }

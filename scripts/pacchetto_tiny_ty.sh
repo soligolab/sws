@@ -56,8 +56,11 @@ mkdir -p "$STAGE/bin" "$STAGE/www" "$STAGE/templates" "$STAGE/catalogo" "$STAGE/
 install -m 755 "$DIST/armv7/sws-runtime" "$DIST/armv7/sws-lvgl-viewer" "$STAGE/bin/"
 install -m 755 "$REPO/deploy/tiny-ty/sws-runtime-launch.sh" \
     "$REPO/deploy/tiny-ty/sws-lvgl-viewer-launch.sh" \
-    "$REPO/deploy/tiny-ty/sws-hw-access.sh" "$STAGE/bin/"
-install -m 755 "$REPO/deploy/tiny-ty/install.sh" "$STAGE/"
+    "$REPO/deploy/tiny-ty/sws-hw-access.sh" \
+    "$REPO/deploy/tiny-ty/sws-diagnostics" "$STAGE/bin/"
+install -m 755 "$REPO/deploy/tiny-ty/install.sh" \
+    "$REPO/deploy/tiny-ty/prepara-dispositivo.sh" \
+    "$REPO/deploy/tiny-ty/remove-panelcontrol.sh" "$STAGE/"
 install -m 644 "$REPO/deploy/tiny-ty/sws-runtime.service" \
     "$REPO/deploy/tiny-ty/sws-lvgl-viewer.service" \
     "$REPO/deploy/tiny-ty/99-sws-tiny-ty.rules" \
@@ -80,6 +83,8 @@ python3 -m pip download --quiet --only-binary=:all: --no-deps \
     --python-version 3.10 --platform any "$RESTRICTED" -d "$STAGE/python"
 
 install -m 644 "$REPO/LICENSE" "$REPO/LICENSING.md" "$STAGE/"
+# The Wi-Fi firmware Pixsys' image lacks (see install.sh, «Firmware Wi-Fi»).
+cp -r "$REPO/deploy/tiny-ty/firmware" "$STAGE/firmware"
 echo "$VERSIONE ($(git -C "$REPO" rev-parse --short HEAD))" > "$STAGE/VERSIONE"
 
 (cd "$DIST" && tar czf "$NOME.tar.gz" "$NOME")

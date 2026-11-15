@@ -24,7 +24,8 @@
 //!    ([`filter_pointer`], called by `lvgl_indev` before LVGL sees the touch);
 //! 3. the synoptic action `open_control_panel`.
 //!
-//! 2 and 3 follow the project (`control_panel.enabled`).
+//! 2 and 3 follow the project (`control_panel.enabled`, split in `gesture_enabled`
+//! and `button_enabled`).
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Mutex, OnceLock};
@@ -34,9 +35,18 @@ use serde::Deserialize;
 
 pub const CORNER_PX: i32 = 80;
 pub const HOLD: Duration = Duration::from_millis(5_000);
+/// A touch in a corner counts for nothing during this first moment: no ring, no
+/// counting. A tap or a brush on a button there must not look like the start of
+/// a gesture (TY570, 15-11-2026: «non c'è un delay prima di iniziare a contare i
+/// 5 secondi»). The time of the gesture is counted after it.
+pub const GRACE: Duration = Duration::from_millis(1_000);
 pub const MOVE_TOLERANCE_PX: i32 = 15;
 pub const BOOT_BUTTON: Duration = Duration::from_secs(5);
+/// How often an open panel looks at the cards again.
+const WATCH_CARDS: Duration = Duration::from_secs(3);
 const SESSION_HEADER: &str = "x-sws-control-panel";
+/// A request the panel makes by itself: it does not keep the session alive.
+const WATCH_HEADER: &str = "x-sws-control-panel-watch";
 
 // ── Words ────────────────────────────────────────────────────────────────────
 
@@ -85,6 +95,204 @@ pub fn word(lang: &str, key: &str, values: &[(&str, &str)]) -> String {
     s
 }
 
+// ── Time zones ───────────────────────────────────────────────────────────────
+//
+// Continent, then country, then city, or a filter over all three (TY570,
+// 14-11-2026: one list of 400 names could not be used on a 7" screen). The
+// same rules as `sws-editor/src/control-panel/timezones.ts`; the country names
+// are the web's table, read at compile time.
+
+/// One zone and its country (ISO 3166 code), as the runtime reads `zone.tab`.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+pub struct Zone {
+    pub zone: String,
+    pub country: Option<String>,
+}
+
+pub const CONTINENTS: [&str; 10] = [
+    "Europe",
+    "America",
+    "Asia",
+    "Africa",
+    "Australia",
+    "Pacific",
+    "Atlantic",
+    "Indian",
+    "Antarctica",
+    "Arctic",
+];
+pub const OTHER: &str = "other";
+
+pub fn continent_of(zone: &str) -> &'static str {
+    let c = zone.split_once('/').map_or("", |(c, _)| c);
+    CONTINENTS
+        .iter()
+        .find(|x| **x == c)
+        .copied()
+        .unwrap_or(OTHER)
+}
+
+/// `America/Argentina/Buenos_Aires` → `Buenos Aires`.
+pub fn city_of(zone: &str) -> String {
+    zone.rsplit('/').next().unwrap_or(zone).replace('_', " ")
+}
+
+pub fn country_name(code: &str, lang: &str) -> String {
+    static NAMES: OnceLock<serde_json::Value> = OnceLock::new();
+    let names = NAMES.get_or_init(|| {
+        serde_json::from_str(include_str!(
+            "../../../../sws-editor/src/i18n/countries.json"
+        ))
+        .unwrap_or_default()
+    });
+    let lang = if lang == "it" { "it" } else { "en" };
+    names[lang][code]
+        .as_str()
+        .or_else(|| names["en"][code].as_str())
+        // The typographic apostrophe of «Costa d’Avorio»: not every panel font has it.
+        .map_or_else(|| code.to_string(), |n| n.replace('’', "'"))
+}
+
+/// `Rome — Italia`, or the city alone for a zone without a country.
+pub fn zone_label(z: &Zone, lang: &str) -> String {
+    match &z.country {
+        Some(c) => format!("{} — {}", city_of(&z.zone), country_name(c, lang)),
+        None => city_of(&z.zone),
+    }
+}
+
+/// The zones a person picks from: those with a country, and UTC. tzdata also
+/// lists ~180 old aliases with no country (`US/Eastern`, `Etc/GMT+1`,
+/// `Europe/Belfast`: TY570, 14-11-2026); among the countries they were noise.
+pub fn pickable(z: &Zone) -> bool {
+    z.country.is_some() || z.zone == "UTC"
+}
+
+pub fn continents_in(zones: &[Zone]) -> Vec<&'static str> {
+    CONTINENTS
+        .iter()
+        .copied()
+        .chain([OTHER])
+        .filter(|c| {
+            zones
+                .iter()
+                .any(|z| pickable(z) && continent_of(&z.zone) == *c)
+        })
+        .collect()
+}
+
+/// A row of the second step: a country with its zones, or a zone without a
+/// country (`code: None`), picked directly.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CountryEntry {
+    pub code: Option<String>,
+    pub name: String,
+    pub zones: Vec<String>,
+}
+
+pub fn countries_in(zones: &[Zone], continent: &str, lang: &str) -> Vec<CountryEntry> {
+    let mut by: Vec<CountryEntry> = Vec::new();
+    let mut loose = Vec::new();
+    for z in zones
+        .iter()
+        .filter(|z| pickable(z) && continent_of(&z.zone) == continent)
+    {
+        match &z.country {
+            None => loose.push(CountryEntry {
+                code: None,
+                name: city_of(&z.zone),
+                zones: vec![z.zone.clone()],
+            }),
+            Some(c) => match by.iter_mut().find(|e| e.code.as_deref() == Some(c)) {
+                Some(e) => e.zones.push(z.zone.clone()),
+                None => by.push(CountryEntry {
+                    code: Some(c.clone()),
+                    name: country_name(c, lang),
+                    zones: vec![z.zone.clone()],
+                }),
+            },
+        }
+    }
+    by.sort_by_key(|e| fold(&e.name));
+    loose.sort_by_key(|e| fold(&e.name));
+    by.extend(loose);
+    by
+}
+
+/// Lowercase, with the accents of the Latin letters taken off: «Itàl» finds Italia.
+pub fn fold(s: &str) -> String {
+    s.chars()
+        .flat_map(char::to_lowercase)
+        .map(|c| match c {
+            'à' | 'á' | 'â' | 'ã' | 'ä' | 'å' => 'a',
+            'ç' => 'c',
+            'è' | 'é' | 'ê' | 'ë' => 'e',
+            'ì' | 'í' | 'î' | 'ï' => 'i',
+            'ñ' => 'n',
+            'ò' | 'ó' | 'ô' | 'õ' | 'ö' => 'o',
+            'ù' | 'ú' | 'û' | 'ü' => 'u',
+            'ý' | 'ÿ' => 'y',
+            '_' => ' ',
+            c => c,
+        })
+        .collect()
+}
+
+/// The zones whose city, country or name contain `filter`, accents ignored.
+pub fn search_zones(zones: &[Zone], filter: &str, lang: &str, max: usize) -> Vec<Zone> {
+    let f = fold(filter.trim());
+    if f.is_empty() {
+        return Vec::new();
+    }
+    let mut found: Vec<Zone> = zones
+        .iter()
+        .filter(|z| pickable(z))
+        .filter(|z| {
+            // The city path, not the continent: «ro» would find every «Europe/…».
+            fold(
+                z.zone
+                    .split_once('/')
+                    .map_or(z.zone.as_str(), |(_, rest)| rest),
+            )
+            .contains(&f)
+                || z.country
+                    .as_deref()
+                    .is_some_and(|c| fold(&country_name(c, lang)).contains(&f))
+        })
+        .cloned()
+        .collect();
+    found.sort_by_key(|z| fold(&zone_label(z, lang)));
+    found.truncate(max);
+    found
+}
+
+/// Where the time zone picker stands: the filter, or the steps chosen so far.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct TzPicker {
+    pub filter: String,
+    pub typing: bool,
+    pub continent: Option<String>,
+    pub country: Option<String>,
+}
+
+/// The runtime's error, in words when it is one of its stable codes — the
+/// same rule as `errorText` on the web.
+pub fn error_text(e: &str, lang: &str) -> String {
+    if e == "wifi-wrong-password" {
+        word(lang, "wifiWrongPassword", &[])
+    } else if e.starts_with("wifi-failed") {
+        word(lang, "wifiFailed", &[])
+    } else if e == "usb-not-mounted" {
+        word(lang, "diagnosticsNoUsb", &[])
+    } else if e == "usb-mounting" {
+        word(lang, "diagnosticsMounting", &[])
+    } else if e == "usb-format" {
+        word(lang, "diagnosticsFormat", &[])
+    } else {
+        e.to_string()
+    }
+}
+
 // ── The API ──────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -99,7 +307,61 @@ pub struct Capabilities {
     pub display: bool,
     #[serde(default)]
     pub touch_calibration_service: bool,
+    #[serde(default)]
+    pub reboot_corner: bool,
 }
+
+/// The corner that reboots the device when held (`sws_web::control_panel`).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RebootCorner {
+    #[default]
+    None,
+    TopLeft,
+    TopRight,
+    BottomRight,
+    BottomLeft,
+}
+
+/// How the corner that opens the panel behaves: the two measures of the
+/// reboot corner, without the question.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, serde::Serialize)]
+#[serde(default)]
+pub struct PanelOptions {
+    pub hold_secs: u8,
+    pub size_px: u16,
+}
+
+impl Default for PanelOptions {
+    fn default() -> Self {
+        Self {
+            hold_secs: HOLD.as_secs() as u8,
+            size_px: CORNER_PX as u16,
+        }
+    }
+}
+
+/// How the corner behaves when this viewer watches it (Tiny TY).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, serde::Serialize)]
+#[serde(default)]
+pub struct RebootOptions {
+    pub hold_secs: u8,
+    pub size_px: u16,
+    pub confirm: bool,
+}
+
+impl Default for RebootOptions {
+    fn default() -> Self {
+        Self {
+            hold_secs: 5,
+            size_px: 100,
+            confirm: false,
+        }
+    }
+}
+
+/// How long the question «reboot?» waits for an answer.
+const REBOOT_ASK: Duration = Duration::from_secs(15);
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct WifiNetwork {
@@ -132,12 +394,15 @@ pub struct Hotspot {
     pub qr: String,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct Card {
     pub name: String,
     pub state: String,
     pub mac: Option<String>,
     pub addresses: Vec<String>,
+    /// The IPv6 addresses that are not link-local.
+    #[serde(default)]
+    pub addresses6: Vec<String>,
     pub gateway: Option<String>,
     pub dns: Vec<String>,
     pub method: Option<String>,
@@ -150,6 +415,69 @@ pub struct TimeState {
     pub can_ntp: bool,
     pub ntp_synchronized: bool,
     pub time_usec: i64,
+    #[serde(default)]
+    pub drift: Option<ClockDrift>,
+    #[serde(default)]
+    pub ntp_servers: Option<NtpServers>,
+}
+
+/// The system's own NTP servers, or one to four written by hand.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, serde::Serialize)]
+pub struct NtpServers {
+    pub manual: bool,
+    #[serde(default)]
+    pub servers: Vec<String>,
+}
+
+pub const MAX_NTP_SERVERS: usize = 4;
+
+/// The same rule as the runtime (`sws_web::control_panel::backend`).
+pub fn valid_ntp_server(s: &str) -> bool {
+    !s.is_empty()
+        && s.len() <= 253
+        && s.chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | ':'))
+        && !s.starts_with(['-', '.'])
+}
+
+/// The NTP servers being typed: one line, names or addresses with a space
+/// between them.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct NtpForm {
+    pub text: String,
+    pub shift: bool,
+    pub symbols: bool,
+}
+
+impl NtpForm {
+    pub fn servers(&self) -> Vec<String> {
+        self.text
+            .split([' ', ','])
+            .filter(|s| !s.is_empty())
+            .map(str::to_string)
+            .collect()
+    }
+
+    pub fn valid(&self) -> bool {
+        let servers = self.servers();
+        (1..=MAX_NTP_SERVERS).contains(&servers.len())
+            && servers.iter().all(|s| valid_ntp_server(s))
+    }
+}
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+pub struct ClockDrift {
+    pub ppm: f64,
+    pub offset_secs: f64,
+}
+
+/// The numbers of a drift for its text: ppm, seconds a day, milliseconds off.
+pub fn drift_words(d: &ClockDrift) -> [(&'static str, String); 3] {
+    [
+        ("ppm", format!("{:.1}", d.ppm.abs())),
+        ("perDay", format!("{:.1}", d.ppm.abs() * 0.0864)),
+        ("offset", format!("{:.1}", d.offset_secs.abs() * 1000.0)),
+    ]
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -191,6 +519,7 @@ pub enum Section {
     Time,
     Screen,
     Device,
+    About,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -341,34 +670,65 @@ pub struct State {
     /// Bumped at every change the screen must show.
     pub generation: u64,
     base_url: String,
-    /// `control_panel.enabled` of the project; until the runtime answers, on.
+    /// The gesture opens the panel (`control_panel.enabled` and
+    /// `gesture_enabled` of the project); until the runtime answers, on.
     pub enabled: bool,
+    /// The synoptic button opens it (`enabled` and `button_enabled`).
+    pub button_enabled: bool,
     pub boot_until: Option<Instant>,
     pub screen: Screen,
     pub pin: String,
     pub pin_error: Option<PinError>,
+    /// The PIN screen is asking the PIN again, to give the device back
+    /// (project, users and pairing removed): not to open a session.
+    pub resetting: bool,
+    /// The reset went through: the runtime is starting again.
+    pub reset_done: bool,
     pub busy: bool,
     token: Option<String>,
     pub caps: Option<Capabilities>,
     pub info: Option<DeviceInfo>,
+    /// `GET /about` as it came: `control_panel_about` reads it.
+    pub about: Option<serde_json::Value>,
+    /// The diagnostic export to the USB stick: being written, or how it ended.
+    pub diagnostics: Option<Result<String, String>>,
+    pub diagnostics_busy: bool,
     pub section: Section,
     pub cards: Option<Vec<Card>>,
     pub draft: Option<Draft>,
     pub pending: Option<Pending>,
     /// The device time and when it was read: the clock runs on from there.
     pub time: Option<(TimeState, Instant)>,
-    pub zones: Vec<String>,
+    pub zones: Vec<Zone>,
+    pub tz: Option<TzPicker>,
     pub manual_time: Option<ManualTime>,
     pub ask: Option<Power>,
     pub powering: Option<Power>,
     pub wifi: Option<WifiState>,
     pub hotspot: Option<Hotspot>,
     pub wifi_form: Option<WifiForm>,
+    /// The NTP servers being typed, on the same keyboard.
+    pub ntp_form: Option<NtpForm>,
     /// The device's brightness as the runtime has it: `Some(None)` = the
     /// project's. `None` = not read yet.
     pub brightness: Option<Option<u8>>,
     /// The slider, also while it moves.
     pub brightness_draft: u8,
+    /// The reboot corner as the runtime has it; the options only where this
+    /// viewer watches the corner. `None` = not read yet.
+    pub reboot_corner: Option<(RebootCorner, Option<RebootOptions>)>,
+    /// `false`: the project switched the reboot corner off.
+    pub reboot_corner_allowed: bool,
+    /// The device mounted upside down; `None` where the system turns the
+    /// screen, not this viewer.
+    pub flipped: Option<bool>,
+    /// The corner that opens this panel, as the Screen section read it.
+    pub panel_corner: Option<RebootCorner>,
+    pub panel_options: PanelOptions,
+    /// The corner was held and wants a confirmation, until this instant.
+    pub reboot_ask: Option<Instant>,
+    /// The corner asked for a reboot: the notice is on screen.
+    pub rebooting: bool,
     pub calibration: Option<Calibration>,
     /// The matrix in use before the calibration: back to it on Redo, on
     /// Cancel and when nobody touches.
@@ -377,6 +737,10 @@ pub struct State {
     pub calibration_note: Option<&'static str>,
     pub error: Option<String>,
     reload_network_at: Option<Instant>,
+    /// The next look at the cards while the panel is open: a Wi-Fi dongle
+    /// plugged in or pulled out shows up by itself, and turns the Wi-Fi
+    /// section on or off (TY570, 14-11-2026).
+    watch_cards_at: Option<Instant>,
     boot_shown: bool,
 }
 
@@ -387,15 +751,21 @@ impl State {
             self.enabled && self.screen == Screen::Closed,
             Ordering::Relaxed,
         );
+        REBOOT_ARMED.store(
+            self.screen == Screen::Closed && self.reboot_ask.is_none() && !self.rebooting,
+            Ordering::Relaxed,
+        );
     }
 
     /// Back to the PIN: the service session expired, or the runtime restarted.
     fn expired(&mut self) {
         let base_url = std::mem::take(&mut self.base_url);
-        let (enabled, generation) = (self.enabled, self.generation);
+        let (enabled, button_enabled, generation) =
+            (self.enabled, self.button_enabled, self.generation);
         *self = State {
             base_url,
             enabled,
+            button_enabled,
             generation,
             screen: Screen::Pin,
             boot_shown: true,
@@ -409,6 +779,7 @@ fn state() -> &'static Mutex<State> {
     S.get_or_init(|| {
         Mutex::new(State {
             enabled: true,
+            button_enabled: true,
             ..State::default()
         })
     })
@@ -445,8 +816,11 @@ pub fn try_out(spec: &str) {
     change(|s| {
         s.pin = pin.to_ascii_lowercase();
         s.section = match section {
-            "time" => Section::Time,
+            "time" | "timezone" | "timezone-america" | "timezone-us" | "timezone-filter" => {
+                Section::Time
+            }
             "device" => Section::Device,
+            "about" => Section::About,
             "wifi" => Section::Wifi,
             "screen" | "calibration" => Section::Screen,
             _ => Section::Network,
@@ -458,6 +832,21 @@ pub fn try_out(spec: &str) {
     if section == "calibration" {
         calibrate_start();
     }
+    // The time zone picker at one of its steps, for the snapshots.
+    if let Some(step) = section.strip_prefix("timezone") {
+        change(|s| {
+            s.tz = Some(TzPicker {
+                continent: matches!(step, "-america" | "-us").then(|| "America".into()),
+                country: (step == "-us").then(|| "US".into()),
+                filter: if step == "-filter" {
+                    "ro".into()
+                } else {
+                    String::new()
+                },
+                typing: step == "-filter",
+            })
+        });
+    }
 }
 
 /// The project may have changed (a reload): read `enabled` again.
@@ -468,7 +857,8 @@ pub fn refresh_status() {
 /// Opens the PIN. `always`: the boot button, which ignores the project.
 pub fn open(always: bool) {
     change(|s| {
-        if s.screen == Screen::Closed && (always || s.enabled) {
+        // The synoptic button follows its own switch; the boot button is always.
+        if s.screen == Screen::Closed && (always || s.button_enabled) {
             s.expired();
             s.boot_until = None;
         }
@@ -478,10 +868,11 @@ pub fn open(always: bool) {
 pub fn close() {
     change(|s| {
         let base_url = std::mem::take(&mut s.base_url);
-        let (enabled, generation) = (s.enabled, s.generation);
+        let (enabled, button_enabled, generation) = (s.enabled, s.button_enabled, s.generation);
         *s = State {
             base_url,
             enabled,
+            button_enabled,
             generation,
             boot_shown: true,
             ..State::default()
@@ -505,11 +896,35 @@ pub fn pin_back() {
 }
 
 pub fn pin_submit() {
-    let pin = with_state(|s| (!s.busy && !s.pin.is_empty()).then(|| s.pin.clone()));
-    if let Some(pin) = pin {
+    let pin = with_state(|s| (!s.busy && !s.pin.is_empty()).then(|| (s.pin.clone(), s.resetting)));
+    if let Some((pin, resetting)) = pin {
         change(|s| s.busy = true);
-        send(Job::Session(pin));
+        send(if resetting {
+            Job::Reset(pin)
+        } else {
+            Job::Session(pin)
+        });
     }
+}
+
+/// «Remove project and pairing»: the PIN screen again, in its other role.
+pub fn reset_ask() {
+    change(|s| {
+        s.resetting = true;
+        s.pin.clear();
+        s.pin_error = None;
+        s.error = None;
+        s.screen = Screen::Pin;
+    });
+}
+
+pub fn reset_cancel() {
+    change(|s| {
+        s.resetting = false;
+        s.pin.clear();
+        s.pin_error = None;
+        s.screen = Screen::Panel;
+    });
 }
 
 pub fn select(section: Section) {
@@ -522,6 +937,7 @@ pub fn select(section: Section) {
     });
     change(|s| {
         s.wifi_form = None;
+        s.ntp_form = None;
         s.calibration_note = None;
     });
     match section {
@@ -529,6 +945,8 @@ pub fn select(section: Section) {
         Section::Wifi => {
             send(Job::Wifi);
             send(Job::Hotspot);
+            // The addresses of the network joined, as the Network section has them.
+            send(Job::Network);
         }
         Section::Time => {
             send(Job::Time);
@@ -536,6 +954,7 @@ pub fn select(section: Section) {
         }
         Section::Screen => send(Job::Display),
         Section::Device => {}
+        Section::About => send(Job::About),
     }
 }
 
@@ -632,11 +1051,157 @@ pub fn rollback_network() {
 // Time
 
 pub fn set_ntp(on: bool) {
+    // Shown at once: the system takes seconds to switch, and a choice that
+    // does not move looks broken. The read after the change has the truth.
+    change(|s| {
+        if let Some((t, _)) = s.time.as_mut() {
+            t.ntp = on;
+            t.ntp_synchronized = false;
+            t.drift = None;
+        }
+        // A manual time left half typed would switch NTP off again when applied.
+        if on {
+            s.manual_time = None;
+        }
+    });
     send(Job::SetTime(serde_json::json!({ "ntp": on })));
+}
+
+/// Automatic applies at once, with the servers typed before kept for next
+/// time; manual opens the keyboard, and applies when the servers are in.
+pub fn ntp_servers_mode(manual: bool) {
+    let current = with_state(|s| {
+        s.time
+            .as_ref()
+            .and_then(|(t, _)| t.ntp_servers.clone())
+            .unwrap_or_default()
+    });
+    if manual {
+        ntp_servers_edit();
+    } else if current.manual {
+        change(|s| s.ntp_form = None);
+        send(Job::SetTime(serde_json::json!({
+            "ntp_servers": { "manual": false, "servers": current.servers }
+        })));
+    }
+}
+
+pub fn ntp_servers_edit() {
+    change(|s| {
+        let servers = s
+            .time
+            .as_ref()
+            .and_then(|(t, _)| t.ntp_servers.as_ref())
+            .map(|n| n.servers.join(" "))
+            .unwrap_or_default();
+        s.manual_time = None;
+        s.tz = None;
+        s.ntp_form = Some(NtpForm {
+            text: servers,
+            // Addresses first: the digits are on the symbols page.
+            symbols: true,
+            ..Default::default()
+        });
+    });
+}
+
+/// Writes the diagnostic export on the USB stick.
+pub fn diagnostics_to_usb() {
+    let busy = with_state(|s| s.diagnostics_busy);
+    if busy {
+        return;
+    }
+    change(|s| {
+        s.diagnostics_busy = true;
+        s.diagnostics = None;
+    });
+    send(Job::DiagnosticsUsb);
 }
 
 pub fn set_timezone(zone: &str) {
     send(Job::SetTime(serde_json::json!({ "timezone": zone })));
+}
+
+pub fn tz_open() {
+    change(|s| {
+        s.manual_time = None;
+        s.tz = Some(TzPicker::default());
+    });
+}
+
+pub fn tz_cancel() {
+    change(|s| s.tz = None);
+}
+
+/// Back to a step: 0 the continents, 1 the countries of the continent.
+pub fn tz_back(step: u8) {
+    change(|s| {
+        if let Some(p) = s.tz.as_mut() {
+            p.country = None;
+            if step == 0 {
+                p.continent = None;
+            }
+        }
+    });
+}
+
+pub fn tz_continent(c: &str) {
+    change(|s| {
+        if let Some(p) = s.tz.as_mut() {
+            p.continent = Some(c.to_string());
+            p.country = None;
+        }
+    });
+}
+
+/// A country: its only zone is chosen at once, otherwise its cities follow.
+pub fn tz_country(code: &str) {
+    let only = with_state(|s| {
+        let zones: Vec<&Zone> = s
+            .zones
+            .iter()
+            .filter(|z| z.country.as_deref() == Some(code))
+            .collect();
+        (zones.len() == 1).then(|| zones[0].zone.clone())
+    });
+    match only {
+        Some(z) => tz_pick(&z),
+        None => change(|s| {
+            if let Some(p) = s.tz.as_mut() {
+                p.country = Some(code.to_string());
+            }
+        }),
+    }
+}
+
+pub fn tz_pick(zone: &str) {
+    change(|s| s.tz = None);
+    set_timezone(zone);
+}
+
+pub fn tz_focus() {
+    change(|s| {
+        if let Some(p) = s.tz.as_mut() {
+            p.typing = true;
+        }
+    });
+}
+
+/// A key of the filter keyboard: a letter, `⌫`, ` `, or `⏎` to close it.
+pub fn tz_key(k: &str) {
+    change(|s| {
+        let Some(p) = s.tz.as_mut() else {
+            return;
+        };
+        match k {
+            "⏎" => p.typing = false,
+            "⌫" => {
+                p.filter.pop();
+            }
+            _ if p.filter.chars().count() < 30 => p.filter.push_str(k),
+            _ => {}
+        }
+    });
 }
 
 pub fn manual_time_start() {
@@ -810,10 +1375,46 @@ pub fn form_focus(i: usize) {
     });
 }
 
+/// How soon the same switching key may answer again. The keys fire on the
+/// press, and `?123`/`abc` sit in the same place on both layouts: the touch
+/// redraws the keyboard, and the key that is now under the still-down finger
+/// gets a press of its own — which switches back, and so on, a frame at a
+/// time (TY570, 15-11-2026: «abc fa alternare rapidissimi i due layout»).
+const SWITCH_KEY_AGAIN: Duration = Duration::from_millis(500);
+
+/// Whether a switching key (`⇧`, `?123`, `abc`, `👁`) answers now. `last`
+/// remembers the previous answer of any of them.
+fn switch_key_allowed(last: &mut Option<Instant>, now: Instant) -> bool {
+    if last.is_some_and(|t| now.saturating_duration_since(t) < SWITCH_KEY_AGAIN) {
+        return false;
+    }
+    *last = Some(now);
+    true
+}
+
 /// A key of the on-screen keyboard: a character, `⌫`, `⇧` (capitals),
 /// `?123`/`abc` (symbols), `👁` (show the password).
 pub fn form_key(k: &str) {
+    if matches!(k, "⇧" | "?123" | "abc" | "👁") {
+        static LAST: Mutex<Option<Instant>> = Mutex::new(None);
+        let mut last = LAST.lock().unwrap_or_else(|e| e.into_inner());
+        if !switch_key_allowed(&mut last, Instant::now()) {
+            return;
+        }
+    }
     change(|s| {
+        if let Some(f) = s.ntp_form.as_mut() {
+            match k {
+                "⇧" => f.shift = !f.shift,
+                "?123" | "abc" => f.symbols = !f.symbols,
+                "⌫" => {
+                    f.text.pop();
+                }
+                _ if f.text.chars().count() < 4 * 64 => f.text.push_str(&k.to_ascii_lowercase()),
+                _ => {}
+            }
+            return;
+        }
         let Some(f) = s.wifi_form.as_mut() else {
             return;
         };
@@ -839,10 +1440,23 @@ pub fn form_key(k: &str) {
 }
 
 pub fn form_cancel() {
-    change(|s| s.wifi_form = None);
+    change(|s| {
+        s.wifi_form = None;
+        s.ntp_form = None;
+    });
 }
 
 pub fn form_submit() {
+    let ntp = with_state(|s| s.ntp_form.clone());
+    if let Some(f) = ntp {
+        if f.valid() {
+            change(|s| s.ntp_form = None);
+            send(Job::SetTime(serde_json::json!({
+                "ntp_servers": { "manual": true, "servers": f.servers() }
+            })));
+        }
+        return;
+    }
     let job = with_state(|s| {
         let f = s.wifi_form.as_ref().filter(|f| f.valid() && !s.busy)?;
         let before = wifi_before(s);
@@ -893,6 +1507,120 @@ pub fn brightness_set(percent: Option<u8>) {
 
 pub fn pixsys_calibration() {
     send(Job::TouchCalibration);
+}
+
+/// Changes the reboot corner or its options, here and on the runtime.
+fn reboot_corner_change(f: impl FnOnce(&mut RebootCorner, &mut Option<RebootOptions>)) {
+    let mut now = None;
+    change(|s| {
+        if let Some((corner, options)) = s.reboot_corner.as_mut() {
+            f(corner, options);
+            now = Some((*corner, *options));
+        }
+    });
+    if let Some((corner, options)) = now {
+        // Only where this viewer is the one that watches the corner.
+        if let Some(o) = options {
+            watch_reboot_corner(Some((corner, o)));
+        }
+        send(Job::SetRebootCorner(corner, options));
+    }
+}
+
+/// The device mounted upside down: the picture turns at once, here and in
+/// the runtime's settings.
+pub fn flip_set(on: bool) {
+    change(|s| s.flipped = Some(on));
+    crate::rotation::set_flipped(on);
+    send(Job::SetFlip(on));
+}
+
+/// Moves the corner that opens the panel, or switches it off.
+pub fn panel_corner_set(corner: RebootCorner) {
+    panel_corner_change(|c, _| *c = corner);
+}
+
+pub fn panel_hold_step(delta: i8) {
+    panel_corner_change(|_, o| {
+        o.hold_secs = (o.hold_secs as i16 + delta as i16).clamp(2, 15) as u8
+    });
+}
+
+pub fn panel_size_step(delta: i16) {
+    panel_corner_change(|_, o| o.size_px = (o.size_px as i16 + delta).clamp(40, 200) as u16);
+}
+
+fn panel_corner_change(f: impl FnOnce(&mut RebootCorner, &mut PanelOptions)) {
+    let mut now = None;
+    change(|s| {
+        if let Some(corner) = s.panel_corner.as_mut() {
+            f(corner, &mut s.panel_options);
+            now = Some((*corner, s.panel_options));
+        }
+    });
+    if let Some((corner, options)) = now {
+        watch_panel_corner(corner, options);
+        send(Job::SetPanelCorner(corner, options));
+    }
+}
+
+pub fn reboot_corner_set(corner: RebootCorner) {
+    reboot_corner_change(|c, _| *c = corner);
+}
+
+pub fn reboot_hold_step(delta: i8) {
+    reboot_corner_change(|_, o| {
+        if let Some(o) = o {
+            o.hold_secs = (o.hold_secs as i8 + delta).clamp(2, 15) as u8;
+        }
+    });
+}
+
+pub fn reboot_size_step(delta: i16) {
+    reboot_corner_change(|_, o| {
+        if let Some(o) = o {
+            o.size_px = (o.size_px as i16 + delta).clamp(40, 200) as u16;
+        }
+    });
+}
+
+pub fn reboot_confirm_set(confirm: bool) {
+    reboot_corner_change(|_, o| {
+        if let Some(o) = o {
+            o.confirm = confirm;
+        }
+    });
+}
+
+/// The answer to «reboot?» after the corner was held.
+pub fn reboot_answer(yes: bool) {
+    if yes {
+        reboot_now();
+    } else {
+        change(|s| s.reboot_ask = None);
+    }
+}
+
+/// The reboot the corner asked for. `systemctl` goes through logind, which
+/// the installation lets this user do; the runtime closes on its SIGTERM.
+fn reboot_now() {
+    change(|s| {
+        s.reboot_ask = None;
+        s.rebooting = true;
+    });
+    std::thread::spawn(|| {
+        let outcome = std::process::Command::new("systemctl")
+            .arg("reboot")
+            .status();
+        match outcome {
+            Ok(st) if st.success() => {}
+            Ok(st) => eprintln!("[control-panel] reboot corner: systemctl reboot: {st}"),
+            Err(e) => eprintln!("[control-panel] reboot corner: systemctl reboot: {e}"),
+        }
+        // Still here after a while: the reboot did not happen.
+        std::thread::sleep(Duration::from_secs(30));
+        change(|s| s.rebooting = false);
+    });
 }
 
 /// The five crosses of a resistive screen.
@@ -1025,6 +1753,18 @@ pub fn tick(now: Instant) {
                 _ => jobs.push(Job::Network),
             }
         }
+        if s.screen == Screen::Panel {
+            match s.watch_cards_at {
+                Some(t) if now >= t => {
+                    s.watch_cards_at = Some(now + WATCH_CARDS);
+                    jobs.push(Job::WatchCards);
+                }
+                None => s.watch_cards_at = Some(now + WATCH_CARDS),
+                _ => {}
+            }
+        } else {
+            s.watch_cards_at = None;
+        }
         if s.calibration.is_some() && calibration_tick(&mut s, now) {
             changed = true;
         }
@@ -1033,12 +1773,21 @@ pub fn tick(now: Instant) {
             s.boot_until = None;
             changed = true;
         }
+        if s.reboot_ask.is_some_and(|t| now >= t) {
+            s.reboot_ask = None;
+            changed = true;
+        }
         if changed {
             s.changed();
         }
     }
-    if gesture_fires(now) {
-        open(false);
+    match gesture_fires(now) {
+        Some(Fired::Panel) => open(false),
+        Some(Fired::Reboot { confirm: true }) => {
+            change(|s| s.reboot_ask = Some(now + REBOOT_ASK));
+        }
+        Some(Fired::Reboot { confirm: false }) => reboot_now(),
+        None => {}
     }
     for j in jobs {
         send(j);
@@ -1060,12 +1809,44 @@ pub fn boot_button(now: Instant) -> Option<Duration> {
 /// panel is closed. Read by the touch thread without the state lock.
 static ARMED: AtomicBool = AtomicBool::new(true);
 
+/// Whether a new press may start the reboot corner: nothing of the panel is
+/// on screen. The project's `enabled` does not count here.
+static REBOOT_ARMED: AtomicBool = AtomicBool::new(true);
+
+/// The reboot corner this viewer watches: `None` where it is not its work
+/// (PixsysOS has its own) or no corner is chosen.
+fn reboot_watch() -> &'static Mutex<Option<(RebootCorner, RebootOptions)>> {
+    static W: OnceLock<Mutex<Option<(RebootCorner, RebootOptions)>>> = OnceLock::new();
+    W.get_or_init(Mutex::default)
+}
+
+/// The corner that opens the panel: top right until the runtime says
+/// otherwise, `None` when it was switched off from the panel.
+fn panel_watch() -> &'static Mutex<(RebootCorner, PanelOptions)> {
+    static W: OnceLock<Mutex<(RebootCorner, PanelOptions)>> = OnceLock::new();
+    W.get_or_init(|| Mutex::new((RebootCorner::TopRight, PanelOptions::default())))
+}
+
+fn watch_panel_corner(c: RebootCorner, o: PanelOptions) {
+    *panel_watch().lock().unwrap_or_else(|e| e.into_inner()) = (c, o);
+}
+
+fn watch_reboot_corner(w: Option<(RebootCorner, RebootOptions)>) {
+    *reboot_watch().lock().unwrap_or_else(|e| e.into_inner()) =
+        w.filter(|(c, _)| *c != RebootCorner::None);
+}
+
 #[derive(Debug, Clone, Copy)]
 struct Hold {
-    x: i32,
-    y: i32,
     start: Instant,
     fired: bool,
+    /// How long the finger must stay.
+    hold: Duration,
+    /// The corner it started in, and the side of its square.
+    corner: RebootCorner,
+    size: i32,
+    /// `Some`: the reboot corner's options. `None`: the hold opens the panel.
+    reboot: Option<RebootOptions>,
 }
 
 #[derive(Debug, Default)]
@@ -1079,8 +1860,32 @@ fn gesture() -> &'static Mutex<Gesture> {
     G.get_or_init(Mutex::default)
 }
 
-pub fn in_corner(x: i32, y: i32, width: i32) -> bool {
-    x >= width - CORNER_PX && y <= CORNER_PX
+/// Whether a point is in the square of `size` pixels at a corner.
+pub fn in_reboot_corner(
+    corner: RebootCorner,
+    size: i32,
+    x: i32,
+    y: i32,
+    width: i32,
+    height: i32,
+) -> bool {
+    let (left, right) = (x <= size, x >= width - size);
+    let (top, bottom) = (y <= size, y >= height - size);
+    match corner {
+        RebootCorner::None => false,
+        RebootCorner::TopLeft => left && top,
+        RebootCorner::TopRight => right && top,
+        RebootCorner::BottomRight => right && bottom,
+        RebootCorner::BottomLeft => left && bottom,
+    }
+}
+
+/// A finger resting on the glass drifts and rolls: the hold lasts while it
+/// stays in the corner it started in, and ends only when it leaves it by more
+/// than the tolerance (TY570, 15-11-2026: a tolerance around the first touch
+/// lost the gesture at every small movement).
+fn still_held(h: &Hold, x: i32, y: i32, width: i32, height: i32) -> bool {
+    in_reboot_corner(h.corner, h.size + MOVE_TOLERANCE_PX, x, y, width, height)
 }
 
 /// What a touch becomes, decided before LVGL sees it.
@@ -1095,20 +1900,38 @@ pub enum Pointer {
     Click,
 }
 
-pub fn filter_pointer(x: i32, y: i32, pressed: bool, width: i32, now: Instant) -> Pointer {
-    let mut g = gesture().lock().unwrap_or_else(|e| e.into_inner());
-    // Before the display exists there is no corner to speak of.
-    let armed = ARMED.load(Ordering::Relaxed) && width > 0;
-    decide(&mut g, armed, x, y, pressed, width, now)
-}
-
-fn decide(
-    g: &mut Gesture,
-    armed: bool,
+pub fn filter_pointer(
     x: i32,
     y: i32,
     pressed: bool,
     width: i32,
+    height: i32,
+    now: Instant,
+) -> Pointer {
+    let mut g = gesture().lock().unwrap_or_else(|e| e.into_inner());
+    // Before the display exists there is no corner to speak of.
+    let panel = if ARMED.load(Ordering::Relaxed) && width > 0 {
+        *panel_watch().lock().unwrap_or_else(|e| e.into_inner())
+    } else {
+        (RebootCorner::None, PanelOptions::default())
+    };
+    let reboot = if REBOOT_ARMED.load(Ordering::Relaxed) && width > 0 {
+        *reboot_watch().lock().unwrap_or_else(|e| e.into_inner())
+    } else {
+        None
+    };
+    decide(&mut g, panel, reboot, x, y, pressed, (width, height), now)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn decide(
+    g: &mut Gesture,
+    (panel, panel_options): (RebootCorner, PanelOptions),
+    reboot: Option<(RebootCorner, RebootOptions)>,
+    x: i32,
+    y: i32,
+    pressed: bool,
+    (width, height): (i32, i32),
     now: Instant,
 ) -> Pointer {
     let new_press = pressed && !g.down;
@@ -1125,41 +1948,87 @@ fn decide(
             g.hold = None;
             return Pointer::Click;
         }
-        if (x - h.x).abs() > MOVE_TOLERANCE_PX || (y - h.y).abs() > MOVE_TOLERANCE_PX {
+        if !still_held(&h, x, y, width, height) {
             // A drag, not the gesture: from here on LVGL has it.
             g.hold = None;
             return Pointer::Pass;
         }
         return Pointer::Withhold;
     }
-    if new_press && armed && in_corner(x, y, width) {
-        g.hold = Some(Hold {
-            x,
-            y,
-            start: now,
-            fired: false,
-        });
-        return Pointer::Withhold;
+    if !new_press {
+        return Pointer::Pass;
     }
-    Pointer::Pass
+    // The panel's corner first: the runtime refuses the same one for both,
+    // but a file written by hand must not hide the panel.
+    let panel_size = panel_options.size_px as i32;
+    let kind = if in_reboot_corner(panel, panel_size, x, y, width, height) {
+        let hold = Duration::from_secs(panel_options.hold_secs as u64);
+        Some((hold, panel, panel_size, None))
+    } else {
+        reboot
+            .filter(|(c, o)| in_reboot_corner(*c, o.size_px as i32, x, y, width, height))
+            .map(|(c, o)| {
+                (
+                    Duration::from_secs(o.hold_secs as u64),
+                    c,
+                    o.size_px as i32,
+                    Some(o),
+                )
+            })
+    };
+    match kind {
+        Some((hold, corner, size, reboot)) => {
+            g.hold = Some(Hold {
+                start: now,
+                fired: false,
+                hold,
+                corner,
+                size,
+                reboot,
+            });
+            Pointer::Withhold
+        }
+        None => Pointer::Pass,
+    }
 }
 
-/// How far the finger in the corner is, 0..1, for the ring.
-pub fn hold_progress(now: Instant) -> Option<f32> {
+/// How far the finger in the corner is, 0..1, for the ring; which corner it
+/// is; and whether it is the one that reboots.
+pub fn hold_progress(now: Instant) -> Option<(f32, RebootCorner, bool)> {
     let g = gesture().lock().unwrap_or_else(|e| e.into_inner());
     g.hold
-        .filter(|h| !h.fired)
-        .map(|h| (now.duration_since(h.start).as_secs_f32() / HOLD.as_secs_f32()).min(1.0))
+        .filter(|h| !h.fired && now.duration_since(h.start) > GRACE)
+        .map(|h| {
+            let counted = now.duration_since(h.start) - GRACE;
+            (
+                (counted.as_secs_f32() / h.hold.as_secs_f32()).min(1.0),
+                h.corner,
+                h.reboot.is_some(),
+            )
+        })
 }
 
-fn gesture_fires(now: Instant) -> bool {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Fired {
+    Panel,
+    Reboot { confirm: bool },
+}
+
+fn gesture_fires(now: Instant) -> Option<Fired> {
     let mut g = gesture().lock().unwrap_or_else(|e| e.into_inner());
+    fires(&mut g, now)
+}
+
+fn fires(g: &mut Gesture, now: Instant) -> Option<Fired> {
     match g.hold.as_mut() {
-        Some(h) if !h.fired && now.duration_since(h.start) >= HOLD => {
+        Some(h) if !h.fired && now.duration_since(h.start) >= GRACE + h.hold => {
             h.fired = true;
-            true
+            Some(match h.reboot {
+                Some(o) => Fired::Reboot { confirm: o.confirm },
+                None => Fired::Panel,
+            })
         }
-        _ => false,
+        _ => None,
     }
 }
 
@@ -1167,8 +2036,16 @@ fn gesture_fires(now: Instant) -> bool {
 
 enum Job {
     Status,
+    SetRebootCorner(RebootCorner, Option<RebootOptions>),
+    SetPanelCorner(RebootCorner, PanelOptions),
+    Reset(String),
+    SetFlip(bool),
     Session(String),
     Network,
+    /// The cards again, applied only if something changed.
+    WatchCards,
+    /// After a card came or went: the Wi-Fi section follows the dongle.
+    Capabilities,
     SetIpv4 {
         card: String,
         change: serde_json::Value,
@@ -1194,6 +2071,8 @@ enum Job {
         before: String,
     },
     Display,
+    About,
+    DiagnosticsUsb,
     SetDisplay(Option<u8>),
     TouchCalibration,
 }
@@ -1232,6 +2111,17 @@ async fn call(
     path: &str,
     body: Option<serde_json::Value>,
 ) -> Result<Reply, String> {
+    call_as(method, path, body, false).await
+}
+
+/// `watch`: a request nobody asked for, which must not count as use of the
+/// session (`WATCH_HEADER`).
+async fn call_as(
+    method: reqwest::Method,
+    path: &str,
+    body: Option<serde_json::Value>,
+    watch: bool,
+) -> Result<Reply, String> {
     let (base_url, token) = with_state(|s| (s.base_url.clone(), s.token.clone()));
     let config = crate::tls::pinned_client_config(&base_url).map_err(|e| e.to_string())?;
     let client = reqwest::Client::builder()
@@ -1243,6 +2133,9 @@ async fn call(
     let mut req = client.request(method, url);
     if let Some(t) = token {
         req = req.header(SESSION_HEADER, t);
+    }
+    if watch {
+        req = req.header(WATCH_HEADER, "1");
     }
     if let Some(b) = body {
         req = req.json(&b);
@@ -1312,8 +2205,24 @@ async fn run(job: Job) {
     match job {
         Job::Status => {
             if let Ok(r) = call(M::GET, "", None).await {
-                if let Some(on) = r.body.get("enabled").and_then(|e| e.as_bool()) {
-                    change(|s| s.enabled = on);
+                // The two ways, already composed with the master by the runtime.
+                // An older runtime only has `enabled`: it stands for both.
+                let master = r.body.get("enabled").and_then(|e| e.as_bool());
+                let gesture = r
+                    .body
+                    .get("gesture_enabled")
+                    .and_then(|e| e.as_bool())
+                    .or(master);
+                let button = r
+                    .body
+                    .get("button_enabled")
+                    .and_then(|e| e.as_bool())
+                    .or(master);
+                if let (Some(gesture), Some(button)) = (gesture, button) {
+                    change(|s| {
+                        s.enabled = gesture;
+                        s.button_enabled = button;
+                    });
                 }
                 // The device's brightness wins over the project's, also
                 // before anyone opens the panel.
@@ -1325,7 +2234,85 @@ async fn run(job: Job) {
                         .map(|b| b.clamp(5, 100) as u8);
                     crate::schermo::device_brightness(b);
                 }
+                // The device mounted upside down (`rotation.rs`).
+                crate::rotation::set_flipped(
+                    r.body.get("flipped").and_then(|f| f.as_bool()) == Some(true),
+                );
+                // Absent on an older runtime: top right, as it always was.
+                if let Some(c) = r
+                    .body
+                    .get("panel_corner")
+                    .and_then(|c| serde_json::from_value::<RebootCorner>(c.clone()).ok())
+                {
+                    let options = r
+                        .body
+                        .get("panel_corner_options")
+                        .and_then(|o| serde_json::from_value::<PanelOptions>(o.clone()).ok())
+                        .unwrap_or_default();
+                    watch_panel_corner(c, options);
+                }
+                // `null` where the corner is not this viewer's to watch.
+                let corner = r.body.get("reboot_corner").filter(|c| !c.is_null());
+                watch_reboot_corner(corner.and_then(|c| {
+                    Some((
+                        serde_json::from_value(c.get("corner")?.clone()).ok()?,
+                        serde_json::from_value(c.get("options")?.clone()).ok()?,
+                    ))
+                }));
             }
+        }
+        Job::Reset(pin) => {
+            let r = call(M::POST, "/reset", Some(serde_json::json!({ "pin": pin }))).await;
+            change(|s| {
+                s.busy = false;
+                s.pin.clear();
+                match r {
+                    Ok(r) if (200..300).contains(&r.status) => {
+                        s.resetting = false;
+                        s.reset_done = true;
+                        s.screen = Screen::Panel;
+                    }
+                    Ok(r) if r.status == 401 => s.expired(),
+                    // A wrong PIN leaves the screen where it is, for another try.
+                    Ok(r) if r.status == 429 => {
+                        s.pin_error = Some(PinError::Locked(
+                            r.body
+                                .get("retry_after_secs")
+                                .and_then(|v| v.as_u64())
+                                .unwrap_or(60),
+                        ));
+                    }
+                    Ok(r) if r.status == 403 => s.pin_error = Some(PinError::Wrong),
+                    Ok(r) => {
+                        s.error = Some(
+                            r.body
+                                .get("error")
+                                .and_then(|e| e.as_str())
+                                .map_or_else(|| format!("HTTP {}", r.status), str::to_string),
+                        )
+                    }
+                    Err(e) => s.error = Some(e),
+                }
+            });
+        }
+        Job::SetFlip(on) => {
+            session_call(M::PUT, "/flip", Some(serde_json::json!({ "flipped": on }))).await;
+        }
+        Job::SetPanelCorner(corner, options) => {
+            session_call(
+                M::PUT,
+                "/panel-corner",
+                Some(serde_json::json!({ "corner": corner, "options": options })),
+            )
+            .await;
+        }
+        Job::SetRebootCorner(corner, options) => {
+            session_call(
+                M::PUT,
+                "/reboot-corner",
+                Some(serde_json::json!({ "corner": corner, "options": options })),
+            )
+            .await;
         }
         Job::Session(pin) => {
             let r = call(M::POST, "/session", Some(serde_json::json!({ "pin": pin }))).await;
@@ -1376,6 +2363,53 @@ async fn run(job: Job) {
                 change(|s| s.cards = Some(cards));
             }
         }
+        Job::WatchCards => {
+            // Not `session_call`: no error line, no `busy`, no rebuild unless
+            // something changed — a rebuild every 3 s would close what the
+            // person is typing or scrolling.
+            let r = match call_as(M::GET, "/network", None, true).await {
+                Ok(r) => r,
+                Err(_) => return,
+            };
+            if r.status == 401 {
+                change(|s| s.expired());
+                return;
+            }
+            let Ok(cards) = serde_json::from_value::<Vec<Card>>(r.body) else {
+                return;
+            };
+            let names = |c: &[Card]| c.iter().map(|c| c.name.clone()).collect::<Vec<_>>();
+            let (same, plugged, section) = with_state(|s| {
+                let old = s.cards.as_deref();
+                (
+                    old == Some(cards.as_slice()),
+                    old.is_some_and(|o| names(o) != names(&cards)),
+                    s.section,
+                )
+            });
+            if same {
+                return;
+            }
+            if matches!(section, Section::Network | Section::Wifi) {
+                change(|s| s.cards = Some(cards));
+            } else {
+                // Kept for the comparison only: the section on screen does not show them.
+                state().lock().unwrap_or_else(|e| e.into_inner()).cards = Some(cards);
+            }
+            if plugged {
+                send(Job::Capabilities);
+                if section == Section::Wifi {
+                    send(Job::Wifi);
+                    send(Job::Hotspot);
+                }
+            }
+        }
+        Job::Capabilities => {
+            let caps = parse::<Capabilities>(session_call(M::GET, "/capabilities", None).await);
+            if caps.is_some() {
+                change(|s| s.caps = caps);
+            }
+        }
         Job::SetIpv4 {
             card,
             change: body,
@@ -1421,7 +2455,7 @@ async fn run(job: Job) {
             }
         }
         Job::Timezones => {
-            if let Some(z) = parse::<Vec<String>>(session_call(M::GET, "/timezones", None).await) {
+            if let Some(z) = parse::<Vec<Zone>>(session_call(M::GET, "/timezones", None).await) {
                 change(|s| s.zones = z);
             }
         }
@@ -1467,15 +2501,64 @@ async fn run(job: Job) {
         Job::SetHotspot { body, before } => {
             confirmable(M::PUT, "/wifi/hotspot", body, before).await;
         }
+        Job::DiagnosticsUsb => {
+            let r = call(M::POST, "/diagnostics/usb", None).await;
+            change(|s| {
+                s.diagnostics_busy = false;
+                s.diagnostics = Some(match r {
+                    Ok(r) if r.status == 401 => {
+                        s.expired();
+                        return;
+                    }
+                    Ok(r) if (200..300).contains(&r.status) => Ok(r
+                        .body
+                        .get("file")
+                        .and_then(|f| f.as_str())
+                        .unwrap_or_default()
+                        .to_string()),
+                    Ok(r) => Err(r
+                        .body
+                        .get("error")
+                        .and_then(|e| e.as_str())
+                        .map_or_else(|| format!("HTTP {}", r.status), str::to_string)),
+                    Err(e) => Err(e),
+                });
+            });
+        }
+        Job::About => {
+            if let Some(a) = session_call(M::GET, "/about", None).await {
+                change(|s| s.about = Some(a));
+            }
+        }
         Job::Display => {
             if let Some(d) = session_call(M::GET, "/display", None).await {
                 let b = d
                     .get("brightness")
                     .and_then(|b| b.as_u64())
                     .map(|b| b.clamp(5, 100) as u8);
+                let corner = d
+                    .get("reboot_corner")
+                    .and_then(|c| serde_json::from_value::<RebootCorner>(c.clone()).ok());
+                let panel = d
+                    .get("panel_corner")
+                    .and_then(|c| serde_json::from_value::<RebootCorner>(c.clone()).ok());
+                let options = d
+                    .get("reboot_corner_options")
+                    .and_then(|o| serde_json::from_value::<RebootOptions>(o.clone()).ok());
                 change(|s| {
                     s.brightness = Some(b);
                     s.brightness_draft = b.unwrap_or(80);
+                    s.reboot_corner = corner.map(|c| (c, options));
+                    s.panel_corner = panel;
+                    s.panel_options = d
+                        .get("panel_corner_options")
+                        .and_then(|o| serde_json::from_value::<PanelOptions>(o.clone()).ok())
+                        .unwrap_or_default();
+                    s.flipped = d.get("flipped").and_then(|f| f.as_bool());
+                    s.reboot_corner_allowed = d
+                        .get("reboot_corner_allowed")
+                        .and_then(|a| a.as_bool())
+                        .unwrap_or(true);
                 });
             }
         }
@@ -1505,6 +2588,60 @@ async fn run(job: Job) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn zones() -> Vec<Zone> {
+        [
+            ("Europe/Rome", Some("IT")),
+            ("Europe/Paris", Some("FR")),
+            ("America/New_York", Some("US")),
+            ("America/Chicago", Some("US")),
+            ("America/Argentina/Buenos_Aires", Some("AR")),
+            ("UTC", None),
+        ]
+        .into_iter()
+        .map(|(z, c)| Zone {
+            zone: z.into(),
+            country: c.map(Into::into),
+        })
+        .collect()
+    }
+
+    #[test]
+    fn time_zones_by_continent_country_and_city_like_the_web() {
+        let z = zones();
+        assert_eq!(continents_in(&z), vec!["Europe", "America", OTHER]);
+        let am = countries_in(&z, "America", "it");
+        let names: Vec<&str> = am.iter().map(|e| e.name.as_str()).collect();
+        assert_eq!(names, ["Argentina", "Stati Uniti"]);
+        assert_eq!(am[1].zones, ["America/New_York", "America/Chicago"]);
+        assert_eq!(city_of("America/Argentina/Buenos_Aires"), "Buenos Aires");
+        assert_eq!(zone_label(&z[0], "it"), "Rome — Italia");
+        assert_eq!(zone_label(&z[0], "en"), "Rome — Italy");
+        let found: Vec<String> = search_zones(&z, "itàl", "it", 10)
+            .into_iter()
+            .map(|z| z.zone)
+            .collect();
+        assert_eq!(found, ["Europe/Rome"]);
+        let found: Vec<String> = search_zones(&z, "buenos", "en", 10)
+            .into_iter()
+            .map(|z| z.zone)
+            .collect();
+        assert_eq!(found, ["America/Argentina/Buenos_Aires"]);
+        // «ro» is Rome, not every zone of «Europe».
+        let found: Vec<String> = search_zones(&z, "ro", "en", 10)
+            .into_iter()
+            .map(|z| z.zone)
+            .collect();
+        assert_eq!(found, ["Europe/Rome"]);
+        assert!(search_zones(&z, "  ", "en", 10).is_empty());
+        // The old aliases without a country are not offered.
+        assert!(search_zones(&z, "belfast", "en", 10).is_empty());
+        assert!(countries_in(&z, "Europe", "en")
+            .iter()
+            .all(|e| e.code.is_some()));
+        // The table has every country of zone.tab, without the curly apostrophe.
+        assert_eq!(country_name("CI", "it"), "Costa d'Avorio");
+    }
 
     #[test]
     fn the_words_are_the_webs_in_the_content_language() {
@@ -1546,6 +2683,7 @@ mod tests {
             state: "connected".into(),
             mac: None,
             addresses: vec!["192.168.1.242/24".into()],
+            addresses6: vec![],
             gateway: Some("192.168.1.254".into()),
             dns: vec![],
             method: Some("auto".into()),
@@ -1572,42 +2710,459 @@ mod tests {
         let t0 = Instant::now();
         let mut g = Gesture::default();
         // Outside the corner: LVGL has it.
-        assert_eq!(decide(&mut g, true, 500, 20, true, 1024, t0), Pointer::Pass);
         assert_eq!(
-            decide(&mut g, true, 500, 20, false, 1024, t0),
+            decide(
+                &mut g,
+                (RebootCorner::TopRight, PanelOptions::default()),
+                None,
+                500,
+                20,
+                true,
+                (1024, 600),
+                t0
+            ),
+            Pointer::Pass
+        );
+        assert_eq!(
+            decide(
+                &mut g,
+                (RebootCorner::TopRight, PanelOptions::default()),
+                None,
+                500,
+                20,
+                false,
+                (1024, 600),
+                t0
+            ),
             Pointer::Pass
         );
         // In the corner: held back, and released early it becomes a click.
         assert_eq!(
-            decide(&mut g, true, 1000, 20, true, 1024, t0),
+            decide(
+                &mut g,
+                (RebootCorner::TopRight, PanelOptions::default()),
+                None,
+                1000,
+                20,
+                true,
+                (1024, 600),
+                t0
+            ),
             Pointer::Withhold
         );
         assert_eq!(
-            decide(&mut g, true, 1005, 25, true, 1024, t0),
+            decide(
+                &mut g,
+                (RebootCorner::TopRight, PanelOptions::default()),
+                None,
+                1005,
+                25,
+                true,
+                (1024, 600),
+                t0
+            ),
             Pointer::Withhold
         );
         assert_eq!(
-            decide(&mut g, true, 1005, 25, false, 1024, t0),
+            decide(
+                &mut g,
+                (RebootCorner::TopRight, PanelOptions::default()),
+                None,
+                1005,
+                25,
+                false,
+                (1024, 600),
+                t0
+            ),
             Pointer::Click
         );
-        // A drag out of the tolerance goes back to LVGL.
+        // A finger that drifts inside the corner is still the gesture; a drag
+        // out of it goes back to LVGL.
         assert_eq!(
-            decide(&mut g, true, 1000, 20, true, 1024, t0),
+            decide(
+                &mut g,
+                (RebootCorner::TopRight, PanelOptions::default()),
+                None,
+                1000,
+                20,
+                true,
+                (1024, 600),
+                t0
+            ),
             Pointer::Withhold
         );
         assert_eq!(
-            decide(&mut g, true, 1000, 60, true, 1024, t0),
+            decide(
+                &mut g,
+                (RebootCorner::TopRight, PanelOptions::default()),
+                None,
+                960,
+                70,
+                true,
+                (1024, 600),
+                t0
+            ),
+            Pointer::Withhold
+        );
+        assert_eq!(
+            decide(
+                &mut g,
+                (RebootCorner::TopRight, PanelOptions::default()),
+                None,
+                1000,
+                120,
+                true,
+                (1024, 600),
+                t0
+            ),
             Pointer::Pass
         );
         assert_eq!(
-            decide(&mut g, true, 1000, 60, false, 1024, t0),
+            decide(
+                &mut g,
+                (RebootCorner::TopRight, PanelOptions::default()),
+                None,
+                1000,
+                120,
+                false,
+                (1024, 600),
+                t0
+            ),
             Pointer::Pass
         );
         // Disabled by the project: nothing is held back.
         assert_eq!(
-            decide(&mut g, false, 1000, 20, true, 1024, t0),
+            decide(
+                &mut g,
+                (RebootCorner::None, PanelOptions::default()),
+                None,
+                1000,
+                20,
+                true,
+                (1024, 600),
+                t0
+            ),
             Pointer::Pass
         );
+    }
+
+    #[test]
+    fn a_switching_key_does_not_answer_twice_under_the_same_finger() {
+        let t0 = Instant::now();
+        let mut last = None;
+        assert!(switch_key_allowed(&mut last, t0));
+        // The redrawn key under the finger: the next frames, refused.
+        assert!(!switch_key_allowed(
+            &mut last,
+            t0 + Duration::from_millis(16)
+        ));
+        assert!(!switch_key_allowed(
+            &mut last,
+            t0 + Duration::from_millis(400)
+        ));
+        // A new press, later: answers, and starts the wait again.
+        assert!(switch_key_allowed(
+            &mut last,
+            t0 + Duration::from_millis(600)
+        ));
+        assert!(!switch_key_allowed(
+            &mut last,
+            t0 + Duration::from_millis(700)
+        ));
+    }
+
+    #[test]
+    fn a_touch_in_the_corner_counts_only_after_the_first_moment() {
+        let t0 = Instant::now();
+        let size = (1024, 600);
+        let mut g = Gesture::default();
+        let panel = (RebootCorner::TopRight, PanelOptions::default());
+        assert_eq!(
+            decide(&mut g, panel, None, 1000, 20, true, size, t0),
+            Pointer::Withhold
+        );
+        // During the grace: nothing fires, even long enough for the hold...
+        assert_eq!(fires(&mut g, t0 + GRACE - Duration::from_millis(1)), None);
+        // ...and the time of the gesture starts after it, not with the touch.
+        assert_eq!(fires(&mut g, t0 + HOLD), None);
+        assert_eq!(fires(&mut g, t0 + GRACE + HOLD), Some(Fired::Panel));
+    }
+
+    #[test]
+    fn the_ntp_servers_typed_are_one_to_four_names() {
+        let form = |text: &str| NtpForm {
+            text: text.into(),
+            ..Default::default()
+        };
+        assert!(form("192.168.1.10").valid());
+        assert_eq!(
+            form("192.168.1.10  ntp.plant.example").servers(),
+            vec!["192.168.1.10", "ntp.plant.example"]
+        );
+        assert!(!form("").valid());
+        assert!(!form("a b c d e").valid());
+        assert!(!form("ntp_server").valid());
+        assert!(!form("-x").valid());
+    }
+
+    #[test]
+    fn the_panel_corner_has_its_own_time_and_size() {
+        let t0 = Instant::now();
+        let size = (1024, 600);
+        let wide = (
+            RebootCorner::TopLeft,
+            PanelOptions {
+                hold_secs: 2,
+                size_px: 160,
+            },
+        );
+        let mut g = Gesture::default();
+        // Outside the 80 px of once, inside the 160 chosen.
+        assert_eq!(
+            decide(&mut g, wide, None, 150, 150, true, size, t0),
+            Pointer::Withhold
+        );
+        assert_eq!(fires(&mut g, t0 + GRACE + Duration::from_secs(1)), None);
+        assert_eq!(
+            fires(&mut g, t0 + GRACE + Duration::from_secs(2)),
+            Some(Fired::Panel)
+        );
+        decide(&mut g, wide, None, 150, 150, false, size, t0);
+        // The finger may drift in the whole square, not in the old one.
+        decide(&mut g, wide, None, 20, 20, true, size, t0);
+        assert_eq!(
+            decide(&mut g, wide, None, 150, 150, true, size, t0),
+            Pointer::Withhold
+        );
+        assert_eq!(
+            decide(&mut g, wide, None, 200, 150, true, size, t0),
+            Pointer::Pass
+        );
+    }
+
+    #[test]
+    fn the_reboot_corner_fires_after_its_own_time_and_never_hides_the_panels() {
+        let t0 = Instant::now();
+        let options = RebootOptions {
+            hold_secs: 3,
+            size_px: 100,
+            confirm: true,
+        };
+        let size = (1024, 600);
+        let watch = Some((RebootCorner::BottomLeft, options));
+        let mut g = Gesture::default();
+        // Bottom left, inside the 100 px: held back.
+        assert_eq!(
+            decide(
+                &mut g,
+                (RebootCorner::TopRight, PanelOptions::default()),
+                watch,
+                90,
+                520,
+                true,
+                size,
+                t0
+            ),
+            Pointer::Withhold
+        );
+        assert_eq!(fires(&mut g, t0 + GRACE + Duration::from_secs(2)), None);
+        assert_eq!(
+            fires(&mut g, t0 + GRACE + Duration::from_secs(3)),
+            Some(Fired::Reboot { confirm: true })
+        );
+        // Once only, and the release never reaches LVGL.
+        assert_eq!(fires(&mut g, t0 + GRACE + Duration::from_secs(4)), None);
+        assert_eq!(
+            decide(
+                &mut g,
+                (RebootCorner::TopRight, PanelOptions::default()),
+                watch,
+                90,
+                520,
+                false,
+                size,
+                t0
+            ),
+            Pointer::Withhold
+        );
+        // A finger that drifts inside the corner keeps the hold; one that
+        // leaves it becomes a drag.
+        decide(
+            &mut g,
+            (RebootCorner::TopRight, PanelOptions::default()),
+            watch,
+            90,
+            520,
+            true,
+            size,
+            t0,
+        );
+        assert_eq!(
+            decide(
+                &mut g,
+                (RebootCorner::TopRight, PanelOptions::default()),
+                watch,
+                30,
+                580,
+                true,
+                size,
+                t0
+            ),
+            Pointer::Withhold
+        );
+        assert_eq!(
+            decide(
+                &mut g,
+                (RebootCorner::TopRight, PanelOptions::default()),
+                watch,
+                140,
+                520,
+                true,
+                size,
+                t0
+            ),
+            Pointer::Pass
+        );
+        assert_eq!(fires(&mut g, t0 + GRACE + Duration::from_secs(3)), None);
+        decide(
+            &mut g,
+            (RebootCorner::TopRight, PanelOptions::default()),
+            watch,
+            140,
+            520,
+            false,
+            size,
+            t0,
+        );
+        decide(
+            &mut g,
+            (RebootCorner::TopRight, PanelOptions::default()),
+            watch,
+            90,
+            520,
+            true,
+            size,
+            t0,
+        );
+        fires(&mut g, t0 + GRACE + Duration::from_secs(3));
+        assert_eq!(
+            decide(
+                &mut g,
+                (RebootCorner::TopRight, PanelOptions::default()),
+                watch,
+                90,
+                520,
+                false,
+                size,
+                t0
+            ),
+            Pointer::Withhold
+        );
+        // Outside the corner: LVGL has it.
+        assert_eq!(
+            decide(
+                &mut g,
+                (RebootCorner::TopRight, PanelOptions::default()),
+                watch,
+                120,
+                520,
+                true,
+                size,
+                t0
+            ),
+            Pointer::Pass
+        );
+        decide(
+            &mut g,
+            (RebootCorner::TopRight, PanelOptions::default()),
+            watch,
+            120,
+            520,
+            false,
+            size,
+            t0,
+        );
+        // The same corner as the panel's: the panel wins, with its 5 seconds.
+        let same = Some((RebootCorner::TopRight, options));
+        decide(
+            &mut g,
+            (RebootCorner::TopRight, PanelOptions::default()),
+            same,
+            1000,
+            20,
+            true,
+            size,
+            t0,
+        );
+        assert_eq!(fires(&mut g, t0 + GRACE + Duration::from_secs(3)), None);
+        assert_eq!(fires(&mut g, t0 + GRACE + HOLD), Some(Fired::Panel));
+        decide(
+            &mut g,
+            (RebootCorner::TopRight, PanelOptions::default()),
+            same,
+            1000,
+            20,
+            false,
+            size,
+            t0,
+        );
+        // The panel's corner moved: the old one is a corner like any other.
+        assert_eq!(
+            decide(
+                &mut g,
+                (RebootCorner::TopLeft, PanelOptions::default()),
+                None,
+                1000,
+                20,
+                true,
+                size,
+                t0
+            ),
+            Pointer::Pass
+        );
+        decide(
+            &mut g,
+            (RebootCorner::TopLeft, PanelOptions::default()),
+            None,
+            1000,
+            20,
+            false,
+            size,
+            t0,
+        );
+        assert_eq!(
+            decide(
+                &mut g,
+                (RebootCorner::TopLeft, PanelOptions::default()),
+                None,
+                20,
+                20,
+                true,
+                size,
+                t0
+            ),
+            Pointer::Withhold
+        );
+        assert_eq!(fires(&mut g, t0 + GRACE + HOLD), Some(Fired::Panel));
+        decide(
+            &mut g,
+            (RebootCorner::TopLeft, PanelOptions::default()),
+            None,
+            20,
+            20,
+            false,
+            size,
+            t0,
+        );
+        assert!(!in_reboot_corner(RebootCorner::None, 100, 0, 0, 1024, 600));
+        assert!(in_reboot_corner(
+            RebootCorner::BottomRight,
+            100,
+            1000,
+            590,
+            1024,
+            600
+        ));
     }
 
     #[test]

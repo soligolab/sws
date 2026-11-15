@@ -155,3 +155,28 @@ export function seguePredefinito(page: Pick<SynopticPage, "width" | "height">, l
   return !!layout && pieno(layout.default_width) && pieno(layout.default_height)
     && page.width === layout.default_width && page.height === layout.default_height;
 }
+
+/** The page kinds that are as large as the screen: they turn with the project.
+ *  Windows and faceplates are pieces inside a page, and keep their shape. */
+const SCREEN_SIZED: readonly GenerePagina[] = ["pagina", "boot", "cornice"];
+
+/** A project that changes orientation (decision of 15-11-2026: «scambiando
+ *  anche le pagine»): the default format and every screen-sized page trade
+ *  width and height. The objects stay where they are. Pure: the same call
+ *  twice gives back what there was. */
+export function cambioOrientamento(
+  pagine: readonly { pagina: SynopticPage; genere: GenerePagina }[],
+  layout: PageLayoutConfig | undefined | null,
+  orientation: "landscape" | "portrait",
+): { layout: PageLayoutConfig; patches: { id: string; patch: Partial<SynopticPage> }[] } {
+  const base: PageLayoutConfig = layout ?? { size_mode: "fixed" };
+  const prima = base.orientation ?? "landscape";
+  const nuovo: PageLayoutConfig = { ...base, orientation: orientation === "portrait" ? "portrait" : undefined };
+  if (prima === orientation) return { layout: nuovo, patches: [] };
+  nuovo.default_width = base.default_height;
+  nuovo.default_height = base.default_width;
+  const patches = pagine
+    .filter(({ pagina, genere }) => SCREEN_SIZED.includes(genere) && pieno(pagina.width) && pieno(pagina.height))
+    .map(({ pagina }) => ({ id: pagina.id, patch: { width: pagina.height, height: pagina.width } }));
+  return { layout: nuovo, patches };
+}

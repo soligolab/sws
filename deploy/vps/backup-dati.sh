@@ -33,7 +33,12 @@ ULTIMO=$(find "$DEST" -mindepth 1 -maxdepth 1 -type d -name '20??-??-??' ! -name
 LINK=()
 [ -n "$ULTIMO" ] && LINK=(--link-dest="$ULTIMO")
 
-rsync -a "${LINK[@]}" --exclude='*.db-wal' --exclude='*.db-shm' \
+# `chiave_segreti` resta fuori di proposito (15-11-2026): e' la chiave-madre con
+# cui `identita.db` cifra le chiavi IA degli utenti (`sws-identita`, ai_keys.rs).
+# Una copia che portasse database e chiave insieme darebbe le chiavi a chi la
+# ruba. Dopo un ripristino le righe ci sono ma non si leggono, e gli utenti le
+# riscrivono dal loro menu.
+rsync -a "${LINK[@]}" --exclude='*.db-wal' --exclude='*.db-shm' --exclude='chiave_segreti' \
   "$BASE/gateway-config" "$BASE/progetti" "$LAVORO/"
 
 # I database vivi: un'istantanea coerente al posto del file copiato.

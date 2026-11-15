@@ -33,6 +33,7 @@ pub mod prompt;
 pub mod scopi;
 mod strumenti_scopi;
 pub mod tools;
+pub mod user_keys;
 
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::{Query, State};
@@ -115,7 +116,18 @@ async fn sessione(socket: WebSocket, s: AppState, id_conversazione: Option<Strin
     });
 
     let finto = std::env::var("SWS_AI_FAKE").ok();
-    let scelta = client::carica(&s.config_dir);
+    // The project's own key wins, as it always did. For a provider it has no key
+    // for, and only behind the gateway, the key of whoever is writing is asked
+    // to the gateway, for this session and in memory only (`user_keys.rs`).
+    let user_keys = {
+        let missing: Vec<client::Fornitore> =
+            [client::Fornitore::Anthropic, client::Fornitore::Kimi]
+                .into_iter()
+                .filter(|f| client::chiave_di(&s.config_dir, *f).is_none())
+                .collect();
+        user_keys::fetch(&s, &di, &missing).await
+    };
+    let scelta = client::carica_con(&s.config_dir, &user_keys);
 
     // La conversazione: ritrovata se lo stesso id c'era già (riconnessione),
     // nuova altrimenti. `try_lock` perché un socket fantasma a metà turno non
@@ -176,6 +188,10 @@ async fn sessione(socket: WebSocket, s: AppState, id_conversazione: Option<Strin
                 (None, Some(sc)) => sc.fornitore.nome().to_string(),
                 (None, None) => "-".to_string(),
             },
+            // Whose key it is: the project's or the user's (the panel says which).
+            "chiave": scelta.as_ref().map(|sc| sc.source.name()),
+            // Behind the gateway the user can add their own key in their menu.
+            "chiave_utente_possibile": s.ritorno.origine_se_dietro_al_gateway().is_some(),
             // Il pannello deve poter dire «manca la chiave» invece di sembrare rotto.
             "attivo": finto.is_some() || scelta.is_some(),
             "motivo": if finto.is_some() { Value::Null }
@@ -212,7 +228,7 @@ async fn sessione(socket: WebSocket, s: AppState, id_conversazione: Option<Strin
 
     // Gli scopi configurati decidono gli strumenti in più: una volta, qui, così
     // l'elenco resta lo stesso per tutta la conversazione (la cache regge).
-    let ctx = strumenti_scopi::Contesto::da(&s.config_dir);
+    let ctx = strumenti_scopi::Contesto::da_con(&s.config_dir, &user_keys);
 
     // Il socket lo legge un compito a parte: la foto di un progetto web
     // (`foto_ide`) torna dal browser mentre il turno è in corso, cioè mentre

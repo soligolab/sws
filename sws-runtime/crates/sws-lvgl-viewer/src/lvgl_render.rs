@@ -3743,6 +3743,25 @@ fn sfondo_del_rect(
         }
     }
     eprintln!("[sfondo] carico {src}");
+    // First the runtime's variant at this size, decoded straight into the
+    // buffer; an older runtime or another format takes the long way below.
+    if let Some(url) = crate::svg_assets::url_alla_misura(src, w as u32, h as u32) {
+        let fonte = crate::svg_assets::SvgSource::Url(url);
+        if let Some(buf) = crate::svg_assets::bytes_for(base_url, rt_handle, &fonte)
+            .and_then(|b| crate::svg_assets::jpeg_alla_misura(&b, w as u32, h as u32))
+        {
+            let buf = std::sync::Arc::new(buf);
+            if let Ok(b) = canvas_su_buffer(screen, x, y, w, h, buf.clone()) {
+                eprintln!(
+                    "[sfondo] {src} alla misura {w}x{h}, pronto in {} ms",
+                    t0.elapsed().as_millis()
+                );
+                crate::svg_assets::metti_sfondo(src, w as u32, h as u32, (w as u32, h as u32), buf);
+                opacita_sfondo(screen, obj);
+                return Some(b);
+            }
+        }
+    }
     let fonte = crate::svg_assets::SvgSource::Url(src.to_string());
     let byte = crate::svg_assets::bytes_for(base_url, rt_handle, &fonte)?;
     // Anche un SVG riempie il riquadro tagliando, come il `bgLayer` del web
@@ -3765,19 +3784,22 @@ fn sfondo_del_rect(
         Ok(b) => {
             eprintln!("[sfondo] {src} pronto in {} ms", t0.elapsed().as_millis());
             if let LiveKind::SvgRaster { canvas_ptr, buf } = &b.kind {
+                // The bitmap's size from the canvas image, not `lv_obj_get_width`:
+                // the layout is not computed yet here, so the object is still
+                // 0 × 0, and a 0 × 0 canvas from the cache drew nothing — the HVAC
+                // page lost its background from the second visit on (TY570,
+                // 14-11-2026).
                 let (bw, bh) = unsafe {
-                    (
-                        lvgl_sys::lv_obj_get_width(canvas_ptr.as_ptr()),
-                        lvgl_sys::lv_obj_get_height(canvas_ptr.as_ptr()),
-                    )
+                    let img = lvgl_sys::lv_canvas_get_img(canvas_ptr.as_ptr());
+                    if img.is_null() {
+                        (0, 0)
+                    } else {
+                        ((*img).header.w(), (*img).header.h())
+                    }
                 };
-                crate::svg_assets::metti_sfondo(
-                    src,
-                    w as u32,
-                    h as u32,
-                    (bw as u32, bh as u32),
-                    buf.clone(),
-                );
+                if bw > 0 && bh > 0 {
+                    crate::svg_assets::metti_sfondo(src, w as u32, h as u32, (bw, bh), buf.clone());
+                }
             }
             opacita_sfondo(screen, obj);
             Some(b)

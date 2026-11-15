@@ -4,16 +4,18 @@
 // 1. a button for BOOT_BUTTON_MS when the viewer starts — always, even when
 //    the project disabled the panel: it is the way back for a device left
 //    without a network;
-// 2. a finger held still in the top-right corner (`cornerHold.ts`);
+// 2. a finger held still in a corner (`cornerHold.ts`): top right, unless the
+//    device moved it or switched it off from the panel itself;
 // 3. the synoptic action `open_control_panel`, which fires OPEN_EVENT.
 //
-// 2 and 3 follow the project (`control_panel.enabled`).
+// 2 follows `gesture_enabled` of the project, 3 `button_enabled` (both under the
+// master `enabled`).
 
 import { useEffect, useRef, useState } from "react";
 import { ControlPanel } from "./ControlPanel";
 import { usePanelTranslation } from "./language";
 import { getStatus } from "./api";
-import { holdComplete, holdProgress, startHold, stillHolding, type HoldState } from "./cornerHold";
+import { holdComplete, holdProgress, startHold, stillHolding, type Corner, type HoldState } from "./cornerHold";
 
 export const OPEN_EVENT = "sws:open-control-panel";
 export const BOOT_BUTTON_MS = 5_000;
@@ -26,15 +28,24 @@ export function openControlPanel() {
 export function ControlPanelLauncher() {
   const { t } = usePanelTranslation();
   const [open, setOpen] = useState(false);
+  // The gesture and the synoptic button follow their own switches in the project.
   const [enabled, setEnabled] = useState(true);
+  const [buttonEnabled, setButtonEnabled] = useState(true);
+  const [corner, setCorner] = useState<Corner>("top_right");
+  const [options, setOptions] = useState({ hold_secs: 5, size_px: 80 });
   const [bootLeft, setBootLeft] = useState(BOOT_BUTTON_MS);
   const [progress, setProgress] = useState(0);
   const hold = useRef<HoldState | null>(null);
   const swallowNextClick = useRef(false);
 
   useEffect(() => {
-    getStatus().then((s) => setEnabled(s.enabled)).catch(() => { /* runtime down: keep the defaults */ });
-  }, []);
+    // Read again when the panel closes: the corner may have been moved from it.
+    if (open) return;
+    getStatus().then((s) => { setEnabled(s.gesture_enabled ?? s.enabled); setButtonEnabled(s.button_enabled ?? s.enabled); setCorner(s.panel_corner ?? "top_right");
+      if (s.panel_corner_options) setOptions(s.panel_corner_options);
+    })
+      .catch(() => { /* runtime down: keep the defaults */ });
+  }, [open]);
 
   // The boot button counts down and goes away.
   useEffect(() => {
@@ -44,15 +55,15 @@ export function ControlPanelLauncher() {
   }, [bootLeft]);
 
   useEffect(() => {
-    const onOpen = () => { if (enabled) setOpen(true); };
+    const onOpen = () => { if (buttonEnabled) setOpen(true); };
     window.addEventListener(OPEN_EVENT, onOpen);
     return () => window.removeEventListener(OPEN_EVENT, onOpen);
-  }, [enabled]);
+  }, [buttonEnabled]);
 
   // The corner gesture, listened to in the capture phase so the project
   // cannot stop it.
   useEffect(() => {
-    if (!enabled || open) return;
+    if (!enabled || open || corner === "none") return;
     let timer: number | null = null;
     const stop = () => {
       hold.current = null;
@@ -60,7 +71,8 @@ export function ControlPanelLauncher() {
       if (timer !== null) { window.clearInterval(timer); timer = null; }
     };
     const down = (e: PointerEvent) => {
-      hold.current = startHold(e.clientX, e.clientY, window.innerWidth, performance.now());
+      hold.current = startHold(e.clientX, e.clientY, window.innerWidth, window.innerHeight, corner, performance.now(),
+        options.size_px, options.hold_secs * 1_000);
       if (!hold.current) return;
       timer = window.setInterval(() => {
         const h = hold.current;
@@ -75,7 +87,7 @@ export function ControlPanelLauncher() {
       }, 100);
     };
     const moveEv = (e: PointerEvent) => {
-      if (hold.current && !stillHolding(hold.current, e.clientX, e.clientY)) stop();
+      if (hold.current && !stillHolding(hold.current, e.clientX, e.clientY, window.innerWidth, window.innerHeight)) stop();
     };
     const up = (e: PointerEvent) => {
       if (swallowNextClick.current) { e.stopPropagation(); e.preventDefault(); }
@@ -97,7 +109,7 @@ export function ControlPanelLauncher() {
       window.removeEventListener("pointercancel", stop, true);
       window.removeEventListener("click", click, true);
     };
-  }, [enabled, open]);
+  }, [enabled, open, corner, options]);
 
   if (open) return <ControlPanel onClose={() => setOpen(false)} />;
   return (<>
@@ -112,20 +124,26 @@ export function ControlPanelLauncher() {
       </button>
     )}
     {progress > 0 && (
-      <div style={{ position: "fixed", right: 10, top: 10, zIndex: 9600, pointerEvents: "none" }}>
-        <Ring fraction={progress} size={60} />
+      <div style={{
+        position: "fixed", zIndex: 9600, pointerEvents: "none",
+        ...(corner.endsWith("left") ? { left: 10 } : { right: 10 }),
+        ...(corner.startsWith("bottom") ? { bottom: 10 } : { top: 10 }),
+      }}>
+        {/* Wider than the finger that covers the corner. */}
+        <Ring fraction={progress} color="#46b37a" size={Math.max(60, Math.round(Math.min(window.innerWidth, window.innerHeight) / 3))} />
       </div>
     )}
   </>);
 }
 
-function Ring({ fraction, label, size = 30 }: { fraction: number; label?: string; size?: number }) {
-  const r = size / 2 - 3;
+function Ring({ fraction, label, size = 30, color = "#4f9cf0" }: { fraction: number; label?: string; size?: number; color?: string }) {
+  const stroke = size > 60 ? 12 : 4;
+  const r = size / 2 - stroke / 2 - 1;
   const len = 2 * Math.PI * r;
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden>
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#3a434d" strokeWidth={4} />
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#4f9cf0" strokeWidth={4}
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#3a434d" strokeWidth={stroke} />
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={stroke}
         strokeDasharray={`${len * fraction} ${len}`} transform={`rotate(-90 ${size / 2} ${size / 2})`} />
       {label && <text x="50%" y="50%" dominantBaseline="central" textAnchor="middle" fontSize={12} fill="#9aa5b1">{label}</text>}
     </svg>

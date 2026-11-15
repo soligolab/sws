@@ -337,6 +337,13 @@ pub async fn fetch_languages(
         languages: LanguageTable,
         #[serde(default)]
         pannello: Option<sws_core::project::PannelloConfig>,
+        #[serde(default)]
+        page_layout: Option<Layout>,
+    }
+    #[derive(Deserialize)]
+    struct Layout {
+        #[serde(default)]
+        orientation: Option<sws_core::project::Orientation>,
     }
     let mut url = reqwest::Url::parse(base_url)?;
     url.path_segments_mut()
@@ -348,6 +355,12 @@ pub async fn fetch_languages(
         .build()?;
     let resp = client.get(url).send().await?.error_for_status()?;
     let wrapper = resp.json::<ProjectLanguagesOnly>().await?;
+    // Read here with the rest of what the panel needs from the project: a
+    // portrait project turns the picture (`rotation.rs`).
+    crate::rotation::set_portrait(
+        wrapper.page_layout.and_then(|l| l.orientation)
+            == Some(sws_core::project::Orientation::Portrait),
+    );
     Ok((wrapper.languages, wrapper.pannello))
 }
 

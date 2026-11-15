@@ -1954,6 +1954,10 @@ pub struct GlobalScriptDef {
     pub enabled: bool,
 }
 
+fn is_true(v: &bool) -> bool {
+    *v
+}
+
 fn bool_true() -> bool {
     true
 }
@@ -2687,6 +2691,23 @@ pub struct PageLayoutConfig {
     /// informativo: contano `default_width`/`default_height`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dispositivo: Option<String>,
+    /// How the panel is mounted for this project. Absent = landscape. A
+    /// portrait project has pages taller than wide, and the viewer that owns
+    /// the glass turns the picture 90° (plan
+    /// `docs/archive/2026-11-15-rotazione-dello-schermo.md`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub orientation: Option<Orientation>,
+}
+
+/// The orientation a project is drawn for. Portrait: the panel turned 90°
+/// clockwise, its left side at the top (maintainer, 15-11-2026); the other way
+/// round is the device's own 180° setting.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum Orientation {
+    #[default]
+    Landscape,
+    Portrait,
 }
 
 /// Le impostazioni dello schermo del pannello, nel progetto: viaggiano col
@@ -2755,20 +2776,50 @@ impl Default for BeepTocco {
 /// network (TY570, 13-11-2026).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ControlPanelConfig {
+    /// The master switch, as it always was: off, and neither the gesture nor
+    /// the synoptic button open the panel. The two below split it (maintainer,
+    /// 15-11-2026: «una per la gesture e una per il bottone messo nel
+    /// sinottico»); a project that only knows `enabled` behaves as before.
     #[serde(default = "bool_true")]
     pub enabled: bool,
+    /// The finger held in the corner opens the panel.
+    #[serde(default = "bool_true", skip_serializing_if = "is_true")]
+    pub gesture_enabled: bool,
+    /// The synoptic button (`open_control_panel`) opens the panel.
+    #[serde(default = "bool_true", skip_serializing_if = "is_true")]
+    pub button_enabled: bool,
     /// argon2 hash of the service PIN. `None` = the device's initial PIN (the
     /// low six hex digits of the MAC of `eth0`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pin_hash: Option<String>,
+    /// Whether the device may have a corner that reboots it when held. The
+    /// corner itself, its time and its size are the device's (maintainer,
+    /// 15-11-2026: from the project «solo spegnerlo»).
+    #[serde(default = "bool_true", skip_serializing_if = "is_true")]
+    pub reboot_corner_enabled: bool,
 }
 
 impl Default for ControlPanelConfig {
     fn default() -> Self {
         Self {
             enabled: true,
+            gesture_enabled: true,
+            button_enabled: true,
             pin_hash: None,
+            reboot_corner_enabled: true,
         }
+    }
+}
+
+impl ControlPanelConfig {
+    /// Whether the gesture opens the panel: the master and its own switch.
+    pub fn gesture(&self) -> bool {
+        self.enabled && self.gesture_enabled
+    }
+
+    /// Whether the synoptic button opens the panel.
+    pub fn button(&self) -> bool {
+        self.enabled && self.button_enabled
     }
 }
 

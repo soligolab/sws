@@ -1,6 +1,6 @@
 import { api } from "@/api/client";
 import { inCodaLayout } from "@/layoutInCoda";
-import { patchDaPredefinito, patchSovrascrittura, primaImpostazione, type FormatoPagina, type GenerePagina } from "@/formatoProgetto";
+import { cambioOrientamento, patchDaPredefinito, patchSovrascrittura, primaImpostazione, type FormatoPagina, type GenerePagina } from "@/formatoProgetto";
 import { eBoot } from "@/boot/tipi";
 import { eCornice } from "@/cornici/modello";
 import { eFaceplateDef } from "@/faceplate/modello";
@@ -77,3 +77,18 @@ export function applicaATutte(ids: readonly string[], scelta: { misura: boolean;
   if (patches.length > 0) st.updatePagesProps(patches);
   return patches.length;
 }
+
+/** Turns the project: the format and the screen-sized pages trade width and
+ *  height, in one history step; the layout is written at once, the pages with
+ *  Save like every canvas change. Returns how many pages it turned. */
+export async function cambiaOrientamento(orientation: "landscape" | "portrait"): Promise<number> {
+  const st = useAppStore.getState();
+  const pagine = st.pages.map((pagina) => ({ pagina, genere: generePagina(pagina) }));
+  const { patches } = cambioOrientamento(pagine, st.project?.page_layout, orientation);
+  // The layout is computed again when its turn comes, from what the write
+  // before it left: the server replaces it whole.
+  await salvaLayout((attuale) => cambioOrientamento([], attuale, orientation).layout);
+  if (patches.length > 0) useAppStore.getState().updatePagesProps(patches);
+  return patches.length;
+}
+

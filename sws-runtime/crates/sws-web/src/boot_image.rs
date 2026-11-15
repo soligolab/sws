@@ -120,9 +120,16 @@ pub async fn publish(config_dir: &Path, project_dir: &Path, occasione: Occasione
                 let sha = sha256_hex(&png);
                 let cambiato = scrivi_se_diverso(&dir.join(PNG), &png).await?;
                 let attuale = leggi_file_stato(config_dir).await;
-                if serve_applicare(attuale.as_ref(), &sha, cambiato, occasione) {
-                    tracing::info!(sha256 = %sha, bytes = png.len(), cambiato, "boot-image: chiedo al launcher");
-                    applica_col_launcher(config_dir, &dir.join(PNG), &sha).await;
+                if let Some(raw) = raw_target() {
+                    // Always: the same PNG gives another file when the picture
+                    // turns (a portrait project, a device set upside down).
+                    let turns = quarter_turns(config_dir, project_dir);
+                    apply_raw(config_dir, &raw, png, &sha, turns).await;
+                } else if serve_applicare(attuale.as_ref(), &sha, cambiato, occasione) {
+                    {
+                        tracing::info!(sha256 = %sha, bytes = png.len(), cambiato, "boot-image: chiedo al launcher");
+                        applica_col_launcher(config_dir, &dir.join(PNG), &sha).await;
+                    }
                 }
             }
             None => {
@@ -209,11 +216,128 @@ async fn applica_col_launcher(config_dir: &Path, png: &Path, sha: &str) {
     scrivi_stato(config_dir, stato).await;
 }
 
+// ── The raw file of the Tiny TY ──────────────────────────────────────────────
+
+/// Where the boot image goes as a raw framebuffer dump, on the devices that
+/// show it that way. On the Tiny TY Pixsys' `rc.local` copies
+/// `/data/plc/bootlogo.raw` to `/dev/fb0` early in the boot (BGRA, 32 bit, the
+/// size of the screen); SWS' installer links that name to this file, and the
+/// runtime launcher names it here. Without the variable: PixsysOS' launcher.
+fn raw_target() -> Option<PathBuf> {
+    std::env::var_os("SWS_BOOT_IMAGE_RAW")
+        .filter(|v| !v.is_empty())
+        .map(PathBuf::from)
+}
+
+/// The framebuffer's size, as the kernel says it (`1024,600`).
+fn framebuffer_size() -> Result<(u32, u32), String> {
+    let path = "/sys/class/graphics/fb0/virtual_size";
+    let text = std::fs::read_to_string(path).map_err(|e| format!("{path}: {e}"))?;
+    parse_size(&text).ok_or_else(|| format!("{path}: unexpected `{}`", text.trim()))
+}
+
+fn parse_size(text: &str) -> Option<(u32, u32)> {
+    let (w, h) = text.trim().split_once(',')?;
+    let (w, h) = (w.parse().ok()?, h.parse().ok()?);
+    (w > 0 && h > 0).then_some((w, h))
+}
+
+/// How many quarter turns clockwise the panel is mounted at, as the viewer
+/// that owns the glass sees it: a portrait project is one, a device set upside
+/// down adds two (plan `docs/archive/2026-11-15-rotazione-dello-schermo.md`).
+fn quarter_turns(config_dir: &Path, project_dir: &Path) -> u8 {
+    let portrait = sws_core::project::Project::load(project_dir)
+        .ok()
+        .and_then(|p| p.page_layout)
+        .and_then(|l| l.orientation)
+        == Some(sws_core::project::Orientation::Portrait);
+    let flipped = crate::control_panel::DeviceSettings::load(config_dir).flipped;
+    u8::from(portrait) + 2 * u8::from(flipped)
+}
+
+/// The PNG as the framebuffer wants it: `w × h`, scaled and cropped like
+/// `cover` if it has another size, four bytes per pixel in B, G, R, A order.
+/// `turns`: the panel is mounted that many quarter turns clockwise, so the
+/// picture is laid on the glass turned the other way.
+pub fn raw_bgra(png: &[u8], w: u32, h: u32, turns: u8) -> Result<Vec<u8>, String> {
+    let img = image::load_from_memory(png).map_err(|e| e.to_string())?;
+    // The size the person sees: width and height trade places on odd turns.
+    let (seen_w, seen_h) = if turns % 2 == 1 { (h, w) } else { (w, h) };
+    let img = if (img.width(), img.height()) == (seen_w, seen_h) {
+        img.into_rgba8()
+    } else {
+        img.resize_to_fill(seen_w, seen_h, image::imageops::FilterType::Triangle)
+            .into_rgba8()
+    };
+    let img = match turns % 4 {
+        1 => image::imageops::rotate270(&img),
+        2 => image::imageops::rotate180(&img),
+        3 => image::imageops::rotate90(&img),
+        _ => img,
+    };
+    let mut out = img.into_raw();
+    for px in out.chunks_exact_mut(4) {
+        px.swap(0, 2);
+        px[3] = 255;
+    }
+    Ok(out)
+}
+
+/// Writes the raw file whole and then renames it: a power cut never leaves
+/// half an image for the next boot.
+async fn apply_raw(config_dir: &Path, target: &Path, png: Vec<u8>, sha: &str, turns: u8) {
+    let target = target.to_path_buf();
+    let written = tokio::task::spawn_blocking({
+        let target = target.clone();
+        move || {
+            let (w, h) = framebuffer_size()?;
+            let raw = raw_bgra(&png, w, h, turns)?;
+            if let Some(dir) = target.parent() {
+                std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+            }
+            let tmp = target.with_extension("raw.tmp");
+            std::fs::write(&tmp, raw).map_err(|e| e.to_string())?;
+            std::fs::rename(&tmp, &target).map_err(|e| e.to_string())
+        }
+    })
+    .await
+    .unwrap_or_else(|e| Err(e.to_string()));
+    let stato = match written {
+        Ok(()) => BootImageStato {
+            esito: "installato".into(),
+            sha256: Some(sha.to_string()),
+            ..Default::default()
+        },
+        Err(e) => BootImageStato {
+            esito: "errore".into(),
+            sha256: Some(sha.to_string()),
+            messaggio: Some(e),
+            ..Default::default()
+        },
+    };
+    tracing::info!(esito = %stato.esito, messaggio = ?stato.messaggio, file = %target.display(), "boot-image: raw file");
+    scrivi_stato(config_dir, stato).await;
+}
+
 /// Torna all'immagine di fabbrica del pannello (`ResetBackgroundImage`) e
 /// scrive `esito=fabbrica`. Il PNG pubblicato **resta**: toglierlo lo farebbe
 /// risultare «cambiato» al prossimo avvio, che lo riapplicherebbe. Il prossimo
 /// deploy lo reinstalla, perché `status` non dice più `installato`.
 pub async fn ripristina_fabbrica(config_dir: &Path) -> Result<BootImageStato, String> {
+    // On a raw-file device the factory image is no file at all.
+    if let Some(raw) = raw_target() {
+        match tokio::fs::remove_file(&raw).await {
+            Ok(()) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return Err(format!("{}: {e}", raw.display())),
+        }
+        let stato = BootImageStato {
+            esito: "fabbrica".into(),
+            ..Default::default()
+        };
+        scrivi_stato(config_dir, stato).await;
+        return Ok(leggi_stato(config_dir).await.unwrap_or_default());
+    }
     match crate::launcher_dbus::ripristina().await {
         crate::launcher_dbus::Esito::Applicata { .. } => {
             let stato = BootImageStato { esito: "fabbrica".into(), ..Default::default() };
@@ -526,6 +650,52 @@ mod tests {
         assert_eq!(s.messaggio, None);
         assert_eq!(parse_stato("sha256=abc\n"), None);
         assert_eq!(parse_stato(""), None);
+    }
+
+    #[test]
+    fn the_raw_image_is_bgra_at_the_screen_size() {
+        // 4×2, left half red and right half blue, half transparent.
+        let img = image::RgbaImage::from_fn(4, 2, |x, _| {
+            if x < 2 {
+                image::Rgba([255, 0, 0, 128])
+            } else {
+                image::Rgba([0, 0, 255, 128])
+            }
+        });
+        let mut png = Vec::new();
+        img.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
+            .unwrap();
+        let raw = raw_bgra(&png, 4, 2, 0).unwrap();
+        assert_eq!(raw.len(), 4 * 2 * 4);
+        // Red is B=0 G=0 R=255, and the alpha is always full.
+        assert_eq!(&raw[0..4], &[0, 0, 255, 255]);
+        assert_eq!(&raw[12..16], &[255, 0, 0, 255]);
+        // Another size: scaled to the screen's.
+        assert_eq!(raw_bgra(&png, 8, 4, 0).unwrap().len(), 8 * 4 * 4);
+        // Upside down: the first pixel is the last.
+        let flipped = raw_bgra(&png, 4, 2, 2).unwrap();
+        assert_eq!(&flipped[0..4], &raw[28..32]);
+        // A portrait picture (2×4, top row red) on the same 4×2 glass, turned
+        // clockwise: what is seen top left lands on the glass's bottom left.
+        let tall = image::RgbaImage::from_fn(2, 4, |_, y| {
+            if y == 0 {
+                image::Rgba([255, 0, 0, 255])
+            } else {
+                image::Rgba([0, 0, 255, 255])
+            }
+        });
+        let mut png = Vec::new();
+        tall.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
+            .unwrap();
+        let raw = raw_bgra(&png, 4, 2, 1).unwrap();
+        assert_eq!(raw.len(), 4 * 2 * 4);
+        // Glass row 1 (bottom), x 0: red. Glass row 0, x 0: red too (seen top
+        // right). The far end of the glass is blue.
+        assert_eq!(&raw[16..20], &[0, 0, 255, 255]);
+        assert_eq!(&raw[0..4], &[0, 0, 255, 255]);
+        assert_eq!(&raw[12..16], &[255, 0, 0, 255]);
+        assert_eq!(parse_size("1024,600\n"), Some((1024, 600)));
+        assert_eq!(parse_size("0,0"), None);
     }
 
     #[tokio::test]

@@ -23,6 +23,7 @@ Lo stato corrente della macchina, con il perché di ogni scelta e gli inciampi i
 | `sistema/20auto-upgrades` | `→ /etc/apt/apt.conf.d/` |
 | `sistema/salva-stato.*` | `→ ~/.config/systemd/user/`, archivio giornaliero dello stato |
 | `salva-stato.sh` | `→ ~/sws-vps/`, lo script che l'unità esegue |
+| `/download/tiny-ty/` (stesso container `sws-manuale`, volume `~/sws-vps/download`) | il pacchetto del Tiny TY (15-11-2026): `latest.tar.gz`, `latest.tar.gz.sha256`, `latest.txt`, e gli ultimi 5; lo mette `scripts/publish_tiny_ty_package.sh` a ogni rc, e la guida di installazione di sws.soligo.net lo scarica |
 | `quadlet/sws-manuale.container`, `traefik/dynamic/sws-manuale.yml`, `manuale/` | il manuale pubblico su `sws.soligo.net/manuale/` (12-11-2026): nginx 1.27.3 in sola lettura su `~/sws-vps/manuale/{sito,nginx.conf,robots.txt}`, crawler IA → 403, un limite di richieste. Il sito lo copia `scripts/manuale/pubblica.sh` |
 
 ## Da una macchina nuova a questa

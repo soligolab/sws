@@ -227,28 +227,53 @@ function SchermoPannello({ onErrore }: { onErrore: (e: string | null) => void })
 function ControlPanelSettings({ onError }: { onError: (e: string | null) => void }) {
   const { t } = useTranslation();
   const cfg = useAppStore((s) => s.project?.control_panel);
-  const enabled = cfg?.enabled ?? true;
+  // The two ways in, under the master: what the person sees is the way, not the master.
+  const master = cfg?.enabled ?? true;
+  const gesture = master && (cfg?.gesture_enabled ?? true);
+  const button = master && (cfg?.button_enabled ?? true);
+  // What the other saves send as the master: on while any way is on.
+  const enabled = gesture || button;
   const hasPin = !!cfg?.pin_hash;
+  const rebootCorner = cfg?.reboot_corner_enabled ?? true;
   const [pin, setPin] = useState("");
   const [editing, setEditing] = useState(false);
   const valid = /^[0-9a-fA-F]{6}$/.test(pin);
-  const save = async (body: { enabled: boolean; pin?: string; reset_pin?: boolean }) => {
+  const save = async (body: {
+    enabled: boolean; gesture_enabled?: boolean; button_enabled?: boolean;
+    pin?: string; reset_pin?: boolean; reboot_corner_enabled?: boolean;
+  }) => {
     onError(null);
     try {
       await api.updateControlPanel(body);
       const pinHash = body.reset_pin ? undefined : body.pin ? "********" : cfg?.pin_hash;
-      const next = body.enabled && !pinHash ? undefined : { enabled: body.enabled, ...(pinHash ? { pin_hash: pinHash } : {}) };
-      useAppStore.setState((s) => (s.project ? { project: { ...s.project, control_panel: next } } : {}));
+      const corner = body.reboot_corner_enabled ?? rebootCorner;
+      const g = body.gesture_enabled ?? cfg?.gesture_enabled ?? true;
+      const b = body.button_enabled ?? cfg?.button_enabled ?? true;
+      // The defaults leave no section, as on the runtime.
+      const next = body.enabled && g && b && !pinHash && corner ? undefined : {
+        enabled: body.enabled,
+        ...(g ? {} : { gesture_enabled: false }),
+        ...(b ? {} : { button_enabled: false }),
+        ...(pinHash ? { pin_hash: pinHash } : {}),
+        ...(corner ? {} : { reboot_corner_enabled: false }),
+      };
+      useAppStore.setState((st) => (st.project ? { project: { ...st.project, control_panel: next } } : {}));
       setPin("");
       setEditing(false);
     } catch (e) { onError(e instanceof Error ? e.message : String(e)); }
   };
+  // The master follows the two ways: on while one of them is.
+  const setWays = (g: boolean, b: boolean) => void save({ enabled: g || b, gesture_enabled: g, button_enabled: b });
   return (
     <div data-testid="control-panel-settings" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       <div style={{ fontSize: 12, fontWeight: 600 }}>{t("shell.controlPanel")}</div>
       <div style={{ ...stileAiutoPannello, marginTop: 0 }}>{t("shell.controlPanelHelp")}</div>
-      <CasellaPannello checked={enabled} testid="control-panel-enabled" testo={t("shell.controlPanelEnabled")}
-        onCambia={(on) => void save({ enabled: on })} />
+      <CasellaPannello checked={gesture} testid="control-panel-gesture" testo={t("shell.controlPanelGesture")}
+        onCambia={(on) => setWays(on, button)} />
+      <CasellaPannello checked={button} testid="control-panel-button" testo={t("shell.controlPanelButton")}
+        onCambia={(on) => setWays(gesture, on)} />
+      <CasellaPannello checked={rebootCorner} testid="control-panel-reboot-corner" testo={t("shell.controlPanelRebootCorner")}
+        onCambia={(on) => void save({ enabled, reboot_corner_enabled: on })} />
       {hasPin && !editing ? (
         <div style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 12, flexWrap: "wrap" }}>
           <span data-testid="control-panel-pin-state">{t("shell.controlPanelPinSet")}</span>

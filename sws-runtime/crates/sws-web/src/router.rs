@@ -1308,6 +1308,12 @@ pub fn build(
         // Le proprie aziende: serve a decidere se mostrare una scelta, quindi
         // sta col gruppo self-service e non con la console.
         .route("/api/identita/mie-aziende", get(mie_aziende))
+        // The user's AI keys (15-11-2026): the person's, with their session.
+        .route("/api/identity/ai-keys", get(crate::ai_keys::list))
+        .route(
+            "/api/identity/ai-keys/:provider",
+            put(crate::ai_keys::put).delete(crate::ai_keys::remove),
+        )
         .route("/api/identita/marchio", get(marchio_mio))
         .route("/api/identita/marchio/privato", get(marchio_privato))
         .route("/api/identita/spazio", get(spazio_mio));
@@ -1612,6 +1618,12 @@ pub fn build(
                 .route(
                     "/dev/:pannello/*resto",
                     any(crate::tunnel::gateway::inoltra),
+                )
+                // The assistant of a project asks for the key of whoever writes
+                // in its chat (15-11-2026): only with the container's key.
+                .route(
+                    "/api/internal/ai-key/:provider",
+                    get(crate::ai_keys::for_container),
                 )
                 .route("/api/pannelli", get(crate::tunnel::gateway::collegati))
                 // L'abbinamento col codice (11-10-2026): dall'IDE di un progetto
@@ -8451,7 +8463,19 @@ async fn list_project_images(State(s): State<AppState>) -> Response {
 /// `GET /api/project/images/:name` — serve il file. Anche sul viewer: i
 /// sinottici che referenziano un'immagine devono poterla mostrare all'operatore
 /// anonimo esattamente come mostrano le pagine.
-async fn get_project_image(State(s): State<AppState>, Path(name): Path<String>) -> Response {
+/// `?w=&h=`: the image at that size (`sized_image`), for a panel that draws it
+/// exactly there. Without them, the file as it is.
+#[derive(Deserialize)]
+struct ImageSize {
+    w: Option<u32>,
+    h: Option<u32>,
+}
+
+async fn get_project_image(
+    State(s): State<AppState>,
+    Path(name): Path<String>,
+    Query(size): Query<ImageSize>,
+) -> Response {
     let Some(ctype) = image_content_type(&name) else {
         return (StatusCode::BAD_REQUEST, "nome immagine non valido").into_response();
     };
@@ -8459,6 +8483,30 @@ async fn get_project_image(State(s): State<AppState>, Path(name): Path<String>) 
         Ok(d) => d,
         Err(c) => return c.into_response(),
     };
+    if let (Some(w), Some(h)) = (size.w, size.h) {
+        let ok = |v: u32| (1..=crate::sized_image::MAX_SIDE).contains(&v);
+        if crate::sized_image::resizable(&name) && ok(w) && ok(h) {
+            let original = images_dir_at(&dir).join(&name);
+            let cache = crate::sized_image::cache_dir(&s.config_dir);
+            let made = tokio::task::spawn_blocking(move || {
+                crate::sized_image::sized(&cache, &original, w, h)
+            })
+            .await;
+            return match made {
+                Ok(Ok(bytes)) => Response::builder()
+                    .status(StatusCode::OK)
+                    .header(header::CONTENT_TYPE, "image/jpeg")
+                    .header(header::CACHE_CONTROL, "max-age=60")
+                    .body(Body::from(bytes))
+                    .unwrap(),
+                Ok(Err(e)) => {
+                    tracing::warn!("image {name} at {w}x{h}: {e}");
+                    (StatusCode::NOT_FOUND, "immagine non trovata").into_response()
+                }
+                Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+            };
+        }
+    }
     match tokio::fs::read(images_dir_at(&dir).join(&name)).await {
         Ok(bytes) => Response::builder()
             .status(StatusCode::OK)
@@ -8750,7 +8798,7 @@ async fn delete_faceplate(State(s): State<AppState>, Path(id): Path<String>) -> 
 
 // ── Cornici di pagina ─────────────────────────────────────────────────────────
 
-pub(crate) fn cornici_dir_at(project_dir: &std::path::Path) -> PathBuf {
+pub fn cornici_dir_at(project_dir: &std::path::Path) -> PathBuf {
     project_dir.join("cornici")
 }
 
@@ -9250,6 +9298,17 @@ pub fn signal_project_changed(s: &AppState, what: &str) {
                     crate::boot_image::Occasione::Modifica,
                 )
                 .await;
+                crate::control_panel::enforce_project(&config_dir, &dir).await;
+                // The page backgrounds at the panel's size, ahead of the first
+                // visit (plan 2026-11-14-sfondi-alla-misura). Not on an IDE
+                // instance: no panel asks it for them.
+                if !ide_only {
+                    let config = config_dir.as_ref().clone();
+                    let _ = tokio::task::spawn_blocking(move || {
+                        crate::sized_image::prepare(&dir, &config)
+                    })
+                    .await;
+                }
             }
             // Non un `if let` muto: senza questa riga il caso «nessun progetto
             // attivo» era indistinguibile da «pubblicato correttamente», ed è
@@ -11696,6 +11755,8 @@ struct PageLayoutBody {
     cornice_predefinita: Option<String>,
     #[serde(default)]
     dispositivo: Option<String>,
+    #[serde(default)]
+    orientation: Option<sws_core::project::Orientation>,
 }
 
 impl From<PageLayoutBody> for PageLayoutConfig {
@@ -11713,6 +11774,10 @@ impl From<PageLayoutBody> for PageLayoutConfig {
             page_tree: b.page_tree,
             cornice_predefinita: b.cornice_predefinita,
             dispositivo: b.dispositivo,
+            // Landscape is the absence of the field, as in every project so far.
+            orientation: b
+                .orientation
+                .filter(|o| *o == sws_core::project::Orientation::Portrait),
         }
     }
 }
@@ -11796,12 +11861,20 @@ async fn update_project_pannello(
 #[derive(Debug, serde::Deserialize)]
 struct ControlPanelUpdate {
     enabled: bool,
+    /// The two opening ways, one by one; left out = as they are.
+    #[serde(default)]
+    gesture_enabled: Option<bool>,
+    #[serde(default)]
+    button_enabled: Option<bool>,
     /// A new project PIN: six characters `0-9a-f`, what the screen's keypad types.
     #[serde(default)]
     pin: Option<String>,
     /// Back to the device's initial PIN (the low six hex digits of the MAC).
     #[serde(default)]
     reset_pin: bool,
+    /// Whether the device may have a corner that reboots; left out = as it is.
+    #[serde(default)]
+    reboot_corner_enabled: Option<bool>,
 }
 
 /// The project PIN as the keypad of the control panel can type it.
@@ -11815,11 +11888,28 @@ fn valid_control_panel_pin(pin: &str) -> Result<String, &'static str> {
 
 /// The project's `control_panel` after an update: a new hash replaces the old
 /// one, `reset` drops it, neither keeps it. The defaults leave no section.
-fn apply_control_panel(p: &mut Project, enabled: bool, new_hash: Option<String>, reset: bool) {
+fn apply_control_panel(
+    p: &mut Project,
+    enabled: bool,
+    ways: (Option<bool>, Option<bool>),
+    new_hash: Option<String>,
+    reset: bool,
+    reboot_corner: Option<bool>,
+) {
     use sws_core::project::ControlPanelConfig;
-    let old = p.control_panel.take().and_then(|c| c.pin_hash);
-    let pin_hash = if reset { None } else { new_hash.or(old) };
-    let cfg = ControlPanelConfig { enabled, pin_hash };
+    let old = p.control_panel.take().unwrap_or_default();
+    let pin_hash = if reset {
+        None
+    } else {
+        new_hash.or(old.pin_hash)
+    };
+    let cfg = ControlPanelConfig {
+        enabled,
+        gesture_enabled: ways.0.unwrap_or(old.gesture_enabled),
+        button_enabled: ways.1.unwrap_or(old.button_enabled),
+        pin_hash,
+        reboot_corner_enabled: reboot_corner.unwrap_or(old.reboot_corner_enabled),
+    };
     p.control_panel = (cfg != ControlPanelConfig::default()).then_some(cfg);
 }
 
@@ -11849,14 +11939,24 @@ async fn update_project_control_panel(
         &s.project_write_lock,
         &dir,
         versione_attesa(&headers),
-        |p| apply_control_panel(p, body.enabled, new_hash, body.reset_pin),
+        |p| {
+            apply_control_panel(
+                p,
+                body.enabled,
+                (body.gesture_enabled, body.button_enabled),
+                new_hash,
+                body.reset_pin,
+                body.reboot_corner_enabled,
+            )
+        },
     )
     .await;
     if res.status() == StatusCode::NO_CONTENT {
+        crate::control_panel::enforce_project(&s.config_dir, &dir).await;
         s.audit.log(
             "project.change",
             Some(user.username),
-            serde_json::json!({"what": "control_panel", "enabled": body.enabled, "pin_changed": pin_changed}),
+            serde_json::json!({"what": "control_panel", "enabled": body.enabled, "pin_changed": pin_changed, "reboot_corner_enabled": body.reboot_corner_enabled}),
         );
     }
     res
@@ -12909,34 +13009,70 @@ mod control_panel_project_tests {
     #[test]
     fn a_pin_is_kept_replaced_or_dropped() {
         let mut p = project();
-        apply_control_panel(&mut p, true, Some("h1".into()), false);
+        apply_control_panel(&mut p, true, (None, None), Some("h1".into()), false, None);
         assert_eq!(
             p.control_panel.as_ref().and_then(|c| c.pin_hash.as_deref()),
             Some("h1")
         );
         // Only the switch changes: the PIN stays.
-        apply_control_panel(&mut p, false, None, false);
+        apply_control_panel(&mut p, false, (None, None), None, false, None);
         assert_eq!(
             p.control_panel,
             Some(ControlPanelConfig {
                 enabled: false,
-                pin_hash: Some("h1".into())
+                gesture_enabled: true,
+                button_enabled: true,
+                pin_hash: Some("h1".into()),
+                reboot_corner_enabled: true,
             })
         );
-        apply_control_panel(&mut p, false, Some("h2".into()), false);
+        apply_control_panel(&mut p, false, (None, None), Some("h2".into()), false, None);
         assert_eq!(
             p.control_panel.as_ref().and_then(|c| c.pin_hash.as_deref()),
             Some("h2")
         );
         // Back to the device PIN and enabled: the defaults, no section left.
-        apply_control_panel(&mut p, true, None, true);
+        apply_control_panel(&mut p, true, (None, None), None, true, None);
+        assert_eq!(p.control_panel, None);
+    }
+
+    #[test]
+    fn the_gesture_and_the_button_are_two_switches_under_the_master() {
+        let mut p = project();
+        // Gesture off, button on: the master is on and only the gesture is off.
+        apply_control_panel(&mut p, true, (Some(false), Some(true)), None, false, None);
+        let c = p.control_panel.clone().unwrap();
+        assert!(!c.gesture() && c.button());
+        // Only the master changes: the two keep what they had.
+        apply_control_panel(&mut p, true, (None, None), None, false, None);
+        let c = p.control_panel.clone().unwrap();
+        assert!(!c.gesture_enabled && c.button_enabled);
+        // The master off closes both, whatever they say.
+        apply_control_panel(&mut p, false, (Some(true), Some(true)), None, false, None);
+        let c = p.control_panel.clone().unwrap();
+        assert!(!c.gesture() && !c.button());
+        // A project of before the split knows only `enabled`.
+        let old: sws_core::project::ControlPanelConfig =
+            serde_yaml::from_str("enabled: false\n").unwrap();
+        assert!(!old.gesture() && !old.button());
+        let old: sws_core::project::ControlPanelConfig = serde_yaml::from_str("{}").unwrap();
+        assert!(old.gesture() && old.button());
+        // Everything on is the default: no section left.
+        apply_control_panel(&mut p, true, (Some(true), Some(true)), None, false, None);
         assert_eq!(p.control_panel, None);
     }
 
     #[test]
     fn the_hash_never_reaches_the_browser() {
         let mut p = project();
-        apply_control_panel(&mut p, true, Some("$argon2id$secret".into()), false);
+        apply_control_panel(
+            &mut p,
+            true,
+            (None, None),
+            Some("$argon2id$secret".into()),
+            false,
+            None,
+        );
         mask_project_secrets(&mut p);
         assert_eq!(
             p.control_panel.and_then(|c| c.pin_hash).as_deref(),
@@ -13077,6 +13213,7 @@ mod write_safety_tests {
             page_tree: None,
             cornice_predefinita: None,
             dispositivo: None,
+            orientation: None,
         };
         let y = serde_yaml::to_string(&solo).unwrap();
         assert!(

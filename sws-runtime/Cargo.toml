@@ -18,7 +18,7 @@ members = ["crates/*"]
 exclude = ["crates/sws-kiosk"]
 
 [workspace.package]
-version = "2.26.0-rc.18"
+version = "2.26.0-rc.19"
 edition      = "2021"
 # Minima versione di Rust con cui il workspace compila: verificata con
 # `cargo +1.88 check --workspace` il 2026-09-09 (è il massimo richiesto dalle
@@ -148,6 +148,9 @@ sysinfo = "0.30"
 
 # Project fingerprint (SHA-256 of project.yaml + synoptics)
 sha2 = "0.10"
+# The user's AI keys, encrypted at rest (AES-256-GCM): `sws-identita`. The version rustls
+# already brings, so nothing new is compiled.
+ring = "0.17"
 
 # Scratch directories (e.g. one-shot PKI for OPC-UA browse)
 tempfile = "3"

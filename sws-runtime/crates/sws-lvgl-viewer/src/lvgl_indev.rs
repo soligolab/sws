@@ -36,9 +36,15 @@ static POINTER: OnceLock<Mutex<PointerState>> = OnceLock::new();
 /// held back until it is clear whether it is the gesture
 /// (`control_panel::filter_pointer`).
 pub fn set_pointer_state(x: i32, y: i32, pressed: bool) {
-    let width = crate::lvgl_display::dims().0 as i32;
-    let decision =
-        crate::control_panel::filter_pointer(x, y, pressed, width, std::time::Instant::now());
+    let (width, height) = crate::lvgl_display::dims();
+    let decision = crate::control_panel::filter_pointer(
+        x,
+        y,
+        pressed,
+        width as i32,
+        height as i32,
+        std::time::Instant::now(),
+    );
     if let Some(m) = POINTER.get() {
         let mut s = m.lock().unwrap_or_else(|e| e.into_inner());
         s.x = x.clamp(i16::MIN as i32, i16::MAX as i32) as i16;

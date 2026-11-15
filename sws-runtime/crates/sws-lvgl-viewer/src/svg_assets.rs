@@ -276,6 +276,30 @@ mod tests_sfondi {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_project_jpeg_or_png_is_asked_at_its_size() {
+        let u = super::url_alla_misura;
+        assert_eq!(
+            u("/api/project/images/a.jpg", 1024, 506).as_deref(),
+            Some("/api/project/images/a.jpg?w=1024&h=506")
+        );
+        assert!(u("/api/project/images/a.png", 10, 10).is_some());
+        assert!(u("/api/project/images/a.svg", 10, 10).is_none());
+        assert!(u("/api/project/images/a.jpg?v=2", 10, 10).is_none());
+        assert!(u("https://example.com/a.jpg", 10, 10).is_none());
+    }
+
+    #[test]
+    fn a_jpeg_of_the_right_size_goes_straight_into_the_buffer() {
+        // 160×160, from the device catalogue.
+        let jpg = include_bytes!("../../../../catalogo/dispositivi/pixsys/atr121.jpg");
+        let buf = super::jpeg_alla_misura(jpg, 160, 160).expect("decoded");
+        assert_eq!(buf.len(), crate::pixel::alpha_buffer_len(160, 160));
+        // Another size, or not a JPEG: the long way.
+        assert!(super::jpeg_alla_misura(jpg, 100, 160).is_none());
+        assert!(super::jpeg_alla_misura(b"\x89PNG\r\n\x1a\n", 1, 1).is_none());
+    }
+
     use super::*;
 
     fn obj(t: &str) -> SynopticObject {
@@ -469,6 +493,42 @@ pub fn svg_attorno_al_raster_adattato(
         r#"<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="{w}" height="{h}" viewBox="0 0 {w} {h}"><image x="0" y="0" width="{w}" height="{h}" preserveAspectRatio="{adatta}" xlink:href="data:{mime};base64,{dati}"/></svg>"#
     )
     .into_bytes()
+}
+
+/// A page background at the size the panel draws it: `src` with `?w=&h=`, for
+/// an image of the project the runtime can resize (`sws_web::sized_image`).
+/// `None` for anything else (an SVG, an outside URL, a URL with a query).
+pub fn url_alla_misura(src: &str, w: u32, h: u32) -> Option<String> {
+    let raster = matches!(tipo_raster(src), Some("image/jpeg" | "image/png"));
+    (raster && src.starts_with("/api/project/images/") && !src.contains('?'))
+        .then(|| format!("{src}?w={w}&h={h}"))
+}
+
+/// A JPEG of exactly `w × h`, straight into LVGL's `TRUE_COLOR_ALPHA` buffer:
+/// no SVG around it, no scaling, no cropping (TY570, 14-11-2026: 1,8 s for the
+/// first visit of a page with a 1536×1024 background). `None` if it is not a
+/// JPEG of that size, and the caller takes the long way.
+pub fn jpeg_alla_misura(byte: &[u8], w: u32, h: u32) -> Option<Vec<u8>> {
+    use zune_jpeg::zune_core::{colorspace::ColorSpace, options::DecoderOptions};
+    if tipo_dai_byte(byte) != Some("image/jpeg") {
+        return None;
+    }
+    let opts = DecoderOptions::default().jpeg_set_out_colorspace(ColorSpace::RGB);
+    let mut d = zune_jpeg::JpegDecoder::new_with_options(byte, opts);
+    d.decode_headers().ok()?;
+    if d.dimensions()? != (w as usize, h as usize) {
+        return None;
+    }
+    let rgb = d.decode().ok()?;
+    let px = crate::pixel::PX_ALPHA;
+    let mut out = vec![0u8; crate::pixel::alpha_buffer_len(w as usize, h as usize)];
+    if rgb.len() < w as usize * h as usize * 3 {
+        return None;
+    }
+    for (p, o) in rgb.chunks_exact(3).zip(out.chunks_exact_mut(px)) {
+        crate::pixel::put_rgba(o, p[0], p[1], p[2], 255);
+    }
+    Some(out)
 }
 
 /// `image_fit` → `preserveAspectRatio`, come sul web.

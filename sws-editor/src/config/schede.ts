@@ -64,6 +64,10 @@ export interface SchedaConfig {
   /** Ha senso solo se il runtime gira da un checkout del repo (Q51): senza,
    *  la scheda — e il sotto-ramo che la contiene — non si disegna affatto. */
   richiedeRepo?: boolean;
+  /** Non ha senso dal cloud (15-11-2026): la scheda — e il sotto-ramo, se resta
+   *  vuoto — non si disegna, invece di restare lì a dire che non c'è niente da
+   *  fare. «Non è bello vedere menù disattivi.» */
+  nonNelCloud?: boolean;
   /** Porta una bozza del progetto: resta montata una volta vista (`Tenuta`),
    *  così il Salva unico la trova anche a scheda cambiata. */
   portaBozza: boolean;
@@ -112,7 +116,7 @@ export const SCHEDE = [
   { id: "devices",       ramo: "istanza",   icona: "📇", soloAdmin: true,  portaBozza: false, richiedeProgetto: false, sottoRamo: "device" },
   { id: "runtime",       ramo: "istanza",   icona: "🔗", soloAdmin: true,  portaBozza: false, richiedeProgetto: false, sottoRamo: "device" },
   { id: "install",       ramo: "istanza",   icona: "⬇", soloAdmin: true,  portaBozza: false, richiedeProgetto: false, sottoRamo: "device" },
-  { id: "container",     ramo: "istanza",   icona: "🧱", soloAdmin: true,  portaBozza: false, richiedeProgetto: false, sottoRamo: "device" },
+  { id: "container",     ramo: "istanza",   icona: "🧱", soloAdmin: true,  portaBozza: false, richiedeProgetto: false, sottoRamo: "device", nonNelCloud: true },
   { id: "devpackage",    ramo: "istanza",   icona: "🏗", soloAdmin: true,  portaBozza: false, richiedeProgetto: false, sottoRamo: "sviluppatore", richiedeRepo: true },
   // Il menù IA (04-11-2026, piano 2026-11-04-un-modello-per-ogni-scopo): la
   // chat, i fornitori con le chiavi, un modello per scopo. Le chiavi e gli scopi
@@ -143,8 +147,11 @@ export const eSchedaValida = (x: string): x is AppConfigTab => SCHEDE.some((s) =
  *  fatto sì che `ConfigView` non montasse la scheda di sviluppo mentre
  *  l'albero la disegnava — la foglia si apriva su un pannello vuoto. Chi
  *  chiede le schede visibili deve dire se il repo c'è. */
-export const schedeVisibili = (isAdmin: boolean, repo: boolean) =>
-  SCHEDE.filter((s) => (isAdmin || !s.soloAdmin) && (repo || !("richiedeRepo" in s && s.richiedeRepo)));
+export const schedeVisibili = (isAdmin: boolean, repo: boolean, nelCloud = false) =>
+  SCHEDE.filter((s) =>
+    (isAdmin || !s.soloAdmin)
+    && (repo || !("richiedeRepo" in s && s.richiedeRepo))
+    && (!nelCloud || !("nonNelCloud" in s && s.nonNelCloud)));
 
 /** Un id sconosciuto (un valore salvato da una versione con schede diverse)
  *  ricade sulle variabili invece di lasciare il pannello vuoto. */

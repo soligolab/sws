@@ -14,7 +14,7 @@ vi.mock("@/api/client", async () => {
 });
 
 import { LeftPanel, VOCI_SINISTRA } from "../src/editor/LeftPanel";
-import { SCHEDE } from "../src/config/schede";
+import { SCHEDE, schedeVisibili } from "../src/config/schede";
 import { useAppStore } from "../src/store";
 import { eModificato } from "../src/config/fogliaConfig";
 
@@ -409,3 +409,21 @@ describe("pannello sinistro — stile VS Code", () => {
     expect(screen.getByTestId("modifica-tag-temp")).toBeTruthy();
   });
 });
+
+describe("schede visibili — nel cloud (15-11-2026)", () => {
+  it("«Container» non si disegna nel cloud: una voce disattiva non serve a nessuno", () => {
+    const id = (nelCloud: boolean) => schedeVisibili(true, true, nelCloud).map((s) => s.id);
+    expect(id(false)).toContain("container");
+    expect(id(true)).not.toContain("container");
+    // Il resto del ramo Device resta.
+    for (const resta of ["system", "screen", "devices", "runtime", "install"]) expect(id(true)).toContain(resta);
+  });
+
+  it("il titolo di una scheda porta il nome del menù da cui si arriva, non il ramo interno", () => {
+    // «Device › Container», non «Instance › Container»: «Instance» nell'interfaccia non esiste.
+    const voce = VOCI_SINISTRA.find((v) => "schede" in v && (v.schede as readonly string[]).includes("container"));
+    expect(voce?.id).toBe("dispositivo");
+    expect(i18n.t("leftPanel.att.dispositivo", { lng: "en" })).toBe("Device");
+  });
+});
+

@@ -16,6 +16,9 @@ risoluzione e far scegliere quanti sfondi precaricare».
 - Lo sfondo vive in `sfondo_immagine` della pagina (e `bg_image` di un rettangolo); il tetto è `MAX_SIDE_SFONDO`
   (4096 px per lato) in `svg_raster.rs`.
 
+> **14-11-2026**: il punto «decodificare il JPEG direttamente alla misura giusta» è diventato il piano
+> [sfondi alla misura](../2026-11-14-sfondi-alla-misura.md). Qui restano l'avviso e il precarico.
+
 ## L'idea
 
 - **Avvisare nell'IDE** quando una pagina ha uno sfondo «pesante» per il pannello di destinazione: risoluzione più

@@ -20,9 +20,11 @@ pub(crate) struct Contesto {
 }
 
 impl Contesto {
-    pub fn da(config_dir: &std::path::Path) -> Self {
-        let simboli = scopi::ha_scelta_propria(config_dir, scopi::Scopo::Simboli)
-            .then(|| scopi::carica_per(config_dir, scopi::Scopo::Simboli))
+    /// With the keys of the user who is writing (`user_keys.rs`); empty = the
+    /// project's alone.
+    pub fn da_con(config_dir: &std::path::Path, user: &client::UserKeys) -> Self {
+        let simboli = scopi::ha_scelta_propria_con(config_dir, scopi::Scopo::Simboli, user)
+            .then(|| scopi::carica_per_con(config_dir, scopi::Scopo::Simboli, user))
             .flatten();
         let sfondi = scopi::carica_sfondi(config_dir);
         Contesto {
