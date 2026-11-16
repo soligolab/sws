@@ -73,11 +73,7 @@ impl Pending {
     }
 }
 
-pub fn pending(
-    panel_waiting: bool,
-    last_sent: Option<&str>,
-    current: Option<&[u8]>,
-) -> Pending {
+pub fn pending(panel_waiting: bool, last_sent: Option<&str>, current: Option<&[u8]>) -> Pending {
     if panel_waiting {
         return Pending::FirstDeploy;
     }
@@ -101,23 +97,40 @@ mod tests {
     #[test]
     fn same_users_need_not_travel() {
         let f = fingerprint(b"users: []\n");
-        assert_eq!(pending(false, Some(&f), Some(b"users: []\n")), Pending::Same);
+        assert_eq!(
+            pending(false, Some(&f), Some(b"users: []\n")),
+            Pending::Same
+        );
         assert!(!Pending::Same.send());
     }
 
     #[test]
     fn changed_never_sent_and_first_deploy_travel() {
         let f = fingerprint(b"users: [a]\n");
-        assert_eq!(pending(false, Some(&f), Some(b"users: [b]\n")), Pending::Changed);
-        assert_eq!(pending(false, None, Some(b"users: [b]\n")), Pending::NeverSent);
-        assert_eq!(pending(true, Some(&f), Some(b"users: [a]\n")), Pending::FirstDeploy);
-        assert!(Pending::Changed.send() && Pending::NeverSent.send() && Pending::FirstDeploy.send());
+        assert_eq!(
+            pending(false, Some(&f), Some(b"users: [b]\n")),
+            Pending::Changed
+        );
+        assert_eq!(
+            pending(false, None, Some(b"users: [b]\n")),
+            Pending::NeverSent
+        );
+        assert_eq!(
+            pending(true, Some(&f), Some(b"users: [a]\n")),
+            Pending::FirstDeploy
+        );
+        assert!(
+            Pending::Changed.send() && Pending::NeverSent.send() && Pending::FirstDeploy.send()
+        );
     }
 
     #[tokio::test]
     async fn the_record_survives_and_ignores_the_trailing_slash() {
         let dir = tempfile::tempdir().unwrap();
         record(dir.path(), "https://ty.local:7444/", b"x").await;
-        assert_eq!(last_sent(dir.path(), "https://ty.local:7444").await, Some(fingerprint(b"x")));
+        assert_eq!(
+            last_sent(dir.path(), "https://ty.local:7444").await,
+            Some(fingerprint(b"x"))
+        );
     }
 }

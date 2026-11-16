@@ -1227,7 +1227,11 @@ mod tests {
         assert!((c - 0.91).abs() < 1e-9, "cost {c}");
         // A family with no published price keeps the cautious fallback, and so
         // does a name that only looks like one.
-        for id in ["mistral-medium-latest", "magistral-medium-2509", "mistral-largest"] {
+        for id in [
+            "mistral-medium-latest",
+            "magistral-medium-2509",
+            "mistral-largest",
+        ] {
             assert_eq!(prezzi(id), prezzi("modello-del-futuro"), "{id}");
         }
     }

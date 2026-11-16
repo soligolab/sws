@@ -530,17 +530,27 @@ mod tests {
         std::fs::write(d.path().join("kimi.key"), "sk-kimi-progetto").unwrap();
         let user = client::UserKeys::from_entries([
             ("kimi", None, Some("kimi-dell-account".to_string())),
-            ("openai", Some("sk-oa-account".to_string()), Some("img-account".to_string())),
+            (
+                "openai",
+                Some("sk-oa-account".to_string()),
+                Some("img-account".to_string()),
+            ),
         ]);
         scrivi(d.path(), "scopi:\n  traduzione:\n    fornitore: kimi\n");
         let t = carica_per_con(d.path(), Scopo::Traduzione, &user).unwrap();
         assert_eq!(t.modello, "kimi-dell-account");
-        scrivi(d.path(), "scopi:\n  traduzione:\n    fornitore: kimi\n    modello: kimi-del-progetto\n");
+        scrivi(
+            d.path(),
+            "scopi:\n  traduzione:\n    fornitore: kimi\n    modello: kimi-del-progetto\n",
+        );
         let t = carica_per_con(d.path(), Scopo::Traduzione, &user).unwrap();
         assert_eq!(t.modello, "kimi-del-progetto");
         // Backgrounds: the account's OpenAI key and model, the project having none.
         let sf = carica_sfondi_con(d.path(), &user).unwrap();
-        assert_eq!((sf.chiave.as_str(), sf.modello.as_str()), ("sk-oa-account", "img-account"));
+        assert_eq!(
+            (sf.chiave.as_str(), sf.modello.as_str()),
+            ("sk-oa-account", "img-account")
+        );
         assert!(carica_sfondi(d.path()).is_none());
     }
 
@@ -615,26 +625,50 @@ mod tests {
         std::fs::write(d.path().join("bfl.key"), "bfl-prova-0123456789abcdef").unwrap();
         // Only BFL has a key: it is the one, with its default model.
         let s = carica_sfondi(d.path()).unwrap();
-        assert_eq!((s.fornitore, s.modello.as_str()), (ImageProvider::Bfl, "flux-2-pro"));
+        assert_eq!(
+            (s.fornitore, s.modello.as_str()),
+            (ImageProvider::Bfl, "flux-2-pro")
+        );
         // Both have a key: OpenAI unless BFL is saved.
-        std::fs::write(d.path().join(FILE_CHIAVE_OPENAI), "sk-prova-0123456789abcdef").unwrap();
-        assert_eq!(carica_sfondi(d.path()).unwrap().fornitore, ImageProvider::OpenAi);
-        scrivi(d.path(), "scopi:\n  sfondi: {fornitore: bfl, modello: flux-2-max}\n");
+        std::fs::write(
+            d.path().join(FILE_CHIAVE_OPENAI),
+            "sk-prova-0123456789abcdef",
+        )
+        .unwrap();
+        assert_eq!(
+            carica_sfondi(d.path()).unwrap().fornitore,
+            ImageProvider::OpenAi
+        );
+        scrivi(
+            d.path(),
+            "scopi:\n  sfondi: {fornitore: bfl, modello: flux-2-max}\n",
+        );
         let s = carica_sfondi(d.path()).unwrap();
-        assert_eq!((s.fornitore, s.modello.as_str()), (ImageProvider::Bfl, "flux-2-max"));
+        assert_eq!(
+            (s.fornitore, s.modello.as_str()),
+            (ImageProvider::Bfl, "flux-2-max")
+        );
         // BFL saved but without a key: OpenAI, and not with the FLUX model.
         std::fs::remove_file(d.path().join("bfl.key")).unwrap();
         let s = carica_sfondi(d.path()).unwrap();
-        assert_eq!((s.fornitore, s.modello.as_str()), (ImageProvider::OpenAi, MODELLO_SFONDI));
+        assert_eq!(
+            (s.fornitore, s.modello.as_str()),
+            (ImageProvider::OpenAi, MODELLO_SFONDI)
+        );
         // The account's BFL key when the project has none.
         let user = client::UserKeys::from_entries([("bfl", Some("bfl-account".to_string()), None)]);
         let s = carica_sfondi_con(d.path(), &user).unwrap();
-        assert_eq!((s.fornitore, s.chiave.as_str()), (ImageProvider::Bfl, "bfl-account"));
+        assert_eq!(
+            (s.fornitore, s.chiave.as_str()),
+            (ImageProvider::Bfl, "bfl-account")
+        );
     }
 
     #[test]
     fn bfl_is_a_backgrounds_provider_everywhere() {
-        assert!(FORNITORI.iter().any(|(id, _, sa)| *id == "bfl" && *sa == ["sfondi"]));
+        assert!(FORNITORI
+            .iter()
+            .any(|(id, _, sa)| *id == "bfl" && *sa == ["sfondi"]));
         assert_eq!(file_chiave("bfl"), Some("bfl.key"));
         assert!(crate::ai::user_keys::PROVIDERS.contains(&"bfl"));
     }

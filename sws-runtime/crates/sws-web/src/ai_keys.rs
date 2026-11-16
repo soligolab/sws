@@ -76,7 +76,9 @@ pub fn forwarded() -> &'static Forwarded {
 /// The providers of the AI menu (`ai/scopi.rs`): the assistant's, and OpenAI
 /// and Black Forest Labs for the backgrounds (16-11-2026).
 fn provider_known(provider: &str) -> bool {
-    crate::ai::scopi::FORNITORI.iter().any(|(id, _, _)| *id == provider)
+    crate::ai::scopi::FORNITORI
+        .iter()
+        .any(|(id, _, _)| *id == provider)
 }
 
 /// The person who is asking, as a user of the installation. Takes the name,
@@ -167,7 +169,10 @@ pub async fn put_model(
         return (StatusCode::BAD_REQUEST, "expected {\"model\": \"...\"}").into_response();
     };
     let id = s.identita.as_ref().expect("checked by user_of");
-    match id.set_ai_model(user.id, &provider, body.model.as_deref()).await {
+    match id
+        .set_ai_model(user.id, &provider, body.model.as_deref())
+        .await
+    {
         Ok(()) => StatusCode::NO_CONTENT.into_response(),
         Err(e) => (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
     }
@@ -542,7 +547,10 @@ mod tests {
             for_container(
                 State(s.clone()),
                 Path("kimi".into()),
-                Query(ForContainerQuery { user: user.into(), key: None }),
+                Query(ForContainerQuery {
+                    user: user.into(),
+                    key: None,
+                }),
                 r,
             )
         };
@@ -596,8 +604,12 @@ mod tests {
         let (s, _d, uid) = state().await;
         let id = s.identita.as_ref().unwrap();
         id.set_ai_key(uid, "openai", "sk-oa-1234").await.unwrap();
-        id.set_ai_model(uid, "openai", Some("gpt-image-2")).await.unwrap();
-        id.set_ai_model(uid, "anthropic", Some("claude-x")).await.unwrap();
+        id.set_ai_model(uid, "openai", Some("gpt-image-2"))
+            .await
+            .unwrap();
+        id.set_ai_model(uid, "anthropic", Some("claude-x"))
+            .await
+            .unwrap();
         forwarded().note("acme/modelli", "m@soligo.net", Instant::now());
         let ask = |provider: &str, key: Option<&str>| {
             let mut r = request(None, None);
@@ -619,12 +631,21 @@ mod tests {
         assert!(body.contains("sk-oa-1234"), "{body}");
         // A model without a key is still an answer.
         let (st, body) = status_and_text(ask("anthropic", None).await).await;
-        assert_eq!((st, body.as_str()), (StatusCode::OK, r#"{"key":null,"model":"claude-x"}"#));
+        assert_eq!(
+            (st, body.as_str()),
+            (StatusCode::OK, r#"{"key":null,"model":"claude-x"}"#)
+        );
         // The list: one row per provider with a key or a model.
         let r = list(State(s.clone()), request(Some("m@soligo.net"), None)).await;
         let (_, body) = status_and_text(r).await;
-        assert!(body.contains(r#""provider":"anthropic","readable":false,"last4":null"#)
-            || body.contains(r#""last4":null"#), "{body}");
-        assert!(body.contains("gpt-image-2") && body.contains("1234"), "{body}");
+        assert!(
+            body.contains(r#""provider":"anthropic","readable":false,"last4":null"#)
+                || body.contains(r#""last4":null"#),
+            "{body}"
+        );
+        assert!(
+            body.contains("gpt-image-2") && body.contains("1234"),
+            "{body}"
+        );
     }
 }

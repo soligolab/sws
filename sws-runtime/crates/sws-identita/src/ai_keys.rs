@@ -301,7 +301,10 @@ impl Identita {
         model: Option<&str>,
     ) -> anyhow::Result<()> {
         anyhow::ensure!(valid_provider(provider), "invalid provider");
-        let model = model.map(str::trim).filter(|m| !m.is_empty()).map(str::to_string);
+        let model = model
+            .map(str::trim)
+            .filter(|m| !m.is_empty())
+            .map(str::to_string);
         if let Some(m) = &model {
             anyhow::ensure!(valid_model(m), "invalid model");
         }
@@ -386,7 +389,14 @@ mod test {
         id.set_ai_model(u, "kimi", Some("kimi-k2")).await.unwrap();
         id.set_ai_key(u, "kimi", "sk-kimi-1").await.unwrap();
         id.set_ai_key(u, "kimi", "sk-kimi-2").await.unwrap();
-        assert_eq!(id.ai_models(u).await.unwrap().get("kimi").map(String::as_str), Some("kimi-k2"));
+        assert_eq!(
+            id.ai_models(u)
+                .await
+                .unwrap()
+                .get("kimi")
+                .map(String::as_str),
+            Some("kimi-k2")
+        );
         id.set_ai_model(u, "kimi", None).await.unwrap();
         assert!(id.ai_models(u).await.unwrap().is_empty());
         assert!(id.set_ai_model(u, "kimi", Some("a b")).await.is_err());

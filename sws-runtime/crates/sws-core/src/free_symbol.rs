@@ -129,7 +129,7 @@ fn number(v: f64) -> String {
 pub fn check_view_box(view_box: [f64; 2]) -> Vec<String> {
     let mut errors = Vec::new();
     for (name, v) in [("width", view_box[0]), ("height", view_box[1])] {
-        if !v.is_finite() || v < 10.0 || v > MAX_SIDE || v % 10.0 != 0.0 {
+        if !v.is_finite() || !(10.0..=MAX_SIDE).contains(&v) || v % 10.0 != 0.0 {
             errors.push(format!(
                 "view_box: the {name} is {}, it must be a multiple of 10 from 10 to {MAX_SIDE}",
                 number(v)
@@ -189,9 +189,10 @@ fn ports_errors(view_box: [f64; 2], ports: &[PortaLib], drawn: bool) -> Vec<Stri
                 SIDES.join(", ")
             ));
         }
-        if !(p.x.is_finite() && p.y.is_finite())
-            || !(0.0..=w).contains(&p.x)
-            || !(0.0..=h).contains(&p.y)
+        if !(p.x.is_finite()
+            && p.y.is_finite()
+            && (0.0..=w).contains(&p.x)
+            && (0.0..=h).contains(&p.y))
         {
             errors.push(format!(
                 "port «{id}» is outside the drawing ({}, {}): the drawing is {} × {}",

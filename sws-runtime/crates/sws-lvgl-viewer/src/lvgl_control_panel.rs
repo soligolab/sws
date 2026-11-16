@@ -1368,7 +1368,11 @@ impl Overlay {
         // device was joining, and «Connect» was pressed again and again).
         if let Some(f) = s.wifi_form.as_ref().filter(|f| f.submitting) {
             card(main, |c| {
-                let key = if f.hotspot { "hotspotStarting" } else { "wifiJoining" };
+                let key = if f.hotspot {
+                    "hotspotStarting"
+                } else {
+                    "wifiJoining"
+                };
                 wrap(
                     label(c, &cp::word(lang, key, &[("ssid", &f.ssid)]), 17, TEXT),
                     pct(100),
@@ -2384,7 +2388,11 @@ impl Overlay {
                     c,
                     &cp::word(
                         lang,
-                        if s.reset_keep_cloud { "resetKeepCloudDone" } else { "resetDone" },
+                        if s.reset_keep_cloud {
+                            "resetKeepCloudDone"
+                        } else {
+                            "resetDone"
+                        },
                         &[],
                     ),
                     15,
@@ -2401,7 +2409,16 @@ impl Overlay {
             stile::bordo(c, Some(BAD), 1.0, stile::MAIN);
             lvgl_sys::lv_obj_set_style_pad_row(c, 6, stile::MAIN);
             label(c, &cp::word(lang, "resetSection", &[]), 17, BAD);
-            self.reset_block(c, lang, "reset", "resetHelp", &[], BAD, (255, 255, 255), false);
+            self.reset_block(
+                c,
+                lang,
+                "reset",
+                "resetHelp",
+                &[],
+                BAD,
+                (255, 255, 255),
+                false,
+            );
             if let Some(cloud) = s.info.as_ref().and_then(|i| i.cloud.as_deref()) {
                 let line = transparent(c);
                 lvgl_sys::lv_obj_set_size(line, pct(100), 1);

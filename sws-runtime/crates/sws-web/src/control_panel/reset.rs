@@ -123,9 +123,15 @@ pub async fn reset(State(s): State<AppState>, Json(body): Json<ResetBody>) -> Re
         return bad_request("an IDE has no device to give back".into());
     }
     let keep_cloud = body.keep_cloud;
-    s.audit.log("control_panel.reset", None, json!({ "keep_cloud": keep_cloud }));
+    s.audit.log(
+        "control_panel.reset",
+        None,
+        json!({ "keep_cloud": keep_cloud }),
+    );
     if keep_cloud {
-        tracing::warn!("control panel: project and users are being removed, the cloud pairing stays");
+        tracing::warn!(
+            "control panel: project and users are being removed, the cloud pairing stays"
+        );
     } else {
         tracing::warn!("control panel: project, users and pairing are being removed");
     }
@@ -135,9 +141,10 @@ pub async fn reset(State(s): State<AppState>, Json(body): Json<ResetBody>) -> Re
     // Nothing writes into the project while its folder goes.
     s.supervisor.stop_all().await;
     let (projects_root, config_dir) = (s.projects_root.clone(), s.config_dir.clone());
-    let (removed, failed) = tokio::task::spawn_blocking(move || wipe(&projects_root, &config_dir, keep_cloud))
-        .await
-        .unwrap_or_else(|e| (Vec::new(), Some(e.to_string())));
+    let (removed, failed) =
+        tokio::task::spawn_blocking(move || wipe(&projects_root, &config_dir, keep_cloud))
+            .await
+            .unwrap_or_else(|e| (Vec::new(), Some(e.to_string())));
     tracing::warn!(removed = removed.len(), ?failed, "control panel: reset");
     if let Some(e) = failed {
         return super::failed(format!("not everything could be removed: {e}"));
@@ -215,7 +222,11 @@ mod tests {
         std::fs::create_dir_all(projects.join("plant")).unwrap();
         std::fs::write(projects.join("plant/users.yaml"), "x").unwrap();
         std::fs::create_dir_all(&config).unwrap();
-        for f in ["abbinamento.json", "utenti_dispositivo.yaml", "known_projects.json"] {
+        for f in [
+            "abbinamento.json",
+            "utenti_dispositivo.yaml",
+            "known_projects.json",
+        ] {
             std::fs::write(config.join(f), "x").unwrap();
         }
         let (_, failed) = wipe(&projects, &config, true);
