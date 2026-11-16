@@ -3155,6 +3155,11 @@ export const api = {
       autenticato?: boolean;
     }>("/api/remote/status"),
 
+  /** GET /api/remote/users-pending — should the next deploy carry the users?
+   *  Yes on the first deploy to a panel without users and when they changed
+   *  since last sent from here (16-11-2026). */
+  remoteUsersPending: () => request<{ send: boolean; reason: "first_deploy" | "never_sent" | "changed" | "same" }>("/api/remote/users-pending"),
+
   /** GET /api/project/findings — i rilievi semantici del progetto com'è su
    *  disco (tag non dichiarati, allarmi su tag inesistenti, comandi MQTT
    *  senza publish_topic…): avvisi dopo il salvataggio, mai un blocco. */

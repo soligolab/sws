@@ -181,10 +181,12 @@ export function RuntimeConnectionTab() {
   const [dimenticandoCert, setDimenticandoCert] = useState(false);
   const [deployLog, setDeployLog]   = useState<string[]>([]);
   // Gli utenti appartengono al progetto: il deploy li porta sul dispositivo come
-  // porta le pagine (2026-09-11). La casella serve al caso futuro in cui è una
-  // vista del progetto a creare utenti sul dispositivo (Q54) — accesa di
-  // default, perché il default è il progetto.
+  // porta le pagine (2026-09-11). Since 16-11-2026 the box starts checked only
+  // when they need to travel: first deploy to a panel without users, or users
+  // changed since last sent (`/api/remote/users-pending`). Checked until the
+  // answer arrives, as before.
   const [sostituisciUtenti, setSostituisciUtenti] = useState(true);
+  const [usersReason, setUsersReason] = useState<string | null>(null);
   const [deploying, setDeploying]   = useState(false);
   const [deployDone, setDeployDone] = useState(false);
   const [deletingRemote, setDeletingRemote] = useState(false);
@@ -650,6 +652,14 @@ export function RuntimeConnectionTab() {
   };
 
   const connected = status === "connected";
+  useEffect(() => {
+    if (status !== "connected") return;
+    let live = true;
+    api.remoteUsersPending()
+      .then((r) => { if (live) { setSostituisciUtenti(r.send); setUsersReason(r.reason); } })
+      .catch(() => { /* unknown: the box stays checked */ });
+    return () => { live = false; };
+  }, [status, deployDone]);
   let hostLabel = target;
   try { hostLabel = new URL(target).host; } catch { /* keep raw */ }
 
@@ -916,6 +926,7 @@ export function RuntimeConnectionTab() {
               {t("cfg.deployReplaceUsers")}
               <span style={{ display: "block", fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)" }}>
                 {t("cfg.deployReplaceUsersHint")}
+                {usersReason && <> {t(`cfg.deployUsersReason.${usersReason}`)}</>}
               </span>
             </span>
           </label>

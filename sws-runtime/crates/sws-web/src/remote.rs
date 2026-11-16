@@ -3227,6 +3227,17 @@ pub async fn remote_deploy(
             .await
             .unwrap_or_default(),
     );
+    // A panel without users gets the project's users and secrets from the
+    // first deploy, whichever button started it: the project-only deploy
+    // («Send now», on save) used to stop here saying the project had no Admin
+    // when it had one (TY570, 16-11-2026). From then on users travel only when
+    // asked, and the IDE proposes it when they changed (`users_sent`).
+    let first_deploy = pannello_in_attesa && progetto_ha_admin;
+    let mut opz = opz;
+    if first_deploy {
+        opz.replace_users = true;
+        opz.con_segreti = true;
+    }
     if serve_admin(pannello_in_attesa, opz.replace_users, progetto_ha_admin) {
         return (
             StatusCode::PRECONDITION_REQUIRED,
@@ -3366,6 +3377,11 @@ pub async fn remote_deploy(
     let bersaglio = s.remote_target.clone();
     let url_bersaglio = target.url.clone();
     let config_ricordo = s.config_dir.clone();
+    let users_yaml_sent = if opz.replace_users {
+        tokio::fs::read(proj_dir.join("users.yaml")).await.ok()
+    } else {
+        None
+    };
 
     tokio::spawn(async move {
         let _deploy_guard = deploy_guard;
@@ -3373,6 +3389,9 @@ pub async fn remote_deploy(
             let _ = tx.try_send(format!("{msg}\n"));
         };
 
+        if first_deploy {
+            send("Primo deploy: il pannello non ha utenti, riceve utenti e segreti del progetto.");
+        }
         send("Esportazione progetto locale…");
         let zip = match crate::router::build_project_zip(
             &proj_dir,
@@ -3637,6 +3656,9 @@ pub async fn remote_deploy(
                     send("✓ Il dispositivo richiede il login.");
                 }
                 send("🚀 Deploy completato!");
+                if let Some(bytes) = &users_yaml_sent {
+                    crate::users_sent::record(&config_ricordo, &url_bersaglio, bytes).await;
+                }
                 if primo_deploy_cloud {
                     // Visto nel collaudo dell'11-10-2026: il primo deploy
                     // riusciva, i «sync» dopo davano errore senza spiegare
@@ -3898,6 +3920,29 @@ async fn segna_non_autenticato(s: &AppState) {
 ///
 /// (Questo commento stava su `Esito`, due funzioni più su: ci era finito con
 /// una modifica e ci è rimasto. Rimesso al suo posto il 20-10-2026.)
+/// Should the next deploy carry the project's users? The default of the
+/// «replace the users» box in Device → Connection (16-11-2026): checked on the
+/// first deploy to a panel without users and when the users changed since
+/// they were last sent from here, unchecked otherwise.
+pub async fn remote_users_pending(State(s): State<AppState>) -> Response {
+    let Some(target) = s.remote_target.read().await.clone() else {
+        return (StatusCode::BAD_REQUEST, "No remote runtime connected").into_response();
+    };
+    let Some(proj_dir) = s.project_dir.read().await.clone() else {
+        return (StatusCode::BAD_REQUEST, "No active project").into_response();
+    };
+    let base = target.url.trim_end_matches('/').to_string();
+    let client = make_remote_client(&s, &target.url);
+    let waiting = stato_abbinamento(&client, &base)
+        .await
+        .and_then(|v| v.get("in_attesa").and_then(|b| b.as_bool()))
+        .unwrap_or(false);
+    let current = tokio::fs::read(proj_dir.join("users.yaml")).await.ok();
+    let last = crate::users_sent::last_sent(&s.config_dir, &base).await;
+    let p = crate::users_sent::pending(waiting, last.as_deref(), current.as_deref());
+    Json(serde_json::json!({ "send": p.send(), "reason": p })).into_response()
+}
+
 pub async fn remote_status(State(s): State<AppState>) -> Json<RemoteStatus> {
     ripristina_se_serve(&s).await;
     let guard = s.remote_target.read().await;

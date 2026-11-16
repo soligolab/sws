@@ -911,6 +911,7 @@ pub fn build(
             post(crate::remote::rinomina_cloud),
         )
         .route("/api/remote/status", get(crate::remote::remote_status))
+        .route("/api/remote/users-pending", get(crate::remote::remote_users_pending))
         // Il catalogo Host (zone termiche, mount, interfacce) del dispositivo
         // connesso: è lì che il progetto girerà, non su questa macchina.
         .route(

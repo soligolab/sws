@@ -1801,6 +1801,12 @@
     "sshCredentialsHint": "Utente del sistema operativo del dispositivo, lo stesso di «ssh»: non l'utente applicativo SWS del pannello «Connessione runtime remoto».",
     "deployReplaceUsers": "Sostituisci anche gli utenti",
     "deployReplaceUsersHint": "Gli utenti appartengono al progetto: il deploy li porta sul dispositivo come le pagine. Spegni per lasciare intatti gli account del dispositivo.",
+    "deployUsersReason": {
+      "first_deploy": "Primo deploy: il pannello non ha utenti, li riceve comunque.",
+      "never_sent": "Utenti mai inviati da qui a questo dispositivo.",
+      "changed": "Gli utenti sono cambiati dall'ultimo invio.",
+      "same": "Utenti uguali all'ultimo invio: non serve mandarli."
+    },
     "deployNoUsersTitolo": "Questo progetto non ha utenti",
     "deployNoUsersConfirm": "Sul dispositivo verranno rimossi gli account esistenti ({{utenti}}) e il pannello resterà accessibile SENZA PASSWORD a chiunque raggiunga la sua rete.\n\nProcedere?",
     "deployNoUsersUnknown": "elenco non leggibile da qui",

@@ -150,6 +150,12 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   Le istruzioni del pacchetto usano `scp -O` e `/var/tmp` (SFTP spento, `/tmp` di 32 MB).
 
 ### Corretto
+- **Deploy: il primo porta gli utenti da sé, i successivi solo se sono cambiati.** Un pannello appena abbinato,
+  senza utenti, rifiutava il deploy del solo progetto («Invia ora», al salvataggio) dicendo che il progetto non aveva
+  un Admin, anche quando l'aveva (TY570, 16-11-2026). Ora il primo deploy verso un pannello senza utenti porta utenti
+  e segreti qualunque pulsante l'abbia avviato. Dopo, la casella «Sostituisci anche gli utenti» di Device →
+  Connessione (e il deploy dalla scheda Dispositivi) è accesa solo se gli utenti sono cambiati dall'ultimo invio da
+  questo IDE: `GET /api/remote/users-pending`, impronta di `users.yaml` per dispositivo in `config/users-sent.json`.
 - **Pannello di controllo LVGL: un tocco, un tasto.** I tasti agiscono alla pressione e il fotogramma dopo il
   pannello si ricostruisce: il tasto nuovo sotto il dito ancora giù riceveva una pressione sua, e la tastiera del
   Wi-Fi scriveva più volte lo stesso carattere (TY570, 16-11-2026). Ora dopo ogni pressione l'input aspetta il

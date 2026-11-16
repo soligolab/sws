@@ -72,9 +72,12 @@ async function deployToTarget(
       throw new Error(conn.error ?? i18n.t("cfgUi.unknownError"));
     }
     useAppStore.getState().setRemoteConnected(true, target);
+    // Users and secrets only when they need to travel: first deploy, or users
+    // changed since last sent (16-11-2026). Unknown: they travel, as before.
+    const completo = await api.remoteUsersPending().then((r) => r.send).catch(() => true);
     let conferme = NESSUNA_CONFERMA;
     for (;;) {
-      const res = await api.deployToRuntime({ replaceUsers: true, conSegreti: true, ...conferme });
+      const res = await api.deployToRuntime({ replaceUsers: completo, conSegreti: completo, ...conferme });
       if (res.status === 428) {
         // La stessa catena di conferme della testata e di Connessione.
         const esito = await confermaDopo428(await res.clone().json().catch(() => ({})), conferme);
