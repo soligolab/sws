@@ -1,5 +1,5 @@
 //! «Dati in ritardo» sul pannello (09-11-2026, piano
-//! `docs/plans/2026-11-09-viewer-leggero.md` §5-bis).
+//! `docs/archive/2026-11-09-viewer-leggero.md` §5-bis).
 //!
 //! La regola è quella del viewer web, decisa dal maintainer per tutti e due i
 //! motori: quando i valori a schermo sono vecchi di più di **5 s** compare in

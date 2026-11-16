@@ -1,5 +1,5 @@
 //! The AI provider keys (Anthropic, Kimi) **of the user**, kept encrypted at
-//! rest (seed `docs/plans/2026-11-12-chiavi-ia-nel-profilo-utente.md`,
+//! rest (seed `docs/archive/2026-11-12-chiavi-ia-nel-profilo-utente.md`,
 //! decisions of the maintainer, 15-11-2026).
 //!
 //! Someone working on several projects in the cloud puts their key here once,

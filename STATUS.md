@@ -165,7 +165,7 @@ Tiny TY systemd, `92743c06` QR di abbinamento) e `chore(rc): 2.26.0-rc.17` (`a0c
 eliminati, in locale e su origin. Merge e rc chiesti dal maintainer prima del collaudo: il collaudo chiude la
 *definition of done* dopo, e le sue anomalie sono la patch successiva.
 
-**Il QR di abbinamento** (piano `docs/plans/2026-11-13-qr-di-abbinamento.md`, nato oggi da due semi): il pannello in
+**Il QR di abbinamento** (piano `docs/archive/2026-11-13-qr-di-abbinamento.md`, nato oggi da due semi): il pannello in
 attesa mostra accanto al codice un QR con `https://sws.soligo.net/#pair=<codice>` (LVGL `lv_qrcode`, web
 `qrcode-generator`); dal telefono si apre l'IDE, login se serve, e si conferma l'azienda — ogni membro abbina a una sua
 azienda, senza progetto; la stessa finestra dal menu col proprio nome. `SWS_CLOUD_URL` nella configurazione del
@@ -213,7 +213,7 @@ misurare), poi i due difetti qui sopra.
    preparare un'immagine nuova + 30 s del primo controllo di salute > 90 s di `TimeoutStartSec`. Quadlet **8** con
    `TimeoutStartSec=600`. Il TC620 è sulla **rc.16** grazie a un drop-in messo a mano
    (`~/.config/systemd/user/sws-runtime.service.d/avvio-lento.conf`), da togliere dopo la «Configurazione del
-   servizio» col quadlet 8. Piano `docs/plans/2026-11-13-aggiornamento-timeout-avvio.md`;
+   servizio» col quadlet 8. Piano `docs/archive/2026-11-13-aggiornamento-timeout-avvio.md`;
 3. `feat/assistente-g1` (`1ea53e73`) — G1, il banco fisso dei tubi d'acciaio: fixture, copione finto, test Rust,
    e2e, `scripts/banco_tubi.sh [--vero]`; la chat che lasciava «scrivo» acceso su uno strumento rimandato. Due prove
    con kimi-k3 (la buona: 0,95 $, 10 min), materiale in `sws/tmp/banco-tubi/2026-11-12-232548-vero/`;
@@ -235,7 +235,7 @@ lint, type-check. **Manca la conferma del maintainer.** Niente rc costruita.
   `claude-opus-5-5` quando c'è la chiave;
 - **TY570, in ufficio** (chiedere l'indirizzo prima di entrare): `sudo ./prepara-dispositivo.sh` (diagnosi: perché
   `ssh-copy-id` fallisce, da dove si legge il modello, avahi c'è?); poi il pacchetto e `install.sh`; i sei punti
-  «Da provare sul TY570» e quelli di luce e cicalino nel piano `docs/plans/2026-10-30-sws-lvgl-sul-tiny-ty.md`;
+  «Da provare sul TY570» e quelli di luce e cicalino nel piano `docs/archive/2026-10-30-sws-lvgl-sul-tiny-ty.md`;
 - IDE: Impostazioni progetto → «Luce e cicalino del pannello»; cambiare i fotogrammi non deve cancellare la luce.
 
 **Il codice in inglese** (su `main`, solo documenti): regola nuova in `CLAUDE.md`, «Il codice si scrive in inglese,
@@ -262,7 +262,7 @@ avvio oltre i 90 s. Se la rc.16 rientra anche lei: il journal (`journalctl --use
 C'è anche il difetto visto oggi: uscendo e rientrando nel progetto durante l'aggiornamento, «Aggiorna ora» si poteva
 rilanciare.
 
-**Ramo aperto `feat/tiny-ty-armv7`** (pushato, da `main` rc.16), piano `docs/plans/2026-10-30-sws-lvgl-sul-tiny-ty.md`,
+**Ramo aperto `feat/tiny-ty-armv7`** (pushato, da `main` rc.16), piano `docs/archive/2026-10-30-sws-lvgl-sul-tiny-ty.md`,
 passi 1-2. Sul Tiny TY (`pixsys@192.168.1.96`, password data dal maintainer, si usa solo con `sshpass -e`) runtime e
 viewer girano da `/data/sws-prova`, avviati a mano con `sudo` (`tyx_panelcontrol` fermato); progetto di prova
 `~/sws_projects/tiny-ty` (Host, gauge, kpi, trend; pagine Sistema e Test, cornice «Frame» con navigatore).
@@ -388,7 +388,7 @@ ordine dopo il collaudo.
    parte; 4,5 → 2,3 ms a giro su x86), poi dal collaudo sull'IDE 8460: chat «nessun progetto» dopo un'uscita
    (`2285d309`), 400 alla domanda dopo una proposta (`c563fa2f`), «scrivo · kB · tempo» e «Applica comunque»
    (`d00ad765`).
-2. `feat/selezione-e-gruppi`, **annidato** sul primo: piano `docs/plans/2026-11-11-selezione-e-gruppi.md`. Riquadro di
+2. `feat/selezione-e-gruppi`, **annidato** sul primo: piano `docs/archive/2026-11-11-selezione-e-gruppi.md`. Riquadro di
    selezione «dentro per intero», bloccati esclusi; gruppi veri sul canvas (clic = gruppo, doppio clic entra, Esc
    esce), lucchetto per riga, Raggruppa/Separa nel pannello, copie con gruppi nuovi; l'assistente blocca le immagini a
    tutta area; la chat «sta pensando · m:ss» (`18da18b5`); Ctrl+G non apre la ricerca del browser (`642da262`);
@@ -529,7 +529,7 @@ rc.9, col progetto Montagna a 10 Hz che fa da prova di carico.
 era il login ma la pagina iniziale di Montagna, che dopo 10-20 minuti teneva il browser del pannello al 96% di un core
 (mini tendenze con fino a 36.000 punti, pagina ridisegnata a ogni messaggio, due generatori a 10 Hz), con ogni richiesta
 in ritardo di minuti e i valori a schermo vecchi di mezzo minuto senza avviso. Da qui la regola nuova di `CLAUDE.md`
-«Un'anomalia che rovina l'uso passa davanti» e il piano [viewer leggero](docs/plans/2026-11-09-viewer-leggero.md).
+«Un'anomalia che rovina l'uso passa davanti» e il piano [viewer leggero](docs/archive/2026-11-09-viewer-leggero.md).
 
 **Fatto, in `main` con lo squash `791a3ed8`** (catena A → B → occhio, rami eliminati, definition of done verde:
 `cargo test` 1675+, vitest 2302, 56 guardie):

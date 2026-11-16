@@ -1,6 +1,6 @@
 // The device control panel on the web viewer: service PIN, then network,
 // Wi-Fi, time, screen and device sections over `/api/control-panel/*`. Plan
-// docs/plans/2026-11-13-pannello-di-controllo.md, phases 2 and 4; the look
+// docs/archive/2026-11-13-pannello-di-controllo.md, phases 2 and 4; the look
 // follows the preview the maintainer approved on 13-11-2026.
 //
 // It covers the whole screen and works with a finger only: the panels have no

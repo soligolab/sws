@@ -11915,7 +11915,7 @@ fn apply_control_panel(
 }
 
 /// `PUT /api/project/control-panel` — the device control panel (plan
-/// `docs/plans/2026-11-13-pannello-di-controllo.md`, phase 6): whether the
+/// `docs/archive/2026-11-13-pannello-di-controllo.md`, phase 6): whether the
 /// gesture and the synoptic action open it, and the project's service PIN.
 async fn update_project_control_panel(
     State(s): State<AppState>,

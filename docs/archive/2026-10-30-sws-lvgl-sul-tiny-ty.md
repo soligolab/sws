@@ -1,5 +1,7 @@
 # SWS solo LVGL sui Tiny TY (RV1106, 256 MB)
 
+> **Stato: archiviato il 16-11-2026** — passi 1-4 dell'«Ordine» fatti (il 4: `tyx_panelcontrol` resta e avvia SWS come «Programma esterno», `42201438`); il canale di aggiornamento senza registry è nel seme [runtime eseguibile unico](../plans/semi/2026-11-03-runtime-eseguibile-unico.md).
+
 **Piano d'analisi, da iniziare dopo il 04-11-2026** (indicazione del maintainer). Nato il
 30-10-2026 da una richiesta del maintainer: «cosa dovremmo fare per avere una versione di SWS solo
 LVGL (non può girare un browser sul device) che possa girare su questo dispositivo». Le misure qui
@@ -57,7 +59,7 @@ Il ciclo DRM del viewer (`sws-lvgl-viewer/src/main.rs`, intorno alla riga 1640) 
 16`), `sws_flush_cb` converte in un buffer RGB888, `copy_frame_rgb888` lo copia, e
 `DrmDisplay::flush_rgb888` lo riscrive in XRGB8888 un byte alla volta. Sul WP630 la copia costava
 già 23 ms su 35 per fotogramma ([dove se ne va il
-tempo](../archive/2026-10-26-dove-se-ne-va-il-tempo.md); il rimedio è nel seme [i viewer dopo il viewer leggero](semi/2026-11-10-viewer-prestazioni-e-protocollo.md)).
+tempo](../archive/2026-10-26-dove-se-ne-va-il-tempo.md); il rimedio è nel seme [i viewer dopo il viewer leggero](../plans/semi/2026-11-10-viewer-prestazioni-e-protocollo.md)).
 
 Misura sul TY570 con un programma C `-O2`, 1024×600, media su 30 giri:
 
@@ -105,7 +107,7 @@ core, prima che LVGL disegni e prima del runtime e del PLC. Qui il rimedio non �
    stringe: prima il buffer LVGL a un decimo (0,24 MB), poi un buffer DRM solo.
 
 3. **Installare con systemd, senza container.** (03-11-2026: il «come un file solo» è il seme
-   [runtime eseguibile unico](semi/2026-11-03-runtime-eseguibile-unico.md).) Partire da `deploy/generic-linux/install.sh`,
+   [runtime eseguibile unico](../plans/semi/2026-11-03-runtime-eseguibile-unico.md).) Partire da `deploy/generic-linux/install.sh`,
    adattato ad armhf. Podman di Ubuntu 22.04 (3.4) non ha i quadlet e costerebbe RAM. Nelle unit:
    **il PLC deve vincere** — `CPUWeight` e `Nice` più bassi del PLC, `OOMScoreAdjust` più alto per
    SWS (sotto pressione si sacrifica SWS, non CODESYS), un `MemoryMax` per runtime e viewer.
@@ -146,7 +148,7 @@ un singolo binario, ma è necessario un maniacale controllo dell'utilizzo della 
   successiva, ma **nessuna scelta di adesso deve impedirla** — in particolare lo schema dei buffer
   del passo 2 e la scala del touch (passo 6).
 - **Non serve un binario unico**: runtime e viewer restano due processi se conviene. Il seme
-  [runtime eseguibile unico](semi/2026-11-03-runtime-eseguibile-unico.md) non è un requisito qui.
+  [runtime eseguibile unico](../plans/semi/2026-11-03-runtime-eseguibile-unico.md) non è un requisito qui.
 
 ## Il primo giorno sul dispositivo (12-11-2026)
 

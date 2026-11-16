@@ -1,9 +1,11 @@
 # Manutenzione e verifiche rimandate — dipendenze, immagine, CI e quattro cose da riguardare
 
+> **Stato: archiviato il 16-11-2026** — punti 1-5 fatti (rc.15 e rc.16); le verifiche §6-§8 sono in `docs/COLLAUDI_IN_SOSPESO.md`, la domanda sul ripiego di `novita_da_etichette` nel seme [runtime eseguibile unico](../plans/semi/2026-11-03-runtime-eseguibile-unico.md).
+
 > Nato il 10-11-2026 da `Appunti.txt` (punti del 23-10, 28-10, 04-11 e 05-11-2026), quando il maintainer
 > ha chiesto di trasformare gli appunti in semi e piani e di eliminare il file.
 
-**Stato: piano — pronto, lavori piccoli e indipendenti.** Ogni punto è un ramo breve o una verifica che
+**Stato prima dell'archivio: piano — pronto, lavori piccoli e indipendenti.** Ogni punto è un ramo breve o una verifica che
 si fa in una sessione, senza dipendere dagli altri. Si può prendere uno alla volta, nell'ordine che
 conviene.
 

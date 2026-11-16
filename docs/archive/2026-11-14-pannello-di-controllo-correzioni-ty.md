@@ -1,6 +1,8 @@
 # Pannello di controllo — le correzioni del primo collaudo sul TY570
 
-> **Stato: piano — in corso.** Ramo `fix/control-panel-ty` da `main` (dopo la rc.18). Anomalie che rovinano l'uso
+> **Stato: archiviato il 16-11-2026** — fatto: uscito nella rc.19 (`c5ffa346`), poi `4d42673b` e `ac9928c7`; confermato dal maintainer sul TY570.
+
+> **Stato prima dell'archivio: piano — in corso.** Ramo `fix/control-panel-ty` da `main` (dopo la rc.18). Anomalie che rovinano l'uso
 > (regola del 09-11-2026): si correggono subito. Piano di riferimento:
 > [`2026-11-13-pannello-di-controllo.md`](2026-11-13-pannello-di-controllo.md).
 

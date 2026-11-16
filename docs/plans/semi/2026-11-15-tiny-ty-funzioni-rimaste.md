@@ -36,3 +36,12 @@
 
 - `deploy/tiny-ty/ty570-1ad-p1.md` §13: una chiavetta con `autorun.sh` viene eseguita come root dalla regola udev di
   Pixsys. Segnalato a Pixsys, non toccato.
+
+## Il pannello di controllo dal cloud (dal piano archiviato il 16-11-2026)
+
+- **La stessa API dal cloud, per chi possiede il pannello abbinato.** Oggi il pannello di controllo (rete, Wi-Fi, ora,
+  schermo, riavvio: `/api/control-panel/*`) si usa solo sul dispositivo o in rete locale, dietro il PIN. Dal cloud
+  passerebbe dal tunnel del pannello abbinato. Va deciso col maintainer **chi può cambiare la rete di un dispositivo
+  da remoto** (il proprietario dell'azienda? un ruolo?). Qui la conferma entro 60 s con il ritorno indietro
+  automatico diventa decisiva: una rete sbagliata impostata da remoto chiude fuori anche chi l'ha cambiata. Viene dal
+  piano [pannello di controllo](../../archive/2026-11-13-pannello-di-controllo.md), fasi 5-6.

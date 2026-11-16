@@ -1,5 +1,7 @@
 # Selezione sul canvas, gruppi veri, chat che «pensa»
 
+> **Stato: archiviato il 16-11-2026** — fatto e confermato: in `main` con `69b4f7ef` (rc.13); il maintainer il 16-11: «Selezioni e gruppi funziona».
+
 ## Contesto
 
 Nel collaudo dell'11-11-2026 sull'IDE 8460, progetto Montagna, sono venuti fuori tre problemi:
@@ -103,7 +105,7 @@ mai. `locked` è già nello schema (`synoptic_schema.rs:238`).
 
 ## Documenti
 
-- appena approvato, il piano va in `docs/plans/2026-11-11-selezione-e-gruppi.md`, con la riga
+- appena approvato, il piano va in `docs/archive/2026-11-11-selezione-e-gruppi.md`, con la riga
   in `docs/plans/README.md`, e si committa sul ramo;
 - `docs/TESTING_GUIDE.md` 4.14-4.23 (gruppi): aggiornare i passi;
 - `CHANGELOG.md` [Unreleased]. `NOVITA.yaml`: il blocco 2.26.0 è pieno (15 voci). Se la voce

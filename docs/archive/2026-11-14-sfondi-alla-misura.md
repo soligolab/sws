@@ -1,10 +1,12 @@
 # Sfondi di pagina alla misura del pannello
 
+> **Stato: archiviato il 16-11-2026** — fatto nella rc.19 (`sized_image.rs`); l'avviso nell'IDE e il precarico restano nel seme [sfondi pesanti e precarico](../plans/semi/2026-11-13-sfondi-pesanti-e-precarico.md).
+
 **Piano, 14-11-2026.** Nasce dal collaudo della rc.18 sul TY570. Il maintainer: «il cambio pagina era molto lento»,
 e poi «ma lo sfondo non è alla misura giusta?». Non lo era. Approvato lo stesso giorno («Ok, mi sembra sensato»).
 È un ramo annidato su `fix/control-panel-ty` (`fix/sfondi-alla-misura`), da rilasciare nella rc.19.
 
-Prende **un punto** del seme [sfondi pesanti e precarico](semi/2026-11-13-sfondi-pesanti-e-precarico.md): «se convenga
+Prende **un punto** del seme [sfondi pesanti e precarico](../plans/semi/2026-11-13-sfondi-pesanti-e-precarico.md): «se convenga
 decodificare il JPEG direttamente alla misura giusta». Gli altri punti del seme (l'avviso nell'IDE, quanti sfondi
 precaricare) restano lì.
 

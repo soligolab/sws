@@ -1,6 +1,8 @@
 # Il viewer leggero: mini tendenze a secchielli, valori una volta per fotogramma, ridisegno mirato
 
-> **Stato: piano d'esecuzione, deciso dal maintainer il 09-11-2026: «fai già il plan e correggi, è una cosa importante».**
+> **Stato: archiviato il 16-11-2026** — fatto nella rc.10 (`791a3ed8`); il collaudo è in `docs/COLLAUDI_IN_SOSPESO.md` («Il viewer leggero»), il seguito nel seme [prestazioni e protocollo del viewer](../plans/semi/2026-11-10-viewer-prestazioni-e-protocollo.md).
+
+> **Stato prima dell'archivio: piano d'esecuzione, deciso dal maintainer il 09-11-2026: «fai già il plan e correggi, è una cosa importante».**
 > Si parte dal ramo `fix/mini-tendenze-leggere`, che è uguale a `main` 258103bd (2.26.0-rc.9). I commit 82fbb7c7 e 284cc731 cambiano solo documenti, quindi le righe citate valgono anche a HEAD.
 > Questo piano assorbe il seme [2026-10-17-tag-uguali-ritrasmessi](../archive/2026-10-17-tag-uguali-ritrasmessi.md) (§8). Il banco e le misure stanno in `tmp/viewer-leggero/` (solo su theobroma).
 > Scritto da un'analisi a più voci (quattro mappe del codice, un banco di misura, due progetti indipendenti e un giudizio), poi completato con le decisioni prese dal maintainer lo stesso giorno (§4).
@@ -427,7 +429,7 @@ Su CasaDomotica non c'è niente da aggiungere: la kpi in edit è una correzione 
 - Non cambiare il template prima di aver fatto la copia a 10 Hz.
 - Non partire col §7 prima di aver misurato il ramo B.
 
-## 13. Fuori ambito, rimandato (dal 10-11-2026 nel seme [i viewer dopo il viewer leggero](semi/2026-11-10-viewer-prestazioni-e-protocollo.md))
+## 13. Fuori ambito, rimandato (dal 10-11-2026 nel seme [i viewer dopo il viewer leggero](../plans/semi/2026-11-10-viewer-prestazioni-e-protocollo.md))
 - ~~LVGL ha la stessa crescita~~: **entrata nel ramo A (§5-bis)** per decisione del maintainer (09-11). Il commento in `client.rs` cita Q14, ma la domanda Q14 non si tocca.
 - Il viewer web ignora `project_changed` (`router.rs:9333-9339`) e chiede l'impronta ogni 3 s (`projectWatcher.ts:107`).
 - `ReconnectingWs` smette di ritentare dopo circa 61 s (`reconnectingWs.ts:40`, :100-108) e non avvisa nessuno (`singletonWs.ts:38`).
@@ -469,7 +471,7 @@ Su CasaDomotica non c'è niente da aggiungere: la kpi in edit è una correzione 
   template a 1 Hz sta al 25-27% di giorno, sopra il «< 15% indicativo».
 - **Decisione del maintainer (09-11-2026)**: si accetta così per la 2.26.0-rc.10. L'animazione dei tubi, e con lei
   tutte le animazioni (flusso, lampeggio, moto lungo un percorso, dissolvenze, barre), si analizzano quando saranno un
-  problema vero: la riga è nel seme [i viewer dopo il viewer leggero](semi/2026-11-10-viewer-prestazioni-e-protocollo.md) (era in Appunti.txt, commit
+  problema vero: la riga è nel seme [i viewer dopo il viewer leggero](../plans/semi/2026-11-10-viewer-prestazioni-e-protocollo.md) (era in Appunti.txt, commit
   988fc4fc). In questo ramo l'animazione non si tocca.
 - **Rinviati** nello stesso seme: il §7 (un involucro per oggetto; i costi facili del ciclo della radice sono
   già tolti), il protocollo del subscribe («niente finché non chiedi»: il server nasce «tutti» e `[]` vale «tutti»),

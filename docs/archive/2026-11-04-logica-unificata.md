@@ -1,6 +1,6 @@
 # La logica in un posto solo: funzioni, script e ricette — piano d'esecuzione
 
-> **Chiuso e archiviato il 10-11-2026**: L0–L3 fatte (L2 e L3 nella 2.26.0-rc.12). Il cron in UTC era il seme [cron in ora locale](2026-11-10-cron-in-ora-locale.md), fatto e archiviato lo stesso giorno; il viewer LVGL che esegue `on_press_fn` è nel piano [oggetti e template](../plans/2026-11-10-oggetti-e-template-parita-lvgl.md); il capitolo del manuale lo scrive M5.
+> **Chiuso e archiviato il 10-11-2026**: L0–L3 fatte (L2 e L3 nella 2.26.0-rc.12). Il cron in UTC era il seme [cron in ora locale](2026-11-10-cron-in-ora-locale.md), fatto e archiviato lo stesso giorno; il viewer LVGL che esegue `on_press_fn` è nel piano [oggetti e template](2026-11-10-oggetti-e-template-parita-lvgl.md); il capitolo del manuale lo scrive M5.
 >
 > **Stato: piano d'esecuzione, sessioni L0–L3 della [serie coordinata](../plans/README.md#-la-serie-coordinata-del-04-11-2026--lordine-delle-sessioni).**
 > Nato come seme il 04-11-2026 da una richiesta del maintainer: «La sezione LOGIC è un po' confusa, ci sono le funzioni
@@ -85,7 +85,7 @@
 
 *Fatta l'08-11-2026 sul ramo `feat/logica-un-ramo`, annidato su I2.* Decisioni del maintainer quel giorno: **l'editor
 si apre al centro** (come le funzioni), quindi anche gli script escono dalla Configurazione; **l'avviso LVGL** sul
-bottone, e il viewer LVGL che esegue `on_press_fn` nel piano [oggetti e template](../plans/2026-11-10-oggetti-e-template-parita-lvgl.md) (dal 10-11-2026). Fatto: `editor/LogicaEditor.tsx` (funzioni e
+bottone, e il viewer LVGL che esegue `on_press_fn` nel piano [oggetti e template](2026-11-10-oggetti-e-template-parita-lvgl.md) (dal 10-11-2026). Fatto: `editor/LogicaEditor.tsx` (funzioni e
 script, Controlla, Prova con conferma, i rilievi cliccabili portano alla riga), la sezione Logica nei due stili
 (Funzioni, Script, Ricette; cancellazioni con conferma), gli script nello store (`selectedScriptId`, scritti dal Salva
 unico solo se cambiati: `scriptCambiati`), `description?` su `GlobalScriptDef`, la rinomina di una funzione che
@@ -163,7 +163,7 @@ La proposta vale se il maintainer non dice altro.
 **L1**
 1. Gli id delle schede `scripts` e `recipes`: *proposta: restano* (deep link, test, l'aiuto per schermata di M4).
 2. LVGL che non esegue `on_press_fn`: *proposta: un avviso nell'editor sul bottone, quando il progetto è LVGL; il viewer
-   LVGL nel piano [oggetti e template](../plans/2026-11-10-oggetti-e-template-parita-lvgl.md).*
+   LVGL nel piano [oggetti e template](2026-11-10-oggetti-e-template-parita-lvgl.md).*
 
 **L2**
 1. Il completamento mostra il valore live del tag? *Proposta: sì, se c'è, come `TagInput`.*

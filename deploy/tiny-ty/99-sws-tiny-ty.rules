@@ -1,6 +1,6 @@
 # Luce e cicalino del Tiny TY scrivibili dal viewer di SWS, che gira come
 # utente `sws` nel gruppo `video` e non come root. Decisione del 12-11-2026:
-# luce e cicalino li gestisce SWS (piano docs/plans/2026-10-30-sws-lvgl-sul-tiny-ty.md).
+# luce e cicalino li gestisce SWS (piano docs/archive/2026-10-30-sws-lvgl-sul-tiny-ty.md).
 # La installa deploy/tiny-ty/install.sh in /etc/udev/rules.d/.
 #
 # Misurato sul TY570 il 12-11-2026:

@@ -17,7 +17,7 @@ risoluzione e far scegliere quanti sfondi precaricare».
   (4096 px per lato) in `svg_raster.rs`.
 
 > **14-11-2026**: il punto «decodificare il JPEG direttamente alla misura giusta» è diventato il piano
-> [sfondi alla misura](../2026-11-14-sfondi-alla-misura.md). Qui restano l'avviso e il precarico.
+> [sfondi alla misura](../../archive/2026-11-14-sfondi-alla-misura.md). Qui restano l'avviso e il precarico.
 
 ## L'idea
 

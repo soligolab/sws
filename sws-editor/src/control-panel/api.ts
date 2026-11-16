@@ -1,5 +1,5 @@
 // The device control panel API (`/api/control-panel/*`, plan
-// docs/plans/2026-11-13-pannello-di-controllo.md). It lives outside the
+// docs/archive/2026-11-13-pannello-di-controllo.md). It lives outside the
 // project's authentication: a service PIN opens a short service session, sent
 // back in its own header. The viewer page is served by the device's runtime,
 // so the paths are relative.

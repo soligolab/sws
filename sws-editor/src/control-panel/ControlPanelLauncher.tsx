@@ -1,5 +1,5 @@
 // The three ways to the control panel on the web viewer (plan
-// docs/plans/2026-11-13-pannello-di-controllo.md):
+// docs/archive/2026-11-13-pannello-di-controllo.md):
 //
 // 1. a button for BOOT_BUTTON_MS when the viewer starts — always, even when
 //    the project disabled the panel: it is the way back for a device left

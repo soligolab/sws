@@ -1,5 +1,5 @@
 //! The device control panel on the LVGL viewer (plan
-//! `docs/plans/2026-11-13-pannello-di-controllo.md`, phase 3): the twin of
+//! `docs/archive/2026-11-13-pannello-di-controllo.md`, phase 3): the twin of
 //! `sws-editor/src/control-panel/`, on the same API (`/api/control-panel/*`).
 //!
 //! Here: the state, the words, the corner gesture and the network thread —

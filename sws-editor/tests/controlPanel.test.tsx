@@ -1,5 +1,5 @@
 /** The device control panel on the web viewer (plan
- *  docs/plans/2026-11-13-pannello-di-controllo.md, phase 2): PIN, network
+ *  docs/archive/2026-11-13-pannello-di-controllo.md, phase 2): PIN, network
  *  change with its confirmation, the corner gesture, the boot button. */
 import { render, screen, fireEvent, act } from "@testing-library/react";
 import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";

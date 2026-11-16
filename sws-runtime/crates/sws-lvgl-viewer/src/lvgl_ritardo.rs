@@ -1,5 +1,5 @@
 //! La fascia «Dati in ritardo» e il velo sulla pagina, disegnati (09-11-2026,
-//! piano `docs/plans/2026-11-09-viewer-leggero.md` §5-bis).
+//! piano `docs/archive/2026-11-09-viewer-leggero.md` §5-bis).
 //!
 //! Il *quando* sta in [`crate::ritardo`], che si prova senza schermo; qui c'è
 //! solo il disegno, come per l'avviso di aggiornamento.

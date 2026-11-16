@@ -2,7 +2,7 @@
 #
 # Cross-compila runtime e viewer LVGL per armv7 (Tiny TY: RV1106, Ubuntu 22.04
 # armhf, glibc 2.35, Python 3.10). Solo i binari, niente immagine: sui Tiny TY
-# non c'è podman. Piano docs/plans/2026-10-30-sws-lvgl-sul-tiny-ty.md, passo 1.
+# non c'è podman. Piano docs/archive/2026-10-30-sws-lvgl-sul-tiny-ty.md, passo 1.
 #
 # Il builder è deploy/container/Containerfile.armv7-cross.builder; le cartelle
 # di lavoro stanno nel repo e in .gitignore, separate da quelle aarch64.

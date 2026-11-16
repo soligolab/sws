@@ -529,7 +529,7 @@ L'installatore controlla con `ldd` le librerie che mancano **prima** di copiare,
 `sws`, installa le due unit di sistema (`sws-runtime`, `sws-lvgl-viewer`) e la regola udev per luce
 e cicalino. Non tocca `tyx_panelcontrol`: se è acceso lo dice, perché come spegnerlo senza perdere
 i servizi del PLC è una domanda per Pixsys. Scheda DRM, touch e indirizzo del runtime il viewer li
-cerca da sé; si fissano in `/etc/sws/viewer.env`. Piano: `docs/plans/2026-10-30-sws-lvgl-sul-tiny-ty.md`.
+cerca da sé; si fissano in `/etc/sws/viewer.env`. Piano: `docs/archive/2026-10-30-sws-lvgl-sul-tiny-ty.md`.
 
 ## `clean_disk_space.sh` — libera spazio quando il disco è pieno
 

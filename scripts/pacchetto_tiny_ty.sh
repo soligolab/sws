@@ -3,7 +3,7 @@
 # Il pacchetto di SWS per i Tiny TY (armv7, Ubuntu 22.04 armhf, niente podman):
 # binari, pagine web, template, catalogo, font, RestrictedPython e
 # l'installatore di deploy/tiny-ty/. Piano
-# docs/plans/2026-10-30-sws-lvgl-sul-tiny-ty.md, passo 3.
+# docs/archive/2026-10-30-sws-lvgl-sul-tiny-ty.md, passo 3.
 #
 # Uso:
 #   ./scripts/pacchetto_tiny_ty.sh             # build armv7 + SPA + pacchetto

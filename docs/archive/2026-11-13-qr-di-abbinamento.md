@@ -1,5 +1,7 @@
 # Il QR del codice di abbinamento, e l'abbinamento senza progetto
 
+> **Stato: archiviato il 16-11-2026** — fatto nella rc.17; il collaudo (QR dal telefono, menu utente, due aziende) è in `docs/COLLAUDI_IN_SOSPESO.md`.
+
 **Piano, 13-11-2026** — dalla sessione di plan sui due semi (archiviati lo stesso giorno). Ramo `feat/qr-abbinamento`, annidato su `feat/tiny-ty-systemd`.
 
 ## Context
@@ -96,7 +98,7 @@ parte B del passo 2, a 32 bit, il problema sparisce da solo). Una funzione `rgb5
 - i18n it/en: testi nuovi; `installCloudDopo` (`it.json:577`) non dice più «apri un progetto».
 
 ### 6. Documenti
-- Piano in `docs/plans/2026-11-13-qr-di-abbinamento.md` (copia di questo), semi spostati in `docs/archive/`
+- Piano in `docs/archive/2026-11-13-qr-di-abbinamento.md` (copia di questo), semi spostati in `docs/archive/`
   con le righe nei due README; `NOVITA.yaml` (it+en) e `CHANGELOG.md`; HOWTO del primo abbinamento se lo cita.
 - CasaDomotica: il TC620 di casa è già abbinato; la funzione si vede solo a un pannello nuovo o resettato —
   annotarlo (regola di `CLAUDE.md`).

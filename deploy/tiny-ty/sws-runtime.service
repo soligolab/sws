@@ -1,6 +1,6 @@
 [Unit]
 # SWS sui Tiny TY (RV1106, un Cortex-A7, 256 MB), senza container: piano
-# docs/plans/2026-10-30-sws-lvgl-sul-tiny-ty.md, passo 3. La installa
+# docs/archive/2026-10-30-sws-lvgl-sul-tiny-ty.md, passo 3. La installa
 # deploy/tiny-ty/install.sh in /etc/systemd/system/.
 Description=SWS runtime (Tiny TY)
 After=network-online.target

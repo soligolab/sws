@@ -26,7 +26,7 @@ confronto con una foto.
   - più piani in una sola planimetria;
   - texture e materiali (solo colori pieni).
 - **Mai fatto:** la planimetria vera di CasaDomotica (ramo 3) e la prova su un pannello LVGL. È anche il punto 4
-  del piano [CasaDomotica col maintainer](../2026-11-10-casadomotica-col-maintainer.md).
+  del piano [CasaDomotica col maintainer](../../archive/2026-11-10-casadomotica-col-maintainer.md).
 
 ## Da decidere nella sessione di plan
 

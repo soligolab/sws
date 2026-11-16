@@ -50,7 +50,7 @@ export async function avvia(
       <FinestraAvviso />
       {/* The device control panel, on the viewer page only, outside the gate:
           a device waiting to be paired is a device that may need its network
-          fixed (plan docs/plans/2026-11-13-pannello-di-controllo.md). */}
+          fixed (plan docs/archive/2026-11-13-pannello-di-controllo.md). */}
       {opzioni.controlPanel && <ControlPanelLauncher />}
     </React.StrictMode>,
   );

@@ -15,7 +15,7 @@ export function normalizeCode(raw: string): string | null {
 
 /**
  * «Abbina un pannello» with no project open (13-11-2026, plan
- * `docs/plans/2026-11-13-qr-di-abbinamento.md`): from the panel QR, with the
+ * `docs/archive/2026-11-13-qr-di-abbinamento.md`): from the panel QR, with the
  * code already filled in, or from the user menu, with the code typed by hand.
  * The panel goes to one of the user's companies; any member may pair it. The
  * project comes later, with Connetti and the first deploy.

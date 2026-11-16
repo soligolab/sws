@@ -1,5 +1,5 @@
 //! Luce, riposo e beep al tocco (13-11-2026, piano
-//! `docs/plans/2026-10-30-sws-lvgl-sul-tiny-ty.md`).
+//! `docs/archive/2026-10-30-sws-lvgl-sul-tiny-ty.md`).
 //!
 //! Decisione del maintainer del 12-11: sul Tiny TY `tyx_panelcontrol` non parte,
 //! e SWS fa da sé luce e cicalino. Prima versione: luce impostabile; a riposo

@@ -1,5 +1,7 @@
 # Il pannello di controllo del dispositivo, dentro SWS, su tutti i prodotti
 
+> **Stato: archiviato il 16-11-2026** — fasi 1-6 in `main`; le prove su TC/WP e sul resistivo sono in `docs/COLLAUDI_IN_SOSPESO.md`, l'API dal cloud nel seme [Tiny TY: funzioni rimaste](../plans/semi/2026-11-15-tiny-ty-funzioni-rimaste.md).
+
 > **Piano**, nato dal seme del 13-11-2026 sera e deciso col maintainer nella sessione di plan dello stesso giorno.
 > Le misure della serata sul TY570 (perché nasce) sono nel «Contesto» e in `deploy/tiny-ty/ty570-1ad-p1.md`, punti 10
 > e 11.

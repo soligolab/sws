@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Prepara un Tiny TY per la rete: il nome pubblicato via mDNS (avahi) e
-# l'accesso SSH con chiave. Piano docs/plans/2026-10-30-sws-lvgl-sul-tiny-ty.md,
+# l'accesso SSH con chiave. Piano docs/archive/2026-10-30-sws-lvgl-sul-tiny-ty.md,
 # «Nome in rete e chiavi SSH» (13-11-2026).
 #
 # È pensato per due mani: lo sviluppatore del Tiny TY, che può metterlo

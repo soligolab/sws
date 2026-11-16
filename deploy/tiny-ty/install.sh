@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Installa SWS (runtime + viewer LVGL) su un Tiny TY: RV1106, armv7, Ubuntu
-# 22.04 armhf, niente podman. Piano docs/plans/2026-10-30-sws-lvgl-sul-tiny-ty.md,
+# 22.04 armhf, niente podman. Piano docs/archive/2026-10-30-sws-lvgl-sul-tiny-ty.md,
 # passo 3. Il pacchetto lo prepara scripts/pacchetto_tiny_ty.sh.
 #
 # Uso, come root, dalla cartella del pacchetto scompattato:

@@ -1,5 +1,7 @@
 # L'aggiornamento che torna indietro sui pannelli lenti — quadlet 8
 
+> **Stato: archiviato il 16-11-2026** — fatto (`2a461fdf`, rc.17); il passo a mano sul TC620 è in `docs/COLLAUDI_IN_SOSPESO.md`.
+
 > Nato il 13-11-2026 dalla richiesta del maintainer «prova a capire perché il TC620 non si aggiorna».
 > Ramo `fix/aggiornamento-timeout-avvio`, annidato su `feat/tiny-ty-armv7` (scelta del maintainer).
 

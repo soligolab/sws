@@ -1,9 +1,11 @@
 # CasaDomotica: le quattro cose da fare insieme al maintainer nel progetto di riferimento — piano
 
+> **Stato: archiviato il 16-11-2026** — punti 1-3 fatti col maintainer (il 3, «Luci» e «Clima», nella rc.16); la prova del punto 3 sul TC620 è in `docs/COLLAUDI_IN_SOSPESO.md`, il punto 4 nel seme [planimetrie 3D complete](../plans/semi/2026-11-12-planimetrie-3d-complete.md).
+
 > Nato il 10-11-2026 da `Appunti.txt` (punti del 30-10, 03-11, 04-11 e 06-11-2026), quando il maintainer ha
 > chiesto di trasformare gli appunti in semi e piani e di eliminare il file.
 
-**Stato: piano — da fare insieme al maintainer, nel progetto sul VPS**
+**Stato prima dell'archivio: piano — da fare insieme al maintainer, nel progetto sul VPS**
 
 ## Perché un piano solo
 
@@ -50,7 +52,7 @@ sessione sola o in più sessioni; l'ordine proposto è quello sotto, dal più pi
 - **Restano**:
   - il punto 3: le luci in piastra e il termostato con PV, nella rc.16;
   - il punto 4: la planimetria, che ora ha un seme suo
-    ([planimetrie 3D complete](semi/2026-11-12-planimetrie-3d-complete.md)).
+    ([planimetrie 3D complete](../plans/semi/2026-11-12-planimetrie-3d-complete.md)).
 
 ## Le cose da fare
 
@@ -106,7 +108,7 @@ nelle regole.
 **Cosa c'è (03-11-2026).** Le fasi 1-6 della revisione dello slider sono in `main` dalla **2.23.8** (commit
 `cfcbeea7` … `bb1b4285`, poi `7e7f4996`); il progetto di collaudo è diventato il template «Slider — stili e modi»
 nella 2.24.1 (`b25bf081`) e sta anche in
-[`allegati/2026-10-30-revisione-slider/collaudo-slider/`](allegati/2026-10-30-revisione-slider/collaudo-slider/LEGGIMI.md),
+[`allegati/2026-10-30-revisione-slider/collaudo-slider/`](../plans/allegati/2026-10-30-revisione-slider/collaudo-slider/LEGGIMI.md),
 quattro pagine con tutti i tipi di slider. Lo slider ha quattro stili (`slider_style`: `classico`, `pillola`,
 `piastra`, `isa`); la **piastra** è lo stile domotico: la traccia è il riquadro, niente cursore, si trascina
 ovunque, etichetta, valore e icona dentro; le icone sono 8 fisse (lampadina, tapparella, termometro, ventola, presa,

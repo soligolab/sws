@@ -14,10 +14,10 @@
 > **Da dove vengono.** Dal 12-09-2026 le questioni aperte di `docs/OPEN_QUESTIONS.md` (congelato) diventano file
 > singoli; dal 18-09 ogni domanda nuova nasce direttamente come seme. Il 10-11-2026 è stato sciolto anche
 > `docs/plans/Appunti.txt`, l'elenco delle piccole idee del maintainer, cresciuto a 451 righe («è cresciuto a
-> dismisura e non è più utilizzabile»): i suoi punti sono in **nove file nuovi** — sei semi qui sotto e tre piani in
-> `docs/plans/` ([manutenzione e verifiche rimandate](../2026-11-10-manutenzione-e-verifiche-rimandate.md),
-> [oggetti e template: parità LVGL](../2026-11-10-oggetti-e-template-parita-lvgl.md),
-> [CasaDomotica col maintainer](../2026-11-10-casadomotica-col-maintainer.md)) — e in **quattro aggiunte** a file
+> dismisura e non è più utilizzabile»): i suoi punti sono in **nove file nuovi** — sei semi qui sotto e tre piani (archiviati il 16-11-2026) in
+> `docs/plans/` ([manutenzione e verifiche rimandate](../../archive/2026-11-10-manutenzione-e-verifiche-rimandate.md),
+> [oggetti e template: parità LVGL](../../archive/2026-11-10-oggetti-e-template-parita-lvgl.md),
+> [CasaDomotica col maintainer](../../archive/2026-11-10-casadomotica-col-maintainer.md)) — e in **quattro aggiunte** a file
 > esistenti (i piani [dell'assistente](../../archive/2026-11-03-assistente-genera-simboli-e-sinottici.md) e di
 > [sws.soligo.net](../../archive/2026-10-26-aprire-sws-soligo-net.md); i semi [credenziali e CRA](2026-11-07-credenziali-cra.md)
 > e [stile sobrio](../2026-11-14-stile-sobrio.md), le cui cose dello stile VS Code stanno ora in [un seme loro](2026-11-14-ide-stile-vscode-residui.md)). I documenti archiviati che dicono «è in Appunti.txt» rimandano a quel

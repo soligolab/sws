@@ -1,9 +1,11 @@
 # Oggetti e template: i difetti del pannello LVGL, la parità col web e i residui dei template
 
+> **Stato: archiviato il 16-11-2026** — fatto nelle rc.14-rc.16; il riempimento della sparkline (§3.2) è rimandato al seme [LVGL 9.3](../plans/semi/2026-11-03-lvgl-9-3.md).
+
 > Nato il 10-11-2026 da `Appunti.txt` (punti del 30-10, 04-11, 05-11, 08-11 e 09-11-2026), quando il
 > maintainer ha chiesto di trasformare gli appunti in semi e piani e di eliminare il file.
 
-**Stato: piano — pronto, scelte prese l'11-11-2026 (vedi «Decise l'11-11-2026»)** (la mini tendenza ferma, il
+**Stato prima dell'archivio: piano — pronto, scelte prese l'11-11-2026 (vedi «Decise l'11-11-2026»)** (la mini tendenza ferma, il
 momentaneo critico, il nebulizzatore e il suo «Stato:» — vedi «Da decidere col maintainer»).
 
 ## Da dove viene
@@ -104,7 +106,7 @@ dopo sui gemelli `demo-items-web`/`demo-items-lvgl` (coprono i 39 tipi, guardia
   runtime per le scritture: si riusa quello.
 - **Da decidere**: cosa mostra il pannello se la funzione fallisce (un avviso LVGL? solo il registro?).
   Oggi gli errori di scrittura su LVGL si vedono solo come 401/403, il resto va su stderr (vedi il seme
-  [in attesa per tutte le scritture](semi/2026-10-30-in-attesa-per-tutte-le-scritture.md)).
+  [in attesa per tutte le scritture](../plans/semi/2026-10-30-in-attesa-per-tutte-le-scritture.md)).
 
 ### 2.2 La password sui comandi critici (05-11-2026, sessione F3)
 
@@ -142,7 +144,7 @@ dopo sui gemelli `demo-items-web`/`demo-items-lvgl` (coprono i 39 tipi, guardia
   `sws-web/src/synoptic.rs`) e la kpi sul web li usa, riempiendo al 15 %. Su LVGL no: `lv_chart` 8.3 non
   riempie lo scatter (lo dice il commento sopra `render_sparkline` in `lvgl_render.rs`). Va disegnato con
   un evento di disegno (`LV_EVENT_DRAW_*`). Se arriva prima il passaggio a LVGL 9.3
-  ([seme](semi/2026-11-03-lvgl-9-3.md)), ricontrollare: potrebbe non servire più.
+  ([seme](../plans/semi/2026-11-03-lvgl-9-3.md)), ricontrollare: potrebbe non servire più.
 
 ### 3.2b I pallini della sparkline, e i parametri grafici delle mini tendenze (12-11-2026)
 

@@ -30,8 +30,8 @@ Dal 03-11-2026 la riga della foglia nella scheda Tag mostra il ruolo e, col clic
 
 ### B. Soglie di progetto per riconoscere un allarme, applicare una ricetta, eseguire una funzione (04-11-2026, sessione T1)
 
-Trovato nella sessione T1 della serie del 04-11 (regola R7 dei template, [§Regole dei template — R6, R7, R8 nel
-README dei piani](../README.md)). **Riconoscere un allarme, applicare una ricetta, eseguire una funzione restano a
+Trovato nella sessione T1 della serie del 04-11 (regola R7 dei template, in
+[`examples/templates/README.md`](../../../examples/templates/README.md)). **Riconoscere un allarme, applicare una ricetta, eseguire una funzione restano a
 Operator** anche in un template dove ogni comando è aperto a Viewer (R7): le rotte stanno sotto `require_operator`
 (`router.rs`, `operator_routes`). In una demo il visitatore vede gli allarmi e non li può riconoscere.
 
@@ -136,6 +136,7 @@ Nota dell'appunto: «se serve, è una soglia per progetto, non una modifica dei 
 
 - [«Chiunque, anche senza login» — il permesso di comandare sta nel tag](../../archive/2026-10-25-scrittura-senza-login.md),
   archiviato: da lì viene la regola «vince il più severo» fra tag e oggetto.
-- [README dei piani, §Regole dei template — R6, R7, R8](../README.md): la sessione T1 e il punto 4 «trovato in T1».
+- [Le regole R6–R8 dei template](../../../examples/templates/README.md). La sessione T1 e il punto 4 «trovato in T1»
+  stavano nel README dei piani fino al 16-11-2026: si leggono nella sua storia git.
 - [Il progetto letto da un anonimo](2026-10-26-progetto-letto-da-un-anonimo.md): è la stessa `GET /api/project` da
   cui LVGL ricava le soglie.

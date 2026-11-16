@@ -1,5 +1,5 @@
 //! Quante volte al secondo il viewer ridisegna (12-11-2026, piano
-//! `docs/plans/2026-10-30-sws-lvgl-sul-tiny-ty.md`).
+//! `docs/archive/2026-10-30-sws-lvgl-sul-tiny-ty.md`).
 //!
 //! Il valore viene dal progetto (`pannello.fps`, predefinito 20). Fino a oggi il
 //! ciclo era fisso a 16 ms, circa 60 fotogrammi: sul Tiny TY, un core, un

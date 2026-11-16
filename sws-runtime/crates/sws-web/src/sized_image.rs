@@ -1,5 +1,5 @@
 //! Project images at the size a panel draws them (plan
-//! `docs/plans/2026-11-14-sfondi-alla-misura.md`).
+//! `docs/archive/2026-11-14-sfondi-alla-misura.md`).
 //!
 //! `GET /api/project/images/<name>?w=W&h=H` answers with a JPEG of exactly
 //! W × H, scaled and cropped like `cover` (the `xMidYMid slice` of the web and

@@ -2409,7 +2409,7 @@ pub struct Project {
     /// per ora quante volte al secondo si ridisegna. `None` = i predefiniti.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pannello: Option<PannelloConfig>,
-    /// The device control panel (plan `docs/plans/2026-11-13-pannello-di-controllo.md`):
+    /// The device control panel (plan `docs/archive/2026-11-13-pannello-di-controllo.md`):
     /// whether the runtime gesture and the synoptic action open it, and the
     /// project's service PIN. `None` = enabled, with the device's initial PIN.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -2712,7 +2712,7 @@ pub enum Orientation {
 
 /// Le impostazioni dello schermo del pannello, nel progetto: viaggiano col
 /// deploy (decisione del maintainer del 12-11-2026, piano
-/// `docs/plans/2026-10-30-sws-lvgl-sul-tiny-ty.md`).
+/// `docs/archive/2026-10-30-sws-lvgl-sul-tiny-ty.md`).
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct PannelloConfig {
     /// Fotogrammi al secondo dei viewer, LVGL e web: quante volte al più si

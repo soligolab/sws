@@ -1,7 +1,7 @@
 //! The device control panel: network, time, information and reboot of the
 //! operating system under SWS, from the device's own screen.
 //!
-//! Plan `docs/plans/2026-11-13-pannello-di-controllo.md`. It exists because on
+//! Plan `docs/archive/2026-11-13-pannello-di-controllo.md`. It exists because on
 //! 13-11-2026 a TY570 came back from a reboot without IPv4, with the Pixsys
 //! setup hidden by the viewer and USB off: no local way back to the network.
 //!

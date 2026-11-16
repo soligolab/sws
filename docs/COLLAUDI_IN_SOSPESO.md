@@ -40,6 +40,52 @@ sezione «Code annotate il 10-11-2026». Nell'IDE (cloud o 8460), con una chiave
 3. [ ] **Il banco dei tubi** (F5): un giudizio da 1 a 5 sulle due pagine del 04-11 (`tmp/ai-misure/`, solo su
        theobroma). È l'ingresso del piano «secondo giro».
 
+## Dai piani archiviati il 16-11-2026
+
+Le prove rimaste da dodici piani chiusi lo stesso giorno e spostati in `docs/archive/`. Ogni gruppo dice dove si fa.
+
+**Il QR di abbinamento** (rc.17, [piano](archive/2026-11-13-qr-di-abbinamento.md)). Nel cloud, col telefono e un
+pannello non abbinato (il TY570, o un pannello col progetto e l'abbinamento eliminati):
+1. [ ] **QR dal telefono**: si inquadra il QR accanto al codice, si apre `sws.soligo.net/#pair=…`, login se serve, si
+       conferma. Il pannello compare come `…/dev/<nome>`; poi «Connetti» da un progetto e deploy.
+2. [ ] **«Abbina un pannello…» dal menu utente** (solo nel cloud): senza progetto aperto, col codice scritto a mano.
+3. [ ] **Un utente con due aziende**: la finestra fa scegliere l'azienda. Con un'azienda sola la prende da sé.
+
+**L'aggiornamento sui pannelli lenti** (quadlet 8, `2a461fdf`, rc.17, [piano](archive/2026-11-13-aggiornamento-timeout-avvio.md)).
+Sul TC620, come utente `user`:
+4. [ ] «Configurazione del servizio» → Aggiorna (quadlet 8). Poi `systemctl --user show sws-runtime -p TimeoutStartUSec`
+       dice `10min`.
+5. [ ] Togliere il drop-in messo a mano il 12-11: `rm ~/.config/systemd/user/sws-runtime.service.d/avvio-lento.conf`
+       e `systemctl --user daemon-reload`. `TimeoutStartUSec` resta `10min`.
+
+**CasaDomotica, punto 3** ([piano](archive/2026-11-10-casadomotica-col-maintainer.md)). Sul TC620, dopo il deploy:
+6. [ ] Le pagine **«Luci»** e **«Clima»**: schede a interruttore, piastra in sola lettura con l'icona, termostato con il
+       PV (il triangolino sulla traccia e «· PV» accanto al valore). Uguali al web.
+
+**Il pannello di controllo sui TC/WP** ([piano](archive/2026-11-13-pannello-di-controllo.md), fase 4). Sul TC620 o sul WP630:
+7. [ ] **Luce**: la slitta della sezione Schermo cambia la luce dal vivo (passa da `net.pixsys.Config1.Display.SetBrightness`).
+       Annotare la scala di Pixsys: come si vedono il 5 % e il 100 %. La luce resta dopo un deploy; «come dice il
+       progetto» la riporta indietro.
+8. [ ] **«Calibra»**: avvia `touch-calibration.service` di Pixsys. Si guarda se prende lo schermo e se, alla fine, il
+       viewer torna e il tocco è giusto.
+9. [ ] **Touch resistivo** (TY750 o TY770, quando ce n'è uno): calibrazione a cinque croci nella sezione Schermo del
+       pannello LVGL, prova «tocca qui», «Salva» e «Rifai». Senza un tocco per 30 s torna la calibrazione di prima.
+       Senza la calibrazione di SWS il viewer usa `/usr/local/etc/pointercal` di Pixsys, e il log dice quale ha preso.
+
+**Le verifiche di manutenzione** ([piano](archive/2026-11-10-manutenzione-e-verifiche-rimandate.md), §6-§8):
+10. [ ] **Email e Telegram in `es`**: un progetto con un destinatario email e uno Telegram in `es`, un allarme di prova.
+        Oggetto e intestazione arrivano in spagnolo.
+11. [ ] **La chiave Google** della traduzione automatica: fornitore Google con la chiave, si ricarica la pagina dell'IDE,
+        la chiave c'è ancora.
+12. [ ] **La CI di GitHub**: pagina Actions del repository, le esecuzioni recenti. Se «Rust lint» è rosso, leggere il log
+        e confrontare clippy del job (toolchain 1.94) con quello locale. Se è verde, dirlo in `STATUS.md`.
+13. [ ] **Twilio dal vero**, appena l'account è a pagamento (quello di prova manda solo i messaggi predefiniti e
+        risponde 572006). Serve un pannello collegato al cloud. Nell'ordine: «Invia SMS di prova» con Account SID e
+        token; lo stesso con una chiave API «Standard», riscrivendo una volta il segreto; due reperibili di turno con
+        2 minuti di attesa e Voce sullo scatto (squilla il primo, poi il secondo; il tasto 1 riconosce l'allarme, il
+        registro dice «telefono: …» e la catena si ferma); il webhook SMS `https://<gateway>/telefono/<pannello>/sms`
+        (la risposta «OK» riconosce l'allarme); senza reperibili di turno nessuno viene chiamato, e il log lo dice.
+
 ## Collaudo 2.26.0-rc.19 (15-11-2026) — il Tiny TY, la rotazione, le chiavi IA
 
 Il lavoro del 15-11. Le voci confermate dal maintainer il giorno stesso sono in `STATUS.md`; qui quello che resta.
@@ -143,7 +189,7 @@ riavviando» in giallo e rilegge ogni 15 s; da collaudare al salto rc.11 → rc.
 
 ## Il viewer leggero (09-11-2026)
 
-Rami A e B del piano `docs/plans/2026-11-09-viewer-leggero.md` (§10): `fix/mini-tendenze-leggere` e, annidato sopra,
+Rami A e B del piano `docs/archive/2026-11-09-viewer-leggero.md` (§10): `fix/mini-tendenze-leggere` e, annidato sopra,
 `fix/ridisegno-mirato`, con le correzioni delle revisioni del 09-11. Vanno nella 2.26.0-rc.10 insieme all'occhio sulle
 password: le voci del pannello vogliono quell'immagine. Il WP630 si aggiorna dal viewer e tiene Montagna a 10 Hz come
 prova di carico (il template ora è a 1 Hz).
@@ -359,7 +405,7 @@ va rifatta anche la configurazione del servizio).
        compare l'avviso e `--verifica` non elenca il certificato, il `PathChanged` di `sws-fiducia.path` si è perso fra
        cancellazione e ricreazione (meno di un secondo). *(Corretto il 05-11-2026.)*
 5. [ ] **Rimuovi** il certificato: oggi il pannello **non** torna in chiaro — col marcatore `fiducia-browser` il
-       runtime ne genera subito uno nuovo. Difetto noto (05-11-2026, nel piano `docs/plans/2026-11-10-manutenzione-e-verifiche-rimandate.md`): si riprova quando è corretto.
+       runtime ne genera subito uno nuovo. Difetto noto (05-11-2026, nel piano `docs/archive/2026-11-10-manutenzione-e-verifiche-rimandate.md`): si riprova quando è corretto.
 6. [ ] **Non misurato, da misurare qui**: dopo un cambio di certificato basta riavviare il solo
        kiosk, o serve tutto il pannello? Nella prova del 26-10 si era riavviato tutto.
 7. [ ] Su un dispositivo **senza `certutil`** (o fingendolo): l'installatore deve dirlo, il

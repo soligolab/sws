@@ -10,7 +10,7 @@ approfondita e dedicata, per sviscerarne tutti i dettagli. Quello che segue è i
 ## Da dove viene
 
 Sono le code di prestazioni e di protocollo rimaste fuori dal piano
-[viewer leggero](../2026-11-09-viewer-leggero.md) (§7 «Se non basta: l'iscrizione per oggetto» e
+[viewer leggero](../../archive/2026-11-09-viewer-leggero.md) (§7 «Se non basta: l'iscrizione per oggetto» e
 §13 «Fuori ambito»), più due misure sul WP630 del 27-10-2026 fatte col piano archiviato
 [dove se ne va il tempo](../../archive/2026-10-26-dove-se-ne-va-il-tempo.md), e un conteggio mai
 rifatto dal piano archiviato
@@ -181,7 +181,7 @@ Se dopo la misura il flusso resta pesante, i due rimedi veri vogliono il backend
 
 ## E. Le altre code del §13 del piano «viewer leggero» (09-11-2026)
 
-Il §13 del [piano](../2026-11-09-viewer-leggero.md) elencava le cose viste nelle revisioni dei rami A e B e lasciate
+Il §13 del [piano](../../archive/2026-11-09-viewer-leggero.md) elencava le cose viste nelle revisioni dei rami A e B e lasciate
 fuori. Tre sono già sopra (il battito, il subscribe `[]` che vale «tutti», LVGL che non manda mai `subscribe` e clona la
 mappa a ogni fotogramma — C1 e C2) e una è entrata nel ramo A (la crescita delle mini tendenze LVGL, §5-bis). Le altre
 non erano mai arrivate in `Appunti.txt`: stanno qui dal 10-11-2026, così il piano si può archiviare senza perderle. I

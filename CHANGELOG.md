@@ -194,7 +194,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   pannello mostra «acceso» solo in `sync`. L'installatore non cambia il modo (decisione del maintainer).
   `deploy/tiny-ty/ty570-1ad-p1.md` ha il punto 12, e il punto 5 misurato: l'aggiornamento da SD riscrive tutte le
   partizioni e legge la lista dei file da salvare dalla SD, quindi SWS non può proteggersi da sé.
-- **LVGL: le pagine con una foto di sfondo si aprono subito** (piano `docs/plans/2026-11-14-sfondi-alla-misura.md`).
+- **LVGL: le pagine con una foto di sfondo si aprono subito** (piano `docs/archive/2026-11-14-sfondi-alla-misura.md`).
   Sul TY570 la prima visita di HVAC costava 1,84 s: lo sfondo era 1536×1024 e il pannello lo decodificava dentro un SVG,
   poi lo scalava e lo ritagliava all'area della cornice. Ora `GET /api/project/images/<nome>?w=&h=` serve un JPEG
   già alla misura (`cover`), calcolato una volta e tenuto in `<config>/cache/sized-images`, fuori dal progetto. Il
@@ -208,7 +208,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Aggiunto
 - **Pannello di controllo: le correzioni del primo collaudo sul TY570** (piano
-  `docs/plans/2026-11-14-pannello-di-controllo-correzioni-ty.md`). I tasti dei tastierini (PIN, indirizzi, ora,
+  `docs/archive/2026-11-14-pannello-di-controllo-correzioni-ty.md`). I tasti dei tastierini (PIN, indirizzi, ora,
   tastiera Wi-Fi) reagiscono alla pressione: al rilascio, il pannello ricostruito sotto il dito perdeva i tasti
   scritti veloci. Il fuso orario si sceglie per continente, paese e città, o con un filtro (`zone.tab` dà il paese,
   `countries.json` i nomi in italiano e inglese), al posto di una tendina di 400 voci che sul TY si apriva sotto il
@@ -257,7 +257,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   `--pannello-di-prova PIN[:sezione]` lo apre per le istantanee. Su entrambi i motori il pannello parla la lingua dei
   contenuti del progetto, non quella dell'interfaccia (che sui dispositivi è l'inglese).
 - **Pannello di controllo del dispositivo, fase 2: le schermate web** (piano
-  `docs/plans/2026-11-13-pannello-di-controllo.md`): PIN con tastiera esadecimale, poi Rete (com'è ora e DHCP o
+  `docs/archive/2026-11-13-pannello-di-controllo.md`): PIN con tastiera esadecimale, poi Rete (com'è ora e DHCP o
   statico, con una tastiera numerica per gli indirizzi e la barra di conferma che conta i 60 s, con «Torna indietro»
   subito), Ora (NTP, fuso, data e ora a mano) e Dispositivo (modello, seriale, versione, il PIN iniziale finché il
   progetto non ne ha uno, riavvio e spegnimento con conferma). Wi-Fi e Schermo restano grigi fino alla fase 4. Ci si
@@ -266,7 +266,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   di controllo del dispositivo» (`open_control_panel`); le ultime due spariscono se il progetto lo disattiva.
   `POST /api/control-panel/network/rollback` (`CheckpointRollback`).
 - **Pannello di controllo del dispositivo, fase 1: backend e API** (piano
-  `docs/plans/2026-11-13-pannello-di-controllo.md`, ancora senza schermate): `/api/control-panel/*` con rete cablata
+  `docs/archive/2026-11-13-pannello-di-controllo.md`, ancora senza schermate): `/api/control-panel/*` con rete cablata
   (DHCP o statico, sotto un checkpoint di NetworkManager che torna indietro da solo se entro 60 s non arriva la
   conferma), ora e fuso (`timedate1`), informazioni, riavvio e spegnimento (`login1`). Si entra col PIN di servizio:
   quello del progetto (`control_panel.pin_hash`), altrimenti i 6 caratteri bassi del MAC di `eth0`/`ethernet0`;
@@ -291,7 +291,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   sezione «Cestino (n) — 30 giorni di ritenzione» mostra i giorni che mancano a ogni progetto, «Ripristina» ed «Elimina
   ora». `trash.rs` cancella ogni ora gli scaduti, sul gateway e sull'IDE, con `remove_project_dir` condivisa con
   `delete_project` (che ora scrive anche l'audit). Il `DELETE` resta una cancellazione vera: lo usa il deploy remoto.
-- **Il QR del codice di abbinamento e l'abbinamento senza progetto** (piano `docs/plans/2026-11-13-qr-di-abbinamento.md`):
+- **Il QR del codice di abbinamento e l'abbinamento senza progetto** (piano `docs/archive/2026-11-13-qr-di-abbinamento.md`):
   - runtime: `--cloud-url` / `SWS_CLOUD_URL` (nelle immagini `https://sws.soligo.net`); `GET /api/abbinamento` porta
     `cloud_link = <cloud>/#pair=<codice>` solo mentre il pannello aspetta col tunnel aperto;
   - viewer LVGL: `LV_USE_QRCODE 1`, pagina di abbinamento con testi e codice a sinistra e QR a destra
@@ -328,7 +328,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 - **Il nebulizzatore Sandokan accende e spegne la presa**: due bottoni su `sandokan.state`, che la sorgente MQTT
   pubblicava già.
 - **Gruppi veri sul canvas, e un riquadro di selezione che non prende lo sfondo** (piano
-  `docs/plans/2026-11-11-selezione-e-gruppi.md`, collaudo dell'11-11-2026 su Montagna). Un clic su un membro di un
+  `docs/archive/2026-11-11-selezione-e-gruppi.md`, collaudo dell'11-11-2026 su Montagna). Un clic su un membro di un
   gruppo seleziona tutto il gruppo, con un riquadro tratteggiato e il suo nome, e il trascinamento lo sposta intero;
   il doppio clic entra nel gruppo e lavora sul singolo oggetto, Esc o un clic fuori lo chiude. Il riquadro di
   selezione prende solo gli oggetti **dentro per intero**, mai quelli bloccati, e un gruppo solo intero; con Shift
@@ -385,7 +385,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   in `lvgl_render.rs`), rasterizzata una volta per misura (`raster_occhio`), sulla tastiera a schermo e sul login;
   chiusa la finestra torna nascosta. Guardia `scripts/check_campi_password.sh` in `check_static.sh`: nessun
   `type=…password` scritto a mano, comunque scritto e anche a capo, e si prova da sé su otto evasioni note.
-- **«Dati in ritardo», sul viewer web e su LVGL** (piano `docs/plans/2026-11-09-viewer-leggero.md`, §5-bis, decisione
+- **«Dati in ritardo», sul viewer web e su LVGL** (piano `docs/archive/2026-11-09-viewer-leggero.md`, §5-bis, decisione
   del maintainer del 09-11-2026; 232dc97e, 2385f768, 701d2c93, f005b860, b7aba449). Sul WP630 i valori a schermo
   arrivavano vecchi fino a 29 s e niente lo diceva. Ora, oltre 5 s, compare in alto la fascia «Dati in ritardo di N s»
   (testo di sistema `dati_in_ritardo`, nella lingua dei contenuti; cf3aa83c) e tutti gli oggetti prendono lo stile
@@ -431,7 +431,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 - **Il banco di collaudo** (`scripts/banco_collaudo/`, per chi sviluppa): una pagina servita da `server.py` (solo
   libreria standard, porta 8471) con le prove da fare in gruppi, l'esito a un tasto e una nota; gli esiti in
   `esiti.json` fuori da git, da cui si spuntano `COLLAUDI_IN_SOSPESO.md`, i piani e `Appunti.txt`.
-- **Il Tiny TY (RV1106, armv7) fa girare SWS senza container** (piano `docs/plans/2026-10-30-sws-lvgl-sul-tiny-ty.md`,
+- **Il Tiny TY (RV1106, armv7) fa girare SWS senza container** (piano `docs/archive/2026-10-30-sws-lvgl-sul-tiny-ty.md`,
   passi 1-2, sul ramo `feat/tiny-ty-armv7`). `scripts/build_armv7.sh` cross-compila runtime e viewer per Ubuntu 22.04
   armhf (`Containerfile.armv7-cross.builder`); due correzioni dei 32 bit nel viewer (`ioctl` del touch e misura di
   `input_event`). Misurato sul dispositivo: runtime ~35 MB e viewer ~18 MB di PSS, viewer fra 0 e 6 % di CPU a pagina
@@ -640,7 +640,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   il runtime era sano dopo 1 s, ma il primo controllo di salute arriva 30 s dopo l'avvio: 93 s contro i 90 di systemd,
   `start operation timed out` e ritorno alla rc.13. Il quadlet del runtime ha ora `TimeoutStartSec=600`. Un pannello
   sul quadlet 7 lo prende dopo il primo aggiornamento riuscito; il TC620 lo passa una volta a mano (piano
-  `docs/plans/2026-11-13-aggiornamento-timeout-avvio.md`).
+  `docs/archive/2026-11-13-aggiornamento-timeout-avvio.md`).
 - **Il campo dei fotogrammi al secondo cancellava il resto di `pannello`**: mandava `{ fps }` e la PUT sostituisce
   tutta la sezione. Ora ogni campo rimanda gli altri (`salvaPannello`, con test).
 - **LVGL: testi, colori e aghi si riscrivono solo se cambiano** (`testo_etichetta`, `colore_diverso`). LVGL ridisegna
@@ -684,10 +684,10 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   (`fiducia-browser.spento`) e torna con un certificato nuovo.
 - **Immagine**: senza le etichette vecchie `changelog`/`compat`, che servivano solo alle 2.12.0-rc.3–rc.8.
 - **Test**: `asyncUtilTimeout` a 5 s. `abbinaPannelloCloud` e `avvisoAggiornamento` fallivano a macchina carica.
-- **`zip` 9.5.1**, dalla 2.4 (piano `docs/plans/2026-11-10-manutenzione-e-verifiche-rimandate.md` §1). Via da
+- **`zip` 9.5.1**, dalla 2.4 (piano `docs/archive/2026-11-10-manutenzione-e-verifiche-rimandate.md` §1). Via da
   `audit.toml` le quattro eccezioni RUSTSEC-2026-0367/0368/0369/0429 sull'estrazione, che SWS non usa.
   `file_names()` e `name()` ora danno un `Result`, e un nome illeggibile si salta.
-- **Il pannello LVGL disegna come il web** (piano `docs/plans/2026-11-10-oggetti-e-template-parita-lvgl.md`, decisioni
+- **Il pannello LVGL disegna come il web** (piano `docs/archive/2026-11-10-oggetti-e-template-parita-lvgl.md`, decisioni
   dell'11-11-2026, verificato col banco `tmp/parita-lvgl/`, che fotografa la stessa pagina coi due viewer).
   - **Testo senza riquadro**: `y` è la linea di base come nell'`<text>` SVG, mentre prima era il bordo alto, circa un
     corpo più in basso. I testi liberi dei progetti LVGL salgono; c'è l'avviso in `NOVITA.yaml`.
@@ -896,7 +896,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   `rusqlite` sale da 0.32 a 0.41 e `libsqlite3-sys` da 0.30 a 0.39 (bundled). Il codice di `sws-historian`,
   `sws-identita` e `sws-web` compila senza modifiche e i test passano tutti. `cargo audit` torna verde senza nuove
   eccezioni in `audit.toml`.
-- **Il viewer leggero, ramo A** (piano `docs/plans/2026-11-09-viewer-leggero.md`, 09-11-2026). Sul WP630 la pagina
+- **Il viewer leggero, ramo A** (piano `docs/archive/2026-11-09-viewer-leggero.md`, 09-11-2026). Sul WP630 la pagina
   iniziale di Montagna saturava il processore dopo un quarto d'ora, e i valori arrivavano vecchi. Al banco
   (`tmp/viewer-leggero/banco`, Chromium a CPU ×6, copia del template a 10 Hz, 15 minuti) la pagina passava dal 43% al
   99% di thread occupato, con 21.708 punti di mini tendenza e risposte fino a 7,2 s; col ramo A (SPA di prima della
@@ -931,7 +931,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   - **il template Montagna a 1 Hz** (e46a0848): `s.rete_scambio` e `s.energia_oggi` non sono più generatori a 10 Hz;
     li scrive lo script `giornata` una volta al secondo, con le forme di prima (triangolo da −60 a 90 kW con periodo
     di 150 s; energia da 0 a 5.200 kWh nella giornata). I progetti già creati dal template restano a 10 Hz.
-- **Il viewer leggero, ramo B** (piano `docs/plans/2026-11-09-viewer-leggero.md` §6, 09-11-2026; `fix/ridisegno-mirato`,
+- **Il viewer leggero, ramo B** (piano `docs/archive/2026-11-09-viewer-leggero.md` §6, 09-11-2026; `fix/ridisegno-mirato`,
   annidato su A). Col ramo A la pagina non cresceva più, ma ogni messaggio ridisegnava ancora tutti gli oggetti, e il
   filtro di pagina si perdeva a ogni apertura del socket (`["*"]` fisso). Ora un oggetto si ridisegna solo quando
   cambia un tag suo, e la pagina riceve solo i tag che le servono. Le due cose stanno insieme perché tutte e due

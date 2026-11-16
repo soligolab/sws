@@ -1,5 +1,5 @@
 //! The AI keys of the user, over HTTP (seed
-//! `docs/plans/2026-11-12-chiavi-ia-nel-profilo-utente.md`; decisions of
+//! `docs/archive/2026-11-12-chiavi-ia-nel-profilo-utente.md`; decisions of
 //! the maintainer, 15-11-2026). Storage and encryption are in `sws-identita`
 //! (`ai_keys.rs`); this is the doors.
 //!

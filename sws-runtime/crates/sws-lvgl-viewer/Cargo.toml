@@ -55,7 +55,7 @@ sdl2 = "0.38"
 # scritte degli SVG (il logo «SWS», le etichette di un disegno) sparivano.
 resvg = { version = "0.45", default-features = false, features = ["raster-images", "text", "system-fonts"] }
 # The JPEG decoder resvg already brings, used directly for a page background the
-# runtime serves at the exact size (plan docs/plans/2026-11-14-sfondi-alla-misura.md):
+# runtime serves at the exact size (plan docs/archive/2026-11-14-sfondi-alla-misura.md):
 # no SVG, no scaling, no cropping on the panel.
 zune-jpeg = "0.4"
 

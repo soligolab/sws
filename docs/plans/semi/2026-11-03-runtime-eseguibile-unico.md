@@ -10,7 +10,7 @@
 
 Sui Tiny TY (RV1106, un Cortex-A7, 256 MB, Ubuntu 22.04 armhf, **niente podman**) SWS deve arrivare come **un file
 da copiare e lanciare**: niente container, niente cartelle di contorno da tenere allineate, un servizio systemd che
-punta a un binario. Il piano dei TY ([`2026-10-30-sws-lvgl-sul-tiny-ty.md`](../2026-10-30-sws-lvgl-sul-tiny-ty.md))
+punta a un binario. Il piano dei TY ([`2026-10-30-sws-lvgl-sul-tiny-ty.md`](../../archive/2026-10-30-sws-lvgl-sul-tiny-ty.md))
 prevede già l'installazione senza container (passo 3) e gli aggiornamenti senza registry (passo 4): questo seme è
 il pezzo «un eseguibile» che li rende semplici, e vale anche fuori dai TY (un PC in reparto, un pannello senza
 podman).
@@ -54,3 +54,19 @@ podman).
 - Gli script Python sui TY servono? (Decide quasi tutto sul fronte dimensioni e portabilità.)
 - Un processo o due, misurando CPU e RAM sul TY570 con CasaDomotica.
 - Come si integra col piano TY esistente: questo seme ne diventa il passo 3-4, o un ramo a sé prima?
+
+## Dai piani archiviati il 16-11-2026
+
+- **Il canale di aggiornamento dei Tiny TY.** Il piano [SWS sul Tiny TY](../../archive/2026-10-30-sws-lvgl-sul-tiny-ty.md)
+  è chiuso con i passi 1-4 fatti: build armv7, copia sullo schermo, installazione con systemd, e `tyx_panelcontrol`
+  che resta e avvia SWS come «Programma esterno» (`42201438`). Il passo 5, **aggiornare senza registry**, non è
+  deciso. Oggi sul Tiny TY si aggiorna a mano: si scarica il pacchetto `.tar.gz` e si rilancia `install.sh`. L'aggiornamento
+  del runtime passa da `podman-auto-update.service`, che lì non c'è; `versioni_dopo` legge i tag del registry e le
+  Novità viaggiano come etichette dell'immagine. Serve un indice delle versioni e un pacchetto che porti le sue note: è la
+  strada «Aggiornamento e note» qui sopra.
+- **Il ripiego di `novita_da_etichette`.** Dalla rc.15 l'immagine non porta più le etichette vecchie
+  `net.soligo.sws.changelog` e `net.soligo.sws.compat` (servivano ai runtime 2.12.0-rc.3…rc.8). Il runtime però le
+  legge ancora come ripiego (`novita_da_etichette` in `sws-web/src/aggiornamento.rs`, col test
+  `le_novita_brevi_prima_e_il_changelog_come_ripiego`). Da decidere: toglierlo (codice più semplice) o lasciarlo per le
+  immagini vecchie ancora nel registry. Viene dal piano
+  [manutenzione e verifiche rimandate](../../archive/2026-11-10-manutenzione-e-verifiche-rimandate.md), punto 2.

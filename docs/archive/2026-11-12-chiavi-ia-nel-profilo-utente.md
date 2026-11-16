@@ -1,6 +1,8 @@
 # Le chiavi dell'assistente IA anche nel profilo dell'utente
 
-> **Piano — in corso.** Nato come seme il 12-11-2026, richiesta del maintainer: «potrebbe essere utile poter definire le api key
+> **Stato: archiviato il 16-11-2026** — fatto nella rc.19; il collaudo nel cloud è in `docs/COLLAUDI_IN_SOSPESO.md` (rc.19, voce 9). Il seguito è il piano delle chiavi IA dell'account complete (16-11-2026).
+
+> **Prima dell'archivio: piano in corso.** Nato come seme il 12-11-2026, richiesta del maintainer: «potrebbe essere utile poter definire le api key
 > dell'assistente AI anche nel profilo utente, in quel caso quelle di progetto prevalgono se presenti altrimenti
 > vengono usate quelle utente in automatico». **La sessione di plan approfondita c'è stata il 15-11-2026: le decisioni e il lavoro fatto
 > stanno in fondo.

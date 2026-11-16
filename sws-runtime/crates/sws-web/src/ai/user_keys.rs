@@ -1,5 +1,5 @@
 //! The AI keys of the user who is writing in the chat, asked to the gateway
-//! for one session (seed `docs/plans/2026-11-12-chiavi-ia-nel-profilo-utente.md`;
+//! for one session (seed `docs/archive/2026-11-12-chiavi-ia-nel-profilo-utente.md`;
 //! decisions of the maintainer, 15-11-2026).
 //!
 //! The order is fixed: **the project's key first**, then the user's. A project

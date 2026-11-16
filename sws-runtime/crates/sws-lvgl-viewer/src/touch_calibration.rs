@@ -1,5 +1,5 @@
 //! The calibration of resistive touch screens (TY750/TY770), phase 4 of the
-//! control panel plan (`docs/plans/2026-11-13-pannello-di-controllo.md`).
+//! control panel plan (`docs/archive/2026-11-13-pannello-di-controllo.md`).
 //!
 //! Measured on 14-11-2026: PixsysOS for the Tiny TY keeps the calibration in
 //! the **tslib** format, `/usr/local/etc/pointercal`, written by
