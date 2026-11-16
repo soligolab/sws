@@ -18,13 +18,22 @@
 //! pannelli. Non si ritaglia: l'oggetto `image` lo copre con `image_fit: cover`
 //! sul web, e il viewer LVGL avvolge i raster con `preserveAspectRatio="xMidYMid
 //! slice"`, che è la stessa cosa (`sws-lvgl-viewer/src/svg_assets.rs`).
+//!
+//! # Two providers (G5, 16-11-2026)
+//!
+//! Black Forest Labs (FLUX.2, `ai/bfl.rs`) next to OpenAI: same two steps, same
+//! fixed prompts, same 1536×1024 JPEG (FLUX takes any size that is a multiple
+//! of 16), so a page does not change when the provider does.
 
 use base64::Engine as _;
 use serde_json::{json, Value};
 
-use crate::ai::scopi::SceltaImmagini;
+use crate::ai::bfl;
+use crate::ai::scopi::{ImageProvider, SceltaImmagini};
 
 pub const DIMENSIONE: &str = "1536x1024";
+const WIDTH: u32 = 1536;
+const HEIGHT: u32 = 1024;
 
 /// Quanto costa un'immagine, in dollari: una **stima** per qualità, che serve
 /// al tetto e non a una fattura. Per eccesso, come la tabella dei modelli di
@@ -34,6 +43,79 @@ pub fn costo_stimato(qualita: &str) -> f64 {
         "low" => 0.02,
         "high" => 0.25,
         _ => 0.07,
+    }
+}
+
+/// The estimate of one image with the chosen provider; `edit` = a variant of a
+/// base (FLUX bills the input image too).
+pub fn estimated_usd(s: &SceltaImmagini, edit: bool) -> f64 {
+    match s.fornitore {
+        ImageProvider::OpenAi => costo_stimato(&s.qualita),
+        ImageProvider::Bfl => bfl::estimated_usd(&s.modello, WIDTH, HEIGHT, edit),
+    }
+}
+
+/// One image, and the cost the provider settled, when it says (FLUX does).
+#[derive(Debug)]
+pub struct Generated {
+    pub jpg: Vec<u8>,
+    pub settled_usd: Option<f64>,
+}
+
+impl From<bfl::Image> for Generated {
+    fn from(i: bfl::Image) -> Self {
+        Generated {
+            jpg: i.jpg,
+            settled_usd: i.settled_usd,
+        }
+    }
+}
+
+fn openai(jpg: Vec<u8>) -> Generated {
+    Generated {
+        jpg,
+        settled_usd: None,
+    }
+}
+
+/// Why there is no image, and what the request cost all the same.
+///
+/// `charged_usd` is there when the provider had already accepted the request
+/// (FLUX: the task was submitted, then it timed out, failed or could not be
+/// downloaded, see `ai/bfl.rs`): the caller counts it in the caps and in the
+/// spending history like an image that arrived. OpenAI answers in one call: a
+/// failure there is counted as free.
+#[derive(Debug)]
+pub struct Failed {
+    pub message: String,
+    pub charged_usd: Option<f64>,
+}
+
+impl Failed {
+    fn free(message: String) -> Self {
+        Failed {
+            message,
+            charged_usd: None,
+        }
+    }
+
+    /// From FLUX: the cost BFL declared, or `estimate` when it accepted the
+    /// request without saying one.
+    fn from_bfl(f: bfl::Failure, estimate: f64) -> Self {
+        Failed {
+            message: f.message,
+            charged_usd: match f.charge {
+                bfl::Charge::None => None,
+                bfl::Charge::Declared(usd) => Some(usd),
+                bfl::Charge::Unknown => Some(estimate),
+            },
+        }
+    }
+}
+
+impl std::fmt::Display for Failed {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.message)
     }
 }
 
@@ -78,13 +160,20 @@ const DA_SFONDO: &str = " It is the background of an industrial supervision scre
 /// Una base nuova: `descrizione` (più le regole `sfondi` del progetto) → JPEG.
 pub async fn genera(
     http: &reqwest::Client,
+    bfl_at: &bfl::Endpoint,
     s: &SceltaImmagini,
     descrizione: &str,
     regole: Option<&str>,
-) -> Result<Vec<u8>, String> {
+) -> Result<Generated, Failed> {
     let mut prompt = format!("{}{DA_SFONDO}", descrizione.trim());
     if let Some(r) = regole {
         prompt.push_str(&format!(" Project rules: {r}"));
+    }
+    if s.fornitore == ImageProvider::Bfl {
+        return bfl::generate(bfl_at, &s.chiave, &s.modello, &prompt, None, WIDTH, HEIGHT)
+            .await
+            .map(Generated::from)
+            .map_err(|f| Failed::from_bfl(f, estimated_usd(s, false)));
     }
     let corpo = json!({
         "model": s.modello, "prompt": prompt, "size": DIMENSIONE, "quality": s.qualita,
@@ -96,18 +185,33 @@ pub async fn genera(
         .json(&corpo)
         .send()
         .await
-        .map_err(|e| format!("OpenAI non raggiungibile: {e}"))?;
-    immagine_da(r).await
+        .map_err(|e| Failed::free(format!("OpenAI non raggiungibile: {e}")))?;
+    immagine_da(r).await.map(openai).map_err(Failed::free)
 }
 
 /// Una variante di luce di una base: la base va come immagine da modificare.
 pub async fn varia(
     http: &reqwest::Client,
+    bfl_at: &bfl::Endpoint,
     s: &SceltaImmagini,
     base_jpg: &[u8],
     nome_luce: &str,
-) -> Result<Vec<u8>, String> {
+) -> Result<Generated, Failed> {
     let prompt = format!("{STESSA_SCENA} {}", luce(nome_luce));
+    if s.fornitore == ImageProvider::Bfl {
+        return bfl::generate(
+            bfl_at,
+            &s.chiave,
+            &s.modello,
+            &prompt,
+            Some(base_jpg),
+            WIDTH,
+            HEIGHT,
+        )
+        .await
+        .map(Generated::from)
+        .map_err(|f| Failed::from_bfl(f, estimated_usd(s, true)));
+    }
     let confine = format!("sws{}", crate::ai::uuid_breve());
     let mut corpo: Vec<u8> = Vec::new();
     for (k, v) in [
@@ -143,8 +247,8 @@ pub async fn varia(
         .body(corpo)
         .send()
         .await
-        .map_err(|e| format!("OpenAI non raggiungibile: {e}"))?;
-    immagine_da(r).await
+        .map_err(|e| Failed::free(format!("OpenAI non raggiungibile: {e}")))?;
+    immagine_da(r).await.map(openai).map_err(Failed::free)
 }
 
 async fn immagine_da(r: reqwest::Response) -> Result<Vec<u8>, String> {
@@ -226,6 +330,24 @@ mod tests {
     }
 
     #[test]
+    fn the_estimate_follows_the_provider() {
+        let mut s = SceltaImmagini {
+            fornitore: ImageProvider::OpenAi,
+            chiave: "k".into(),
+            modello: "gpt-image-2".into(),
+            qualita: "high".into(),
+            tetto_usd: 1.0,
+        };
+        assert_eq!(estimated_usd(&s, false), costo_stimato("high"));
+        assert_eq!(estimated_usd(&s, true), costo_stimato("high"));
+        // FLUX has no quality: megapixels, and an edit pays the base too.
+        s.fornitore = ImageProvider::Bfl;
+        s.modello = "flux-2-pro".into();
+        assert!((estimated_usd(&s, false) - 0.045).abs() < 1e-9);
+        assert!(estimated_usd(&s, true) > estimated_usd(&s, false));
+    }
+
+    #[test]
     fn la_stima_del_costo_e_per_eccesso_e_sconosciuta_vale_media() {
         assert!(costo_stimato("high") > costo_stimato("medium"));
         assert!(costo_stimato("medium") > costo_stimato("low"));
@@ -247,22 +369,26 @@ mod prova_vera {
         let chiave =
             crate::ai::scopi::chiave_openai(std::path::Path::new(&dir)).expect("openai.key");
         let s = SceltaImmagini {
+            fornitore: ImageProvider::OpenAi,
             chiave,
             modello: "gpt-image-2".into(),
             qualita: "low".into(),
             tetto_usd: 1.0,
         };
         let http = reqwest::Client::new();
+        let bfl_at = bfl::Endpoint::default();
         let base = genera(
             &http,
+            &bfl_at,
             &s,
             "A small alpine lake with a wooden hut on the right.",
             None,
         )
         .await
-        .unwrap();
+        .unwrap()
+        .jpg;
         assert_eq!(&base[..3], &[0xFF, 0xD8, 0xFF], "dev'essere un JPEG");
-        let sera = varia(&http, &s, &base, "sera").await.unwrap();
+        let sera = varia(&http, &bfl_at, &s, &base, "sera").await.unwrap().jpg;
         assert_eq!(&sera[..3], &[0xFF, 0xD8, 0xFF]);
         let out = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../tmp/sfondi");
         std::fs::create_dir_all(&out).unwrap();

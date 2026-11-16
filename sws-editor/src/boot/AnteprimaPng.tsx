@@ -68,7 +68,7 @@ export function AnteprimaPng({ pageId }: { pageId: string }) {
       <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", fontWeight: 700 }}>{t("boot.previewTitle")}</div>
       {url ? (
         <img src={url} alt={t("boot.previewAlt")}
-          style={{ width: "100%", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, background: "#000" }} />
+          style={{ width: "100%", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, background: "#000" /* fixed-colour: the black of the panel behind its boot image */ }} />
       ) : (
         <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)", border: "1px dashed var(--brand-surface-2, #334155)", borderRadius: 4, padding: 8 }}>
           {t("boot.noPng")}
@@ -80,12 +80,12 @@ export function AnteprimaPng({ pageId }: { pageId: string }) {
         </div>
       )}
       {esito?.ok && esito.messaggio && (
-        <div style={{ fontSize: 11, color: "var(--brand-warning, #f59e0b)", background: "#451a0322", border: "1px solid #92400e", borderRadius: 4, padding: "4px 8px" }}>
+        <div style={{ fontSize: 11, color: "var(--sws-warning-text, var(--brand-warning, #f59e0b))", background: "var(--sws-warning-bg, #451a0322)", border: "1px solid var(--sws-warning-border, #92400e)", borderRadius: 4, padding: "4px 8px" }}>
           {t("boot.pngWithWarnings", { msg: esito.messaggio })}
         </div>
       )}
       {esito && !esito.ok && (
-        <div style={{ fontSize: 11, color: "var(--brand-warning, #f59e0b)", background: "#451a0322", border: "1px solid #92400e", borderRadius: 4, padding: "4px 8px" }}>
+        <div style={{ fontSize: 11, color: "var(--sws-warning-text, var(--brand-warning, #f59e0b))", background: "var(--sws-warning-bg, #451a0322)", border: "1px solid var(--sws-warning-border, #92400e)", borderRadius: 4, padding: "4px 8px" }}>
           {t("boot.pngNotUpdated", { err: esito.messaggio ?? "" })}
         </div>
       )}

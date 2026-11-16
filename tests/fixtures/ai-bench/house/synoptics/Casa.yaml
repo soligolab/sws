@@ -1,0 +1,7 @@
+# The empty page the assistant composes the house on.
+id: casa
+name: Casa
+background: "#e2e8f0"
+width: 1280
+height: 800
+objects: []

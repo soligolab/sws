@@ -70,7 +70,7 @@ export function HaBrowseModal({
         </div>
 
         {/* Filters */}
-        <div style={{ padding: "10px 16px", borderBottom: "1px solid #1e3a5f", display: "flex", gap: 10 }}>
+        <div style={{ padding: "10px 16px", borderBottom: "1px solid var(--sws-select-border, #1e3a5f)", display: "flex", gap: 10 }}>
           <input
             style={{ ...S.input, flex: 1 }}
             placeholder={t("cfg.searchEntity")}
@@ -107,10 +107,10 @@ export function HaBrowseModal({
                 style={{
                   padding: "7px 16px", display: "flex", alignItems: "center", gap: 12,
                   cursor: "pointer",
-                  background: expandedId === ent.entity_id ? "#0f2f35" : "transparent",
+                  background: expandedId === ent.entity_id ? "var(--sws-select-bg, #0f2f35)" : "transparent",
                 }}
-                onMouseEnter={(ev) => { (ev.currentTarget as HTMLDivElement).style.background = "#162032"; }}
-                onMouseLeave={(ev) => { (ev.currentTarget as HTMLDivElement).style.background = expandedId === ent.entity_id ? "#0f2f35" : "transparent"; }}
+                onMouseEnter={(ev) => { (ev.currentTarget as HTMLDivElement).style.background = "var(--sws-surface, #162032)"; }}
+                onMouseLeave={(ev) => { (ev.currentTarget as HTMLDivElement).style.background = expandedId === ent.entity_id ? "var(--sws-select-bg, #0f2f35)" : "transparent"; }}
               >
                 <div style={{ flex: 1, minWidth: 0 }} onClick={() => {
                   if (target.field === "entity_id") {

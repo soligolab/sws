@@ -13,6 +13,7 @@ import { api } from "@/api/client";
 import { useAppStore } from "@/store";
 import type { PorteSeriali } from "@/types";
 import { S } from "@/config/comuni";
+import { Icona } from "@/components/Icona";
 
 type Origine = "remoto" | "remoto-vecchio" | "locale" | "nessuna";
 
@@ -98,7 +99,7 @@ export function CampoPortaSeriale({ value, onChange }: { value: string; onChange
         )}
         {aMano && elencabili && (
           <button type="button" style={{ ...S.btn("ghost"), padding: "4px 8px" }} title={t("cfg.serialeTornaElenco")}
-            onClick={() => setAMano(false)} data-testid="torna-elenco-porte">☰</button>
+            onClick={() => setAMano(false)} data-testid="torna-elenco-porte"><Icona emoji="☰" /></button>
         )}
         <button type="button" style={{ ...S.btn("ghost"), padding: "4px 8px" }} title={t("cfg.serialeRileggi")}
           onClick={() => setGiro((g) => g + 1)}>↻</button>

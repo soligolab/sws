@@ -549,7 +549,7 @@ export function InstallTab() {
                 fontFamily: "monospace", fontSize: 11,
               }}>
                   {containerLog.map((l, i) => (
-                  <div key={i} style={{ color: l.startsWith("ERROR") ? "var(--brand-danger-soft, #f87171)" : l === "DONE" ? "var(--brand-success-soft, #4ade80)" : l.startsWith("WARN") ? "#fb923c" : "var(--brand-text-muted, #94a3b8)" }}>{l}</div>
+                  <div key={i} style={{ color: l.startsWith("ERROR") ? "var(--brand-danger-soft, #f87171)" : l === "DONE" ? "var(--brand-success-soft, #4ade80)" : l.startsWith("WARN") ? "var(--sws-warning-text, #fb923c)" : "var(--brand-text-muted, #94a3b8)" }}>{l}</div>
                 ))}
                 </div>
               )}

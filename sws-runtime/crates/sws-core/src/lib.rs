@@ -1,5 +1,6 @@
 pub mod alarm;
 pub mod data_ora;
+pub mod free_symbol;
 pub mod geometria_testo;
 pub mod geometry;
 pub mod logbus;

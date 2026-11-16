@@ -74,7 +74,7 @@ export function pulsante(attivo: boolean): CSSProperties {
 export const avviso: CSSProperties = {
   fontSize: 11,
   color: "var(--brand-warning-soft, #fbbf24)",
-  background: "#78350f33",
+  background: "var(--sws-warning-bg, #78350f33)",
   padding: "6px 10px",
   borderRadius: 4,
   lineHeight: 1.5,
@@ -83,7 +83,7 @@ export const avviso: CSSProperties = {
 export const errore: CSSProperties = {
   fontSize: 13,
   color: "var(--brand-danger-soft, #fca5a5)",
-  background: "#7f1d1d33",
+  background: "var(--sws-danger-bg, #7f1d1d33)",
   padding: "8px 12px",
   borderRadius: 4,
   lineHeight: 1.4,

@@ -3903,6 +3903,7 @@ dependencies = [
  "anyhow",
  "libc",
  "rcgen",
+ "roxmltree",
  "rustls",
  "serde",
  "serde_json",

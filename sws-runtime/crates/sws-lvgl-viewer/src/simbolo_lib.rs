@@ -48,6 +48,9 @@ fn stato_manifesto() -> &'static Mutex<Option<Option<Arc<ManifestLib>>>> {
 pub fn invalida() {
     *stato_manifesto().lock().unwrap_or_else(|e| e.into_inner()) = None;
     *stato_stile().lock().unwrap_or_else(|e| e.into_inner()) = None;
+    *manifest_with_custom_ports()
+        .lock()
+        .unwrap_or_else(|e| e.into_inner()) = None;
 }
 
 // ── lo stile del progetto ──────────────────────────────────────────────────
@@ -118,6 +121,86 @@ pub fn manifesto(base_url: &str, rt: &tokio::runtime::Handle) -> Option<Arc<Mani
     });
     *g = Some(letto.clone());
     letto
+}
+
+static WITH_CUSTOM_PORTS: OnceLock<Mutex<Option<Option<Arc<ManifestLib>>>>> = OnceLock::new();
+
+fn manifest_with_custom_ports() -> &'static Mutex<Option<Option<Arc<ManifestLib>>>> {
+    WITH_CUSTOM_PORTS.get_or_init(Default::default)
+}
+
+/// The manifest a pipe reads the ports from (plan
+/// 2026-11-10-assistente-secondo-giro, G3).
+///
+/// It is [`manifesto`] — and, when an end of the pipe is on a `custom:`
+/// symbol, the same with the ports of the custom symbols drawn as free SVG
+/// added ([`with_custom_ports`]). Only then: the custom symbols come with
+/// `/api/project`, and a page whose pipes touch no custom symbol must not
+/// download the project to draw them. Built once, until the next deploy.
+pub fn manifest_for_pipe(
+    base_url: &str,
+    rt: &tokio::runtime::Handle,
+    pipe: &crate::model::SynopticObject,
+    objects: &[crate::model::SynopticObject],
+) -> Option<Arc<ManifestLib>> {
+    if !ends_on_custom_symbol(pipe, objects) {
+        return manifesto(base_url, rt);
+    }
+    let mut g = manifest_with_custom_ports()
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
+    if let Some(m) = g.as_ref() {
+        return m.clone();
+    }
+    let merged = with_custom_ports(
+        manifesto(base_url, rt),
+        &svg_assets::custom_symbols(base_url, rt),
+    );
+    *g = Some(merged.clone());
+    merged
+}
+
+/// An end of `pipe` is attached to a custom symbol of the page.
+pub fn ends_on_custom_symbol(
+    pipe: &crate::model::SynopticObject,
+    objects: &[crate::model::SynopticObject],
+) -> bool {
+    [pipe.from_obj_id.as_deref(), pipe.to_obj_id.as_deref()]
+        .into_iter()
+        .flatten()
+        .any(|id| {
+            objects.iter().any(|o| {
+                o.id.as_deref() == Some(id)
+                    && o.symbol_id
+                        .as_deref()
+                        .is_some_and(|s| s.starts_with("custom:"))
+            })
+        })
+}
+
+/// `base` with one entry more for every custom symbol that declares ports
+/// (`custom:<id>`: size of the drawing and ports, nothing to draw). Without a
+/// library manifest the custom symbols alone still give a manifest: their
+/// ports do not depend on the library being there.
+pub fn with_custom_ports(
+    base: Option<Arc<ManifestLib>>,
+    custom: &[crate::model::CustomSymbol],
+) -> Option<Arc<ManifestLib>> {
+    let entries: Vec<SimboloLib> = custom.iter().filter_map(|c| c.port_entry()).collect();
+    if entries.is_empty() {
+        return base;
+    }
+    let mut m = match base {
+        Some(m) => (*m).clone(),
+        None => ManifestLib {
+            version: String::new(),
+            versione_progetto: String::new(),
+            materials: Default::default(),
+            symbols: Vec::new(),
+        },
+    };
+    m.symbols.extend(entries);
+    Some(Arc::new(m))
 }
 
 /// I simboli del progetto. Un runtime più vecchio della funzione risponde 404:

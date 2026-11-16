@@ -12,6 +12,29 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — stile sobrio e secondo giro dell'assistente finiti, tutto sul ramo delle chiavi IA (2026-11-16 sera, theobroma)
+
+Il ramo `feat/ai-keys-account-complete` porta adesso tutto il lavoro per la rc.20 che non è ancora in `main`:
+- **le chiavi IA dell'account complete**: tutti i fornitori, «Prova la chiave», il modello preferito in un menù a
+  tendina alfabetico, anche negli Scopi del progetto;
+- **lo stile sobrio, sessioni 2 e 3**: colori scritti a mano nel tema (guardia `check_colori_ide.sh`) e icone a linea
+  al posto delle emoji (`<Icona>`, 69 icone da Tabler);
+- **l'assistente, secondo giro**: G2 la casa sulla sua pianta, G3 l'SVG libero con le bocche, G4 Mistral, G5 FLUX.2 per
+  gli sfondi e la scheda «Spesa». Tutto provato con risposte finte.
+
+G2–G5 e le sessioni 2-3 sono state fatte da agenti in quattro rami paralleli, ognuno con due revisioni e le
+correzioni, poi messi in fila con `cherry-pick` (dieci commit) e i quattro rami eliminati. Dopo l'unione: i fornitori
+sono cinque in ogni elenco (`AI_PROVIDERS`, `user_keys::PROVIDERS`, `scopi::FORNITORI`). L'informativa e le condizioni
+d'uso nominano Mistral, OpenAI e Black Forest Labs.
+
+**Piani archiviati**: stile sobrio, assistente secondo giro, chiavi IA dell'account complete. Il collaudo è in
+`docs/COLLAUDI_IN_SOSPESO.md` (tre sezioni del 16-11); i punti brevi dell'assistente sono nel seme
+`docs/plans/semi/2026-11-16-assistente-residui-secondo-giro.md`.
+
+**Da fare**: il collaudo del maintainer nell'IDE 8460 (stile sobrio nei due stili, icone), poi squash merge in `main`,
+tag rc.20, immagini, gateway, pacchetto del Tiny TY (chiedere prima). Restano i punti del blocco qui sotto (orologio
+del TY, ramo `fix/rc18-ritocchi`).
+
 ## ▶ Riprendere da qui — TY570 con la SD nuova, deploy e pannello di controllo (2026-11-16, theobroma)
 
 Quattro squash su `main` (`4d42673b`, `42201438`, `d2363acb`, `ac9928c7`), **collaudati dal maintainer sul TY570**,
@@ -864,7 +887,7 @@ nell'IDE?).
   archivi in `dist/`, cache della vecchia build QEMU, due cartelle di compilazione in `tmp/`). Tenuti `target/release`
   (lo usa la prova OpenPLC che gira da 15 giorni) e le cache delle immagini container.
 - **Semi nuovi**: [build veloce e due portali](docs/plans/semi/2026-11-05-build-veloce-e-due-portali.md); nello
-  [stile sobrio](docs/plans/2026-11-14-stile-sobrio.md) la misura delle icone che non vale nelle barre dello stile VS
+  [stile sobrio](docs/archive/2026-11-14-stile-sobrio.md) la misura delle icone che non vale nelle barre dello stile VS
   Code. In `Appunti.txt`: la CI di GitHub rossa dal 05-10 al passo clippy.
 
 **Pomeriggio (in `main`, non pushato: `4d918f75`, `b24193d7`)**, tutto collaudato dal maintainer:

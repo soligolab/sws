@@ -51,13 +51,29 @@
   },
   "myAiKeys": {
     "title": "My AI keys",
-    "help": "Your account's key for the AI assistant. It is used on the projects you open that have no key of their own: if the project has one, that one is used. Only the last four letters are shown here.",
+    "help": "Your account's AI keys: the assistant, symbols, translations and backgrounds. They are used on the projects you open that have no key of their own: if the project has one, that one is used. The preferred model is used where the project chooses none. Only the last four letters are shown here.",
     "save": "Save",
     "remove": "Remove",
     "confirmRemove": "Confirm: remove",
     "replace": "Type a new key to replace it",
     "saved": "saved · …{{last4}}",
-    "unreadable": "no longer readable · …{{last4}} (write it again)"
+    "unreadable": "no longer readable · …{{last4}} (write it again)",
+    "test": "Test the key",
+    "testOk": "The key works: {{n}} models available.",
+    "testKo": "The key does not work: {{error}}",
+    "model": "Preferred model"
+  },
+  "aiModel": {
+    "default": "Provider's default",
+    "defaultNamed": "Default ({{model}})",
+    "notListed": "{{model}} (no longer listed)"
+  },
+  "aiProviders": {
+    "anthropic": "Anthropic (Claude)",
+    "kimi": "Moonshot (Kimi)",
+    "mistral": "Mistral AI",
+    "openai": "OpenAI (images)",
+    "bfl": "Black Forest Labs (FLUX, images)"
   },
   "header": {
     "start": "Start",
@@ -234,6 +250,7 @@
       "ia_assistente": "Assistant",
       "ia_fornitori": "Providers and keys",
       "ia_scopi": "A model per purpose",
+      "ia_spending": "Spending",
       "ia_regole": "Project rules",
       "impostazioni": "Settings",
       "screen": "Screen and access"
@@ -450,6 +467,7 @@
     "risorseSaldo": "credit",
     "risorseSpesaTitolo": "What this conversation has cost and its cap: once the cap is reached the assistant stops. The cap is set in the IDE preferences",
     "bozzaSimbolo": "symbol draft",
+    "floorPlanDraft": "floor plan draft",
     "istantanea": "Panel snapshot",
     "conversationTokens": "conversation tokens",
     "accountBalanceWithTheProvider": "account balance with the provider",
@@ -2629,7 +2647,9 @@
     "funzione": "function `{{nome}}`",
     "scriptRighe": "global script `{{id}}` ({{n}} lines)",
     "script": "global script `{{id}}`",
-    "immagine": "image {{file}}"
+    "immagine": "image {{file}}",
+    "floorPlan": "floor plan «{{name}}»",
+    "customSymbol": "symbol `custom:{{id}}`"
   },
   "errors": {
     "projectChangedWhileWorking": "the project changed while you were working"
@@ -4728,6 +4748,21 @@
       "usaAssistente": "Same as the assistant: {{fornitore}} · {{modello}}",
       "spento": "Off: the provider has no key.",
       "salvati": "Saved. The chat uses the new models from the next message."
+    },
+    "spending": {
+      "explain": "What AI has cost this installation, month by month: every paid call of the assistant, of symbol drawing, of translation and of backgrounds. It is a count made here, not an invoice: models without a price list and OpenAI images are estimates.",
+      "refresh": "Refresh",
+      "currentMonth": "{{month}} (current)",
+      "none": "Nothing spent in this month.",
+      "purpose": "Purpose",
+      "provider": "Provider",
+      "calls": "Calls",
+      "spent": "Spent",
+      "byProvider": "By provider",
+      "monthTotal": "Total of the month",
+      "total": "Total of all months: {{usd}}",
+      "kept": "The last {{n}} months are kept.",
+      "error": "The spending could not be read: {{error}}"
     },
     "regole": {
       "spiega": "What the models must know about this plant. These rules live in the project: they travel with export, deploy and a template, and whoever receives the project inherits them. They go into every call, so keep them short.",

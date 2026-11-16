@@ -120,9 +120,9 @@ export const S = {
   },
   btn: (variant: "primary" | "danger" | "ghost" | "success"): React.CSSProperties => {
     const map = {
-      primary: { background: "#1d4ed8", color: "#dbeafe", border: "1px solid #1e40af" },
-      success: { background: "var(--brand-success-bg, #166534)", color: "var(--brand-success-soft, #4ade80)", border: "1px solid #15803d" },
-      danger:  { background: "var(--brand-danger-bg, #7f1d1d)", color: "var(--brand-danger-soft, #fca5a5)", border: "1px solid #991b1b" },
+      primary: { background: "var(--sws-accent, #1d4ed8)", color: "var(--sws-on-accent, #dbeafe)", border: "1px solid var(--sws-select-border, #1e40af)" },
+      success: { background: "var(--brand-success-bg, #166534)", color: "var(--brand-success-soft, #4ade80)", border: "1px solid var(--sws-success-border, #15803d)" },
+      danger:  { background: "var(--brand-danger-bg, #7f1d1d)", color: "var(--brand-danger-soft, #fca5a5)", border: "1px solid var(--sws-danger-border, #991b1b)" },
       ghost:   { background: "transparent", color: "var(--brand-text-subtle, #64748b)", border: "1px solid var(--brand-surface-2, #334155)" },
     };
     return {
@@ -156,12 +156,12 @@ export const S = {
     borderBottom: "1px solid var(--brand-surface-2, #334155)",
   },
   notice: {
-    background: "#172554",
-    border: "1px solid #1e40af",
+    background: "var(--sws-select-bg, #172554)",
+    border: "1px solid var(--sws-select-border, #1e40af)",
     borderRadius: 6,
     padding: "10px 14px",
     fontSize: 12,
-    color: "#93c5fd",
+    color: "var(--sws-select-text, #93c5fd)",
     marginBottom: 16,
   },
   // Compact field label used by the source-card grids.

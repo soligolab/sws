@@ -18,6 +18,7 @@ import { StoricoDispositivo } from "@/boot/StoricoDispositivo";
 import { ConfermaAggiornamento } from "@/boot/ConfermaAggiornamento";
 import { TRANS_COMP } from "@/config/comuni";
 import { registraDispositivo, flushBeforeDeploy } from "@/config/schede/DevicesTab";
+import { Icona } from "@/components/Icona";
 
 const CAMPO_PULL: React.CSSProperties = {
   background: "var(--brand-bg, #020617)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)",
@@ -645,10 +646,10 @@ export function RuntimeConnectionTab() {
     border: "1px solid var(--brand-surface-2, #334155)", background: "var(--brand-surface, #1e293b)", color: "var(--brand-text, #e2e8f0)",
   };
   const BTN_PRIMARY: React.CSSProperties = {
-    ...BTN, background: "#1d4ed8", border: "1px solid var(--brand-primary-hover, #2563eb)", color: "#fff", fontWeight: 600,
+    ...BTN, background: "var(--sws-accent, #1d4ed8)", border: "1px solid var(--brand-primary-hover, #2563eb)", color: "var(--sws-on-accent, #fff)", fontWeight: 600,
   };
   const BTN_RED: React.CSSProperties = {
-    ...BTN, background: "#450a0a", border: "1px solid #dc2626", color: "var(--brand-danger-soft, #fca5a5)",
+    ...BTN, background: "var(--sws-danger-bg, #450a0a)", border: "1px solid var(--sws-danger-border, #dc2626)", color: "var(--brand-danger-soft, #fca5a5)",
   };
 
   const connected = status === "connected";
@@ -778,12 +779,12 @@ export function RuntimeConnectionTab() {
                             background: "var(--brand-surface, #1e293b)",
                             border: "1px solid var(--brand-surface-2, #334155)",
                           }}
-                        >📦 {r.container}</span>
+                        ><Icona emoji="📦" /> {r.container}</span>
                       )}
                       <span style={{ fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)" }}>{discoveredAdminUrl(r)}</span>
                       {/* Q50: il discovery non butta più via quello che trova. */}
                       <button
-                        style={{ padding: "1px 8px", borderRadius: 4, cursor: "pointer", fontSize: 11, flexShrink: 0, border: "1px solid var(--brand-primary-hover, #2563eb)", background: "#1e3a5f", color: "#93c5fd" }}
+                        style={{ padding: "1px 8px", borderRadius: 4, cursor: "pointer", fontSize: 11, flexShrink: 0, border: "1px solid var(--brand-primary-hover, #2563eb)", background: "var(--sws-select-bg, #1e3a5f)", color: "var(--sws-select-text, #93c5fd)" }}
                         title={t("cfg.devicesAddToListTitle")}
                         onClick={(e) => {
                           e.stopPropagation();
@@ -861,8 +862,8 @@ export function RuntimeConnectionTab() {
       {/* Status */}
       <section style={{
         padding: "10px 14px", borderRadius: 6,
-        background: daRiautenticare ? "#2a1a02" : connected ? "#052e16" : status === "error" ? "#1c0a0a" : "var(--brand-bg, #0f172a)",
-        border: `1px solid ${daRiautenticare ? "var(--brand-warning, #f59e0b)" : connected ? "#16a34a" : status === "error" ? "#dc2626" : "var(--brand-surface, #1e293b)"}`,
+        background: daRiautenticare ? "var(--sws-warning-bg, #2a1a02)" : connected ? "var(--sws-success-bg, #052e16)" : status === "error" ? "var(--sws-danger-bg, #1c0a0a)" : "var(--brand-bg, #0f172a)",
+        border: `1px solid ${daRiautenticare ? "var(--brand-warning, #f59e0b)" : connected ? "var(--sws-success-border, #16a34a)" : status === "error" ? "var(--sws-danger-border, #dc2626)" : "var(--brand-surface, #1e293b)"}`,
       }}>
         {connected && (
           daRiautenticare ? (
@@ -1067,7 +1068,7 @@ export function RuntimeConnectionTab() {
             {liveTags.size === 0
               ? <span style={{ color: "var(--brand-text-subtle, #94a3b8)" }}>{t("cfgUi.noVariablesReceived")}</span>
               : Array.from(liveTags.entries()).slice(0, 50).map(([id, t]) => {
-                  const qColor = t.quality === "Good" ? "var(--brand-success-soft, #4ade80)" : t.quality === "Bad" ? "var(--brand-danger-soft, #f87171)" : "#fb923c";
+                  const qColor = t.quality === "Good" ? "var(--brand-success-soft, #4ade80)" : t.quality === "Bad" ? "var(--brand-danger-soft, #f87171)" : "var(--sws-warning-text, #fb923c)";
                   return (
                     <div key={id} style={{ display: "flex", gap: 8, borderBottom: "1px solid var(--brand-bg, #0f172a)", padding: "1px 0" }}>
                       <span style={{ color: "var(--brand-text-subtle, #64748b)", width: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flexShrink: 0 }} title={id}>{id}</span>

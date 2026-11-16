@@ -193,7 +193,9 @@ const GHOST: React.CSSProperties = {
 function primary(on: boolean): React.CSSProperties {
   return {
     background: on ? "var(--brand-primary, #2563eb)" : "var(--brand-surface-2, #334155)",
-    border: "none", borderRadius: 6, color: "#fff", padding: "8px 16px", fontSize: 13,
+    // Off, the background is a neutral surface: the ink, not the text made for the accent.
+    border: "none", borderRadius: 6, color: on ? "var(--sws-on-accent, #fff)" : "var(--sws-text, #fff)",
+    padding: "8px 16px", fontSize: 13,
     cursor: on ? "pointer" : "default", opacity: on ? 1 : 0.7,
   };
 }

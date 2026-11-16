@@ -12,7 +12,7 @@ import { TagsTab } from "@/config/schede/TagsTab";
 import { ProtocolsTab } from "@/config/schede/ProtocolsTab";
 import { AlarmsTab } from "@/config/schede/AlarmsTab";
 import { IdePreferencesTab } from "@/config/schede/IdePreferencesTab";
-import { IaAssistenteTab, IaFornitoriTab, IaRegoleTab, IaScopiTab } from "@/config/schede/IaTab";
+import { IaAssistenteTab, IaFornitoriTab, IaRegoleTab, IaScopiTab, IaSpendingTab } from "@/config/schede/IaTab";
 import { SystemTab } from "@/config/schede/SystemTab";
 import { DeviceScreenTab } from "@/config/schede/DeviceScreenTab";
 import { UsersTab } from "@/config/schede/UsersTab";
@@ -33,6 +33,7 @@ import { StileSimboliTab } from "@/config/schede/StileSimboliTab";
 import { BackupsTab } from "@/config/schede/BackupsTab";
 import { GitTab } from "@/config/schede/GitTab";
 import { ImpostazioniProgettoTab } from "@/config/schede/ImpostazioniProgettoTab";
+import { Icona } from "@/components/Icona";
 
 /** Il componente di ogni scheda. Un `Record` e non un elenco: se una scheda
  *  entra in `SCHEDE` e non qui, è il compilatore a dirlo. Le schede ospitate
@@ -67,6 +68,7 @@ const COMPONENTI: Record<IdConComponente, React.ComponentType<{ scheda: IdScheda
   ia_assistente: IaAssistenteTab,
   ia_fornitori: IaFornitoriTab,
   ia_scopi: IaScopiTab,
+  ia_spending: IaSpendingTab,
   ia_regole: IaRegoleTab,
   ide: IdePreferencesTab,
 };
@@ -139,7 +141,7 @@ export function ConfigView() {
           <span style={{ color: "var(--brand-text-subtle, #64748b)" }}>{voce}</span>
           <span aria-hidden="true" style={{ color: "var(--brand-text-subtle, #64748b)" }}>›</span>
         </>)}
-        <span aria-hidden="true">{corrente.icona}</span>
+        <span aria-hidden="true"><Icona emoji={corrente.icona} nome={"iconName" in corrente ? corrente.iconName : undefined} /></span>
         <span style={{ color: "var(--brand-text, #e2e8f0)", fontWeight: 600 }}>{t(`config.tabs.${tab}`)}</span>
         {focus !== null && (<>
           <span aria-hidden="true" style={{ color: "var(--brand-text-subtle, #64748b)" }}>›</span>
@@ -151,7 +153,7 @@ export function ConfigView() {
       <div style={S.body}>
         {projectLoading ? (
           projectLoadError ? (
-            <div style={{ color: "#dc2626", fontSize: 13, padding: 24, whiteSpace: "pre-wrap" }}>
+            <div style={{ color: "var(--sws-danger-text, #dc2626)", fontSize: 13, padding: 24, whiteSpace: "pre-wrap" }}>
               <strong>{t("cfgUi.errorLoadingProject")}</strong><br />{projectLoadError}
             </div>
           ) : (

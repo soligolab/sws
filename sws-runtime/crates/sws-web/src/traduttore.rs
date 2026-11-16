@@ -74,7 +74,7 @@ impl Fornitore {
                  ampia; si paga a caratteri.",
             ),
             Fornitore::Ia => (
-                "Assistente IA (Claude / Kimi)",
+                "Assistente IA (il modello «Traduzione» del menù IA)",
                 "Usa la chiave già configurata per l'assistente dell'editor. È \
                  l'unico che riceve il CONTESTO — «etichetta di un pulsante di un \
                  impianto industriale» — e quindi l'unico che può distinguere \
@@ -315,7 +315,18 @@ async fn ia(
         Some(r) => format!("{istruzioni}\n\n{}", crate::ai::prompt::blocco_regole(r)),
         None => istruzioni,
     };
-    crate::ai::client::chiedi_una_volta(client, &scelta, &istruzioni, testo, 1024).await
+    // With the usage, since 16-11-2026: a translation is a paid call like the
+    // others and enters the spending history of the installation (G5).
+    let messages = [serde_json::json!({ "role": "user", "content": testo })];
+    let (translated, usage) =
+        crate::ai::client::chiedi_con_uso(client, &scelta, &istruzioni, &messages, 1024).await?;
+    crate::ai::spending::add(
+        config_dir,
+        crate::ai::scopi::Scopo::Traduzione.nome(),
+        scelta.fornitore.nome(),
+        crate::ai::client::costo_usd(&scelta.modello, &usage),
+    );
+    Ok(translated)
 }
 
 async fn mymemory(

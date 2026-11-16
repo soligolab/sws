@@ -4,6 +4,7 @@ import type { CanvasViewApi } from "@/canvas/SvgCanvas";
 import { useAppStore } from "@/store";
 import { SPAZIO, TESTO } from "./stilePannelli";
 import { SelettoreColore } from "./CampoColore";
+import { Icona, useSoberStyle } from "@/components/Icona";
 
 /**
  * Contextual toolbar for the editor: drawing tools only, no project-level
@@ -97,6 +98,7 @@ export function EditorToolbar({
   canFitPage: boolean;
 }) {
   const { t } = useTranslation();
+  const sober = useSoberStyle();
   const past         = useAppStore((s) => s.past.length);
   const previewEffects    = useAppStore((s) => s.previewEffects);
   const project           = useAppStore((s) => s.project);
@@ -170,10 +172,10 @@ export function EditorToolbar({
       <button style={BTN} onClick={() => viewApi.current?.fitObjects()}
         title={t("toolbar.fitObjectsTitle")}>⊞</button>
       <button
-        style={{ ...BTN, ...(previewEffects ? { background: "#3f2d10", color: "#fbbf24", borderColor: "#f59e0b" } : {}) }}
+        style={{ ...BTN, ...(previewEffects ? { background: "var(--sws-warning-bg, #3f2d10)", color: "var(--sws-warning-text, #fbbf24)", borderColor: "var(--sws-warning-border, #f59e0b)" } : {}) }}
         onClick={() => setPreviewEffects(!previewEffects)}
         title={t("toolbar.previewEffectsTitle")}>
-        {previewEffects ? "⏸" : "▶"} {t("toolbar.previewEffects")}
+        <Icona emoji={previewEffects ? "⏸" : "▶"} color="currentColor" /> {t("toolbar.previewEffects")}
       </button>
       {/* La lingua in cui il canvas disegna i testi tradotti.
           Stava solo dentro Configurazione → Lingue, e per rileggere una
@@ -183,6 +185,7 @@ export function EditorToolbar({
           resto.
           Sul canvas si vede anche la cosa che una tabella non mostra: se la
           frase tradotta **ci sta** nel suo riquadro. */}
+      {(project?.languages?.langs?.length ?? 0) > 1 && sober && <Icona emoji="🌐" />}
       {(project?.languages?.langs?.length ?? 0) > 1 && (
         <select
           value={linguaAnteprima}
@@ -191,7 +194,8 @@ export function EditorToolbar({
           style={{ ...BTN, cursor: "pointer", paddingRight: 4 }}>
           {project!.languages!.langs.map((l) => (
             <option key={l} value={l}>
-              {l === project!.languages!.default ? `🌐 ${l} ${t("toolbar.originale")}` : `🌐 ${l}`}
+              {/* An <option> holds text only: in the sober style the icon sits before the select. */}
+              {sober ? "" : "🌐 "}{l === project!.languages!.default ? `${l} ${t("toolbar.originale")}` : l}
             </option>
           ))}
         </select>
@@ -201,11 +205,11 @@ export function EditorToolbar({
         disabled={selectedIds.length === 0}
         onClick={() => copyStyle()}
         title={t("toolbar.copyStyleTitle")}>
-        🖌 {t("toolbar.copyStyle")}
+        <Icona emoji="🖌" /> {t("toolbar.copyStyle")}
       </button>
       {styleClipboard && (
         <button
-          style={{ ...BTN, background: "#1e3a8a", color: "#bfdbfe", borderColor: "#2563eb",
+          style={{ ...BTN, background: "var(--sws-select-bg, #1e3a8a)", color: "var(--sws-select-text, #bfdbfe)", borderColor: "var(--sws-select-border, #2563eb)",
                    ...(selectedIds.length === 0 ? { opacity: 0.45, cursor: "default" } : {}) }}
           disabled={selectedIds.length === 0}
           onClick={() => applyStyle()}

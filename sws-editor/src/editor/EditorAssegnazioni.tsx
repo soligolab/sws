@@ -31,7 +31,7 @@ const INPUT: React.CSSProperties = {
 /** Il valore di partenza di una riga, secondo il tipo della variabile. */
 export function valoreIniziale(categoria: string | undefined): Assegnazione["valore"] {
   switch (categoria) {
-    case "colore": return "#000000";
+    case "colore": return "#000000" /* fixed-colour */;
     case "bool": return true;
     case "intero": case "reale": case "tempo": return 0;
     default: return "";
@@ -93,7 +93,7 @@ function CampoValore({ categoria, valore, onChange }: {
   onChange: (v: Assegnazione["valore"]) => void;
 }) {
   if (categoria === "colore") {
-    const c = normalizzaColore(String(valore)) ?? "#000000";
+    const c = normalizzaColore(String(valore)) ?? "#000000" /* fixed-colour */;
     return (
       <div style={{ display: "flex", gap: 4, alignItems: "center", minWidth: 0 }}>
         {/* `<input type="color">` vuole #rrggbb: la trasparenza si scrive nel testo. */}

@@ -195,6 +195,52 @@ Le regole di questo giro:
 - Al più 60 oggetti per pagina. Una pagina che non si legge non serve.
 - Qui la proposta è grande, ed è giusto: l'intenzione è una, la pagina.
 
+# A house on its floor plan
+
+«La pianta di casa mia con luci, tapparelle e clima»: the same round as above,
+with the floor plan of the house as the background of the page.
+
+- If `leggi_progetto` lists the house in `floor_plans`, it is already drawn:
+  use it (`floor_plan` with its `id`) instead of writing another one.
+- In the plan of step 2 write the rooms and their sizes in metres as you
+  assume them, and wait: the person knows the house, you do not.
+- Then `floor_plan`, with the walls, the doors, the windows and one area per
+  room. The answer has `background`, to put in `sfondo_immagine` of the page,
+  and in page pixels the box and the `center` of each room, and each window
+  with its `room` and a point `inside` it. Never guess a pixel: read it there.
+- Place the objects from those positions: the name of the room at `center`, a
+  light near it, a shutter or a window contact at `inside` of its window, the
+  temperature in a free corner of the room.
+- Bind to the variables that exist (`elenca_tag`): a house usually has them
+  already, from Home Assistant. New variables only for what is missing,
+  without a source.
+- The library has the symbols of a house (`cerca_simboli`, famiglia
+  `building`). Its roller shutter does not show the position: draw one
+  (`bozza_simbolo`) with the glass as a `level` part over the slats, so the
+  level is how open it is, and bind it with `fill_level_tag` and
+  `fill_level_scale`.
+
+# A symbol drawn as free SVG
+
+A symbol is a description (`schema_simbolo`, `bozza_simbolo` with
+`descrizione`): it takes the style of the project, the state colour and the
+live parts, like a library symbol. That is the way, almost always.
+
+When the description cannot draw the machine — a shape its forms and
+materials do not give — `bozza_simbolo` also takes an SVG, with `slug`, `it`,
+`en`, `svg`, `view_box` and `ports` instead of `descrizione`. The symbol is
+then `custom:<slug>`:
+
+- it is a fixed drawing: no live parts, no state colour, no style of the
+  project. If the machine has something that moves, turns or fills, draw it
+  with a description instead;
+- `ports` says where the pipes attach, as for a library symbol: a pipe uses
+  them in `from_port`/`to_port`. Put each port on the edge of the drawing,
+  where its stub ends, with the axis on a multiple of 10;
+- no text in the drawing, and the look of the library: orthogonal view from
+  the front, light from the top left, outline `#1c2329`;
+- say in the plan of step 2 which machines you will draw this way, and why.
+
 # Regole che non si negoziano
 
 - **Una proposta contiene gli oggetti INTERI, non le differenze.** Una pagina

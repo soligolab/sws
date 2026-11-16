@@ -94,7 +94,7 @@ export function StileSimboliTab() {
             return (
               <div key={campo} style={{ marginBottom: 6 }}>
                 <label style={S.label} htmlFor={`stile-${campo}`}>{t(chiave)}</label>
-                {colore(bozza[campo], r && "hex" in r ? r.hex : "#808080", (v) => metti({ [campo]: v }), `stile-${campo}`)}
+                {colore(bozza[campo], r && "hex" in r ? r.hex : "#808080" /* fixed-colour */, (v) => metti({ [campo]: v }), `stile-${campo}`)}
               </div>
             );
           })}
@@ -124,7 +124,7 @@ export function StileSimboliTab() {
 
         <div>
           <div style={S.sectionTitle}>{t("stileTab.anteprima")}</div>
-          <div style={{ ...S.card, display: "flex", flexWrap: "wrap", gap: 10, justifyContent: "center", background: "#d0d6dc", padding: 12 }}>
+          <div style={{ ...S.card, display: "flex", flexWrap: "wrap", gap: 10, justifyContent: "center", background: "#d0d6dc" /* fixed-colour */, padding: 12 }}>
             {manifesto && ANTEPRIMA.map((id) => {
               const sim = manifesto.symbols.find((s) => s.id === id);
               const svg = sim ? svgLibCaricato(sim) : undefined;

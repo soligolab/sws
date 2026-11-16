@@ -22,6 +22,7 @@
  *  loro. Qui ci sono solo misure, e i componenti che le applicano.
  */
 import React, { useCallback, useState } from "react";
+import { Icona } from "@/components/Icona";
 
 /** Spaziature. Quattro valori, non un continuo: la scala serve a togliere le
  *  decisioni, non a spostarle da `padding: 5px` a `SPAZIO.cinque`. */
@@ -252,7 +253,7 @@ export function IntestazioneSezione({
       >
         {aperta ? "▼" : "▶"}
       </span>
-      {icona && <span aria-hidden="true" style={{ flexShrink: 0 }}>{icona}</span>}
+      {icona && <span aria-hidden="true" style={{ flexShrink: 0 }}>{typeof icona === "string" ? <Icona emoji={icona} /> : icona}</span>}
       <span style={{ flex: 1, textTransform: "uppercase", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
         {titolo}
         {contatore !== undefined && (

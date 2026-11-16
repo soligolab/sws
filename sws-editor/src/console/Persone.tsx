@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, type Azienda, type UtenteInstallazione } from "@/api/client";
 import { conferma } from "@/finestraAvviso/finestraAvviso";
+import { Icona } from "@/components/Icona";
 import {
   avviso, campo, elencoEDettaglio, errore as stileErrore,
   pulsante, riga, rigaElenco, scheda, titoletto,
@@ -197,7 +198,7 @@ export function Persone() {
                 {t(`console.ruolo.${u.ruolo}`)}
               </span>
               <span title={t("console.persone.piattaforma")}>
-                {u.amministratore_piattaforma ? "★" : ""}
+                {u.amministratore_piattaforma && <Icona emoji="★" />}
               </span>
             </div>
           ))}

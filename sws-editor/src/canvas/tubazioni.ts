@@ -8,7 +8,7 @@
 
 import type { PortaLib } from "@/symbols/lib/manifest";
 import type { PipePoint, SynopticObject } from "@/types";
-import { trovaSimboloLib } from "@/symbols/lib/libreria";
+import { customSymbolPorts, trovaSimboloLib } from "@/symbols/lib/libreria";
 
 export interface Punto { x: number; y: number }
 
@@ -170,9 +170,11 @@ function riquadroDi(o: SynopticObject): Riquadro {
   };
 }
 
-/** Le bocche di un oggetto: solo i simboli di libreria (anche per alias) ne hanno. */
+/** Le bocche di un oggetto: i simboli di libreria (anche per alias), quelli
+ *  del progetto, and the custom symbols drawn as free SVG with ports (G3). */
 export function bocchePer(o: SynopticObject): { viewBox: [number, number]; porte: PortaLib[] } | undefined {
   if (o.type !== "symbol" || !o.symbol_id) return undefined;
+  if (o.symbol_id.startsWith("custom:")) return customSymbolPorts(o.symbol_id);
   const sim = trovaSimboloLib(o.symbol_id);
   return sim?.ports?.length ? { viewBox: sim.viewBox, porte: sim.ports } : undefined;
 }

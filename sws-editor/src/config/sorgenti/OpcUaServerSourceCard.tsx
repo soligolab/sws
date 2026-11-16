@@ -46,7 +46,7 @@ export function OpcUaServerSourceCard({
           capo che possa non rispondere. */}
       <TestataSorgente
         tipo="OPC-UA SERVER"
-        colore="#8b5cf6"
+        colore="var(--sws-select-text, #8b5cf6)"
         id={source.id}
         riepilogo={`:${source.port} · ${t("sorgenti.nNodi", { count: source.nodes.length })}`}
         aperta={open}

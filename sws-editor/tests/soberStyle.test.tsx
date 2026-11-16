@@ -1,4 +1,4 @@
-/** The sober IDE style (14-11-2026, plan docs/plans/2026-11-14-stile-sobrio.md):
+/** The sober IDE style (14-11-2026, plan docs/archive/2026-11-14-stile-sobrio.md):
  *  three colours per variant, chosen by the person, and colour only where
  *  something matters. */
 import { render, screen, fireEvent, act, cleanup } from "@testing-library/react";
@@ -6,9 +6,11 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import "../src/i18n";
 import { useAppStore } from "../src/store";
 import {
-  DEFAULT_SOBER, applyAppearance, getStoredSoberColors, getStoredStyle, soberContrasts, soberTheme,
-  type SoberColors,
+  DEFAULT_SOBER, IDE_TOKENS, applyAppearance, getStoredSoberColors, getStoredStyle, soberContrasts, soberTheme,
+  soberTokens, type SoberColors,
 } from "../src/theme";
+import { GROUP_COLORS } from "../src/editor/iconeAttivita";
+import { PALETTE_GROUPS } from "../src/editor/LeftPanel";
 import { IdePreferencesTab } from "../src/config/schede/IdePreferencesTab";
 
 function lum(h: string): number {
@@ -78,6 +80,24 @@ describe("the sober palette", () => {
   });
 });
 
+describe("the IDE tokens (colours once written by hand)", () => {
+  for (const variant of ["dark", "light"] as const) {
+    it(`${variant}: texts read on their backgrounds, the selection stays near the background`, () => {
+      const t = soberTheme(DEFAULT_SOBER[variant], variant);
+      const k = soberTokens(t, variant);
+      const n = t.neutrals;
+      expect(cr(k["select-text"], n.bg)).toBeGreaterThanOrEqual(4.5);
+      expect(cr(k["select-text"], k["select-bg"])).toBeGreaterThanOrEqual(3);
+      expect(cr(k["on-accent"], k.accent)).toBeGreaterThanOrEqual(3);
+      expect(cr(k["danger-text"], k["danger-bg"])).toBeGreaterThanOrEqual(4.5);
+      expect(cr(k["warning-text"], k["warning-bg"])).toBeGreaterThanOrEqual(4.5);
+      expect(cr(k.text, k.sunken)).toBeGreaterThanOrEqual(7);
+      expect(cr(k.muted, k.surface)).toBeGreaterThanOrEqual(4.5);
+      expect(cr(k["select-bg"], n.bg)).toBeLessThan(1.6);
+    });
+  }
+});
+
 describe("applying the style", () => {
   it("sober writes the three colours, the active accent and grey groups; colourful takes them back", () => {
     act(() => { useAppStore.getState().setIdeStyle("sober"); });
@@ -92,14 +112,32 @@ describe("applying the style", () => {
     expect(css("--sws-att-tag")).toBe(DEFAULT_SOBER.dark.icons);
     expect(css("--sws-att-allarmi")).toBe(DEFAULT_SOBER.dark.icons);
     expect(css("--sws-icone")).toBe(DEFAULT_SOBER.dark.icons);
-    expect(css("--sws-gruppo")).toBe(css("--brand-text-muted"));
+    expect(css("--sws-gruppo-allarmi")).toBe(css("--brand-text-muted"));
+    expect(css("--sws-gruppo-forme")).toBe(css("--brand-text-muted"));
+    // The colours once written by hand follow the three colours too.
+    for (const name of IDE_TOKENS) expect(css(`--sws-${name}`), name).not.toBe("");
+    expect(css("--sws-accent")).toBe(DEFAULT_SOBER.dark.accent);
+    expect(css("--sws-text")).toBe(DEFAULT_SOBER.dark.ink);
 
     act(() => { useAppStore.getState().setIdeStyle("colorful"); });
     expect(document.documentElement.getAttribute("data-stile")).toBe("colorful");
     expect(css("--sws-att-attiva")).toBe("");
-    expect(css("--sws-gruppo")).toBe("");
     expect(css("--sws-icone")).toBe("");
+    // Colourful: the group headers get their colours back, and the IDE tokens
+    // are unset, so every use falls back to the colour it always had.
+    expect(css("--sws-gruppo-allarmi")).toBe(GROUP_COLORS.allarmi[0]);
+    for (const name of IDE_TOKENS) expect(css(`--sws-${name}`), name).toBe("");
     expect(css("--sws-att-tag")).not.toBe(css("--sws-att-allarmi"));
+  });
+});
+
+describe("the groups of Tools", () => {
+  it("every group has its two colours, the ones the theme writes", () => {
+    // A group without an entry would have a header with no colour at all.
+    expect(PALETTE_GROUPS.map((g) => g.category).sort()).toEqual(Object.keys(GROUP_COLORS).sort());
+    useAppStore.setState({ themeMode: "light" });
+    act(() => { useAppStore.getState().setIdeStyle("colorful"); });
+    for (const g of PALETTE_GROUPS) expect(css(`--sws-gruppo-${g.category}`), g.category).toBe(GROUP_COLORS[g.category][1]);
   });
 });
 

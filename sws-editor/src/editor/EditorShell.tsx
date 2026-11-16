@@ -78,6 +78,7 @@ import { aggiornaPagina, applicaATutte, applicaPredefinito, cambiaOrientamento, 
 import { dalTag, descrizioniDeiTag } from "@/tag/forma";
 import { patchSovrascrittura, seguePredefinito, SPUNTATA_DI_PARTENZA, type GenerePagina } from "@/formatoProgetto";
 import { impostaBootAbilitata } from "@/boot/abilitata";
+import { Icona } from "@/components/Icona";
 import { CampoCornice } from "@/cornici/CampoCornice";
 import { AnteprimaPng } from "@/boot/AnteprimaPng";
 import { PermessoTagNota } from "@/editor/PermessoTagNota";
@@ -289,7 +290,7 @@ function TesseraSimbolo({ tile, sel, onChange }: { tile: GalleryTile; sel: boole
       title={tile.label}
       onClick={() => onChange(tile.id)}
       style={{
-        background: sel ? "#1e3a5f" : "var(--brand-bg, #0f172a)",
+        background: sel ? "var(--sws-select-bg, #1e3a5f)" : "var(--brand-bg, #0f172a)",
         border: `2px solid ${sel ? "var(--brand-warning-soft, #facc15)" : "var(--brand-surface-2, #334155)"}`,
         borderRadius: 4,
         cursor: "pointer",
@@ -368,7 +369,7 @@ function SymbolPickerModal({ onPick, onCancel }: {
         </div>
         <div style={{ padding: "8px 14px", borderTop: "1px solid var(--brand-surface, #1e293b)", display: "flex", justifyContent: "flex-end", gap: 8 }}>
           <button onClick={onCancel} style={{ padding: "4px 14px", fontSize: 12, background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", color: "var(--brand-text-muted, #94a3b8)", borderRadius: 4, cursor: "pointer" }}>{t("common.cancel")}</button>
-          <button onClick={() => onPick(selected)} style={{ padding: "4px 14px", fontSize: 12, background: "#1e3a5f", border: "1px solid var(--brand-primary, #3b82f6)", color: "#93c5fd", borderRadius: 4, cursor: "pointer" }}>{t("symbol.insert")}</button>
+          <button onClick={() => onPick(selected)} style={{ padding: "4px 14px", fontSize: 12, background: "var(--sws-select-bg, #1e3a5f)", border: "1px solid var(--brand-primary, #3b82f6)", color: "var(--sws-select-text, #93c5fd)", borderRadius: 4, cursor: "pointer" }}>{t("symbol.insert")}</button>
         </div>
       </div>
     </div>
@@ -589,13 +590,13 @@ function FormatoPredefinitoProgetto() {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginTop: 6 }}>
         <div style={{ minWidth: 0 }}>
           <div style={LABEL}>{t("props.backgroundLight")}</div>
-          <CampoColore valore={layout?.default_background || undefined} regola={{ hex: "#0f172a" }} sfondo="#0f172a"
+          <CampoColore valore={layout?.default_background || undefined} regola={{ hex: "#0f172a" }} sfondo={"#0f172a" /* fixed-colour */}
             onChange={(v) => { void scrivi({ default_background: v || undefined }); }} />
         </div>
         <div style={{ minWidth: 0 }}>
           <div style={LABEL}>{t("props.backgroundDark")}</div>
           <CampoColore valore={layout?.default_background_dark || undefined}
-            regola={{ hex: layout?.default_background || "#0f172a" }} sfondo="#0f172a"
+            regola={{ hex: layout?.default_background || "#0f172a" }} sfondo={"#0f172a" /* fixed-colour */}
             onChange={(v) => { void scrivi({ default_background_dark: v || undefined }); }} />
         </div>
       </div>
@@ -1394,7 +1395,7 @@ export function EditorShell() {
                   />
                   <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
                     {t("shell.coloreSfondo")}
-                    <SelettoreColore value={estraiHex(entry.bg_color) ?? "#1e293b"}
+                    <SelettoreColore value={estraiHex(entry.bg_color) ?? "#1e293b" /* fixed-colour */}
                       onColore={(e) => updateSub({ bg_color: e })}
                       style={{ width: 28, height: 22, border: "1px solid var(--brand-surface-2, #334155)", background: "transparent", cursor: "pointer" }} />
                     {entry.bg_color && (
@@ -1406,7 +1407,7 @@ export function EditorShell() {
                   </label>
                   <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
                     {t("shell.coloreBordo")}
-                    <SelettoreColore value={estraiHex(entry.border_color) ?? "#64748b"}
+                    <SelettoreColore value={estraiHex(entry.border_color) ?? "#64748b" /* fixed-colour */}
                       onColore={(e) => updateSub({ border_color: e })}
                       style={{ width: 28, height: 22, border: "1px solid var(--brand-surface-2, #334155)", background: "transparent", cursor: "pointer" }} />
                     {entry.border_color && (
@@ -1703,10 +1704,10 @@ function ZOrderBar({
   };
   return (
     <div style={{ display: "flex", gap: 3, marginBottom: 6 }}>
-      <button style={btnStyle} title={t("props.bringToFront")} onClick={() => onReorder(id, "front")}>⬆⬆</button>
+      <button style={btnStyle} title={t("props.bringToFront")} onClick={() => onReorder(id, "front")}><Icona emoji="⬆⬆" nome="to-front" /></button>
       <button style={btnStyle} title={t("props.forward")} onClick={() => onReorder(id, "forward")}>↑</button>
       <button style={btnStyle} title={t("props.backward")} onClick={() => onReorder(id, "backward")}>↓</button>
-      <button style={btnStyle} title={t("props.sendToBack")} onClick={() => onReorder(id, "back")}>⬇⬇</button>
+      <button style={btnStyle} title={t("props.sendToBack")} onClick={() => onReorder(id, "back")}><Icona emoji="⬇⬇" nome="to-back" /></button>
     </div>
   );
 }
@@ -2167,7 +2168,7 @@ export function PannelloDestro({
                     return (
                       <div key={g.id} data-testid={`ramo-proprieta-${g.id}`} data-branch={(i + 1) * 100} style={{ order: (i + 1) * 100, marginTop: i ? SPAZIO.s : 0 }}>
                         <IntestazioneSezione
-                          titolo={g.id === "funzione" ? t(`editor.palette.item.${tipo}`) : t(g.chiave)} icona={g.icona}
+                          titolo={g.id === "funzione" ? t(`editor.palette.item.${tipo}`) : t(g.chiave)} icona={<Icona emoji={g.icona} nome={g.id} />}
                           aperta={ramiAperti.has(g.id)} onToggle={() => commutaRamo(g.id)} rilievo
                           azione={
                             <button
@@ -2178,7 +2179,7 @@ export function PannelloDestro({
                               aria-pressed={appuntato}
                               style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: 10, padding: 0,
                                        opacity: appuntato ? 1 : 0.35, filter: appuntato ? "none" : "grayscale(1)" }}
-                            >📌</button>
+                            ><Icona emoji="📌" /></button>
                           }
                         />
                       </div>
@@ -2427,14 +2428,19 @@ const ACT_BTN: React.CSSProperties = {
   padding: "4px 10px", borderRadius: 4, cursor: "pointer", fontSize: 11,
 };
 
-function CellRangeMergeActions({ onMerge, onCancel }: {
+export function CellRangeMergeActions({ onMerge, onCancel }: {
   onMerge: () => void;
   onCancel: () => void;
 }) {
   const { t } = useTranslation();
   return (
     <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
-      <button onClick={onMerge} style={{ ...ACT_BTN, background: "#0f766e", borderColor: "#14b8a6" }}>
+      {/* On the accent the text is the one computed for it; the colourful
+          style keeps the text of `ACT_BTN` (the fallback). */}
+      <button onClick={onMerge} style={{
+        ...ACT_BTN, background: "var(--sws-accent, #0f766e)", borderColor: "var(--sws-select-border, #14b8a6)",
+        color: "var(--sws-on-accent, var(--brand-text, #e2e8f0))",
+      }}>
         {t("shell.unisciCelle")}
       </button>
       <button onClick={onCancel} style={ACT_BTN}>
@@ -2462,7 +2468,7 @@ function SubCellAddChild({ onAdd }: { onAdd: (type: string) => void }) {
         </select>
         <button
           onClick={() => onAdd(type)}
-          style={{ background: "#1d4ed8", border: "1px solid var(--brand-primary-hover, #2563eb)", color: "#bfdbfe", borderRadius: 4, cursor: "pointer", fontSize: 12, padding: "2px 10px", flexShrink: 0 }}
+          style={{ background: "var(--sws-accent, #1d4ed8)", border: "1px solid var(--brand-primary-hover, #2563eb)", color: "var(--sws-on-accent, #bfdbfe)", borderRadius: 4, cursor: "pointer", fontSize: 12, padding: "2px 10px", flexShrink: 0 }}
         >
           {t("shell.add")}
         </button>
@@ -2565,7 +2571,7 @@ export function PageProps({
     <>
       {/* Fuori dai rami: in testa a qualunque voce sia aperta, perché vale per tutte. */}
       {locked && (
-        <div style={{ fontSize: 11, color: "var(--brand-warning, #f59e0b)", background: "#451a0322", border: "1px solid #92400e", borderRadius: 4, padding: "4px 8px", marginBottom: 8 }}>
+        <div style={{ fontSize: 11, color: "var(--brand-warning, #f59e0b)", background: "var(--sws-warning-bg, #451a0322)", border: "1px solid var(--sws-warning-border, #92400e)", borderRadius: 4, padding: "4px 8px", marginBottom: 8 }}>
           {t("shell.pageLockedReadOnlyUnlock")}
         </div>
       )}
@@ -2692,8 +2698,8 @@ export function PageProps({
            già esistenti, e senza questa riga il progettista lo scoprirebbe
            aprendo il viewer. Un solo avviso per pagina, col numero: nessun
            rilievo per-oggetto (vedi Q39). */
-        <p style={{ fontSize: 11, color: "var(--brand-warning, #f59e0b)", background: "#451a0322",
-                    border: "1px solid #92400e", borderRadius: 4, padding: "4px 8px", margin: "6px 0 0" }}>
+        <p style={{ fontSize: 11, color: "var(--brand-warning, #f59e0b)", background: "var(--sws-warning-bg, #451a0322)",
+                    border: "1px solid var(--sws-warning-border, #92400e)", borderRadius: 4, padding: "4px 8px", margin: "6px 0 0" }}>
           {t("shell.offPage", { count: offPageCount })}
         </p>
       )}
@@ -3155,10 +3161,10 @@ function MultiSelectionProps({
       <div style={{ height: 1, background: "var(--brand-surface-2, #334155)", margin: "8px 0" }} />
 
       <div style={{ display: "flex", gap: 4 }}>
-        <button style={{ ...btn, background: "#1e3a8a", color: "#bfdbfe" }} onClick={onDuplicate}>
+        <button style={{ ...btn, background: "var(--sws-select-bg, #1e3a8a)", color: "var(--sws-select-text, #bfdbfe)" }} onClick={onDuplicate}>
           {t("leftPanel.duplica")}
         </button>
-        <button style={{ ...btn, background: "var(--brand-danger-bg, #7f1d1d)", color: "var(--brand-danger-soft, #fca5a5)", borderColor: "#991b1b" }} onClick={onDelete}>
+        <button style={{ ...btn, background: "var(--brand-danger-bg, #7f1d1d)", color: "var(--brand-danger-soft, #fca5a5)", borderColor: "var(--sws-danger-border, #991b1b)" }} onClick={onDelete}>
           {t("shell.delete")}
         </button>
       </div>
@@ -3252,7 +3258,7 @@ function StileOggettoLib({ obj, onChange }: { obj: SynopticObject; onChange: (pa
       <div style={LABEL}>{etichetta}</div>
       {/* Lo stesso controllo dei colori «da progetto» dello stato: vuoto = il
           colore che viene dallo stile del progetto o dal disegno, ↺ per tornarci. */}
-      <CampoColore valore={obj[campo]} regola={undefined} sfondo="#0f172a" daProgetto={predef}
+      <CampoColore valore={obj[campo]} regola={undefined} sfondo={"#0f172a" /* fixed-colour */} daProgetto={predef}
         onChange={(v) => onChange({ [campo]: v } as Partial<SynopticObject>)} />
     </div>
   );
@@ -3263,7 +3269,7 @@ function StileOggettoLib({ obj, onChange }: { obj: SynopticObject; onChange: (pa
         onTesto={(e) => onChange({ [campo]: e.trim() === "" ? undefined : Number(e) } as Partial<SynopticObject>)} />
     </div>
   );
-  const materiale = (m: string) => progetto?.materials?.[m] ?? manifesto.materials[m] ?? "#808080";
+  const materiale = (m: string) => progetto?.materials?.[m] ?? manifesto.materials[m] ?? "#808080" /* fixed-colour */;
   return (
     <>
       <SottoTitolo chiave="stileOggetto" />
@@ -3352,7 +3358,7 @@ function CrossTypeProps({
   const colorInput = (k: keyof SynopticObject) => (
     <CampoColore
       valore={mergedProps[k]}
-      regola={{ hex: predefinito("*", k) ?? "#808080" }}
+      regola={{ hex: predefinito("*", k) ?? "#808080" /* fixed-colour */ }}
       sfondo={sfondoPagina}
       mixed={isMixed(k)}
       onChange={(v) => onChange({ [k]: v } as Partial<SynopticObject>)}
@@ -3781,7 +3787,7 @@ export function ObjectProps({
               }} />
             <input style={{ ...INPUT, flex: 1 }} placeholder={t("props.labelPh")} value={e.label}
               onChange={(ev) => { const next = [...(obj.text_list_entries ?? [])]; next[i] = { ...e, label: ev.target.value }; onChange({ text_list_entries: next }); }} />
-            <SelettoreColore value={estraiHex(e.color) ?? estraiHex(coloreAuto("testo", sfondoPagina)) ?? "#e2e8f0"} title={t("props.colorText")}
+            <SelettoreColore value={estraiHex(e.color) ?? estraiHex(coloreAuto("testo", sfondoPagina)) ?? "#e2e8f0" /* fixed-colour */} title={t("props.colorText")}
               onColore={(ev) => { const next = [...(obj.text_list_entries ?? [])]; next[i] = { ...e, color: ev }; onChange({ text_list_entries: next }); }}
               style={{ width: 28, height: 24, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3, cursor: "pointer" }} />
             <button style={{ ...INPUT, width: "auto", padding: "0 6px", cursor: "pointer" }}
@@ -4284,7 +4290,7 @@ export function ObjectProps({
             style={{
               ...INPUT,
               cursor: "pointer",
-              borderColor: targetMissing ? "#dc2626" : (INPUT.border ? undefined : "var(--brand-surface-2, #334155)"),
+              borderColor: targetMissing ? "var(--sws-danger-border, #dc2626)" : (INPUT.border ? undefined : "var(--brand-surface-2, #334155)"),
             }}
             value={obj.target_page ?? ""}
             onChange={(e) => onChange({ target_page: e.target.value || undefined })}
@@ -4385,7 +4391,7 @@ export function ObjectProps({
                 onChange({ gauge_zones: zs });
               }} />
             <SelettoreColore style={{ ...INPUT, padding: 2, height: 26, width: 38, cursor: "pointer", flex: "none" }}
-              value={estraiHex(z.color) ?? "#22c55e"}
+              value={estraiHex(z.color) ?? "#22c55e" /* fixed-colour */}
               onColore={(e) => {
                 const zs = [...(obj.gauge_zones ?? [])];
                 zs[i] = { ...zs[i], color: e };
@@ -4405,7 +4411,7 @@ export function ObjectProps({
             const zs = [...(obj.gauge_zones ?? [])];
             const lo = obj.min ?? 0; const hi = obj.max ?? 100;
             const from = zs.length > 0 ? zs[zs.length - 1].to : lo;
-            zs.push({ from, to: hi, color: "#22c55e" });
+            zs.push({ from, to: hi, color: "#22c55e" /* fixed-colour */ });
             onChange({ gauge_zones: zs });
           }}
           style={{ ...INPUT, cursor: "pointer", marginBottom: 4 }}>+ {t("props.addZone")}</button>
@@ -5142,8 +5148,8 @@ export function ObjectProps({
             </BindableInput>
             <button
               style={{
-                flexShrink: 0, background: "#1e3a5f", border: "1px solid #1e40af",
-                borderRadius: 4, color: "#93c5fd", cursor: "pointer",
+                flexShrink: 0, background: "var(--sws-select-bg, #1e3a5f)", border: "1px solid var(--sws-select-border, #1e40af)",
+                borderRadius: 4, color: "var(--sws-select-text, #93c5fd)", cursor: "pointer",
                 padding: "0 8px", fontSize: 12,
               }}
               onClick={() => setImgBrowserOpen(true)}
@@ -5735,7 +5741,7 @@ export function ObjectProps({
                   onTesto={(ev) => upd({ value_min: ev === "" ? undefined : Number(ev) })} />
                 <CampoNumero style={{ ...INPUT, width: 44 }} placeholder="max" value={e.value_max ?? ""}
                   onTesto={(ev) => upd({ value_max: ev === "" ? undefined : Number(ev) })} />
-                <SelettoreColore value={estraiHex(e.color) ?? "#22c55e"}
+                <SelettoreColore value={estraiHex(e.color) ?? "#22c55e" /* fixed-colour */}
                   onColore={(ev) => upd({ color: ev })}
                   style={{ width: 26, height: 22, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }} />
                 <button style={{ background: "transparent", border: "none", color: "var(--brand-danger, #ef4444)", cursor: "pointer" }}
@@ -5753,7 +5759,7 @@ export function ObjectProps({
           );
         })}
         <button style={{ ...INPUT, width: "100%", cursor: "pointer", marginBottom: 4 }}
-          onClick={() => onChange({ symbol_states: [...(obj.symbol_states ?? []), { value: "", label: "", color: "#22c55e" }] })}>
+          onClick={() => onChange({ symbol_states: [...(obj.symbol_states ?? []), { value: "", label: "", color: "#22c55e" /* fixed-colour */ }] })}>
           + {t("props.addState")}
         </button>
         {/* F6.10: rotazione continua — su un simbolo di libreria solo se ha un rotore */}
@@ -5824,7 +5830,7 @@ export function ObjectProps({
                       <SceltaIstanza valore={val} tipo={p.type_ref} onChange={setVal} style={style} />
                     ) : p.type === "color" ? (
                       <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                        <SelettoreColore value={estraiHex(val) ?? estraiHex(p.default) ?? "#3b82f6"}
+                        <SelettoreColore value={estraiHex(val) ?? estraiHex(p.default) ?? "#3b82f6" /* fixed-colour */}
                           onColore={(e) => setVal(e)}
                           style={{ width: 40, height: 26, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }} />
                         <input type="text" style={{ ...style, flex: 1 }} placeholder={p.default ?? ""} value={val}
@@ -6109,7 +6115,7 @@ export function ObjectProps({
           <button type="button" data-testid="elimina-oggetto" onClick={onDelete}
             title={t("props.deleteObject")} aria-label={t("props.deleteObject")}
             style={{ border: "none", background: "transparent", cursor: "pointer", padding: "0 2px", marginBottom: 2,
-                     fontSize: 13, color: "var(--brand-text-subtle, #94a3b8)" }}>🗑</button>
+                     fontSize: 13, color: "var(--brand-text-subtle, #94a3b8)" }}><Icona emoji="🗑" /></button>
         </div>
         <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #64748b)", margin: "0 0 6px", display: "flex", gap: 6 }}>
           <span style={{ background: "var(--brand-surface, #1e293b)", padding: "1px 6px", borderRadius: 3, color: "var(--brand-text-muted, #94a3b8)", fontWeight: 600 }}>
@@ -6387,7 +6393,7 @@ export function ObjectProps({
                         marginLeft: "auto", cursor: "pointer", borderRadius: 4, fontSize: 12,
                         padding: "1px 8px", border: "1px solid",
                         borderColor: capturing ? "var(--brand-warning, #f59e0b)" : "var(--brand-surface-2, #334155)",
-                        background: capturing ? "#3f2d10" : "var(--brand-bg, #0f172a)",
+                        background: capturing ? "var(--sws-warning-bg, #3f2d10)" : "var(--brand-bg, #0f172a)",
                         color: capturing ? "var(--brand-warning-soft, #fbbf24)" : "var(--brand-text-muted, #94a3b8)",
                       }}
                     >＋ {capturing ? t("props.motionCapturing") : t("props.motionCaptureBtn")}</button>
@@ -7063,7 +7069,7 @@ function GridCellEditor({
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
           <SelettoreColore
             style={{ ...INPUT, padding: 2, height: 28, width: 44, cursor: "pointer", flex: "none" }}
-            value={estraiHex(cell.bg_color) ?? "#1e293b"}
+            value={estraiHex(cell.bg_color) ?? "#1e293b" /* fixed-colour */}
             onColore={(e) => onChange({ bg_color: e })}
           />
           <input
@@ -7090,7 +7096,7 @@ function GridCellEditor({
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
           <SelettoreColore
             style={{ ...INPUT, padding: 2, height: 28, width: 44, cursor: "pointer", flex: "none" }}
-            value={estraiHex(cell.border_color) ?? "#64748b"}
+            value={estraiHex(cell.border_color) ?? "#64748b" /* fixed-colour */}
             onColore={(e) => onChange({ border_color: e })}
           />
           <input
@@ -7151,9 +7157,9 @@ function GridCellEditor({
         <>
           <div style={{
             display: "flex", alignItems: "center", gap: 6, marginBottom: 8,
-            padding: "4px 8px", background: "var(--brand-bg, #0f172a)", border: "1px solid #1e3a5f", borderRadius: 4,
+            padding: "4px 8px", background: "var(--brand-bg, #0f172a)", border: "1px solid var(--sws-select-border, #1e3a5f)", borderRadius: 4,
           }}>
-            <span style={{ flex: 1, fontSize: 11, color: "#93c5fd" }}>
+            <span style={{ flex: 1, fontSize: 11, color: "var(--sws-select-text, #93c5fd)" }}>
               {cell.child.type}{cell.child.name ? ` — ${cell.child.name}` : ""}
             </span>
           </div>
@@ -7175,7 +7181,7 @@ function GridCellEditor({
             <button
               title={t("props.removeChild")}
               onClick={() => onChange({ child: undefined })}
-              style={{ background: "var(--brand-danger-bg, #7f1d1d)", border: "1px solid #991b1b", color: "var(--brand-danger-soft, #fca5a5)", borderRadius: 4, cursor: "pointer", fontSize: 11, padding: "2px 8px" }}
+              style={{ background: "var(--brand-danger-bg, #7f1d1d)", border: "1px solid var(--sws-danger-border, #991b1b)", color: "var(--brand-danger-soft, #fca5a5)", borderRadius: 4, cursor: "pointer", fontSize: 11, padding: "2px 8px" }}
             >
               {t("shell.remove")}
             </button>
@@ -7193,7 +7199,7 @@ function GridCellEditor({
             </select>
             <button
               onClick={() => onChange({ child: makeDefaultChild(newChildType) })}
-              style={{ background: "#1d4ed8", border: "1px solid var(--brand-primary-hover, #2563eb)", color: "#bfdbfe", borderRadius: 4, cursor: "pointer", fontSize: 12, padding: "2px 10px", flexShrink: 0 }}
+              style={{ background: "var(--sws-accent, #1d4ed8)", border: "1px solid var(--brand-primary-hover, #2563eb)", color: "var(--sws-on-accent, #bfdbfe)", borderRadius: 4, cursor: "pointer", fontSize: 12, padding: "2px 10px", flexShrink: 0 }}
             >
               {t("shell.add")}
             </button>

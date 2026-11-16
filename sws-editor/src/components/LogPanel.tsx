@@ -8,7 +8,7 @@ const LEVELS: LogLevel[] = ["TRACE", "DEBUG", "INFO", "WARN", "ERROR"];
 
 const LEVEL_COLOR: Record<LogLevel, string> = {
   TRACE: "var(--brand-text-subtle, #64748b)",
-  DEBUG: "#0ea5e9",
+  DEBUG: "var(--sws-select-text, #0ea5e9)",
   INFO:  "var(--brand-success, #22c55e)",
   WARN:  "var(--brand-warning, #f59e0b)",
   ERROR: "var(--brand-danger, #ef4444)",
@@ -225,7 +225,7 @@ export function LogPanel({ open, onClose, variant = "drawer", vaiA = null }: Log
           </>
         )}
         {isHistMode && (
-          <button onClick={switchToLive} style={btn("#0f766e")}>
+          <button onClick={switchToLive} style={btn("var(--sws-select-bg, #0f766e)")}>
             ← Live
           </button>
         )}
@@ -235,7 +235,7 @@ export function LogPanel({ open, onClose, variant = "drawer", vaiA = null }: Log
 
         {!isHistMode && (
           <>
-            <button onClick={() => setPaused((p) => !p)} style={btn(paused ? "#7e22ce" : "var(--brand-surface-2, #334155)")}>
+            <button onClick={() => setPaused((p) => !p)} style={btn(paused ? "var(--sws-select-bg, #7e22ce)" : "var(--brand-surface-2, #334155)")}>
               {paused ? t("logPanel.riprendi") : t("logPanel.pausa")}
             </button>
             <button onClick={clearLogs} style={btn("var(--brand-surface-2, #334155)")}>
@@ -371,7 +371,7 @@ function highlight(text: string, search: string): React.ReactNode {
   while ((m = re.exec(text)) !== null) {
     if (m.index > last) parts.push(text.slice(last, m.index));
     parts.push(
-      <mark key={parts.length} style={{ background: "#fde047", color: "#0f172a", padding: "0 1px" }}>
+      <mark key={parts.length} style={{ background: "#fde047", color: "#0f172a" /* fixed-colour */, padding: "0 1px" }}>
         {m[0]}
       </mark>,
     );

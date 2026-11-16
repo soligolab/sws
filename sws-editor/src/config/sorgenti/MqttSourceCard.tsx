@@ -109,7 +109,7 @@ export function MqttSourceCard({
     <div style={S.card}>
       <TestataSorgente
         tipo="MQTT"
-        colore="#a855f7"
+        colore="var(--sws-select-text, #a855f7)"
         id={source.id}
         riepilogo={`${source.host}:${source.port} · ${source.topics.length} topic`}
         aperta={open}

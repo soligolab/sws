@@ -71,6 +71,9 @@ pub struct Richiesta {
     /// quelle con lo stesso slug): le bozze dell'assistente, che si devono
     /// vedere prima di essere proposte.
     pub simboli: Vec<serde_json::Value>,
+    /// Custom symbols to write in `custom_symbols` of the copy (in place of
+    /// the ones with the same id): the drafts the assistant drew as free SVG.
+    pub custom_symbols: Vec<serde_json::Value>,
     /// Pagine intere da scrivere nella copia, al posto di quelle con lo stesso
     /// nome: una pagina che l'assistente sta componendo.
     pub pagine: Vec<serde_json::Value>,
@@ -179,7 +182,7 @@ pub async fn scatta(r: Richiesta) -> Result<Scatto, String> {
             })?;
         }
     }
-    ritocca(&copia, &r.simboli, &r.pagine).await?;
+    ritocca(&copia, &r.simboli, &r.custom_symbols, &r.pagine).await?;
 
     let porta = porta_libera()?;
     abbina_banco(&tmp.path().join("config"))?;
@@ -467,9 +470,10 @@ async fn copia_progetto(da: &Path, a: &Path) -> Result<(), String> {
 async fn ritocca(
     copia: &Path,
     simboli: &[serde_json::Value],
+    custom_symbols: &[serde_json::Value],
     pagine: &[serde_json::Value],
 ) -> Result<(), String> {
-    if !simboli.is_empty() {
+    if !simboli.is_empty() || !custom_symbols.is_empty() {
         let yaml = copia.join("project.yaml");
         let testo = tokio::fs::read_to_string(&yaml)
             .await
@@ -479,23 +483,35 @@ async fn ritocca(
         let mappa = v
             .as_mapping_mut()
             .ok_or("project.yaml della copia non è una mappa")?;
-        let chiave = serde_yaml::Value::from("simboli");
-        let mut elenco: Vec<serde_yaml::Value> = mappa
-            .get(&chiave)
-            .and_then(|x| x.as_sequence().cloned())
-            .unwrap_or_default();
-        for s in simboli {
-            let nuovo: serde_yaml::Value = serde_yaml::to_value(s).map_err(|e| e.to_string())?;
-            let slug = s.get("slug").and_then(|x| x.as_str()).unwrap_or("");
-            match elenco
-                .iter()
-                .position(|x| x.get("slug").and_then(|y| y.as_str()) == Some(slug))
-            {
-                Some(i) => elenco[i] = nuovo,
-                None => elenco.push(nuovo),
+        // The same merge for the two lists: a draft takes the place of the
+        // entry with its key (`slug` for a description, `id` for a custom
+        // symbol), or is added.
+        for (list, key, drafts) in [
+            ("simboli", "slug", simboli),
+            ("custom_symbols", "id", custom_symbols),
+        ] {
+            if drafts.is_empty() {
+                continue;
             }
+            let chiave = serde_yaml::Value::from(list);
+            let mut elenco: Vec<serde_yaml::Value> = mappa
+                .get(&chiave)
+                .and_then(|x| x.as_sequence().cloned())
+                .unwrap_or_default();
+            for s in drafts {
+                let nuovo: serde_yaml::Value =
+                    serde_yaml::to_value(s).map_err(|e| e.to_string())?;
+                let name = s.get(key).and_then(|x| x.as_str()).unwrap_or("");
+                match elenco
+                    .iter()
+                    .position(|x| x.get(key).and_then(|y| y.as_str()) == Some(name))
+                {
+                    Some(i) => elenco[i] = nuovo,
+                    None => elenco.push(nuovo),
+                }
+            }
+            mappa.insert(chiave, serde_yaml::Value::Sequence(elenco));
         }
-        mappa.insert(chiave, serde_yaml::Value::Sequence(elenco));
         let testo = serde_yaml::to_string(&v).map_err(|e| e.to_string())?;
         tokio::fs::write(&yaml, testo)
             .await
@@ -733,6 +749,7 @@ mod tests {
             tocca: None,
             ms: Some(600),
             simboli: vec![],
+            custom_symbols: vec![],
             pagine: vec![],
             www: None,
             immagini: vec![],
@@ -798,6 +815,7 @@ mod tests {
             tocca: None,
             ms: Some(800),
             simboli: vec![gabbia],
+            custom_symbols: vec![],
             pagine: vec![pagina],
             www: Some(www),
             immagini: vec![],
@@ -825,6 +843,84 @@ mod tests {
             "la pompa di libreria non c'è"
         );
         assert!(pieni(250, 40, 220, 180) > 3000, "la bozza prj: non c'è");
+    }
+
+    /// A draft drawn as free SVG (G3) on the panel: the custom symbol is
+    /// drawn, and a pipe ends on the port it declares — not on the centre of
+    /// its box, which is where an unknown port falls.
+    #[tokio::test]
+    #[ignore = "avvia sws-runtime e sws-lvgl-viewer veri: ./scripts/check_istantanea.sh"]
+    async fn a_pipe_reaches_the_port_of_a_free_svg_draft() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path();
+        std::fs::write(
+            p.join("project.yaml"),
+            "meta:\n  name: free-svg\n  version: \"1\"\ntags: []\nsources: []\n",
+        )
+        .unwrap();
+        // A cyclone of 80×120: inlet on the left at y 20, outlet at the bottom.
+        let cyclone = serde_json::json!({
+            "id": "cyclone", "label": "Cyclone", "url": "",
+            "attribution": { "author": "SWS assistant", "source": "bozza_simbolo", "license": "" },
+            "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 80 120\">\
+                    <path d=\"M12 10 H68 V60 L46 110 H34 L12 60 Z\" fill=\"#475569\"/>\
+                    <rect x=\"0\" y=\"15\" width=\"12\" height=\"10\" fill=\"#475569\"/></svg>",
+            "view_box": [80, 120],
+            "ports": [{ "id": "n-left", "x": 0, "y": 20, "side": "left", "d": 10 }],
+        });
+        // The pump has its outlet at the top, at (70, 150); the inlet of the
+        // cyclone is at (300, 80). The pipe goes up to y 80 and then right.
+        let pagina = serde_json::json!({ "id": "pv", "name": "Prova", "width": 480, "height": 272,
+            "background": "#ffffff", "objects": [
+                { "id": "p", "type": "symbol", "symbol_id": "lib:process/centrifugal-pump", "x": 20, "y": 150, "width": 80, "height": 80 },
+                { "id": "c", "type": "symbol", "symbol_id": "custom:cyclone", "x": 300, "y": 60, "width": 80, "height": 120 },
+                { "id": "t", "type": "pipe", "x": 0, "y": 0, "routing": "orthogonal", "stroke": "#0f172a", "stroke_width": 6,
+                  "from_obj_id": "p", "from_port": "n-top", "to_obj_id": "c", "to_port": "n-left" } ] });
+        let www = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../sws-editor/dist");
+        let scatto = scatta(Richiesta {
+            avanzamento: None,
+            faceplates: vec![],
+            progetto: p.to_path_buf(),
+            pagina: Some("Prova".into()),
+            tocca: None,
+            ms: Some(800),
+            simboli: vec![],
+            custom_symbols: vec![cyclone],
+            pagine: vec![pagina],
+            www: Some(www),
+            immagini: vec![],
+        })
+        .await
+        .expect("the snapshot must succeed");
+        let dec = png::Decoder::new(std::io::Cursor::new(&scatto.png));
+        let mut reader = dec.read_info().unwrap();
+        let mut buf = vec![0; reader.output_buffer_size()];
+        let info = reader.next_frame(&mut buf).unwrap();
+        let px = &buf[..info.buffer_size()];
+        let drawn = |x0: usize, y0: usize, w: usize, h: usize| {
+            (y0..y0 + h)
+                .flat_map(|y| (x0..x0 + w).map(move |x| (x, y)))
+                .filter(|(x, y)| {
+                    let i = (y * 480 + x) * 3;
+                    px[i] < 200 || px[i + 1] < 200 || px[i + 2] < 200
+                })
+                .count()
+        };
+        assert!(
+            drawn(300, 60, 80, 120) > 2000,
+            "the custom symbol is not drawn"
+        );
+        // The horizontal run of the pipe, at the height of the port…
+        assert!(
+            drawn(120, 76, 150, 8) > 500,
+            "no pipe at y 80: it did not go to the port of the cyclone"
+        );
+        // …and nothing at the height of the centre of the box (y 120).
+        assert_eq!(
+            drawn(120, 112, 150, 16),
+            0,
+            "a pipe at y 120: it went to the centre of the box, the port was not found"
+        );
     }
 
     /// **Il test che protegge l'impianto.** Il progetto del banco di prova non
@@ -1049,6 +1145,7 @@ mod tests_lago {
                 tocca: None,
                 ms: Some(1500),
                 simboli: vec![],
+                custom_symbols: vec![],
                 pagine: vec![p],
                 www: Some(radice.join("sws-editor/dist")),
                 immagini: vec![],
@@ -1103,6 +1200,7 @@ mod tests_template {
                 tocca: None,
                 ms: Some(1500),
                 simboli: vec![],
+                custom_symbols: vec![],
                 pagine: vec![],
                 www: Some(radice.join("sws-editor/dist")),
                 immagini: vec![],

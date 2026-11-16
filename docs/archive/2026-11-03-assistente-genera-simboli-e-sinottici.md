@@ -1,6 +1,6 @@
 # L'assistente disegna i simboli del progetto e compone il sinottico intero
 
-> **Chiuso e archiviato il 10-11-2026**: F0–F4 fatte (2.25.0), F5 misurata a mano il 04-11; F6, F7, il secondo protocollo e le immagini passano al piano [l'assistente, secondo giro](../plans/2026-11-10-assistente-secondo-giro.md); i collaudi in `docs/COLLAUDI_IN_SOSPESO.md`.
+> **Chiuso e archiviato il 10-11-2026**: F0–F4 fatte (2.25.0), F5 misurata a mano il 04-11; F6, F7, il secondo protocollo e le immagini passano al piano [l'assistente, secondo giro](2026-11-10-assistente-secondo-giro.md); i collaudi in `docs/COLLAUDI_IN_SOSPESO.md`.
 >
 > **Stato: piano d'esecuzione — in corso** sul ramo `feat/assistente-sinottici`, dal 03-11-2026. Nato come seme lo stesso
 > giorno («va migliorato l'assistente IA per poter generare oggetti grafici svg per adattarsi al progetto al di là della

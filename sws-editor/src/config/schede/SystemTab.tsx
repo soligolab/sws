@@ -7,6 +7,7 @@ import { S } from "@/config/comuni";
 import { prefissoGateway } from "@/api/prefisso";
 import { etichettaDispositivo } from "@/ws/remoteLogStream";
 import { conferma } from "@/finestraAvviso/finestraAvviso";
+import { Icona } from "@/components/Icona";
 
 // ── SYSTEM tab ───────────────────────────────────────────────────────────────
 
@@ -22,7 +23,7 @@ function ProgressBar({ value, max, color }: { value: number; max: number; color:
 function MetricCard({ icon, label, value }: { icon: string; label: string; value: string }) {
   return (
     <div style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 6, padding: "10px 14px" }}>
-      <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginBottom: 4 }}>{icon} {label}</div>
+      <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginBottom: 4 }}><Icona emoji={icon} /> {label}</div>
       <div style={{ fontSize: 15, fontWeight: 700, color: "var(--brand-text, #e2e8f0)" }}>{value}</div>
     </div>
   );
@@ -71,7 +72,7 @@ export function SystemTab() {
 
   if (error) {
     return (
-      <div style={{ color: "var(--brand-danger-soft, #fca5a5)", background: "#450a0a", border: "1px solid #991b1b", borderRadius: 6, padding: "12px 16px", fontSize: 13 }}>
+      <div style={{ color: "var(--brand-danger-soft, #fca5a5)", background: "var(--sws-danger-bg, #450a0a)", border: "1px solid var(--sws-danger-border, #991b1b)", borderRadius: 6, padding: "12px 16px", fontSize: 13 }}>
         {t("cfgUi.erroreStatoSistema", { errore: error })}
       </div>
     );
@@ -121,24 +122,24 @@ export function SystemTab() {
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <div style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 6, padding: "10px 14px" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-              <span style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>⚙ CPU</span>
+              <span style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}><Icona emoji="⚙" nome="cpu" /> CPU</span>
               <span style={{ fontSize: 13, fontWeight: 700, color: "var(--brand-text, #e2e8f0)" }}>{status.cpu_usage_pct.toFixed(1)}%</span>
             </div>
-            <ProgressBar value={status.cpu_usage_pct} max={100} color="#60a5fa" />
+            <ProgressBar value={status.cpu_usage_pct} max={100} color="var(--sws-accent, #60a5fa)" />
           </div>
           <div style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 6, padding: "10px 14px" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-              <span style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>💾 RAM</span>
+              <span style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}><Icona emoji="💾" /> RAM</span>
               <span style={{ fontSize: 13, fontWeight: 700, color: "var(--brand-text, #e2e8f0)" }}>{status.mem_used_mb} MB / {status.mem_total_mb} MB</span>
             </div>
-            <ProgressBar value={status.mem_used_mb} max={status.mem_total_mb} color="#34d399" />
+            <ProgressBar value={status.mem_used_mb} max={status.mem_total_mb} color="var(--sws-accent, #34d399)" />
           </div>
           <div style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 6, padding: "10px 14px" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-              <span style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>💿 {t("cfgUi.disco")}</span>
+              <span style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}><Icona emoji="💿" /> {t("cfgUi.disco")}</span>
               <span style={{ fontSize: 13, fontWeight: 700, color: "var(--brand-text, #e2e8f0)" }}>{status.disk_used_gb} GB / {status.disk_total_gb} GB</span>
             </div>
-            <ProgressBar value={status.disk_used_gb} max={status.disk_total_gb} color="#fb923c" />
+            <ProgressBar value={status.disk_used_gb} max={status.disk_total_gb} color="var(--sws-accent, #fb923c)" />
           </div>
         </div>
       </div>
@@ -194,8 +195,8 @@ function AuditSection() {
       {verify && (
         <div style={{
           marginBottom: 10, fontSize: 12, borderRadius: 6, padding: "8px 12px",
-          background: verify.ok ? "var(--brand-success-bg, #166534)" : "#450a0a",
-          border: `1px solid ${verify.ok ? "#15803d" : "#991b1b"}`,
+          background: verify.ok ? "var(--brand-success-bg, #166534)" : "var(--sws-danger-bg, #450a0a)",
+          border: `1px solid ${verify.ok ? "var(--sws-success-border, #15803d)" : "var(--sws-danger-border, #991b1b)"}`,
           color: verify.ok ? "var(--brand-success-soft, #4ade80)" : "var(--brand-danger-soft, #fca5a5)",
         }}>
           {verify.ok
@@ -248,7 +249,7 @@ function VaiACertificati() {
   if (authRole !== "Admin") return null;
   return (
     <div style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)" }}>
-      🔏 {t("certificati.daStato")}{" "}
+      <Icona emoji="🔏" /> {t("certificati.daStato")}{" "}
       <button type="button" onClick={() => navigateToConfig("certificati")}
         style={{ background: "none", border: "none", padding: 0, color: "var(--brand-primary-testo, #3b82f6)", cursor: "pointer", fontSize: 12 }}>
         {t("certificati.apri")}
@@ -385,7 +386,7 @@ export function TlsSection({ remoto }: {
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
           <span style={{
             display: "inline-block", width: 8, height: 8, borderRadius: "50%",
-            background: tlsEnabled ? "#34d399" : "var(--brand-text-subtle, #64748b)",
+            background: tlsEnabled ? "var(--sws-success-border, #34d399)" : "var(--brand-text-subtle, #64748b)",
           }} />
           <span style={{ fontSize: 13, color: "var(--brand-text, #e2e8f0)" }}>
             {tlsEnabled ? t("cfgUi.tlsHttpsAttivo") : t("cfgUi.plainHttpNoCertificate")}
@@ -473,7 +474,7 @@ export function TlsSection({ remoto }: {
           </div>
         )}
         {msg && (
-          <div style={{ marginTop: 10, fontSize: 12, color: msg.startsWith(t("cfgUi.error")) ? "var(--brand-danger-soft, #fca5a5)" : "#34d399" }}>
+          <div style={{ marginTop: 10, fontSize: 12, color: msg.startsWith(t("cfgUi.error")) ? "var(--brand-danger-soft, #fca5a5)" : "var(--sws-success-text, #34d399)" }}>
             {msg}
           </div>
         )}

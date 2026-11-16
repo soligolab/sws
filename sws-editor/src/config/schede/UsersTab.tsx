@@ -162,7 +162,7 @@ export function UsersTab() {
         </p>
 
         {error && (
-          <div style={{ color: "var(--brand-danger-soft, #fca5a5)", background: "#7f1d1d33", padding: "8px 10px", borderRadius: 4, marginBottom: 12, fontSize: 13 }}>
+          <div style={{ color: "var(--brand-danger-soft, #fca5a5)", background: "var(--sws-danger-bg, #7f1d1d33)", padding: "8px 10px", borderRadius: 4, marginBottom: 12, fontSize: 13 }}>
             {error}
           </div>
         )}

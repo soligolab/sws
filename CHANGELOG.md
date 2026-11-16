@@ -12,6 +12,64 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Aggiunto
+- **IDE: lo stile sobrio, sessioni 2 e 3** (piano `docs/archive/2026-11-14-stile-sobrio.md`). I colori scritti a mano
+  nei file dell'IDE (circa 190) passano da diciannove variabili `--sws-…` che il tema scrive solo nello stile sobrio:
+  il colorato resta identico, il sobrio li ricava dai suoi colori. La guardia `check_colori_ide.sh` (in
+  `check_static.sh`) tiene fuori i colori esadecimali nuovi, con l'elenco delle esclusioni e il motivo di ognuna; non
+  scambia più per commento un `/*` dentro una stringa, e a ogni avvio prova sé stessa. Quattro bottoni pieni nel
+  sobrio («Unisci celle», «Abbina» spento, i due «in corso» del cambio password e del primo amministratore) hanno il
+  testo giusto per il loro fondo: prima il contrasto era fra 1,3 e 2,5.
+- **IDE: nello stile sobrio le emoji diventano icone a linea.** Il componente `<Icona>` disegna l'emoji nel colorato e
+  l'icona del registro `ICONE_IDE` nel sobrio (88 icone: 70 da Tabler Icons 3.31.0, MIT, e 18 già nostre), e ricade
+  sull'emoji se l'icona manca. Albero di Configurazione, colonna di sinistra, menu, barra degli strumenti, pannello
+  delle proprietà e schede: 157 emoji su 161 scritte nel codice. Quelle dentro i file di lingua restano. Cambiando
+  stile, le altre schede e le finestre staccate (chat, log) seguono anche con le icone, non solo coi colori.
+- **Mistral, un fornitore di IA europeo.** L'assistente, il disegno dei simboli e la traduzione possono usare Mistral
+  (Francia): chiave in `mistral.key`, in `MISTRAL_API_KEY`, nella scheda IA o in «Le mie chiavi IA»; modello
+  predefinito `mistral-large-latest`, con i prezzi nel tetto di spesa (gli altri modelli Mistral al prezzo della loro
+  famiglia, come stima). Parla un secondo protocollo, in stile OpenAI
+  «chat completions», tradotto al confine in `sws-web/src/ai/chat_completions.rs`: il resto dell'assistente non cambia,
+  e lo stesso codice apre OpenAI come testo. Provato solo con risposte finte: la conversazione vera è una voce di
+  `docs/COLLAUDI_IN_SOSPESO.md`. Fase G4 del piano `docs/archive/2026-11-10-assistente-secondo-giro.md`; il seme del
+  fornitore europeo è in archivio.
+- **Assistente IA: gli sfondi anche con FLUX.2, e la storia della spesa.** Black Forest Labs è il secondo fornitore di
+  immagini (`bfl`, chiave in `bfl.key`, nel progetto o nell'account): lo scopo Sfondi sceglie fra OpenAI e FLUX.2, e
+  il costo che BFL dichiara entra nel tetto, anche quando la richiesta è partita e la foto poi non arriva. La chiave
+  di BFL va solo a indirizzi `*.bfl.ai`, anche dopo un redirect. In Configurazione → IA c'è la scheda **Spesa**: quanto
+  è costata l'IA a questa installazione, mese per mese, per scopo e per fornitore (`config_dir/ai-spending.json`,
+  `GET /api/ai/spending`). Ci entrano i giri dell'assistente, i simboli, la traduzione «IA» e gli sfondi; un file della
+  spesa rovinato viene messo da parte, non riscritto. Provato con
+  risposte finte: la prova vera è in `COLLAUDI_IN_SOSPESO.md`. Fase G5 di
+  `docs/archive/2026-11-10-assistente-secondo-giro.md`.
+- **L'assistente disegna la casa sulla sua pianta** (G2 del piano `2026-11-10-assistente-secondo-giro.md`). Lo
+  strumento `floor_plan` riceve una planimetria in metri (muri, porte, finestre, stanze), la disegna in piano come
+  sfondo della pagina (`images/ai-floor-plan-<id>.svg` in `sfondo_immagine`: porte con l'arco, finestre, niente testo)
+  e dice dove sono stanze, finestre e porte in pixel di pagina. La proposta porta la planimetria in `planimetrie/` e il
+  disegno in `images/`, scritti al Salva; la chat mostra la bozza e il diff le due voci. Nuovo `sws-web/src/floor_plan.rs`.
+- **Il banco della casa**: progetto di prova `tests/fixtures/ai-bench/house/` con 15 variabili in stile Home
+  Assistant, copione finto con una tapparella `prj:` che mostra l'apertura (parte `level`), test Rust
+  `ai/bench_house.rs`, e2e `chat-house.spec.ts` e `scripts/bench_house.sh [--real]`.
+- **L'assistente disegna un simbolo come SVG libero, con le bocche** (G3 dello stesso piano). `bozza_simbolo` accetta
+  un SVG con `view_box` e `ports` per quello che una descrizione non sa disegnare: diventa un simbolo `custom:` a cui i
+  tubi si agganciano come a uno di libreria, su web e LVGL. `CustomSymbol` ha i due campi facoltativi `view_box` e
+  `ports`; `project.yaml` resta compatibile. Il controllo è in `sws-core/src/free_symbol.rs` (dimensioni, elementi
+  ammessi, riferimenti, bocche); lo leggono `bocchePer`, `ancora_di` e il validatore.
+- **Revisione di G2 e G3 prima della chiusura del ramo.** `floor_plan` non sostituisce più una planimetria che il
+  progetto ha già: rifiuta l'id preso, `leggi_progetto` elenca le planimetrie e il diff segna con `~` quella che
+  rimpiazza un file. Il controllo dell'SVG libero riconosce `URL(` in ogni scrittura e rifiuta quello che un lettore
+  XML rigoroso rifiuta. Per le bocche di un simbolo custom scritto a mano validatore e `PUT` hanno la stessa regola
+  (solo ciò che non si può piazzare): un disegno 64×64 con le bocche non blocca più il Salva. `valida` dice quando
+  ignora un `custom_symbols` cambiato, e un `custom:` che mancava già sul disco non conta come errore nuovo.
+
+- **Le mie chiavi IA, complete.** La finestra del menu 👤 ha tutti i fornitori del menù IA (anche OpenAI per gli sfondi),
+  «Prova la chiave» con la chiave dell'account (`POST /api/identity/ai-keys/:provider/test`) e un menù «Modello
+  preferito» con i modelli del fornitore in ordine alfabetico (`PUT …/:provider/model`, tabella `ai_models`
+  nell'identità). Il modello di uno scopo è quello del progetto, poi quello dell'account, poi il predefinito; gli
+  sfondi usano la chiave OpenAI dell'account se il progetto non ne ha. Negli Scopi del progetto il modello è un menù a
+  tendina (`ModelSelect`), riempito da «Prova la chiave» del progetto o dell'account. Il gateway dà al container il
+  modello sempre e la chiave solo se il progetto non ne ha una (`?key=0`). Piano
+  `docs/archive/2026-11-16-chiavi-ia-account-complete.md`.
+
 - **Pannello di controllo: eliminare solo il progetto e restare nel cloud.** Accanto a «Eliminare progetto e
   abbinamento», un pannello abbinato al cloud ha «Eliminare solo il progetto, restando nel cloud»: vanno progetto,
   storico e utenti, resta `abbinamento.json`. Il pannello riparte abbinato e senza utenti, e il primo deploy dall'IDE
@@ -148,6 +206,9 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   Fornitori e chiavi una riga dice quale chiave usa il progetto. HOWTO 32.
 
 ### Cambiato
+- **Assistente IA: il costo di Kimi segue il listino.** `kimi-k3.1-pro` si contava ai prezzi di Opus 5 (5 $ e 25 $ per
+  milione di token): ora 2 $ e 10 $, dal listino di Moonshot letto il 16-11-2026, e scrivere la cache costa quanto
+  l'ingresso. Con i prezzi di prima il tetto di una conversazione scattava quando la spesa vera era al 40 % del tetto.
 - **Tiny TY: `tyx_panelcontrol` di Pixsys resta, e avvia SWS.** La nuova immagine da SD ha in Avvio un «Programma
   esterno»: è `/opt/sws/bin/sws-start`, che avvia runtime e viewer e poi ferma `tyx_panelcontrol`. All'accensione il
   setup Pixsys resta disponibile, poi comanda SWS (UPS, cicalino, luce, USB). `install.sh` non toglie più il programma
@@ -156,6 +217,9 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   Le istruzioni del pacchetto usano `scp -O` e `/var/tmp` (SFTP spento, `/tmp` di 32 MB).
 
 ### Corretto
+- **Un simbolo custom con un poligono non veniva salvato.** Il controllo sul markup (`svg_ostile`) leggeva
+  `<polygon points=` come un gestore di eventi `onpoints` e rifiutava il simbolo. Ora cerca il gestore solo dove può
+  cominciare un attributo.
 - **Pannello di controllo LVGL: «Collegati» del Wi-Fi risponde al primo tocco, e si vede che sta lavorando.** I tasti
   Annulla e Fatto delle tastiere agivano al rilascio, e un dito che si muove di un pixel trasformava il tocco in un
   trascinamento: «Collegati» andava premuto decine di volte (TY570, 16-11-2026). Ora agiscono alla pressione, come gli
@@ -215,7 +279,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   pannello e non si toccava. Collegarsi a una rete Wi-Fi aspetta l'esito: una password rifiutata lo dice e torna
   subito com'era, invece di chiedere una conferma per una rete mai collegata. La sezione Wi-Fi mostra gli indirizzi
   della rete collegata.
-- **IDE: lo stile sobrio, prima sessione** (piano `docs/plans/2026-11-14-stile-sobrio.md`). In Configurazione → IDE
+- **IDE: lo stile sobrio, prima sessione** (piano `docs/archive/2026-11-14-stile-sobrio.md`). In Configurazione → IDE
   la scelta «Colorato / Sobrio», della persona e di questo browser. Il sobrio è fatto di tre colori per tema, scelti coi
   selettori (sfondo, inchiostro, accento e un colore unico per le linee di tutte le icone; predefiniti grafite, grigio
   caldo, blu acciaio), con il contrasto accanto e

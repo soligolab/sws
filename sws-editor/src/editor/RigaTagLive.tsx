@@ -21,6 +21,7 @@
 import { useTranslation } from "react-i18next";
 import type { CategoriaUso, TagUse } from "@/search/tagUsage";
 import type { TagDef, TagState } from "@/types";
+import { Icona } from "@/components/Icona";
 
 /** L'ordine in cui compaiono i gruppi: prima dove si guarda più spesso. */
 const ORDINE: readonly CategoriaUso[] = ["pagina", "allarme", "espressione", "script", "funzione"];
@@ -184,7 +185,7 @@ export function RigaTagLive({ tag, valore, usi, aperta, onToggle, onApri, stileR
             <span
               aria-hidden="true"
               title={t("editor.tagUnused")}
-              style={{ display: "inline-block", width: 5, height: 5, borderRadius: "50%", background: "#f59e0b", flexShrink: 0 }}
+              style={{ display: "inline-block", width: 5, height: 5, borderRadius: "50%", background: "var(--sws-warning-border, #f59e0b)", flexShrink: 0 }}
             />
           )}
         </div>
@@ -199,7 +200,7 @@ export function RigaTagLive({ tag, valore, usi, aperta, onToggle, onApri, stileR
               aria-label={t("leftPanel.tagModifica")}
               onClick={(e) => { e.stopPropagation(); onModifica(); }}
               style={{ border: "none", background: "transparent", cursor: "pointer", padding: 0, fontSize: 11,
-                       color: "var(--brand-text-subtle, #64748b)" }}>✎</button>
+                       color: "var(--brand-text-subtle, #64748b)" }}><Icona emoji="✎" /></button>
           )}
         </div>
       </div>

@@ -10,6 +10,7 @@ import { type HaBrowseTarget, HaBrowseModal } from "@/config/sorgenti/HaBrowseMo
 import { SezioneSorgente } from "@/config/sorgenti/card/SezioneSorgente";
 import { TestataSorgente } from "@/config/sorgenti/card/TestataSorgente";
 import { DisponibilitaSezione } from "@/config/sorgenti/card/DisponibilitaSezione";
+import { Icona } from "@/components/Icona";
 
 // ── HomeAssistant card ────────────────────────────────────────────────────────
 
@@ -140,7 +141,7 @@ export function HomeAssistantSourceCard({
                         style={{ ...S.btn("ghost"), padding: "4px 7px", fontSize: 13, lineHeight: 1 }}
                         title={t("cfg.browseEntities")}
                         onClick={() => setBrowse({ rowIdx: i, field: "entity_id" })}
-                      >🔍</button>
+                      ><Icona emoji="🔍" /></button>
                     </div>
                   </td>
                   <td style={S.td}>
@@ -153,7 +154,7 @@ export function HomeAssistantSourceCard({
                         style={{ ...S.btn("ghost"), padding: "4px 7px", fontSize: 13, lineHeight: 1 }}
                         title={t("cfg.browseAttributes")}
                         onClick={() => setBrowse({ rowIdx: i, field: "attribute" })}
-                      >🔍</button>
+                      ><Icona emoji="🔍" /></button>
                     </div>
                   </td>
                   <td style={S.td}>

@@ -88,11 +88,7 @@ pub async fn get_ai_config(State(s): State<AppState>, req: axum::extract::Reques
         .get::<crate::router::AuthUser>()
         .map(|a| a.username.clone())
         .unwrap_or_default();
-    let missing: Vec<Fornitore> = [Fornitore::Anthropic, Fornitore::Kimi]
-        .into_iter()
-        .filter(|f| !client::ha_chiave(&s.config_dir, *f))
-        .collect();
-    let user_keys = crate::ai::user_keys::fetch(&s, &username, &missing).await;
+    let user_keys = crate::ai::user_keys::fetch_all(&s, &username).await;
 
     let imp = Impostazioni::carica(&s.config_dir);
     let ambiente: Vec<&str> = [
@@ -102,7 +98,9 @@ pub async fn get_ai_config(State(s): State<AppState>, req: axum::extract::Reques
         "ANTHROPIC_API_KEY",
         "MOONSHOT_API_KEY",
         "KIMI_API_KEY",
+        "MISTRAL_API_KEY",
         "OPENAI_API_KEY",
+        "BFL_API_KEY",
     ]
     .into_iter()
     .filter(|v| {
@@ -122,12 +120,16 @@ pub async fn get_ai_config(State(s): State<AppState>, req: axum::extract::Reques
                 "chiave": scopi::ha_chiave(&s.config_dir, id),
                 // Which key the project would use: `project`, `user` (the key
                 // of whoever opens this menu) or null.
-                "source": Fornitore::da_nome(id).and_then(|f| {
-                    client::resolve_key(&s.config_dir, f, &user_keys).map(|(_, src)| src.name())
-                }),
-                "modello_default": match *id {
-                    "openai" => scopi::MODELLO_SFONDI,
-                    f => Fornitore::da_nome(f).map(|f| f.modello_default()).unwrap_or(""),
+                "source": match Fornitore::da_nome(id) {
+                    Some(f) => client::resolve_key(&s.config_dir, f, &user_keys).map(|(_, src)| src.name()),
+                    None if scopi::ha_chiave(&s.config_dir, id) => Some("project"),
+                    None => user_keys.key_of(id).map(|_| "user"),
+                },
+                // The model the user prefers in their account, if any.
+                "modello_account": user_keys.model_of(id),
+                "modello_default": match scopi::ImageProvider::from_name(id) {
+                    Some(p) => p.default_model(),
+                    None => Fornitore::da_nome(id).map(|f| f.modello_default()).unwrap_or(""),
                 },
             })
         })
@@ -136,17 +138,17 @@ pub async fn get_ai_config(State(s): State<AppState>, req: axum::extract::Reques
     let mut per_scopo = serde_json::Map::new();
     for sc in Scopo::TUTTI {
         let (attivo, fornitore, modello, tetto) = if sc.immagini() {
-            match scopi::carica_sfondi(&s.config_dir) {
+            match scopi::carica_sfondi_con(&s.config_dir, &user_keys) {
                 Some(x) => (
                     true,
-                    Some("openai".to_string()),
+                    Some(x.fornitore.name().to_string()),
                     Some(x.modello),
                     Some(x.tetto_usd),
                 ),
                 None => (false, None, None, None),
             }
         } else {
-            match scopi::carica_per(&s.config_dir, sc) {
+            match scopi::carica_per_con(&s.config_dir, sc, &user_keys) {
                 Some(x) => (
                     true,
                     Some(x.fornitore.nome().to_string()),
@@ -330,16 +332,112 @@ pub async fn delete_chiave(
 
 /// `POST /api/ai/chiavi/prova` — Admin, solo IDE. «Prova la chiave»: l'elenco
 /// dei modelli del fornitore, che non costa niente.
-pub async fn prova_chiave(State(s): State<AppState>, Json(body): Json<ChiaveBody>) -> Response {
+pub async fn prova_chiave(
+    State(s): State<AppState>,
+    Extension(user): Extension<crate::router::AuthUser>,
+    Json(body): Json<ChiaveBody>,
+) -> Response {
     if let Err(r) = solo_ide(&s) {
         return r;
     }
-    match scopi::prova_chiave(&s.config_dir, &body.fornitore).await {
+    // Without a key of the project, the one of whoever asks (cloud only).
+    let user_keys = crate::ai::user_keys::fetch_all(&s, &user.username).await;
+    match scopi::prova_chiave(&s.config_dir, &body.fornitore, &user_keys).await {
         Ok(modelli) => Json(json!({ "ok": true, "modelli": modelli })).into_response(),
         Err(e) => Json(json!({ "ok": false, "errore": e })).into_response(),
     }
 }
 
+/// `GET /api/ai/spending` — Admin, IDE only, like the rest of the AI
+/// configuration. The spending history of the installation (`ai/spending.rs`):
+/// the months from the newest, each with its total and the split by purpose
+/// and by provider. The current month is always there, even at zero, so the
+/// tab has a first row to show.
+pub async fn get_spending(State(s): State<AppState>) -> Response {
+    if let Err(r) = solo_ide(&s) {
+        return r;
+    }
+    let config_dir = s.config_dir.clone();
+    let record =
+        tokio::task::spawn_blocking(move || crate::ai::spending::Record::load(&config_dir))
+            .await
+            .unwrap_or_default();
+    Json(crate::ai::spending::report(
+        &record,
+        &crate::ai::spending::current_month(),
+    ))
+    .into_response()
+}
+
 fn errore(codice: StatusCode, msg: String) -> Response {
     (codice, Json(json!({ "errore": msg }))).into_response()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    async fn body_of(r: Response) -> serde_json::Value {
+        let bytes = axum::body::to_bytes(r.into_body(), 1 << 20).await.unwrap();
+        serde_json::from_slice(&bytes).unwrap()
+    }
+
+    /// The spending history is configuration of the IDE like the keys: 404 on
+    /// a runtime that serves a plant, the months on the IDE instance.
+    #[tokio::test]
+    async fn spending_is_served_only_by_the_ide_instance() {
+        let d = tempfile::tempdir().unwrap();
+        let mut s = crate::router::stato_di_prova(d.path()).await;
+        crate::ai::spending::add(d.path(), "sfondi", "bfl", 0.045);
+        crate::ai::spending::add(d.path(), "assistente", "anthropic", 1.0);
+
+        s.ide_only = false;
+        let r = get_spending(State(s.clone())).await;
+        assert_eq!(r.status(), StatusCode::NOT_FOUND);
+
+        s.ide_only = true;
+        let r = get_spending(State(s)).await;
+        assert_eq!(r.status(), StatusCode::OK);
+        let v = body_of(r).await;
+        let now = crate::ai::spending::current_month();
+        assert_eq!(v["current_month"], now.as_str());
+        assert_eq!(v["months"][0]["month"], now.as_str());
+        assert_eq!(v["months"][0]["calls"], 2);
+        assert!((v["months"][0]["usd"].as_f64().unwrap() - 1.045).abs() < 1e-9);
+        let rows = v["months"][0]["rows"].as_array().unwrap();
+        assert!(rows
+            .iter()
+            .any(|r| r["purpose"] == "sfondi" && r["provider"] == "bfl"));
+    }
+
+    /// The AI menu lists Black Forest Labs with its key, and the backgrounds
+    /// say which provider they will really use.
+    #[tokio::test]
+    async fn the_menu_lists_bfl_and_the_backgrounds_say_their_provider() {
+        // The environment of whoever runs the tests may hold real keys.
+        if std::env::var_os("OPENAI_API_KEY").is_some() || std::env::var_os("BFL_API_KEY").is_some()
+        {
+            return;
+        }
+        let d = tempfile::tempdir().unwrap();
+        let mut s = crate::router::stato_di_prova(d.path()).await;
+        s.ide_only = true;
+        std::fs::write(d.path().join("bfl.key"), "bfl-prova-0123456789abcdef").unwrap();
+        let req = axum::extract::Request::new(axum::body::Body::empty());
+        let v = body_of(get_ai_config(State(s), req).await).await;
+        let bfl = v["fornitori"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|f| f["id"] == "bfl")
+            .expect("bfl is in the menu");
+        assert_eq!(bfl["chiave"], true);
+        assert_eq!(bfl["source"], "project");
+        assert_eq!(bfl["modello_default"], "flux-2-pro");
+        assert_eq!(bfl["scopi"], json!(["sfondi"]));
+        let eff = &v["scopi"]["sfondi"];
+        assert_eq!(eff["attivo"], true);
+        assert_eq!(eff["effettivo"]["fornitore"], "bfl");
+        assert_eq!(eff["effettivo"]["modello"], "flux-2-pro");
+    }
 }

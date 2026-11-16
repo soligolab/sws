@@ -114,8 +114,8 @@ derivino dalla violazione di queste condizioni o dall'uso illecito del servizio.
 
 Alcune funzioni usano servizi di terzi **che l'utente sceglie e configura**: Twilio (SMS e chiamate), Telegram
 (messaggi), il suo server di posta (SMTP, per le notifiche del progetto), la traduzione automatica (MyMemory,
-LibreTranslate o Google Cloud Translation), l'assistente IA (Anthropic o Moonshot/Kimi), broker MQTT, server OPC-UA e
-altri sistemi dell'utente. Alcuni richiedono le credenziali dell'utente; la traduzione con MyMemory o con l'istanza
+LibreTranslate o Google Cloud Translation), l'assistente IA (Anthropic, Moonshot/Kimi o Mistral) e le immagini che
+genera (OpenAI o Black Forest Labs), broker MQTT, server OPC-UA e altri sistemi dell'utente. Alcuni richiedono le credenziali dell'utente; la traduzione con MyMemory o con l'istanza
 pubblica di LibreTranslate no, ma anche lì i testi da tradurre escono verso quel fornitore. Il rapporto è **fra
 l'utente e il fornitore**, alle condizioni di quel fornitore; il servizio trasmette solo i dati che servono alla
 funzione scelta.

@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import { useAppStore } from "@/store";
 import { HDR_BTN } from "@/components/headerStyles";
 import { usePannelloCollegato } from "@/pannelloCollegato";
+import { Icona } from "@/components/Icona";
 
 /** Il nome del pannello collegato, in barra accanto a «Deploy» (28-10-2026).
  *
@@ -35,7 +36,7 @@ export function DispositivoCollegato() {
     ? {
         background: "var(--brand-success-bg, #14532d)",
         color: "var(--brand-success-soft, #4ade80)",
-        border: "1px solid #16a34a",
+        border: "1px solid var(--sws-success-border, #16a34a)",
       }
     : {
         background: "var(--brand-danger-bg, #450a0a)",
@@ -55,6 +56,6 @@ export function DispositivoCollegato() {
         ...colori,
         maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
       }}
-    >{autenticato ? "🖳" : "\u26a0"} {nome}</button>
+    >{autenticato ? <Icona emoji="🖳" /> : "\u26a0"} {nome}</button>
   );
 }

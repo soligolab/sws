@@ -153,7 +153,7 @@ function Riepilogo({ p, onRinominato, onConnetti, onAltro }: {
 
   return (
     <div data-testid="riepilogo-pannello" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      <div style={{ fontSize: 13, color: "#86efac" }}>✓ {t("abbinamento.cloudFatto", { nome: p.nome })}</div>
+      <div style={{ fontSize: 13, color: "var(--sws-success-text, #86efac)" }}>✓ {t("abbinamento.cloudFatto", { nome: p.nome })}</div>
       {riga(t("abbinamento.rNome"), <code>{p.nome}</code>)}
       {riga(t("abbinamento.rCollegato"), p.collegato ? t("abbinamento.si") : t("abbinamento.no"))}
       {riga(t("abbinamento.rHostname"), p.hostname)}

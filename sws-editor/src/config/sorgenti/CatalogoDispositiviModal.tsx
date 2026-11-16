@@ -15,6 +15,7 @@ import { type BusModbus, dispositiviDi, prossimoUnitId } from "@/config/sorgenti
 import { type DaCatalogo, daCatalogo, gruppiDi, idTipoDaVoce, nomeProposto, urlImmagine } from "@/config/sorgenti/daCatalogo";
 import { variabiliRiassociabili } from "@/config/sorgenti/variabiliDispositivo";
 import { CampoNumero } from "@/components/CampoNumero";
+import { Icona } from "@/components/Icona";
 
 const ETICHETTA = { fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 } as const;
 
@@ -53,9 +54,9 @@ export function voceDelModello(elenco: ElencoCatalogo | null, modello: string | 
 export function IconaCatalogo({ voce, lato = 48 }: { voce: { id: string; immagine?: string }; lato?: number }) {
   const [rotta, setRotta] = useState(false);
   const url = urlImmagine(voce);
-  const box = { width: lato, height: lato, borderRadius: 6, flexShrink: 0, background: "#fff" } as const;
+  const box = { width: lato, height: lato, borderRadius: 6, flexShrink: 0, background: "#fff" /* fixed-colour */ } as const;
   if (!url || rotta) {
-    return <span aria-hidden="true" style={{ ...box, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: lato / 2.4, background: "var(--brand-bg, #0f172a)" }}>🔌</span>;
+    return <span aria-hidden="true" style={{ ...box, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: lato / 2.4, background: "var(--brand-bg, #0f172a)" }}><Icona emoji="🔌" /></span>;
   }
   return <img src={url} alt="" style={{ ...box, objectFit: "contain" }} onError={() => setRotta(true)} />;
 }

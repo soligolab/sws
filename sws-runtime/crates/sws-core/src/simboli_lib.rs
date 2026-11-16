@@ -93,7 +93,7 @@ impl ParteLib {
 /// `docs/archive/2026-10-15-tubazioni-bocche-e-stili.md`). In unità del viewBox:
 /// `(x, y)` è la faccia esterna della flangia, `side` il lato da cui esce il
 /// tubo, `d` il diametro del tronchetto.
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, serde::Serialize)]
 pub struct PortaLib {
     pub id: String,
     pub x: f64,

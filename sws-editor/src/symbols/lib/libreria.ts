@@ -7,8 +7,8 @@
 
 import { useSyncExternalStore } from "react";
 import { applicaStile, type StileSimbolo } from "./applicaStile";
-import type { ManifestLib, SimboloLib } from "./manifest";
-import type { ParteLegata } from "@/types";
+import type { ManifestLib, PortaLib, SimboloLib } from "./manifest";
+import type { CustomSymbol, ParteLegata } from "@/types";
 import { veroSimbolo } from "@/symbols/statoSimbolo";
 import { percorsoPubblico } from "@/api/prefisso";
 
@@ -80,6 +80,55 @@ export function sovrapponiSimboli(compilati: readonly { voce: SimboloLib; svg: s
   const messi = compilati.map((c) => c.voce.id);
   for (const c of compilati) sovrapposti.set(c.voce.id, c);
   return () => { for (const id of messi) sovrapposti.delete(id); };
+}
+
+// ── the ports of the custom symbols ────────────────────────────────────────
+//
+// A custom symbol (`custom:<id>`) is an SVG the project carries, drawn as it
+// is. One drawn as free SVG with ports (plan 2026-11-10-assistente-secondo-giro,
+// G3) also says where pipes attach: `view_box` and `ports`. The pipes read
+// them here, next to the ports of the library, and are told when they change
+// the same way (`avvisa`). The store keeps this in step with its
+// `customSymbols` (`store/index.ts`).
+
+/** The size of a drawing and its ports, as `bocchePer` gives them. */
+export interface SymbolPorts { viewBox: [number, number]; porte: PortaLib[] }
+
+let customPorts = new Map<string, SymbolPorts>();
+const overlaidCustomPorts = new Map<string, SymbolPorts>();
+
+function portsOf(symbols: readonly CustomSymbol[]): Map<string, SymbolPorts> {
+  const out = new Map<string, SymbolPorts>();
+  for (const s of symbols) {
+    const [w, h] = s.view_box ?? [0, 0];
+    // Ports without the size of the drawing cannot be placed: ignored, as on
+    // the panel (`CustomSymbol::ports_with_view_box`).
+    if (s.ports?.length && w > 0 && h > 0) out.set(`custom:${s.id}`, { viewBox: [w, h], porte: s.ports });
+  }
+  return out;
+}
+
+/** The custom symbols of the project changed: their ports with them. */
+export function setCustomSymbolPorts(symbols: readonly CustomSymbol[]) {
+  const next = portsOf(symbols);
+  // Most projects have no custom symbol with ports: nothing to tell then.
+  const nothing = next.size === 0 && customPorts.size === 0;
+  customPorts = next;
+  if (!nothing) avvisa();
+}
+
+/** Ports **over** the ones of now, for the time of a photo: the free-SVG
+ *  drafts of the assistant, which the project does not have yet. Like
+ *  `sovrapponiSimboli`, it tells nobody. The returned function removes them. */
+export function overlayCustomSymbolPorts(symbols: readonly CustomSymbol[]): () => void {
+  const added = portsOf(symbols);
+  for (const [id, p] of added) overlaidCustomPorts.set(id, p);
+  return () => { for (const id of added.keys()) overlaidCustomPorts.delete(id); };
+}
+
+/** The ports of the custom symbol `symbolId` (`custom:<id>`), if it declares any. */
+export function customSymbolPorts(symbolId: string): SymbolPorts | undefined {
+  return overlaidCustomPorts.get(symbolId) ?? customPorts.get(symbolId);
 }
 
 /** Rilegge dal server i simboli del progetto (un altro progetto aperto, un

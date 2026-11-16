@@ -87,7 +87,7 @@ function DisposizioneSection() {
   );
 }
 
-/** The IDE style (14-11-2026, plan docs/plans/2026-11-14-stile-sobrio.md):
+/** The IDE style (14-11-2026, plan docs/archive/2026-11-14-stile-sobrio.md):
  *  colourful as always, or sober. With the sober one, the three colours of the
  *  variant on screen, each contrast next to them, and the way back to the
  *  defaults. */

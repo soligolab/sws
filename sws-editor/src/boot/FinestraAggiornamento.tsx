@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { api, type StatoAggiornamento, type VistaFinestra, type RichiestaFinestra } from "@/api/client";
 // `conferma` è già il nome della prop: quella della Finestra di avviso si chiama così qui.
 import { conferma as chiediConferma } from "@/finestraAvviso/finestraAvviso";
+import { Icona } from "@/components/Icona";
 
 /** La finestra dell'aggiornamento (piano 2026-09-27, Fase 2, decisioni 46-51).
  *
@@ -128,7 +129,7 @@ export function FinestraAggiornamento({ stato, conferma }: {
   return (
     <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 10 }}>
       <div style={piccolo}>
-        🕒 {t("finestra.orologio", { locale: vista.orologio.locale, scostamento: vista.orologio.scostamento, utc: vista.orologio.utc })}
+        <Icona emoji="🕒" /> {t("finestra.orologio", { locale: vista.orologio.locale, scostamento: vista.orologio.scostamento, utc: vista.orologio.utc })}
         {vista.orologio.scostamento === "+00:00" && <> — {t("finestra.pannelloInUtc")}</>}
       </div>
 

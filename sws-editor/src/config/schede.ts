@@ -47,6 +47,9 @@ export interface SchedaConfig {
   sottoRamo?: SottoRamo;
   /** Il glifo della foglia nell'albero della Configurazione. */
   icona: string;
+  /** The concept of the sober-style icon, when the emoji alone is ambiguous
+   *  (the same emoji for the notification events and for version control). */
+  iconName?: string;
   /** Una scheda che non ha un componente suo ma vive dentro un'altra: «types»
    *  sta dentro «tags», perché variabili e tipi condividono bozza, Salva e CSV
    *  (22-09-2026). Nell'albero è una foglia come le altre. */
@@ -100,7 +103,7 @@ export const SCHEDE = [
   { id: "eventi",        ramo: "progetto",  icona: "🔀", soloAdmin: false, portaBozza: true,  richiedeProgetto: false, sezione: "notifications", sottoRamo: "notifiche", ospite: "notifications" },
   { id: "stile",         ramo: "progetto",  icona: "🎨", soloAdmin: false, portaBozza: true,  richiedeProgetto: true, sezione: "symbol_style" },
   { id: "languages",     ramo: "progetto",  icona: "🌐", soloAdmin: false, portaBozza: true,  richiedeProgetto: true, sezione: "languages"  },
-  { id: "git",           ramo: "progetto",  icona: "🔀", soloAdmin: false, portaBozza: false, richiedeProgetto: false },
+  { id: "git",           ramo: "progetto",  icona: "🔀", iconName: "git", soloAdmin: false, portaBozza: false, richiedeProgetto: false },
   { id: "datastores",    ramo: "dati",      icona: "🗄", soloAdmin: true,  portaBozza: true,  richiedeProgetto: false, elementi: true, sezione: "datastores" },
   { id: "users",         ramo: "sicurezza", icona: "👤", soloAdmin: true,  portaBozza: false, richiedeProgetto: false, elementi: true },
   // La vista dei certificati (25-10-2026, decisione 3 del piano dei certificati).
@@ -121,9 +124,11 @@ export const SCHEDE = [
   // Il menù IA (04-11-2026, piano 2026-11-04-un-modello-per-ogni-scopo): la
   // chat, i fornitori con le chiavi, un modello per scopo. Le chiavi e gli scopi
   // sono dell'installazione, non del progetto.
-  { id: "ia_assistente", ramo: "ia",        icona: "💬", soloAdmin: true,  portaBozza: false, richiedeProgetto: false },
+  { id: "ia_assistente", ramo: "ia",        icona: "💬", iconName: "assistant", soloAdmin: true,  portaBozza: false, richiedeProgetto: false },
   { id: "ia_fornitori",  ramo: "ia",        icona: "🔑", soloAdmin: true,  portaBozza: false, richiedeProgetto: false },
   { id: "ia_scopi",      ramo: "ia",        icona: "🎯", soloAdmin: true,  portaBozza: false, richiedeProgetto: false },
+  // The spending history of the installation (G5, 16-11-2026).
+  { id: "ia_spending",   ramo: "ia",        icona: "💶", soloAdmin: true,  portaBozza: false, richiedeProgetto: false },
   // Le regole stanno nel progetto, non nell'installazione (decisione del maintainer).
   { id: "ia_regole",     ramo: "ia",        icona: "📜", soloAdmin: true,  portaBozza: true,  richiedeProgetto: true, sezione: "ai" },
   { id: "ide",           ramo: "ide",       icona: "🎛", soloAdmin: false, portaBozza: false, richiedeProgetto: false },

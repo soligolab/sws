@@ -13,15 +13,30 @@
 
 ## Files included in SWS
 
-All SVG files are in `sws-editor/public/images/tabler/`.
+Image catalog: all SVG files are in `sws-editor/public/images/tabler/`.
 They are served at runtime under `/images/tabler/<filename>.svg`.
 
 A curated UI subset was downloaded (outline style): arrows, alerts, status
 indicators, play/pause/stop controls, settings, lock, eye, bell, refresh, etc.
 
+## IDE icons of the sober style
+
+`sws-editor/src/editor/iconeIde.ts` (registry `ICONE_IDE`) holds the icons the
+IDE draws in place of its emoji when the person picks the sober style. They are
+copied as strings from the outline set of **Tabler Icons 3.31.0** (npm
+`@tabler/icons@3.31.0`, downloaded 2026-11-16): only the ones the IDE uses, one
+per line, each with its upstream name in a `// tabler: <name>` note. The MIT
+licence text of that release is next to the registry, in
+`sws-editor/src/editor/iconeIde.LICENSE.txt`.
+
 ## Modifications
 
-None. Files are used as-is from the upstream `icons/outline/` directory.
+Image catalog: none. Files are used as-is from the upstream `icons/outline/`
+directory.
+
+IDE icons: the content of each SVG is copied without its outer `<svg>` tag and
+without the invisible bounding path (`<path stroke="none" d="M0 0h24v24H0z"
+fill="none"/>`); the drawing itself is unchanged.
 
 ## Attribution requirement (MIT)
 

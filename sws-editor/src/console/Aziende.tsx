@@ -439,7 +439,7 @@ export function Aziende({ piattaforma = true }: { piattaforma?: boolean }) {
               {t("console.aziende.postaProvaNota")}
             </p>
             {esitoProva && (
-              <div style={{ ...avviso, color: "var(--brand-success-soft, #86efac)", background: "#14532d33" }}>{esitoProva}</div>
+              <div style={{ ...avviso, color: "var(--brand-success-soft, #86efac)", background: "var(--sws-success-bg, #14532d33)" }}>{esitoProva}</div>
             )}
 
             {!piattaforma && (

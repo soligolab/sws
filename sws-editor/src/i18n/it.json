@@ -51,13 +51,29 @@
   },
   "myAiKeys": {
     "title": "Le mie chiavi IA",
-    "help": "La chiave del tuo account per l'assistente IA. Vale sui progetti che apri e che non hanno una chiave loro: se il progetto ne ha una, usa quella. Qui si vedono solo le ultime quattro lettere.",
+    "help": "Le chiavi del tuo account per l'IA: l'assistente, i simboli, le traduzioni e gli sfondi. Valgono sui progetti che apri e che non hanno una chiave loro: se il progetto ne ha una, usa quella. Il modello preferito vale dove il progetto non ne sceglie uno. Qui si vedono solo le ultime quattro lettere.",
     "save": "Salva",
     "remove": "Togli",
     "confirmRemove": "Conferma: togli",
     "replace": "Scrivi una chiave nuova per sostituirla",
     "saved": "salvata · …{{last4}}",
-    "unreadable": "non si legge più · …{{last4}} (riscrivila)"
+    "unreadable": "non si legge più · …{{last4}} (riscrivila)",
+    "test": "Prova la chiave",
+    "testOk": "La chiave funziona: {{n}} modelli disponibili.",
+    "testKo": "La chiave non funziona: {{error}}",
+    "model": "Modello preferito"
+  },
+  "aiModel": {
+    "default": "Predefinito del fornitore",
+    "defaultNamed": "Predefinito ({{model}})",
+    "notListed": "{{model}} (non più nell'elenco)"
+  },
+  "aiProviders": {
+    "anthropic": "Anthropic (Claude)",
+    "kimi": "Moonshot (Kimi)",
+    "mistral": "Mistral AI",
+    "openai": "OpenAI (immagini)",
+    "bfl": "Black Forest Labs (FLUX, immagini)"
   },
   "header": {
     "start": "Start",
@@ -234,6 +250,7 @@
       "ia_assistente": "Assistente",
       "ia_fornitori": "Fornitori e chiavi",
       "ia_scopi": "Un modello per scopo",
+      "ia_spending": "Spesa",
       "ia_regole": "Regole del progetto",
       "impostazioni": "Impostazioni",
       "screen": "Schermo e accesso"
@@ -450,6 +467,7 @@
     "risorseSaldo": "credito",
     "risorseSpesaTitolo": "Spesa di questa conversazione e il suo tetto: raggiunto il tetto, l'assistente si ferma. Il tetto si cambia nelle preferenze dell'IDE",
     "bozzaSimbolo": "bozza di simbolo",
+    "floorPlanDraft": "bozza di planimetria",
     "istantanea": "Istantanea del pannello",
     "conversationTokens": "token della conversazione",
     "accountBalanceWithTheProvider": "saldo dell'account presso il fornitore",
@@ -2629,7 +2647,9 @@
     "funzione": "funzione `{{nome}}`",
     "scriptRighe": "script globale `{{id}}` ({{n}} righe)",
     "script": "script globale `{{id}}`",
-    "immagine": "immagine {{file}}"
+    "immagine": "immagine {{file}}",
+    "floorPlan": "planimetria «{{name}}»",
+    "customSymbol": "simbolo `custom:{{id}}`"
   },
   "errors": {
     "projectChangedWhileWorking": "il progetto è cambiato mentre lavoravi"
@@ -4728,6 +4748,21 @@
       "usaAssistente": "Come l'assistente: {{fornitore}} · {{modello}}",
       "spento": "Spento: il fornitore non ha una chiave.",
       "salvati": "Salvato. La chat usa i modelli nuovi dal prossimo messaggio."
+    },
+    "spending": {
+      "explain": "Quanto è costata l'IA a questa installazione, mese per mese: ogni chiamata a pagamento dell'assistente, del disegno dei simboli, della traduzione e degli sfondi. È un conto fatto qui, non una fattura: i modelli senza listino e le immagini di OpenAI sono stime.",
+      "refresh": "Aggiorna",
+      "currentMonth": "{{month}} (in corso)",
+      "none": "Nessuna spesa in questo mese.",
+      "purpose": "Scopo",
+      "provider": "Fornitore",
+      "calls": "Chiamate",
+      "spent": "Spesa",
+      "byProvider": "Per fornitore",
+      "monthTotal": "Totale del mese",
+      "total": "Totale di tutti i mesi: {{usd}}",
+      "kept": "Si conservano gli ultimi {{n}} mesi.",
+      "error": "La spesa non si è potuta leggere: {{error}}"
     },
     "regole": {
       "spiega": "Cosa devono sapere i modelli di questo impianto. Queste regole stanno nel progetto: viaggiano con l'export, il deploy e un template, e chi riceve il progetto le eredita. Entrano in ogni chiamata, quindi brevi.",

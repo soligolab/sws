@@ -126,7 +126,7 @@ export function MqttBrowseModal({
         </div>
 
         {error && (
-          <div style={{ ...S.notice, background: "#450a0a", borderColor: "#991b1b", color: "var(--brand-danger-soft, #fca5a5)" }}>
+          <div style={{ ...S.notice, background: "var(--sws-danger-bg, #450a0a)", borderColor: "var(--sws-danger-border, #991b1b)", color: "var(--brand-danger-soft, #fca5a5)" }}>
             Errore: {error}
           </div>
         )}
@@ -164,7 +164,7 @@ export function MqttBrowseModal({
                   {visible.map((t) => {
                     const keys = jsonKeys(t.sample_payload);
                     return (
-                      <tr key={t.topic} style={{ background: selected.has(t.topic) ? "#172554" : "transparent" }}>
+                      <tr key={t.topic} style={{ background: selected.has(t.topic) ? "var(--sws-select-bg, #172554)" : "transparent" }}>
                         <td style={S.td}>
                           <input
                             type="checkbox"

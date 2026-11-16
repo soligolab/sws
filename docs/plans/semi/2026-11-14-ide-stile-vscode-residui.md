@@ -12,7 +12,7 @@
 > [`2026-10-31-ide-stile-vscode.md`](../../archive/2026-10-31-ide-stile-vscode.md), sezione «Fuori da questo piano».
 
 La disposizione «Stile VS Code» dell'IDE è entrata il 31-10-2026 e ha lasciato fuori tre cose. Stavano nel seme
-dello stile sobrio (`docs/plans/2026-11-14-stile-sobrio.md`), che il 14-11-2026 è diventato piano senza di loro:
+dello stile sobrio (`docs/archive/2026-11-14-stile-sobrio.md`), che il 14-11-2026 è diventato piano senza di loro:
 il piano rifà i colori e le icone, non la disposizione.
 
 1. **Chat e log come voci della barra di attività.** In VS Code stanno in fondo alla barra e nel pannello in

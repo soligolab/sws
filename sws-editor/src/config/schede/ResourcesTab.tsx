@@ -4,6 +4,7 @@ import { api } from "@/api/client";
 import { applyStateColor, listSvgIds, parseSvg, sanitizeSvg } from "@/symbols/customSvg";
 import { useAppStore } from "@/store";
 import { TRANS_COMP } from "@/config/comuni";
+import { Icona } from "@/components/Icona";
 
 // ── ResourcesTab ─────────────────────────────────────────────────────────────
 
@@ -90,8 +91,8 @@ export function ResourcesTab() {
                     <button
                       onClick={() => setSvgEditId(svgEditId === s.id ? null : s.id)}
                       title={t("cfg.multiStateSvgTitle")}
-                      style={{ background: "transparent", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, color: s.svg ? "#38bdf8" : "var(--brand-text-subtle, #64748b)", cursor: "pointer", padding: "2px 8px", fontSize: 12, marginRight: 4 }}
-                    >⚙</button>
+                      style={{ background: "transparent", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, color: s.svg ? "var(--sws-select-text, #38bdf8)" : "var(--brand-text-subtle, #64748b)", cursor: "pointer", padding: "2px 8px", fontSize: 12, marginRight: 4 }}
+                    ><Icona emoji="⚙" /></button>
                     <button
                       onClick={() => remove(s.id)}
                       style={{ background: "transparent", border: "1px solid var(--brand-danger-bg, #7f1d1d)", borderRadius: 4, color: "var(--brand-danger-soft, #fca5a5)", cursor: "pointer", padding: "2px 8px", fontSize: 12 }}
@@ -117,8 +118,8 @@ export function ResourcesTab() {
           setSym({ colorable_ids: cur.size > 0 ? [...cur] : undefined });
         };
         return (
-          <section style={{ background: "var(--brand-surface, #1e293b)", border: "1px solid #38bdf8", borderRadius: 6, padding: 16 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#38bdf8", marginBottom: 8 }}>
+          <section style={{ background: "var(--brand-surface, #1e293b)", border: "1px solid var(--sws-select-border, #38bdf8)", borderRadius: 6, padding: 16 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--sws-select-text, #38bdf8)", marginBottom: 8 }}>
               {t("cfgUi.multiStato")} — {sym.label}
             </div>
             <p style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", margin: "0 0 8px" }}>
@@ -162,7 +163,7 @@ export function ResourcesTab() {
                   )}
                 </div>
                 <div style={{ display: "flex", gap: 8 }}>
-                  {(["#64748b", "#22c55e", "#ef4444"] as const).map((color, i) => {
+                  {(["#64748b", "#22c55e", "#ef4444" /* fixed-colour */] as const).map((color, i) => {
                       // Stessa sanificazione del canvas: questo pannello la saltava, e un
                       // simbolo appena incollato finiva nel DOM così com'era.
                     const { viewBox, inner } = parseSvg(sanitizeSvg(sym.svg!));

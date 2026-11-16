@@ -4,6 +4,7 @@ import { api, novitaNellaLingua, type NovitaVersione, type StatoAggiornamento } 
 import { FinestraAggiornamento } from "./FinestraAggiornamento";
 import { useAppStore } from "@/store";
 import { conferma } from "@/finestraAvviso/finestraAvviso";
+import { Icona } from "@/components/Icona";
 // Le due frasi sull'esito le scrive il runtime e le mostrano tre posti (qui,
 // il viewer web, il pannello LVGL): stanno nella tabella del testo di sistema,
 // una volta sola. Qui però la lingua è quella dell'**IDE** — questa è una
@@ -178,7 +179,7 @@ export function AggiornamentoRuntime() {
           display: "flex", gap: 8, alignItems: "center", justifyContent: "space-between",
         }}>
           <span>
-            {evento.esito === "riuscito" ? "✅ " : "⚠ "}
+            {evento.esito === "riuscito" ? <><Icona emoji="✅" color="currentColor" />{" "}</> : "⚠ "}
             {testoSistema(evento.esito === "riuscito" ? "esito_titolo_ok" : "esito_titolo_ko", i18n.language)}
             {" — "}
             {testoSistemaCon("esito_versioni", i18n.language, { da: evento.da, a: evento.a ?? "?" })}

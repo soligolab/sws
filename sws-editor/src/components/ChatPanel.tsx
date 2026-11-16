@@ -6,6 +6,7 @@ import { useAppStore } from "@/store";
 import { approvaSfondo, ascolta, chiedi, mandaFoto, nuovaConversazione, suConversazioneNuova } from "@/ws/aiStream";
 import { blobInBase64 } from "@/ai/fotoDalBrowser";
 import type { MsgIn, Riga } from "@/types/ai";
+import { Icona } from "@/components/Icona";
 
 /**
  * La chat dell'assistente di progettazione (T-50).
@@ -198,7 +199,8 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
           setRighe((r) => [...r, { tipo: "proposta", msg: m, diff: null }]);
           void editor
             .diff({ id: m.id, motivo: m.motivo, project: m.project, faceplates: m.faceplates,
-                    pages: m.pages, impronta: m.impronta, sfondi: m.sfondi })
+                    pages: m.pages, impronta: m.impronta, sfondi: m.sfondi, floor_plans: m.floor_plans,
+                    replaced_floor_plans: m.replaced_floor_plans })
             .then((diff) => {
               setRighe((r) => r.map((x) =>
                 x.tipo === "proposta" && x.msg.id === m.id ? { ...x, diff } : x));
@@ -219,6 +221,11 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
           // della vecchia, così la chat non diventa un album di prove.
           setRighe((r) => [...r.filter((x) => !(x.tipo === "simbolo" && x.slug === m.slug)),
             { tipo: "simbolo", slug: m.slug, nome: (i18n.language ?? "it").startsWith("it") ? m.it : m.en, svg: m.svg }]);
+          break;
+        case "floor_plan":
+          // Redrawn with the same id: the new drawing takes the place of the old one.
+          setRighe((r) => [...r.filter((x) => !(x.tipo === "floor_plan" && x.id === m.id)),
+            { tipo: "floor_plan", id: m.id, name: m.name, svg: m.svg }]);
           break;
         case "immagine":
           setRighe((r) => [...r, { tipo: "immagine", png: m.png, testo: m.testo }]);
@@ -290,6 +297,7 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
       pages: riga.msg.pages,
       impronta: comunque ? null : riga.msg.impronta,
       sfondi: riga.msg.sfondi,
+      floor_plans: riga.msg.floor_plans,
       faceplates: riga.msg.faceplates,
     });
     setRighe((r) => r.map((x, i) => i !== indice || x.tipo !== "proposta" ? x : {
@@ -415,6 +423,20 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
               </div>
             );
           }
+          if (r.tipo === "floor_plan") {
+            // The flat drawing of a floor plan: wide, so the image over its caption.
+            return (
+              <div key={i} data-testid="chat-floor-plan" style={{ ...CARTA_SIMBOLO, flexDirection: "column", alignItems: "stretch" }}>
+                <img src={svgComeImmagine(r.svg)} alt="" style={{ width: "100%", borderRadius: 4, background: "#e2e8f0" /* fixed-colour: the paper the drawing was made for */ }} />
+                <div>
+                  <div style={{ fontSize: 12, color: "var(--brand-text, #e2e8f0)" }}>{r.name}</div>
+                  <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #64748b)" }}>
+                    {t("chat.floorPlanDraft")} · {r.id}
+                  </div>
+                </div>
+              </div>
+            );
+          }
           if (r.tipo === "sfondo") {
             // Uno sfondo generato. Sotto una base c'è «Usa come base»: è la
             // persona che sceglie, e senza la sua scelta le varianti di luce non
@@ -441,7 +463,7 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
                   {r.base && (r.approvata
                     ? <span style={{ color: "var(--brand-success, #22c55e)" }}>✓ {t("chat.sfondoApprovato")}</span>
                     : baseInCoda === r.id
-                      ? <span data-testid={`base-in-coda-${r.id}`}>⏳ {t("chat.sfondoInCoda")}</span>
+                      ? <span data-testid={`base-in-coda-${r.id}`}><Icona emoji="⏳" /> {t("chat.sfondoInCoda")}</span>
                       : <button style={BOTTONE_PICCOLO} onClick={usa}
                                 data-testid={`usa-base-${r.id}`}>{t("chat.usaComeBase")}</button>)}
                 </div>
@@ -543,7 +565,7 @@ function Proposta({ riga, bloccato, onApplica, onApplicaComunque, onScarta }: {
       {(riga.msg.simboli?.length ?? 0) > 0 && (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
           {riga.msg.simboli!.map((s) => (
-            <div key={s.slug} title={`prj:${s.slug}`} style={{ textAlign: "center", width: 76 }}>
+            <div key={s.symbol_id ?? s.slug} title={s.symbol_id ?? `prj:${s.slug}`} style={{ textAlign: "center", width: 76 }}>
               <img src={svgComeImmagine(s.svg)} alt="" style={{ width: 72, height: 56, objectFit: "contain" }} />
               <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #64748b)", overflow: "hidden",
                             textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.it}</div>
@@ -742,7 +764,7 @@ const BTN: React.CSSProperties = {
   padding: "4px 10px", fontSize: 12, cursor: "pointer",
 };
 
-const BTN_PRIMARIO: React.CSSProperties = { ...BTN, background: "#1d4ed8", color: "#fff" };
+const BTN_PRIMARIO: React.CSSProperties = { ...BTN, background: "var(--sws-accent, #1d4ed8)", color: "var(--sws-on-accent, #fff)" };
 const BOTTONE_PICCOLO: React.CSSProperties = { ...BTN_PRIMARIO, padding: "2px 8px", fontSize: 11, marginLeft: "auto" };
 
 const BOLLA_UTENTE: React.CSSProperties = {

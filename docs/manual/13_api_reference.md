@@ -267,6 +267,7 @@ Tutto quello che legge la 7443, più:
 | GET | `/api/host/catalog`, `/api/host/seriali` | cosa offre la macchina alla sorgente Host |
 | GET | `/api/audit`, `/api/audit/verify` | l'audit log e la verifica della sua catena |
 | GET / PUT | `/api/ai/config`, `/api/traduzione/config` | assistente IA e traduzione |
+| GET | `/api/ai/spending` | la spesa dell'IA per mese, scopo e fornitore (solo istanza IDE) |
 | PUT | `/api/mqtt/source/:id/client-id-override` | il client id MQTT |
 
 ### Admin — pacchetti e deploy

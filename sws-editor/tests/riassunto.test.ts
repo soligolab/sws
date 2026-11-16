@@ -163,6 +163,43 @@ describe("i faceplate della proposta (06-11-2026)", () => {
     expect(d).toEqual([{ verso: "+", testo: "faceplate `laminatoio` (1 oggetti)" }]);
   });
 
+  // G2, 16-11-2026: who applies must know a floor plan and an image get written.
+  it("a floor plan and its drawing are entries of the diff", () => {
+    const d = riassumi(null, null, base(), [], null,
+      [{ file: "ai-floor-plan-casa.svg" }], [{ id: "casa", nome: "Casa" }]);
+    expect(d).toEqual([
+      { verso: "+", testo: "planimetria «Casa»" },
+      { verso: "+", testo: "immagine images/ai-floor-plan-casa.svg" },
+    ]);
+  });
+
+  // A plan that takes the place of a file of the project is a change: with
+  // `+` who applies would not see that Save replaces a floor plan.
+  it("a floor plan that replaces one of the project is marked as changed", () => {
+    const d = riassumi(null, null, base(), [], null, null,
+      [{ id: "casa", nome: "Casa" }, { id: "garage", nome: "Garage" }], ["casa"]);
+    expect(d).toEqual([
+      { verso: "~", testo: "planimetria «Casa»" },
+      { verso: "+", testo: "planimetria «Garage»" },
+    ]);
+  });
+
+  // G3, 16-11-2026: a symbol the assistant drew as free SVG is a custom
+  // symbol of the project. New or redrawn it is an entry; one that is missing
+  // from the proposal is not a removal (applying only adds to them).
+  it("a custom symbol of the proposal is an entry of the diff, never a removal", () => {
+    const symbol = (id: string, svg = "<svg/>") =>
+      ({ id, label: id, url: "", svg, attribution: { author: "", source: "", license: "" } });
+    const before = base({ custom_symbols: [symbol("logo"), symbol("valve")] });
+    const after = base({ custom_symbols: [symbol("logo"), symbol("valve", "<svg><rect/></svg>"), symbol("cyclone")] });
+    expect(riassumi(after, null, before, [])).toEqual([
+      { verso: "~", testo: "simbolo `custom:valve`" },
+      { verso: "+", testo: "simbolo `custom:cyclone`" },
+    ]);
+    expect(riassumi(base({ custom_symbols: [] }), null, before, [])).toEqual([]);
+    expect(riassumi(base(), null, before, [])).toEqual([]);
+  });
+
   it("uno uguale a quello dell'editor non compare, uno cambiato sì", async () => {
     const { faceplateAPagina } = await import("@/faceplate/modello");
     const pagine = [faceplateAPagina(fp)];

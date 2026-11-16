@@ -11,7 +11,7 @@ contain that library's content.
 |---------|---------|----------|-----|
 | Material Design Icons (Pictogrammers) | Apache 2.0 | `sws-editor/public/images/mdi/` | [mdi.md](mdi.md) |
 | Equinor Engineering Symbols | MIT | `sws-editor/public/images/equinor/` | [equinor.md](equinor.md) |
-| Tabler Icons | MIT | `sws-editor/public/images/tabler/` | [tabler.md](tabler.md) |
+| Tabler Icons | MIT | `sws-editor/public/images/tabler/`, `sws-editor/src/editor/iconeIde.ts` | [tabler.md](tabler.md) |
 | Electrical Symbol Library (basverdoes) | CC0 1.0 | `sws-editor/public/images/electrical/` | [electrical.md](electrical.md) |
 
 For the vendored process-engineering *symbols* used by the Symbol widget

@@ -30,6 +30,7 @@ vi.mock("@/api/client", () => ({
     updateSimboli: vi.fn(async () => {}),
     updateLanguages: vi.fn(async () => {}),
     uploadProjectImage: vi.fn(async (name: string) => ({ name, url: `/api/project/images/${name}` })),
+    salvaPlanimetria: vi.fn(async () => {}),
     compilaSimboli: vi.fn(async () => []),
     deleteSynoptic: vi.fn(async () => {}),
   },
@@ -38,7 +39,8 @@ vi.mock("@/api/client", () => ({
 }));
 
 import { api } from "@/api/client";
-import { useAppStore } from "@/store";
+import { mergeCustomSymbols, useAppStore } from "@/store";
+import { bocchePer } from "@/canvas/tubazioni";
 import { normalizzaOggetti } from "@/store/normalizzaOggetti";
 import { riassumi } from "@/ai/riassunto";
 import type { AiProposta } from "@/store";
@@ -91,6 +93,7 @@ function reset() {
     persistedPageNames: ["Indicatori"],
     pendingSections: {},
     authRole: "Admin",
+    customSymbols: [],
   });
 }
 
@@ -448,6 +451,77 @@ describe("gli script del progetto non si perdono per strada", () => {
     expect(nomi).toEqual(["ai-sfondo-aaaaaa.jpg", "ai-sfondo-bbbbbb.jpg"]);
   });
 
+  // G2, 16-11-2026: a page on its floor plan. The plan goes to planimetrie/
+  // and its drawing — an SVG, not a JPEG — to images/, both at Save.
+  it("the floor plan of a proposal and its drawing are written at Save", async () => {
+    const p = proposta();
+    p.sfondi = [{ file: "ai-floor-plan-casa.svg", svg: "<svg/>" }];
+    p.floor_plans = [{ id: "casa", nome: "Casa", unita_px_m: 50, muri: [], aperture: [], aree: [], blocchi: [] }];
+    await useAppStore.getState().applyAiProposal(p);
+    expect(api.uploadProjectImage).not.toHaveBeenCalled();
+    expect(api.salvaPlanimetria).not.toHaveBeenCalled();
+    await useAppStore.getState().saveAll();
+    const [name, blob] = vi.mocked(api.uploadProjectImage).mock.calls[0];
+    expect(name).toBe("ai-floor-plan-casa.svg");
+    expect((blob as Blob).type).toBe("image/svg+xml");
+    expect((blob as Blob).size).toBe(6);
+    expect(vi.mocked(api.salvaPlanimetria).mock.calls.map((c) => c[0].id)).toEqual(["casa"]);
+    // Written once: a second Save does not write it again.
+    await useAppStore.getState().saveAll();
+    expect(api.salvaPlanimetria).toHaveBeenCalledTimes(1);
+  });
+
+  // G3, 16-11-2026: a symbol the assistant drew as free SVG is a custom
+  // symbol of the project. The canvas and the Save read `customSymbols`.
+  it("a custom symbol of a proposal reaches the canvas, the pipes and the Save", async () => {
+    const imported = { id: "logo", label: "Logo", url: "", svg: "<svg/>",
+      attribution: { author: "me", source: "", license: "" } };
+    const cyclone = { id: "cyclone", label: "Ciclone", url: "", svg: "<svg viewBox='0 0 80 120'/>",
+      attribution: { author: "SWS assistant", source: "bozza_simbolo", license: "" },
+      view_box: [80, 120] as [number, number],
+      ports: [{ id: "n-left", x: 0, y: 20, side: "left" as const, d: 10 }] };
+    useAppStore.setState({ customSymbols: [imported] });
+    const p = proposta();
+    p.project = { ...p.project!, custom_symbols: [imported, cyclone] };
+    await useAppStore.getState().applyAiProposal(p);
+
+    let s = useAppStore.getState();
+    expect(s.customSymbols.map((x) => x.id)).toEqual(["logo", "cyclone"]);
+    expect(s.customSymbols[0]).toBe(imported);
+    expect(s.project?.custom_symbols).toBe(s.customSymbols);
+    const onPage = { id: "c", type: "symbol", x: 0, y: 0, width: 80, height: 120, symbol_id: "custom:cyclone" } as const;
+    expect(bocchePer(onPage)?.porte.map((b) => b.id)).toEqual(["n-left"]);
+
+    expect(api.updateCustomSymbols).not.toHaveBeenCalled();
+    await useAppStore.getState().saveAll();
+    expect(vi.mocked(api.updateCustomSymbols).mock.calls.at(-1)![0].map((x) => x.id)).toEqual(["logo", "cyclone"]);
+
+    // Undone, the page goes back; the symbol stays among the ones of the
+    // project, unused: a list the Save writes whole is never made shorter.
+    useAppStore.getState().undo();
+    s = useAppStore.getState();
+    expect(s.pages[0].objects.map((o) => o.id)).not.toContain("btn_luce");
+    expect(s.customSymbols.map((x) => x.id)).toEqual(["logo", "cyclone"]);
+  });
+
+  it("a proposal never removes a custom symbol, and an equal list is not a change", async () => {
+    const imported = { id: "logo", label: "Logo", url: "", svg: "<svg/>",
+      attribution: { author: "me", source: "", license: "" } };
+    const list = [imported];
+    useAppStore.setState({ customSymbols: list });
+    // A proposal that arrives without the list, or with an emptied one.
+    const p = proposta();
+    p.project = { ...p.project!, custom_symbols: [] };
+    await useAppStore.getState().applyAiProposal(p);
+    expect(useAppStore.getState().customSymbols).toBe(list);
+    expect(mergeCustomSymbols(list, undefined)).toBe(list);
+    expect(mergeCustomSymbols(list, [structuredClone(imported)])).toBe(list);
+    // One redrawn takes the place of the one with its id.
+    const redrawn = { ...imported, svg: "<svg><rect/></svg>" };
+    expect(mergeCustomSymbols(list, [redrawn])).toEqual([redrawn]);
+    expect(list).toEqual([imported]);
+  });
+
   it("una proposta senza simboli non li riscrive", async () => {
     await useAppStore.getState().applyAiProposal(proposta());
     await useAppStore.getState().saveAll();
@@ -455,5 +529,6 @@ describe("gli script del progetto non si perdono per strada", () => {
     expect(api.updateTypes).not.toHaveBeenCalled();
     expect(api.updateLanguages).not.toHaveBeenCalled();
     expect(api.uploadProjectImage).not.toHaveBeenCalled();
+    expect(api.salvaPlanimetria).not.toHaveBeenCalled();
   });
 });

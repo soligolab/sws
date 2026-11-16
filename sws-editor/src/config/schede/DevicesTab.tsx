@@ -370,13 +370,13 @@ export function DevicesTab() {
                       {online === null || checking
                         ? <span style={{ color: "var(--brand-text-subtle, #64748b)" }}>…</span>
                         : online
-                          ? <span style={{ color: "#34d399" }}>● online</span>
+                          ? <span style={{ color: "var(--sws-success-text, #34d399)" }}>● online</span>
                           : <span style={{ color: "var(--brand-danger-soft, #f87171)" }}>● offline</span>}
                     </td>
                     <td style={{ padding: "8px", textAlign: "center" }}>
                       {!online ? <span style={{ color: "var(--brand-text-subtle, #94a3b8)" }}>—</span>
-                        : match === "sync"    ? <span style={{ color: "#34d399" }}>{t("cfgUi.inSync")}</span>
-                        : match === "diff"    ? <span style={{ color: "#fb923c" }}>{t("cfgUi.diffVersione")}</span>
+                        : match === "sync"    ? <span style={{ color: "var(--sws-success-text, #34d399)" }}>{t("cfgUi.inSync")}</span>
+                        : match === "diff"    ? <span style={{ color: "var(--sws-warning-text, #fb923c)" }}>{t("cfgUi.diffVersione")}</span>
                         : <span style={{ color: "var(--brand-text-subtle, #64748b)" }}>? n/d</span>}
                     </td>
                     <td style={{ padding: "8px", textAlign: "right" }}>
@@ -404,7 +404,7 @@ export function DevicesTab() {
                             {connettendo === d.url ? t("cfg.connecting") : t("cfg.connect")}
                           </button>
                         )}
-                        <button style={{ ...BTN, background: "#1e3a5f", borderColor: "var(--brand-primary-hover, #2563eb)", color: "#93c5fd" }}
+                        <button style={{ ...BTN, background: "var(--sws-select-bg, #1e3a5f)", borderColor: "var(--brand-primary-hover, #2563eb)", color: "var(--sws-select-text, #93c5fd)" }}
                           disabled={deployingUrl === d.url}
                           onClick={() => void handleDeploy(d)}>
                           {deployingUrl === d.url ? t("cfg.deployRunning") : "Deploy"}
@@ -490,7 +490,7 @@ export function DevicesTab() {
               value={addForm.pass} onChange={(e) => setAddForm((f) => ({ ...f, pass: e.target.value }))} />
           </div>
           <button
-            style={{ ...BTN, background: "#1e3a5f", borderColor: "var(--brand-primary-hover, #2563eb)", color: "#93c5fd", padding: "5px 14px" }}
+            style={{ ...BTN, background: "var(--sws-select-bg, #1e3a5f)", borderColor: "var(--brand-primary-hover, #2563eb)", color: "var(--sws-select-text, #93c5fd)", padding: "5px 14px" }}
             disabled={!addForm.url || !addForm.user}
             onClick={() => {
               const label = addForm.label.trim() || addForm.url;

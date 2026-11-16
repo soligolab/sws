@@ -7,6 +7,7 @@ import { paginaCentrata, schedaModulo } from "@/components/schermataAccesso";
 import { useAppStore, type Role } from "@/store";
 // Anche dallo schermo remoto (29-10-2026) le chiamate vanno al pannello.
 import { percorsoPubblico } from "@/api/prefisso";
+import { Icona } from "@/components/Icona";
 
 /**
  * Il pannello è **in attesa di abbinamento** (11-10-2026): non ha nessun
@@ -140,7 +141,7 @@ export function AbbinamentoScreen({
             style={{
               color: "var(--brand-danger-soft, #fca5a5)",
               fontSize: 12,
-              background: "#7f1d1d33",
+              background: "var(--sws-danger-bg, #7f1d1d33)",
               padding: "6px 10px",
               borderRadius: 4,
               lineHeight: 1.4,
@@ -286,7 +287,7 @@ function AttesaPrimoProgetto({ stato }: { stato: Stato }) {
   return (
     <div style={paginaCentrata}>
       <div data-testid="attesa-primo-progetto" style={{ ...schedaModulo(440), textAlign: "center" }}>
-        <div style={{ fontSize: 34, lineHeight: 1 }}>☁</div>
+        <div style={{ fontSize: 34, lineHeight: 1 }}><Icona emoji="☁" /></div>
         <strong style={{ fontSize: 19 }}>{t("abbinamento.attesaTitolo", { nome: stato.cloud ?? stato.nome })}</strong>
         <p style={{ fontSize: 13, color: "var(--brand-text-muted, #94a3b8)", margin: 0, lineHeight: 1.5 }}>
           {t("abbinamento.attesaSpiegazione")}

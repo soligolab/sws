@@ -17172,7 +17172,9 @@ fn rendi_oggetti_in(
         // `render_pipe`, che vede solo il proprio oggetto — la lista completa
         // ce l'ha solo il ciclo.
         let manifesto = if obj_type == "pipe" {
-            crate::simbolo_lib::manifesto(base_url, rt_handle)
+            // With the ports of the custom symbols drawn as free SVG, when an
+            // end of this pipe is on one (G3).
+            crate::simbolo_lib::manifest_for_pipe(base_url, rt_handle, obj, &page.objects)
         } else {
             None
         };
@@ -21012,6 +21014,85 @@ mod binding_tests {
         // Senza manifesto la bocca è sconosciuta: si torna al centro del riquadro.
         let senza = percorso_tubo(&t, &oggetti, None, &TagSnapshot::default()).unwrap();
         assert_eq!((senza[0].x, senza[0].y), (140.0, 240.0));
+    }
+
+    /// A pipe attaches to the ports of a custom symbol drawn as free SVG
+    /// (G3), where the browser puts it: the drawing is contained and centred
+    /// in the box of the object, and the port follows it.
+    #[test]
+    fn a_pipe_attaches_to_the_ports_of_a_free_svg_symbol() {
+        let custom: Vec<crate::model::CustomSymbol> = serde_json::from_value(serde_json::json!([
+            { "id": "cyclone", "svg": "<svg/>", "view_box": [80, 120], "ports": [
+                { "id": "n-left", "x": 0, "y": 20, "side": "left", "d": 10 },
+                { "id": "n-bottom", "x": 40, "y": 120, "side": "bottom", "d": 10 } ] },
+            { "id": "plain", "svg": "<svg/>" },
+            { "id": "no-size", "svg": "<svg/>", "ports": [
+                { "id": "n-left", "x": 0, "y": 20, "side": "left", "d": 10 } ] }
+        ]))
+        .unwrap();
+        // Only the symbol with ports and a size becomes an entry.
+        assert!(custom[1].port_entry().is_none() && custom[2].port_entry().is_none());
+        let m = crate::simbolo_lib::with_custom_ports(None, &custom).expect("one entry");
+        assert_eq!(m.symbols.len(), 1);
+        assert_eq!(m.symbols[0].id, "custom:cyclone");
+        // On top of the library, the library stays.
+        let lib: sws_core::simboli_lib::ManifestLib = serde_json::from_str(include_str!(
+            "../../../../sws-editor/public/symbols/lib/manifest.json"
+        ))
+        .unwrap();
+        let n = lib.symbols.len();
+        let both =
+            crate::simbolo_lib::with_custom_ports(Some(std::sync::Arc::new(lib)), &custom).unwrap();
+        assert_eq!(both.symbols.len(), n + 1);
+        assert!(crate::simbolo_lib::with_custom_ports(None, &custom[1..]).is_none());
+
+        let o = |v: serde_json::Value| -> SynopticObject { serde_json::from_value(v).unwrap() };
+        // The object is 120×180: the drawing of 80×120 at scale 1,5.
+        let objects = vec![
+            o(
+                serde_json::json!({ "id": "c", "type": "symbol", "symbol_id": "custom:cyclone",
+                "x": 400, "y": 240, "width": 120, "height": 180 }),
+            ),
+            o(serde_json::json!({ "id": "p", "type": "symbol",
+                "symbol_id": "lib:process/centrifugal-pump", "x": 200, "y": 420, "width": 80, "height": 80 })),
+        ];
+        let left = ancora_di(&objects[0], Some("n-left"), Some(&both));
+        assert_eq!(
+            (left.x, left.y, left.dx, left.dy),
+            (400.0, 270.0, -1.0, 0.0)
+        );
+        let bottom = ancora_di(&objects[0], Some("n-bottom"), Some(&both));
+        assert_eq!(
+            (bottom.x, bottom.y, bottom.dx, bottom.dy),
+            (460.0, 420.0, 0.0, 1.0)
+        );
+        // A box wider than the drawing: the drawing is centred, the port too.
+        let wide = o(
+            serde_json::json!({ "id": "c", "type": "symbol", "symbol_id": "custom:cyclone",
+            "x": 0, "y": 0, "width": 200, "height": 120 }),
+        );
+        assert_eq!(ancora_di(&wide, Some("n-left"), Some(&both)).x, 60.0);
+        // Without the entry the port is unknown: the centre of the box.
+        let lost = ancora_di(&objects[0], Some("n-left"), None);
+        assert_eq!((lost.x, lost.y), (460.0, 330.0));
+
+        let pipe = o(
+            serde_json::json!({ "id": "t", "type": "pipe", "routing": "orthogonal",
+            "from_obj_id": "p", "from_port": "n-top", "to_obj_id": "c", "to_port": "n-left" }),
+        );
+        assert!(crate::simbolo_lib::ends_on_custom_symbol(&pipe, &objects));
+        assert!(!crate::simbolo_lib::ends_on_custom_symbol(
+            &pipe,
+            &objects[1..]
+        ));
+        let path = percorso_tubo(&pipe, &objects, Some(&both), &TagSnapshot::default())
+            .expect("attached at both ends");
+        let xy: Vec<(f64, f64)> = path.iter().map(|q| (q.x, q.y)).collect();
+        // From the outlet of the pump (250, 420) up to the height of the
+        // inlet, then right to the port of the cyclone.
+        assert_eq!(xy, vec![(250.0, 420.0), (250.0, 270.0), (400.0, 270.0)]);
+        let d = diametri_capi(&pipe, &objects, Some(&both), &TagSnapshot::default());
+        assert_eq!(d, [Some(10.0), Some(15.0)]);
     }
 
     /// Il capo agganciato segue i **binding** dell'oggetto, non la sua

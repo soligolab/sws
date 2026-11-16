@@ -113,7 +113,7 @@ export function PrimoAmministratoreScreen({ onFatto }: { onFatto: () => void }) 
             style={{
               color: "var(--brand-danger-soft, #fca5a5)",
               fontSize: 12,
-              background: "#7f1d1d33",
+              background: "var(--sws-danger-bg, #7f1d1d33)",
               padding: "6px 10px",
               borderRadius: 4,
               lineHeight: 1.4,
@@ -133,9 +133,16 @@ export function PrimoAmministratoreScreen({ onFatto }: { onFatto: () => void }) 
             background: !pronto
               ? "var(--brand-surface-2, #334155)"
               : inCorso
-                ? "#1e3a8a"
+                ? "var(--sws-select-bg, #1e3a8a)"
                 : "var(--brand-primary, #3b82f6)",
-            color: !pronto ? "var(--brand-text-subtle, #64748b)" : "var(--brand-on-primary, #fff)",
+            // In progress the background is the selection tint, close to the
+            // page: the ink. The colourful style does not set `--sws-text` and
+            // keeps the text of before.
+            color: !pronto
+              ? "var(--brand-text-subtle, #64748b)"
+              : inCorso
+                ? "var(--sws-text, var(--brand-on-primary, #fff))"
+                : "var(--brand-on-primary, #fff)",
             border: "none",
             borderRadius: 4,
             padding: "8px 12px",

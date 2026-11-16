@@ -1,0 +1,219 @@
+{
+ "_perche": "Phase G3 of the plan 2026-11-10-assistente-secondo-giro, replayed without the model: a symbol the description cannot draw (a cyclone, a cone) drawn as free SVG with two ports, then a page where two pipes attach to those ports. Written by hand on 16-11-2026. For SWS_AI_FAKE=<this file> on the project tests/fixtures/ai-bench/tubi-acciaio/ (test `the_free_svg_script_reaches_the_proposal`).",
+ "turni": [
+  {
+   "testo": "La libreria non ha un ciclone, e la descrizione di un simbolo non sa fare un cono: lo disegno come SVG libero, con le due bocche. ",
+   "strumenti": [
+    {
+     "nome": "cerca_simboli",
+     "input": {
+      "testo": "ciclone"
+     }
+    },
+    {
+     "nome": "bozza_simbolo",
+     "input": {
+      "slug": "ciclone",
+      "it": "Ciclone separatore",
+      "en": "Cyclone separator",
+      "view_box": [
+       80,
+       120
+      ],
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 80 120\"><defs><linearGradient id=\"shell\" x1=\"0\" x2=\"1\"><stop offset=\"0\" stop-color=\"#aab4c0\"/><stop offset=\"0.45\" stop-color=\"#7f8b99\"/><stop offset=\"1\" stop-color=\"#4b5563\"/></linearGradient></defs><g stroke=\"#1c2329\" stroke-width=\"1\" stroke-linejoin=\"round\"><rect x=\"0\" y=\"15\" width=\"14\" height=\"10\" fill=\"#6b7785\"/><rect x=\"0\" y=\"13\" width=\"3\" height=\"14\" fill=\"#565f6b\"/><path d=\"M14 8 H66 V58 L46 108 H34 L14 58 Z\" fill=\"url(#shell)\"/><path d=\"M14 58 H66\" fill=\"none\" stroke-opacity=\"0.5\"/><rect x=\"32\" y=\"2\" width=\"16\" height=\"6\" fill=\"#6b7785\"/><rect x=\"35\" y=\"108\" width=\"10\" height=\"12\" fill=\"#6b7785\"/><rect x=\"33\" y=\"117\" width=\"14\" height=\"3\" fill=\"#565f6b\"/></g></svg>",
+      "ports": [
+       {
+        "id": "n-left",
+        "x": 0,
+        "y": 20,
+        "side": "left",
+        "d": 10
+       },
+       {
+        "id": "n-bottom",
+        "x": 40,
+        "y": 120,
+        "side": "bottom",
+        "d": 10
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "testo": "Ecco la proposta: il ventilatore spinge nel ciclone, che scarica nel serbatoio. I due tubi sono agganciati alle bocche del ciclone. ",
+   "strumenti": [
+    {
+     "nome": "valida",
+     "input": {
+      "pages": [
+       {
+        "id": "linea",
+        "name": "Linea",
+        "background": "#e2e8f0",
+        "width": 1280,
+        "height": 800,
+        "objects": [
+         {
+          "id": "t_titolo",
+          "type": "text",
+          "text": "Aspirazione polveri",
+          "x": 60,
+          "y": 90,
+          "font_size": 20,
+          "font_weight": "bold",
+          "color": "#0f172a"
+         },
+         {
+          "id": "fan",
+          "type": "symbol",
+          "symbol_id": "lib:process/centrifugal-pump",
+          "x": 200,
+          "y": 420,
+          "width": 80,
+          "height": 80
+         },
+         {
+          "id": "cyclone",
+          "type": "symbol",
+          "symbol_id": "custom:ciclone",
+          "x": 400,
+          "y": 240,
+          "width": 120,
+          "height": 180
+         },
+         {
+          "id": "tank",
+          "type": "symbol",
+          "symbol_id": "lib:process/vertical-tank",
+          "x": 420,
+          "y": 520,
+          "width": 80,
+          "height": 160
+         },
+         {
+          "id": "p_fan_cyclone",
+          "type": "pipe",
+          "x": 250,
+          "y": 270,
+          "width": 150,
+          "height": 150,
+          "from_obj_id": "fan",
+          "from_port": "n-top",
+          "to_obj_id": "cyclone",
+          "to_port": "n-left",
+          "routing": "orthogonal",
+          "pipe_style": "metallo",
+          "stroke_width": 10
+         },
+         {
+          "id": "p_cyclone_tank",
+          "type": "pipe",
+          "x": 455,
+          "y": 420,
+          "width": 10,
+          "height": 100,
+          "from_obj_id": "cyclone",
+          "from_port": "n-bottom",
+          "to_obj_id": "tank",
+          "to_port": "n-top",
+          "routing": "orthogonal",
+          "pipe_style": "metallo",
+          "stroke_width": 10
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "nome": "proponi_modifica",
+     "input": {
+      "motivo": "aspirazione polveri con un ciclone disegnato come SVG libero",
+      "patch": {
+       "pagine_intere": [
+        {
+         "id": "linea",
+         "name": "Linea",
+         "background": "#e2e8f0",
+         "width": 1280,
+         "height": 800,
+         "objects": [
+          {
+           "id": "t_titolo",
+           "type": "text",
+           "text": "Aspirazione polveri",
+           "x": 60,
+           "y": 90,
+           "font_size": 20,
+           "font_weight": "bold",
+           "color": "#0f172a"
+          },
+          {
+           "id": "fan",
+           "type": "symbol",
+           "symbol_id": "lib:process/centrifugal-pump",
+           "x": 200,
+           "y": 420,
+           "width": 80,
+           "height": 80
+          },
+          {
+           "id": "cyclone",
+           "type": "symbol",
+           "symbol_id": "custom:ciclone",
+           "x": 400,
+           "y": 240,
+           "width": 120,
+           "height": 180
+          },
+          {
+           "id": "tank",
+           "type": "symbol",
+           "symbol_id": "lib:process/vertical-tank",
+           "x": 420,
+           "y": 520,
+           "width": 80,
+           "height": 160
+          },
+          {
+           "id": "p_fan_cyclone",
+           "type": "pipe",
+           "x": 250,
+           "y": 270,
+           "width": 150,
+           "height": 150,
+           "from_obj_id": "fan",
+           "from_port": "n-top",
+           "to_obj_id": "cyclone",
+           "to_port": "n-left",
+           "routing": "orthogonal",
+           "pipe_style": "metallo",
+           "stroke_width": 10
+          },
+          {
+           "id": "p_cyclone_tank",
+           "type": "pipe",
+           "x": 455,
+           "y": 420,
+           "width": 10,
+           "height": 100,
+           "from_obj_id": "cyclone",
+           "from_port": "n-bottom",
+           "to_obj_id": "tank",
+           "to_port": "n-top",
+           "routing": "orthogonal",
+           "pipe_style": "metallo",
+           "stroke_width": 10
+          }
+         ]
+        }
+       ]
+      }
+     }
+    }
+   ]
+  }
+ ]
+}

@@ -212,7 +212,7 @@ export function Marchi({ piattaforma = true }: { piattaforma?: boolean }) {
                   <label key={k} style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 11 }}>
                     <input
                       type="color"
-                      value={/^#[0-9a-f]{6}$/i.test(v) ? v : "#000000"}
+                      value={/^#[0-9a-f]{6}$/i.test(v) ? v : "#000000" /* fixed-colour */}
                       onChange={(e) => setBozza({ ...bozza, colors: { ...colori, [k]: e.target.value } })}
                       style={{ width: 28, height: 24, padding: 0, border: "none", background: "none" }}
                     />

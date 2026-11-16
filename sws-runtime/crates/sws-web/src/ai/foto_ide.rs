@@ -265,9 +265,14 @@ pub(crate) async fn richiesta(
         .filter_map(|d| sws_core::simboli_prj::compila_e_controlla(d).ok())
         .map(|c| json!({ "voce": c.voce, "svg": c.svg }))
         .collect();
+    // The drafts drawn as free SVG: custom symbols the project does not have
+    // yet. The browser draws them with the ones it has, and attaches the
+    // pipes to their ports (G3).
+    let custom_symbols: Vec<&sws_core::CustomSymbol> =
+        banco.free_symbols.iter().map(|d| &d.symbol).collect();
 
     // Solo gli sfondi che la pagina usa: possono essere megabyte l'uno.
-    let sfondi: Vec<Value> = banco
+    let mut sfondi: Vec<Value> = banco
         .sfondi
         .iter()
         .filter(|f| testo_pagina.contains(&f.src()))
@@ -276,6 +281,15 @@ pub(crate) async fn richiesta(
                     "jpg": base64::engine::general_purpose::STANDARD.encode(&f.jpg) })
         })
         .collect();
+    // The drawing of a floor plan of the bench is a background like those,
+    // as SVG text instead of a JPEG.
+    sfondi.extend(
+        banco
+            .floor_plans
+            .iter()
+            .filter(|d| testo_pagina.contains(&d.src()))
+            .map(|d| json!({ "src": d.src(), "svg": d.svg })),
+    );
 
     // I faceplate come li vede il modello: quelli del disco e i predefiniti,
     // con sopra quelli che sta proponendo.
@@ -302,6 +316,7 @@ pub(crate) async fn richiesta(
     Ok(json!({
         "pagina": pagina,
         "simboli": simboli,
+        "custom_symbols": custom_symbols,
         "sfondi": sfondi,
         "faceplates": faceplates,
         "misura": { "larghezza": misura("width", 1280), "altezza": misura("height", 800) },
@@ -320,8 +335,11 @@ async fn pagina_da_fotografare(
         return Ok(p.clone());
     }
     let nome = input.get("nome").and_then(Value::as_str);
-    if nome.is_none() && !banco.simboli.is_empty() {
-        return Ok(super::tavola_delle_bozze(&banco.simboli));
+    if nome.is_none() && banco.has_symbol_drafts() {
+        return Ok(super::tavola_delle_bozze(
+            &banco.simboli,
+            &banco.free_symbols,
+        ));
     }
     let pagine = pagine_in(dir).await;
     let scelta = match nome {
@@ -467,6 +485,35 @@ mod tests {
         // Un progetto che non si legge resta sul percorso di prima.
         let vuota = tempfile::tempdir().unwrap();
         assert!(!motore_web(vuota.path()));
+    }
+
+    /// The drawing of a floor plan of the bench travels with the request, as
+    /// SVG text: the page that uses it is not in the project yet (G2).
+    #[tokio::test]
+    async fn the_drawing_of_a_floor_plan_travels_with_the_photo_request() {
+        let d = tempfile::tempdir().unwrap();
+        progetto(d.path(), None);
+        let mut bench = super::super::Banco::default();
+        for id in ["casa", "garage"] {
+            bench
+                .floor_plans
+                .push(super::super::floor_plan_tool::FloorPlanDraft {
+                    id: id.into(),
+                    name: id.into(),
+                    plan: json!({ "id": id }),
+                    on_disk: false,
+                    svg: format!("<svg id=\"{id}\"/>"),
+                });
+        }
+        let input = json!({ "pagina": { "id": "casa", "name": "Casa", "objects": [],
+            "sfondo_immagine": "/api/project/images/ai-floor-plan-casa.svg" } });
+        let frame = richiesta(d.path(), &input, &bench).await.unwrap();
+        assert_eq!(
+            frame["sfondi"],
+            json!([{ "src": "/api/project/images/ai-floor-plan-casa.svg",
+                     "svg": "<svg id=\"casa\"/>" }]),
+            "only the drawing the page uses"
+        );
     }
 
     /// **Il giro intero.** Il server chiede la foto alla chat con la pagina

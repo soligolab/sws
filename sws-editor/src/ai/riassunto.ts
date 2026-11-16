@@ -28,6 +28,12 @@ export function riassumi(
    *  Prima il diff non le elencava, e chi applicava non sapeva di scrivere
    *  file in `images/`. */
   propSfondi?: { file: string }[] | null,
+  /** The floor plans of the proposal (G2): one entry each. */
+  propFloorPlans?: { id: string; nome?: string }[] | null,
+  /** The ids of those that take the place of a floor plan of the project:
+   *  changed, not new. The server says which, the editor does not keep the
+   *  list of the floor plans. */
+  replacedFloorPlans?: readonly string[] | null,
 ): VoceDiff[] {
   const out: VoceDiff[] = [];
   // `uguale` e non `JSON.stringify`: l'ordine delle chiavi differisce fra
@@ -59,6 +65,15 @@ export function riassumi(
       for (const id of prima.keys()) {
         if (!dopo.has(id)) out.push({ verso: "-", testo: `${etichetta} \`${id}\`` });
       }
+    }
+    // The custom symbols (a symbol the assistant drew as free SVG, G3): new or
+    // redrawn. Never removed: applying a proposal only adds to them
+    // (`mergeCustomSymbols` in the store), so a missing one is not a removal.
+    const customNow = perId(project.custom_symbols);
+    for (const s of propProject.custom_symbols ?? []) {
+      const now = customNow.get(s.id);
+      if (!now) out.push({ verso: "+", testo: i18n.t("riassunto.customSymbol", { id: s.id }) });
+      else if (!stessa(now, s)) out.push({ verso: "~", testo: i18n.t("riassunto.customSymbol", { id: s.id }) });
     }
   }
 
@@ -129,6 +144,10 @@ export function riassumi(
     }
   }
 
+  for (const plan of propFloorPlans ?? []) {
+    const replaced = replacedFloorPlans?.includes(plan.id) ?? false;
+    out.push({ verso: replaced ? "~" : "+", testo: i18n.t("riassunto.floorPlan", { name: plan.nome || plan.id }) });
+  }
   for (const f of propSfondi ?? []) {
     out.push({ verso: "+", testo: i18n.t("riassunto.immagine", { file: `images/${f.file}` }) });
   }

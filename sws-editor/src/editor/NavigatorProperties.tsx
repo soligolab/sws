@@ -100,11 +100,11 @@ export function NavigatorProperties({
         (v) => onChange({ nav_align: v as SynopticObject["nav_align"] })))}
       {field(t("nav.gap"), numInput("nav_gap", 4))}
 
-      {field(t("nav.fillColor"), colorInput("fill", "#1e293b"))}
-      {field(t("nav.activeFill"), colorInput("nav_active_fill", "#3b82f6"))}
-      {field(t("nav.textColor"), colorInput("color", "#e2e8f0"))}
-      {field(t("nav.activeColor"), colorInput("nav_active_color", "#0f172a"))}
-      {field(t("nav.border"), colorInput("stroke", "#334155"))}
+      {field(t("nav.fillColor"), colorInput("fill", "#1e293b" /* fixed-colour */))}
+      {field(t("nav.activeFill"), colorInput("nav_active_fill", "#3b82f6" /* fixed-colour */))}
+      {field(t("nav.textColor"), colorInput("color", "#e2e8f0" /* fixed-colour */))}
+      {field(t("nav.activeColor"), colorInput("nav_active_color", "#0f172a" /* fixed-colour */))}
+      {field(t("nav.border"), colorInput("stroke", "#334155" /* fixed-colour */))}
       {field(t("nav.cornerRadius"), numInput("corner_radius", 4))}
       {field(t("nav.fontSize"), numInput("font_size", 13))}
 

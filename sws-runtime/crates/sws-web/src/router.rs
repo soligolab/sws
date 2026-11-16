@@ -837,6 +837,8 @@ pub fn build(
             "/api/ai/chiavi/prova",
             post(crate::ai::config_api::prova_chiave),
         )
+        // The AI spending history of the installation (G5, 16-11-2026).
+        .route("/api/ai/spending", get(crate::ai::config_api::get_spending))
         // Stesso principio, per il fornitore di traduzione automatica (F5 del
         // piano multilingua-chiusura, 18/19-09-2026): il gate è dentro
         // `traduttore::solo_ide`, non qui.
@@ -1314,6 +1316,14 @@ pub fn build(
         .route(
             "/api/identity/ai-keys/:provider",
             put(crate::ai_keys::put).delete(crate::ai_keys::remove),
+        )
+        .route(
+            "/api/identity/ai-keys/:provider/model",
+            put(crate::ai_keys::put_model),
+        )
+        .route(
+            "/api/identity/ai-keys/:provider/test",
+            post(crate::ai_keys::test),
         )
         .route("/api/identita/marchio", get(marchio_mio))
         .route("/api/identita/marchio/privato", get(marchio_privato))
@@ -6823,25 +6833,32 @@ pub(crate) fn svg_ostile(svg: &str) -> Option<&'static str> {
     if basso.contains("<iframe") || basso.contains("<embed") || basso.contains("<object") {
         return Some("contiene un elemento che incorpora un documento esterno");
     }
-    // handler inline: `onload=`, `onclick=`, con o senza spazi
-    let mut resto = compatto.as_str();
-    while let Some(i) = resto.find("on") {
-        let dopo = &resto[i + 2..];
-        let nome: String = dopo
-            .chars()
+    // Inline handlers: `onload=`, `onclick =`, with or without spaces.
+    //
+    // Looked for in the text as written, not in the compacted one: there
+    // `<polygon points=` became `<polygonpoints=` and read as a handler called
+    // `onpoints`, so every symbol with a polygon was refused (found on
+    // 16-11-2026, when the assistant started drawing free SVG). An attribute
+    // starts after white space, after the closing quote of the one before, or
+    // after a `/`: those are the only places a handler can be.
+    let bytes = basso.as_bytes();
+    let mut from = 0;
+    while let Some(k) = basso[from..].find("on") {
+        let i = from + k;
+        from = i + 2;
+        let starts_attribute = i > 0
+            && (bytes[i - 1].is_ascii_whitespace() || matches!(bytes[i - 1], b'"' | b'\'' | b'/'));
+        if !starts_attribute {
+            continue;
+        }
+        let after = &basso[i + 2..];
+        let name_len = after
+            .bytes()
             .take_while(|c| c.is_ascii_alphabetic())
-            .collect();
-        if !nome.is_empty()
-            && dopo[nome.len()..].starts_with('=')
-            && i > 0
-            && matches!(resto.as_bytes()[i - 1], b'<' | b'"' | b'\'' | b'/' | b'>' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_')
-        {
-            // `<rect onload=` compattato diventa `<rectonload=`: il carattere prima di
-            // `on` è una lettera. Accettiamo il falso positivo su attributi che
-            // finiscono in ...on= (es. `data-version=`): costa un messaggio.
+            .count();
+        if name_len > 0 && after[name_len..].trim_start().starts_with('=') {
             return Some("contiene un gestore di eventi (on*=)");
         }
-        resto = &resto[i + 2..];
     }
     None
 }
@@ -6864,6 +6881,15 @@ async fn update_project_custom_symbols(
                     .into_response();
             }
         }
+        // The ports of a symbol with ports (G3): refused only when a pipe
+        // could not be attached where they say.
+        if let Some(errors) = custom_symbol_ports_errors(sym) {
+            return (
+                StatusCode::BAD_REQUEST,
+                format!("symbol «{}» refused: {}\n", sym.id, errors.join("; ")),
+            )
+                .into_response();
+        }
     }
     let dir = match active_dir(&s).await {
         Ok(d) => d,
@@ -6876,6 +6902,21 @@ async fn update_project_custom_symbols(
         |p| p.custom_symbols = symbols,
     )
     .await
+}
+
+/// What makes the ports of a custom symbol impossible to place, if anything:
+/// outside the drawing, an unknown side, two with the same id.
+///
+/// The same rule as the validator (`validate::custom_symbol_ports_findings`),
+/// and no more: this `PUT` carries the whole list at every Save of the IDE,
+/// so what it refuses blocks the Save. Ports without the size of the drawing
+/// are ignored by both engines and pass (the validator says it, as a
+/// warning); the grid of 10 and the 510 units are rules of the assistant's
+/// drawings (`free_symbol::check`), not of a symbol written by hand.
+pub(crate) fn custom_symbol_ports_errors(symbol: &CustomSymbol) -> Option<Vec<String>> {
+    let (view_box, ports) = symbol.ports_with_view_box()?;
+    let errors = sws_core::free_symbol::check_ports(view_box, ports);
+    (!errors.is_empty()).then_some(errors)
 }
 
 async fn update_project_datastores(
@@ -13703,6 +13744,19 @@ mod q30_file_tests {
         use super::svg_ostile;
         let ok = r##"<svg viewBox="0 0 100 100"><g id="body"><rect x="1" y="2" width="10" height="20" fill="#f00"/><path d="M0 0L10 10" stroke="#000"/><text>on</text></g></svg>"##;
         assert_eq!(svg_ostile(ok), None);
+        // A polygon is not a handler called `onpoints`, and a handler is one
+        // also glued to the attribute before it or with spaces before `=`.
+        assert_eq!(
+            svg_ostile(
+                r#"<svg><polygon points="0,0 4,4 8,0"/><polygon
+                points="1,1 2,2 3,1"/></svg>"#
+            ),
+            None
+        );
+        assert!(svg_ostile(r#"<svg><rect x="1"onload="x()"/></svg>"#).is_some());
+        assert!(svg_ostile("<svg><rect/onload=x()></svg>").is_some());
+        assert!(svg_ostile("<svg><rect onload = \"x()\"/></svg>").is_some());
+        assert!(svg_ostile("<svg><polygon\tonclick='x()' points=\"0,0\"/></svg>").is_some());
         // `stop-color`, `stroke-linejoin`: contengono "on" senza essere handler.
         assert_eq!(
             svg_ostile(

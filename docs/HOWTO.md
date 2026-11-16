@@ -551,7 +551,7 @@ La chiave **non entra mai nel progetto**: il progetto si esporta, si manda in gi
 un dispositivo. Se manca, l'IDE funziona lo stesso e il pannello dice che l'assistente non è
 configurato invece di sembrare rotto.
 
-### Due fornitori: Anthropic o Kimi
+### Tre fornitori: Anthropic, Kimi o Mistral
 
 Kimi (Moonshot) espone la **Messages API di Anthropic** su un endpoint dedicato, quindi lo
 streaming, i blocchi, gli strumenti e i nomi degli eventi SSE sono gli stessi: il nostro lettore
@@ -567,6 +567,12 @@ costerebbe circa **0,14 $**.
 | `claude-opus-5-5` (default dal 03-11-2026) | 4 $/Mtok | 0,20 $ | 20 $/Mtok |
 | `claude-opus-5` | 5 $/Mtok | 0,50 $ | 25 $/Mtok |
 | `kimi-k3` | 3 $/Mtok | 0,30 $ | 15 $/Mtok |
+| `mistral-large-latest` (Mistral Large 4, listino del 16-11-2026) | 0,7 $/Mtok | 0,07 $ | 2,1 $/Mtok |
+
+Un modello che la tabella del codice non conosce (`prezzi()` in `ai/client.rs`) si conta ai prezzi di Opus 5 e la chat
+dice che la spesa è stimata. Fanno eccezione gli altri modelli Mistral di una famiglia col prezzo pubblicato
+(`mistral-large-…`, `mistral-small-…`, `codestral-…`, `ministral-…`): si contano al prezzo della loro famiglia, sempre
+come stima.
 
 **Dal 04-11-2026 tutto sta nel menù IA** (✨ nel pannello laterale, solo Admin; nello stile VS Code è
 l'icona viola in fondo alla barra di attività). Prima c'era una sezione nelle Preferenze IDE e due
@@ -575,13 +581,15 @@ voci nel menu ☰: non ci sono più.
 | Voce | Cosa si fa | Dove finisce |
 |---|---|---|
 | **Assistente** | si apre la chat accanto all'editor, o in una finestra | — |
-| **Fornitori e chiavi** | Anthropic, Kimi, OpenAI: chiave, «Prova la chiave» (l'elenco dei modelli, gratis), cancella | `<config_dir>/<fornitore>.key`, permessi `600` |
+| **Fornitori e chiavi** | Anthropic, Kimi, Mistral, OpenAI, Black Forest Labs: chiave, «Prova la chiave» (gratis: l'elenco dei modelli; per Black Forest Labs il saldo dei crediti), cancella | `<config_dir>/<fornitore>.key` (`anthropic.key`, `kimi.key`, `openai.key`, `bfl.key`), permessi `600` |
 | **Un modello per scopo** | Assistente, Disegno dei simboli, Traduzione, Sfondi: fornitore, modello, tetto | `<config_dir>/ai.yaml`, sotto `scopi:` |
+| **Spesa** | quanto è costata l'IA all'installazione: il mese in corso e i precedenti, per scopo e per fornitore, con i totali | `<config_dir>/ai-spending.json`, ultimi 36 mesi |
 | **Regole del progetto** | il tipo di impianto e cosa ogni modello deve sapere | **nel progetto** (`project.yaml`, `ai:`) |
 
 Le chiavi e gli scopi sono dell'**installazione**: non viaggiano con export, deploy o template. Le
 regole invece sono del **progetto**, e chi lo riceve le eredita. Simboli e traduzione senza un
-modello loro usano quello dell'assistente; gli sfondi vogliono la chiave OpenAI (gpt-image-2). Un
+modello loro usano quello dell'assistente; gli sfondi vogliono la chiave di OpenAI (gpt-image-2)
+o di Black Forest Labs (FLUX.2), e con tutte e due il fornitore si sceglie nello scopo Sfondi. Un
 `ai.yaml` del formato di prima (un fornitore solo) vale ancora come scelta dell'assistente, e si
 riscrive nel formato nuovo al primo salvataggio. Due avvertenze che il pannello dice da sé:
 
@@ -602,13 +610,18 @@ Restano validi i file, per chi preferisce la shell. La chiave di Kimi si prende 
 
 In alternativa `MOONSHOT_API_KEY` (o `KIMI_API_KEY`) nell'ambiente.
 
-**Chi vince, con due chiavi**: Anthropic, perché è il default. Per l'altro si dice a voce alta:
+**Mistral** (Francia, dal 16-11-2026) si configura allo stesso modo: la chiave da <https://console.mistral.ai> in
+`mistral.key`, oppure `MISTRAL_API_KEY` nell'ambiente; il modello predefinito è `mistral-large-latest`. Parla un'altra
+API (in stile OpenAI «chat completions»), che il runtime traduce in `ai/chat_completions.rs`: per chi usa l'IDE non
+cambia niente.
+
+**Chi vince, con più chiavi**: Anthropic, perché è il default; poi Kimi, poi Mistral. Per un altro si dice a voce alta:
 
 ```bash
 SWS_AI_FORNITORE=kimi ./scripts/start_editor.sh --instance 3
 ```
 
-`SWS_AI_FORNITORE` accetta `anthropic`/`claude` e `kimi`/`moonshot`; un valore che non riconosce
+`SWS_AI_FORNITORE` accetta `anthropic`/`claude`, `kimi`/`moonshot` e `mistral`; un valore che non riconosce
 **spegne la chat** e lo scrive nel log, invece di ricadere silenziosamente sul default. Il
 modello si cambia con `SWS_AI_MODELLO` (per esempio `kimi-k2.6`, più economico, o
 `claude-sonnet-5`), e il pannello dice sempre **fornitore e modello** con cui sta parlando:
@@ -620,7 +633,15 @@ non è nella tabella dei prezzi e il conto è stimato). Raggiunto il tetto, l'as
 per il giro successivo e chiede di aprire una conversazione nuova. Il tetto si cambia in
 IA → Un modello per scopo, o con `SWS_AI_TETTO_USD=25` nell'ambiente, che vince sul file. Anche
 la spesa del modello dei simboli e degli sfondi entra nel tetto della conversazione; gli sfondi
-hanno in più un tetto loro (1 $ di default), contato **a stima** per qualità (bassa, media, alta).
+hanno in più un tetto loro (1 $ di default), contato **a stima** per qualità (bassa, media, alta)
+con OpenAI. Con FLUX conta il costo che Black Forest Labs dichiara quando accetta la richiesta,
+anche se poi la foto non arriva (per esempio perché ci mette più di quattro minuti): la richiesta
+è partita, e si paga.
+
+**Quanto ha speso finora**: IA → **Spesa** somma tutte le conversazioni dell'installazione, mese
+per mese, per scopo e per fornitore. È un conto fatto qui e non una fattura. Il file è
+`<config_dir>/ai-spending.json`; se qualcuno lo rovina a mano, alla chiamata successiva viene messo
+da parte come `ai-spending.json.broken-<data>-<ora>` e ne parte uno nuovo.
 
 Per misurare una prova, `SWS_AI_MISURE=tmp/ai-misure` scrive un resoconto per conversazione
 (giri, token per voce, costo, minuti, strumenti chiamati, correzioni).
@@ -657,8 +678,8 @@ l'assistente su un progetto che non hai scritto tu.
 
 ### Gli sfondi, in due passi
 
-Con la chiave OpenAI l'assistente sa fare le foto di sfondo di una pagina. La regola è del
-prodotto, e lo strumento la impone:
+Con la chiave di OpenAI o di Black Forest Labs l'assistente sa fare le foto di sfondo di una
+pagina. La regola è del prodotto, e lo strumento la impone:
 
 1. **la base**: l'assistente genera una o più candidate e si ferma; sotto ogni miniatura in chat
    c'è **«Usa come base»**, e la base la sceglie la persona, non il modello;
@@ -2197,12 +2218,18 @@ Le «inverter definitions» dell'integrazione Home Assistant solarman descrivono
 
 ## 32. Usare l'assistente IA con la propria chiave, senza metterla in ogni progetto
 
-Nel cloud, chi lavora su più progetti può mettere la chiave del fornitore (Anthropic o Kimi) **una volta, nel proprio
-account**, invece che in ognuno.
+Nel cloud, chi lavora su più progetti può mettere la chiave del fornitore (Anthropic, Kimi, Mistral, e per gli sfondi OpenAI
+o Black Forest Labs) **una volta, nel proprio account**, invece che in ognuno.
 
 1. In alto a destra, il menu 👤 con il tuo nome → **Le mie chiavi IA**.
 2. Scrivi la chiave del fornitore e premi **Salva**. Da quel momento si vedono solo le ultime quattro lettere.
-3. Apri un progetto e usa l'assistente: se il progetto **non ha una chiave sua** per quel fornitore, usa la tua.
+3. **Prova la chiave** dice se funziona e quanti modelli offre il fornitore.
+4. **Modello preferito**: un menù con i modelli del fornitore in ordine alfabetico. Vale dove il progetto non ne sceglie
+   uno; «Predefinito del fornitore» lascia decidere a SWS.
+5. Apri un progetto e usa l'assistente: se il progetto **non ha una chiave sua** per quel fornitore, usa la tua.
+
+Il modello si decide in quest'ordine: quello dello scopo nel progetto (Configurazione → IA → Scopi, anche lì da un
+menù), poi quello preferito nel tuo account, poi il predefinito del fornitore.
 
 La regola è una sola: **la chiave del progetto vince**, e la tua si usa dove il progetto non ne ha. In
 Configurazione → IA → Fornitori e chiavi, sotto ogni fornitore, una riga dice quale usa quel progetto: «la chiave del

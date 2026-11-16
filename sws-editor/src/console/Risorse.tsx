@@ -133,7 +133,7 @@ export function Risorse() {
                   max={quota}
                   parti={[
                     { quota: a.progetti_byte, colore: "var(--brand-primary, #3b82f6)" },
-                    { quota: a.storico_byte, colore: frazione >= SOGLIA_AVVISO ? "var(--brand-warning, #f59e0b)" : "#64748b" },
+                    { quota: a.storico_byte, colore: frazione >= SOGLIA_AVVISO ? "var(--brand-warning, #f59e0b)" : "var(--sws-muted, #64748b)" },
                   ]}
                 />
                 <div style={{ fontSize: 12, marginTop: 5, color: "var(--brand-text-muted, #94a3b8)" }}>

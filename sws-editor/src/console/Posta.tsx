@@ -97,7 +97,7 @@ export function Posta() {
       )}
 
       {err && <div style={stileErrore}>{err}</div>}
-      {esito && <div style={{ ...avviso, color: "var(--brand-success-soft, #86efac)", background: "#14532d33" }}>{esito}</div>}
+      {esito && <div style={{ ...avviso, color: "var(--brand-success-soft, #86efac)", background: "var(--sws-success-bg, #14532d33)" }}>{esito}</div>}
     </div>
   );
 }

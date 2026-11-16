@@ -102,7 +102,7 @@ export function CampoColore({
       : regola && "auto" in regola ? coloreAuto(regola.auto, sfondo)
       : !regola ? coloreAuto("testo", sfondo)
       : undefined);
-  const perSwatch = estraiHex(effettivo) ?? "#808080";
+  const perSwatch = estraiHex(effettivo) ?? "#808080" /* fixed-colour */;
   // Il ↺ riporta allo stato senza valore: c'è per ogni regola che ne ha uno
   // voluto (auto, nessuno, derivato), non per un predefinito fisso.
   const haStatoVuoto = (!!regola && !("hex" in regola)) || !!daProgetto;
@@ -124,7 +124,7 @@ export function CampoColore({
         type="color"
         style={{ ...INPUT, padding: 2, height: 28, width: 44, cursor: "pointer", flex: "none",
           opacity: mixed || stato === "nessuno" || stato === "derivato" ? 0.4 : 1 }}
-        value={bozza ?? (mixed ? "#808080" : perSwatch)}
+        value={bozza ?? (mixed ? "#808080" /* fixed-colour */ : perSwatch)}
         title={dichiarato?.[1]}
         onChange={(e) => cambia(e.target.value)}
       />

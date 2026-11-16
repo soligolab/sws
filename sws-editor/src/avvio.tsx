@@ -9,9 +9,9 @@ import ReactDOM from "react-dom/client";
 import "./i18n/index";
 import { api, setForceLocalApi } from "@/api/client";
 import { applyBranding, loadBranding } from "@/branding";
-import { applyAppearance, getStoredMode, initThemeStorageListener, initThemeSystemListener } from "@/theme";
+import { applyAppearance, getStoredMode, initThemeSystemListener } from "@/theme";
 import { dimenticaPasswordLegacy } from "@/passwordNelBrowser";
-import { useAppStore } from "@/store";
+import { followAppearanceOfOtherWindows, useAppStore } from "@/store";
 import { CancelloAbbinamento } from "@/components/AbbinamentoScreen";
 import { FinestraAvviso } from "@/finestraAvviso/FinestraAvviso";
 import { registraNelLog } from "@/finestraAvviso/finestraAvviso";
@@ -36,7 +36,7 @@ export async function avvia(
   applyBranding(await loadBranding());
   applyAppearance(getStoredMode());
   initThemeSystemListener(() => useAppStore.getState().themeMode);
-  initThemeStorageListener((mode) => useAppStore.setState({ themeMode: mode }));
+  followAppearanceOfOtherWindows();
   ReactDOM.createRoot(document.getElementById("root")!).render(
     <React.StrictMode>
       {/* Un pannello in attesa di abbinamento mostra il codice e basta

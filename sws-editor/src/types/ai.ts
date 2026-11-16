@@ -4,6 +4,8 @@
 
 import type { FaceplateDef, ProjectInfo, SynopticPage } from "@/types";
 import type { RichiestaFoto } from "@/ai/fotoDalBrowser";
+import type { ProposalImage } from "@/ai/proposalImages";
+import type { Planimetria } from "@/planimetrie/modello";
 
 /** Un rilievo della validazione, come lo produce `sws-web/src/validate.rs`. */
 export interface Rilievo {
@@ -38,15 +40,25 @@ export type MsgIn =
       project?: ProjectInfo | null; pages?: SynopticPage[] | null;
       impronta?: string | null; giudizio: Giudizio;
       /** I simboli disegnati che la proposta porta nel progetto, già compilati:
-       *  il diff ne mostra la miniatura. */
-      simboli?: { slug: string; it: string; en: string; svg: string }[];
+       *  il diff ne mostra la miniatura. One drawn as free SVG (G3) is here
+       *  too, with its `custom:` id. */
+      simboli?: { slug: string; it: string; en: string; svg: string; symbol_id?: string }[];
       /** Gli sfondi generati che le pagine della proposta usano (F6): JPEG in
-       *  base64, da scrivere in images/ del progetto quando si applica. */
-      sfondi?: { file: string; jpg: string }[];
+       *  base64, da scrivere in images/ del progetto quando si applica. Since
+       *  G2 also the drawing of a floor plan, as SVG text. */
+      sfondi?: ProposalImage[];
+      /** The floor plans the proposed pages are drawn on (G2), whole: written
+       *  in planimetrie/ at Save. */
+      floor_plans?: Planimetria[];
+      /** The ids of `floor_plans` that already have a file in the project:
+       *  Save replaces it, and the diff says changed instead of new. */
+      replaced_floor_plans?: string[];
       /** I faceplate nuovi o cambiati (06-11-2026), interi. */
       faceplates?: FaceplateDef[] | null }
   /** Una bozza di simbolo appena disegnata dall'assistente. */
   | { t: "simbolo"; slug: string; it: string; en: string; svg: string }
+  /** A floor plan the assistant has just drawn (G2): the flat drawing. */
+  | { t: "floor_plan"; id: string; name: string; svg: string }
   /** Un'istantanea del pannello che l'assistente ha scattato: la vede anche chi chatta. */
   | { t: "immagine"; png: string; testo?: string }
   /** Il server chiede la foto di una pagina di un progetto web (10-11-2026):
@@ -116,4 +128,5 @@ export type Riga =
       motivoRifiuto?: string }
   | { tipo: "errore"; testo: string }
   | { tipo: "simbolo"; slug: string; nome: string; svg: string }
+  | { tipo: "floor_plan"; id: string; name: string; svg: string }
   | { tipo: "immagine"; png: string; testo?: string };

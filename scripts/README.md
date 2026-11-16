@@ -143,7 +143,7 @@ cd sws-editor && pnpm test:e2e:ui     # debug UI
 
 ### `banco_tubi.sh` — l'assistente sul banco fisso dei tubi d'acciaio
 
-Il banco di G1 (piano `docs/plans/2026-11-10-assistente-secondo-giro.md`): copia il progetto vuoto
+Il banco di G1 (piano `docs/archive/2026-11-10-assistente-secondo-giro.md`): copia il progetto vuoto
 `tests/fixtures/ai-bench/tubi-acciaio/` in `sws/tmp/banco-tubi/<ora>/`, avvia un IDE usa e getta sulla
 8680 (`APORT=` per cambiarla), crea l'amministratore, lancia `e2e/chat-tubi.spec.ts` e spegne l'IDE.
 

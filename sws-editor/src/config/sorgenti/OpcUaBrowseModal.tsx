@@ -4,6 +4,7 @@ import { api } from "@/api/client";
 import type { OpcUaBrowsedNode, OpcUaSource } from "@/types";
 import { S } from "@/config/comuni";
 import { EseguitoDa } from "@/config/sorgenti/EseguitoDa";
+import { Icona } from "@/components/Icona";
 
 // ── OPC-UA browse modal ──────────────────────────────────────────────────────
 //
@@ -106,7 +107,7 @@ export function OpcUaBrowseModal({
       const isImported = existingNodeIds.has(n.node_id);
       const icon = isFolder ? "📁" : isVariable ? "📊" : n.node_class === "Method" ? "⚙" : "·";
       const labelColor = isVariable
-        ? (isImported ? "var(--brand-border, #475569)" : isPicked ? "#5eead4" : "var(--brand-text-2, #cbd5e1)")
+        ? (isImported ? "var(--brand-border, #475569)" : isPicked ? "var(--sws-select-text, #5eead4)" : "var(--brand-text-2, #cbd5e1)")
         : isFolder ? "var(--brand-warning-soft, #facc15)"
         : "var(--brand-text-subtle, #64748b)";
       return (
@@ -118,7 +119,7 @@ export function OpcUaBrowseModal({
               paddingTop: 3, paddingBottom: 3,
               display: "flex", alignItems: "center", gap: 6,
               cursor: isFolder ? "pointer" : isVariable ? (isImported ? "not-allowed" : "pointer") : "default",
-              background: isPicked ? "#0f2922" : "transparent",
+              background: isPicked ? "var(--sws-select-bg, #0f2922)" : "transparent",
               fontSize: 12, color: labelColor,
             }}
             title={isImported ? t("cfgUi.alreadyImported") : n.node_id}
@@ -137,7 +138,7 @@ export function OpcUaBrowseModal({
             ) : (
               <span style={{ width: 12 }} />
             )}
-            <span>{icon}</span>
+            <span><Icona emoji={icon} /></span>
             <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {n.display_name || n.browse_name || n.node_id}
             </span>
@@ -205,16 +206,16 @@ export function OpcUaBrowseModal({
           <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer", fontSize: 16 }}>×</button>
         </div>
         {error && (
-          <div style={{ background: "var(--brand-danger-bg, #7f1d1d)", color: "#fecaca", padding: "8px 14px", fontSize: 12 }}>
+          <div style={{ background: "var(--brand-danger-bg, #7f1d1d)", color: "var(--sws-danger-text, #fecaca)", padding: "8px 14px", fontSize: 12 }}>
             {error}
           </div>
         )}
-        <div style={{ flex: 1, overflowY: "auto", padding: "8px 0", background: "#0a111e" }}>
+        <div style={{ flex: 1, overflowY: "auto", padding: "8px 0", background: "var(--sws-sunken, #0a111e)" }}>
           {renderLevel("@root", 0)}
         </div>
         <div style={{ padding: "10px 14px", borderTop: "1px solid var(--brand-surface, #1e293b)",
           display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div style={{ fontSize: 12, color: pickedList.length > 0 ? "#5eead4" : "var(--brand-text-subtle, #64748b)" }}>
+          <div style={{ fontSize: 12, color: pickedList.length > 0 ? "var(--sws-select-text, #5eead4)" : "var(--brand-text-subtle, #64748b)" }}>
             {pickedList.length === 0
               ? t("cfgUi.expandAnObjectAndSelect")
               : `${pickedList.length} nod${pickedList.length === 1 ? "o" : "i"} selezionat${pickedList.length === 1 ? "o" : "i"}.`}

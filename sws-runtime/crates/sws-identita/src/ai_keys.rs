@@ -43,6 +43,13 @@ pub struct AiKeyInfo {
     pub readable: bool,
 }
 
+/// The longest model id kept: provider ids are far shorter.
+const MAX_MODEL: usize = 128;
+
+fn valid_model(m: &str) -> bool {
+    !m.is_empty() && m.len() <= MAX_MODEL && !m.chars().any(|c| c.is_control() || c.is_whitespace())
+}
+
 fn valid_provider(p: &str) -> bool {
     !p.is_empty()
         && p.len() <= MAX_PROVIDER
@@ -286,6 +293,54 @@ impl Identita {
         .await?
     }
 
+    /// The model `user_id` prefers for `provider`; `None` = the provider's default.
+    pub async fn set_ai_model(
+        &self,
+        user_id: i64,
+        provider: &str,
+        model: Option<&str>,
+    ) -> anyhow::Result<()> {
+        anyhow::ensure!(valid_provider(provider), "invalid provider");
+        let model = model.map(str::trim).filter(|m| !m.is_empty()).map(str::to_string);
+        if let Some(m) = &model {
+            anyhow::ensure!(valid_model(m), "invalid model");
+        }
+        let conn = self.conn.clone();
+        let provider = provider.to_string();
+        task::spawn_blocking(move || -> anyhow::Result<()> {
+            let c = conn.lock().unwrap_or_else(|e| e.into_inner());
+            match model {
+                Some(m) => c.execute(
+                    "INSERT OR REPLACE INTO ai_models (user_id, provider, model) VALUES (?1, ?2, ?3)",
+                    params![user_id, provider, m],
+                )?,
+                None => c.execute(
+                    "DELETE FROM ai_models WHERE user_id = ?1 AND provider = ?2",
+                    params![user_id, provider],
+                )?,
+            };
+            Ok(())
+        })
+        .await?
+    }
+
+    /// The preferred models of a user, by provider.
+    pub async fn ai_models(
+        &self,
+        user_id: i64,
+    ) -> anyhow::Result<std::collections::BTreeMap<String, String>> {
+        let conn = self.conn.clone();
+        task::spawn_blocking(move || -> anyhow::Result<_> {
+            let c = conn.lock().unwrap_or_else(|e| e.into_inner());
+            let mut q = c.prepare("SELECT provider, model FROM ai_models WHERE user_id = ?1")?;
+            let v = q
+                .query_map(params![user_id], |r| Ok((r.get(0)?, r.get(1)?)))?
+                .collect::<Result<_, _>>()?;
+            Ok(v)
+        })
+        .await?
+    }
+
     /// Removes the key. `false` if there was none: removing it twice is no error.
     pub async fn remove_ai_key(&self, user_id: i64, provider: &str) -> anyhow::Result<bool> {
         anyhow::ensure!(valid_provider(provider), "invalid provider");
@@ -323,6 +378,18 @@ mod test {
             .await
             .unwrap();
         (id, dir, u.id)
+    }
+
+    #[tokio::test]
+    async fn a_preferred_model_is_kept_apart_from_the_key() {
+        let (id, _d, u) = store().await;
+        id.set_ai_model(u, "kimi", Some("kimi-k2")).await.unwrap();
+        id.set_ai_key(u, "kimi", "sk-kimi-1").await.unwrap();
+        id.set_ai_key(u, "kimi", "sk-kimi-2").await.unwrap();
+        assert_eq!(id.ai_models(u).await.unwrap().get("kimi").map(String::as_str), Some("kimi-k2"));
+        id.set_ai_model(u, "kimi", None).await.unwrap();
+        assert!(id.ai_models(u).await.unwrap().is_empty());
+        assert!(id.set_ai_model(u, "kimi", Some("a b")).await.is_err());
     }
 
     #[tokio::test]

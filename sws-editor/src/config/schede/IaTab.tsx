@@ -1,11 +1,12 @@
 import { CampoPassword } from "@/components/CampoPassword";
+import { ModelSelect } from "@/components/ModelSelect";
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { useAppStore } from "@/store";
 import { riapriAiStream } from "@/ws/aiStream";
 import { apriChat, staccaChat, useComandiChat } from "@/ai/comandiChat";
-import type { AiConfig, RegoleIa, ScopoIa, ScopoIaCfg } from "@/types";
+import type { AiConfig, AiSpending, AiSpendingMonth, RegoleIa, ScopoIa, ScopoIaCfg } from "@/types";
 import { S, SaveBar } from "@/config/comuni";
 
 // ── Il menù IA (04-11-2026) ──────────────────────────────────────────────────
@@ -163,6 +164,18 @@ function Fornitore({ f, onCambiato }: { f: AiConfig["fornitori"][number]; onCamb
 
 // ── Gli scopi ────────────────────────────────────────────────────────────────
 
+/** The models of a provider, asked once per tab (the list is free, but five
+ *  rows would ask five times). `null` = no key, or the provider said no. */
+const modelliPerFornitore = new Map<string, Promise<string[] | null>>();
+function modelliDi(fornitore: string): Promise<string[] | null> {
+  let p = modelliPerFornitore.get(fornitore);
+  if (!p) {
+    p = api.provaAiChiave(fornitore).then((r) => (r.ok ? r.modelli ?? [] : null), () => null);
+    modelliPerFornitore.set(fornitore, p);
+  }
+  return p;
+}
+
 export function IaScopiTab() {
   const { t } = useTranslation();
   const { cfg, assente, carica } = useConfigIa();
@@ -223,6 +236,15 @@ function RigaScopo({ scopo, cfg, valore, onCambia }: {
   const fornitore = valore?.fornitore
     ?? (puoEreditare ? "" : eff.effettivo.fornitore ?? adatti[0]?.id ?? "");
   const scelto = adatti.find((f) => f.id === fornitore);
+  const conChiave = !!scelto && (scelto.chiave || scelto.source != null);
+  const [modelli, setModelli] = useState<string[] | null>(null);
+  useEffect(() => {
+    setModelli(null);
+    if (!fornitore || !conChiave) return;
+    let vivo = true;
+    void modelliDi(fornitore).then((m) => { if (vivo) setModelli(m); });
+    return () => { vivo = false; };
+  }, [fornitore, conChiave]);
   const tettoDefault = scopo === "sfondi" ? cfg.tetto_sfondi_default : cfg.tetto_usd_default;
   const [tettoTesto, setTettoTesto] = useState(() => valore?.tetto_usd != null ? String(valore.tetto_usd) : "");
   const set = (campo: keyof ScopoIaCfg, v: string | number | undefined) => {
@@ -247,14 +269,17 @@ function RigaScopo({ scopo, cfg, valore, onCambia }: {
         </label>
         <label style={etichetta}>
           {t("cfgUi.modello")}
-          <input value={valore?.modello ?? ""} disabled={!fornitore}
-            placeholder={scelto?.modello_default ?? ""}
-            onChange={(e) => set("modello", e.target.value || undefined)} style={{ ...campo, marginTop: 4 }} />
+          <ModelSelect value={valore?.modello} models={modelli} disabled={!fornitore}
+            defaultModel={scelto?.modello_account ?? scelto?.modello_default}
+            testId={`ia-scopo-${scopo}-modello`}
+            onChange={(m) => set("modello", m ?? undefined)} style={{ ...campo, marginTop: 4 }} />
         </label>
-        {scopo === "sfondi" && (
+        {/* The quality is OpenAI's setting: FLUX has none (G5, 16-11-2026). */}
+        {scopo === "sfondi" && fornitore === "openai" && (
           <label style={etichetta}>
             {t("ia.scopi.qualita")}
-            <select value={valore?.qualita ?? "medium"} onChange={(e) => set("qualita", e.target.value)}
+            <select value={valore?.qualita ?? "medium"} data-testid="ia-scopo-sfondi-qualita"
+              onChange={(e) => set("qualita", e.target.value)}
               style={{ ...campo, marginTop: 4 }}>
               {["low", "medium", "high"].map((q) => <option key={q} value={q}>{t(`ia.scopi.qualita_${q}`)}</option>)}
             </select>
@@ -285,6 +310,138 @@ function RigaScopo({ scopo, cfg, valore, onCambia }: {
     </Box>
   );
 }
+
+// ── Spending ─────────────────────────────────────────────────────────────────
+
+/** Dollars as the tab shows them: two decimals, four under one dollar (a
+ *  translation costs a fraction of a cent, and «0,00 $» would hide it). */
+export function formatUsd(usd: number, lang: string): string {
+  const digits = usd !== 0 && Math.abs(usd) < 1 ? 4 : 2;
+  return `${usd.toLocaleString(lang, { minimumFractionDigits: 2, maximumFractionDigits: digits })} $`;
+}
+
+/** `2026-11` → «novembre 2026». */
+function monthName(month: string, lang: string): string {
+  const [y, m] = month.split("-").map(Number);
+  if (!y || !m) return month;
+  return new Date(y, m - 1, 1).toLocaleDateString(lang, { month: "long", year: "numeric" });
+}
+
+/** Configurazione → IA → Spesa (G5, 16-11-2026): what the AI has cost this
+ *  installation, month by month, by purpose and by provider. Read-only: the
+ *  runtime adds to it at every paid call (`ai/spending.rs`). */
+export function IaSpendingTab() {
+  const { t, i18n } = useTranslation();
+  const [data, setData] = useState<AiSpending | null>(null);
+  const [state, setState] = useState<"loading" | "ok" | "absent" | "error">("loading");
+  const [error, setError] = useState("");
+  const load = () => {
+    setState("loading");
+    api.getAiSpending().then(
+      (d) => { setData(d); setState("ok"); },
+      (e) => {
+        const text = e instanceof Error ? e.message : String(e);
+        // 404 = not an IDE instance: there is nothing to configure from here.
+        setError(text);
+        setState(/^API [^:]+: 404\b/.test(text) ? "absent" : "error");
+      },
+    );
+  };
+  useEffect(load, []);
+  if (useAppStore((s) => s.authRole) !== "Admin") return null;
+  if (state === "absent") return <Colonna><NonQui /></Colonna>;
+  return (
+    <Colonna>
+      <Nota>{t("ia.spending.explain")}</Nota>
+      <div>
+        <button style={bottoneChiaro} data-testid="ia-spending-refresh" disabled={state === "loading"} onClick={load}>
+          {t("ia.spending.refresh")}
+        </button>
+      </div>
+      {state === "error" && <Esito ok={false}>{t("ia.spending.error", { error })}</Esito>}
+      {data?.months.map((m) => (
+        <SpendingMonth key={m.month} month={m} current={m.month === data.current_month} lang={i18n.language} />
+      ))}
+      {data && (
+        <Nota>
+          <span data-testid="ia-spending-total">{t("ia.spending.total", { usd: formatUsd(data.total.usd, i18n.language) })}</span>
+          {" "}{t("ia.spending.kept", { n: data.kept_months })}
+        </Nota>
+      )}
+    </Colonna>
+  );
+}
+
+function SpendingMonth({ month, current, lang }: { month: AiSpendingMonth; current: boolean; lang: string }) {
+  const { t } = useTranslation();
+  const name = monthName(month.month, lang);
+  // The purposes in the order of the menu, then whatever else the file holds.
+  const order = (p: string) => { const i = (SCOPI as string[]).indexOf(p); return i < 0 ? SCOPI.length : i; };
+  const rows = [...month.rows].sort((a, b) =>
+    order(a.purpose) - order(b.purpose) || a.purpose.localeCompare(b.purpose) || a.provider.localeCompare(b.provider));
+  const byProvider = new Map<string, { usd: number; calls: number }>();
+  for (const r of month.rows) {
+    const sum = byProvider.get(r.provider) ?? { usd: 0, calls: 0 };
+    byProvider.set(r.provider, { usd: sum.usd + r.usd, calls: sum.calls + r.calls });
+  }
+  const provider = (id: string) => t(`aiProviders.${id}`, { defaultValue: id });
+  return (
+    <Box titolo={current ? t("ia.spending.currentMonth", { month: name }) : name}>
+      <div data-testid={`ia-spending-month-${month.month}`}>
+        {rows.length === 0 ? <Nota>{t("ia.spending.none")}</Nota> : (
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, color: "var(--brand-text, #e2e8f0)" }}>
+            <thead>
+              <tr>
+                <th style={th}>{t("ia.spending.purpose")}</th>
+                <th style={th}>{t("ia.spending.provider")}</th>
+                <th style={thNum}>{t("ia.spending.calls")}</th>
+                <th style={thNum}>{t("ia.spending.spent")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={`${r.purpose}/${r.provider}`} data-testid={`ia-spending-row-${month.month}-${r.purpose}-${r.provider}`}>
+                  <td style={td}>{t(`ia.scopi.nome.${r.purpose}`, { defaultValue: r.purpose })}</td>
+                  <td style={td}>{provider(r.provider)}</td>
+                  <td style={tdNum}>{r.calls}</td>
+                  <td style={tdNum}>{formatUsd(r.usd, lang)}</td>
+                </tr>
+              ))}
+              {/* The sums by provider, when the month has more than one. */}
+              {byProvider.size > 1 && [...byProvider].sort(([a], [b]) => a.localeCompare(b)).map(([id, sum]) => (
+                <tr key={`provider/${id}`} data-testid={`ia-spending-provider-${month.month}-${id}`}>
+                  <td style={tdSub}>{t("ia.spending.byProvider")}</td>
+                  <td style={tdSub}>{provider(id)}</td>
+                  <td style={{ ...tdSub, textAlign: "right" }}>{sum.calls}</td>
+                  <td style={{ ...tdSub, textAlign: "right" }}>{formatUsd(sum.usd, lang)}</td>
+                </tr>
+              ))}
+              <tr>
+                <td style={tdTotal} colSpan={2}>{t("ia.spending.monthTotal")}</td>
+                <td style={{ ...tdTotal, textAlign: "right" }}>{month.calls}</td>
+                <td style={{ ...tdTotal, textAlign: "right" }} data-testid={`ia-spending-month-total-${month.month}`}>
+                  {formatUsd(month.usd, lang)}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        )}
+      </div>
+    </Box>
+  );
+}
+
+const th: React.CSSProperties = {
+  textAlign: "left", fontWeight: 500, fontSize: 11, padding: "3px 6px 3px 0",
+  color: "var(--brand-text-subtle, #64748b)", borderBottom: "1px solid var(--brand-surface-2, #334155)",
+};
+const thNum: React.CSSProperties = { ...th, textAlign: "right", padding: "3px 0 3px 6px" };
+const td: React.CSSProperties = { padding: "3px 6px 3px 0" };
+const tdNum: React.CSSProperties = { padding: "3px 0 3px 6px", textAlign: "right", fontVariantNumeric: "tabular-nums" };
+const tdSub: React.CSSProperties = { ...td, color: "var(--brand-text-muted, #94a3b8)", fontVariantNumeric: "tabular-nums" };
+const tdTotal: React.CSSProperties = {
+  ...td, fontWeight: 600, borderTop: "1px solid var(--brand-surface-2, #334155)", fontVariantNumeric: "tabular-nums",
+};
 
 // ── Le regole del progetto ───────────────────────────────────────────────────
 

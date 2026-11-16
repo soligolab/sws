@@ -68,6 +68,7 @@ STATICHE=(
     check_campi_numerici    # i campi numerici dell'editor passano da CampoNumero: il «-» da tastiera non si perde
     check_campi_password    # i campi password passano da CampoPassword: l'occhio che mostra quello che si è scritto, ovunque
     check_colori            # i colori predefiniti sono una tabella sola: creazione, pannello e template senza var(--), swatch sempre hex
+    check_colori_ide        # nell'IDE niente colori esadecimali scritti a mano: passano dalle variabili del tema (stile sobrio)
     check_predefiniti       # i predefiniti dei campi: una tabella scritta nei file (creazione e apertura), e i ripieghi web che non la contraddicono
     check_intestazioni      # CSP, nosniff, referrer e limiti per indirizzo su ogni router, e nessuno script in linea nelle pagine dell'IDE
     check_font              # l'elenco dei font: fixture, @font-face, woff2 del browser, ttf del pannello e licenze coincidono

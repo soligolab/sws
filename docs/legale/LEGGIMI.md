@@ -37,7 +37,9 @@ cache del service worker con la pagina dell'app.
    difetti; nessuna responsabilità sul suo uso e sul suo funzionamento finché la fase di sviluppo non si chiude, nei
    limiti di legge.
 3. **Assistente IA solo con la chiave dell'utente**: la piattaforma non manda progetti a un fornitore di IA a proprio
-   nome. Anthropic e Moonshot/Kimi compaiono quindi solo fra i servizi che l'utente attiva.
+   nome. Anthropic e Moonshot/Kimi compaiono quindi solo fra i servizi che l'utente attiva. Dal 16-11-2026 lo
+   stesso vale per Mistral (Francia) e, per le immagini, OpenAI e Black Forest Labs (Germania): l'elenco nei due
+   testi è stato allineato al codice, e i due fornitori europei non portano trasferimenti fuori dall'UE.
 4. **Account inattivi**: avviso dopo 12 mesi senza accessi, cancellazione 30 giorni dopo.
 5. **Legge italiana.**
 6. **Italiano e inglese**, due pagine pubbliche (`/condizioni`, `/privacy`) raggiungibili senza login; fa fede

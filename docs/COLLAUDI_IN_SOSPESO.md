@@ -39,6 +39,67 @@ sezione «Code annotate il 10-11-2026». Nell'IDE (cloud o 8460), con una chiave
        reagisce al primo clic o dice che è in coda; nessuna istantanea in timeout.
 3. [ ] **Il banco dei tubi** (F5): un giudizio da 1 a 5 sulle due pagine del 04-11 (`tmp/ai-misure/`, solo su
        theobroma). È l'ingresso del piano «secondo giro».
+4. [ ] **Mistral sul banco dei tubi** (G4, 16-11-2026; finora provato solo con risposte finte). Con una chiave di
+       console.mistral.ai in «Le mie chiavi IA» o nella scheda IA: «Prova la chiave» elenca i modelli; poi una
+       conversazione vera sul banco, a mano nell'IDE o con `mistral.key` in una cartella:
+       `SWS_AI_CHIAVI=<cartella> SWS_AI_FORNITORE=mistral ./scripts/banco_tubi.sh --vero`.
+       Da guardare: arriva a una proposta validata, la domanda **dopo** la proposta non dà errore 400, un'istantanea
+       torna e viene capita, costo e tetto si muovono. Annotare minuti, costo e voto da 1 a 5.
+5. [ ] **Uno sfondo con FLUX.2 e la spesa del mese** (G5, serve una chiave di Black Forest Labs): in IA → Fornitori e
+       chiavi si salva la chiave e «Prova la chiave» dice che funziona; in IA → Un modello per scopo gli Sfondi usano
+       Black Forest Labs. In chat: una base, «Usa come base», una variante «sera». Le due foto arrivano e la variante
+       ha la stessa scena. Poi IA → Spesa: nel mese in corso c'è la riga Sfondi · Black Forest Labs con due chiamate,
+       e la riga dell'assistente. Se la variante fallisce, annotare il messaggio (vedi lo scostamento sul base64 nel
+       piano «secondo giro», G5).
+
+## L'assistente, secondo giro: la casa e l'SVG libero (16-11-2026)
+
+Dal piano [l'assistente, secondo giro](archive/2026-11-10-assistente-secondo-giro.md), fasi G2 e G3. Nell'IDE (cloud o
+8460) con una chiave vera, poi sul TC620.
+
+1. [ ] **Una casa sulla sua pianta** (G2): in una chat, chiedere la pagina di una casa con luci e tapparelle.
+       L'assistente disegna la pianta (`floor_plan`) e propone la pagina. Dopo Applica e Salva: la pianta è lo sfondo,
+       luci e tapparelle stanno nella loro stanza, c'è `planimetrie/<id>.yaml`. La stessa pagina si vede uguale nel
+       viewer web e su LVGL (muri, porte con l'arco, finestre).
+2. [ ] **Un simbolo SVG libero agganciato a un tubo** (G3): chiedere una macchina che la libreria non ha e che una
+       descrizione non sa fare (un ciclone, una tramoggia), collegata con un tubo a una pompa. La bozza compare in
+       chat, la proposta porta un simbolo `custom:`. Dopo Applica e Salva il tubo finisce sulla bocca del simbolo, non
+       al centro del riquadro: nell'editor, nel viewer web e su LVGL. Spostando il simbolo nell'editor il tubo lo segue.
+3. [ ] **Le prove a pagamento di G2 e G3**, come quella di G1 (Opus 5.5 sul banco dei tubi: 1,26 $, 5,5 minuti, voto
+       4 su 5). G2: `./scripts/bench_house.sh --real`. G3: sul banco dei tubi (`./scripts/banco_tubi.sh --vero`)
+       chiedere anche una macchina che la libreria non ha. Annotare minuti, costo, voto da 1 a 5, e se il modello
+       scrive entità o `\` negli attributi dell'SVG (oggi sono rifiutati).
+4. [ ] **CasaDomotica** (regola del progetto di riferimento): una pagina disegnata sulla sua pianta, un simbolo SVG
+       libero agganciato a un tubo e, quando c'è la chiave di Black Forest Labs, uno sfondo fatto con FLUX.2.
+
+## Lo stile sobrio, sessioni 2 e 3 (16-11-2026)
+
+Dal piano [stile sobrio](archive/2026-11-14-stile-sobrio.md), archiviato prima della rc.20. Nell'IDE (8460 o cloud),
+Configurazione → IDE → stile.
+
+1. [ ] **Le icone a linea** nello stile sobrio: albero di Configurazione, colonna di sinistra, menu, barra degli
+       strumenti, pannello delle proprietà, schede. Guardare allineamento e misura delle icone nelle righe e nei
+       bottoni; nei bottoni pieni l'icona ha il colore del testo. Nessun agente ha visto l'IDE vero in questo stile.
+2. [ ] **Il colorato resta com'era**: le stesse schermate nello stile colorato, con le emoji di sempre.
+3. [ ] **Le altre finestre seguono**: con la chat staccata aperta, cambiare stile nella finestra principale. La chat
+       cambia colori **e** icone.
+4. [ ] **Il testo d'accento sul fondo di selezione** nel sobrio scuro coi colori predefiniti (contrasto 4,2:1, sotto il
+       4,5 del testo normale): si legge bene o va scurito il fondo?
+5. [ ] **I quattro bottoni pieni** nel sobrio: «Unisci celle», «Abbina» spento, «Cambia password» e «Crea» il primo
+       amministratore mentre la richiesta è in corso. Il testo si legge.
+
+## Le chiavi IA dell'account, complete (16-11-2026)
+
+Dal piano [chiavi IA dell'account complete](archive/2026-11-16-chiavi-ia-account-complete.md). Nel cloud, dopo
+l'immagine della rc.20 e il gateway aggiornato, con chiavi vere.
+
+1. [ ] **Cinque fornitori** in 👤 → Le mie chiavi IA: Anthropic, Kimi, Mistral, OpenAI e Black Forest Labs.
+2. [ ] **«Prova la chiave»** elenca i modelli (per Black Forest Labs dice il saldo dei crediti).
+3. [ ] **«Modello preferito»** è un menù a tendina: «Predefinito del fornitore» in cima, poi i modelli in ordine
+       alfabetico. Un modello scelto lì lo usa l'assistente di un progetto che non ne sceglie uno suo.
+4. [ ] **Negli Scopi del progetto** (IA → Un modello per scopo) il modello è lo stesso menù a tendina, riempito dalla
+       chiave del progetto o da quella dell'account.
+5. [ ] **Uno sfondo con la chiave OpenAI dell'account**, in un progetto che non ha una chiave sua.
 
 ## Dai piani archiviati il 16-11-2026
 

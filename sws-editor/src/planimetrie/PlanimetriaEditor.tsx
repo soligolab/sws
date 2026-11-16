@@ -26,6 +26,7 @@ import {
   type Apertura, type Area, type Blocco, type Muro, type Planimetria, type Punto,
 } from "./modello";
 import { CampoNumero } from "@/components/CampoNumero";
+import { Icona } from "@/components/Icona";
 import { conferma } from "@/finestraAvviso/finestraAvviso";
 
 type Strumento = "seleziona" | "muro" | "porta" | "finestra" | "area" | "blocco";
@@ -38,6 +39,10 @@ const Vista3D = lazy(() => import("./Vista3D").then((m) => ({ default: m.Vista3D
 
 const STRUMENTI: Strumento[] = ["seleziona", "muro", "porta", "finestra", "area", "blocco"];
 const ICONE: Record<Strumento, string> = { seleziona: "↖", muro: "▬", porta: "🚪", finestra: "🪟", area: "▦", blocco: "⬛" };
+/** The line icon of each tool in the sober style (`ICONE_IDE`). */
+const TOOL_ICONS: Record<Strumento, string> = {
+  seleziona: "pointer", muro: "wall", porta: "door", finestra: "plan-window", area: "polygon", blocco: "square",
+};
 const PASSI = [0.05, 0.1, 0.25, 0.5, 1];
 /** Quanto vicino a un muro (metri) un clic aggancia una porta o una finestra. */
 const VICINO_AL_MURO = 0.6;
@@ -226,12 +231,12 @@ export function PlanimetriaEditor({ id }: { id: string }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 0, overflow: "hidden" }} data-testid="editor-planimetria">
       <div style={BARRA}>
-        <strong style={{ marginRight: 8 }}>🏠 {bozza.nome || bozza.id}</strong>
+        <strong style={{ marginRight: 8 }}><Icona emoji="🏠" /> {bozza.nome || bozza.id}</strong>
         {STRUMENTI.map((s) => (
           <button key={s} data-testid={`strumento-${s}`} title={t(`planimetrie.aiuto.${s}`)}
             onClick={() => { setStrumento(s); setInCorso([]); }}
             style={{ ...PULSANTE, ...(strumento === s ? PULSANTE_ATTIVO : {}) }}>
-            {ICONE[s]} {t(`planimetrie.strumenti.${s}`)}
+            <Icona emoji={ICONE[s]} nome={TOOL_ICONS[s]} color="currentColor" /> {t(`planimetrie.strumenti.${s}`)}
           </button>
         ))}
         <label style={{ fontSize: 12, marginLeft: 8 }}>{t("planimetrie.passo")}{" "}
@@ -241,21 +246,21 @@ export function PlanimetriaEditor({ id }: { id: string }) {
         </label>
         <span style={{ flex: 1 }} />
         <button style={{ ...PULSANTE, ...(vista3d ? PULSANTE_ATTIVO : {}) }} data-testid="planimetria-3d" onClick={() => setVista3d((v) => !v)}>
-          🧊 {t("planimetrie.vista3d")}
+          <Icona emoji="🧊" color="currentColor" /> {t("planimetrie.vista3d")}
         </button>
         {vista3d && (
           <button style={PULSANTE} data-testid="planimetria-inquadra" title={t("planimetrie.inquadraTitolo")}
             onClick={() => api3d.current?.inquadra()}>
-            ⛶ {t("planimetrie.inquadra")}
+            <Icona emoji="⛶" /> {t("planimetrie.inquadra")}
           </button>
         )}
         <button style={PULSANTE} data-testid="planimetria-genera" disabled={!vista3d} title={vista3d ? undefined : t("planimetrie.generaServe3d")}
           onClick={() => setGenera(true)}>
-          🖼 {t("planimetrie.generaSfondo")}
+          <Icona emoji="🖼" /> {t("planimetrie.generaSfondo")}
         </button>
         <button style={{ ...PULSANTE, ...(sporca ? PULSANTE_ATTIVO : {}) }} disabled={!sporca} data-testid="planimetria-salva"
           onClick={() => void salva().catch((e: unknown) => setErrore(e instanceof Error ? e.message : String(e)))}>
-          💾 {t("planimetrie.salva")}
+          <Icona emoji="💾" color="currentColor" /> {t("planimetrie.salva")}
         </button>
         <button style={PULSANTE} onClick={chiudi}>✕ {t("planimetrie.chiudi")}</button>
       </div>
@@ -509,7 +514,7 @@ const PULSANTE: CSSProperties = {
   background: "var(--brand-surface, #1e293b)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)",
   borderRadius: 4, padding: "3px 8px", fontSize: 12, cursor: "pointer",
 };
-const PULSANTE_ATTIVO: CSSProperties = { background: "var(--brand-primary, #3b82f6)", borderColor: "var(--brand-primary, #3b82f6)", color: "#fff" };
+const PULSANTE_ATTIVO: CSSProperties = { background: "var(--brand-primary, #3b82f6)", borderColor: "var(--brand-primary, #3b82f6)", color: "var(--sws-on-accent, #fff)" };
 const ETICHETTA: CSSProperties = { display: "flex", flexDirection: "column", gap: 3, fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)" };
 const CAMPO: CSSProperties = {
   background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-border, #475569)",

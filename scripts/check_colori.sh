@@ -101,7 +101,8 @@ for i, r in enumerate(rs):
         problemi.append(f"riga {i + 1}: value={{{valore.strip()[:60]}}}")
 esito(n_swatch > 0, f"{n_swatch} swatch trovati in EditorShell.tsx")
 esito(not problemi, "ogni swatch passa da estraiHex()/CampoColore" + ("".join("\n      " + p for p in problemi)))
-campo = open(f"{root}/sws-editor/src/editor/CampoColore.tsx", encoding="utf-8").read()
+# The `/* fixed-colour */` mark belongs to check_colori_ide.sh: it does not count here.
+campo = open(f"{root}/sws-editor/src/editor/CampoColore.tsx", encoding="utf-8").read().replace(" /* fixed-colour */", "")
 # `bozza` è il colore che il selettore nativo ha appena dato, durante il
 # trascinamento (31-10-2026, `useColoreFluido`): esce da lui, quindi è già hex.
 esito('value={bozza ?? (mixed ? "#808080" : perSwatch)}' in campo, "CampoColore: lo swatch riceve `perSwatch` (estraiHex, mai il valore grezzo)")

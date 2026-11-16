@@ -1816,6 +1816,30 @@ pub struct CustomSymbol {
     /// Id degli elementi SVG ricolorati con il colore dello stato corrente.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub colorable_ids: Option<Vec<String>>,
+    /// Drawing size `[w, h]`: the SVG's `viewBox` is `0 0 w h`. Needed only by
+    /// `ports`, whose coordinates are in these units (plan
+    /// `docs/archive/2026-11-10-assistente-secondo-giro.md`, G3).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub view_box: Option<[f64; 2]>,
+    /// Where pipes attach, like the ports of a library symbol: the outer face
+    /// of the flange, the side the pipe leaves from, the stub diameter.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ports: Option<Vec<crate::simboli_lib::PortaLib>>,
+}
+
+impl CustomSymbol {
+    /// The `symbol_id` an object uses to show this symbol.
+    pub fn symbol_id(&self) -> String {
+        format!("custom:{}", self.id)
+    }
+
+    /// Drawing size and ports, when the symbol has both: only then can a pipe
+    /// attach to a real port instead of a side of the box.
+    pub fn ports_with_view_box(&self) -> Option<([f64; 2], &[crate::simboli_lib::PortaLib])> {
+        let vb = self.view_box.filter(|v| v[0] > 0.0 && v[1] > 0.0)?;
+        let p = self.ports.as_deref().filter(|p| !p.is_empty())?;
+        Some((vb, p))
+    }
 }
 
 fn deserialize_sources_tolerant<'de, D>(d: D) -> Result<Vec<SourceDef>, D::Error>

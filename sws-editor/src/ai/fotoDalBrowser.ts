@@ -13,20 +13,25 @@
 
 import { rasterizzaPagina } from "@/boot/rasterizza";
 import { immagineInSospeso, mettiInSospeso, togliDaSospeso } from "@/canvas/immaginiInSospeso";
+import { imageDataUri } from "@/ai/proposalImages";
 import { corniceDellAnteprima } from "@/progetto/anteprima";
 import { useAppStore } from "@/store";
-import { precaricaSimboli, sovrapponiSimboli } from "@/symbols/lib/libreria";
+import { overlayCustomSymbolPorts, precaricaSimboli, sovrapponiSimboli } from "@/symbols/lib/libreria";
 import type { SimboloLib } from "@/symbols/lib/manifest";
-import type { FaceplateDef, SynopticPage } from "@/types";
+import type { CustomSymbol, FaceplateDef, SynopticPage } from "@/types";
 
 /** Il frame `fotografa` del server, senza `t` e `id`. */
 export interface RichiestaFoto {
   pagina: SynopticPage;
   /** Le bozze di simbolo della conversazione, già compilate dal server. */
   simboli?: { voce: SimboloLib; svg: string }[];
+  /** The drafts drawn as free SVG (G3): custom symbols the project does not
+   *  have yet, with their ports. */
+  custom_symbols?: CustomSymbol[];
   /** Gli sfondi del banco che la pagina usa: `src` è l'href con cui la pagina
-   *  li nomina, `jpg` il JPEG in base64. */
-  sfondi?: { src: string; jpg: string }[];
+   *  li nomina, `jpg` il JPEG in base64 — or `svg`, the drawing of a floor
+   *  plan as text (G2). */
+  sfondi?: { src: string; jpg?: string; svg?: string }[];
   faceplates?: FaceplateDef[];
   /** La misura della pagina secondo il server (quando la pagina non la dice). */
   misura?: { larghezza: number; altezza: number };
@@ -67,19 +72,27 @@ export async function fotografa(r: RichiestaFoto): Promise<Foto> {
   const messi: string[] = [];
   for (const f of r.sfondi ?? []) {
     if (immagineInSospeso(f.src)) continue;
-    mettiInSospeso(f.src, `data:image/jpeg;base64,${f.jpg}`);
+    mettiInSospeso(f.src, imageDataUri(f));
     messi.push(f.src);
   }
   const togliSimboli = sovrapponiSimboli(r.simboli ?? []);
+  // The free-SVG drafts over the custom symbols of the project, a draft in
+  // place of the one with its id; their ports too, so the pipes attach.
+  const drafts = r.custom_symbols ?? [];
+  const customSymbols = drafts.length
+    ? [...st.customSymbols.filter((s) => !drafts.some((d) => d.id === s.id)), ...drafts]
+    : st.customSymbols;
+  const removePorts = overlayCustomSymbolPorts(drafts);
   try {
     await precaricaSimboli(simboliUsati(pagina, r.faceplates));
     const cornice = corniceDellAnteprima(pagina, st.pages, st.project?.page_layout?.cornice_predefinita);
-    return await rasterizzaPagina(pagina, st.customSymbols, {
+    return await rasterizzaPagina(pagina, customSymbols, {
       cornice,
       valori: st.tagValues,
       faceplates: r.faceplates,
     });
   } finally {
+    removePorts();
     togliSimboli();
     for (const h of messi) togliDaSospeso(h);
   }

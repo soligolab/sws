@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Il banco fisso dei tubi d'acciaio (piano docs/plans/2026-11-10-assistente-secondo-giro.md, G1).
+# Il banco fisso dei tubi d'acciaio (piano docs/archive/2026-11-10-assistente-secondo-giro.md, G1).
 #
 # Copia il progetto di prova (tests/fixtures/ai-bench/tubi-acciaio/) in una cartella nuova
 # sotto sws/tmp/banco-tubi/, avvia un IDE usa e getta su una porta libera, lancia

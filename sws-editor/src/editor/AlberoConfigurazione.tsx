@@ -36,6 +36,7 @@ import { PallinoStato } from "@/config/sorgenti/DispositiviModbus";
 import { statoComplessivo, statoDispositivo, useStatoSorgenti } from "@/config/sorgenti/statoSorgenti";
 import { busImplicito, dispositiviDi, eBusModbus, etichettaDispositivo, focusDispositivo } from "@/config/sorgenti/modbusDispositivi";
 import { IconaCatalogo, useElencoCatalogo, voceDelModello } from "@/config/sorgenti/CatalogoDispositiviModal";
+import { Icona } from "@/components/Icona";
 
 /** Gli elementi di ricette e utenti, che il progetto non porta: una richiesta
  *  al montaggio dell'albero, come fanno le loro schede. */
@@ -273,7 +274,8 @@ function Foglia({ scheda, elementi, modificata, dentroSottoRamo = false, ultimo 
           onClick={navigabile ? () => navigateToConfig(id) : commuta}
           style={stileRiga(suQuesta && configFocus === null, 0)}
         >
-          <span aria-hidden="true" style={stileIcona}>{scheda.icona}</span>
+          <span aria-hidden="true" style={stileIcona}><Icona emoji={scheda.icona} nome={scheda.iconName}
+            color={suQuesta && configFocus === null ? "var(--sws-att-attiva, currentColor)" : undefined} /></span>
           <span style={stileEtichetta}>{t(`config.tabs.${id}`)}</span>
           {modificata && <Pallino testid={`dirty-config-${id}`} />}
           <SegnoRilievi c={rilieviFoglia} testid={`rilievi-config-${id}`} />
@@ -384,7 +386,7 @@ function SottoRamoNodo({ id, icona, foglie }: {
           {aperto ? "▼" : "▶"}
         </button>
         <button type="button" onClick={commuta} style={stileRiga(false, 0)}>
-          <span aria-hidden="true" style={stileIcona}>{icona}</span>
+          <span aria-hidden="true" style={stileIcona}><Icona emoji={icona} /></span>
           <span style={{ ...stileEtichetta, fontWeight: 600 }}>{t(`config.sottorami.${id}`)}</span>
           {foglie.some((f) => f.modificata) && <Pallino testid={`dirty-sottoramo-${id}`} />}
         </button>

@@ -141,8 +141,10 @@ export async function apriChatDellIde(
 }
 
 /** Il modello che la chat dichiara, aspettando il suo «pronto» (finché non
- *  arriva l'intestazione dice «…»). `finto` = runtime con `SWS_AI_FAKE`. */
+ *  arriva l'intestazione dice «…»). `finto` = runtime con `SWS_AI_FAKE`.
+ *  The model names of every text provider: a name missing here makes the
+ *  bench wait the whole timeout before going on. */
 export async function modelloDellaChat(chat: import("@playwright/test").Locator): Promise<string> {
-  await expect(chat).toContainText(/finto|claude|kimi|moonshot|nessuna chiave/i, { timeout: 15_000 }).catch(() => {});
+  await expect(chat).toContainText(/finto|claude|kimi|moonshot|mistral|codestral|ministral|nessuna chiave/i, { timeout: 15_000 }).catch(() => {});
   return chat.innerText();
 }

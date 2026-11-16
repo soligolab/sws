@@ -8,7 +8,7 @@ use base64::Engine as _;
 use serde_json::{json, Value};
 use tokio::sync::mpsc;
 
-use super::{client, immagini, prompt, scopi, tools, Banco, Misure};
+use super::{bfl, client, immagini, prompt, scopi, spending, tools, Banco, Misure};
 use crate::router::AppState;
 
 /// Cosa la conversazione sa fare in più, deciso all'apertura del socket.
@@ -17,6 +17,8 @@ pub(crate) struct Contesto {
     pub simboli: Option<client::Scelta>,
     pub sfondi: Option<scopi::SceltaImmagini>,
     pub http: reqwest::Client,
+    /// Where Black Forest Labs is: the real one, a fake in the tests.
+    pub bfl: bfl::Endpoint,
 }
 
 impl Contesto {
@@ -26,7 +28,7 @@ impl Contesto {
         let simboli = scopi::ha_scelta_propria_con(config_dir, scopi::Scopo::Simboli, user)
             .then(|| scopi::carica_per_con(config_dir, scopi::Scopo::Simboli, user))
             .flatten();
-        let sfondi = scopi::carica_sfondi(config_dir);
+        let sfondi = scopi::carica_sfondi_con(config_dir, user);
         Contesto {
             opzioni: tools::Opzioni {
                 disegna_simboli: simboli.is_some(),
@@ -38,6 +40,7 @@ impl Contesto {
                 .timeout(std::time::Duration::from_secs(300))
                 .build()
                 .unwrap_or_default(),
+            bfl: bfl::Endpoint::default(),
         }
     }
 }
@@ -151,6 +154,12 @@ pub(crate) async fn disegna(
         let costo = client::costo_usd(&sc.modello, &uso);
         misure.giro(&uso, costo, t0.elapsed().as_secs_f64());
         banco.spesa_simboli += costo;
+        spending::add(
+            &s.config_dir,
+            scopi::Scopo::Simboli.nome(),
+            sc.fornitore.nome(),
+            costo,
+        );
         invia(
             tx,
             json!({ "t": "risorse_extra", "costo": costo, "speso": misure.costo_usd,
@@ -203,8 +212,9 @@ fn controlla_tetto_sfondi(
     misure: &Misure,
     sc: &scopi::SceltaImmagini,
     tetto_usd: f64,
+    edit: bool,
 ) -> Result<f64, String> {
-    let costo = immagini::costo_stimato(&sc.qualita);
+    let costo = immagini::estimated_usd(sc, edit);
     if banco.spesa_sfondi + costo > sc.tetto_usd {
         return Err(format!(
             "tetto degli sfondi raggiunto: {:.2} $ su {:.2} $ (stima). Alzalo in IA → Un modello per scopo",
@@ -218,6 +228,78 @@ fn controlla_tetto_sfondi(
         ));
     }
     Ok(costo)
+}
+
+/// The cost of one request for a background enters the cap of the purpose,
+/// the cap of the conversation and the spending history of the installation.
+/// `settled` says whether the provider declared the cost (`None`: not known,
+/// for a request that failed); `delivered` whether the image arrived.
+#[allow(clippy::too_many_arguments)]
+fn count_background(
+    s: &AppState,
+    banco: &mut Banco,
+    misure: &mut Misure,
+    sc: &scopi::SceltaImmagini,
+    cost: f64,
+    settled: Option<bool>,
+    delivered: bool,
+    started: std::time::Instant,
+) {
+    banco.spesa_sfondi += cost;
+    misure.giro(
+        &json!({ "immagini": u8::from(delivered), "qualita": sc.qualita,
+                 "provider": sc.fornitore.name(), "settled": settled,
+                 "delivered": delivered }),
+        cost,
+        started.elapsed().as_secs_f64(),
+    );
+    spending::add(
+        &s.config_dir,
+        scopi::Scopo::Sfondi.nome(),
+        sc.fornitore.name(),
+        cost,
+    );
+}
+
+/// One background was made. The cost is the one the provider settled (FLUX
+/// says it), else the estimate the cap was checked with.
+fn pay_background(
+    s: &AppState,
+    banco: &mut Banco,
+    misure: &mut Misure,
+    sc: &scopi::SceltaImmagini,
+    img: &immagini::Generated,
+    estimate: f64,
+    started: std::time::Instant,
+) {
+    let cost = img.settled_usd.unwrap_or(estimate);
+    let settled = Some(img.settled_usd.is_some());
+    count_background(s, banco, misure, sc, cost, settled, true, started);
+}
+
+/// A request for a background failed. When the provider had already accepted
+/// it (FLUX: the task was submitted, then it timed out, failed or could not be
+/// downloaded) it is counted like an image that arrived. Otherwise a slow FLUX
+/// would let the model open one paid task after another with the cap of the
+/// purpose still at zero, and the history would not show them. Returns what
+/// the model is told.
+fn failed_background(
+    s: &AppState,
+    banco: &mut Banco,
+    misure: &mut Misure,
+    sc: &scopi::SceltaImmagini,
+    failed: immagini::Failed,
+    started: std::time::Instant,
+) -> String {
+    let Some(cost) = failed.charged_usd.filter(|usd| *usd > 0.0) else {
+        return failed.message;
+    };
+    count_background(s, banco, misure, sc, cost, None, false, started);
+    format!(
+        "{}. The provider had already accepted the request: {cost:.3} $ are counted all the \
+         same. Tell the person before asking for it again.",
+        failed.message.trim_end_matches('.')
+    )
 }
 
 fn mostra(tx: &mpsc::UnboundedSender<String>, f: &immagini::Sfondo) {
@@ -253,7 +335,7 @@ pub(crate) async fn genera_sfondi(
     let mut fatte = Vec::new();
     let mut interrotto = None;
     for _ in 0..quante {
-        let costo = match controlla_tetto_sfondi(banco, misure, sc, tetto_usd) {
+        let estimate = match controlla_tetto_sfondi(banco, misure, sc, tetto_usd, false) {
             Ok(c) => c,
             Err(e) if fatte.is_empty() => return Err(e),
             Err(e) => {
@@ -264,23 +346,22 @@ pub(crate) async fn genera_sfondi(
         let t0 = std::time::Instant::now();
         // Un errore dopo la prima immagine non butta quelle già pagate: il
         // modello le riceve, e il turno si ferma lo stesso (sono in chat).
-        let jpg = match immagini::genera(&ctx.http, sc, descrizione, regole.as_deref()).await {
+        let made = immagini::genera(&ctx.http, &ctx.bfl, sc, descrizione, regole.as_deref()).await;
+        let img = match made {
             Ok(j) => j,
-            Err(e) if fatte.is_empty() => return Err(e),
-            Err(e) => {
+            Err(failed) => {
+                let e = failed_background(s, banco, misure, sc, failed, t0);
+                if fatte.is_empty() {
+                    return Err(e);
+                }
                 interrotto = Some(e);
                 break;
             }
         };
-        banco.spesa_sfondi += costo;
-        misure.giro(
-            &json!({ "immagini": 1, "qualita": sc.qualita }),
-            costo,
-            t0.elapsed().as_secs_f64(),
-        );
+        pay_background(s, banco, misure, sc, &img, estimate, t0);
         let f = immagini::Sfondo {
             id: id_nuova_base(banco),
-            jpg,
+            jpg: img.jpg,
             da: None,
             luce: None,
             approvata: false,
@@ -301,6 +382,7 @@ pub(crate) async fn genera_sfondi(
 
 /// `varia_sfondo`: le varianti di luce di una base **approvata dalla persona**.
 pub(crate) async fn varia_sfondi(
+    s: &AppState,
     tx: &mpsc::UnboundedSender<String>,
     banco: &mut Banco,
     misure: &mut Misure,
@@ -343,7 +425,7 @@ pub(crate) async fn varia_sfondi(
     for l in luci.iter().take(5) {
         // Come in genera_sfondi: quello che è già fatto (e pagato) resta, e il
         // modello lo riceve insieme al motivo per cui ci si è fermati.
-        let costo = match controlla_tetto_sfondi(banco, misure, sc, tetto_usd) {
+        let estimate = match controlla_tetto_sfondi(banco, misure, sc, tetto_usd, true) {
             Ok(c) => c,
             Err(e) if fatte.is_empty() => return Err(e),
             Err(e) => {
@@ -352,23 +434,21 @@ pub(crate) async fn varia_sfondi(
             }
         };
         let t0 = std::time::Instant::now();
-        let jpg = match immagini::varia(&ctx.http, sc, &base.jpg, l).await {
+        let img = match immagini::varia(&ctx.http, &ctx.bfl, sc, &base.jpg, l).await {
             Ok(j) => j,
-            Err(e) if fatte.is_empty() => return Err(e),
-            Err(e) => {
+            Err(failed) => {
+                let e = failed_background(s, banco, misure, sc, failed, t0);
+                if fatte.is_empty() {
+                    return Err(e);
+                }
                 interrotto = Some(e);
                 break;
             }
         };
-        banco.spesa_sfondi += costo;
-        misure.giro(
-            &json!({ "immagini": 1, "qualita": sc.qualita }),
-            costo,
-            t0.elapsed().as_secs_f64(),
-        );
+        pay_background(s, banco, misure, sc, &img, estimate, t0);
         let f = immagini::Sfondo {
             id: format!("{id_base}-{}", suffisso_luce(l)),
-            jpg,
+            jpg: img.jpg,
             da: Some(id_base.clone()),
             luce: Some(l.clone()),
             approvata: false,
@@ -523,17 +603,16 @@ mod tests {
                 sfondi: true,
             },
             simboli: None,
-            sfondi: Some(scopi::SceltaImmagini {
-                chiave: "x".into(),
-                modello: "gpt-image-2".into(),
-                qualita: "medium".into(),
-                tetto_usd: 1.0,
-            }),
+            sfondi: Some(openai_choice()),
             http: reqwest::Client::new(),
+            bfl: bfl::Endpoint::default(),
         };
         let (tx, _rx) = mpsc::unbounded_channel();
         let mut m = Misure::nuove();
+        let d = tempfile::tempdir().unwrap();
+        let s = crate::router::stato_di_prova(d.path()).await;
         let e = varia_sfondi(
+            &s,
             &tx,
             &mut b,
             &mut m,
@@ -546,6 +625,146 @@ mod tests {
         assert!(e.contains("non è approvata"), "{e}");
         // Nessuna chiamata, nessuna spesa.
         assert_eq!(b.spesa_sfondi, 0.0);
+        assert!(spending::Record::load(&s.config_dir).months.is_empty());
+    }
+
+    fn openai_choice() -> scopi::SceltaImmagini {
+        scopi::SceltaImmagini {
+            fornitore: scopi::ImageProvider::OpenAi,
+            chiave: "x".into(),
+            modello: "gpt-image-2".into(),
+            qualita: "medium".into(),
+            tetto_usd: 1.0,
+        }
+    }
+
+    /// A background that was made is counted in three places: the cap of the
+    /// purpose, the cap of the conversation, the history of the installation.
+    /// FLUX says what it cost; OpenAI does not, and the estimate stands.
+    #[tokio::test]
+    async fn a_background_enters_both_caps_and_the_history() {
+        let d = tempfile::tempdir().unwrap();
+        let s = crate::router::stato_di_prova(d.path()).await;
+        let mut b = Banco::default();
+        let mut m = Misure::nuove();
+        let t0 = std::time::Instant::now();
+
+        let flux = scopi::SceltaImmagini {
+            fornitore: scopi::ImageProvider::Bfl,
+            modello: "flux-2-pro".into(),
+            ..openai_choice()
+        };
+        let estimate = controlla_tetto_sfondi(&b, &m, &flux, 10.0, true).unwrap();
+        assert!((estimate - 0.075).abs() < 1e-9, "an edit pays the base too");
+        let settled = immagini::Generated {
+            jpg: vec![],
+            settled_usd: Some(0.06),
+        };
+        pay_background(&s, &mut b, &mut m, &flux, &settled, estimate, t0);
+        assert!(
+            (b.spesa_sfondi - 0.06).abs() < 1e-9,
+            "the settled cost wins"
+        );
+
+        let openai = openai_choice();
+        let estimate = controlla_tetto_sfondi(&b, &m, &openai, 10.0, false).unwrap();
+        let unsettled = immagini::Generated {
+            jpg: vec![],
+            settled_usd: None,
+        };
+        pay_background(&s, &mut b, &mut m, &openai, &unsettled, estimate, t0);
+        assert!((b.spesa_sfondi - 0.13).abs() < 1e-9);
+        assert!((m.costo_usd - 0.13).abs() < 1e-9);
+
+        let r = spending::Record::load(&s.config_dir);
+        let month = &r.months[&spending::current_month()]["sfondi"];
+        assert!((month["bfl"].usd - 0.06).abs() < 1e-9);
+        assert_eq!(month["bfl"].calls, 1);
+        assert!((month["openai"].usd - 0.07).abs() < 1e-9);
+
+        // The cap of the purpose counts FLUX's estimate before the call.
+        b.spesa_sfondi = 0.95;
+        let e = controlla_tetto_sfondi(&b, &m, &flux, 10.0, true).unwrap_err();
+        assert!(e.contains("tetto degli sfondi"), "{e}");
+        assert!(controlla_tetto_sfondi(&b, &m, &flux, 10.0, false).is_ok());
+    }
+
+    fn flux_context(at: bfl::Endpoint, cap_usd: f64) -> Contesto {
+        Contesto {
+            opzioni: tools::Opzioni {
+                disegna_simboli: false,
+                sfondi: true,
+            },
+            simboli: None,
+            sfondi: Some(scopi::SceltaImmagini {
+                fornitore: scopi::ImageProvider::Bfl,
+                modello: "flux-2-pro".into(),
+                tetto_usd: cap_usd,
+                ..openai_choice()
+            }),
+            http: reqwest::Client::new(),
+            bfl: at,
+        }
+    }
+
+    /// BFL accepts the task, says its cost, and never finishes: every attempt
+    /// is a paid task. It has to enter the cap of the purpose, or the model
+    /// could ask again without end, and the history, or nobody would see it.
+    #[tokio::test]
+    async fn a_flux_task_that_never_ends_is_counted_and_trips_the_cap() {
+        let (at, fake) = bfl::fake::start(bfl::fake::Script::NeverReady).await;
+        // Each task is declared at 0.045 $: the cap leaves room for two.
+        let ctx = flux_context(at, 0.10);
+        let d = tempfile::tempdir().unwrap();
+        let s = crate::router::stato_di_prova(d.path()).await;
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let mut b = Banco::default();
+        let mut m = Misure::nuove();
+        let input = json!({ "descrizione": "a lake" });
+
+        for attempt in 1..=2u32 {
+            let e = genera_sfondi(&s, &tx, &mut b, &mut m, &ctx, 10.0, &input)
+                .await
+                .unwrap_err();
+            assert!(e.contains("did not finish"), "{e}");
+            assert!(e.contains("0.045 $ are counted"), "{e}");
+            let spent = 0.045 * f64::from(attempt);
+            assert!((b.spesa_sfondi - spent).abs() < 1e-9);
+            assert!((m.costo_usd - spent).abs() < 1e-9);
+        }
+        assert!(b.sfondi.is_empty(), "no image arrived");
+        let r = spending::Record::load(&s.config_dir);
+        let cell = r.months[&spending::current_month()]["sfondi"]["bfl"];
+        assert_eq!(cell.calls, 2);
+        assert!((cell.usd - 0.09).abs() < 1e-9);
+
+        // The third attempt stops at the cap, before reaching BFL.
+        let e = genera_sfondi(&s, &tx, &mut b, &mut m, &ctx, 10.0, &input)
+            .await
+            .unwrap_err();
+        assert!(e.contains("tetto degli sfondi"), "{e}");
+        assert_eq!(fake.submits.load(std::sync::atomic::Ordering::SeqCst), 2);
+    }
+
+    /// A request BFL never accepted costs nothing, and is not counted.
+    #[tokio::test]
+    async fn a_refused_flux_request_is_not_counted() {
+        let (at, _fake) = bfl::fake::start(bfl::fake::Script::Refused(402)).await;
+        let ctx = flux_context(at, 1.0);
+        let d = tempfile::tempdir().unwrap();
+        let s = crate::router::stato_di_prova(d.path()).await;
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let mut b = Banco::default();
+        let mut m = Misure::nuove();
+        let input = json!({ "descrizione": "a lake" });
+        let e = genera_sfondi(&s, &tx, &mut b, &mut m, &ctx, 10.0, &input)
+            .await
+            .unwrap_err();
+        assert!(e.contains("credits are finished"), "{e}");
+        assert!(!e.contains("counted"), "{e}");
+        assert_eq!(b.spesa_sfondi, 0.0);
+        assert_eq!(m.costo_usd, 0.0);
+        assert!(spending::Record::load(&s.config_dir).months.is_empty());
     }
 
     #[test]

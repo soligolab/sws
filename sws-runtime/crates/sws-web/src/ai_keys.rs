@@ -73,9 +73,10 @@ pub fn forwarded() -> &'static Forwarded {
     F.get_or_init(Forwarded::default)
 }
 
-/// The provider names the assistant knows (`ai/client.rs`).
+/// The providers of the AI menu (`ai/scopi.rs`): the assistant's, and OpenAI
+/// and Black Forest Labs for the backgrounds (16-11-2026).
 fn provider_known(provider: &str) -> bool {
-    crate::ai::client::Fornitore::da_nome(provider).is_some()
+    crate::ai::scopi::FORNITORI.iter().any(|(id, _, _)| *id == provider)
 }
 
 /// The person who is asking, as a user of the installation. Takes the name,
@@ -107,19 +108,98 @@ fn username_of(req: &Request) -> Option<String> {
         .map(|a| a.username.clone())
 }
 
-/// `GET /api/identity/ai-keys` → `[{provider, last4, readable}]`.
+/// `GET /api/identity/ai-keys` → `[{provider, last4, readable, model}]`: one
+/// row per provider with a key or a preferred model (`last4` null = no key).
 pub async fn list(State(s): State<AppState>, req: Request) -> Response {
     let user = match user_of(&s, username_of(&req)).await {
         Ok(u) => u,
         Err(r) => return r,
     };
     let id = s.identita.as_ref().expect("checked by user_of");
-    match id.list_ai_keys(user.id).await {
-        Ok(keys) => Json(keys).into_response(),
-        Err(e) => {
+    let (keys, mut models) = match (id.list_ai_keys(user.id).await, id.ai_models(user.id).await) {
+        (Ok(k), Ok(m)) => (k, m),
+        (Err(e), _) | (_, Err(e)) => {
             tracing::error!("AI keys: cannot list: {e}");
-            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
+    };
+    let mut rows: Vec<serde_json::Value> = keys
+        .into_iter()
+        .map(|k| {
+            json!({
+                "provider": k.provider,
+                "last4": k.last4,
+                "readable": k.readable,
+                "model": models.remove(&k.provider),
+            })
+        })
+        .collect();
+    rows.extend(models.into_iter().map(|(provider, model)| {
+        json!({ "provider": provider, "last4": null, "readable": false, "model": model })
+    }));
+    Json(rows).into_response()
+}
+
+#[derive(Deserialize)]
+pub struct ModelBody {
+    model: Option<String>,
+}
+
+/// `PUT /api/identity/ai-keys/:provider/model` `{model}` — the model the user
+/// prefers for this provider; null or empty = the provider's default.
+pub async fn put_model(
+    State(s): State<AppState>,
+    Path(provider): Path<String>,
+    req: Request,
+) -> Response {
+    let user = match user_of(&s, username_of(&req)).await {
+        Ok(u) => u,
+        Err(r) => return r,
+    };
+    if !provider_known(&provider) {
+        return (StatusCode::BAD_REQUEST, "unknown provider").into_response();
+    }
+    let bytes = match axum::body::to_bytes(req.into_body(), 4 * 1024).await {
+        Ok(b) => b,
+        Err(_) => return (StatusCode::BAD_REQUEST, "body too large").into_response(),
+    };
+    let Ok(body) = serde_json::from_slice::<ModelBody>(&bytes) else {
+        return (StatusCode::BAD_REQUEST, "expected {\"model\": \"...\"}").into_response();
+    };
+    let id = s.identita.as_ref().expect("checked by user_of");
+    match id.set_ai_model(user.id, &provider, body.model.as_deref()).await {
+        Ok(()) => StatusCode::NO_CONTENT.into_response(),
+        Err(e) => (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
+    }
+}
+
+/// `POST /api/identity/ai-keys/:provider/test` — «Test the key» with the
+/// user's own key: `{ok: true, models}` in alphabetical order, or `{ok: false,
+/// error}` with what the provider said. A free call (the list of models).
+pub async fn test(
+    State(s): State<AppState>,
+    Path(provider): Path<String>,
+    req: Request,
+) -> Response {
+    let user = match user_of(&s, username_of(&req)).await {
+        Ok(u) => u,
+        Err(r) => return r,
+    };
+    if !provider_known(&provider) {
+        return (StatusCode::BAD_REQUEST, "unknown provider").into_response();
+    }
+    let id = s.identita.as_ref().expect("checked by user_of");
+    let key = match id.ai_key(user.id, &provider).await {
+        Ok(Some(k)) => k,
+        Ok(None) => return Json(json!({ "ok": false, "error": "no key saved" })).into_response(),
+        Err(e) => {
+            tracing::error!("AI keys: cannot read the key: {e}");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    match crate::ai::scopi::prova_questa_chiave(&provider, &key).await {
+        Ok(models) => Json(json!({ "ok": true, "models": models })).into_response(),
+        Err(e) => Json(json!({ "ok": false, "error": e })).into_response(),
     }
 }
 
@@ -197,6 +277,9 @@ pub async fn remove(
 #[derive(Deserialize)]
 pub struct ForContainerQuery {
     user: String,
+    /// `0`: only the preferred model, the project has a key of its own.
+    #[serde(default)]
+    key: Option<String>,
 }
 
 /// `GET /api/internal/ai-key/:provider?user=<email>` — the container of a
@@ -236,32 +319,49 @@ pub async fn for_container(
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };
-    match id.ai_key(user.id, &provider).await {
-        Ok(Some(key)) => {
-            tracing::info!(
-                target: "sws_ai",
-                project = %caller.riferimento,
-                user_id = user.id,
-                provider = %provider,
-                "AI key of the user handed to the project's container"
-            );
-            s.audit.log(
-                "ai_key.used",
-                Some(user.email),
-                json!({ "provider": provider, "project": caller.riferimento }),
-            );
-            (
-                [(header::CACHE_CONTROL, "no-store")],
-                Json(json!({ "key": key })),
-            )
-                .into_response()
-        }
-        Ok(None) => StatusCode::NOT_FOUND.into_response(),
+    let model = match id.ai_models(user.id).await {
+        Ok(mut m) => m.remove(&provider),
         Err(e) => {
-            tracing::error!("AI keys: cannot read the key: {e}");
-            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+            tracing::error!("AI keys: cannot read the models: {e}");
+            None
         }
+    };
+    // The key only when the project has none: a key that would not be used
+    // does not leave the gateway.
+    let want_key = q.key.as_deref() != Some("0");
+    let key = if want_key {
+        match id.ai_key(user.id, &provider).await {
+            Ok(k) => k,
+            Err(e) => {
+                tracing::error!("AI keys: cannot read the key: {e}");
+                return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+            }
+        }
+    } else {
+        None
+    };
+    if key.is_none() && model.is_none() {
+        return StatusCode::NOT_FOUND.into_response();
     }
+    if key.is_some() {
+        tracing::info!(
+            target: "sws_ai",
+            project = %caller.riferimento,
+            user_id = user.id,
+            provider = %provider,
+            "AI key of the user handed to the project's container"
+        );
+        s.audit.log(
+            "ai_key.used",
+            Some(user.email),
+            json!({ "provider": provider, "project": caller.riferimento }),
+        );
+    }
+    (
+        [(header::CACHE_CONTROL, "no-store")],
+        Json(json!({ "key": key, "model": model })),
+    )
+        .into_response()
 }
 
 #[cfg(test)]
@@ -405,9 +505,16 @@ mod tests {
             )
         };
         assert_eq!(
-            put_("openai", r#"{"key":"k"}"#).await.status(),
+            put_("gemini", r#"{"key":"k"}"#).await.status(),
             StatusCode::BAD_REQUEST
         );
+        // Mistral is one of the providers since 16-11-2026 (it was the unknown
+        // one of this test until then).
+        assert!(provider_known("mistral"));
+        assert!(put_("mistral", r#"{"key":"sk-mistral-1234"}"#)
+            .await
+            .status()
+            .is_success());
         assert_eq!(
             put_("kimi", "not json").await.status(),
             StatusCode::BAD_REQUEST
@@ -435,7 +542,7 @@ mod tests {
             for_container(
                 State(s.clone()),
                 Path("kimi".into()),
-                Query(ForContainerQuery { user: user.into() }),
+                Query(ForContainerQuery { user: user.into(), key: None }),
                 r,
             )
         };
@@ -465,13 +572,14 @@ mod tests {
         assert_eq!(r.headers().get(header::CACHE_CONTROL).unwrap(), "no-store");
         let (st, body) = status_and_text(r).await;
         assert_eq!(st, StatusCode::OK);
-        assert_eq!(body, r#"{"key":"sk-kimi-del-container-7777"}"#);
+        assert_eq!(body, r#"{"key":"sk-kimi-del-container-7777","model":null}"#);
         // A provider the person has no key for: no key.
         let r = for_container(
             State(s.clone()),
             Path("anthropic".into()),
             Query(ForContainerQuery {
                 user: "m@soligo.net".into(),
+                key: None,
             }),
             {
                 let mut r = request(None, None);
@@ -481,5 +589,42 @@ mod tests {
         )
         .await;
         assert_eq!(r.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn a_preferred_model_travels_alone_when_the_project_has_the_key() {
+        let (s, _d, uid) = state().await;
+        let id = s.identita.as_ref().unwrap();
+        id.set_ai_key(uid, "openai", "sk-oa-1234").await.unwrap();
+        id.set_ai_model(uid, "openai", Some("gpt-image-2")).await.unwrap();
+        id.set_ai_model(uid, "anthropic", Some("claude-x")).await.unwrap();
+        forwarded().note("acme/modelli", "m@soligo.net", Instant::now());
+        let ask = |provider: &str, key: Option<&str>| {
+            let mut r = request(None, None);
+            r.extensions_mut().insert(caller("acme/modelli"));
+            for_container(
+                State(s.clone()),
+                Path(provider.into()),
+                Query(ForContainerQuery {
+                    user: "m@soligo.net".into(),
+                    key: key.map(str::to_string),
+                }),
+                r,
+            )
+        };
+        let (st, body) = status_and_text(ask("openai", Some("0")).await).await;
+        assert_eq!(st, StatusCode::OK);
+        assert_eq!(body, r#"{"key":null,"model":"gpt-image-2"}"#);
+        let (_, body) = status_and_text(ask("openai", None).await).await;
+        assert!(body.contains("sk-oa-1234"), "{body}");
+        // A model without a key is still an answer.
+        let (st, body) = status_and_text(ask("anthropic", None).await).await;
+        assert_eq!((st, body.as_str()), (StatusCode::OK, r#"{"key":null,"model":"claude-x"}"#));
+        // The list: one row per provider with a key or a model.
+        let r = list(State(s.clone()), request(Some("m@soligo.net"), None)).await;
+        let (_, body) = status_and_text(r).await;
+        assert!(body.contains(r#""provider":"anthropic","readable":false,"last4":null"#)
+            || body.contains(r#""last4":null"#), "{body}");
+        assert!(body.contains("gpt-image-2") && body.contains("1234"), "{body}");
     }
 }

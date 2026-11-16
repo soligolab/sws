@@ -51,6 +51,28 @@ describe("the user's AI keys", () => {
     expect(screen.queryByTestId("my-ai-key-anthropic-state")).toBeNull();
   });
 
+  it("has every provider, tests the key and offers its models in alphabetical order", async () => {
+    let keys: MyAiKey[] = [{ provider: "kimi", last4: "1234", readable: true, model: null }];
+    vi.spyOn(api, "getMyAiKeys").mockImplementation(async () => keys);
+    vi.spyOn(api, "testMyAiKey").mockResolvedValue({ ok: true, models: ["kimi-latest", "kimi-k2", "moonshot-v1"] });
+    const put = vi.spyOn(api, "putMyAiModel").mockImplementation(async (p, m) => {
+      keys = keys.map((k) => (k.provider === p ? { ...k, model: m } : k));
+    });
+    render(<MyAiKeys onClose={() => {}} />);
+    for (const p of ["anthropic", "kimi", "mistral", "openai"]) expect(await screen.findByTestId(`my-ai-key-${p}`)).toBeTruthy();
+    // Mistral (16-11-2026) has a name of its own, not the bare key of the language file.
+    expect(screen.getByTestId("my-ai-key-mistral").textContent).toContain("Mistral AI");
+    // Only a provider with a key can be tested.
+    expect(screen.queryByTestId("my-ai-key-openai-test")).toBeNull();
+    const select = await screen.findByTestId("my-ai-key-kimi-model") as HTMLSelectElement;
+    await vi.waitFor(() => expect(select.options.length).toBe(4));
+    expect([...select.options].map((o) => o.value)).toEqual(["", "kimi-k2", "kimi-latest", "moonshot-v1"]);
+    await act(async () => { fireEvent.change(select, { target: { value: "kimi-k2" } }); });
+    expect(put).toHaveBeenCalledWith("kimi", "kimi-k2");
+    await act(async () => { fireEvent.click(screen.getByTestId("my-ai-key-kimi-test")); });
+    expect((await screen.findByTestId("my-ai-key-kimi-test-result")).textContent).toMatch(/3/);
+  });
+
   it("a key that no longer reads (after a restore) says it has to be written again", async () => {
     vi.spyOn(api, "getMyAiKeys").mockResolvedValue([{ provider: "kimi", last4: "0001", readable: false }]);
     render(<MyAiKeys onClose={() => {}} />);

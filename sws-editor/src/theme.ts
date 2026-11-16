@@ -21,7 +21,7 @@
 // `data-theme` prima del primo paint per evitare il flash.
 
 import { CSS_VARS, getBrand } from "@/branding";
-import { COLORI_ATTIVITA, varAttivita } from "@/editor/iconeAttivita";
+import { COLORI_ATTIVITA, GROUP_COLORS, varAttivita, groupVar } from "@/editor/iconeAttivita";
 
 export type ThemeMode = "light" | "dark" | "system";
 export type ResolvedTheme = "light" | "dark";
@@ -197,7 +197,7 @@ export function testoLeggibile(colore: string, sfondi: string[], inchiostro: str
   return inchiostro;
 }
 
-// ── The sober IDE style (14-11-2026, plan docs/plans/2026-11-14-stile-sobrio.md)
+// ── The sober IDE style (14-11-2026, plan docs/archive/2026-11-14-stile-sobrio.md)
 //
 // A second look for the IDE, chosen by the person like light/dark: three colours
 // — background, ink, accent — per variant, and colour only where something
@@ -309,6 +309,43 @@ export function soberTheme(c: SoberColors, variant: ResolvedTheme): SoberTheme {
     primary: c.accent.toLowerCase(),
     primaryHover: mescola(c.accent.toLowerCase(), dark ? ink : "#000000", 0.15),
     icons: c.icons.toLowerCase(),
+  };
+}
+
+/** The IDE colours that used to be written by hand (session 2 of the plan,
+ *  16-11-2026). Each use reads `var(--sws-<name>, #the-colour-of-always)`: the
+ *  theme sets these variables only in the sober style, so the colourful IDE
+ *  falls back to exactly the colours it always had, and the sober one paints
+ *  the same places from its three colours. `scripts/check_colori_ide.sh` keeps
+ *  new hand-written colours out. */
+export const IDE_TOKENS = [
+  "select-bg", "select-text", "select-border", "accent", "on-accent",
+  "danger-bg", "danger-border", "danger-text",
+  "warning-bg", "warning-border", "warning-text",
+  "success-bg", "success-border", "success-text",
+  "surface", "sunken", "border", "text", "muted",
+] as const;
+export type IdeToken = (typeof IDE_TOKENS)[number];
+
+/** The values of `IDE_TOKENS` in the sober style. Pure, for the tests. */
+export function soberTokens(t: SoberTheme, variant: ResolvedTheme): Record<IdeToken, string> {
+  const n = t.neutrals;
+  const st = t.status;
+  const surfaces = [n.bg, n.surface, n.surface2];
+  return {
+    "select-bg": mescola(n.bg, t.primary, variant === "dark" ? 0.22 : 0.14),
+    "select-text": testoLeggibile(t.primary, surfaces, variant === "light" ? DARK_INK : LIGHT_INK),
+    "select-border": t.primary,
+    "accent": t.primary,
+    "on-accent": readableOn(t.primary),
+    "danger-bg": st.dangerBg, "danger-border": st.danger, "danger-text": st.dangerSoft,
+    "warning-bg": st.warningBg, "warning-border": st.warning, "warning-text": st.warningSoft,
+    "success-bg": st.successBg, "success-border": st.success, "success-text": st.successSoft,
+    "surface": n.surface,
+    "sunken": variant === "dark" ? mescola(n.bg, "#000000", 0.2) : mescola(n.bg, n.text, 0.03),
+    "border": n.border,
+    "text": n.text,
+    "muted": n.textMuted,
   };
 }
 
@@ -490,13 +527,19 @@ export function applyAppearance(mode: ThemeMode): ResolvedTheme {
     s.setProperty(varAttivita(voce), sober ? sober.icons : resolved === "light" ? chiaro : scuro);
   }
   s.setProperty("--sws-att-fondo", neutrals.bg);
+  for (const [group, [dark, light]] of Object.entries(GROUP_COLORS)) {
+    s.setProperty(groupVar(group), sober ? neutrals.textMuted : resolved === "light" ? light : dark);
+  }
+  const tokens = sober ? soberTokens(sober, resolved) : null;
+  for (const name of IDE_TOKENS) {
+    if (tokens) s.setProperty(`--sws-${name}`, tokens[name]);
+    else s.removeProperty(`--sws-${name}`);
+  }
   if (sober) {
     s.setProperty("--sws-att-attiva", primary);
-    s.setProperty("--sws-gruppo", neutrals.textMuted);
     s.setProperty("--sws-icone", sober.icons);
   } else {
     s.removeProperty("--sws-att-attiva");
-    s.removeProperty("--sws-gruppo");
     s.removeProperty("--sws-icone");
   }
 
@@ -568,13 +611,22 @@ export function initThemeSystemListener(getMode: () => ThemeMode): void {
  *
  *  Vale anche al contrario: se si aggiungesse un selettore del tema nella
  *  finestra del log, la principale lo seguirebbe. */
-export function initThemeStorageListener(onChange?: (mode: ThemeMode) => void): void {
-  if (typeof window === "undefined") return;
-  window.addEventListener("storage", (e) => {
+export function initThemeStorageListener(
+  onChange?: (mode: ThemeMode) => void,
+  /** The style or its colours changed in another window: whoever keeps a copy
+   *  (the store, read by `<Icona>` and by the preferences) reads them again. */
+  onStyleChange?: (style: IdeStyle, colors: SoberColorSet) => void,
+): () => void {
+  if (typeof window === "undefined") return () => {};
+  const handler = (e: StorageEvent) => {
     // The sober style and its colours: reapply with the mode this window has.
     // `applyAppearance` never writes these keys, so nothing bounces back.
-    if ((e.key === STYLE_KEY || e.key === SOBER_KEY) && modoApplicato) {
-      applyAppearance(modoApplicato);
+    if (e.key === STYLE_KEY || e.key === SOBER_KEY) {
+      if (modoApplicato) applyAppearance(modoApplicato);
+      // The variables alone are half of the style: the icons are chosen in
+      // React from the store, and a stale copy of the colours there would be
+      // written back over the new ones at the next change made in this window.
+      onStyleChange?.(getStoredStyle(), getStoredSoberColors());
       return;
     }
     if (e.key !== STORAGE_KEY) return;
@@ -583,5 +635,7 @@ export function initThemeStorageListener(onChange?: (mode: ThemeMode) => void): 
     if (mode === modoApplicato) return;   // vedi `modoApplicato`: ferma il rimbalzo
     applyAppearance(mode);
     onChange?.(mode);
-  });
+  };
+  window.addEventListener("storage", handler);
+  return () => window.removeEventListener("storage", handler);
 }

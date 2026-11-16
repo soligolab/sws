@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { scheda, titoletto } from "@/ui/base";
 import { avviso, chiedi, conferma } from "@/finestraAvviso/finestraAvviso";
+import { Icona } from "@/components/Icona";
 
 /**
  * I pannelli del gateway (11-10-2026, fetta D dell'abbinamento): chi è
@@ -134,7 +135,7 @@ export function Pannelli() {
   const pallino = (c: boolean, spento?: number) => (
     <span data-testid="pallino"
       title={c ? t("console.pannelli.collegato") : spento ? t("console.pannelli.spento", { quando: quando(spento) }) : t("console.pannelli.scollegato")}
-      style={{ display: "inline-block", width: 8, height: 8, borderRadius: 4, background: c ? "#22c55e" : spento ? "#eab308" : "#64748b", marginRight: 6 }} />
+      style={{ display: "inline-block", width: 8, height: 8, borderRadius: 4, background: c ? "var(--sws-success-border, #22c55e)" : spento ? "var(--sws-warning-border, #eab308)" : "var(--sws-muted, #64748b)", marginRight: 6 }} />
   );
 
   return (
@@ -162,7 +163,7 @@ export function Pannelli() {
                   <td style={{ padding: "6px 4px" }}>
                     {pallino(r.collegato, r.spento_ms)}{r.nome}
                     <button onClick={() => rinomina(r.nome)} title={t("console.pannelli.rinomina")}
-                      style={{ marginLeft: 6, background: "transparent", border: "none", cursor: "pointer", color: "var(--brand-text-muted, #94a3b8)", fontSize: 12 }}>✎</button>
+                      style={{ marginLeft: 6, background: "transparent", border: "none", cursor: "pointer", color: "var(--brand-text-muted, #94a3b8)", fontSize: 12 }}><Icona emoji="✎" /></button>
                     {r.da_riabbinare && (
                       <div data-testid={`da-riabbinare-${r.nome}`}
                         style={{ fontSize: 11, color: "var(--brand-warning-soft, #fbbf24)", marginTop: 2, maxWidth: 360 }}>
@@ -191,7 +192,7 @@ export function Pannelli() {
                   <td style={{ fontSize: 11 }}>{quando(r.ultimo_ms)}</td>
                   <td>
                     <select value={r.stato} onChange={(e) => cambia(r.nome, e.target.value as Riga["stato"])}
-                      style={{ background: "var(--brand-bg, #0f172a)", color: r.stato === "bandito" ? "#fca5a5" : "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, fontSize: 12 }}>
+                      style={{ background: "var(--brand-bg, #0f172a)", color: r.stato === "bandito" ? "var(--sws-danger-text, #fca5a5)" : "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, fontSize: 12 }}>
                       <option value="attivo">{t("console.pannelli.attivo")}</option>
                       <option value="sospeso">{t("console.pannelli.sospeso")}</option>
                       <option value="bandito">{t("console.pannelli.bandito")}</option>

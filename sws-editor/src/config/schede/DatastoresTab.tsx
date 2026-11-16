@@ -9,6 +9,7 @@ import { TRANS_COMP, SaveBar } from "@/config/comuni";
 import { RitenzioneAutomatica } from "./RitenzioneAutomatica";
 import { CampoNumero } from "@/components/CampoNumero";
 import { conferma } from "@/finestraAvviso/finestraAvviso";
+import { Icona } from "@/components/Icona";
 
 // ── DATASTORES tab ────────────────────────────────────────────────────────────
 
@@ -270,7 +271,7 @@ export function DatastoresTab() {
 
   const cellStyle: React.CSSProperties = { padding: "4px 8px", borderBottom: "1px solid var(--brand-surface, #1e293b)", verticalAlign: "top" };
   const labelStyle: React.CSSProperties = { fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 2 };
-  const inputStyle: React.CSSProperties = { width: "100%", background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", color: "#f1f5f9", borderRadius: 4, padding: "3px 6px", fontSize: 12 };
+  const inputStyle: React.CSSProperties = { width: "100%", background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", color: "var(--sws-text, #f1f5f9)", borderRadius: 4, padding: "3px 6px", fontSize: 12 };
 
   return (
     <div style={{ padding: 16 }}>
@@ -281,7 +282,7 @@ export function DatastoresTab() {
         <span style={{ fontSize: 13, color: "var(--brand-text-muted, #94a3b8)", flex: 1 }}>
           {t("cfgUi.datastoresIntro")}
         </span>
-        <button onClick={addDatastore} style={{ background: "#0ea5e9", color: "#0f172a", border: "none", borderRadius: 4, padding: "4px 10px", cursor: "pointer", fontSize: 12 }}>
+        <button onClick={addDatastore} style={{ background: "var(--sws-accent, #0ea5e9)", color: "var(--sws-on-accent, #0f172a)", border: "none", borderRadius: 4, padding: "4px 10px", cursor: "pointer", fontSize: 12 }}>
           {t("cfgUi.add")}
         </button>
       </div>
@@ -325,7 +326,7 @@ export function DatastoresTab() {
                     non alla prima scrittura andata a vuoto. */}
                 <option value="odbc">{t("cfgUi.odbcNonImplementato")}</option>
               </select>
-              <button onClick={() => testDs(ds.id)} style={{ background: "#0ea5e9", color: "#0f172a", border: "none", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontSize: 11 }}>{t("common.test")}</button>
+              <button onClick={() => testDs(ds.id)} style={{ background: "var(--sws-accent, #0ea5e9)", color: "var(--sws-on-accent, #0f172a)", border: "none", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontSize: 11 }}>{t("common.test")}</button>
               <button onClick={() => loadStats(ds.id)} style={{ background: "var(--brand-border, #475569)", color: "var(--brand-text, #e2e8f0)", border: "none", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontSize: 11 }}>{t("common.stats")}</button>
               <button onClick={() => removeDatastore(ds.id)} style={{ background: "var(--brand-danger, #ef4444)", color: "var(--brand-on-danger, #fff)", border: "none", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontSize: 11 }}>X</button>
             </div>
@@ -377,7 +378,7 @@ export function DatastoresTab() {
                 <button onClick={() => doPulisci(ds, false)} disabled={busyMgmt[ds.id]} data-testid="clean-history"
                   title={t("cfg.pulisciTitle")}
                   style={{ background: "var(--brand-surface, #1e293b)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontSize: 11 }}>
-                  🧹 {t("cfg.pulisci")}
+                  <Icona emoji="🧹" /> {t("cfg.pulisci")}
                 </button>
                 <button onClick={() => doVacuum(ds)} disabled={busyMgmt[ds.id]}
                   title={t("cfg.vacuumTitle")}
@@ -405,7 +406,7 @@ export function DatastoresTab() {
                     <button onClick={() => doPulisci(ds, true)} disabled={busyMgmt[ds.id]} data-testid="pulisci-storico-remoto"
                       title={t("cfg.pulisciTitleRemoto")}
                       style={{ background: "var(--brand-surface, #1e293b)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontSize: 11 }}>
-                      🧹 {t("cfg.pulisci")}
+                      <Icona emoji="🧹" /> {t("cfg.pulisci")}
                     </button>
                     <button onClick={() => void askUploadDb(ds, true)} disabled={busyMgmt[ds.id]}
                       title={t("cfg.uploadRemoteDbTitle")}

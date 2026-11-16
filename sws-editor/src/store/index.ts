@@ -3,17 +3,20 @@ import { sostituisciFunzione } from "@/logica/rinominaFunzione";
 import { inCodaLayout } from "@/layoutInCoda";
 import { create } from "zustand";
 import { impostaStileProgetto } from "@/symbols/stileProgetto";
+import { setCustomSymbolPorts } from "@/symbols/lib/libreria";
 import i18n from "i18next";
 import { api, setAuthToken, ProjectChangedError, type RilievoProgetto } from "@/api/client";
 import { confermaDopo428, NESSUNA_CONFERMA } from "./conferme428";
 import { segnaPannelloCollegato } from "@/api/pannello";
 import { aggiungi, ordinaPagine, posizioneDi, riconcilia, rimuovi, sposta } from "@/pageTree";
-import { applyAppearance, getStoredMode, getStoredSoberColors, getStoredStyle, storeIdeStyle, type IdeStyle, type SoberColorSet, type ThemeMode } from "@/theme";
+import { applyAppearance, getStoredMode, getStoredSoberColors, getStoredStyle, initThemeStorageListener, storeIdeStyle, type IdeStyle, type SoberColorSet, type ThemeMode } from "@/theme";
 import type { AppConfigTab } from "@/config/schede";
 import { genId } from "@/id";
 import { getStoredProjectLang, setStoredProjectLang, getStoredEditorPreviewLang, setStoredEditorPreviewLang } from "@/i18n/projectI18n";
 import { hrefImmagineProgetto, mettiInSospeso, togliDaSospeso } from "@/canvas/immaginiInSospeso";
 import { dimenticaImmagine } from "@/canvas/ImmagineSvg";
+import type { Planimetria } from "@/planimetrie/modello";
+import { imageBlob, imageDataUri, type ProposalImage } from "@/ai/proposalImages";
 import { normalizzaOggetti } from "@/store/normalizzaOggetti";
 import { pianoCreazione } from "@/tag/riconciliaTag";
 import { motivoIdNonValido, rinomina, type EsitoRinomina } from "@/tag/rinominaTag";
@@ -125,8 +128,14 @@ export interface AiProposta {
   /** Impronta del progetto su disco quando l'assistente ha cominciato. */
   impronta?: string | null;
   /** Gli sfondi generati che le pagine usano (JPEG base64): si scrivono in
-   *  images/ del progetto al Salva, come le altre sezioni dell'assistente. */
-  sfondi?: { file: string; jpg: string }[] | null;
+   *  images/ del progetto al Salva, come le altre sezioni dell'assistente.
+   *  Since G2 also the drawing of a floor plan (SVG text). */
+  sfondi?: ProposalImage[] | null;
+  /** The floor plans the pages are drawn on (G2): written in planimetrie/ at
+   *  Save, so the person finds them in the floor-plan editor. */
+  floor_plans?: Planimetria[] | null;
+  /** The ids of `floor_plans` that take the place of a file of the project. */
+  replaced_floor_plans?: string[] | null;
   /** I faceplate nuovi o cambiati, interi (06-11-2026): diventano pagine-faceplate
    *  e il Salva li scrive in faceplates/ come quelli disegnati a mano. */
   faceplates?: FaceplateDef[] | null;
@@ -612,6 +621,9 @@ interface AppState {
    *  posto del canvas come fa l'editor delle funzioni. */
   planimetriaAperta: string | null;
   apriPlanimetria: (id: string | null) => void;
+  /** Goes up when floor plans are written outside their editor (a proposal of
+   *  the assistant, at Save): the list in the left panel reads them again. */
+  floorPlansRev: number;
 
   // Page management
   setPages: (pages: SynopticPage[], currentPageId?: string) => void;
@@ -1171,6 +1183,7 @@ export const useAppStore = create<AppState>((set, get) => {
     selectedScriptId: null,
     savedGlobalScripts: null,
     planimetriaAperta: null,
+    floorPlansRev: 0,
     selectedCell: null,
     selectedCellChild: null,
     selectedCellRange: null,
@@ -1186,7 +1199,7 @@ export const useAppStore = create<AppState>((set, get) => {
     logNonVisti: { errori: 0, avvisi: 0, primoErroreTs: null, primoAvvisoTs: null },
     gridSize: 10,
     snapEnabled: true,
-    gridColor: "#1e293b",
+    gridColor: "#1e293b" /* fixed-colour */,
     showRulers: readShowRulers(),
     saveStatus: "idle",
     saveConflict: false,
@@ -2775,6 +2788,12 @@ export const useAppStore = create<AppState>((set, get) => {
         // reload, 40 oggetti mostravano il token nudo. Visto su Opus e su Kimi.
         languages: !uguale(prima.languages, dopo.languages),
       };
+      // The custom symbols the proposal brings (a symbol the assistant drew as
+      // free SVG, G3). The canvas and the Save read `customSymbols`, not
+      // `project.custom_symbols`: they are merged there, see `mergeCustomSymbols`.
+      const customSymbols = grezzo === prima
+        ? s.customSymbols
+        : mergeCustomSymbols(s.customSymbols, grezzo.custom_symbols);
 
       // Le pagine proposte si sovrappongono per nome; le altre restano.
       //
@@ -2835,7 +2854,7 @@ export const useAppStore = create<AppState>((set, get) => {
       // così Ctrl+Z le toglie.
       if (p.sfondi?.length) {
         const immagini: Record<string, string> = {};
-        for (const f of p.sfondi) immagini[hrefImmagineProgetto(f.file)] = `data:image/jpeg;base64,${f.jpg}`;
+        for (const f of p.sfondi) immagini[hrefImmagineProgetto(f.file)] = imageDataUri(f);
         for (const [href, dati] of Object.entries(immagini)) mettiInSospeso(href, dati);
         set((st) => ({ past: st.past.map((e, i) => (i === st.past.length - 1 ? { ...e, immagini } : e)) }));
       }
@@ -2848,7 +2867,8 @@ export const useAppStore = create<AppState>((set, get) => {
         && !proposte.some((q) => nuovePages.find((pg) => pg.name === q.name)?.id === s.currentPageId);
       set({
         pages: nuovePages,
-        project: dopo,
+        project: customSymbols === s.customSymbols ? dopo : { ...dopo, custom_symbols: customSymbols },
+        customSymbols,
         ...(vaSuAltraPagina ? { currentPageId: toccata.id } : {}),
         selectedObjectId: null,
         selectedObjectIds: [],
@@ -2902,12 +2922,19 @@ export const useAppStore = create<AppState>((set, get) => {
         // del Salva non deve cancellare la prima.
         registra(`ai:sfondi:${p.id}`, async () => {
           for (const f of sfondi) {
-            const byte = Uint8Array.from(atob(f.jpg), (c) => c.charCodeAt(0));
-            await api.uploadProjectImage(f.file, new Blob([byte], { type: "image/jpeg" }));
+            await api.uploadProjectImage(f.file, imageBlob(f));
             // Sul server adesso c'è: si disegna da lì, con una versione nuova
             // dell'URL — chi l'aveva chiesto prima del Salva aveva preso un 404.
             dimenticaImmagine(hrefImmagineProgetto(f.file));
           }
+        });
+      }
+      if (p.floor_plans?.length) {
+        const plans = p.floor_plans;
+        // One entry per proposal, like the images: the plans are only here.
+        registra(`ai:floor_plans:${p.id}`, async () => {
+          for (const plan of plans) await api.salvaPlanimetria(plan);
+          set((st) => ({ floorPlansRev: st.floorPlansRev + 1 }));
         });
       }
       if (tocca.languages && dopo.languages) {
@@ -3572,6 +3599,36 @@ export const useAppStore = create<AppState>((set, get) => {
   };
 });
 
+/** The custom symbols after a proposal of the assistant: the ones of now, with
+ *  the proposed ones added or put in place of the one with the same id.
+ *
+ *  **Never fewer.** `saveAll` writes this list whole, and the proposal comes
+ *  from a reading of the disk: a symbol imported meanwhile, or a proposal that
+ *  for any reason arrives without the list, must not delete what the project
+ *  has. For the same reason undoing the proposal does not take the symbol
+ *  away again: it stays among the symbols of the project, unused, where the
+ *  person can remove it. The same array comes back when nothing changes. */
+export function mergeCustomSymbols(now: CustomSymbol[], proposed: CustomSymbol[] | undefined | null): CustomSymbol[] {
+  let out = now;
+  for (const p of proposed ?? []) {
+    const i = out.findIndex((x) => x.id === p.id);
+    if (i >= 0 && uguale(out[i], p)) continue;
+    if (out === now) out = [...now];
+    if (i >= 0) out[i] = p;
+    else out.push(p);
+  }
+  return out;
+}
+
+// The ports of the custom symbols drawn as free SVG (G3) follow the custom
+// symbols of the store, wherever they are set: a project opened, a symbol
+// imported, a proposal of the assistant applied. The pipes read them from the
+// library module (`bocchePer`), in the editor and in the viewer alike.
+setCustomSymbolPorts(useAppStore.getState().customSymbols);
+useAppStore.subscribe((st, before) => {
+  if (st.customSymbols !== before.customSymbols) setCustomSymbolPorts(st.customSymbols);
+});
+
 // Le chiamate sull'impianto (`suImpianto` in api/client) devono sapere se c'è un
 // pannello collegato; si abbonano qui anche ai `setState` diretti dei test.
 segnaPannelloCollegato(useAppStore.getState().remoteConnected);
@@ -3662,4 +3719,19 @@ export function seguiAccessoDalleAltreFinestre(): () => void {
   };
   window.addEventListener("storage", h);
   return () => window.removeEventListener("storage", h);
+}
+
+/** Every window follows the appearance chosen in another one: light/dark, and
+ *  since 16-11-2026 the IDE style with its colours. The theme repaints the CSS
+ *  variables by itself; the store has to follow too, because the icons are
+ *  chosen in React from `ideStyle` (`<Icona>`: emoji or line icon) — without
+ *  this a second tab, or the detached chat, took the sober colours and kept
+ *  the emoji until reloaded — and because a stale `soberColors` here would be
+ *  written back over the new colours at the next change made in this window.
+ *  Returns the function that stops following. */
+export function followAppearanceOfOtherWindows(): () => void {
+  return initThemeStorageListener(
+    (mode) => useAppStore.setState({ themeMode: mode }),
+    (ideStyle, soberColors) => useAppStore.setState({ ideStyle, soberColors }),
+  );
 }

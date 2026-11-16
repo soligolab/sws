@@ -77,3 +77,24 @@ export const COLORI_ATTIVITA: Record<string, readonly [string, string]> = {
 
 /** Il nome della variabile CSS del colore di una voce. */
 export const varAttivita = (voce: string) => `--sws-att-${voce}`;
+
+/** The header colour of each group of Tools (`PALETTE_GROUPS` in LeftPanel):
+ *  [dark theme, light theme]. Moved here from the groups themselves on
+ *  16-11-2026 so the theme can write them as `--sws-gruppo-<category>`, like the
+ *  activity bars; the light tints are the same hues two steps darker, above
+ *  4.5:1 on `#f8fafc`. In the sober style every group is the muted ink. */
+export const GROUP_COLORS: Record<string, readonly [string, string]> = {
+  forme: ["#60a5fa", "#2563eb"],
+  testoImmagini: ["#93c5fd", "#1d4ed8"],
+  comandi: ["#34d399", "#047857"],
+  indicatori: ["#fb923c", "#c2410c"],
+  grafici: ["#fbbf24", "#b45309"],
+  tabelle: ["#a3e635", "#4d7c0f"],
+  allarmi: ["#f87171", "#b91c1c"],
+  navigazione: ["#22d3ee", "#0e7490"],
+  impianto: ["#f472b6", "#be185d"],
+  simboli: ["#c084fc", "#7e22ce"],
+};
+
+/** The CSS variable of a Tools group's colour. */
+export const groupVar = (category: string) => `--sws-gruppo-${category}`;

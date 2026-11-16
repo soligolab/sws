@@ -21,6 +21,7 @@ import type { ParteLegata, SynopticObject } from "@/types";
 import { testoValoreTag } from "../RigaTagLive";
 import { SPAZIO, TESTO } from "../stilePannelli";
 import { listeDiTag, slotDi, slotPresente, type CampoTag, type SlotTag, type Verso } from "./slotTag";
+import { Icona } from "@/components/Icona";
 
 /** Porta al campo `data-field={campo}`, aprendo il ramo che lo tiene. La
  *  fornisce `PannelloDestro`; fuori (un test, la selezione multipla) è `null`
@@ -207,7 +208,7 @@ function RigaRimando({ icona, testo, dettaglio, campo, onTogli, etichettaTogli }
   const vai = useContext(VaiACampo);
   return (
     <div data-row={testo} style={{ display: "flex", alignItems: "center", gap: SPAZIO.xs, fontSize: 12, marginBottom: 2 }}>
-      <span aria-hidden="true" style={{ width: 12, flexShrink: 0, fontSize: 11 }}>{icona}</span>
+      <span aria-hidden="true" style={{ width: 12, flexShrink: 0, fontSize: 11 }}><Icona emoji={icona} /></span>
       <button type="button" disabled={!vai} onClick={() => vai?.(campo)} data-testid={`vai-${campo}`}
         style={{
           flex: 1, minWidth: 0, display: "flex", gap: SPAZIO.xs, textAlign: "left", border: "none", background: "transparent",

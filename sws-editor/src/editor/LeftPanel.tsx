@@ -16,6 +16,7 @@ import { CampoRicerca, RisultatiRicerca } from "./RicercaGlobale";
 import { BarraAttivita, useAttivita, type VoceAttivita } from "./BarraAttivita";
 import { trascinaBordo } from "./bordoPannello";
 import { IconaStrumento } from "./IconaStrumento";
+import { GROUP_COLORS, groupVar } from "./iconeAttivita";
 import { AnteprimaLib } from "@/symbols/lib/AnteprimaLib";
 import { etichettaSimbolo, useManifestoLib, useSimboliProgetto } from "@/symbols/lib/libreria";
 import type { SimboloLib } from "@/symbols/lib/manifest";
@@ -31,6 +32,7 @@ import { useNomePagina } from "@/i18n/nomePagina";
 import { discendentiDi, riconcilia, righe, spostaRispettoA, type ZonaRilascio } from "@/pageTree";
 import { avviso, chiedi, conferma } from "@/finestraAvviso/finestraAvviso";
 import { nuovoDaModello } from "@/logica/NuovoDaModello";
+import { Icona } from "@/components/Icona";
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 
@@ -418,10 +420,10 @@ function PagesSection() {
                 />
               ) : (
                 <>
-                  {p.id === homePageId && <span title={t("editor.homePageTitle")} style={{ flexShrink: 0 }}>🏠</span>}
+                  {p.id === homePageId && <span title={t("editor.homePageTitle")} style={{ flexShrink: 0 }}><Icona emoji="🏠" /></span>}
                   {orphanIds.has(p.id) && <span title={t("editor.orphanPageTitle")} style={{ flexShrink: 0 }}>⚠️</span>}
-                  {p.finestra && <span title={t("finestraPopup.segnoAlbero")} style={{ flexShrink: 0 }}>🪟</span>}
-                  {p.locked && !mostraAzioni && <span style={{ flexShrink: 0, fontSize: 10 }}>🔒</span>}
+                  {p.finestra && <span title={t("finestraPopup.segnoAlbero")} style={{ flexShrink: 0 }}><Icona emoji="🪟" /></span>}
+                  {p.locked && !mostraAzioni && <span style={{ flexShrink: 0, fontSize: 10 }}><Icona emoji="🔒" /></span>}
                   <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
                     {nomePagina(p.name)}
                   </span>
@@ -433,7 +435,7 @@ function PagesSection() {
                       paddingLeft: 6, background: "var(--brand-surface-2, #334155)", borderRadius: 3,
                     }}>
                       <button style={S.iconBtn} title={p.locked ? t("editor.unlockPage") : t("editor.lockPage")}
-                        onClick={(e) => { e.stopPropagation(); updatePageProps(p.id, { locked: !p.locked }); }}>{p.locked ? "🔒" : "🔓"}</button>
+                        onClick={(e) => { e.stopPropagation(); updatePageProps(p.id, { locked: !p.locked }); }}><Icona emoji={p.locked ? "🔒" : "🔓"} /></button>
                       <button style={S.iconBtn} title={t("editor.addChildPage")}
                         onClick={(e) => {
                           e.stopPropagation();
@@ -443,9 +445,9 @@ function PagesSection() {
                       <button style={S.iconBtn} title={t("editor.duplicatePage")}
                         onClick={(e) => { e.stopPropagation(); duplicatePage(p.id); }}>⧉</button>
                       <button style={S.iconBtn} title={t("editor.exportPage")}
-                        onClick={(e) => { e.stopPropagation(); handleExportPage(p.name); }}>⬇</button>
+                        onClick={(e) => { e.stopPropagation(); handleExportPage(p.name); }}><Icona emoji="⬇" /></button>
                       <button style={S.iconBtn} title={t("editor.rename")} disabled={p.locked}
-                        onClick={(e) => { e.stopPropagation(); beginRename(p.id, p.name); }}>✎</button>
+                        onClick={(e) => { e.stopPropagation(); beginRename(p.id, p.name); }}><Icona emoji="✎" /></button>
                       {pages.length > 1 && (
                         <button style={S.iconBtn} title={t("editor.deletePage")}
                           onClick={async (e) => {
@@ -472,7 +474,7 @@ function PagesSection() {
             title={t("editor.importPage")}
             style={{ ...S.objBtn, flex: "0 0 auto", borderStyle: "dashed", color: "var(--brand-text-subtle, #64748b)", padding: "4px 8px" }}
           >
-            ⬆ YAML
+            <Icona emoji="⬆" /> YAML
           </button>
           <input
             ref={importInputRef}
@@ -498,7 +500,7 @@ function PagesSection() {
             onDoubleClick={() => !p.locked && beginRename(p.id, p.name)}
             title={t("editor.dblRename")}
           >
-            <span style={{ flexShrink: 0 }}>🖼</span>
+            <span style={{ flexShrink: 0 }}><Icona emoji="🖼" /></span>
             {editingId === p.id ? (
               <input
                 autoFocus
@@ -533,10 +535,10 @@ function PagesSection() {
                           void avviso({ testo: t("leftPanel.bootEnableFailed", { err: e instanceof Error ? e.message : String(e) }), livello: "errore" }));
                       }}
                     />
-                    <span aria-hidden="true">⭐</span>
+                    <span aria-hidden="true"><Icona emoji="⭐" /></span>
                   </label>
                   <button style={S.iconBtn} title={t("editor.rename")} disabled={p.locked}
-                    onClick={(e) => { e.stopPropagation(); beginRename(p.id, p.name); }}>✎</button>
+                    onClick={(e) => { e.stopPropagation(); beginRename(p.id, p.name); }}><Icona emoji="✎" /></button>
                   <button style={S.iconBtn} title={t("editor.deletePage")}
                     onClick={async (e) => {
                       e.stopPropagation();
@@ -598,12 +600,12 @@ function PagesSection() {
                 <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
                   {p.name}
                   {corniceDefault === idCornice(p) && (
-                    <span title={t("cornici.predefinitaTitolo")} style={{ marginLeft: 4 }}>⭐</span>
+                    <span title={t("cornici.predefinitaTitolo")} style={{ marginLeft: 4 }}><Icona emoji="⭐" /></span>
                   )}
                 </span>
                 <span style={{ display: "flex", gap: 2, flexShrink: 0, alignItems: "center" }}>
                   <button style={S.iconBtn} title={t("editor.rename")}
-                    onClick={(e) => { e.stopPropagation(); beginRename(p.id, p.name); }}>✎</button>
+                    onClick={(e) => { e.stopPropagation(); beginRename(p.id, p.name); }}><Icona emoji="✎" /></button>
                   <button style={S.iconBtn} title={t("cornici.elimina")}
                     onClick={async (e) => {
                       e.stopPropagation();
@@ -691,7 +693,7 @@ function PagesSection() {
                     disabled={!paginaAccettaFaceplate}
                     onClick={(e) => { e.stopPropagation(); aggiungiOggetto("faceplate", { faceplate_id: idFaceplate(p) }); }}>＋</button>
                   <button style={S.iconBtn} title={t("editor.rename")}
-                    onClick={(e) => { e.stopPropagation(); beginRename(p.id, p.name); }}>✎</button>
+                    onClick={(e) => { e.stopPropagation(); beginRename(p.id, p.name); }}><Icona emoji="✎" /></button>
                   {/* Un predefinito non si elimina: lo porta il runtime. Si
                       ripristina dalle sue proprietà. */}
                   {!p.faceplate_predefinito && (
@@ -748,7 +750,7 @@ function PagesSection() {
       {modale}
       <div data-testid="albero-pagine">
         <RamoPagine titolo={t("editor.sectionPages")} icona="📄" memoria="albero.pagine"
-          azione={<button style={S.iconBtn} title={t("editor.checkLinksTitle")} onClick={() => setLinkReportOpen(true)}>🔗</button>}>
+          azione={<button style={S.iconBtn} title={t("editor.checkLinksTitle")} onClick={() => setLinkReportOpen(true)}><Icona emoji="🔗" /></button>}>
           {corpoPagine}
         </RamoPagine>
       </div>
@@ -782,9 +784,11 @@ export function CorpoPlanimetrie() {
   const ricarica = useCallback(() => {
     api.planimetrie().then(setElenco).catch(() => setElenco([]));
   }, []);
+  const rev = useAppStore((s) => s.floorPlansRev);
   // Si rilegge quando cambia il progetto e quando l'editor si chiude (un nome
-  // cambiato, una pianta nuova).
-  useEffect(ricarica, [ricarica, progetto, aperta]);
+  // cambiato, una pianta nuova) — and when a proposal of the assistant has
+  // written one at Save.
+  useEffect(ricarica, [ricarica, progetto, aperta, rev]);
 
   const nuova = async () => {
     const nome = (await chiedi({ testo: t("planimetrie.nomeNuova"), iniziale: t("planimetrie.nomePredefinito") }))?.trim();
@@ -859,7 +863,7 @@ function LinkReportModal({
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 14 }}>
               {broken.map((b) => (
-                <div key={`${b.pageId}:${b.objId}`} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, background: "#450a0a33", border: "1px solid #991b1b", borderRadius: 4, padding: "4px 8px" }}>
+                <div key={`${b.pageId}:${b.objId}`} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, background: "var(--sws-danger-bg, #450a0a33)", border: "1px solid var(--sws-danger-border, #991b1b)", borderRadius: 4, padding: "4px 8px" }}>
                   <span style={{ flex: 1, color: "var(--brand-danger-soft, #fca5a5)" }}>
                     <strong>{b.pageName}</strong> → "{b.objName}" {t("leftPanel.pointsToMissingPage")} ("{b.targetId}")
                   </span>
@@ -877,7 +881,7 @@ function LinkReportModal({
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               {orphanPages.map((p) => (
-                <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, background: "#78350f22", border: "1px solid #92400e", borderRadius: 4, padding: "4px 8px" }}>
+                <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, background: "var(--sws-warning-bg, #78350f22)", border: "1px solid var(--sws-warning-border, #92400e)", borderRadius: 4, padding: "4px 8px" }}>
                   <span style={{ flex: 1, color: "var(--brand-warning, #f59e0b)" }}>
                     "{p.name}" {t("leftPanel.noLinkReachesItAnd")}
                   </span>
@@ -898,14 +902,9 @@ function LinkReportModal({
  *  (c'era anche un campo `label` in italiano, che non leggeva nessuno) e l'icona
  *  la dà `iconeStrumenti.ts` (14-10-2026). */
 interface PaletteItem { type: SynopticObject["type"] }
-/** Un gruppo della palette, con **due** colori d'accento.
- *
- *  Quello scuro non è un lusso: i pastelli scelti per lo sfondo scuro
- *  (`#60a5fa`, `#34d399`…) su una superficie chiara arrivano a **1,8:1** di
- *  contrasto — le intestazioni erano quasi invisibili col tema chiaro,
- *  segnalate dal maintainer il 2026-09-06. Le tinte `colorLight` sono gli
- *  stessi colori due gradini più scuri, e stanno sopra 4,5:1 su `#f8fafc`. */
-export interface PaletteGroup { category: string; color: string; colorLight: string; defaultOpen?: boolean; items: PaletteItem[] }
+/** A group of the palette. Its header colour is in `GROUP_COLORS`
+ *  (iconeAttivita.ts), written by the theme as `--sws-gruppo-<category>`. */
+export interface PaletteGroup { category: string; defaultOpen?: boolean; items: PaletteItem[] }
 
 /** Esportata perché è **l'elenco autorevole dei tipi piazzabili**: il test
  *  d'inventario dei campi (T-56) e chiunque debba iterare sui tipi deve
@@ -918,48 +917,38 @@ export interface PaletteGroup { category: string; color: string; colorLight: str
  *  restano scritte `{ type: "…" }`: è la forma che leggono le guardie
  *  (`check_templates`, `check_demo_templates`, `check_i18n_ui`). */
 export const PALETTE_GROUPS: PaletteGroup[] = [
-  { category: "forme", color: "#60a5fa", colorLight: "#2563eb", defaultOpen: true,
+  { category: "forme", defaultOpen: true,
     items: [{ type: "rect" }, { type: "ellipse" }, { type: "line" }, { type: "polyline" }, { type: "polygon" }] },
-  { category: "testoImmagini", color: "#93c5fd", colorLight: "#1d4ed8",
+  { category: "testoImmagini",
     items: [{ type: "text" }, { type: "image" }] },
-  { category: "comandi", color: "#34d399", colorLight: "#047857",
+  { category: "comandi",
     items: [{ type: "button" }, { type: "checkbox" }, { type: "radio" }, { type: "slider" }, { type: "setpoint" }] },
-  { category: "indicatori", color: "#fb923c", colorLight: "#c2410c",
+  { category: "indicatori",
     items: [{ type: "led" }, { type: "state_lamp" }, { type: "gauge" }, { type: "progress_bar" }, { type: "kpi_tile" }, { type: "clock" }] },
-  { category: "grafici", color: "#fbbf24", colorLight: "#b45309",
+  { category: "grafici",
     items: [{ type: "trend" }, { type: "sparkline" }, { type: "xy_plot" }, { type: "bar_chart" }, { type: "pie_chart" }] },
-  { category: "tabelle", color: "#a3e635", colorLight: "#4d7c0f",
+  { category: "tabelle",
     items: [{ type: "table" }, { type: "data_log" }, { type: "text_list" }, { type: "recipe_panel" }] },
-  { category: "allarmi", color: "#f87171", colorLight: "#b91c1c",
+  { category: "allarmi",
     items: [{ type: "alarm_viewer" }, { type: "alarm_banner" }, { type: "alarm_bell" }, { type: "alarm_history" }] },
-  { category: "navigazione", color: "#22d3ee", colorLight: "#0e7490",
+  { category: "navigazione",
     items: [{ type: "navbutton" }, { type: "page_navigator" }, { type: "lang_selector" }, { type: "lang_button" }] },
-  { category: "impianto", color: "#f472b6", colorLight: "#be185d",
+  { category: "impianto",
     // Il faceplate non è più uno strumento (29-10-2026): si trascina dal ramo
     // Faceplate dell'albero, già con la sua definizione.
     items: [{ type: "pipe" }, { type: "grid" }] },
   // I simboli: un gruppo con la voce generica (il riquadro di scelta) e, sotto,
   // la libreria per famiglia e tipologia (`RamoSimboli`).
-  { category: "simboli", color: "#c084fc", colorLight: "#7e22ce",
+  { category: "simboli",
     items: [{ type: "symbol" }] },
 ];
 
-/** Il colore d'accento del gruppo, scelto sul tema **risolto**.
- *
- *  `themeMode` può valere "system": chiedere allo store non basta, bisogna
- *  guardare cosa il tema ha effettivamente applicato. L'attributo
- *  `data-theme` sul `<html>` lo dice, ed è lo stesso che usa il CSS. */
-function coloreGruppo(group: PaletteGroup, _mode: unknown): string {
-  // `_mode` non si legge: serve a **far ri-renderizzare** il componente quando
-  // il tema cambia. Il valore vero lo dà `data-theme` sul `<html>`, perché
-  // `themeMode` può essere "system" e allora lo store non sa quale dei due sia
-  // stato applicato. Senza la dipendenza dallo store, commutare il tema
-  // lasciava le intestazioni del colore di prima fino al primo re-render per
-  // altri motivi — cioè a volte sì e a volte no.
-  const chiaro = typeof document !== "undefined"
-    && document.documentElement.getAttribute("data-theme") === "light";
-  // Sober style: `--sws-gruppo` (set only there) wins and every group is grey.
-  return `var(--sws-gruppo, ${chiaro ? group.colorLight : group.color})`;
+/** The group's accent colour: a variable the theme writes for the resolved
+ *  theme and style (`applyAppearance`), so switching light/dark or colourful/sober
+ *  repaints the headers without a re-render. The fallback is the dark-theme
+ *  colour, for a page the theme has not painted yet. */
+function coloreGruppo(group: PaletteGroup): string {
+  return `var(${groupVar(group.category)}, ${GROUP_COLORS[group.category]?.[0] ?? "currentColor"})`;
 }
 
 /** Una riga di Strumenti: icona (o anteprima del simbolo), nome, e a destra
@@ -993,7 +982,7 @@ function SegnoLvgl() {
   return (
     <span title={t("editor.paletteLvglBadgeTitle")} style={{
       flexShrink: 0, fontSize: 8, fontWeight: 700, lineHeight: 1,
-      color: "#0f172a", background: "#fbbf24", borderRadius: 2, padding: "1px 3px",
+      color: "var(--sws-text, #0f172a)", background: "var(--sws-border, #fbbf24)", borderRadius: 2, padding: "1px 3px",
     }}>L</span>
   );
 }
@@ -1021,10 +1010,9 @@ function IntestazioneGruppo({ testo, colore, aperto, commuta, rientro, guide, ic
  *  porta sotto anche la libreria (14-10-2026). */
 function GruppoStrumenti({ group, showLvglBadge, ultimo }: { group: PaletteGroup; showLvglBadge: boolean; ultimo: boolean }) {
   const { t } = useTranslation();
-  const themeMode = useAppStore((s) => s.themeMode);
   const px = useAppStore((s) => s.misuraIcone);
   const [open, commuta] = useSezioneAperta(`strumenti.${group.category}`, group.defaultOpen ?? false);
-  const colore = coloreGruppo(group, themeMode);
+  const colore = coloreGruppo(group);
   const simboli = group.category === "simboli";
   return (
     <div>
@@ -1587,11 +1575,11 @@ function ObjectsSection() {
   const indicatorFor = (kind: "object" | "group", id: string): React.CSSProperties => {
     if (!dropTarget || dropTarget.kind !== kind || dropTarget.id !== id) return {};
     if (dropTarget.place === "inside") {
-      return { boxShadow: "inset 0 0 0 2px #38bdf8", background: "#1e3a5f" };
+      return { boxShadow: "inset 0 0 0 2px var(--sws-select-border, #38bdf8)", background: "var(--sws-select-bg, #1e3a5f)" };
     }
     return dropTarget.place === "before"
-      ? { borderTop: "2px solid #38bdf8", marginTop: -2 }
-      : { borderBottom: "2px solid #38bdf8", marginBottom: -2 };
+      ? { borderTop: "2px solid var(--sws-select-border, #38bdf8)", marginTop: -2 }
+      : { borderBottom: "2px solid var(--sws-select-border, #38bdf8)", marginBottom: -2 };
   };
 
   const renderObjectRow = (o: SynopticObject, indent = 0, ultimo = false) => {
@@ -1644,7 +1632,7 @@ function ObjectsSection() {
             data-testid={`blocca-${o.id}`}
             onClick={(e) => { e.stopPropagation(); updateObject(o.id, { locked: o.locked ? undefined : true }); }}
           >
-            {o.locked ? "🔒" : "🔓"}
+            <Icona emoji={o.locked ? "🔒" : "🔓"} />
           </button>
           <span style={{ fontSize: 9, color: "var(--brand-text-subtle, #94a3b8)", width: 34, flexShrink: 0, textTransform: "uppercase", letterSpacing: 0.5 }}>
             {o.type.slice(0, 5)}
@@ -1670,7 +1658,7 @@ function ObjectsSection() {
               {label}
             </span>
           )}
-          <button style={S.iconBtn} title={t("editor.rename")} onClick={(e) => { e.stopPropagation(); startRename(o.id, o.name ?? ""); }}>✎</button>
+          <button style={S.iconBtn} title={t("editor.rename")} onClick={(e) => { e.stopPropagation(); startRename(o.id, o.name ?? ""); }}><Icona emoji="✎" /></button>
           <button style={S.iconBtn} title={t("editor.duplicate")} onClick={(e) => { e.stopPropagation(); duplicateObject(o.id); }}>⧉</button>
           <button style={{ ...S.iconBtn, color: "var(--brand-danger, #ef4444)" }} title={t("editor.delete")} onClick={(e) => { e.stopPropagation(); deleteObject(o.id); }}>×</button>
         </div>
@@ -1683,8 +1671,8 @@ function ObjectsSection() {
               onClick={() => { selectObject(o.id); setSelectedCell({ objectId: o.id, row: c.row, col: c.col }); setSelectedCellChild({ objectId: o.id, row: c.row, col: c.col }); }}
               style={{
                 ...S.row(isChildSel), paddingLeft: indent + 24, paddingRight: 4, gap: 4,
-                color: isChildSel ? "#5eead4" : "var(--brand-text-subtle, #64748b)",
-                background: isChildSel ? "#0f2922" : "transparent",
+                color: isChildSel ? "var(--sws-select-text, #5eead4)" : "var(--brand-text-subtle, #64748b)",
+                background: isChildSel ? "var(--sws-select-bg, #0f2922)" : "transparent",
                 ...guideAlbero(indent > 0 ? [13, 25] : [13], {
                   x: (indent > 0 ? 25 : 13) + 12, finoA: indent + 24, ultimo: false,
                 }),
@@ -1772,7 +1760,7 @@ function ObjectsSection() {
         <div style={{ padding: "3px 8px", borderBottom: "1px solid var(--brand-surface, #1e293b)" }}>
           <button
             onClick={() => groupObjects(selectedIds)}
-            style={{ ...S.objBtn, flex: "none", width: "100%", borderStyle: "dashed", color: "#38bdf8", borderColor: "#0ea5e9", fontSize: 11 }}
+            style={{ ...S.objBtn, flex: "none", width: "100%", borderStyle: "dashed", color: "var(--sws-select-text, #38bdf8)", borderColor: "var(--sws-select-border, #0ea5e9)", fontSize: 11 }}
           >
             {t("editor.raggruppaSelezionati", { n: selectedIds.length })}
           </button>
@@ -1802,7 +1790,7 @@ function ObjectsSection() {
                 title={corrente ? t("editor.paginaCorrente") : t("editor.apriPagina")}
               >
                 <span style={{ ...S.iconBtn, width: 14, fontSize: 8 }}>{aperta ? "▼" : "▶"}</span>
-                <span style={{ fontSize: 11, flexShrink: 0 }}>📄</span>
+                <span style={{ fontSize: 11, flexShrink: 0 }}><Icona emoji="📄" /></span>
                 <span
                   style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 11 }}
                   onDoubleClick={(e) => { e.stopPropagation(); setCurrentPage(pg.id); }}
@@ -1831,7 +1819,7 @@ function ObjectsSection() {
               color: "var(--brand-text-subtle, #64748b)",
               borderTop: "1px dashed var(--brand-surface-2, #334155)",
               borderBottom: "1px dashed var(--brand-surface-2, #334155)",
-              background: dropTarget?.kind === "root" ? "#1e3a5f" : "var(--brand-bg, #0f172a)",
+              background: dropTarget?.kind === "root" ? "var(--sws-select-bg, #1e3a5f)" : "var(--brand-bg, #0f172a)",
               textAlign: "center" as const,
               fontStyle: "italic" as const,
             }}
@@ -1860,8 +1848,8 @@ function ObjectsSection() {
                     ...S.row(allMembersSel),
                     ...guideAlbero([], { x: 13, finoA: 18, ultimo: iNodo === tree.length - 1 && !isExpanded }),
                     gap: 4, paddingRight: 4,
-                    background: allMembersSel ? "#1e3a5f" : "var(--brand-bg, #172033)",
-                    color: allMembersSel ? "#93c5fd" : "var(--brand-text-subtle, #64748b)",
+                    background: allMembersSel ? "var(--sws-select-bg, #1e3a5f)" : "var(--brand-bg, #172033)",
+                    color: allMembersSel ? "var(--sws-select-text, #93c5fd)" : "var(--brand-text-subtle, #64748b)",
                     borderBottom: "1px solid var(--brand-surface, #1e293b)",
                     ...indicatorFor("group", group.id),
                   }}
@@ -1874,7 +1862,7 @@ function ObjectsSection() {
                   >
                     {isExpanded ? "▼" : "▶"}
                   </button>
-                  <span style={{ fontSize: 11, flexShrink: 0 }}>📁</span>
+                  <span style={{ fontSize: 11, flexShrink: 0 }}><Icona emoji="📁" /></span>
                   {isRenamingThis ? (
                     <input
                       type="text" value={groupDraft} autoFocus
@@ -1899,7 +1887,7 @@ function ObjectsSection() {
                   <button
                     style={S.iconBtn} title={t("editor.renameGroup")}
                     onClick={(e) => { e.stopPropagation(); startRenameGroup(group.id, group.name); }}
-                  >✎</button>
+                  ><Icona emoji="✎" /></button>
                   <button
                     style={{ ...S.iconBtn, color: "var(--brand-warning, #f59e0b)" }} title={t("editor.ungroup")}
                     onClick={async (e) => {
@@ -2017,14 +2005,14 @@ function ObjectsContextMenu({
       {state.kind === "object" ? (
         <>
           <div style={item} onClick={() => { actions.renameObject(state.id); close(); }}>
-            <span style={{ width: 16 }}>✎</span> {t("leftPanel.rinomina")}
+            <span style={{ width: 16 }}><Icona emoji="✎" /></span> {t("leftPanel.rinomina")}
           </div>
           <div style={item} onClick={() => { actions.duplicateObject(state.id); close(); }}>
             <span style={{ width: 16 }}>⧉</span> {t("leftPanel.duplica")}
           </div>
           {currentSelection.length >= 2 && currentSelection.includes(state.id) && (
             <div style={item} onClick={() => { actions.groupSelection(); close(); }}>
-              <span style={{ width: 16 }}>📁</span> {t("leftPanel.raggruppaSelezione", { n: currentSelection.length })}
+              <span style={{ width: 16 }}><Icona emoji="📁" /></span> {t("leftPanel.raggruppaSelezione", { n: currentSelection.length })}
             </div>
           )}
           <div style={sep} />
@@ -2034,7 +2022,7 @@ function ObjectsContextMenu({
           )}
           {groups.map((g) => (
             <div key={g.id} style={sub} onClick={() => { actions.moveToGroup(state.id, g.id); close(); }}>
-              📁 {g.name}
+              <Icona emoji="📁" /> {g.name}
             </div>
           ))}
           <div style={sub} onClick={() => { actions.moveToGroup(state.id, null); close(); }}>
@@ -2048,7 +2036,7 @@ function ObjectsContextMenu({
       ) : (
         <>
           <div style={item} onClick={() => { actions.renameGroup(state.id); close(); }}>
-            <span style={{ width: 16 }}>✎</span> {t("leftPanel.rinominaGruppo")}
+            <span style={{ width: 16 }}><Icona emoji="✎" /></span> {t("leftPanel.rinominaGruppo")}
           </div>
           <div style={sep} />
           <div style={danger} onClick={() => { actions.ungroup(state.id); close(); }}>
@@ -2202,7 +2190,7 @@ function SezioneLogica({ onFunctionsChanged }: { onFunctionsChanged: () => void 
                 style={S.iconBtn}
                 title={t("editor.rename")}
                 onClick={(e) => { e.stopPropagation(); startRename(f.id, f.name); }}
-              >✎</button>
+              ><Icona emoji="✎" /></button>
               <button
                 style={S.iconBtn}
                 title={t("editor.duplicate")}
@@ -2403,7 +2391,7 @@ export const VOCI_SINISTRA = [
     schede: ["system", "screen", "devices", "runtime", "install", "container", "prestazioni", "resources", "backups", "devpackage"], apre: "system" },
   { id: "progetto", gruppo: "fondo", inFondo: true, schede: ["impostazioni", "stile", "languages", "git", "datastores"] },
   // Il menù IA (04-11-2026): la chat e la configurazione dei modelli.
-  { id: "ia", gruppo: "fondo", inFondo: true, schede: ["ia_assistente", "ia_fornitori", "ia_scopi", "ia_regole"], apre: "ia_assistente" },
+  { id: "ia", gruppo: "fondo", inFondo: true, schede: ["ia_assistente", "ia_fornitori", "ia_scopi", "ia_spending", "ia_regole"], apre: "ia_assistente" },
   { id: "preferenze", gruppo: "fondo", inFondo: true, schede: ["ide"], apre: "ide" },
 ] as const satisfies readonly {
   id: string; gruppo: string; inFondo?: boolean; schede?: readonly IdScheda[]; apre?: IdScheda;

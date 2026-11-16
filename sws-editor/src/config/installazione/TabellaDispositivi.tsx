@@ -12,7 +12,7 @@ const PILL: React.CSSProperties = {
   marginRight: 4,
 };
 const PILL_SWS: React.CSSProperties = {
-  ...PILL, background: "#14532d", color: "var(--brand-success-soft, #4ade80)",
+  ...PILL, background: "var(--sws-success-bg, #14532d)", color: "var(--brand-success-soft, #4ade80)",
 };
 
 export function TabellaDispositivi(props: {
@@ -70,7 +70,7 @@ export function TabellaDispositivi(props: {
                     <span style={{ fontSize: 10, color: "var(--brand-text-subtle, #64748b)" }}>{t("cfg.devicesAlreadyIn")}</span>
                   ) : (
                     <button
-                      style={{ padding: "2px 8px", borderRadius: 4, cursor: "pointer", fontSize: 11, border: "1px solid var(--brand-primary-hover, #2563eb)", background: "#1e3a5f", color: "#93c5fd" }}
+                      style={{ padding: "2px 8px", borderRadius: 4, cursor: "pointer", fontSize: 11, border: "1px solid var(--brand-primary-hover, #2563eb)", background: "var(--sws-select-bg, #1e3a5f)", color: "var(--sws-select-text, #93c5fd)" }}
                       title={t("cfg.devicesAddToListTitle")}
                       onClick={(e) => { e.stopPropagation(); onAggiungi(d); }}>
                       {t("cfg.devicesAddToList")}

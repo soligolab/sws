@@ -130,7 +130,7 @@ export const PythonEditor = forwardRef<PythonEditorHandle, PythonEditorProps>(
           height,
           width: "100%",
           minHeight: 0,
-          background: "#282c34", // matches one-dark
+          background: "#282c34" /* fixed-colour */, // matches one-dark
           border: "1px solid var(--brand-surface-2, #334155)",
           borderRadius: 4,
           overflow: "hidden",

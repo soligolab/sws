@@ -127,7 +127,7 @@ export function NewProjectModal({
   const TAB_STYLE = (active: boolean): React.CSSProperties => ({
     padding: "6px 18px",
     background: active ? "var(--brand-primary, #3b82f6)" : "transparent",
-    color: active ? "#fff" : "var(--brand-text-muted, #94a3b8)",
+    color: active ? "var(--sws-on-accent, #fff)" : "var(--brand-text-muted, #94a3b8)",
     border: "1px solid " + (active ? "var(--brand-primary, #3b82f6)" : "var(--brand-surface-2, #334155)"),
     borderRadius: 6,
     cursor: "pointer",

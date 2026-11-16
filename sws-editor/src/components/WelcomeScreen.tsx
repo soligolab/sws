@@ -378,7 +378,7 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
             alignSelf: "stretch", margin: "0 0 18px", padding: "10px 20px",
             fontSize: 13, lineHeight: 1.5,
             color: a.piena ? "var(--brand-danger-soft, #fca5a5)" : "var(--brand-warning-soft, #fbbf24)",
-            background: a.piena ? "#7f1d1d33" : "#78350f33",
+            background: a.piena ? "var(--sws-danger-bg, #7f1d1d33)" : "var(--sws-warning-bg, #78350f33)",
             borderBottom: "1px solid var(--brand-surface-2, #334155)",
           }}
         >
@@ -570,7 +570,7 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
                 ><IconaUI nome="matita" titolo={t("editor.rename")} /></button>
                 <button
                   title={t("editor.duplicate")}
-                  style={{ ...ACT_BTN, color: isDuping ? "#a855f7" : "var(--brand-text-muted, #94a3b8)" }}
+                  style={{ ...ACT_BTN, color: isDuping ? "var(--sws-select-text, #a855f7)" : "var(--brand-text-muted, #94a3b8)" }}
                   onClick={() => setEditing({ rif: p.riferimento, name: p.name, mode: "duplicate", value: `${p.name} ${t("common.copiaSuffisso")}` })}
                 ><IconaUI nome="duplica" titolo={t("editor.duplicate")} /></button>
                 {!p.external && (
@@ -597,7 +597,7 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
                 style={{
                   display: "flex", gap: 8, alignItems: "center",
                   padding: "8px 12px", background: "var(--brand-surface, #1e293b)",
-                  border: "1px solid #a855f7", borderTop: "none",
+                  border: "1px solid var(--sws-select-border, #a855f7)", borderTop: "none",
                   borderRadius: "0 0 8px 8px",
                 }}
                 onClick={(e) => e.stopPropagation()}
@@ -814,7 +814,7 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
                       title={t("welcome.cestinoScade", { date: formatDate(p.cestino!.scade_ms) })}
                       style={{
                         width: 52, flexShrink: 0, textAlign: "center", padding: "4px 0", borderRadius: 6,
-                        background: giorni <= 3 ? "#7f1d1d55" : "var(--brand-surface, #1e293b)",
+                        background: giorni <= 3 ? "var(--sws-danger-bg, #7f1d1d55)" : "var(--brand-surface, #1e293b)",
                         color: giorni <= 3 ? "var(--brand-danger-soft, #fca5a5)" : "var(--brand-text-2, #cbd5e1)",
                       }}>
                       <div style={{ fontSize: 18, fontWeight: 700, lineHeight: 1.1 }}>{giorni}</div>

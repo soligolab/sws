@@ -99,7 +99,7 @@ export function ImageBrowser({ onSelect, onClose }: Props) {
                 style={{
                   background: "none", border: "none",
                   borderBottom: i === activeTab ? "2px solid var(--brand-primary, #3b82f6)" : "2px solid transparent",
-                  color: i === activeTab ? "#93c5fd" : "var(--brand-text-subtle, #64748b)",
+                  color: i === activeTab ? "var(--sws-select-text, #93c5fd)" : "var(--brand-text-subtle, #64748b)",
                   padding: "8px 12px", fontSize: 12, cursor: "pointer",
                   whiteSpace: "nowrap",
                 }}
@@ -135,7 +135,7 @@ export function ImageBrowser({ onSelect, onClose }: Props) {
               title={item.label}
               style={{
                 width: 76, background: "none",
-                border: "1px solid #1e3a5f",
+                border: "1px solid var(--sws-select-border, #1e3a5f)",
                 borderRadius: 6, cursor: "pointer",
                 display: "flex", flexDirection: "column", alignItems: "center",
                 gap: 4, padding: "6px 4px",
@@ -146,7 +146,7 @@ export function ImageBrowser({ onSelect, onClose }: Props) {
                 (e.currentTarget as HTMLElement).style.background = "var(--brand-surface, #1e293b)";
               }}
               onMouseLeave={(e) => {
-                (e.currentTarget as HTMLElement).style.borderColor = "#1e3a5f";
+                (e.currentTarget as HTMLElement).style.borderColor = "var(--sws-select-border, #1e3a5f)";
                 (e.currentTarget as HTMLElement).style.background = "none";
               }}
             >

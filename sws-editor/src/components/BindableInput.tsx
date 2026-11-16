@@ -3,6 +3,7 @@ import { TagInput } from "@/components/TagInput";
 import { validateExpr } from "@/expr/engine";
 import type { BindingSpec, SynopticObject } from "@/types";
 import { CampoNumero } from "@/components/CampoNumero";
+import { Icona } from "@/components/Icona";
 
 const BTN: React.CSSProperties = {
   background: "var(--brand-bg, #0f172a)",
@@ -91,7 +92,7 @@ export function BindableInput({ obj, propName, onChange, children }: Props) {
                   style={{
                     ...BTN, fontSize: 10, padding: "2px 6px",
                     color: mode === m ? "var(--brand-primary, #3b82f6)" : "var(--brand-text-subtle, #64748b)",
-                    borderColor: mode === m ? "#1d4ed8" : "var(--brand-surface-2, #334155)",
+                    borderColor: mode === m ? "var(--sws-select-border, #1d4ed8)" : "var(--brand-surface-2, #334155)",
                   }}
                   onClick={() => switchMode(m)}>
                   {t(`tagInput.mode.${m}`)}
@@ -146,12 +147,12 @@ export function BindableInput({ obj, propName, onChange, children }: Props) {
         style={{
           ...BTN,
           color: isBound ? "var(--brand-primary, #3b82f6)" : "var(--brand-border, #475569)",
-          borderColor: isBound ? "#1d4ed8" : "var(--brand-surface-2, #334155)",
+          borderColor: isBound ? "var(--sws-select-border, #1d4ed8)" : "var(--brand-surface-2, #334155)",
         }}
         title={isBound ? t("tagInput.unbind") : t("tagInput.bindTo")}
         onClick={handleToggle}
       >
-        {isBound ? "🔗" : "🔓"}
+        <Icona emoji={isBound ? "🔗" : "🔓"} />
       </button>
     </div>
   );

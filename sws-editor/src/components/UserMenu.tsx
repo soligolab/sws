@@ -6,6 +6,7 @@ import { UiLangSelect } from "@/components/UiLangSelect";
 import { useAppStore, type Role } from "@/store";
 import { prefissoGateway } from "@/api/prefisso";
 import { openMyAiKeys } from "@/components/MyAiKeys";
+import { Icona } from "@/components/Icona";
 
 /** Role pill colours. The three dark ones keep a fixed light text; Viewer uses
  *  the themed surface and therefore the themed text colour. */
@@ -13,10 +14,10 @@ function roleStyle(role: Role): React.CSSProperties {
   return {
     padding: "1px 6px",
     borderRadius: 3,
-    background: role === "Admin" ? "#7c2d12"
-      : role === "Supervisor" ? "#7e22ce"
-      : role === "Operator" ? "#1e3a8a" : "var(--brand-surface-2, #334155)",
-    color: role === "Viewer" ? "var(--brand-text, #e2e8f0)" : "#f8fafc",
+    background: role === "Admin" ? "var(--sws-danger-bg, #7c2d12)"
+      : role === "Supervisor" ? "var(--sws-select-bg, #7e22ce)"
+      : role === "Operator" ? "var(--sws-select-bg, #1e3a8a)" : "var(--brand-surface-2, #334155)",
+    color: role === "Viewer" ? "var(--brand-text, #e2e8f0)" : "var(--sws-text, #f8fafc)",
     fontSize: 11,
     fontWeight: 600,
   };
@@ -51,7 +52,7 @@ export function UserMenu({ onLogout }: { onLogout: () => void }) {
         onClick={() => setOpen((v) => !v)}
         title={t("header.userMenuTitle", { user: authUser ?? "—" })}
       >
-        👤 {authUser ?? "—"} ▾
+        <Icona emoji="👤" /> {authUser ?? "—"} ▾
       </button>
       {open && (
         <div style={DROP_PANEL}>

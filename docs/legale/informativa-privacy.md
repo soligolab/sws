@@ -75,8 +75,9 @@ I dati possono essere comunicati alle autorità quando la legge lo impone.
 
 **Servizi che attivi tu.** Se nei tuoi progetti configuri servizi di terzi — Twilio (SMS e chiamate), Telegram
 (messaggi), il tuo server di posta (SMTP, per le notifiche del progetto), la traduzione automatica (MyMemory,
-LibreTranslate o Google Cloud Translation), l'assistente IA (Anthropic o Moonshot/Kimi), i tuoi broker e server — il
-servizio manda loro i dati che servono alla funzione che hai scelto. Alcuni richiedono le tue credenziali; la
+LibreTranslate o Google Cloud Translation), l'assistente IA (Anthropic, Moonshot/Kimi o Mistral) e le immagini che
+genera (OpenAI o Black Forest Labs), i tuoi broker e server — il servizio manda loro i dati che servono alla
+funzione che hai scelto. Alcuni richiedono le tue credenziali; la
 traduzione con MyMemory o con l'istanza pubblica di LibreTranslate no, ma anche lì i testi da tradurre escono verso
 quel fornitore. Il rapporto con quei fornitori è tuo, alle loro condizioni e con le loro informative.
 
@@ -92,9 +93,9 @@ delle condizioni).
 Per il servizio noi non trasferiamo dati fuori dall'UE, con un'eccezione: le e-mail passano da Infomaniak, in Svizzera,
 paese per cui la Commissione europea ha adottato una **decisione di adeguatezza** (art. 45 GDPR).
 
-I servizi che attivi tu possono comportare trasferimenti fuori dall'UE: per esempio Twilio, Google e Anthropic hanno
-sede negli Stati Uniti (dove si applica l'EU-US Data Privacy Framework alle aziende certificate), Telegram negli
-Emirati Arabi Uniti, Moonshot/Kimi in Cina (paesi senza decisione di adeguatezza). Valuta questo aspetto prima di
+I servizi che attivi tu possono comportare trasferimenti fuori dall'UE: per esempio Twilio, Google, Anthropic e OpenAI
+hanno sede negli Stati Uniti (dove si applica l'EU-US Data Privacy Framework alle aziende certificate), Telegram
+negli Emirati Arabi Uniti, Moonshot/Kimi in Cina (paesi senza decisione di adeguatezza). Valuta questo aspetto prima di
 attivarli.
 
 ## 6. Per quanto tempo li conserviamo

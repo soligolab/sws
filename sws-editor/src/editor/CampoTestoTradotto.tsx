@@ -25,6 +25,7 @@ import {
 } from "@/i18n/chiaviAutomatiche";
 import { CharacterPickerModal } from "@/editor/CharacterPickerModal";
 import type { LanguageTable } from "@/types";
+import { Icona } from "@/components/Icona";
 
 export function CampoTestoTradotto({
   valore,
@@ -201,7 +202,7 @@ export function CampoTestoTradotto({
           padding: 0,
         }}
       >
-        🔣
+        <Icona emoji="🔣" />
       </button>
       {pickerAperto && (
         <CharacterPickerModal onPick={inserisciCarattere} onCancel={() => setPickerAperto(false)} />

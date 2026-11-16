@@ -1,3 +1,5 @@
+import type { PortaLib } from "@/symbols/lib/manifest";
+
 export type TagQuality = "Good" | "Bad" | "Uncertain";
 
 export interface TagState {
@@ -1053,6 +1055,12 @@ export interface CustomSymbol {
    *  colore dello stato corrente (off/on/alarm o symbol_states). */
   svg?: string;
   colorable_ids?: string[];
+  /** The size of the drawing, `[w, h]` (the SVG has `viewBox="0 0 w h"`): the
+   *  units of `ports`. Both are optional and come with a symbol drawn as free
+   *  SVG with ports (plan 2026-11-10-assistente-secondo-giro, G3). */
+  view_box?: [number, number];
+  /** Where pipes attach, like the ports of a library symbol. */
+  ports?: PortaLib[];
   id: string;
   label: string;
   url: string;
@@ -2614,7 +2622,7 @@ export interface ScopoIaCfg {
   fornitore?: string;
   modello?: string;
   tetto_usd?: number;
-  /** Solo sfondi: low | medium | high. */
+  /** Solo sfondi con OpenAI: low | medium | high (FLUX has no quality). */
   qualita?: string;
 }
 
@@ -2627,14 +2635,38 @@ export interface RegoleIa {
 /** A key of the user in the list: never the value. */
 export interface MyAiKey {
   provider: string;
-  last4: string;
+  /** The last four letters; null = a preferred model and no key. */
+  last4: string | null;
   /** `false` after a restore without the master key: it has to be written again. */
   readable: boolean;
+  /** The model preferred for this provider; null = the provider's default. */
+  model?: string | null;
+}
+
+/** One month of AI spending of the installation (GET /api/ai/spending). */
+export interface AiSpendingMonth {
+  /** `YYYY-MM`. */
+  month: string;
+  usd: number;
+  calls: number;
+  rows: { purpose: string; provider: string; usd: number; calls: number }[];
+}
+
+/** The AI spending history: the months from the newest, the current one first
+ *  even when nothing was spent in it. */
+export interface AiSpending {
+  current_month: string;
+  months: AiSpendingMonth[];
+  total: { usd: number; calls: number };
+  /** How many months the installation keeps. */
+  kept_months: number;
 }
 
 export interface AiConfig {
   fornitori: {
     id: string; nome: string; scopi: ScopoIa[]; chiave: boolean; modello_default: string;
+    /** The model preferred in the account of whoever opens the menu (cloud). */
+    modello_account?: string | null;
     /** Which key this project would use for the provider: its own, the user's, or none. */
     source?: "project" | "user" | null;
   }[];

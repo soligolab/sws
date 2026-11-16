@@ -9,6 +9,7 @@ import { useTranslation } from "react-i18next";
 import { api, type CommitInfo, type FileCambiato } from "@/api/client";
 import { selectIsDirty, useAppStore } from "@/store";
 import { conferma } from "@/finestraAvviso/finestraAvviso";
+import { Icona } from "@/components/Icona";
 
 /** Cosa si sta guardando. */
 type Scelta =
@@ -28,7 +29,7 @@ const chiaveStato = (s: string) => (s === "?" ? "nuovo" : ["A", "M", "D"].includ
 const stessa = (a: Scelta | null, b: Scelta) => JSON.stringify(a) === JSON.stringify(b);
 
 const COLORE_STATO: Record<string, string> = {
-  A: "#34d399", "?": "#34d399", M: "#fbbf24", D: "var(--brand-danger-soft, #fca5a5)",
+  A: "var(--sws-success-text, #34d399)", "?": "var(--sws-success-text, #34d399)", M: "var(--sws-warning-text, #fbbf24)", D: "var(--brand-danger-soft, #fca5a5)",
 };
 
 /** Il diff unificato, riga per riga, colorato come in un terminale. */
@@ -43,8 +44,8 @@ export function VistaDiff({ testo }: { testo: string }) {
       {testo.split("\n").map((riga, i) => {
         const testata = /^(diff |index |--- |\+\+\+ |new file|deleted file|similarity|rename )/.test(riga);
         const colore = testata ? "var(--brand-text-subtle, #64748b)"
-          : riga.startsWith("@@") ? "#93c5fd"
-          : riga.startsWith("+") ? "#34d399"
+          : riga.startsWith("@@") ? "var(--sws-select-text, #93c5fd)"
+          : riga.startsWith("+") ? "var(--sws-success-text, #34d399)"
           : riga.startsWith("-") ? "var(--brand-danger-soft, #fca5a5)"
           : "var(--brand-text-muted, #94a3b8)";
         const sfondo = testata ? undefined
@@ -190,12 +191,12 @@ export function GitStoria({ versione, pulito, inProva }: { versione: string; pul
       <div style={{ maxHeight: 240, overflowY: "auto", display: "flex", flexDirection: "column", gap: 1 }}>
         {!pulito && (
           <div data-testid="git-storia-wip" style={riga(stessa(scelta, { kind: "wip" }))} onClick={() => void scegli({ kind: "wip" })}>
-            <span style={{ color: "#fb923c", fontWeight: 600 }}>● {t("gitStoria.nonCommittate")}</span>
+            <span style={{ color: "var(--sws-warning-text, #fb923c)", fontWeight: 600 }}>● {t("gitStoria.nonCommittate")}</span>
           </div>
         )}
         {commit.map((c) => (
           <div key={c.sha} style={riga(stessa(scelta, { kind: "commit", sha: c.sha }))} onClick={() => void scegli({ kind: "commit", sha: c.sha })} title={`${c.sha}\n${c.author} <${c.email}>`}>
-            <code style={{ color: "#93c5fd", flexShrink: 0 }}>{c.short}</code>
+            <code style={{ color: "var(--sws-select-text, #93c5fd)", flexShrink: 0 }}>{c.short}</code>
             <span style={{ color: "var(--brand-text-subtle, #64748b)", flexShrink: 0 }}>{data(c.date)}</span>
             <span style={{ color: "var(--brand-text, #e2e8f0)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.message}</span>
             <span style={{ color: "var(--brand-text-subtle, #64748b)", flexShrink: 0 }}>{c.author}</span>
@@ -245,10 +246,10 @@ export function GitStoria({ versione, pulito, inProva }: { versione: string; pul
               type="button"
               data-testid="git-prova-questa"
               onClick={() => void prova(c)}
-              style={{ padding: "4px 10px", background: "#4c1d95", color: "#ede9fe", border: "1px solid #7c3aed", borderRadius: 4, fontSize: 11, cursor: "pointer" }}
+              style={{ padding: "4px 10px", background: "var(--sws-accent, #4c1d95)", color: "var(--sws-on-accent, #ede9fe)", border: "1px solid var(--sws-select-border, #7c3aed)", borderRadius: 4, fontSize: 11, cursor: "pointer" }}
               title={t("gitProva.hint")}
             >
-              🧪 {t("gitProva.provaQuesta", { short: c.short })}
+              <Icona emoji="🧪" color="currentColor" /> {t("gitProva.provaQuesta", { short: c.short })}
             </button>}
             <button
               type="button"
@@ -292,7 +293,7 @@ export function GitStoria({ versione, pulito, inProva }: { versione: string; pul
             </div>
           )}
           {forkEsito && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, color: forkEsito.ok ? "#34d399" : "var(--brand-danger-soft, #fca5a5)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, color: forkEsito.ok ? "var(--sws-success-text, #34d399)" : "var(--brand-danger-soft, #fca5a5)" }}>
               <span style={{ whiteSpace: "pre-wrap" }}>{forkEsito.testo}</span>
               {forkEsito.ok && forkEsito.nome && (
                 <button type="button" onClick={() => void apriFork(forkEsito.rif!)} style={{ ...bottone, background: "var(--brand-primary, #3b82f6)", color: "var(--brand-on-primary, #fff)", border: "none" }}>

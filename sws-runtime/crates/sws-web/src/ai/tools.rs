@@ -78,7 +78,9 @@ pub fn definizioni() -> Vec<Value> {
             "Il progetto senza le pagine: tag, sorgenti, allarmi, funzioni, lingue. \
              Le password sono mascherate e restano tali: se ne rimandi indietro una \
              mascherata, il server ricompone quella vera al salvataggio. In `cornici` ci \
-             sono le cornici delle pagine, con testata, piede e `area_libera`.",
+             sono le cornici delle pagine, con testata, piede e `area_libera`. \
+             `floor_plans` lists the floor plans the project already has (id and name): \
+             the tool floor_plan draws a page on one of them with its `id`.",
             json!({ "type": "object", "properties": {}, "additionalProperties": false }),
         ),
         strumento(
@@ -273,6 +275,46 @@ pub fn definizioni() -> Vec<Value> {
             json!({ "type": "object", "additionalProperties": false, "properties": {
                 "id": { "type": "string", "description": "L'id del faceplate da leggere intero." } } }),
         ),
+        // The floor plan of a house (16-11-2026, G2). Here and not at the end:
+        // `bozza_simbolo` must stay the last one, see above.
+        strumento(
+            "floor_plan",
+            "Draws the FLOOR PLAN of a house or a building as the background of a page, and \
+             tells where rooms, windows and doors are IN PAGE PIXELS, so lights, shutters and \
+             thermostats go in the right place. You write the plan in `plan`, in METRES (x to \
+             the right, y down, like the page): \
+             {id, nome, muri: [{id, punti: [[x,y],…], spessore?}], \
+             aperture: [{id, tipo: \"porta\"|\"finestra\", at: [x,y], larghezza?}], \
+             aree: [{id, etichetta, colore, punti: [[x,y],…]}]}. \
+             A wall (`muri`) is a polyline along its axis, default thickness 0.2; outer walls \
+             can be one closed polyline. An opening (`aperture`) is a door (`porta`) or a \
+             window (`finestra`) centred at the point `at` ON a wall. An area (`aree`) is a \
+             room: its polygon, a label and the colour of its floor (#rrggbb; pick one that \
+             reads on the page background). Nothing touches the project: the plan is a DRAFT \
+             of this conversation, the person sees the drawing in chat, and calling again with \
+             the same id redraws it. The answer has `background`: put it in `sfondo_immagine` \
+             of the page; plan and drawing enter the project with proponi_modifica when a \
+             proposed page uses it. With `id` alone you get the layout of a floor plan that \
+             already exists (a draft, or one of the project: leggi_progetto lists them in \
+             `floor_plans`). A `plan` cannot have the id of a floor plan of the project: \
+             that one is the person's, use it with `id` or pick another id. The drawing has \
+             no text.",
+            json!({ "type": "object", "additionalProperties": false, "properties": {
+                "plan": { "type": "object",
+                    "description": "The floor plan to draw, WHOLE, in metres (see above)." },
+                "id": { "type": "string",
+                    "description": "Without `plan`: the id of a floor plan that exists." },
+                "page": { "type": "string",
+                    "description": "The page it is for (name or id): the drawing takes the size \
+                                    of its free area. Missing or new: the default frame and \
+                                    size of the project." },
+                "fit": { "type": "object",
+                    "description": "{x, y, w, h} in page pixels: the box the plan must fit in, \
+                                    to leave room beside it for a legend or commands. Default: \
+                                    the whole area, less a margin." },
+                "wall_color": { "type": "string",
+                    "description": "#rrggbb of walls and doors. Default #475569." } } }),
+        ),
         strumento(
             "bozza_simbolo",
             "Compila la descrizione di un simbolo nuovo e la tiene come BOZZA di questa \
@@ -280,11 +322,40 @@ pub fn definizioni() -> Vec<Value> {
              parti, oppure gli errori da correggere. La persona vede la miniatura. Da lì in avanti \
              il simbolo si usa nelle pagine (valida e istantanea_pagina lo vedono), e entra nel \
              progetto con proponi_modifica. Ridisegnarlo = richiamarla con lo stesso slug. Puoi \
-             chiamarla più volte nello stesso giro, una per simbolo.",
-            json!({ "type": "object", "required": ["descrizione"], "additionalProperties": false,
-                    "properties": { "descrizione": { "type": "object",
-                        "description": "La descrizione: slug, w, h, tipo, body, it, en, ops \
-                                        (vedi schema_simbolo)." } } }),
+             chiamarla più volte nello stesso giro, una per simbolo. \
+             FREE SVG, the second way — ONLY when a description cannot draw the machine \
+             (schema_simbolo says what a description can do). Instead of `descrizione` pass \
+             `slug`, `it`, `en`, `svg`, `view_box` and `ports`: the symbol becomes \
+             custom:<slug>, with ports for the pipes like a library symbol. The SVG: a root \
+             <svg> with only xmlns and viewBox=\"0 0 w h\" (w and h multiples of 10, at most \
+             510, the same numbers as `view_box`); inside only g, defs, path, rect, circle, \
+             ellipse, line, polyline, polygon, use, linearGradient, radialGradient, stop, \
+             clipPath, mask; no text, style, image, filter, animation or script; href and \
+             url() only to ids of the same drawing; at most 32 KB. A free symbol has no live \
+             parts and does not take the style of the project: give it the look of the \
+             library (orthogonal view, light from the top left, outline #1c2329).",
+            json!({ "type": "object", "additionalProperties": false,
+                    "properties": {
+                        "descrizione": { "type": "object",
+                            "description": "La descrizione: slug, w, h, tipo, body, it, en, ops \
+                                            (vedi schema_simbolo)." },
+                        "slug": { "type": "string",
+                            "description": "Free SVG: a-z, 0-9 and «-», 3–40 characters." },
+                        "it": { "type": "string", "description": "Free SVG: the Italian label." },
+                        "en": { "type": "string", "description": "Free SVG: the English label." },
+                        "svg": { "type": "string",
+                            "description": "Free SVG: the drawing, from <svg …> to </svg>." },
+                        "view_box": { "type": "array", "items": { "type": "number" },
+                            "minItems": 2, "maxItems": 2,
+                            "description": "Free SVG: [w, h], the size of the drawing." },
+                        "ports": { "type": "array", "items": { "type": "object" },
+                            "description": "Free SVG: where pipes attach, in viewBox units: \
+                                            {id, x, y, side, d}. (x, y) is the point on the edge \
+                                            of the drawing where the pipe ends, `side` (left, \
+                                            top, right, bottom) the way it leaves, `d` the \
+                                            diameter of the stub (the library uses 10). Ids like \
+                                            n-left, n-right, n-top-2: not left, right, top, \
+                                            bottom, center, which are the anchors of the box." } } }),
         ),
     ]
 }
@@ -331,7 +402,7 @@ pub fn definizioni_per(o: Opzioni) -> Vec<Value> {
         v.push(strumento(
             "genera_sfondo",
             "Genera una o più BASI candidate per lo sfondo fotografico di una pagina \
-             (gpt-image-2, 1536×1024: in pagina va come oggetto image a tutta pagina con \
+             (1536×1024: in pagina va come oggetto image a tutta pagina con \
              image_fit «cover»). Scrivi la descrizione della scena IN INGLESE: cosa c'è, dove sta \
              (sinistra, centro, destra), il punto di vista. Le basi restano in questa \
              conversazione; la persona le vede in chat. REGOLA: dopo genera_sfondo FERMATI. La \
@@ -405,10 +476,12 @@ pub const SOLA_LETTURA: [&str; 14] = [
 ///
 /// `bozza_simbolo` scrive nel **banco della conversazione**, che vive nel ciclo
 /// della chat e non altrove: fuori da lì una bozza non avrebbe dove stare.
-pub const FUORI_DA_ESEGUI: [&str; 6] = [
+pub const FUORI_DA_ESEGUI: [&str; 7] = [
     "proponi_modifica",
     "istantanea_pagina",
     "bozza_simbolo",
+    // Writes on the bench of the conversation, like bozza_simbolo (G2).
+    "floor_plan",
     // Gli strumenti degli scopi (04-11-2026): scrivono nel banco e chiamano un
     // secondo modello, quindi vivono nel ciclo come bozza_simbolo.
     "disegna_simbolo",
@@ -548,6 +621,11 @@ async fn leggi_pagina(s: &AppState, nome: &str) -> Esito {
     }
 }
 
+/// The key under which `leggi_progetto` lists the floor plans of the project.
+/// Information for the model, like `cornici`: not a field of the project, and
+/// taken away when a proposed project brings it back.
+const INFO_FLOOR_PLANS: &str = "floor_plans";
+
 async fn leggi_progetto(s: &AppState) -> Esito {
     let mut p = carica_progetto(s).await?;
     // Non ereditata dall'handler HTTP: qui si entra da dentro.
@@ -559,6 +637,9 @@ async fn leggi_progetto(s: &AppState) -> Esito {
     if let Some(o) = v.as_object_mut() {
         o.remove("simboli");
     }
+    // The custom symbols keep id, label, size and ports, not the drawing: it
+    // is long, and a proposal gets the ones of the disk back by itself.
+    super::free_symbol_tool::strip_drawings(&mut v);
     // Le cornici non stanno nel progetto ma in `cornici/`: senza, il modello
     // non sa dove finiscono testata e piede (10-11-2026).
     let predefinita = cornice_predefinita(&p);
@@ -571,6 +652,21 @@ async fn leggi_progetto(s: &AppState) -> Esito {
                 .map(|c| cornice_per_il_modello(c, predefinita.as_deref() == Some(c.id.as_str())))
                 .collect::<Vec<_>>()),
         );
+    }
+    // The floor plans are not in the project either, but in `planimetrie/`:
+    // without the list the model cannot know a house is already drawn, and
+    // writes a second one (or tries to take the id of the first).
+    if let (Ok(dir), Some(o)) = (dir_progetto(s).await, v.as_object_mut()) {
+        let plans = crate::planimetrie::list(&dir).await;
+        if !plans.is_empty() {
+            o.insert(
+                INFO_FLOOR_PLANS.into(),
+                json!(plans
+                    .iter()
+                    .map(|(id, name)| json!({ "id": id, "name": name }))
+                    .collect::<Vec<_>>()),
+            );
+        }
     }
     // Le funzioni portano il corpo Python: lungo, e quasi mai utile per
     // disegnare. Restano i nomi, che è ciò che serve per agganciare un evento.
@@ -738,7 +834,7 @@ fn campo(f: &sch::Field) -> Value {
 /// Il giudizio su una proposta. Stessa logica dell'endpoint HTTP, chiamata da
 /// dentro — e con la stessa distinzione fra rilievi nuovi e preesistenti.
 pub async fn valida(s: &AppState, input: &Value) -> Esito {
-    valida_interna(s, input, &[], false)
+    valida_interna(s, input, &[], &[], false)
         .await
         .map(|(giudizio, _)| giudizio)
 }
@@ -756,11 +852,17 @@ pub fn bozze_da_portare<'a>(
     if let Some(elenco) = input.get("simboli").and_then(Value::as_array) {
         let mut out = Vec::new();
         for x in elenco {
+            // A draft drawn as free SVG is not a description: it is carried
+            // by `free_symbol_tool::to_carry`.
+            if x.as_str().is_some_and(|n| n.starts_with("custom:")) {
+                continue;
+            }
             let slug = x.as_str().unwrap_or("").trim_start_matches("prj:");
             let d = bozze.iter().find(|d| d.slug == slug).ok_or_else(|| {
                 format!(
                     "`simboli` nomina «{slug}», che non è una bozza di questa conversazione: \
-                         disegnala prima con bozza_simbolo"
+                         disegnala prima con bozza_simbolo (a free SVG draft is listed as \
+                         custom:{slug})"
                 )
             })?;
             out.push(d);
@@ -790,6 +892,7 @@ pub async fn valida_interna(
     s: &AppState,
     input: &Value,
     bozze: &[sws_core::simboli_prj::Descrizione],
+    free: &[super::free_symbol_tool::FreeSymbolDraft],
     solo_usate: bool,
 ) -> Result<(Value, Option<Value>), String> {
     let dir = dir_progetto(s).await?;
@@ -799,11 +902,13 @@ pub async fn valida_interna(
         .cloned()
         .unwrap_or_default();
     let usate = bozze_da_portare(input, &raw_pages, bozze, solo_usate)?;
+    // The drafts drawn as free SVG: custom symbols of the project (G3).
+    let free_carried = super::free_symbol_tool::to_carry(input, &raw_pages, free, solo_usate);
     // Con delle bozze da portare il progetto cambia anche se il modello non lo
     // ha mandato: si parte da quello che `leggi_progetto` gli avrebbe dato.
     let progetto_in: Option<Value> = match input.get("project") {
         Some(v) => Some(v.clone()),
-        None if !usate.is_empty() => Some(leggi_progetto(s).await?),
+        None if !usate.is_empty() || !free_carried.is_empty() => Some(leggi_progetto(s).await?),
         None => None,
     };
 
@@ -834,6 +939,7 @@ pub async fn valida_interna(
             // campo del progetto, e se torna indietro non entra nel diff.
             if let Some(o) = grezzo.as_object_mut() {
                 o.remove("cornici");
+                o.remove(INFO_FLOOR_PLANS);
             }
             for d in &usate {
                 let nuovo = serde_json::to_value(d).map_err(|e| e.to_string())?;
@@ -845,6 +951,15 @@ pub async fn valida_interna(
                     None => elenco.push(nuovo),
                 }
             }
+            // The custom symbols do not pass through the model either: the
+            // ones of the disk come back, with the free drafts on top. Who
+            // sent a different list is told it was not taken.
+            findings.extend(super::free_symbol_tool::ignored_changes(
+                grezzo.get("custom_symbols"),
+                &disco.custom_symbols,
+                &free_carried,
+            ));
+            super::free_symbol_tool::merge_into_project(&mut grezzo, &disco, &free_carried)?;
             let p = serde_json::from_value(grezzo.clone()).map_err(|e| {
                 format!(
                     "il progetto proposto non si legge: {e}. Deve essere il \
@@ -873,6 +988,7 @@ pub async fn valida_interna(
     }
 
     findings.extend(semantic(&project, &pagine));
+    findings.extend(super::free_symbol_tool::missing(&raw_pages, &project));
 
     // I faceplate: quelli del disco e i predefiniti, con sopra i proposti.
     let proposti = faceplate_proposti(input)?;
@@ -887,9 +1003,22 @@ pub async fn valida_interna(
     let mut prima = std::collections::HashSet::new();
     {
         let pg0 = carica_pagine(s).await.unwrap_or_default();
+        // A `custom:` symbol a page of the disk already names without the
+        // project having it (removed in Risorse: a placeholder today) is not
+        // news of this proposal: the same check, on the pages as they are.
+        let proposed: Vec<&str> = raw_pages
+            .iter()
+            .filter_map(|p| p.get("name")?.as_str())
+            .collect();
+        let raw0: Vec<Value> = pg0
+            .iter()
+            .filter(|p| proposed.contains(&p.name.as_str()))
+            .filter_map(|p| serde_json::to_value(p).ok())
+            .collect();
         for f in semantic(&disco, &pg0)
             .into_iter()
             .chain(istanze_senza_faceplate(&pg0, &ids_disco))
+            .chain(super::free_symbol_tool::missing(&raw0, &disco))
         {
             prima.insert(format!("{}\u{1}{}", f.path, f.message));
         }
@@ -1081,6 +1210,12 @@ async fn cerca_simboli(s: &AppState, input: &Value) -> Esito {
                 voci.push(voce_catalogo(&c));
             }
         }
+        // The custom symbols of the project, with the ports they declare (G3).
+        voci.extend(
+            p.custom_symbols
+                .iter()
+                .map(super::free_symbol_tool::catalog_entry),
+        );
     }
     let trovati = filtra_simboli(&voci, input);
     const MASSIMO: usize = 40;
@@ -1144,6 +1279,7 @@ pub fn schema_simbolo() -> Esito {
             "una flangia a filo del bordo diventa una bocca da sé: l'id è n-left, n-right, n-top, n-bottom (n-left-2… se ce ne sono due sullo stesso lato)",
             "il corpo è la parte che cambia colore con lo stato: mettici la carcassa della macchina, non i tubi",
             "un simbolo descrive UNA macchina; le scritte, i valori e i tubi fra macchine stanno in pagina",
+            "what a description cannot draw can be a free SVG (bozza_simbolo with svg, view_box, ports instead of descrizione): a fixed drawing with ports, no live parts, no state colour, no style of the project. Only when the description is not enough",
         ],
         "esempi": esempi,
     }))

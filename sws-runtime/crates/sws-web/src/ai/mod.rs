@@ -24,13 +24,20 @@
 //! concorrenza ottimistico, con il pezzo che già esisteva (`calcola_impronta`).
 
 mod banco_tubi;
+mod bench_house;
+pub mod bfl;
+pub mod chat_completions;
 pub mod client;
 pub mod config_api;
 mod conversazioni;
+mod floor_plan_tool;
 mod foto_ide;
+mod free_symbol_bench;
+mod free_symbol_tool;
 pub mod immagini;
 pub mod prompt;
 pub mod scopi;
+pub mod spending;
 mod strumenti_scopi;
 pub mod tools;
 pub mod user_keys;
@@ -119,14 +126,7 @@ async fn sessione(socket: WebSocket, s: AppState, id_conversazione: Option<Strin
     // The project's own key wins, as it always did. For a provider it has no key
     // for, and only behind the gateway, the key of whoever is writing is asked
     // to the gateway, for this session and in memory only (`user_keys.rs`).
-    let user_keys = {
-        let missing: Vec<client::Fornitore> =
-            [client::Fornitore::Anthropic, client::Fornitore::Kimi]
-                .into_iter()
-                .filter(|f| client::chiave_di(&s.config_dir, *f).is_none())
-                .collect();
-        user_keys::fetch(&s, &di, &missing).await
-    };
+    let user_keys = user_keys::fetch_all(&s, &di).await;
     let scelta = client::carica_con(&s.config_dir, &user_keys);
 
     // La conversazione: ritrovata se lo stesso id c'era già (riconnessione),
@@ -197,9 +197,9 @@ async fn sessione(socket: WebSocket, s: AppState, id_conversazione: Option<Strin
             "motivo": if finto.is_some() { Value::Null }
                       else if scelta.is_none() {
                           json!(format!("nessuna chiave: metti ANTHROPIC_API_KEY o \
-                                         MOONSHOT_API_KEY nell'ambiente, oppure la chiave in {}. \
-                                         Con due chiavi vince Anthropic; per l'altro, \
-                                         SWS_AI_FORNITORE=kimi",
+                                         MOONSHOT_API_KEY o MISTRAL_API_KEY nell'ambiente, oppure la chiave in {}. \
+                                         Con più chiavi vince Anthropic, poi Kimi, poi Mistral; \
+                                         per sceglierne un altro, SWS_AI_FORNITORE=kimi o mistral",
                                         client::percorsi_chiave(&s.config_dir).iter()
                                             .map(|p| p.display().to_string())
                                             .collect::<Vec<_>>().join(" o ")))
@@ -473,7 +473,7 @@ async fn vero_giro(
 
     let mut giro = 0usize;
     loop {
-        let limite = if banco.simboli.is_empty() {
+        let limite = if !banco.has_symbol_drafts() && banco.floor_plans.is_empty() {
             MAX_GIRI
         } else {
             MAX_GIRI_CON_BOZZE
@@ -550,6 +550,12 @@ async fn vero_giro(
         };
         let costo = client::costo_usd(&scelta.modello, &risposta.usage);
         misure.giro(&risposta.usage, costo, inizio_giro.elapsed().as_secs_f64());
+        spending::add(
+            &s.config_dir,
+            scopi::Scopo::Assistente.nome(),
+            scelta.fornitore.nome(),
+            costo,
+        );
         if debug_ai() {
             tracing::info!(target: "sws_ai", giro, ms = inizio_giro.elapsed().as_millis() as u64,
                            costo_usd = costo, "risposta del modello");
@@ -630,8 +636,7 @@ async fn vero_giro(
                     input,
                     impronta_iniziale.as_deref(),
                     correzioni,
-                    &banco.simboli,
-                    &banco.sfondi,
+                    banco,
                 )
                 .await
                 {
@@ -726,12 +731,23 @@ async fn vero_giro(
                     e
                 }
                 "varia_sfondo" => {
-                    strumenti_scopi::varia_sfondi(tx, banco, misure, ctx, scelta.tetto_usd, input)
-                        .await
-                }
-                "valida" => tools::valida_interna(s, input, &banco.simboli, false)
+                    strumenti_scopi::varia_sfondi(
+                        s,
+                        tx,
+                        banco,
+                        misure,
+                        ctx,
+                        scelta.tetto_usd,
+                        input,
+                    )
                     .await
-                    .map(|(g, _)| g),
+                }
+                "floor_plan" => floor_plan_tool::run(s, tx, banco, input).await,
+                "valida" => {
+                    tools::valida_interna(s, input, &banco.simboli, &banco.free_symbols, false)
+                        .await
+                        .map(|(g, _)| g)
+                }
                 _ => tools::esegui(s, nome, input).await,
             };
             let ms = inizio_strumento.elapsed().as_millis() as u64;
@@ -793,8 +809,8 @@ async fn istantanea_per_il_modello(
     if let Some(p) = input.get("pagina").filter(|p| p.is_object()) {
         nome = p.get("name").and_then(Value::as_str).map(str::to_string);
         pagine.push(p.clone());
-    } else if nome.is_none() && !banco.simboli.is_empty() {
-        let t = tavola_delle_bozze(&banco.simboli);
+    } else if nome.is_none() && banco.has_symbol_drafts() {
+        let t = tavola_delle_bozze(&banco.simboli, &banco.free_symbols);
         nome = t.get("name").and_then(Value::as_str).map(str::to_string);
         pagine.push(t);
     }
@@ -804,6 +820,11 @@ async fn istantanea_per_il_modello(
             .simboli
             .iter()
             .filter_map(|d| serde_json::to_value(d).ok())
+            .collect(),
+        custom_symbols: banco
+            .free_symbols
+            .iter()
+            .filter_map(|d| serde_json::to_value(&d.symbol).ok())
             .collect(),
         pagine,
         www: s.www_dir.as_deref().cloned(),
@@ -818,6 +839,12 @@ async fn istantanea_per_il_modello(
             .sfondi
             .iter()
             .map(|f| (f.file(), f.jpg.clone()))
+            .chain(
+                banco
+                    .floor_plans
+                    .iter()
+                    .map(|d| (d.file(), d.svg.clone().into_bytes())),
+            )
             .collect(),
         avanzamento: Some({
             let tx = tx.clone();
@@ -932,23 +959,24 @@ async fn proponi(
     input: &Value,
     impronta_iniziale: Option<&str>,
     correzioni: usize,
-    bozze: &[sws_core::simboli_prj::Descrizione],
-    sfondi: &[immagini::Sfondo],
+    banco: &Banco,
 ) -> Proposta {
+    let bozze = banco.simboli.as_slice();
     // `valida_interna` e non `valida`: quello che si spedisce al browser deve
     // essere il progetto **ricomposto**, cioè quello che è stato davvero
     // validato. Con il grezzo, una proposta che ometteva `functions` passava la
     // validazione e arrivava all'editor senza funzioni: il Salva le cancellava.
-    let (giudizio, normalizzato) = tools::valida_interna(s, input, bozze, true)
-        .await
-        .unwrap_or_else(|e| {
-            (
-                json!({ "ok": false, "errori_nuovi": 1,
+    let (giudizio, normalizzato) =
+        tools::valida_interna(s, input, bozze, &banco.free_symbols, true)
+            .await
+            .unwrap_or_else(|e| {
+                (
+                    json!({ "ok": false, "errori_nuovi": 1,
                                      "rilievi": [{ "severity": "error", "path": "proposta",
                                                    "message": e }] }),
-                None,
-            )
-        });
+                    None,
+                )
+            });
     let ok = giudizio.get("ok").and_then(Value::as_bool).unwrap_or(false);
 
     if !ok && correzioni < MAX_CORREZIONI {
@@ -959,6 +987,15 @@ async fn proponi(
         }));
     }
 
+    // The floor plans whose drawing a proposed page uses: the plans go in
+    // `planimetrie/`, the drawings in `images/` next to the generated
+    // backgrounds, all at Save.
+    let (floor_plans, drawings) = floor_plan_tool::of_proposal(input, &banco.floor_plans);
+    let replaced_floor_plans = floor_plan_tool::replaced(s, &floor_plans).await;
+    let mut sfondi = strumenti_scopi::sfondi_della_proposta(input, &banco.sfondi);
+    if let Some(elenco) = sfondi.as_array_mut() {
+        elenco.extend(drawings);
+    }
     invia(
         tx,
         json!({
@@ -972,10 +1009,14 @@ async fn proponi(
             "faceplates": input.get("faceplates"),
             "impronta": impronta_iniziale,
             "giudizio": giudizio,
-            "simboli": simboli_della_proposta(input, bozze),
+            "simboli": simboli_della_proposta(input, bozze, &banco.free_symbols),
             // Gli sfondi generati che le pagine usano: il browser li scrive in
             // images/ del progetto quando la proposta si applica (F6).
-            "sfondi": strumenti_scopi::sfondi_della_proposta(input, sfondi),
+            "sfondi": sfondi,
+            "floor_plans": floor_plans,
+            // The ones that take the place of a file of the project: the diff
+            // marks them as changed, not as new.
+            "replaced_floor_plans": replaced_floor_plans,
         }),
     );
     Proposta::Inviata
@@ -983,7 +1024,11 @@ async fn proponi(
 
 /// I simboli che la proposta porta nel progetto, compilati: la chat ne mostra
 /// la miniatura nel diff senza dover chiedere niente al server.
-fn simboli_della_proposta(input: &Value, bozze: &[sws_core::simboli_prj::Descrizione]) -> Value {
+fn simboli_della_proposta(
+    input: &Value,
+    bozze: &[sws_core::simboli_prj::Descrizione],
+    free: &[free_symbol_tool::FreeSymbolDraft],
+) -> Value {
     let pagine: Vec<Value> = input
         .get("pages")
         .and_then(Value::as_array)
@@ -999,6 +1044,8 @@ fn simboli_della_proposta(input: &Value, bozze: &[sws_core::simboli_prj::Descriz
                     json!({ "slug": d.slug, "it": d.it, "en": d.en, "svg": c.svg, "voce": c.voce }),
                 )
             })
+            // The ones drawn as free SVG: custom symbols, no manifest entry.
+            .chain(free_symbol_tool::of_proposal(input, free))
             .collect(),
     )
 }
@@ -1016,15 +1063,37 @@ pub(crate) struct Banco {
     pub spesa_sfondi: f64,
     /// Quanto è costato il modello dei simboli, per il tetto del suo scopo.
     pub spesa_simboli: f64,
+    /// The floor plans drawn in this conversation (`floor_plan` tool, G2).
+    pub floor_plans: Vec<floor_plan_tool::FloorPlanDraft>,
+    /// The symbols drawn as free SVG in this conversation (`bozza_simbolo`
+    /// with `svg`, G3): custom symbols with ports, not descriptions.
+    pub free_symbols: Vec<free_symbol_tool::FreeSymbolDraft>,
 }
 
 impl Banco {
     /// Una bozza nuova, o al posto di quella con lo stesso slug.
     pub(crate) fn metti(&mut self, d: sws_core::simboli_prj::Descrizione) {
+        // One draft per slug, whatever the way it is drawn: redrawing a free
+        // SVG as a description takes the free one away.
+        self.free_symbols.retain(|x| x.slug() != d.slug);
         match self.simboli.iter().position(|x| x.slug == d.slug) {
             Some(i) => self.simboli[i] = d,
             None => self.simboli.push(d),
         }
+    }
+
+    /// A new free-SVG draft, or in place of the one with the same slug.
+    pub(crate) fn put_free_symbol(&mut self, d: free_symbol_tool::FreeSymbolDraft) {
+        self.simboli.retain(|x| x.slug != d.slug());
+        match self.free_symbols.iter().position(|x| x.slug() == d.slug()) {
+            Some(i) => self.free_symbols[i] = d,
+            None => self.free_symbols.push(d),
+        }
+    }
+
+    /// There are symbol drafts, of either kind.
+    pub(crate) fn has_symbol_drafts(&self) -> bool {
+        !self.simboli.is_empty() || !self.free_symbols.is_empty()
     }
 }
 
@@ -1044,6 +1113,20 @@ fn bozza(
     banco: &mut Banco,
     input: &Value,
 ) -> Result<Value, String> {
+    // The second way (G3): an SVG with its size and ports, not a description.
+    if free_symbol_tool::is_free(input) {
+        return match free_symbol_tool::draft(input) {
+            Ok(d) => {
+                invia(tx, free_symbol_tool::chat_frame(&d));
+                let result = free_symbol_tool::result(&d);
+                banco.put_free_symbol(d);
+                Ok(result)
+            }
+            Err(errors) => Err(json!({ "ok": false, "errors": errors,
+                "note": "fix the SVG and call bozza_simbolo again with the same slug" })
+            .to_string()),
+        };
+    }
     match tools::compila_bozza(input) {
         Ok((d, c)) => {
             invia(
@@ -1063,27 +1146,45 @@ fn bozza(
 /// Una pagina con tutte le bozze in fila, ognuna col suo nome sotto: è quello
 /// che `istantanea_pagina` fotografa quando il modello vuole guardare i
 /// simboli che ha disegnato.
-fn tavola_delle_bozze(bozze: &[sws_core::simboli_prj::Descrizione]) -> Value {
+fn tavola_delle_bozze(
+    bozze: &[sws_core::simboli_prj::Descrizione],
+    free: &[free_symbol_tool::FreeSymbolDraft],
+) -> Value {
     const COLONNE: usize = 5;
     const CELLA_W: f64 = 250.0;
     const CELLA_H: f64 = 230.0;
     const DISEGNO: f64 = 170.0;
+    // Every draft: its id in a page, its slug, the size of its drawing. The
+    // ones drawn as free SVG come after the compiled ones.
+    let drafts: Vec<(String, &str, f64, f64)> = bozze
+        .iter()
+        .map(|d| {
+            (
+                format!("prj:{}", d.slug),
+                d.slug.as_str(),
+                d.w as f64,
+                d.h as f64,
+            )
+        })
+        .chain(free.iter().map(|d| {
+            let [w, h] = d.symbol.view_box.unwrap_or([100.0, 100.0]);
+            (d.symbol.symbol_id(), d.slug(), w, h)
+        }))
+        .collect();
     let mut oggetti = Vec::new();
-    for (i, d) in bozze.iter().enumerate() {
+    for (i, (symbol_id, slug, dw, dh)) in drafts.iter().enumerate() {
         let (col, riga) = ((i % COLONNE) as f64, (i / COLONNE) as f64);
-        let scala = DISEGNO / (d.w.max(d.h) as f64);
-        let (w, h) = ((d.w as f64 * scala).round(), (d.h as f64 * scala).round());
+        let scala = DISEGNO / dw.max(*dh);
+        let (w, h) = ((dw * scala).round(), (dh * scala).round());
         let x0 = 15.0 + col * CELLA_W;
         let y0 = 20.0 + riga * CELLA_H;
-        oggetti.push(json!({ "id": format!("s{i}"), "type": "symbol", "symbol_id": format!("prj:{}", d.slug),
+        oggetti.push(json!({ "id": format!("s{i}"), "type": "symbol", "symbol_id": symbol_id,
             "x": x0 + (CELLA_W - w) / 2.0, "y": y0 + (DISEGNO - h) / 2.0, "width": w, "height": h }));
-        oggetti.push(
-            json!({ "id": format!("t{i}"), "type": "text", "text": d.slug,
+        oggetti.push(json!({ "id": format!("t{i}"), "type": "text", "text": slug,
             "x": x0, "y": y0 + DISEGNO + 8.0, "width": CELLA_W, "height": 24, "font_size": 15,
-            "text_anchor": "middle", "color": "#1e293b" }),
-        );
+            "text_anchor": "middle", "color": "#1e293b" }));
     }
-    let righe = bozze.len().div_ceil(COLONNE).max(1) as f64;
+    let righe = drafts.len().div_ceil(COLONNE).max(1) as f64;
     json!({ "id": "tavola-bozze", "name": "Tavola delle bozze", "width": 1280,
             "height": (40.0 + righe * CELLA_H) as i64, "background": "#e2e8f0",
             "cornice": null, "objects": oggetti })
@@ -1159,8 +1260,7 @@ async fn finto_giro(
                     &input,
                     impronta_iniziale.as_deref(),
                     MAX_CORREZIONI,
-                    &banco.simboli,
-                    &banco.sfondi,
+                    banco,
                 )
                 .await
                 {
@@ -1189,9 +1289,12 @@ async fn finto_giro(
                             );
                             Value::Null
                         }),
-                    "valida" => tools::valida_interna(s, &input, &banco.simboli, false)
-                        .await
-                        .map(|(g, _)| g),
+                    "floor_plan" => floor_plan_tool::run(s, tx, banco, &input).await,
+                    "valida" => {
+                        tools::valida_interna(s, &input, &banco.simboli, &banco.free_symbols, false)
+                            .await
+                            .map(|(g, _)| g)
+                    }
                     _ => tools::esegui(s, nome, &input).await,
                 };
             match esito {
@@ -1497,7 +1600,7 @@ mod tests_bozze {
         let bozze: Vec<_> = (0..7)
             .map(|i| bozza_di_prova(&format!("bozza-{i}")))
             .collect();
-        let t = super::tavola_delle_bozze(&bozze);
+        let t = super::tavola_delle_bozze(&bozze, &[]);
         let oggetti = t["objects"].as_array().unwrap();
         assert_eq!(oggetti.len(), 14);
         let h = t["height"].as_f64().unwrap();

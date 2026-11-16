@@ -165,7 +165,7 @@ export function BarraIdentita({
               background: "var(--brand-surface, #1e293b)",
               border: "1px solid var(--brand-surface-2, #334155)",
               borderRadius: 6, padding: "4px 0", zIndex: 10,
-              boxShadow: "0 8px 24px #0008",
+              boxShadow: "0 8px 24px #0008" /* fixed-colour */,
             }}
           >
             {/* Solo a chi la console serve davvero: a un utente normale

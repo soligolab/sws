@@ -13,6 +13,7 @@ import { api } from "@/api/client";
 import type { ProvaInfo } from "@/types";
 import { useAppStore } from "@/store";
 import { conferma } from "@/finestraAvviso/finestraAvviso";
+import { Icona } from "@/components/Icona";
 
 export function BannerProvaGit({ stileBottone }: { stileBottone: React.CSSProperties }) {
   const { t } = useTranslation();
@@ -43,17 +44,17 @@ export function BannerProvaGit({ stileBottone }: { stileBottone: React.CSSProper
   };
 
   const data = new Date(prova.date).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" });
-  const bottone: React.CSSProperties = { ...stileBottone, background: "#4c1d95", borderColor: "#7c3aed", color: "#ede9fe" };
+  const bottone: React.CSSProperties = { ...stileBottone, background: "var(--sws-accent, #4c1d95)", borderColor: "var(--sws-select-border, #7c3aed)", color: "var(--sws-on-accent, #ede9fe)" };
 
   return (
     <div data-testid="banner-prova-git" style={{
-      background: "#2e1065", borderBottom: "1px solid #7c3aed", padding: "6px 16px",
-      display: "flex", alignItems: "center", gap: 10, fontSize: 12, color: "#ede9fe", flexShrink: 0, flexWrap: "wrap",
+      background: "var(--sws-select-bg, #2e1065)", borderBottom: "1px solid var(--sws-select-border, #7c3aed)", padding: "6px 16px",
+      display: "flex", alignItems: "center", gap: 10, fontSize: 12, color: "var(--sws-select-text, #ede9fe)", flexShrink: 0, flexWrap: "wrap",
     }}>
-      <span>🧪</span>
+      <span><Icona emoji="🧪" /></span>
       <span style={{ flex: 1, minWidth: 240 }}>
         {t("gitProva.banner", { short: prova.short, data, message: prova.message, ramo: prova.ramo })}
-        {errore && <span style={{ display: "block", color: "#fca5a5", marginTop: 2 }}>{errore}</span>}
+        {errore && <span style={{ display: "block", color: "var(--sws-danger-text, #fca5a5)", marginTop: 2 }}>{errore}</span>}
       </span>
       <button type="button" style={bottone} disabled={occupato} onClick={() => navigateToConfig("git")}>
         {t("gitProva.storia")}
@@ -68,7 +69,7 @@ export function BannerProvaGit({ stileBottone }: { stileBottone: React.CSSProper
       >
         {t("gitProva.riparti")}
       </button>
-      <button type="button" style={{ ...bottone, background: "#7c3aed" }} disabled={occupato} onClick={() => void agisci(() => api.gitProvaEsci())}>
+      <button type="button" style={{ ...bottone, background: "var(--sws-accent, #7c3aed)" }} disabled={occupato} onClick={() => void agisci(() => api.gitProvaEsci())}>
         {t("gitProva.torna")}
       </button>
     </div>

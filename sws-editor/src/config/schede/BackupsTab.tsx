@@ -61,7 +61,7 @@ function BackupSection({
           onClick={onCreate}
           disabled={busy}
           style={{
-            padding: "6px 14px", background: "#16a34a", color: "#f0fdf4",
+            padding: "6px 14px", background: "var(--sws-success-bg, #16a34a)", color: "var(--sws-success-text, #f0fdf4)",
             border: "none", borderRadius: 4, cursor: busy ? "wait" : "pointer",
             fontSize: 13, fontWeight: 600,
           }}
@@ -81,7 +81,7 @@ function BackupSection({
         </button>
       </div>
       {err && (
-        <div style={{ background: "var(--brand-danger-bg, #7f1d1d)", color: "#fecaca", padding: "8px 12px", borderRadius: 4, fontSize: 12, marginBottom: 8 }}>
+        <div style={{ background: "var(--brand-danger-bg, #7f1d1d)", color: "var(--sws-danger-text, #fecaca)", padding: "8px 12px", borderRadius: 4, fontSize: 12, marginBottom: 8 }}>
           Errore: {err}
         </div>
       )}
@@ -327,7 +327,7 @@ export function BackupsTab() {
   };
 
   const labelStyleBak: React.CSSProperties = { fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 2 };
-  const inputStyleBak: React.CSSProperties = { background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", color: "#f1f5f9", borderRadius: 4, padding: "5px 8px", fontSize: 13 };
+  const inputStyleBak: React.CSSProperties = { background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", color: "var(--sws-text, #f1f5f9)", borderRadius: 4, padding: "5px 8px", fontSize: 13 };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>

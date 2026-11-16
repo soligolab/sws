@@ -72,8 +72,9 @@ impl Conversazione {
     pub fn vuota(&self) -> bool {
         self.messaggi.is_empty()
             && self.misure.costo_usd == 0.0
-            && self.banco.simboli.is_empty()
+            && !self.banco.has_symbol_drafts()
             && self.banco.sfondi.is_empty()
+            && self.banco.floor_plans.is_empty()
     }
 
     /// Una stima dei byte: le immagini e la storia sono quasi tutto.
@@ -86,7 +87,19 @@ impl Conversazione {
             .iter()
             .map(|d| serde_json::to_vec(d).map(|v| v.len()).unwrap_or(0))
             .sum();
-        storia + sfondi + simboli
+        let floor_plans: usize = self
+            .banco
+            .floor_plans
+            .iter()
+            .map(|d| d.svg.len() + d.plan.to_string().len())
+            .sum();
+        let free_symbols: usize = self
+            .banco
+            .free_symbols
+            .iter()
+            .map(|d| d.symbol.svg.as_deref().map_or(0, str::len))
+            .sum();
+        storia + sfondi + simboli + floor_plans + free_symbols
     }
 }
 

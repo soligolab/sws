@@ -215,7 +215,7 @@ export function LogicaEditor({ voce, onClose }: { voce: VoceLogica; onClose: () 
           style={{
             background: modificato ? "var(--brand-success-bg, #166534)" : "var(--brand-surface-2, #334155)",
             color: modificato ? "var(--brand-success-soft, #4ade80)" : "var(--brand-text-muted, #94a3b8)",
-            border: `1px solid ${modificato ? "#15803d" : "var(--brand-border, #475569)"}`,
+            border: `1px solid ${modificato ? "var(--sws-success-border, #15803d)" : "var(--brand-border, #475569)"}`,
             borderRadius: 4, padding: "5px 14px", cursor: salvando || !modificato ? "default" : "pointer", fontSize: 13, fontWeight: 600,
           }}>
           {salvando ? t("functionEditor.saving") : t(funzione ? "functionEditor.save" : "logica.salvaScript")}
@@ -226,7 +226,7 @@ export function LogicaEditor({ voce, onClose }: { voce: VoceLogica; onClose: () 
       </div>
 
       {errore && (
-        <div style={{ padding: "6px 16px", background: "#7f1d1d33", borderBottom: "1px solid var(--brand-danger-bg, #7f1d1d)", color: "var(--brand-danger-soft, #fca5a5)", fontSize: 12 }}>
+        <div style={{ padding: "6px 16px", background: "var(--sws-danger-bg, #7f1d1d33)", borderBottom: "1px solid var(--brand-danger-bg, #7f1d1d)", color: "var(--brand-danger-soft, #fca5a5)", fontSize: 12 }}>
           {errore}
         </div>
       )}

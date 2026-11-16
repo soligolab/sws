@@ -887,6 +887,7 @@ pub fn semantic(project: &Project, pages: &[SynopticPage]) -> Vec<Finding> {
     out.extend(rilievi_blocchi(project));
     out.extend(rilievi_pubblicazioni(project));
     out.extend(rilievi_regole_ia(project));
+    out.extend(custom_symbol_ports_findings(project));
     let tipi: HashSet<&str> = OBJECT_TYPES.iter().copied().collect();
     let enums: HashMap<&str, &[&str]> = FIELD_ENUMS.iter().copied().collect();
 
@@ -1156,7 +1157,7 @@ pub fn semantic(project: &Project, pages: &[SynopticPage]) -> Vec<Finding> {
     // Per ogni tag: se una sorgente MQTT lo mappa, sa anche scriverlo?
     // Le bocche dei simboli del progetto, compilate una volta per chiamata: lo
     // schema conosce solo quelle della libreria (`SYMBOL_PORTS`).
-    let bocche_prj: HashMap<String, Vec<String>> = project
+    let mut bocche_prj: HashMap<String, Vec<String>> = project
         .simboli
         .iter()
         .filter_map(|d| {
@@ -1169,6 +1170,16 @@ pub fn semantic(project: &Project, pages: &[SynopticPage]) -> Vec<Finding> {
             Some((d.id(), porte.unwrap_or_default()))
         })
         .collect();
+    // The custom symbols drawn as free SVG declare their ports too (G3): in
+    // the same map, under their `custom:` id.
+    for symbol in &project.custom_symbols {
+        if let Some((_, ports)) = symbol.ports_with_view_box() {
+            bocche_prj.insert(
+                symbol.symbol_id(),
+                ports.iter().map(|p| p.id.clone()).collect(),
+            );
+        }
+    }
     let mut mqtt_per_tag: HashMap<&str, bool> = HashMap::new();
     // Porta seriale → la prima sorgente RTU che la usa (bus e dispositivi).
     let mut porte_rtu: HashMap<&str, &str> = HashMap::new();
@@ -1617,6 +1628,47 @@ pub fn rilievi_regole_ia(project: &Project) -> Vec<Finding> {
             )
         })
         .collect()
+}
+
+/// The ports of the custom symbols (`view_box` and `ports`, plan
+/// 2026-11-10-assistente-secondo-giro, G3): they must be inside the drawing
+/// and have ids of their own, or a pipe would attach in the wrong place on
+/// both engines.
+///
+/// Only what cannot be placed is an error (`free_symbol::check_ports`), for a
+/// symbol written by hand too; the `PUT` of the custom symbols refuses
+/// exactly these (`router::custom_symbol_ports_errors`). Ports the engines
+/// ignore — no size of the drawing, or not a positive one — are a warning.
+pub fn custom_symbol_ports_findings(project: &Project) -> Vec<Finding> {
+    let mut out = Vec::new();
+    for symbol in &project.custom_symbols {
+        if symbol.ports.as_deref().is_none_or(|p| p.is_empty()) {
+            continue;
+        }
+        let base = format!("project.custom_symbols[{}]", symbol.id);
+        let Some((view_box, ports)) = symbol.ports_with_view_box() else {
+            out.push(Finding::warn(
+                format!("{base}.ports"),
+                "the symbol has ports but no `view_box` (or not a positive one): the ports are \
+                 ignored"
+                    .to_string(),
+                "add view_box: [w, h], the size of the drawing the ports are measured in",
+            ));
+            continue;
+        };
+        out.extend(
+            sws_core::free_symbol::check_ports(view_box, ports)
+                .into_iter()
+                .map(|e| {
+                    Finding::err(
+                        format!("{base}.ports"),
+                        e,
+                        "a pipe attached to this port would end in the wrong place",
+                    )
+                }),
+        );
+    }
+    out
 }
 
 pub fn rilievi_report(project: &Project) -> Vec<Finding> {
@@ -2206,7 +2258,7 @@ fn controlla_oggetto(
             .filter(|b| b.obj_type == "symbol")
             .and_then(|b| b.symbol_id.as_deref());
         let bocche: Vec<&str> = match sid {
-            Some(sid) if sid.starts_with("prj:") => bocche_prj
+            Some(sid) if sid.starts_with("prj:") || sid.starts_with("custom:") => bocche_prj
                 .get(sid)
                 .map(|v| v.iter().map(String::as_str).collect())
                 .unwrap_or_default(),
@@ -3939,6 +3991,82 @@ alarms: []
             e.iter().any(|f| f.message.contains("prj:non-esiste")),
             "{rs:?}"
         );
+    }
+
+    /// A custom symbol drawn as free SVG (G3): its ports are the ones it
+    /// declares, and ports that cannot be placed are said.
+    #[test]
+    fn a_custom_symbol_has_the_ports_it_declares() {
+        let mut p: Project = serde_yaml::from_str(PROGETTO).unwrap();
+        p.custom_symbols = serde_yaml::from_str(
+            "- id: cyclone\n  label: Cyclone\n  attribution: { author: a, source: s, license: l }\n  \
+               svg: <svg/>\n  view_box: [80, 120]\n  ports:\n    \
+               - { id: n-left, x: 0, y: 20, side: left, d: 10 }\n    \
+               - { id: n-bottom, x: 40, y: 120, side: bottom, d: 10 }\n\
+             - id: plain\n  label: Plain\n  attribution: { author: a, source: s, license: l }\n  svg: <svg/>\n",
+        )
+        .unwrap();
+        let page_with = |sid: &str, port: &str| -> SynopticPage {
+            serde_yaml::from_str(&pagina(&format!(
+                "- {{ id: c, type: symbol, x: 0, y: 0, width: 80, height: 120, symbol_id: \"{sid}\" }}\n\
+                 - {{ id: t, type: pipe, x: 0, y: 0, from_obj_id: c, from_port: {port}, points: [{{x: 0, y: 0}}, {{x: 100, y: 0}}] }}"
+            )))
+            .unwrap()
+        };
+        let on_end = |rs: &[Finding]| -> Option<Finding> {
+            rs.iter().find(|f| f.path.ends_with(".from_port")).cloned()
+        };
+        let rs = semantic(&p, &[page_with("custom:cyclone", "n-bottom")]);
+        assert!(errori(&rs).is_empty(), "{rs:?}");
+        assert!(on_end(&rs).is_none(), "n-bottom is a port: {rs:?}");
+        let f = on_end(&semantic(&p, &[page_with("custom:cyclone", "n-top")])).expect("no n-top");
+        assert!(matches!(f.severity, Severity::Warning));
+        assert!(
+            f.hint.as_deref().unwrap().contains("n-left, n-bottom"),
+            "{f:?}"
+        );
+        // A custom symbol without ports keeps the five anchors of its box.
+        assert!(on_end(&semantic(&p, &[page_with("custom:plain", "left")])).is_none());
+        assert!(on_end(&semantic(&p, &[page_with("custom:plain", "n-left")])).is_some());
+
+        // Ports outside the drawing are an error of the project; ports with
+        // no size of the drawing are ignored, and said.
+        p.custom_symbols[0].ports.as_mut().unwrap()[0].x = 200.0;
+        p.custom_symbols[1].ports = p.custom_symbols[0].ports.clone();
+        let rs = custom_symbol_ports_findings(&p);
+        assert!(
+            rs.iter().any(|f| matches!(f.severity, Severity::Error)
+                && f.path == "project.custom_symbols[cyclone].ports"
+                && f.message.contains("outside the drawing")),
+            "{rs:?}"
+        );
+        assert!(
+            rs.iter().any(|f| matches!(f.severity, Severity::Warning)
+                && f.path == "project.custom_symbols[plain].ports"),
+            "{rs:?}"
+        );
+        // The Save of the IDE refuses what is an error here, and only that:
+        // ignored ports pass, they are a warning.
+        let refused = |s: &sws_core::CustomSymbol| crate::router::custom_symbol_ports_errors(s);
+        assert!(refused(&p.custom_symbols[0]).unwrap()[0].contains("outside the drawing"));
+        assert!(refused(&p.custom_symbols[1]).is_none());
+
+        // A drawing imported by hand, 64 × 64, with ports added in
+        // project.yaml: off the grid of 10, and both engines place its ports.
+        // Neither the validator nor the Save has anything to say.
+        p.custom_symbols[0].view_box = Some([64.0, 64.0]);
+        {
+            let ports = p.custom_symbols[0].ports.as_mut().unwrap();
+            ports[0].x = 0.0;
+            ports[1].y = 64.0;
+        }
+        p.custom_symbols.truncate(1);
+        assert!(
+            custom_symbol_ports_findings(&p).is_empty(),
+            "{:?}",
+            custom_symbol_ports_findings(&p)
+        );
+        assert!(refused(&p.custom_symbols[0]).is_none());
     }
 
     #[test]

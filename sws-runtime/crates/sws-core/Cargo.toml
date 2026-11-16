@@ -28,3 +28,6 @@ libc = "0.2"
 tempfile.workspace = true
 rcgen.workspace    = true
 tokio = { workspace = true, features = ["test-util"] }
+# The strict XML parser the panel reads custom symbols with (through resvg):
+# the test of free_symbol.rs checks that what passes is well-formed for it.
+roxmltree = "0.20"

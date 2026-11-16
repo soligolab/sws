@@ -5,6 +5,7 @@ import { TRANS_COMP } from "@/config/comuni";
 import { GitStoria } from "./GitStoria";
 import { CHIAVE_PROGETTO, ChiaveProgetto } from "./ChiaveProgetto";
 import { conferma } from "@/finestraAvviso/finestraAvviso";
+import { Icona } from "@/components/Icona";
 
 /** Il versionamento git del **progetto**, foglia «Git» del ramo Progetto
  *  (26-09-2026: prima stava in fondo a Istanza → Device → Stato, fra CPU e
@@ -263,10 +264,10 @@ export function GitTab() {
       <div style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 6, padding: "12px 14px", display: "flex", flexDirection: "column", gap: 6 }}>
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: 12 }}>
           <span style={{ color: "var(--brand-text-subtle, #64748b)" }}>Branch:</span>
-          <span style={{ color: "#93c5fd", fontWeight: 700 }}>{gitStatus.branch}</span>
+          <span style={{ color: "var(--sws-select-text, #93c5fd)", fontWeight: 700 }}>{gitStatus.branch}</span>
           <span style={{ color: "var(--brand-text-subtle, #64748b)" }}>SHA:</span>
           <span style={{ color: "var(--brand-text, #e2e8f0)", fontFamily: "monospace" }}>{gitStatus.sha}</span>
-          <span style={{ color: gitStatus.clean ? "#34d399" : "#fb923c" }}>
+          <span style={{ color: gitStatus.clean ? "var(--sws-success-text, #34d399)" : "var(--sws-warning-text, #fb923c)" }}>
             {gitStatus.clean ? "✓ clean" : t("cfgUi.modified")}
           </span>
         </div>
@@ -276,7 +277,7 @@ export function GitTab() {
             {gitStatus.author}: {gitStatus.message}
           </div>
         ) : (
-          <div style={{ fontSize: 12, color: "#fb923c" }}>{t("cfgUi.gitNoCommits")}</div>
+          <div style={{ fontSize: 12, color: "var(--sws-warning-text, #fb923c)" }}>{t("cfgUi.gitNoCommits")}</div>
         )}
         <div style={{ display: "flex", gap: 6 }}>
           <input
@@ -328,7 +329,7 @@ export function GitTab() {
             disabled={busy || inProva}
             onClick={() => runOp(() => api.triggerDeploy(), "Deploy")}
             title={t("gitAiuto.deploy")}
-            style={{ flex: 1, minWidth: 100, padding: "6px 10px", background: "#1e40af", border: "none", borderRadius: 4, color: "#fff", fontSize: 12, cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.6 : 1 }}
+            style={{ flex: 1, minWidth: 100, padding: "6px 10px", background: "var(--sws-accent, #1e40af)", border: "none", borderRadius: 4, color: "var(--sws-on-accent, #fff)", fontSize: 12, cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.6 : 1 }}
           >
             ↑ Deploy (git pull)
           </button>
@@ -353,7 +354,7 @@ export function GitTab() {
             title={t("gitAiuto.commit")}
             style={{ flex: 1, minWidth: 100, padding: "6px 10px", background: "var(--brand-success, #22c55e)", border: "none", borderRadius: 4, color: "var(--brand-on-success, #fff)", fontSize: 12, cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.6 : 1 }}
           >
-            💾 Commit
+            <Icona emoji="💾" color="currentColor" /> Commit
           </button>
           {gitStatus?.remote_url && (
             <button
@@ -364,7 +365,7 @@ export function GitTab() {
                 }
               }}
               title={t("gitAiuto.push")}
-              style={{ flex: 1, minWidth: 100, padding: "6px 10px", background: "#7c3aed", border: "none", borderRadius: 4, color: "#fff", fontSize: 12, cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.6 : 1 }}
+              style={{ flex: 1, minWidth: 100, padding: "6px 10px", background: "var(--sws-accent, #7c3aed)", border: "none", borderRadius: 4, color: "var(--sws-on-accent, #fff)", fontSize: 12, cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.6 : 1 }}
             >
               ↑ Push{gitStatus.unpushed_commits > 0 ? ` (${gitStatus.unpushed_commits})` : ""}
             </button>
@@ -402,7 +403,7 @@ export function GitTab() {
           </div>
         )}
         {opMsg && (
-          <div style={{ fontSize: 11, color: opMsg.startsWith(t("cfgUi.error")) ? "var(--brand-danger-soft, #fca5a5)" : "#34d399", marginTop: 2, whiteSpace: "pre-wrap" }}>
+          <div style={{ fontSize: 11, color: opMsg.startsWith(t("cfgUi.error")) ? "var(--brand-danger-soft, #fca5a5)" : "var(--sws-success-text, #34d399)", marginTop: 2, whiteSpace: "pre-wrap" }}>
             {opMsg}
           </div>
         )}
@@ -471,7 +472,7 @@ export function GitTab() {
                   <button
                     disabled={tagBusy}
                     onClick={() => pushTag(name)}
-                    style={{ padding: "3px 10px", background: "#7c3aed", border: "none", borderRadius: 3, color: "#fff", fontSize: 11, cursor: tagBusy ? "wait" : "pointer" }}
+                    style={{ padding: "3px 10px", background: "var(--sws-accent, #7c3aed)", border: "none", borderRadius: 3, color: "var(--sws-on-accent, #fff)", fontSize: 11, cursor: tagBusy ? "wait" : "pointer" }}
                   >↑ Push</button>
                 )}
                 <button

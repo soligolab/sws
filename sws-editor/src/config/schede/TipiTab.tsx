@@ -23,6 +23,7 @@ import type { Membro, TagDataType, TypeDef } from "@/types";
 import { S, SaveBar, SezionePendente } from "@/config/comuni";
 import { segnalaSalvataggioFallito } from "@/config/salvataggioFallito";
 import { CampoNumero } from "@/components/CampoNumero";
+import { Icona } from "@/components/Icona";
 
 const IN: React.CSSProperties = {
   width: "100%", boxSizing: "border-box", background: "var(--brand-bg, #0f172a)",
@@ -349,7 +350,7 @@ export function TipiTab({ incorporata = false, onIstanzaCreata, variabiliToccate
                         </td>
                         <td style={{ ...TD, textAlign: "right", whiteSpace: "nowrap" }}>
                           <button style={S.btnXs} title={t("tipiTab.avanzate")}
-                            onClick={() => setAvanzate((s) => { const n = new Set(s); if (n.has(i)) n.delete(i); else n.add(i); return n; })}>⚙</button>
+                            onClick={() => setAvanzate((s) => { const n = new Set(s); if (n.has(i)) n.delete(i); else n.add(i); return n; })}><Icona emoji="⚙" /></button>
                           <button style={S.btnXs} title={t("common.delete")}
                             onClick={() => modifica((td) => ({ ...td, members: td.members.filter((_, j) => j !== i) }))}>✕</button>
                         </td>

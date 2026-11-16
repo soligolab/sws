@@ -963,7 +963,7 @@ pub struct LangEntry {
 /// una variante per colore costerebbe una bitmap per stato, e sui simboli
 /// custom lo stato lo si mostra col bordo di allarme come per gli altri
 /// oggetti.
-#[derive(Debug, Deserialize, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Deserialize, Clone, Default, PartialEq)]
 pub struct CustomSymbol {
     pub id: String,
     /// SVG inline. Presente quasi sempre: è la copia che viaggia col progetto.
@@ -972,6 +972,37 @@ pub struct CustomSymbol {
     /// URL d'origine, usato solo se `svg` manca.
     #[serde(default)]
     pub url: String,
+    /// The size of the drawing, `[w, h]`: the units of `ports` (a symbol drawn
+    /// as free SVG, plan 2026-11-10-assistente-secondo-giro, G3).
+    #[serde(default)]
+    pub view_box: Option<[f64; 2]>,
+    /// Where pipes attach, like the ports of a library symbol.
+    #[serde(default)]
+    pub ports: Option<Vec<sws_core::simboli_lib::PortaLib>>,
+}
+
+impl CustomSymbol {
+    /// The symbol as an entry of the manifest, **only for its ports**: a pipe
+    /// finds them where it finds the ones of a library symbol
+    /// (`simbolo_lib::manifest_for_pipe`). `None` without ports or without
+    /// the size of the drawing. The drawing itself stays an SVG to rasterize.
+    pub fn port_entry(&self) -> Option<sws_core::simboli_lib::SimboloLib> {
+        let view_box = self.view_box.filter(|v| v[0] > 0.0 && v[1] > 0.0)?;
+        let ports = self.ports.clone().filter(|p| !p.is_empty())?;
+        Some(sws_core::simboli_lib::SimboloLib {
+            id: format!("custom:{}", self.id),
+            file: String::new(),
+            family: "project".into(),
+            kind: "custom".into(),
+            label: self.id.clone(),
+            view_box,
+            body: String::new(),
+            materials: Vec::new(),
+            parts: Vec::new(),
+            ports,
+            replaces: None,
+        })
+    }
 }
 
 #[cfg(test)]

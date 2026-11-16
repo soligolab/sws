@@ -4,6 +4,7 @@ import { api } from "@/api/client";
 import type { OpcUaEuromapVariable, OpcUaSource, TagDef } from "@/types";
 import { S } from "@/config/comuni";
 import { EseguitoDa } from "@/config/sorgenti/EseguitoDa";
+import { Icona } from "@/components/Icona";
 
 // ── OPC-UA Euromap auto-detect modal (BL-005b) ──────────────────────────────
 //
@@ -96,7 +97,7 @@ export function OpcUaEuromapModal({
           display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
             <div style={{ fontSize: 14, fontWeight: 600 }}>
-              🤖 Auto-detect Euromap 77 / 83
+              <Icona emoji="🤖" /> Auto-detect Euromap 77 / 83
               <EseguitoDa />
             </div>
             <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginTop: 2 }}>
@@ -110,11 +111,11 @@ export function OpcUaEuromapModal({
           <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer", fontSize: 16 }}>×</button>
         </div>
         {error && (
-          <div style={{ background: "var(--brand-danger-bg, #7f1d1d)", color: "#fecaca", padding: "8px 14px", fontSize: 12 }}>
+          <div style={{ background: "var(--brand-danger-bg, #7f1d1d)", color: "var(--sws-danger-text, #fecaca)", padding: "8px 14px", fontSize: 12 }}>
             {error}
           </div>
         )}
-        <div style={{ flex: 1, overflowY: "auto", background: "#0a111e" }}>
+        <div style={{ flex: 1, overflowY: "auto", background: "var(--sws-sunken, #0a111e)" }}>
           {busy && (
             <div style={{ padding: "24px 18px", color: "var(--brand-text-muted, #94a3b8)", fontSize: 13 }}>
               {t("sorgenti.scansioneInCorso")}
@@ -147,7 +148,7 @@ export function OpcUaEuromapModal({
                       style={{
                         borderBottom: "1px solid var(--brand-surface, #1e293b)",
                         cursor: imported ? "not-allowed" : "pointer",
-                        background: checked ? "#0f2922" : "transparent",
+                        background: checked ? "var(--sws-select-bg, #0f2922)" : "transparent",
                         color: imported ? "var(--brand-text-subtle, #94a3b8)" : "var(--brand-text-2, #cbd5e1)",
                       }}
                     >
@@ -162,14 +163,14 @@ export function OpcUaEuromapModal({
                         />
                       </td>
                       <td style={{ padding: "6px 12px",
-                        fontFamily: "monospace", color: v.spec === "77" ? "var(--brand-warning-soft, #fbbf24)" : "#a78bfa" }}>
+                        fontFamily: "monospace", color: v.spec === "77" ? "var(--brand-warning-soft, #fbbf24)" : "var(--sws-select-text, #a78bfa)" }}>
                         {v.spec}
                       </td>
                       <td style={{ padding: "6px 12px" }}>
                         <div style={{ fontWeight: 600 }}>{v.canonical_name}</div>
                         <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #64748b)" }}>{v.description}</div>
                       </td>
-                      <td style={{ padding: "6px 12px", fontFamily: "monospace", color: "#5eead4" }}>
+                      <td style={{ padding: "6px 12px", fontFamily: "monospace", color: "var(--sws-select-text, #5eead4)" }}>
                         {source.id}.{v.suggested_tag_suffix}
                       </td>
                       <td style={{ padding: "6px 12px", fontFamily: "monospace",

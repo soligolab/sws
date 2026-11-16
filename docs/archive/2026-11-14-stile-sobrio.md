@@ -1,11 +1,13 @@
 # Lo stile sobrio dell'IDE — tre colori, scelti dalla persona
 
-> **Stato: piano — in corso.** Era il seme del 04-11-2026 (`semi/2026-11-04-stile-sobrio.md`), richiesta del
+> **Stato: FATTO, archiviato il 16-11-2026 prima della rc.20.** Le tre sessioni sono fatte (la 1 nella rc.18, la 2 e
+> la 3 il 16-11, con la revisione del ramo). Il collaudo nei due stili è in `docs/COLLAUDI_IN_SOSPESO.md`, «Lo stile
+> sobrio, sessioni 2 e 3». Era il seme del 04-11-2026 (`semi/2026-11-04-stile-sobrio.md`), richiesta del
 > maintainer: «mi hanno contestato che la grafica di sws è troppo colorata e giocosa (a me piace), valuterei uno stile
 > grafico aggiuntivo più sobrio e meno colorato dove il colore serva veramente solo per evidenziare le cose
 > importanti». Sessione di plan del 14-11-2026, con una tavola da provare (`sws/tmp/stile-sobrio/tavola.html`, solo
 > su theobroma). Le tre cose dello stile VS Code che stavano nel seme sono passate a un seme loro:
-> [`semi/2026-11-14-ide-stile-vscode-residui.md`](semi/2026-11-14-ide-stile-vscode-residui.md).
+> [`semi/2026-11-14-ide-stile-vscode-residui.md`](../plans/semi/2026-11-14-ide-stile-vscode-residui.md).
 
 ## Decisioni del maintainer (14-11-2026)
 
@@ -71,6 +73,52 @@
 Ramo `feat/stile-sobrio`, annidato su `feat/control-panel-5` (regola «un ramo alla volta», opzione 2): tocca gli
 stessi file e quel ramo aspetta il collaudo.
 
+## Decisioni del 16-11-2026 (per chiudere il piano)
+
+- **Le icone vengono da Tabler Icons** (MIT): si copiano nel repo solo quelle usate, come stringhe SVG nel registro
+  `ICONE_IDE`, con la licenza accanto. Stesso formato delle icone dell'IDE (24×24, tratto `currentColor`).
+- **Le emoji dentro i file di lingua restano** anche nello stile sobrio: si sostituiscono solo quelle scritte nel codice.
+- Sessioni 2 e 3 in un ramo solo, prima della rc.20.
+
 ## Stato
 
 - **14-11-2026**: piano scritto dopo la tavola. Sessione 1 avviata.
+- **14-11-2026**: sessione 1 in `main` (`00f7d451`, rc.18), collaudata dal maintainer.
+- **16-11-2026, sessione 2 fatta** (ramo `feat/stile-sobrio-2-3`): circa 190 colori scritti a mano sono diventati
+  `var(--sws-<nome>, #colore-di-sempre)`. Le variabili sono diciannove (`IDE_TOKENS` in `theme.ts`) e il tema le scrive
+  solo nello stile sobrio: il colorato legge il ripiego, cioè lo stesso valore di prima. I colori dei gruppi di
+  Strumenti stanno in `GROUP_COLORS` (`iconeAttivita.ts`) e arrivano come `--sws-gruppo-<id>`. La guardia
+  `check_colori_ide.sh` gira dentro `check_static.sh`: 296 file controllati, 20 esclusioni ciascuna col suo motivo, 37
+  righe segnate «fixed-colour» (colori che sono dati del progetto o che devono restare come sono).
+- **16-11-2026, sessione 3 fatta** (stesso ramo): `<Icona>` in `components/Icona.tsx` e il registro `ICONE_IDE` in
+  `editor/iconeIde.ts`. Le icone sono 87: 69 copiate da Tabler Icons 3.31.0 (licenza in `iconeIde.LICENSE.txt` accanto
+  al registro, nota in `third-party/tabler.md`) e 18 riusate da `iconeAttivita.ts`. 79 emoji hanno la loro icona. Nel
+  colorato l'emoji resta il testo di prima, senza involucro; nel sobrio l'icona prende il colore delle icone
+  (`--sws-icone`), quello del testo sui bottoni pieni, l'accento sulla foglia scelta dell'albero di Configurazione.
+  **Emoji scritte nel codice dell'IDE: 161 in 37 file. 157 passano da `<Icona>` e hanno tutte l'icona. Ne restano 4**:
+  tre sono il confronto `startsWith("🚀")` sulle righe di log dell'installazione (il codice non le disegna), una è il
+  🌐 dentro un `<option>` della barra degli strumenti, che nel sobrio lascia il posto all'icona accanto al menù. Fuori
+  ambito e non toccate: 61 (canvas 14, vista runtime 4, campanella e storico allarmi 7, `catalogoCaratteri.ts` 21,
+  `testiSistema.ts` 15). Nei file di lingua restano 48 emoji per lingua, per la decisione del 16-11.
+- **16-11-2026, la revisione del ramo** (due revisori, otto rilievi, tutti veri, su cinque cose: le quattro qui sotto,
+  corrette, e la riga dell'indice dei piani, aggiornata):
+  - quattro bottoni nel sobrio avevano il testo sbagliato per il loro fondo, con contrasti fra 1,3 e 2,5: «Unisci
+    celle» (inchiostro sopra l'accento), «Abbina» spento, «Cambia password» e «Crea» il primo amministratore mentre la
+    richiesta è in corso (testo fatto per l'accento sopra un fondo che non è l'accento). Ora ognuno ha il testo del
+    suo fondo, e `tests/soberButtons.test.tsx` disegna i quattro bottoni e misura il contrasto (≥ 4,5 nei due sobri;
+    nel colorato gli stessi colori di prima);
+  - **le altre finestre seguivano i colori ma non le icone**: l'evento `storage` ridipingeva le variabili e lasciava
+    fermo lo store, da cui `<Icona>` sceglie fra emoji e icona. Ora `followAppearanceOfOtherWindows` (nello store,
+    chiamata da `avvio.tsx`) aggiorna anche `ideStyle` e `soberColors`; quest'ultimo evita che un cambio fatto nella
+    seconda finestra riscriva i colori vecchi;
+  - la guardia `check_colori_ide.sh` prendeva per commento un `/*` scritto dentro una stringa (`accept="image/*"`) e
+    non vedeva più i colori fino al `*/` successivo. Ora legge il testo sapendo se è dentro una stringa, e a ogni
+    avvio **prova sé stessa** su sette casi: se la lettura si rompe la guardia diventa rossa invece di restare verde
+    senza vedere niente. Sul codice di oggi il risultato non cambia (296 file, 37 righe segnate);
+  - i due nomi nuovi in italiano sono diventati `GROUP_COLORS` e `groupVar`.
+- **16-11-2026, all'unione con G5**: la scheda «Spesa» della configurazione IA (💶) non aveva l'icona, e il test del
+  registro lo ha visto. Aggiunta `euro` (Tabler `currency-euro`): le icone sono 88, 70 da Tabler.
+- **Resta**: il collaudo del maintainer (`/test-changes`) nello stile sobrio e nel colorato; poi il piano si archivia.
+  Da guardare nel collaudo: nel sobrio scuro il testo d'accento sopra il fondo di selezione (`--sws-select-text` su
+  `--sws-select-bg`) fa 4,2:1 coi colori predefiniti, sopra la soglia di 3 che il test chiede e sotto il 4,5 del testo
+  normale.

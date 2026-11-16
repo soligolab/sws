@@ -7,6 +7,7 @@ import { DROP_ITEM, DROP_PANEL, DROP_SEP, HDR_BTN, useOutsideClose } from "@/com
 import { chiedi, conferma } from "@/finestraAvviso/finestraAvviso";
 import { pickInitialPageId } from "@/pageLayout";
 import { selectIsDirty, useAppStore } from "@/store";
+import { Icona } from "@/components/Icona";
 
 /**
  * The ☰ menu: project-level commands plus everything that is set once and
@@ -214,9 +215,9 @@ export function MainMenu({
       <button
         style={{
           ...HDR_BTN,
-          background: saveStatus === "saving" ? "#374151" : saveStatus === "ok" ? "var(--brand-success-bg, #166534)" : saveStatus === "error" ? "var(--brand-danger-bg, #7f1d1d)" : "var(--brand-surface-2, #334155)",
+          background: saveStatus === "saving" ? "var(--sws-surface, #374151)" : saveStatus === "ok" ? "var(--brand-success-bg, #166534)" : saveStatus === "error" ? "var(--brand-danger-bg, #7f1d1d)" : "var(--brand-surface-2, #334155)",
           color: saveBtnColor,
-          borderColor: saveStatus === "error" ? "#991b1b" : saveStatus === "ok" ? "#15803d" : "var(--brand-border, #475569)",
+          borderColor: saveStatus === "error" ? "var(--sws-danger-border, #991b1b)" : saveStatus === "ok" ? "var(--sws-success-border, #15803d)" : "var(--brand-border, #475569)",
           minWidth: 90,
         }}
         onClick={() => setOpen((v) => !v)}
@@ -224,7 +225,7 @@ export function MainMenu({
           : saveStatus === "ok" && ultimiTagCreati.length > 0 ? ultimiTagCreati.join(", ")
           : t("header.menuTitle")}
       >
-        ☰ {t("header.menu")} {saveStatus === "saving" ? "⟳" : saveStatus === "ok" ? "✓" : saveStatus === "error" ? "⚠" : ""}
+        <Icona emoji="☰" /> {t("header.menu")} {saveStatus === "saving" ? "⟳" : saveStatus === "ok" ? "✓" : saveStatus === "error" ? "⚠" : ""}
       </button>
       {/* L'input file vive FUORI dal dropdown: cliccare "Importa progetto" chiude
           il menu (setOpen(false)); se l'input fosse dentro {open && …} verrebbe

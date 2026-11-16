@@ -58,6 +58,7 @@ import type {
   TagDef,
   TemplateEntry,
   AiConfig,
+  AiSpending,
   MyAiKey,
   ScopoIa,
   ScopoIaCfg,
@@ -2378,6 +2379,8 @@ export const api = {
   // che serve un impianto rispondono 404, e il pannello lo tratta come «qui non
   // si configura», non come un errore.
   getAiConfig: () => request<AiConfig>("/api/ai/config"),
+  /** The AI spending history of the installation, by month, purpose and provider. */
+  getAiSpending: () => request<AiSpending>("/api/ai/spending"),
   /** Gli scopi da cambiare: `null` toglie la scelta (simboli e traduzione
    *  tornano all'assistente). Le chiavi hanno la loro rotta. */
   putAiScopi: (scopi: Partial<Record<ScopoIa, ScopoIaCfg | null>>) =>
@@ -2396,6 +2399,16 @@ export const api = {
     }),
   deleteMyAiKey: (provider: string) =>
     request<void>(`/api/identity/ai-keys/${encodeURIComponent(provider)}`, { method: "DELETE" }),
+  /** «Test the key» with the user's own key: the provider's models, in alphabetical order. */
+  testMyAiKey: (provider: string) =>
+    request<{ ok: boolean; models?: string[]; error?: string }>(`/api/identity/ai-keys/${encodeURIComponent(provider)}/test`, { method: "POST" }),
+  /** The model preferred for a provider; null = the provider's default. */
+  putMyAiModel: (provider: string, model: string | null) =>
+    request<void>(`/api/identity/ai-keys/${encodeURIComponent(provider)}/model`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model }),
+    }),
   putAiChiave: (fornitore: string, chiave: string) =>
     request<{ ok: boolean; cambiata: boolean }>("/api/ai/chiavi", {
       method: "PUT",

@@ -48,6 +48,54 @@ fn percorso(project_dir: &FsPath, id: &str) -> PathBuf {
     cartella_di(project_dir).join(format!("{}.yaml", safe_filename(id)))
 }
 
+/// The floor plan `id` of a project, as it is on disk. For who needs it from
+/// inside (the `floor_plan` tool of the assistant), without a request.
+pub async fn load(project_dir: &FsPath, id: &str) -> Option<Planimetria> {
+    let text = tokio::fs::read_to_string(percorso(project_dir, id))
+        .await
+        .ok()?;
+    serde_yaml::from_str(&text).ok()
+}
+
+/// There is a file for the floor plan `id`, readable or not: writing a plan
+/// with this id would replace it.
+pub async fn exists(project_dir: &FsPath, id: &str) -> bool {
+    tokio::fs::try_exists(percorso(project_dir, id))
+        .await
+        .unwrap_or(false)
+}
+
+/// The floor plans of a project as `(id, name)`, sorted by id.
+pub async fn list(project_dir: &FsPath) -> Vec<(String, String)> {
+    let mut out = Vec::new();
+    if let Ok(mut entries) = tokio::fs::read_dir(cartella_di(project_dir)).await {
+        while let Ok(Some(entry)) = entries.next_entry().await {
+            let p = entry.path();
+            if p.extension().and_then(|e| e.to_str()) != Some("yaml") {
+                continue;
+            }
+            if let Some(pl) = tokio::fs::read_to_string(&p)
+                .await
+                .ok()
+                .and_then(|t| serde_yaml::from_str::<Planimetria>(&t).ok())
+            {
+                out.push((pl.id, pl.nome));
+            }
+        }
+    }
+    out.sort();
+    out
+}
+
+/// The ids of the floor plans of a project, sorted.
+pub async fn list_ids(project_dir: &FsPath) -> Vec<String> {
+    list(project_dir)
+        .await
+        .into_iter()
+        .map(|(id, _)| id)
+        .collect()
+}
+
 /// `GET /api/planimetrie` — `[{id, nome}]`, in ordine di id.
 pub async fn elenco(State(s): State<AppState>) -> Response {
     let dir = match active_dir(&s).await {

@@ -69,7 +69,7 @@ export function OpcUaSourceCard({
     <div style={S.card}>
       <TestataSorgente
         tipo="OPC-UA"
-        colore="#8b5cf6"
+        colore="var(--sws-select-text, #8b5cf6)"
         id={source.id}
         riepilogo={`${source.endpoint_url} · ${t("sorgenti.nNodi", { count: source.nodes.length })}`}
         aperta={open}

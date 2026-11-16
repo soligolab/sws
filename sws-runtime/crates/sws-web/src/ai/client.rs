@@ -49,6 +49,18 @@ const VERSIONE: &str = "2023-06-01";
 pub enum Fornitore {
     Anthropic,
     Kimi,
+    /// Mistral AI (France): the first provider of the second protocol, OpenAI-
+    /// style chat completions (plan `2026-11-10-assistente-secondo-giro`, G4).
+    Mistral,
+}
+
+/// How a provider is spoken to. The rest of the assistant only knows the
+/// Messages format: [`Protocol::ChatCompletions`] is translated at the border,
+/// in `ai/chat_completions.rs`.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Protocol {
+    Messages,
+    ChatCompletions(&'static crate::ai::chat_completions::Dialect),
 }
 
 impl Fornitore {
@@ -56,6 +68,14 @@ impl Fornitore {
         match self {
             Fornitore::Anthropic => "anthropic",
             Fornitore::Kimi => "kimi",
+            Fornitore::Mistral => "mistral",
+        }
+    }
+
+    pub fn protocol(self) -> Protocol {
+        match self {
+            Fornitore::Anthropic | Fornitore::Kimi => Protocol::Messages,
+            Fornitore::Mistral => Protocol::ChatCompletions(&crate::ai::chat_completions::MISTRAL),
         }
     }
 
@@ -63,6 +83,7 @@ impl Fornitore {
         match self {
             Fornitore::Anthropic => "https://api.anthropic.com/v1/messages",
             Fornitore::Kimi => "https://api.moonshot.ai/anthropic/v1/messages",
+            Fornitore::Mistral => crate::ai::chat_completions::MISTRAL.endpoint,
         }
     }
 
@@ -70,6 +91,11 @@ impl Fornitore {
         match self {
             Fornitore::Anthropic => MODEL,
             Fornitore::Kimi => "kimi-k3",
+            // The alias of their flagship: on 16-11-2026 it is Mistral Large 4
+            // (out on 05-11-2026; Large 3, `mistral-large-2512`, is deprecated
+            // since 31-10-2026). The alias moves with the releases, and the
+            // price table knows it by this name.
+            Fornitore::Mistral => "mistral-large-latest",
         }
     }
 
@@ -80,6 +106,7 @@ impl Fornitore {
         match self {
             Fornitore::Anthropic => &["ANTHROPIC_API_KEY"],
             Fornitore::Kimi => &["MOONSHOT_API_KEY", "KIMI_API_KEY"],
+            Fornitore::Mistral => &["MISTRAL_API_KEY"],
         }
     }
 
@@ -87,6 +114,7 @@ impl Fornitore {
         match self {
             Fornitore::Anthropic => "anthropic.key",
             Fornitore::Kimi => "kimi.key",
+            Fornitore::Mistral => "mistral.key",
         }
     }
 
@@ -97,7 +125,7 @@ impl Fornitore {
     /// casella vuota per metà degli utenti è peggio che non averla (scheda).
     pub fn url_saldo(self) -> Option<&'static str> {
         match self {
-            Fornitore::Anthropic => None,
+            Fornitore::Anthropic | Fornitore::Mistral => None,
             Fornitore::Kimi => Some("https://api.moonshot.ai/v1/users/me/balance"),
         }
     }
@@ -105,7 +133,7 @@ impl Fornitore {
     /// Anthropic vuole `x-api-key` + `anthropic-version`; Kimi vuole
     /// `Authorization: Bearer` e **rifiuta** di aver bisogno degli altri due.
     fn bearer(self) -> bool {
-        matches!(self, Fornitore::Kimi)
+        matches!(self, Fornitore::Kimi | Fornitore::Mistral)
     }
 
     /// Su Anthropic il pensiero si chiede col campo `thinking`; su Kimi la
@@ -120,6 +148,7 @@ impl Fornitore {
         match s.trim().to_ascii_lowercase().as_str() {
             "anthropic" | "claude" => Some(Fornitore::Anthropic),
             "kimi" | "moonshot" => Some(Fornitore::Kimi),
+            "mistral" | "mistralai" => Some(Fornitore::Mistral),
             _ => None,
         }
     }
@@ -209,12 +238,19 @@ pub struct Prezzi {
 /// I prezzi di un modello, e se sono noti o stimati. Un modello che la tabella
 /// non conosce si conta ai prezzi di Opus 5: meglio un tetto che scatta un po'
 /// prima che uno che non scatta mai.
+///
+/// One exception: an unlisted id of a Mistral family with a published price
+/// counts at the price of that family, still as an estimate.
 pub fn prezzi(modello: &str) -> (Prezzi, bool) {
     let p = |i: f64, u: f64, l: f64| Prezzi {
         ingresso: i,
         uscita: u,
         cache_lettura: l,
         cache_scrittura: i * 1.25,
+    };
+    let kimi = |i: f64, u: f64, l: f64| Prezzi {
+        cache_scrittura: i,
+        ..p(i, u, l)
     };
     let m = modello.trim().to_ascii_lowercase();
     let noto = match m.as_str() {
@@ -225,13 +261,43 @@ pub fn prezzi(modello: &str) -> (Prezzi, bool) {
         "claude-sonnet-5-5" | "claude-sonnet-5" => Some(p(2.0, 10.0, 0.20)),
         "claude-fable-5-1" | "claude-fable-5" => Some(p(10.0, 50.0, 0.25)),
         "claude-haiku-5-5" => Some(p(0.10, 0.50, 0.01)),
-        // Kimi K3: 3 $ e 15 $ (vedi `Fornitore`); la cache a un decimo, come
-        // gli altri, finché non ne sappiamo di più.
-        "kimi-k3" => Some(p(3.0, 15.0, 0.30)),
+        // Kimi, from Moonshot's list (platform.kimi.ai/docs/pricing/chat, read
+        // on 16-11-2026): input, output, cached input per MTok. Unlike
+        // Anthropic, writing the cache with the default 5-minute TTL costs
+        // the plain input price, not 1.25 times it.
+        "kimi-k3" => Some(kimi(3.0, 15.0, 0.30)),
+        "kimi-k3.1-pro" => Some(kimi(2.0, 10.0, 0.20)),
+        "kimi-k3.1-pro-highspeed" => Some(kimi(4.0, 20.0, 0.20)),
+        // Mistral (docs.mistral.ai/inference/pricing, 16-11-2026). Large 4:
+        // 0.7 $ and 2.1 $, cached input 0.07 $. Small 4: 0.15 $ and 0.6 $,
+        // cached 0.015 $. Large 3 (deprecated, retired on 30-04-2027): 0.5 $
+        // and 1.5 $, its cache at a tenth like the others.
+        "mistral-large-latest" => Some(p(0.7, 2.1, 0.07)),
+        "mistral-small-latest" => Some(p(0.15, 0.6, 0.015)),
+        "mistral-large-2512" => Some(p(0.5, 1.5, 0.05)),
         _ => None,
     };
-    match noto {
-        Some(x) => (x, true),
+    if let Some(x) = noto {
+        return (x, true);
+    }
+    // Mistral lists many more ids than the three above (dated ids, the small
+    // families), and the account can pick any of them: one of a family whose
+    // price is published counts at that price, said to be an estimate. At the
+    // prices of Opus 5 the chat would show about ten times the real cost and
+    // the cap would stop the conversation after a tenth of it.
+    let family = [
+        ("mistral-large-", p(0.7, 2.1, 0.07)),
+        ("mistral-small-", p(0.15, 0.6, 0.015)),
+        ("codestral-", p(0.3, 0.9, 0.03)),
+        // Ministral 3 comes in three sizes: the dearest one (14B).
+        ("ministral-", p(0.2, 0.2, 0.02)),
+    ]
+    .into_iter()
+    .find(|(prefix, _)| m.starts_with(prefix));
+    match family {
+        Some((_, x)) => (x, false),
+        // Anything else, Mistral's unpriced families included (Medium,
+        // Magistral, Devstral, Pixtral: deprecated, no price on the page).
         None => (p(5.0, 25.0, 0.50), false),
     }
 }
@@ -279,6 +345,9 @@ pub async fn chiedi_con_uso(
     messaggi: &[serde_json::Value],
     max_tokens: u32,
 ) -> anyhow::Result<(String, serde_json::Value)> {
+    if let Protocol::ChatCompletions(d) = scelta.fornitore.protocol() {
+        return ask_chat_once(client, scelta, d, istruzioni, messaggi, max_tokens).await;
+    }
     let corpo = serde_json::json!({
         "model": scelta.modello,
         "max_tokens": max_tokens,
@@ -324,6 +393,47 @@ pub async fn chiedi_con_uso(
     Ok((testo, v.get("usage").cloned().unwrap_or_default()))
 }
 
+/// [`chiedi_con_uso`] for the chat-completions providers: same question, same
+/// answer shape (the usage in the Messages format).
+async fn ask_chat_once(
+    client: &reqwest::Client,
+    scelta: &Scelta,
+    d: &crate::ai::chat_completions::Dialect,
+    instructions: &str,
+    messages: &[Value],
+    max_tokens: u32,
+) -> Result<(String, Value)> {
+    use crate::ai::chat_completions as cc;
+    let system = [json!({ "type": "text", "text": instructions })];
+    let body = cc::request_body(
+        d,
+        &scelta.modello,
+        &system,
+        messages,
+        &[],
+        false,
+        max_tokens,
+    );
+    let name = scelta.fornitore.nome();
+    let resp = client
+        .post(d.endpoint)
+        .header("Authorization", format!("Bearer {}", scelta.chiave))
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| anyhow::anyhow!("{name} unreachable: {e}"))?;
+    let status = resp.status();
+    let v: Value = resp
+        .json()
+        .await
+        .map_err(|e| anyhow::anyhow!("answer {status} in an unknown format: {e}"))?;
+    if !status.is_success() {
+        let msg = cc::error_message(&v).unwrap_or_default();
+        bail!("{name} refused ({status}): {msg}");
+    }
+    cc::parse_single(&v).with_context(|| format!("answer of {name}"))
+}
+
 /// Quanto può scrivere il modello in un turno. Alto perché una proposta con
 /// una pagina intera, i suoi simboli e il pensiero è lunga: a 16000 una pagina
 /// da sessanta oggetti si troncava. Con lo streaming non rischia il timeout HTTP.
@@ -355,6 +465,7 @@ pub fn percorsi_chiave_di(config_dir: &Path, f: Fornitore) -> Vec<PathBuf> {
 pub fn percorsi_chiave(config_dir: &Path) -> Vec<PathBuf> {
     let mut v = percorsi_chiave_di(config_dir, Fornitore::Anthropic);
     v.extend(percorsi_chiave_di(config_dir, Fornitore::Kimi));
+    v.extend(percorsi_chiave_di(config_dir, Fornitore::Mistral));
     v
 }
 
@@ -456,8 +567,8 @@ pub fn carica_con(config_dir: &Path, user: &UserKeys) -> Option<Scelta> {
         Some(v) => match Fornitore::da_nome(&v) {
             Some(f) => vec![f],
             None => {
-                tracing::warn!(valore = %v, "SWS_AI_FORNITORE non riconosciuto: \
-                                             valori validi `anthropic` o `kimi`");
+                tracing::warn!(value = %v, "SWS_AI_FORNITORE not recognised: \
+                                            valid values `anthropic`, `kimi` or `mistral`");
                 return None;
             }
         },
@@ -466,14 +577,19 @@ pub fn carica_con(config_dir: &Path, user: &UserKeys) -> Option<Scelta> {
             // Nessuna preferenza da nessuna parte: si prova Anthropic e poi
             // Kimi, così una macchina con due chiavi si comporta in modo
             // prevedibile invece di dipendere dall'ordine di lettura dei file.
-            None => vec![Fornitore::Anthropic, Fornitore::Kimi],
+            // Mistral last: it is the newest, measured only on recorded
+            // answers so far (G4).
+            None => vec![Fornitore::Anthropic, Fornitore::Kimi, Fornitore::Mistral],
         },
     };
 
     for f in candidati {
         if let Some((chiave, source)) = resolve_key(config_dir, f, user) {
+            // The project's (or the environment's) model, then the one the
+            // user prefers in their account, then the provider's default.
             let modello = modello_imposto
                 .clone()
+                .or_else(|| user.model_of(f.nome()).map(str::to_string))
                 .unwrap_or_else(|| f.modello_default().to_string());
             return Some(Scelta {
                 fornitore: f,
@@ -672,8 +788,13 @@ impl Cliente {
         tools: &[Value],
         mut on_event: impl FnMut(Evento),
     ) -> Result<Risposta> {
-        let body = corpo_richiesta(&self.scelta, system, messages, tools);
         let f = self.scelta.fornitore;
+        if let Protocol::ChatCompletions(d) = f.protocol() {
+            return self
+                .chat_turn(d, &system, messages, tools, &mut on_event)
+                .await;
+        }
+        let body = corpo_richiesta(&self.scelta, system, messages, tools);
 
         let mut req = self
             .http
@@ -702,6 +823,53 @@ impl Cliente {
         }
 
         self.leggi_sse(resp, &mut on_event).await
+    }
+
+    /// A turn with a chat-completions provider: the request translated out,
+    /// the stream translated back. What comes out is the same [`Risposta`].
+    async fn chat_turn(
+        &self,
+        d: &'static crate::ai::chat_completions::Dialect,
+        system: &[Value],
+        messages: &[Value],
+        tools: &[Value],
+        on_event: &mut impl FnMut(Evento),
+    ) -> Result<Risposta> {
+        use crate::ai::chat_completions as cc;
+        let f = self.scelta.fornitore;
+        let body = cc::request_body(
+            d,
+            &self.scelta.modello,
+            system,
+            messages,
+            tools,
+            true,
+            MAX_TOKENS,
+        );
+        let resp = self
+            .http
+            .post(d.endpoint)
+            .header("content-type", "application/json")
+            .header("authorization", format!("Bearer {}", self.scelta.chiave))
+            .json(&body)
+            .send()
+            .await
+            .with_context(|| format!("the request to {} did not start", d.endpoint))?;
+        let status = resp.status();
+        if !status.is_success() {
+            let text = resp.text().await.unwrap_or_default();
+            // As for the other protocol: the code and the message, not the
+            // whole body (it may echo the prompt).
+            let short: String = serde_json::from_str::<Value>(&text)
+                .ok()
+                .and_then(|v| cc::error_message(&v))
+                .unwrap_or(text)
+                .chars()
+                .take(500)
+                .collect();
+            bail!("{} answered {status}: {short}", f.nome());
+        }
+        cc::read_sse(resp, on_event).await
     }
 
     async fn leggi_sse(
@@ -1027,6 +1195,59 @@ mod tests {
         assert!(prezzi("claude-opus-5").1);
     }
 
+    /// The key test and the account's menu offer every chat model Mistral
+    /// lists, not only the three in the table: an id of a priced family counts
+    /// at the price of its family (as an estimate), not at those of Opus 5.
+    #[test]
+    fn an_unlisted_mistral_model_counts_at_the_price_of_its_family() {
+        let large = prezzi("mistral-large-latest").0;
+        let small = prezzi("mistral-small-latest").0;
+        for (id, family) in [
+            ("mistral-large-2610", large),
+            ("Mistral-Large-4", large),
+            ("mistral-small-2603", small),
+        ] {
+            let (p, known) = prezzi(id);
+            assert_eq!(p, family, "{id}");
+            assert!(!known, "{id}: a family price is an estimate");
+        }
+        // The exact entries still win over their family: Large 3 has its own price.
+        let (p, known) = prezzi("mistral-large-2512");
+        assert!(known);
+        assert!(p.ingresso < large.ingresso);
+        for id in ["codestral-latest", "codestral-2508", "ministral-8b-latest"] {
+            let (p, known) = prezzi(id);
+            assert!(!known, "{id}");
+            assert!(p.ingresso <= 0.3 && p.uscita <= 0.9, "{id}: {p:?}");
+        }
+        // A million tokens in and a hundred thousand out on a dated Large: cents,
+        // not the 7.5 $ of the Opus 5 fallback.
+        let u = json!({ "input_tokens": 1_000_000, "output_tokens": 100_000 });
+        let c = costo_usd("mistral-large-2610", &u);
+        assert!((c - 0.91).abs() < 1e-9, "cost {c}");
+        // A family with no published price keeps the cautious fallback, and so
+        // does a name that only looks like one.
+        for id in ["mistral-medium-latest", "magistral-medium-2509", "mistral-largest"] {
+            assert_eq!(prezzi(id), prezzi("modello-del-futuro"), "{id}");
+        }
+    }
+
+    /// Kimi's prices are the list's, no longer Opus 5's by default: counted at
+    /// 5 $ and 25 $, a conversation with `kimi-k3.1-pro` hit its cap when the
+    /// real spending was 40 % of it.
+    #[test]
+    fn kimi_prices_come_from_the_list() {
+        let (p, known) = prezzi("kimi-k3.1-pro");
+        assert!(known);
+        assert_eq!((p.ingresso, p.uscita, p.cache_lettura), (2.0, 10.0, 0.20));
+        // A 5-minute cache write costs the plain input price.
+        assert_eq!(p.cache_scrittura, 2.0);
+        assert_eq!(prezzi("kimi-k3").0.cache_scrittura, 3.0);
+        let u = json!({ "input_tokens": 1_000_000, "output_tokens": 100_000,
+                        "cache_read_input_tokens": 1_000_000 });
+        assert!((costo_usd("kimi-k3.1-pro", &u) - 3.2).abs() < 1e-9);
+    }
+
     /// Il tetto: l'ambiente vince sul file, e un valore assurdo vale come
     /// assente invece di spegnere la chat.
     #[test]
@@ -1247,6 +1468,355 @@ mod tests {
         assert!(k.iter().all(|p| p.ends_with("kimi.key")));
         let tutti = percorsi_chiave(d);
         assert!(tutti.len() >= a.len() + k.len());
+    }
+
+    /// Mistral (G4): its own key file and variable, Bearer, the second
+    /// protocol, and a price the cap can count on.
+    #[test]
+    fn mistral_is_a_provider_of_the_second_protocol() {
+        assert_eq!(Fornitore::da_nome("Mistral"), Some(Fornitore::Mistral));
+        assert_eq!(Fornitore::da_nome("mistralai"), Some(Fornitore::Mistral));
+        assert_eq!(Fornitore::Mistral.nome(), "mistral");
+        assert_eq!(Fornitore::Mistral.file_chiave(), "mistral.key");
+        assert_eq!(Fornitore::Mistral.env_chiave(), &["MISTRAL_API_KEY"]);
+        assert!(Fornitore::Mistral.bearer());
+        assert!(Fornitore::Mistral.url_saldo().is_none());
+        assert!(Fornitore::Mistral
+            .endpoint()
+            .ends_with("/v1/chat/completions"));
+        assert!(matches!(
+            Fornitore::Mistral.protocol(),
+            Protocol::ChatCompletions(_)
+        ));
+        assert_eq!(Fornitore::Kimi.protocol(), Protocol::Messages);
+        assert_eq!(Fornitore::Anthropic.protocol(), Protocol::Messages);
+        let (p, known) = prezzi(Fornitore::Mistral.modello_default());
+        assert!(known);
+        assert!(p.ingresso < 1.0, "{p:?}");
+        let d = std::path::Path::new("/tmp/conf");
+        assert!(percorsi_chiave_di(d, Fornitore::Mistral)
+            .iter()
+            .all(|p| p.ends_with("mistral.key")));
+        assert!(percorsi_chiave(d)
+            .iter()
+            .any(|p| p.ends_with("mistral.key")));
+    }
+
+    // ── The second protocol against a fake provider on localhost ──────────
+    //
+    // No key and no paid call: a local server answers in Mistral's shape, and
+    // the turn goes through the real HTTP client, headers and stream reader.
+
+    /// What the fake provider does with a request.
+    #[derive(Clone, Copy)]
+    enum Fake {
+        /// The whole stream, in the pieces given.
+        Stream(&'static [&'static str]),
+        /// The pieces, then the connection drops.
+        Dropped(&'static [&'static str]),
+        /// An HTTP error with this JSON body.
+        Refuse(u16, &'static str),
+        /// A whole answer, not streamed.
+        Single(&'static str),
+    }
+
+    type Seen = std::sync::Arc<std::sync::Mutex<Vec<(String, Value)>>>;
+
+    /// Starts the fake provider; gives a dialect that points to it and what it
+    /// received (the `authorization` header and the body of each request).
+    async fn fake_provider(fake: Fake) -> (&'static crate::ai::chat_completions::Dialect, Seen) {
+        use axum::body::Body;
+        use axum::http::{header, HeaderMap, StatusCode};
+        use axum::response::IntoResponse;
+        let seen: Seen = Default::default();
+        let seen2 = seen.clone();
+        let app = axum::Router::new().route(
+            "/v1/chat/completions",
+            axum::routing::post(
+                move |headers: HeaderMap, axum::Json(body): axum::Json<Value>| {
+                    let seen = seen2.clone();
+                    async move {
+                        let auth = headers
+                            .get(header::AUTHORIZATION)
+                            .and_then(|v| v.to_str().ok())
+                            .unwrap_or_default()
+                            .to_string();
+                        seen.lock().unwrap().push((auth, body));
+                        let sse = |pieces: &'static [&'static str], dropped: bool| {
+                            let whole = futures_util::stream::iter(
+                                pieces.iter().map(|p| std::io::Result::Ok(*p)),
+                            );
+                            // The drop comes a moment later: what was sent has
+                            // the time to leave, as on a real line.
+                            let end = futures_util::stream::once(async move {
+                                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                                Err(std::io::Error::other("gone"))
+                            })
+                            .filter(move |_| std::future::ready(dropped));
+                            (
+                                [(header::CONTENT_TYPE, "text/event-stream")],
+                                Body::from_stream(whole.chain(end)),
+                            )
+                                .into_response()
+                        };
+                        match fake {
+                            Fake::Stream(p) => sse(p, false),
+                            Fake::Dropped(p) => sse(p, true),
+                            Fake::Refuse(code, body) => (
+                                StatusCode::from_u16(code).unwrap(),
+                                [(header::CONTENT_TYPE, "application/json")],
+                                body,
+                            )
+                                .into_response(),
+                            Fake::Single(body) => {
+                                ([(header::CONTENT_TYPE, "application/json")], body).into_response()
+                            }
+                        }
+                    }
+                },
+            ),
+        );
+        let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = l.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(l, app).await.unwrap() });
+        let d = crate::ai::chat_completions::Dialect {
+            endpoint: Box::leak(format!("http://{addr}/v1/chat/completions").into_boxed_str()),
+            ..crate::ai::chat_completions::MISTRAL
+        };
+        (Box::leak(Box::new(d)), seen)
+    }
+
+    /// A turn as Mistral streams it: text in two pieces, two tool calls (the
+    /// arguments of the first split in the middle of a string, over three
+    /// events and two network pieces), the usage on the last chunk, `[DONE]`.
+    const MISTRAL_TURN: &[&str] = &[
+        "data: {\"id\":\"c1\",\"object\":\"chat.completion.chunk\",\"model\":\"mistral-large-latest\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"\"},\"finish_reason\":null}]}\n\n",
+        "data: {\"id\":\"c1\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"Leggo la pagina \"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"c1\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"e cerco la pompa.\"},\"finish_reason\":null}]}\n\n",
+        "data: {\"id\":\"c1\",\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"aB3dE5gH7\",\"type\":\"function\",\"function\":{\"name\":\"leggi_pagina\",\"arguments\":\"{\\\"no\"}}]},\"finish_reason\":null}]}\n\ndata: {\"id\":\"c1\",\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"argum",
+        "ents\":\"me\\\": \\\"Indi\"}}]},\"finish_reason\":null}]}\n\n",
+        "data: {\"id\":\"c1\",\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\"catori\\\"}\"}},{\"index\":1,\"id\":\"zY9xW8vU7\",\"type\":\"function\",\"function\":{\"name\":\"cerca_simboli\",\"arguments\":\"{\\\"testo\\\": \\\"pompa\\\"}\"}}]},\"finish_reason\":null}]}\n\n",
+        "data: {\"id\":\"c1\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"\"},\"finish_reason\":\"tool_calls\"}],\"usage\":{\"prompt_tokens\":9120,\"completion_tokens\":64,\"total_tokens\":9184}}\n\n",
+        "data: [DONE]\n\n",
+    ];
+
+    #[tokio::test]
+    async fn a_mistral_turn_through_the_real_reader() {
+        let (d, seen) = fake_provider(Fake::Stream(MISTRAL_TURN)).await;
+        let cliente = Cliente::new(Scelta {
+            chiave: "sk-fake-mistral".into(),
+            ..scelta(Fornitore::Mistral)
+        });
+        let messages = [json!({ "role": "user", "content": "Dov'è la pompa?" })];
+        let tools = [json!({ "name": "leggi_pagina", "description": "d",
+                             "input_schema": { "type": "object", "properties": {} } })];
+        let mut events = Vec::new();
+        let r = cliente
+            .chat_turn(d, &prompt_finto(), &messages, &tools, &mut |e| {
+                events.push(format!("{e:?}"))
+            })
+            .await
+            .unwrap();
+
+        assert_eq!(r.testo(), "Leggo la pagina e cerco la pompa.");
+        assert_eq!(r.stop_reason, "tool_use");
+        let uses = r.tool_uses();
+        assert_eq!(uses.len(), 2);
+        assert_eq!(
+            (uses[0].0, uses[0].1, uses[0].2),
+            (
+                "aB3dE5gH7",
+                "leggi_pagina",
+                &json!({ "nome": "Indicatori" })
+            )
+        );
+        assert_eq!(
+            (uses[1].0, uses[1].1, uses[1].2),
+            ("zY9xW8vU7", "cerca_simboli", &json!({ "testo": "pompa" }))
+        );
+        // The usage in the names the cost and the cap read.
+        assert_eq!(r.usage["input_tokens"], 9120);
+        assert_eq!(r.usage["output_tokens"], 64);
+        assert!(costo_usd("mistral-large-latest", &r.usage) > 0.0);
+        assert_eq!(
+            events
+                .iter()
+                .filter(|e| e.starts_with("StrumentoInizio"))
+                .count(),
+            2
+        );
+
+        // What went out: Bearer, the model, the stream, and no field of the
+        // Messages protocol.
+        let seen = seen.lock().unwrap();
+        let (auth, body) = &seen[0];
+        assert_eq!(auth, "Bearer sk-fake-mistral");
+        assert_eq!(body["model"], "mistral-large-latest");
+        assert_eq!(body["stream"], true);
+        assert_eq!(body["messages"][0]["role"], "system");
+        assert_eq!(body["tools"][0]["function"]["name"], "leggi_pagina");
+        for f in ["system", "thinking", "output_config", "cache_control"] {
+            assert!(body.get(f).is_none(), "`{f}` was sent");
+        }
+    }
+
+    /// The model the account prefers (commit of 16-11-2026) reaches the request
+    /// for Mistral as for the others: the key and the model of the user, with
+    /// no key and no choice in the project.
+    #[tokio::test]
+    async fn the_account_model_and_key_reach_a_mistral_request() {
+        let dir = tempfile::tempdir().unwrap();
+        let user = UserKeys::from_entries([(
+            "mistral",
+            Some("sk-account-mistral".to_string()),
+            Some("mistral-small-latest".to_string()),
+        )]);
+        // On a machine with keys or choices of its own (the environment, the
+        // files in the home) another provider wins, rightly: there the choice
+        // is not this test's case, the request still is.
+        let own = ["SWS_AI_FORNITORE", "SWS_AI_MODELLO"]
+            .iter()
+            .any(|v| std::env::var(v).is_ok())
+            || [Fornitore::Anthropic, Fornitore::Kimi, Fornitore::Mistral]
+                .iter()
+                .any(|f| chiave_di(dir.path(), *f).is_some());
+        let sc = if own {
+            Scelta {
+                chiave: "sk-account-mistral".into(),
+                source: KeySource::User,
+                modello: "mistral-small-latest".into(),
+                ..scelta(Fornitore::Mistral)
+            }
+        } else {
+            carica_con(dir.path(), &user).expect("the user's key is enough")
+        };
+        assert_eq!(sc.fornitore, Fornitore::Mistral);
+        assert_eq!(sc.source, KeySource::User);
+        assert_eq!(sc.modello, "mistral-small-latest");
+        assert!(prezzi(&sc.modello).1, "the cap knows its price");
+
+        let (d, seen) = fake_provider(Fake::Stream(MISTRAL_TURN)).await;
+        Cliente::new(sc)
+            .chat_turn(
+                d,
+                &[],
+                &[json!({ "role": "user", "content": "ciao" })],
+                &[],
+                &mut |_| {},
+            )
+            .await
+            .unwrap();
+        let seen = seen.lock().unwrap();
+        assert_eq!(seen[0].0, "Bearer sk-account-mistral");
+        assert_eq!(seen[0].1["model"], "mistral-small-latest");
+    }
+
+    const SOME_TEXT: &str = "data: {\"id\":\"c1\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"Leggo la pagina \"},\"finish_reason\":null}]}\n\n";
+
+    async fn mistral_turn(fake: Fake) -> Result<Risposta> {
+        let (d, _) = fake_provider(fake).await;
+        let messages = [json!({ "role": "user", "content": "ciao" })];
+        Cliente::new(scelta(Fornitore::Mistral))
+            .chat_turn(d, &[], &messages, &[], &mut |_| {})
+            .await
+    }
+
+    #[tokio::test]
+    async fn a_mistral_stream_that_stops_half_way_is_an_error() {
+        // The connection drops in the middle of the arguments.
+        const HALF_A_CALL: &[&str] = &[MISTRAL_TURN[0], MISTRAL_TURN[1], MISTRAL_TURN[2]];
+        let e = mistral_turn(Fake::Dropped(HALF_A_CALL)).await.unwrap_err();
+        assert!(format!("{e:#}").contains("interrupted"), "{e:#}");
+        // The server closes cleanly, but the turn never ended: text only, and
+        // it would pass for a whole answer.
+        let e = mistral_turn(Fake::Stream(&[SOME_TEXT])).await.unwrap_err();
+        assert!(format!("{e:#}").contains("before the end"), "{e:#}");
+        // An error event after the first words.
+        let e = mistral_turn(Fake::Stream(&[
+            SOME_TEXT,
+            "data: {\"object\":\"error\",\"message\":\"Service tier capacity exceeded for this model.\",\"type\":\"service_tier_capacity_exceeded\",\"code\":\"3505\"}\n\n",
+            "data: [DONE]\n\n",
+        ]))
+        .await
+        .unwrap_err();
+        assert!(format!("{e:#}").contains("capacity exceeded"), "{e:#}");
+        // A last event with no blank line after it is still read.
+        let r = mistral_turn(Fake::Stream(&[
+            SOME_TEXT,
+            "data: {\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\n",
+            "data: [DONE]",
+        ]))
+        .await
+        .unwrap();
+        assert_eq!(r.stop_reason, "end_turn");
+        assert_eq!(r.testo(), "Leggo la pagina ");
+    }
+
+    /// A refused key: the message of the provider (Mistral's own shape), not
+    /// the whole body and not an empty line.
+    #[tokio::test]
+    async fn a_refused_mistral_request_says_why() {
+        let (d, _) = fake_provider(Fake::Refuse(
+            401,
+            r#"{"message":"Unauthorized","request_id":"abc"}"#,
+        ))
+        .await;
+        let sc = scelta(Fornitore::Mistral);
+        let e = Cliente::new(sc.clone())
+            .chat_turn(
+                d,
+                &[],
+                &[json!({ "role": "user", "content": "ciao" })],
+                &[],
+                &mut |_| {},
+            )
+            .await
+            .unwrap_err();
+        let e = format!("{e:#}");
+        assert!(
+            e.contains("mistral") && e.contains("401") && e.contains("Unauthorized"),
+            "{e}"
+        );
+        assert!(!e.contains("request_id"), "{e}");
+        // The single question (translator, symbol model) says it the same way.
+        let e = ask_chat_once(&reqwest::Client::new(), &sc, d, "istruzioni", &[], 100)
+            .await
+            .unwrap_err();
+        assert!(format!("{e:#}").contains("Unauthorized"), "{e:#}");
+    }
+
+    /// The single question of the translator and of the symbol model.
+    #[tokio::test]
+    async fn a_single_question_to_mistral() {
+        let (d, seen) = fake_provider(Fake::Single(
+            r#"{"id":"c2","object":"chat.completion","model":"mistral-large-latest",
+                "choices":[{"index":0,"message":{"role":"assistant","content":"Pump running"},"finish_reason":"stop"}],
+                "usage":{"prompt_tokens":40,"completion_tokens":3,"total_tokens":43}}"#,
+        ))
+        .await;
+        let sc = scelta(Fornitore::Mistral);
+        let messages = [json!({ "role": "user", "content": "Pompa in marcia" })];
+        let (text, usage) = ask_chat_once(
+            &reqwest::Client::new(),
+            &sc,
+            d,
+            "Traduci in inglese",
+            &messages,
+            100,
+        )
+        .await
+        .unwrap();
+        assert_eq!(text, "Pump running");
+        assert_eq!(usage["input_tokens"], 40);
+        assert_eq!(usage["output_tokens"], 3);
+        let seen = seen.lock().unwrap();
+        assert_eq!(seen[0].0, "Bearer k");
+        assert_eq!(seen[0].1["stream"], false);
+        assert_eq!(seen[0].1["max_tokens"], 100);
+        assert_eq!(
+            seen[0].1["messages"][0],
+            json!({ "role": "system", "content": "Traduci in inglese" })
+        );
+        assert!(seen[0].1.get("tools").is_none());
     }
 
     fn prompt_finto() -> Vec<Value> {

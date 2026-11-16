@@ -132,7 +132,7 @@ export function MqttJsonExtractModal({
         </div>
 
         {error && (
-          <div style={{ ...S.notice, background: "#450a0a", borderColor: "#991b1b", color: "var(--brand-danger-soft, #fca5a5)" }}>{error}</div>
+          <div style={{ ...S.notice, background: "var(--sws-danger-bg, #450a0a)", borderColor: "var(--sws-danger-border, #991b1b)", color: "var(--brand-danger-soft, #fca5a5)" }}>{error}</div>
         )}
 
         {leaves !== null && leaves.length > 0 && (
@@ -156,7 +156,7 @@ export function MqttJsonExtractModal({
                     <tr><td colSpan={5} style={{ ...S.td, textAlign: "center", color: "var(--brand-text-subtle, #94a3b8)", padding: 12 }}>{t("cfgUi.noVariablesMatchTheFilter")}</td></tr>
                   )}
                   {visible.map((l) => (
-                    <tr key={l.path} style={{ background: selected.has(l.path) ? "#172554" : "transparent" }}>
+                    <tr key={l.path} style={{ background: selected.has(l.path) ? "var(--sws-select-bg, #172554)" : "transparent" }}>
                       <td style={S.td}><input type="checkbox" checked={selected.has(l.path)} onChange={() => toggle(l.path)} /></td>
                       <td style={{ ...S.td, fontFamily: "monospace", fontSize: 11, wordBreak: "break-all" }}>{l.path}</td>
                       <td style={{ ...S.td, fontSize: 11, color: "var(--brand-text-muted, #94a3b8)" }}>{l.type}</td>

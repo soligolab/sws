@@ -13,6 +13,10 @@
 //! What comes back lives in memory, for the session: it is not written to disk,
 //! not logged, not sent to the browser. The next session asks again, so a key
 //! the user took away stops working at the next chat.
+//!
+//! Since 16-11-2026 the gateway also gives the model the user prefers for each
+//! provider, and OpenAI (backgrounds) is one of them. The model is asked for
+//! every provider, the key only for those the project has none of.
 
 use crate::ai::client::Fornitore;
 use crate::router::AppState;
@@ -20,27 +24,58 @@ use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-/// The keys of the user, by provider name. Empty (the default) = none, and the
-/// chat works as before.
+/// The providers the gateway is asked about: those of the AI menu (Black
+/// Forest Labs for the backgrounds since G5, 16-11-2026).
+pub const PROVIDERS: [&str; 5] = ["anthropic", "kimi", "mistral", "openai", "bfl"];
+
 #[derive(Clone, Default)]
-pub struct UserKeys(Arc<BTreeMap<&'static str, String>>);
+struct Entry {
+    key: Option<String>,
+    model: Option<String>,
+}
+
+/// The keys and preferred models of the user, by provider name. Empty (the
+/// default) = none, and the chat works as before.
+#[derive(Clone, Default)]
+pub struct UserKeys(Arc<BTreeMap<String, Entry>>);
 
 // Never printed, not even by accident in a debug line.
 impl std::fmt::Debug for UserKeys {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "UserKeys({} keys)", self.0.len())
+        let keys = self.0.values().filter(|e| e.key.is_some()).count();
+        write!(f, "UserKeys({keys} keys)")
     }
 }
 
 impl UserKeys {
     pub fn from_pairs(pairs: impl IntoIterator<Item = (Fornitore, String)>) -> Self {
+        Self::from_entries(pairs.into_iter().map(|(f, k)| (f.nome(), Some(k), None)))
+    }
+
+    /// `(provider, key, model)`.
+    pub fn from_entries<'a>(
+        entries: impl IntoIterator<Item = (&'a str, Option<String>, Option<String>)>,
+    ) -> Self {
         UserKeys(Arc::new(
-            pairs.into_iter().map(|(f, k)| (f.nome(), k)).collect(),
+            entries
+                .into_iter()
+                .map(|(p, key, model)| (p.to_string(), Entry { key, model }))
+                .collect(),
         ))
     }
 
     pub fn get(&self, f: Fornitore) -> Option<&str> {
-        self.0.get(f.nome()).map(String::as_str)
+        self.key_of(f.nome())
+    }
+
+    /// The key by provider name: `openai` too.
+    pub fn key_of(&self, provider: &str) -> Option<&str> {
+        self.0.get(provider)?.key.as_deref()
+    }
+
+    /// The model the user prefers for `provider`, if any.
+    pub fn model_of(&self, provider: &str) -> Option<&str> {
+        self.0.get(provider)?.model.as_deref()
     }
 
     pub fn is_empty(&self) -> bool {
@@ -48,27 +83,36 @@ impl UserKeys {
     }
 }
 
-/// The address the container calls on the gateway.
-pub fn url_for(origin: &str, provider: &str, email: &str) -> String {
+/// The address the container calls on the gateway. `key = false`: only the
+/// preferred model, the project has a key of its own.
+pub fn url_for(origin: &str, provider: &str, email: &str, key: bool) -> String {
     format!(
-        "{}/api/internal/ai-key/{provider}?user={}",
+        "{}/api/internal/ai-key/{provider}?user={}{}",
         origin.trim_end_matches('/'),
-        utf8_percent_encode(email, NON_ALPHANUMERIC)
+        utf8_percent_encode(email, NON_ALPHANUMERIC),
+        if key { "" } else { "&key=0" }
     )
 }
 
-/// The key of `email` for each provider in `missing`, asked to the gateway.
-/// Empty when this container is not behind the gateway, or the person has none.
-pub async fn fetch(s: &AppState, email: &str, missing: &[Fornitore]) -> UserKeys {
+/// Whether the project has a key of its own for `provider`.
+pub fn project_has_key(config_dir: &std::path::Path, provider: &str) -> bool {
+    crate::ai::scopi::ha_chiave(config_dir, provider)
+}
+
+/// The preferred model of `email` for every provider, and the key for those the
+/// project has none of, asked to the gateway. Empty when this container is not
+/// behind the gateway, or the person has nothing there.
+pub async fn fetch_all(s: &AppState, email: &str) -> UserKeys {
     let Some(origin) = s.ritorno.origine_se_dietro_al_gateway() else {
         return UserKeys::default();
     };
-    if email.is_empty() || missing.is_empty() {
+    if email.is_empty() {
         return UserKeys::default();
     }
     let mut found = Vec::new();
-    for &f in missing {
-        let url = url_for(&origin, f.nome(), email);
+    for p in PROVIDERS {
+        let want_key = !project_has_key(&s.config_dir, p);
+        let url = url_for(&origin, p, email, want_key);
         // The client adds the container's return key to this call (and to no
         // other address: `gateway/ritorno.rs`, `va_aggiunta`).
         let Ok(client) = crate::remote::costruisci_client(s, &url, 10) else {
@@ -76,45 +120,58 @@ pub async fn fetch(s: &AppState, email: &str, missing: &[Fornitore]) -> UserKeys
         };
         match client.get(&url).send().await {
             Ok(r) if r.status().is_success() => {
-                if let Some(key) = r
-                    .json::<serde_json::Value>()
-                    .await
-                    .ok()
-                    .and_then(|v| v.get("key")?.as_str().map(str::to_string))
-                {
-                    found.push((f, key));
+                let v = r.json::<serde_json::Value>().await.unwrap_or_default();
+                let text = |k: &str| v.get(k).and_then(|x| x.as_str()).map(str::to_string);
+                let key = text("key").filter(|_| want_key);
+                let model = text("model");
+                if key.is_some() || model.is_some() {
+                    found.push((p, key, model));
                 }
             }
             // The person has no key for this provider, or is not there: normal.
             Ok(r) if r.status() == reqwest::StatusCode::NOT_FOUND => {}
             Ok(r) => tracing::warn!(
                 target: "sws_ai",
-                provider = f.nome(),
+                provider = p,
                 status = %r.status(),
                 "the gateway did not give the user's AI key"
             ),
             Err(e) => tracing::warn!(
                 target: "sws_ai",
-                provider = f.nome(),
+                provider = p,
                 "cannot ask the gateway for the user's AI key: {e}"
             ),
         }
     }
-    UserKeys::from_pairs(found)
+    UserKeys::from_entries(found)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    /// The container asks the gateway about the providers of the AI menu, all
+    /// of them: a provider added there and forgotten here would have account
+    /// keys that no chat ever uses.
+    #[test]
+    fn the_providers_asked_are_those_of_the_menu() {
+        let menu: Vec<&str> = crate::ai::scopi::FORNITORI
+            .iter()
+            .map(|(id, _, _)| *id)
+            .collect();
+        assert_eq!(PROVIDERS.to_vec(), menu);
+        assert!(PROVIDERS.contains(&"mistral"));
+    }
+
     #[test]
     fn the_address_carries_the_email_and_nothing_else_odd() {
         assert_eq!(
-            url_for("https://sws.soligo.net/", "kimi", "m+a@soligo.net"),
+            url_for("https://sws.soligo.net/", "kimi", "m+a@soligo.net", true),
             "https://sws.soligo.net/api/internal/ai-key/kimi?user=m%2Ba%40soligo%2Enet"
         );
+        assert!(url_for("https://x", "openai", "m@x", false).ends_with("&key=0"));
         // Whatever is in the email stays in the value of `user`.
-        let u = url_for("https://x", "kimi", "a&provider=b#c d");
+        let u = url_for("https://x", "kimi", "a&provider=b#c d", true);
         assert!(
             !u.contains(' ') && !u.contains('#') && u.matches('?').count() == 1,
             "{u}"
@@ -129,5 +186,16 @@ mod tests {
         assert_eq!(k.get(Fornitore::Anthropic), None);
         assert!(!k.is_empty() && UserKeys::default().is_empty());
         assert!(!format!("{k:?}").contains("segretissima"));
+    }
+
+    #[test]
+    fn a_model_without_a_key_and_openai_are_kept() {
+        let k = UserKeys::from_entries([
+            ("anthropic", None, Some("claude-x".to_string())),
+            ("openai", Some("sk-oa".to_string()), None),
+        ]);
+        assert_eq!(k.get(Fornitore::Anthropic), None);
+        assert_eq!(k.model_of("anthropic"), Some("claude-x"));
+        assert_eq!(k.key_of("openai"), Some("sk-oa"));
     }
 }

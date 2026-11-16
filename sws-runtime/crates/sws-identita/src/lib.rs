@@ -516,6 +516,15 @@ CREATE TABLE IF NOT EXISTS ai_keys (
     created_ms  INTEGER NOT NULL,
     PRIMARY KEY (user_id, provider)
 );
+
+-- The model a user prefers for each AI provider (16-11-2026). Apart from the
+-- keys: a new key does not forget the model, and the model is no secret.
+CREATE TABLE IF NOT EXISTS ai_models (
+    user_id     INTEGER NOT NULL REFERENCES utenti(id) ON DELETE CASCADE,
+    provider    TEXT    NOT NULL,
+    model       TEXT    NOT NULL,
+    PRIMARY KEY (user_id, provider)
+);
 "#;
 
 /// `amministratore_piattaforma` arriva con lo schema 2 su una tabella che puo

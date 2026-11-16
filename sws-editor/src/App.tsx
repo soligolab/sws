@@ -67,6 +67,7 @@ import { useCertWatcher } from "@/ws/certWatcher";
 import { canEditProject, canConfigureProject } from "@/auth/permissions";
 import { useMarchioDellAzienda } from "@/branding/perAzienda";
 import { conferma, modulo, scegli } from "@/finestraAvviso/finestraAvviso";
+import { Icona } from "@/components/Icona";
 
 // Port 7444 — full IDE (canvas editor + ConfigView + project management).
 // Served via admin-main.tsx which calls setForceLocalApi(true) before render.
@@ -87,7 +88,7 @@ function AccessDenied({ role, onLogout }: { role: string; onLogout: () => void }
       justifyContent: "center", height: "100vh", background: "var(--brand-bg, #0f172a)",
       color: "var(--brand-text, #e2e8f0)", gap: 16, fontFamily: "system-ui, 'SWS Emoji'",
     }}>
-      <div style={{ fontSize: 48 }}>🔒</div>
+      <div style={{ fontSize: 48 }}><Icona emoji="🔒" /></div>
       <div style={{ fontSize: 20, fontWeight: 600 }}>{t("accessDenied.title")}</div>
       <div style={{ fontSize: 14, color: "var(--brand-text-muted, #94a3b8)", maxWidth: 400, textAlign: "center" }}>
         {t("accessDenied.requires")} {t("accessDenied.authenticatedAs", { role })}
@@ -244,7 +245,8 @@ export function App() {
           const st = useAppStore.getState();
           try {
             const diff = riassumi(m.proposta.project ?? null, m.proposta.pages ?? null,
-                                  st.project, st.pages, m.proposta.faceplates, m.proposta.sfondi);
+                                  st.project, st.pages, m.proposta.faceplates, m.proposta.sfondi,
+                                  m.proposta.floor_plans, m.proposta.replaced_floor_plans);
             ponte.manda({ t: "diff-ok", a: m.da, rid: m.rid, diff });
           } catch (e: any) {
             // Si **dice** che non si sa, invece di mandare un elenco vuoto: `[]`
@@ -1001,7 +1003,7 @@ export function App() {
             remoteDeployStatus === "error"   ? "var(--brand-danger, #ef4444)" :
             remoteConnected ? "var(--brand-success-soft, #4ade80)" : "var(--brand-danger, #ef4444)";
           const btnExtra = remoteConnected
-            ? { background: "#14532d", color: "var(--brand-success-soft, #4ade80)", border: "1px solid #16a34a" }
+            ? { background: "var(--sws-success-bg, #14532d)", color: "var(--brand-success-soft, #4ade80)", border: "1px solid var(--sws-success-border, #16a34a)" }
             : {};
           // Ultimo target salvato da RuntimeConnectionTab (ConfigView.tsx) —
           // permette un "riconnetti" esplicito con un click, senza tentare
@@ -1077,7 +1079,7 @@ export function App() {
               onClick={() => void deployOra(false)}
               title={remoteDeployErrore ? t("header.deployErrore", { motivo: remoteDeployErrore }) : t("header.deployOraTitle")}
               style={{ ...HDR_BTN }}
-            >⬆ {t("header.deployOra")}</button>
+            ><Icona emoji="⬆" /> {t("header.deployOra")}</button>
             <button
               data-testid="deploy-utenti-segreti"
               disabled={remoteDeployStatus === "syncing"}
@@ -1086,7 +1088,7 @@ export function App() {
               }}
               title={t("header.deployCompletoTitle")}
               style={{ ...HDR_BTN }}
-            >👥🔑 {t("header.deployCompleto")}</button>
+            ><Icona emoji="👥🔑" nome="users" /> {t("header.deployCompleto")}</button>
             <label title={t("header.deployAlSalvataggioTitle")}
               style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer", whiteSpace: "nowrap" }}>
               <input type="checkbox" data-testid="deploy-al-salvataggio" checked={deployAlSalvataggio}
@@ -1154,11 +1156,11 @@ export function App() {
       {/* Dev-mode TTL banner: suggests disabling session expiry during development */}
       {devTtlBanner && (
         <div style={{
-          background: "#1c1917", borderBottom: "1px solid #44403c",
+          background: "var(--sws-surface, #1c1917)", borderBottom: "1px solid var(--sws-border, #44403c)",
           padding: "5px 16px", display: "flex", alignItems: "center",
-          gap: 12, fontSize: 12, color: "#d6d3d1", flexShrink: 0,
+          gap: 12, fontSize: 12, color: "var(--sws-text, #d6d3d1)", flexShrink: 0,
         }}>
-          <span style={{ color: "#a8a29e" }}>⏱</span>
+          <span style={{ color: "var(--sws-muted, #a8a29e)" }}><Icona emoji="⏱" /></span>
           <span>
             {t("header.ttlBanner", { min: Math.round(devTtlBanner.ttlSecs / 60) })}
           </span>
@@ -1166,8 +1168,8 @@ export function App() {
             onClick={handleDisableTtl}
             disabled={ttlBusy}
             style={{
-              background: "#292524", color: "#d6d3d1",
-              border: "1px solid #44403c", borderRadius: 4,
+              background: "var(--sws-surface, #292524)", color: "var(--sws-text, #d6d3d1)",
+              border: "1px solid var(--sws-border, #44403c)", borderRadius: 4,
               padding: "2px 10px", cursor: ttlBusy ? "default" : "pointer",
               fontSize: 11,
             }}
@@ -1177,7 +1179,7 @@ export function App() {
           <button
             onClick={() => setDevTtlBanner(null)}
             style={{
-              background: "transparent", color: "#78716c", border: "none",
+              background: "transparent", color: "var(--sws-muted, #78716c)", border: "none",
               cursor: "pointer", fontSize: 13, padding: "0 4px", marginLeft: "auto",
             }}
           >

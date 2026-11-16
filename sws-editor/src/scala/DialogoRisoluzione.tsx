@@ -147,7 +147,7 @@ export function DialogoRisoluzione({ onClose, inModulo = false }: { onClose: () 
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
           <button type="button" style={BOTTONE} onClick={onClose}>{t("scala.annulla")}</button>
           <button type="button" data-testid="scala-converti" disabled={!da || scelte.size === 0 || !(a.width > 0 && a.height > 0)}
-            style={{ ...BOTTONE, background: "var(--brand-primary, #3b82f6)", color: "#fff", border: "none" }}
+            style={{ ...BOTTONE, background: "var(--brand-primary, #3b82f6)", color: "var(--sws-on-accent, #fff)", border: "none" }}
             onClick={() => { void converti(); }}>
             {t("scala.converti", { count: scelte.size })}
           </button>

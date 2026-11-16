@@ -183,7 +183,7 @@ export function LoginScreen({
         {vista === "password" && (
         <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         {motivo && (
-          <div style={{ fontSize: 12, color: "var(--brand-warning-soft, #fbbf24)", background: "#78350f33", padding: "6px 10px", borderRadius: 4, lineHeight: 1.4 }}>
+          <div style={{ fontSize: 12, color: "var(--brand-warning-soft, #fbbf24)", background: "var(--sws-warning-bg, #78350f33)", padding: "6px 10px", borderRadius: 4, lineHeight: 1.4 }}>
             {t(motivo)}
           </div>
         )}

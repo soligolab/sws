@@ -9,6 +9,7 @@ import { migraTestiProgetto } from "@/i18n/migraTesti";
 import { eFaceplateDef, idPaginaDiFaceplate } from "@/faceplate/modello";
 import { S, SaveBar } from "@/config/comuni";
 import { avviso, chiedi, conferma } from "@/finestraAvviso/finestraAvviso";
+import { Icona } from "@/components/Icona";
 
 // ── ConfigView root ───────────────────────────────────────────────────────────
 
@@ -517,7 +518,7 @@ export function LanguagesTab() {
               {table.langs.map((l) => (
                 <th key={l} style={{ ...S.th }}>
                   <span onClick={() => toggleSort(l)} title={t("langtab.sortHint")} style={{ cursor: "pointer", userSelect: "none" }}>
-                    {l}{l === table.default ? " ★" : ""}{sort?.col === l ? (sort.dir === "asc" ? " ▲" : " ▼") : ""}
+                    {l}{l === table.default && <>{" "}<Icona emoji="★" /></>}{sort?.col === l ? (sort.dir === "asc" ? " ▲" : " ▼") : ""}
                   </span>
                   <button onClick={() => removeLang(l)} title={t("langtab.removeLang")}
                     style={{ marginLeft: 6, background: "transparent", border: "none", color: "var(--brand-danger, #ef4444)", cursor: "pointer" }}>✕</button>

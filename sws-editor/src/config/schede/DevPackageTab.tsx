@@ -154,7 +154,7 @@ export function DevPackageTab() {
                 style={{
                   display: "flex", alignItems: "center", gap: 8, padding: "4px 6px",
                   borderRadius: 4, cursor: "pointer", marginBottom: 2,
-                  background: selectedPkg === p.name ? "#1e3a5f" : "transparent",
+                  background: selectedPkg === p.name ? "var(--sws-select-bg, #1e3a5f)" : "transparent",
                   border: `1px solid ${selectedPkg === p.name ? "var(--brand-primary, #3b82f6)" : "transparent"}`,
                 }}>
                 <span style={{ fontSize: 12, color: "var(--brand-text, #e2e8f0)", flex: 1, fontFamily: "monospace" }}>{p.name}</span>

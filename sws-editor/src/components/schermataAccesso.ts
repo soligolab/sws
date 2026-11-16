@@ -95,7 +95,7 @@ export const collegamentoAccesso: React.CSSProperties = {
 export const erroreAccesso: React.CSSProperties = {
   color: "var(--brand-danger-soft, #fca5a5)",
   fontSize: 12,
-  background: "#7f1d1d33",
+  background: "var(--sws-danger-bg, #7f1d1d33)",
   padding: "6px 10px",
   borderRadius: 4,
 };

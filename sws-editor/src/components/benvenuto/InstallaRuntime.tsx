@@ -185,7 +185,7 @@ function DeploySection() {
         <div
           ref={logsRef}
           style={{
-            background: "#0a0f1a", border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 6,
+            background: "var(--sws-sunken, #0a0f1a)", border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 6,
             padding: "8px 10px", maxHeight: 160, overflowY: "auto",
             fontFamily: "monospace", fontSize: 11, lineHeight: 1.6,
           }}
@@ -198,7 +198,7 @@ function DeploySection() {
                 : "var(--brand-text-muted, #94a3b8)",
             }}>{line}</div>
           ))}
-          {deploying && <div style={{ color: "#60a5fa" }}>…</div>}
+          {deploying && <div style={{ color: "var(--sws-select-text, #60a5fa)" }}>…</div>}
         </div>
       )}
       {chiaveHostCambiata && (
@@ -284,12 +284,12 @@ function Comando({ testo }: { testo: string }) {
           stringa, non quel che si vede. */}
       <pre style={{
         flex: 1, minWidth: 0, margin: 0, padding: "10px 12px", borderRadius: 4,
-        background: "#000", border: "1px solid #2f3b2f",
-        color: "#3bd16f", fontFamily: "Arial, Helvetica, sans-serif",
+        background: "#000", border: "1px solid #2f3b2f" /* fixed-colour */,
+        color: "#3bd16f" /* fixed-colour */, fontFamily: "Arial, Helvetica, sans-serif",
         fontSize: 12.5, lineHeight: 1.6,
         whiteSpace: "pre-wrap", wordBreak: "break-all",
       }}>
-        <span style={{ color: "#6b7280", userSelect: "none" }} aria-hidden="true">$ </span>{testo}
+        <span style={{ color: "#6b7280" /* fixed-colour */, userSelect: "none" }} aria-hidden="true">$ </span>{testo}
       </pre>
       <button
         style={{ ...BTN_GHOST, flex: "0 0 auto" }}
@@ -378,7 +378,7 @@ export function GuidaInstallazione() {
               padding: "4px 10px", borderRadius: 4, fontSize: 12, cursor: "pointer",
               border: "1px solid var(--brand-surface-2, #334155)",
               background: prodotto === v ? "var(--brand-primary, #3b82f6)" : "transparent",
-              color: prodotto === v ? "#fff" : "var(--brand-text-muted, #94a3b8)",
+              color: prodotto === v ? "var(--sws-on-accent, #fff)" : "var(--brand-text-muted, #94a3b8)",
             }}>
             {etichetta}
           </button>
@@ -400,7 +400,7 @@ export function GuidaInstallazione() {
               padding: "4px 10px", borderRadius: 4, fontSize: 12, cursor: "pointer",
               border: "1px solid var(--brand-surface-2, #334155)",
               background: unaRiga === v ? "var(--brand-primary, #3b82f6)" : "transparent",
-              color: unaRiga === v ? "#fff" : "var(--brand-text-muted, #94a3b8)",
+              color: unaRiga === v ? "var(--sws-on-accent, #fff)" : "var(--brand-text-muted, #94a3b8)",
             }}>
             {etichetta}
           </button>

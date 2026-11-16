@@ -1,8 +1,13 @@
 # Un fornitore di IA europeo per l'assistente (seme)
 
-> **Stato: seme — decisione.** Nato il 10-11-2026, rivedendo i testi legali per l'apertura del cloud. Osservazione del
-> maintainer: «in questo momento il sistema usa o IA cinesi o americane, manca una opzione europea». **Quando questo
-> lavoro comincerà, il primo passo è una sessione di plan approfondita e dedicata, per sviscerarne tutti i dettagli.**
+> **Stato: assorbito il 16-11-2026** dalla fase **G4** del piano
+> [l'assistente, secondo giro](2026-11-10-assistente-secondo-giro.md): Mistral è un fornitore dell'assistente,
+> col secondo protocollo («chat completions») in `sws-runtime/crates/sws-web/src/ai/chat_completions.rs`. Delle domande
+> qui sotto, il protocollo e i prezzi sono fatti; la qualità si misura con la prova vera (`docs/COLLAUDI_IN_SOSPESO.md`);
+> l'informativa e il predefinito nel cloud restano al maintainer, annotati nel paragrafo G4 del piano.
+>
+> Era: **seme — decisione.** Nato il 10-11-2026, rivedendo i testi legali per l'apertura del cloud. Osservazione del
+> maintainer: «in questo momento il sistema usa o IA cinesi o americane, manca una opzione europea».
 
 ## Cosa c'è (10-11-2026)
 
@@ -20,7 +25,7 @@ differenza fra poter usare l'assistente o no.
 
 - **Il protocollo**: Mistral e gli altri parlano un'API in stile OpenAI («chat completions», strumenti con un formato
   diverso), non «Messages». È lo stesso lavoro della voce «OpenAI o altri come fornitore di testo» nel piano
-  [dell'assistente](../../archive/2026-11-03-assistente-genera-simboli-e-sinottici.md) (sezione «Code annotate il 10-11-2026»): un
+  [dell'assistente](2026-11-03-assistente-genera-simboli-e-sinottici.md) (sezione «Code annotate il 10-11-2026»): un
   secondo protocollo di chiamata e di strumenti, fatto una volta, apre tutti e due.
 - **La qualità** con i nostri strumenti (proposte di sinottico, simboli `prj:`): misurarla sui due banchi del piano
   dell'assistente prima di proporlo come scelta.

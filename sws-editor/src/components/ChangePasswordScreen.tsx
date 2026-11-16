@@ -141,7 +141,7 @@ export function ChangePasswordScreen({ onAnnulla, rimandabile }: {
         </div>
 
         {error && (
-          <div style={{ color: "var(--brand-danger-soft, #fca5a5)", fontSize: 12, background: "#7f1d1d33", padding: "6px 10px", borderRadius: 4 }}>
+          <div style={{ color: "var(--brand-danger-soft, #fca5a5)", fontSize: 12, background: "var(--sws-danger-bg, #7f1d1d33)", padding: "6px 10px", borderRadius: 4 }}>
             {error}
           </div>
         )}
@@ -150,8 +150,10 @@ export function ChangePasswordScreen({ onAnnulla, rimandabile }: {
           <button type="submit" disabled={busy || !oldPassword || !newPassword}
                   style={{
                     flex: 1,
-                    background: busy ? "#1e3a8a" : "var(--brand-primary, #3b82f6)",
-                    color: busy ? "#fff" : "var(--brand-on-primary, #fff)", border: "none", borderRadius: 4,
+                    background: busy ? "var(--sws-select-bg, #1e3a8a)" : "var(--brand-primary, #3b82f6)",
+                    // Busy, the background is the selection tint, close to the
+                    // page: the ink, not the text made for the full accent.
+                    color: busy ? "var(--sws-text, #fff)" : "var(--brand-on-primary, #fff)", border: "none", borderRadius: 4,
                     padding: "8px 12px", cursor: busy ? "default" : "pointer",
                     fontSize: 14, fontWeight: 600,
                   }}>

@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { useAppStore } from "@/store";
 import type { ThemeMode } from "@/theme";
+import { Icona } from "@/components/Icona";
 
 // Tri-state theme control: System → Light → Dark → System.
 // Reads/writes the persisted preference via the store (which calls
@@ -44,7 +45,7 @@ export function ThemeToggle({ compact = false }: { compact?: boolean }) {
         gap: 6,
       }}
     >
-      <span aria-hidden>{ICON[themeMode]}</span>
+      <span aria-hidden><Icona emoji={ICON[themeMode]} /></span>
       {!compact && <span>{label}</span>}
     </button>
   );

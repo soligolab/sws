@@ -7,6 +7,7 @@ import { ePercorsoDiUnaRadice, eSegnaposto } from "@/tag/riconciliaTag";
 import { QuickCreateTagModal } from "./QuickCreateTagModal";
 import type { TagDataType } from "@/types";
 import i18n from "i18next";
+import { Icona } from "@/components/Icona";
 
 interface TagInputProps {
   value: string;
@@ -227,7 +228,7 @@ export function TagInput({ value, onChange, placeholder, style, tipoSuggerito }:
       )}
       {stato === "in-attesa" && (
         <span style={{ flexShrink: 0, alignSelf: "center", fontSize: 11, color: "var(--brand-text-muted, #94a3b8)" }}
-              title={t("tagInput.inAttesaHint")} aria-label={t("tagInput.inAttesaHint")}>⏳</span>
+              title={t("tagInput.inAttesaHint")} aria-label={t("tagInput.inAttesaHint")}><Icona emoji="⏳" /></span>
       )}
       {/* **La freccia che porta alla riga della variabile** (richiesta del
           maintainer, 26-10-2026). Sotto non c'è niente di nuovo: la scheda

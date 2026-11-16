@@ -1,0 +1,153 @@
+# The fixed bench of the house (plan docs/archive/2026-11-10-assistente-secondo-giro.md, G2).
+#
+# An apartment that ALREADY has its variables, in the style of a Home Assistant
+# installation: five lights, three roller shutters, the climate, two window
+# contacts and the outside temperature. No page content: one empty 1280×800 page
+# with the frame. It is the same starting point for every trial of the assistant
+# on «the plan of my house with lights, shutters and climate»: with the fake
+# script (sws-web/tests/ai/house-floor-plan.json, replayed by
+# sws-web/src/ai/bench_house.rs and by e2e/chat-house.spec.ts) and with a real
+# model (scripts/bench_house.sh --real).
+#
+# What it is for: the assistant must BIND to these variables instead of
+# inventing new ones, and place each object in the room its variable names.
+# If it changes, earlier measures no longer compare with later ones: change it
+# only with a reason written here.
+#
+# The source never connects: `ha.invalid` does not resolve, by design.
+meta:
+  name: ai-bench-house
+  version: 0.1.0
+
+tags:
+  # ── Lights ────────────────────────────────────────────────────────────────
+  - id: luce.soggiorno
+    description: "Luce del soggiorno"
+    data_type: bool
+    write_min_role: Viewer
+  - id: luce.cucina
+    description: "Luce della cucina"
+    data_type: bool
+    write_min_role: Viewer
+  - id: luce.camera
+    description: "Luce della camera"
+    data_type: bool
+    write_min_role: Viewer
+  - id: luce.bagno
+    description: "Luce del bagno"
+    data_type: bool
+    write_min_role: Viewer
+  - id: luce.ingresso
+    description: "Luce dell'ingresso"
+    data_type: bool
+    write_min_role: Viewer
+
+  # ── Roller shutters: position, 0 = closed, 100 = open (as HA does) ────────
+  - id: tapparella.soggiorno
+    description: "Tapparella del soggiorno: apertura"
+    data_type: float
+    unit: "%"
+    range_lo: 0
+    range_hi: 100
+  - id: tapparella.cucina
+    description: "Tapparella della cucina: apertura"
+    data_type: float
+    unit: "%"
+    range_lo: 0
+    range_hi: 100
+  - id: tapparella.camera
+    description: "Tapparella della camera: apertura"
+    data_type: float
+    unit: "%"
+    range_lo: 0
+    range_hi: 100
+
+  # ── Climate ───────────────────────────────────────────────────────────────
+  - id: clima.soggiorno.temperatura
+    description: "Temperatura del soggiorno"
+    data_type: float
+    unit: "°C"
+    decimals: 1
+  - id: clima.camera.temperatura
+    description: "Temperatura della camera"
+    data_type: float
+    unit: "°C"
+    decimals: 1
+  - id: clima.setpoint
+    description: "Temperatura impostata"
+    data_type: float
+    unit: "°C"
+    decimals: 1
+    write_min_role: Viewer
+  - id: clima.acceso
+    description: "Riscaldamento acceso"
+    data_type: bool
+
+  # ── Window contacts and outside ───────────────────────────────────────────
+  - id: finestra.soggiorno
+    description: "Finestra del soggiorno aperta"
+    data_type: bool
+  - id: finestra.camera
+    description: "Finestra della camera aperta"
+    data_type: bool
+  - id: esterno.temperatura
+    description: "Temperatura esterna"
+    data_type: float
+    unit: "°C"
+    decimals: 1
+
+sources:
+  - kind: homeassistant
+    id: ha
+    url: http://ha.invalid:8123
+    token_env: HA_TOKEN
+    entities:
+      - tag: luce.soggiorno
+        entity_id: light.soggiorno
+        write_domain: light
+        write_service: turn_on
+      - tag: luce.cucina
+        entity_id: light.cucina
+        write_domain: light
+        write_service: turn_on
+      - tag: luce.camera
+        entity_id: light.camera
+        write_domain: light
+        write_service: turn_on
+      - tag: luce.bagno
+        entity_id: light.bagno
+        write_domain: light
+        write_service: turn_on
+      - tag: luce.ingresso
+        entity_id: light.ingresso
+        write_domain: light
+        write_service: turn_on
+      - tag: tapparella.soggiorno
+        entity_id: cover.tapparella_soggiorno
+        attribute: current_position
+      - tag: tapparella.cucina
+        entity_id: cover.tapparella_cucina
+        attribute: current_position
+      - tag: tapparella.camera
+        entity_id: cover.tapparella_camera
+        attribute: current_position
+      - tag: clima.soggiorno.temperatura
+        entity_id: sensor.soggiorno_temperature
+      - tag: clima.camera.temperatura
+        entity_id: sensor.camera_temperature
+      - tag: clima.setpoint
+        entity_id: climate.casa
+        attribute: temperature
+      - tag: clima.acceso
+        entity_id: binary_sensor.caldaia_accesa
+      - tag: finestra.soggiorno
+        entity_id: binary_sensor.finestra_soggiorno
+      - tag: finestra.camera
+        entity_id: binary_sensor.finestra_camera
+      - tag: esterno.temperatura
+        entity_id: sensor.esterno_temperature
+
+page_layout:
+  size_mode: fixed
+  cornice_predefinita: casa
+  home_page_id: casa

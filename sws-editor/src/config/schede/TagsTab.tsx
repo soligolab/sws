@@ -20,6 +20,7 @@ import { useSezioneSincronizzata } from "@/config/useSezioneSincronizzata";
 import { TRANS_COMP, BarraConflittoSezione, S, SaveBar } from "@/config/comuni";
 import { segnalaSalvataggioFallito } from "@/config/salvataggioFallito";
 import { CampoNumero } from "@/components/CampoNumero";
+import { Icona } from "@/components/Icona";
 
 // ── TAG tab ───────────────────────────────────────────────────────────────────
 
@@ -425,7 +426,7 @@ export function TagsTab({ scheda }: { scheda: IdScheda }) {
               vuota è l'unica riga che si vede e somigliava a una riga da compilare */}
           <tr style={{ background: "rgba(148, 163, 184, 0.10)" }}>
             <td style={{ ...S.td, fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)", whiteSpace: "nowrap", fontStyle: "italic" }}>
-              🔍 {t("cfg.filterRowLabel")}
+              <Icona emoji="🔍" /> {t("cfg.filterRowLabel")}
             </td>
             <td style={S.td}>
               <input style={{ ...S.input, fontSize: 11 }} placeholder={t("cfg.filterPh")} value={fltId}
@@ -593,7 +594,7 @@ export function TagsTab({ scheda }: { scheda: IdScheda }) {
                     style={{
                       ...S.btn("ghost"),
                       marginRight: 4,
-                      color: tag.expression ? "#818cf8" : "var(--brand-text-subtle, #94a3b8)",
+                      color: tag.expression ? "var(--sws-select-text, #818cf8)" : "var(--brand-text-subtle, #94a3b8)",
                       fontFamily: "monospace",
                       fontWeight: "bold",
                     }}
@@ -606,19 +607,19 @@ export function TagsTab({ scheda }: { scheda: IdScheda }) {
                     style={{
                       ...S.btn("ghost"),
                       marginRight: 4,
-                      color: hasMeta(tag) ? "#38bdf8" : "var(--brand-text-subtle, #94a3b8)",
+                      color: hasMeta(tag) ? "var(--sws-select-text, #38bdf8)" : "var(--brand-text-subtle, #94a3b8)",
                       fontWeight: "bold",
                     }}
                     title={t("cfg.tagMeta")}
                     onClick={() => toggleMeta(i)}
                   >
-                    ⚙
+                    <Icona emoji="⚙" />
                   </button>
                   <button
                     style={{
                       ...S.btn("ghost"),
                       marginRight: 4,
-                      color: tag.generator?.enabled ? "#34d399" : "var(--brand-text-subtle, #94a3b8)",
+                      color: tag.generator?.enabled ? "var(--sws-success-text, #34d399)" : "var(--brand-text-subtle, #94a3b8)",
                       fontWeight: "bold",
                     }}
                     title={t("cfg.tagGenerator")}
@@ -627,7 +628,7 @@ export function TagsTab({ scheda }: { scheda: IdScheda }) {
                     ∿
                   </button>
                   {dichiaratiSalvati.has(tag.id) && (
-                    <button style={S.btnXs} title={t("cfg.renameTag")} onClick={() => setRinominaDi(tag.id)}>✎</button>
+                    <button style={S.btnXs} title={t("cfg.renameTag")} onClick={() => setRinominaDi(tag.id)}><Icona emoji="✎" /></button>
                   )}
                   {/* Fase 0c: una variabile usata non si cancella — al salvataggio
                       rinascerebbe (regola 0b). Prima si tolgono i riferimenti. */}
@@ -692,7 +693,7 @@ export function TagsTab({ scheda }: { scheda: IdScheda }) {
                 </tr>
               )}
               {metaOpen.has(i) && (
-                <tr style={{ background: "#0a1628" }}>
+                <tr style={{ background: "var(--sws-sunken, #0a1628)" }}>
                   <td colSpan={8} style={{ ...S.td, paddingTop: 6, paddingBottom: 8 }}>
                     {tag.type_ref ? (
                       // Una struttura non ha un'unità sua: ce l'hanno i membri del
@@ -762,14 +763,14 @@ export function TagsTab({ scheda }: { scheda: IdScheda }) {
                             </label>
                           </div>
                           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
-                            <span style={{ fontSize: 10, color: "#38bdf8", width: 90, alignSelf: "center" }}>{t("cfg.tagScaling")}</span>
+                            <span style={{ fontSize: 10, color: "var(--sws-select-text, #38bdf8)", width: 90, alignSelf: "center" }}>{t("cfg.tagScaling")}</span>
                             {numCell("Raw min", "raw_min")}
                             {numCell("Raw max", "raw_max")}
                             {numCell("Eng min", "eng_min")}
                             {numCell("Eng max", "eng_max")}
                           </div>
                           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
-                            <span style={{ fontSize: 10, color: "#f59e0b", width: 90, alignSelf: "center" }}>{t("cfg.tagLimits")}</span>
+                            <span style={{ fontSize: 10, color: "var(--sws-warning-text, #f59e0b)", width: 90, alignSelf: "center" }}>{t("cfg.tagLimits")}</span>
                             {numCell("Lo-Lo", "limit_lo_lo")}
                             {numCell("Lo", "limit_lo")}
                             {numCell("Hi", "limit_hi")}
@@ -785,14 +786,14 @@ export function TagsTab({ scheda }: { scheda: IdScheda }) {
                 </tr>
               )}
               {(exprOpen.has(i) || !!tag.expression) && (
-                <tr style={{ background: "#0a1628" }}>
+                <tr style={{ background: "var(--sws-sunken, #0a1628)" }}>
                   <td colSpan={8} style={{ ...S.td, paddingTop: 4, paddingBottom: 6 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ fontSize: 11, color: "#818cf8", minWidth: 70, fontFamily: "monospace" }}>
+                      <span style={{ fontSize: 11, color: "var(--sws-select-text, #818cf8)", minWidth: 70, fontFamily: "monospace" }}>
                         {t("cfgUi.lambdaEspressione")}
                       </span>
                       <input
-                        style={{ ...S.input, flex: 1, fontFamily: "monospace", fontSize: 12, color: "#c4b5fd" }}
+                        style={{ ...S.input, flex: 1, fontFamily: "monospace", fontSize: 12, color: "var(--sws-select-text, #c4b5fd)" }}
                         placeholder='es. tags["motor.v"] * tags["motor.i"]'
                         value={tag.expression ?? ""}
                         onChange={(e) => updateTag(i, { expression: e.target.value || undefined })}
@@ -803,10 +804,10 @@ export function TagsTab({ scheda }: { scheda: IdScheda }) {
                 </tr>
               )}
               {(genOpen.has(i) || !!tag.generator) && (
-                <tr style={{ background: "#0a1628" }}>
+                <tr style={{ background: "var(--sws-sunken, #0a1628)" }}>
                   <td colSpan={8} style={{ ...S.td, paddingTop: 6, paddingBottom: 8 }}>
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
-                      <span style={{ fontSize: 11, color: "#34d399", width: 90, fontFamily: "monospace" }}>
+                      <span style={{ fontSize: 11, color: "var(--sws-success-text, #34d399)", width: 90, fontFamily: "monospace" }}>
                         ∿ {t("cfg.tagGenerator")}
                       </span>
                       <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, color: "var(--brand-text-subtle, #64748b)" }}>
@@ -900,8 +901,8 @@ export function TagsTab({ scheda }: { scheda: IdScheda }) {
                                border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 3 }}>{t("cfgUi.fromSource")}</span>
                 <button
                   title={t("cfg.addTagWithHistory")}
-                  style={{ fontSize: 11, padding: "2px 8px", background: "#1e3a5f",
-                           color: "#93c5fd", border: "1px solid #1e40af", borderRadius: 3, cursor: "pointer" }}
+                  style={{ fontSize: 11, padding: "2px 8px", background: "var(--sws-select-bg, #1e3a5f)",
+                           color: "var(--sws-select-text, #93c5fd)", border: "1px solid var(--sws-select-border, #1e40af)", borderRadius: 3, cursor: "pointer" }}
                   onClick={() => setTags(prev => [...prev, {
                     id, data_type: "float" as TagDataType, description: "", history: true,
                     datastore_id: datastoreIds[0]?.id,

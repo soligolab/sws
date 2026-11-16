@@ -187,6 +187,16 @@ pub fn source_for_project(
     source_for(obj, elenco)
 }
 
+/// The custom symbols of the project, from the same list `source_for_project`
+/// keeps: downloaded once, the first time somebody asks. For the ports of
+/// the ones drawn as free SVG (`simbolo_lib::manifest_for_pipe`).
+pub fn custom_symbols(base_url: &str, rt: &tokio::runtime::Handle) -> Vec<CustomSymbol> {
+    let mut guard = simboli().lock().unwrap_or_else(|e| e.into_inner());
+    guard
+        .get_or_insert_with(|| fetch_custom_symbols(base_url, rt))
+        .clone()
+}
+
 /// Legge `custom_symbols` da `/api/project`.
 ///
 /// Un fallimento non è fatale: si torna un elenco vuoto, i simboli custom
@@ -313,7 +323,7 @@ mod tests {
         CustomSymbol {
             id: id.to_string(),
             svg: Some(svg.to_string()),
-            url: String::new(),
+            ..Default::default()
         }
     }
 
@@ -345,7 +355,7 @@ mod tests {
         let c = CustomSymbol {
             id: "mio".into(),
             url: "https://e.example/x.svg".into(),
-            svg: None,
+            ..Default::default()
         };
         assert_eq!(
             source_for(&o, &[c]),
