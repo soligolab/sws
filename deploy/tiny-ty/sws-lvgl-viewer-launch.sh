@@ -107,6 +107,10 @@ set --
 [ -n "$SWS_CICALINO" ] && [ -d "$SWS_CICALINO" ] && \
     set -- "$@" --cicalino "$SWS_CICALINO"
 
+# LVGL's [Info] lines are off unless SWS_LVGL_LOG=info is set in viewer.env
+# (debug only: hundreds of lines a minute with the control panel open).
+[ -n "${SWS_LVGL_LOG:-}" ] && export SWS_LVGL_LOG
+
 echo "[sws] viewer: schermo $SWS_DRM_CARD, touch $SWS_TOUCH, runtime $SWS_BASE_URL, $*" >&2
 
 exec "$SWS_INSTALL/bin/sws-lvgl-viewer" \

@@ -142,6 +142,15 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   Fornitori e chiavi una riga dice quale chiave usa il progetto. HOWTO 32.
 
 ### Corretto
+- **Pannello di controllo LVGL: un tocco, un tasto.** I tasti agiscono alla pressione e il fotogramma dopo il
+  pannello si ricostruisce: il tasto nuovo sotto il dito ancora giù riceveva una pressione sua, e la tastiera del
+  Wi-Fi scriveva più volte lo stesso carattere (TY570, 16-11-2026). Ora dopo ogni pressione l'input aspetta il
+  rilascio (`lv_indev_wait_release`); il mezzo secondo di attesa sui tasti `⇧`/`?123`/`abc`/`👁`, che curava lo
+  stesso difetto solo per loro e rendeva la tastiera lenta, è tolto.
+- **Viewer LVGL: il log non si riempie più col pannello di controllo aperto.** Erano 175-513 righe al minuto di
+  `[Info] flex_update: update 0x… container`. Le righe `[Info]` e `[Trace]` di LVGL ora si stampano solo con
+  `SWS_LVGL_LOG=info` (sul Tiny TY in `/etc/sws/viewer.env`); e il filtro dei messaggi ripetuti ignora gli
+  indirizzi `0x…`, che lo rendevano inutile e facevano crescere la sua tabella finché il viewer restava acceso.
 - **Tiny TY: l'installatore toglie `tyx_panelcontrol` di Pixsys** e SWS lavora su un sistema pulito
   (`deploy/tiny-ty/remove-panelcontrol.sh`, con `--restore` per rimetterlo). L'UPS lo sorveglia il runtime
   (`--power-fail-input`: luce a zero e riavvio a corrente mancata), l'alimentazione USB la accende

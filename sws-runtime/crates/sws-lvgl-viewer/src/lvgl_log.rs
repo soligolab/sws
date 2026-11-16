@@ -29,6 +29,7 @@
 
 use std::collections::HashMap;
 use std::ffi::CStr;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 
 /// Quante volte si è già visto ogni messaggio.
@@ -48,7 +49,27 @@ static VISTI: Mutex<Option<HashMap<String, u64>>> = Mutex::new(None);
 /// esattamente come prima. È il modo silenzioso in cui questo modulo può
 /// smettere di funzionare, e per questo sta scritto qui.
 pub fn install() {
+    VERBOSE.store(verbose_from_env(), Ordering::Relaxed);
     unsafe { lvgl_sys::lv_log_register_print_cb(Some(print_cb)) };
+}
+
+/// Whether LVGL's `[Info]` and `[Trace]` lines are printed too.
+///
+/// Off by default: with the control panel open, LVGL's `[Info] flex_update`
+/// alone was 175-513 lines a minute in the journal of the TY570 (16-11-2026),
+/// for nothing an operator or a diagnosis needs. The build keeps
+/// `LV_LOG_LEVEL_INFO`, so that `SWS_LVGL_LOG=info` (in `/etc/sws/viewer.env`
+/// on a Tiny TY) brings them back without a new binary.
+static VERBOSE: AtomicBool = AtomicBool::new(false);
+
+fn verbose_from_env() -> bool {
+    std::env::var("SWS_LVGL_LOG").is_ok_and(|v| v.eq_ignore_ascii_case("info"))
+}
+
+/// Whether a line of this level is printed: warnings, errors and `[User]`
+/// always, `[Info]` and `[Trace]` only in verbose mode.
+fn level_printed(msg: &str, verbose: bool) -> bool {
+    verbose || !(msg.starts_with("[Info]") || msg.starts_with("[Trace]"))
 }
 
 /// Il messaggio senza le parti che cambiano a ogni occorrenza.
@@ -59,6 +80,35 @@ pub fn install() {
 /// 30 s invece di ~7.000, cioè quasi nessun guadagno. Era il modo silenzioso
 /// in cui questo filtro poteva sembrare installato e non fare quasi niente.
 fn signature(msg: &str) -> String {
+    strip_addresses(&strip_time(msg))
+}
+
+/// Object addresses out of the signature: `update 0xdcaa00 container` and
+/// `update 0xdcc19c container` are the same message. A panel rebuilt at every
+/// touch gives a new address each time, and with the address in the key the
+/// throttling did not bite and the table grew for as long as the viewer ran
+/// (TY570, 16-11-2026).
+fn strip_addresses(msg: &str) -> String {
+    let mut out = String::with_capacity(msg.len());
+    let mut rest = msg;
+    while let Some(i) = rest.find("0x") {
+        let digits = rest[i + 2..]
+            .bytes()
+            .take_while(u8::is_ascii_hexdigit)
+            .count();
+        out.push_str(&rest[..i]);
+        if digits == 0 {
+            out.push_str("0x");
+        } else {
+            out.push_str("0x…");
+        }
+        rest = &rest[i + 2 + digits..];
+    }
+    out.push_str(rest);
+    out
+}
+
+fn strip_time(msg: &str) -> String {
     // Si toglie la prima parentesi tonda, che è il tempo. Non una regex: è una
     // sola forma, sempre la stessa, e cercarla a mano rende evidente cosa si
     // sta togliendo.
@@ -107,6 +157,9 @@ unsafe extern "C" fn print_cb(buf: *const std::os::raw::c_char) {
     // dove un panic sarebbe comportamento indefinito.
     let msg = CStr::from_ptr(buf).to_string_lossy();
     let msg = msg.trim_end_matches(['\n', '\r']);
+    if !level_printed(msg, VERBOSE.load(Ordering::Relaxed)) {
+        return;
+    }
 
     let mut guard = VISTI.lock().unwrap_or_else(|e| e.into_inner());
     let seen = guard.get_or_insert_with(HashMap::new);
@@ -184,6 +237,25 @@ mod tests {
         let a = "lv_obj_create: begin \t(in lv_obj.c line #206)";
         let b = "lv_obj_create: begin \t(in lv_label.c line #206)";
         assert_ne!(signature(a), signature(b), "file diversi, messaggi diversi");
+    }
+
+    #[test]
+    fn addresses_do_not_enter_the_signature() {
+        let a = "[Info]\t(1098.442, +0)\t flex_update: update 0xdcaa00 container \t(in lv_flex.c line #211)";
+        let b = "[Info]\t(1099.001, +3)\t flex_update: update 0xdcc19c container \t(in lv_flex.c line #211)";
+        assert_eq!(signature(a), signature(b));
+        assert_eq!(strip_addresses("a 0x b 0xZ"), "a 0x b 0xZ");
+        assert_eq!(strip_addresses("p=0xAbC1,q"), "p=0x…,q");
+    }
+
+    #[test]
+    fn info_and_trace_only_when_verbose() {
+        assert!(!level_printed("[Info]\t(1.0, +0)\t flex_update", false));
+        assert!(!level_printed("[Trace]\t(1.0, +0)\t x", false));
+        assert!(level_printed("[Warn]\t(1.0, +0)\t glyph", false));
+        assert!(level_printed("[Error]\t(1.0, +0)\t x", false));
+        assert!(level_printed("[User]\t(1.0, +0)\t x", false));
+        assert!(level_printed("[Info]\t(1.0, +0)\t flex_update", true));
     }
 
     #[test]

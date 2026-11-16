@@ -120,6 +120,17 @@ unsafe extern "C" fn sws_control_panel_cb(e: *mut lvgl_sys::lv_event_t) {
     if data.is_null() {
         return;
     }
+    // A key acts on the press, and the next frame rebuilds the panel: the
+    // deleted key resets the touch, and the key rebuilt under the still-down
+    // finger gets a press of its own — the same character again, a frame at a
+    // time (TY570, 16-11-2026: «la tastiera prende un sacco di false
+    // pressioni»). One press per touch: nothing more until the finger lifts.
+    if lvgl_sys::lv_event_get_code(e) == lvgl_sys::lv_event_code_t_LV_EVENT_PRESSED {
+        let indev = lvgl_sys::lv_indev_get_act();
+        if !indev.is_null() {
+            lvgl_sys::lv_indev_wait_release(indev);
+        }
+    }
     match &*(data as *const Action) {
         Action::Open => cp::open(true),
         Action::Close => cp::close(),

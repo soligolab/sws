@@ -1375,33 +1375,9 @@ pub fn form_focus(i: usize) {
     });
 }
 
-/// How soon the same switching key may answer again. The keys fire on the
-/// press, and `?123`/`abc` sit in the same place on both layouts: the touch
-/// redraws the keyboard, and the key that is now under the still-down finger
-/// gets a press of its own — which switches back, and so on, a frame at a
-/// time (TY570, 15-11-2026: «abc fa alternare rapidissimi i due layout»).
-const SWITCH_KEY_AGAIN: Duration = Duration::from_millis(500);
-
-/// Whether a switching key (`⇧`, `?123`, `abc`, `👁`) answers now. `last`
-/// remembers the previous answer of any of them.
-fn switch_key_allowed(last: &mut Option<Instant>, now: Instant) -> bool {
-    if last.is_some_and(|t| now.saturating_duration_since(t) < SWITCH_KEY_AGAIN) {
-        return false;
-    }
-    *last = Some(now);
-    true
-}
-
 /// A key of the on-screen keyboard: a character, `⌫`, `⇧` (capitals),
 /// `?123`/`abc` (symbols), `👁` (show the password).
 pub fn form_key(k: &str) {
-    if matches!(k, "⇧" | "?123" | "abc" | "👁") {
-        static LAST: Mutex<Option<Instant>> = Mutex::new(None);
-        let mut last = LAST.lock().unwrap_or_else(|e| e.into_inner());
-        if !switch_key_allowed(&mut last, Instant::now()) {
-            return;
-        }
-    }
     change(|s| {
         if let Some(f) = s.ntp_form.as_mut() {
             match k {
@@ -2844,31 +2820,6 @@ mod tests {
             ),
             Pointer::Pass
         );
-    }
-
-    #[test]
-    fn a_switching_key_does_not_answer_twice_under_the_same_finger() {
-        let t0 = Instant::now();
-        let mut last = None;
-        assert!(switch_key_allowed(&mut last, t0));
-        // The redrawn key under the finger: the next frames, refused.
-        assert!(!switch_key_allowed(
-            &mut last,
-            t0 + Duration::from_millis(16)
-        ));
-        assert!(!switch_key_allowed(
-            &mut last,
-            t0 + Duration::from_millis(400)
-        ));
-        // A new press, later: answers, and starts the wait again.
-        assert!(switch_key_allowed(
-            &mut last,
-            t0 + Duration::from_millis(600)
-        ));
-        assert!(!switch_key_allowed(
-            &mut last,
-            t0 + Duration::from_millis(700)
-        ));
     }
 
     #[test]
