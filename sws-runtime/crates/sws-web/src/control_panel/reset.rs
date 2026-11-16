@@ -8,6 +8,10 @@
 //! audit log — and everything of the system: network, Wi-Fi, time.
 //!
 //! The PIN is asked again: a panel left open must not be enough.
+//!
+//! `keep_cloud` (16-11-2026): only the application goes — project, history,
+//! users — and the cloud pairing stays. The panel comes back paired and
+//! without users, waiting for its first project from the cloud IDE.
 
 use super::{bad_request, gate, initial_pin, pin, project_config, LOCKOUT, MAX_FAILURES};
 use crate::router::AppState;
@@ -50,10 +54,17 @@ fn remove(path: &Path) -> std::io::Result<bool> {
     Ok(true)
 }
 
-/// Empties the projects folder and takes the pairing, the users and the
-/// project's traces out of the configuration. Returns what it removed; goes
-/// on after an error, and reports the first.
-pub fn wipe(projects_root: &Path, config_dir: &Path) -> (Vec<String>, Option<String>) {
+/// The pairing file, which `keep_cloud` leaves in place.
+const PAIRING: &str = "abbinamento.json";
+
+/// Empties the projects folder and takes the pairing (unless `keep_cloud`),
+/// the users and the project's traces out of the configuration. Returns what
+/// it removed; goes on after an error, and reports the first.
+pub fn wipe(
+    projects_root: &Path,
+    config_dir: &Path,
+    keep_cloud: bool,
+) -> (Vec<String>, Option<String>) {
     let mut removed = Vec::new();
     let mut failed = None;
     let mut take = |path: std::path::PathBuf| match remove(&path) {
@@ -70,6 +81,9 @@ pub fn wipe(projects_root: &Path, config_dir: &Path) -> (Vec<String>, Option<Str
         }
     }
     for name in CONFIG_GOES {
+        if keep_cloud && name == PAIRING {
+            continue;
+        }
         take(config_dir.join(name));
     }
     (removed, failed)
@@ -78,6 +92,8 @@ pub fn wipe(projects_root: &Path, config_dir: &Path) -> (Vec<String>, Option<Str
 #[derive(Deserialize)]
 pub struct ResetBody {
     pin: String,
+    #[serde(default)]
+    keep_cloud: bool,
 }
 
 pub async fn reset(State(s): State<AppState>, Json(body): Json<ResetBody>) -> Response {
@@ -106,15 +122,20 @@ pub async fn reset(State(s): State<AppState>, Json(body): Json<ResetBody>) -> Re
     if s.ide_only {
         return bad_request("an IDE has no device to give back".into());
     }
-    s.audit.log("control_panel.reset", None, json!({}));
-    tracing::warn!("control panel: project, users and pairing are being removed");
+    let keep_cloud = body.keep_cloud;
+    s.audit.log("control_panel.reset", None, json!({ "keep_cloud": keep_cloud }));
+    if keep_cloud {
+        tracing::warn!("control panel: project and users are being removed, the cloud pairing stays");
+    } else {
+        tracing::warn!("control panel: project, users and pairing are being removed");
+    }
 
     // The factory boot image first, while the runtime still knows how.
     let _ = crate::boot_image::ripristina_fabbrica(&s.config_dir).await;
     // Nothing writes into the project while its folder goes.
     s.supervisor.stop_all().await;
     let (projects_root, config_dir) = (s.projects_root.clone(), s.config_dir.clone());
-    let (removed, failed) = tokio::task::spawn_blocking(move || wipe(&projects_root, &config_dir))
+    let (removed, failed) = tokio::task::spawn_blocking(move || wipe(&projects_root, &config_dir, keep_cloud))
         .await
         .unwrap_or_else(|e| (Vec::new(), Some(e.to_string())));
     tracing::warn!(removed = removed.len(), ?failed, "control panel: reset");
@@ -165,7 +186,7 @@ mod tests {
         ] {
             std::fs::write(config.join(f), "x").unwrap();
         }
-        let (removed, failed) = wipe(&projects, &config);
+        let (removed, failed) = wipe(&projects, &config, false);
         assert_eq!(failed, None);
         assert_eq!(removed.len(), 6);
         // The folder stays, empty: the next deploy lands there.
@@ -184,6 +205,24 @@ mod tests {
             ]
         );
         // Again: nothing left to remove, and no error.
-        assert_eq!(wipe(&projects, &config), (Vec::new(), None));
+        assert_eq!(wipe(&projects, &config, false), (Vec::new(), None));
+    }
+
+    #[test]
+    fn keep_cloud_leaves_the_pairing_and_takes_the_rest() {
+        let d = tempfile::tempdir().unwrap();
+        let (projects, config) = (d.path().join("projects"), d.path().join("config"));
+        std::fs::create_dir_all(projects.join("plant")).unwrap();
+        std::fs::write(projects.join("plant/users.yaml"), "x").unwrap();
+        std::fs::create_dir_all(&config).unwrap();
+        for f in ["abbinamento.json", "utenti_dispositivo.yaml", "known_projects.json"] {
+            std::fs::write(config.join(f), "x").unwrap();
+        }
+        let (_, failed) = wipe(&projects, &config, true);
+        assert_eq!(failed, None);
+        assert_eq!(std::fs::read_dir(&projects).unwrap().count(), 0);
+        assert!(config.join("abbinamento.json").exists());
+        assert!(!config.join("utenti_dispositivo.yaml").exists());
+        assert!(!config.join("known_projects.json").exists());
     }
 }

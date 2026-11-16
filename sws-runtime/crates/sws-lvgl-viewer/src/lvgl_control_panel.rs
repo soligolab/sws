@@ -95,7 +95,7 @@ enum Action {
     CalibrateRedo,
     CalibrateCancel,
     PanelCorner(cp::RebootCorner),
-    ResetAsk,
+    ResetAsk(bool),
     ResetCancel,
     PanelHold(i8),
     PanelSize(i16),
@@ -185,7 +185,7 @@ unsafe extern "C" fn sws_control_panel_cb(e: *mut lvgl_sys::lv_event_t) {
         Action::CalibrateRedo => cp::calibrate_redo(),
         Action::CalibrateCancel => cp::calibrate_cancel(),
         Action::PanelCorner(c) => cp::panel_corner_set(*c),
-        Action::ResetAsk => cp::reset_ask(),
+        Action::ResetAsk(keep_cloud) => cp::reset_ask(*keep_cloud),
         Action::ResetCancel => cp::reset_cancel(),
         Action::PanelHold(d) => cp::panel_hold_step(*d),
         Action::PanelSize(d) => cp::panel_size_step(*d),
@@ -301,8 +301,11 @@ impl Overlay {
     /// Every key changes the state and the next frame rebuilds the panel, so a
     /// key typed quickly could be rebuilt under the finger between press and
     /// release, and its click was lost (TY570, 14-11-2026: «il tastierino del
-    /// PIN spesso perde la pressione del tasto»). Lists that scroll stay on
-    /// `on`: a click does not fire after a drag, a press would.
+    /// PIN spesso perde la pressione del tasto»). The keyboards' Cancel and
+    /// Done too: a finger that moves a pixel turned their click into a drag,
+    /// and «Connect» on the Wi-Fi keyboard took dozens of presses (TY570,
+    /// 16-11-2026). Lists that scroll stay on `on`: a click does not fire
+    /// after a drag, a press would.
     unsafe fn on_press(&mut self, p: P, a: Action) {
         let ctx = Box::into_raw(Box::new(a));
         self.ctxs.push(ctx);
@@ -519,7 +522,15 @@ impl Overlay {
         flex(card, lvgl_sys::lv_flex_flow_t_LV_FLEX_FLOW_COLUMN, 8);
         label(
             card,
-            &cp::word(lang, if s.resetting { "resetTitle" } else { "title" }, &[]),
+            &cp::word(
+                lang,
+                match (s.resetting, s.reset_keep_cloud) {
+                    (true, true) => "resetKeepCloudTitle",
+                    (true, false) => "resetTitle",
+                    _ => "title",
+                },
+                &[],
+            ),
             20,
             if s.resetting { BAD } else { TEXT },
         );
@@ -527,10 +538,10 @@ impl Overlay {
             card,
             &cp::word(
                 lang,
-                if s.resetting {
-                    "resetPinHelp"
-                } else {
-                    "pinHelp"
+                match (s.resetting, s.reset_keep_cloud) {
+                    (true, true) => "resetKeepCloudPinHelp",
+                    (true, false) => "resetPinHelp",
+                    _ => "pinHelp",
                 },
                 &[],
             ),
@@ -750,7 +761,8 @@ impl Overlay {
         let typing_ip = s.section == Section::Network && s.draft.as_ref().is_some_and(|d| d.manual);
         let typing_time = s.section == Section::Time && s.manual_time.is_some() && s.tz.is_none();
         let typing_ntp = s.section == Section::Time && s.ntp_form.is_some();
-        let typing_text = typing_ntp || (s.section == Section::Wifi && s.wifi_form.is_some());
+        let typing_text = typing_ntp
+            || (s.section == Section::Wifi && s.wifi_form.as_ref().is_some_and(|f| !f.submitting));
         let typing_tz = s.section == Section::Time && s.tz.as_ref().is_some_and(|p| p.typing);
         let pending = matches!(s.section, Section::Network | Section::Wifi) && s.pending.is_some();
         let keypad_h: i16 = if h < 520 { 104 } else { 116 };
@@ -1134,7 +1146,7 @@ impl Overlay {
         let cancel = button(k, &cp::word(lang, "cancel", &[]), PANEL2, TEXT, 14);
         lvgl_sys::lv_obj_set_flex_grow(cancel, 1);
         lvgl_sys::lv_obj_set_height(cancel, kh);
-        self.on(
+        self.on_press(
             cancel,
             if ip {
                 Action::EditCancel
@@ -1152,7 +1164,7 @@ impl Overlay {
         lvgl_sys::lv_obj_set_flex_grow(apply, 1);
         lvgl_sys::lv_obj_set_height(apply, kh);
         if valid {
-            self.on(
+            self.on_press(
                 apply,
                 if ip {
                     Action::EditApply
@@ -1351,6 +1363,19 @@ impl Overlay {
         };
         let pending = s.pending.is_some();
         let hotspot_on = wf.mode == "hotspot";
+        // Sent: the keyboard goes at once and says what is happening, until
+        // the device answers (TY570, 16-11-2026: nothing moved while the
+        // device was joining, and «Connect» was pressed again and again).
+        if let Some(f) = s.wifi_form.as_ref().filter(|f| f.submitting) {
+            card(main, |c| {
+                let key = if f.hotspot { "hotspotStarting" } else { "wifiJoining" };
+                wrap(
+                    label(c, &cp::word(lang, key, &[("ssid", &f.ssid)]), 17, TEXT),
+                    pct(100),
+                );
+            });
+            return None;
+        }
         // Typing: only the form, so that the keyboard below leaves it in view.
         if let Some(f) = &s.wifi_form {
             return self.wifi_form(main, f, lang);
@@ -1804,7 +1829,7 @@ impl Overlay {
             14,
         );
         lvgl_sys::lv_obj_set_size(b, kw * 3, kh);
-        self.on(b, Action::TzKey("⏎".into()));
+        self.on_press(b, Action::TzKey("⏎".into()));
     }
 
     /// Letters, capitals and symbols, then Cancel and Done (join, or turn the
@@ -1870,11 +1895,11 @@ impl Overlay {
         self.on_press(b, Action::FormKey(" ".into()));
         let b = button(r, &cp::word(lang, "cancel", &[]), PANEL2, TEXT, 14);
         lvgl_sys::lv_obj_set_size(b, kw * 2, kh);
-        self.on(b, Action::FormCancel);
+        self.on_press(b, Action::FormCancel);
         let b = button(r, &f.done, ACCENT, (255, 255, 255), 14);
         lvgl_sys::lv_obj_set_size(b, kw * 3, kh);
         if f.valid {
-            self.on(b, Action::FormSubmit);
+            self.on_press(b, Action::FormSubmit);
         } else {
             dim(b);
         }
@@ -2355,26 +2380,66 @@ impl Overlay {
         if s.reset_done {
             let c = card(main, |_| {});
             wrap(
-                label(c, &cp::word(lang, "resetDone", &[]), 15, OK),
+                label(
+                    c,
+                    &cp::word(
+                        lang,
+                        if s.reset_keep_cloud { "resetKeepCloudDone" } else { "resetDone" },
+                        &[],
+                    ),
+                    15,
+                    OK,
+                ),
                 pct(100),
             );
         } else {
+            // One red card, one block per way of giving the device back:
+            // title, what it does, and its button on the right, with a line
+            // between the two (TY570, 16-11-2026: the label column was too
+            // narrow for the second title and the buttons sat half way).
             let c = card(main, |_| {});
             stile::bordo(c, Some(BAD), 1.0, stile::MAIN);
-            let r = row(c, &cp::word(lang, "reset", &[]));
-            let b = button(
-                r,
-                &cp::word(lang, "resetButton", &[]),
-                BAD,
-                (255, 255, 255),
-                15,
-            );
-            self.on(b, Action::ResetAsk);
-            wrap(
-                label(c, &cp::word(lang, "resetHelp", &[]), 13, MUTED),
-                pct(100),
-            );
+            lvgl_sys::lv_obj_set_style_pad_row(c, 6, stile::MAIN);
+            label(c, &cp::word(lang, "resetSection", &[]), 17, BAD);
+            self.reset_block(c, lang, "reset", "resetHelp", &[], BAD, (255, 255, 255), false);
+            if let Some(cloud) = s.info.as_ref().and_then(|i| i.cloud.as_deref()) {
+                let line = transparent(c);
+                lvgl_sys::lv_obj_set_size(line, pct(100), 1);
+                stile::sfondo(line, LINE, stile::MAIN);
+                stile::margini(line, 0, 0, stile::MAIN);
+                self.reset_block(
+                    c,
+                    lang,
+                    "resetKeepCloud",
+                    "resetKeepCloudHelp",
+                    &[("cloud", cloud)],
+                    PANEL2,
+                    (241, 176, 173),
+                    true,
+                );
+            }
         }
+    }
+
+    /// One way of giving the device back: its title, what it removes, and the
+    /// button that asks the PIN.
+    #[allow(clippy::too_many_arguments)]
+    unsafe fn reset_block(
+        &mut self,
+        c: P,
+        lang: &str,
+        title: &str,
+        help: &str,
+        values: &[(&str, &str)],
+        bg: Rgb,
+        fg: Rgb,
+        keep_cloud: bool,
+    ) {
+        wrap(label(c, &cp::word(lang, title, &[]), 15, TEXT), pct(100));
+        wrap(label(c, &cp::word(lang, help, values), 13, MUTED), pct(100));
+        let a = actions(c);
+        let b = button(a, &cp::word(lang, "resetButton", &[]), bg, fg, 15);
+        self.on(b, Action::ResetAsk(keep_cloud));
     }
 }
 

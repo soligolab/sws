@@ -177,6 +177,8 @@ export interface DeviceInfo {
   hostname: string;
   sws_version: string;
   initial_pin: string | null;
+  /** The cloud the panel is paired to, if any. */
+  cloud?: string | null;
 }
 
 /** A refused PIN, with the seconds to wait when the device stopped listening. */
@@ -260,13 +262,14 @@ export function session(token: string) {
     timezones: () => call<Zone[]>("/timezones"),
     reboot: () => call<void>("/reboot", { method: "POST" }),
     powerOff: () => call<void>("/power-off", { method: "POST" }),
-    /** Gives the device back: project, history, users and pairing removed. The
-     *  PIN is asked again; `false` = the PIN was wrong. */
-    reset: async (pin: string): Promise<boolean> => {
+    /** Gives the device back: project, history, users and pairing removed —
+     *  or, with `keepCloud`, everything but the cloud pairing. The PIN is asked
+     *  again; `false` = the PIN was wrong. */
+    reset: async (pin: string, keepCloud = false): Promise<boolean> => {
       const res = await fetch("/api/control-panel/reset", {
         method: "POST",
         headers: { [SESSION_HEADER]: token, "Content-Type": "application/json" },
-        body: JSON.stringify({ pin }),
+        body: JSON.stringify({ pin, keep_cloud: keepCloud }),
       });
       if (res.status === 401) throw new SessionExpired();
       if (res.status === 403) return false;

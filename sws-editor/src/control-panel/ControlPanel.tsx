@@ -250,6 +250,17 @@ function errorText(e: string, t: (k: string) => string): string {
   return e;
 }
 
+/** One way of giving the device back: title, what it removes, its button on the right. */
+function ResetBlock({ title, help, children }: { title: string; help: string; children: ReactNode }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <div style={{ color: C.text, fontSize: 15 }}>{title}</div>
+      <div style={{ color: C.muted, fontSize: 13 }}>{help}</div>
+      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 4 }}>{children}</div>
+    </div>
+  );
+}
+
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return <div style={row}><div style={lbl}>{label}</div><div style={{ fontSize: 16 }}>{children}</div></div>;
 }
@@ -1273,14 +1284,14 @@ function DeviceSection({ api, guard, info, caps }: {
   const [ask, setAsk] = useState<"reboot" | "power_off" | null>(null);
   const [done, setDone] = useState<string | null>(null);
   // Giving the device back: the PIN again, then it goes.
-  const [reset, setReset] = useState<{ pin: string; wrong: boolean } | null>(null);
-  const [resetDone, setResetDone] = useState(false);
+  const [reset, setReset] = useState<{ pin: string; wrong: boolean; keepCloud: boolean } | null>(null);
+  const [resetDone, setResetDone] = useState<"all" | "keep-cloud" | null>(null);
   if (!info) return <div style={{ color: C.muted }}>{t("controlPanel.loading")}</div>;
   const doReset = async () => {
     if (!reset || !reset.pin) return;
     try {
-      if (await api.reset(reset.pin)) { setReset(null); setResetDone(true); }
-      else setReset({ pin: "", wrong: true });
+      if (await api.reset(reset.pin, reset.keepCloud)) { setReset(null); setResetDone(reset.keepCloud ? "keep-cloud" : "all"); }
+      else setReset({ ...reset, pin: "", wrong: true });
     } catch (e) {
       void guard(Promise.reject(e));
     }
@@ -1324,26 +1335,33 @@ function DeviceSection({ api, guard, info, caps }: {
         </div>
       )}
     </div>
-    <div style={{ ...card, borderColor: "#7b3633" }} data-testid="reset-card">
-      {resetDone ? <div style={{ color: C.ok }}>{t("controlPanel.resetDone")}</div> : (<>
-        <Row label={t("controlPanel.reset")}>
-          {reset === null && (
+    <div style={{ ...card, borderColor: "#7b3633", display: "flex", flexDirection: "column", gap: 8 }} data-testid="reset-card">
+      {resetDone ? <div style={{ color: C.ok }}>{t(resetDone === "keep-cloud" ? "controlPanel.resetKeepCloudDone" : "controlPanel.resetDone")}</div> : (<>
+        <div style={{ color: C.bad, fontSize: 17, fontWeight: 600 }}>{t("controlPanel.resetSection")}</div>
+        {reset === null ? (<>
+          <ResetBlock title={t("controlPanel.reset")} help={t("controlPanel.resetHelp")}>
             <button type="button" style={{ ...btnPrimary, background: C.bad, borderColor: C.bad }}
-              data-testid="reset-ask" onClick={() => setReset({ pin: "", wrong: false })}>{t("controlPanel.resetButton")}</button>
-          )}
-        </Row>
-        {reset !== null && (
-          <div style={row}>
-            <span style={{ color: C.muted, fontSize: 13 }}>{t("controlPanel.resetPinHelp")}</span>
+              data-testid="reset-ask" onClick={() => setReset({ pin: "", wrong: false, keepCloud: false })}>{t("controlPanel.resetButton")}</button>
+          </ResetBlock>
+          {info.cloud && (<>
+            <div style={{ borderTop: `1px solid ${C.line}`, margin: "4px 0" }} />
+            <ResetBlock title={t("controlPanel.resetKeepCloud")} help={t("controlPanel.resetKeepCloudHelp", { cloud: info.cloud })}>
+              <button type="button" style={{ ...btn, borderColor: C.bad, color: "#f1b0ad" }}
+                data-testid="reset-keep-cloud-ask" onClick={() => setReset({ pin: "", wrong: false, keepCloud: true })}>{t("controlPanel.resetButton")}</button>
+            </ResetBlock>
+          </>)}
+        </>) : (<>
+          <div style={{ color: C.text, fontSize: 15 }}>{t(reset.keepCloud ? "controlPanel.resetKeepCloud" : "controlPanel.reset")}</div>
+          <div style={{ color: C.muted, fontSize: 13 }}>{t(reset.keepCloud ? "controlPanel.resetKeepCloudPinHelp" : "controlPanel.resetPinHelp")}</div>
+          <div style={{ ...row, justifyContent: "flex-end", flexWrap: "wrap" }}>
             <CampoPassword value={reset.pin} autoComplete="off" autoFocus data-testid="reset-pin" style={{ ...field, width: 140 }}
-              onChange={(e) => setReset({ pin: e.target.value, wrong: false })} />
+              onChange={(e) => setReset({ ...reset, pin: e.target.value, wrong: false })} />
             <button type="button" style={btn} onClick={() => setReset(null)}>{t("controlPanel.cancel")}</button>
             <button type="button" style={{ ...btnPrimary, background: C.bad, borderColor: C.bad }} disabled={!reset.pin}
               data-testid="reset-confirm" onClick={() => void doReset()}>{t("controlPanel.resetConfirm")}</button>
           </div>
-        )}
-        {reset?.wrong && <div style={{ color: "#f1b0ad", fontSize: 13 }}>{t("controlPanel.resetPinWrong")}</div>}
-        <div style={{ color: C.muted, fontSize: 13 }}>{t("controlPanel.resetHelp")}</div>
+          {reset.wrong && <div style={{ color: "#f1b0ad", fontSize: 13 }}>{t("controlPanel.resetPinWrong")}</div>}
+        </>)}
       </>)}
     </div>
   </>);

@@ -389,6 +389,8 @@ async fn info(State(s): State<AppState>) -> Response {
         "hostname": hostname,
         "sws_version": env!("CARGO_PKG_VERSION"),
         "initial_pin": if cfg.pin_hash.is_none() { initial_pin() } else { None },
+        // The cloud the panel is paired to: the reset can then keep it.
+        "cloud": s.abbinamento.tunnel().map(|(name, _)| name),
     }))
     .into_response()
 }

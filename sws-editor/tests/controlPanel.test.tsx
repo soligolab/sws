@@ -138,8 +138,30 @@ describe("ControlPanel", () => {
     fireEvent.click(screen.getByTestId("reset-confirm"));
     expect(await screen.findByText(/Fatto|Done/)).toBeTruthy();
     const sent = calls.filter((c) => c.path === "/api/control-panel/reset");
-    expect(sent.map((c) => c.body)).toEqual([JSON.stringify({ pin: "000000" }), JSON.stringify({ pin: "06e990" })]);
+    expect(sent.map((c) => c.body)).toEqual([
+      JSON.stringify({ pin: "000000", keep_cloud: false }),
+      JSON.stringify({ pin: "06e990", keep_cloud: false }),
+    ]);
     expect(sent.every((c) => c.token === "tok")).toBe(true);
+    // Not paired to a cloud: no option to keep it.
+    expect(screen.queryByTestId("reset-keep-cloud-ask")).toBeNull();
+  });
+
+  it("a panel paired to the cloud can remove only the project and keep the pairing", async () => {
+    const calls = fakeRuntime({
+      "GET /api/control-panel/info": () => reply(200, { model: "TY570-1AD-P1", serial: "P1", hostname: "ty570-1ad-p1-06e990", sws_version: "2.26.0", initial_pin: "06e990", cloud: "tunnel.soligo.net" }),
+      "POST /api/control-panel/reset": () => reply(202),
+    });
+    render(<ControlPanel onClose={() => {}} />);
+    await typePin("06e990");
+    await screen.findByTestId("card-eth0");
+    fireEvent.click(screen.getByTestId("control-panel-section-device"));
+    fireEvent.click(await screen.findByTestId("reset-keep-cloud-ask"));
+    fireEvent.change(screen.getByTestId("reset-pin"), { target: { value: "06e990" } });
+    fireEvent.click(screen.getByTestId("reset-confirm"));
+    expect(await screen.findByText(/ancora abbinato al cloud|still paired to the cloud/)).toBeTruthy();
+    const sent = calls.filter((c) => c.path === "/api/control-panel/reset");
+    expect(sent.map((c) => c.body)).toEqual([JSON.stringify({ pin: "06e990", keep_cloud: true })]);
   });
 
   it("a static address is sent, then the confirmation bar counts down and confirms", async () => {

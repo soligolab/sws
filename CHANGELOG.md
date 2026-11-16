@@ -12,6 +12,12 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Aggiunto
+- **Pannello di controllo: eliminare solo il progetto e restare nel cloud.** Accanto a «Eliminare progetto e
+  abbinamento», un pannello abbinato al cloud ha «Eliminare solo il progetto, restando nel cloud»: vanno progetto,
+  storico e utenti, resta `abbinamento.json`. Il pannello riparte abbinato e senza utenti, e il primo deploy dall'IDE
+  nel cloud porta progetto e utenti. Web e LVGL; `POST /api/control-panel/reset` con `keep_cloud`, e `GET
+  /api/control-panel/info` dice a quale cloud è abbinato.
+
 - **Pannello di controllo: l'angolo che riavvia.** In «Schermo» si sceglie l'angolo che, tenuto premuto, riavvia
   il dispositivo (o nessuno). Sui TC/WP è l'impostazione di PixsysOS (`Config1.TouchReboot`); sul Tiny TY lo
   sorveglia il viewer LVGL, e lì si scelgono anche il tempo di pressione, il lato dell'angolo e se chiedere
@@ -150,6 +156,11 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   Le istruzioni del pacchetto usano `scp -O` e `/var/tmp` (SFTP spento, `/tmp` di 32 MB).
 
 ### Corretto
+- **Pannello di controllo LVGL: «Collegati» del Wi-Fi risponde al primo tocco, e si vede che sta lavorando.** I tasti
+  Annulla e Fatto delle tastiere agivano al rilascio, e un dito che si muove di un pixel trasformava il tocco in un
+  trascinamento: «Collegati» andava premuto decine di volte (TY570, 16-11-2026). Ora agiscono alla pressione, come gli
+  altri tasti; e appena premuto la tastiera si chiude e compare «Connessione a … in corso…» finché il dispositivo
+  risponde (se rifiuta, torna il modulo con l'errore).
 - **Deploy: il primo porta gli utenti da sé, i successivi solo se sono cambiati.** Un pannello appena abbinato,
   senza utenti, rifiutava il deploy del solo progetto («Invia ora», al salvataggio) dicendo che il progetto non aveva
   un Admin, anche quando l'aveva (TY570, 16-11-2026). Ora il primo deploy verso un pannello senza utenti porta utenti

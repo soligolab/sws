@@ -487,6 +487,9 @@ pub struct DeviceInfo {
     pub hostname: String,
     pub sws_version: String,
     pub initial_pin: Option<String>,
+    /// The cloud the panel is paired to: the reset can then keep it.
+    #[serde(default)]
+    pub cloud: Option<String>,
 }
 
 /// `a.b.c.d` with four numbers 0-255.
@@ -626,6 +629,8 @@ pub struct WifiForm {
     pub proposed: bool,
     /// A protected network not saved yet: no joining without its password.
     pub needs_password: bool,
+    /// Sent to the device, waiting for its answer: no keyboard meanwhile.
+    pub submitting: bool,
 }
 
 /// WPA2-PSK: 8 to 63 printable ASCII characters.
@@ -682,6 +687,8 @@ pub struct State {
     /// The PIN screen is asking the PIN again, to give the device back
     /// (project, users and pairing removed): not to open a session.
     pub resetting: bool,
+    /// The reset keeps the cloud pairing: only the application goes.
+    pub reset_keep_cloud: bool,
     /// The reset went through: the runtime is starting again.
     pub reset_done: bool,
     pub busy: bool,
@@ -896,21 +903,25 @@ pub fn pin_back() {
 }
 
 pub fn pin_submit() {
-    let pin = with_state(|s| (!s.busy && !s.pin.is_empty()).then(|| (s.pin.clone(), s.resetting)));
-    if let Some((pin, resetting)) = pin {
+    let pin = with_state(|s| {
+        (!s.busy && !s.pin.is_empty()).then(|| (s.pin.clone(), s.resetting, s.reset_keep_cloud))
+    });
+    if let Some((pin, resetting, keep_cloud)) = pin {
         change(|s| s.busy = true);
         send(if resetting {
-            Job::Reset(pin)
+            Job::Reset(pin, keep_cloud)
         } else {
             Job::Session(pin)
         });
     }
 }
 
-/// «Remove project and pairing»: the PIN screen again, in its other role.
-pub fn reset_ask() {
+/// «Remove project and pairing», or with `keep_cloud` only the project: the
+/// PIN screen again, in its other role.
+pub fn reset_ask(keep_cloud: bool) {
     change(|s| {
         s.resetting = true;
+        s.reset_keep_cloud = keep_cloud;
         s.pin.clear();
         s.pin_error = None;
         s.error = None;
@@ -1450,7 +1461,12 @@ pub fn form_submit() {
         })
     });
     if let Some(j) = job {
-        change(|s| s.busy = true);
+        change(|s| {
+            s.busy = true;
+            if let Some(f) = s.wifi_form.as_mut() {
+                f.submitting = true;
+            }
+        });
         send(j);
     }
 }
@@ -2014,7 +2030,7 @@ enum Job {
     Status,
     SetRebootCorner(RebootCorner, Option<RebootOptions>),
     SetPanelCorner(RebootCorner, PanelOptions),
-    Reset(String),
+    Reset(String, bool),
     SetFlip(bool),
     Session(String),
     Network,
@@ -2155,7 +2171,16 @@ async fn session_call(
 
 /// A change under the 60-second checkpoint: on success, the confirmation bar.
 async fn confirmable(method: reqwest::Method, path: &str, body: serde_json::Value, before: String) {
-    if let Some(r) = session_call(method, path, Some(body)).await {
+    let Some(r) = session_call(method, path, Some(body)).await else {
+        // Refused: the form again, with the error above it.
+        change(|s| {
+            if let Some(f) = s.wifi_form.as_mut() {
+                f.submitting = false;
+            }
+        });
+        return;
+    };
+    {
         let secs = r
             .get("confirm_within_secs")
             .and_then(|v| v.as_u64())
@@ -2237,8 +2262,13 @@ async fn run(job: Job) {
                 }));
             }
         }
-        Job::Reset(pin) => {
-            let r = call(M::POST, "/reset", Some(serde_json::json!({ "pin": pin }))).await;
+        Job::Reset(pin, keep_cloud) => {
+            let r = call(
+                M::POST,
+                "/reset",
+                Some(serde_json::json!({ "pin": pin, "keep_cloud": keep_cloud })),
+            )
+            .await;
             change(|s| {
                 s.busy = false;
                 s.pin.clear();
