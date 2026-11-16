@@ -12,6 +12,23 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — TY570 con la SD nuova, deploy e pannello di controllo (2026-11-16, theobroma)
+
+Quattro squash su `main` (`4d42673b`, `42201438`, `d2363acb`, `ac9928c7`), **collaudati dal maintainer sul TY570**,
+non ancora in un'immagine né pushati:
+- **LVGL**: un tocco, un tasto (la tastiera del Wi-Fi ripeteva i caratteri); niente righe `[Info]` di LVGL nel journal
+  (`SWS_LVGL_LOG=info` per riaverle); Annulla/Collegati delle tastiere alla pressione, «Connessione a … in corso…».
+- **Tiny TY**: `tyx_panelcontrol` resta e avvia SWS come «Programma esterno» (`/opt/sws/bin/sws-start`, che poi lo
+  ferma); `install.sh` scrive il percorso in `startup.ini`. Note per Pixsys in `deploy/tiny-ty/ty570-1ad-p1.md` (16-17).
+- **Deploy**: il primo verso un pannello senza utenti porta utenti e segreti da sé; dopo, «Sostituisci anche gli
+  utenti» è accesa solo se sono cambiati (`users_sent`, `GET /api/remote/users-pending`).
+- **Pannello di controllo**: «Eliminare solo il progetto, restando nel cloud» (`keep_cloud`); scheda ridisegnata.
+
+**Da fare**: le correzioni del deploy si provano solo dal cloud, che è ancora sulla rc.19 → serve l'immagine (rc.20) e
+il gateway aggiornato (chiedere). Misure CPU/RAM del TY570 in `tmp/misure-ty/` (solo theobroma). L'orologio con il
+`chronyd` di Pixsys dopo che `sws-start` ferma `tyx_panelcontrol` è da guardare. Il ramo `fix/rc18-ritocchi` (locale e
+su origin) è già dentro `main` (`c62c7279`): eliminarlo, con un sì. Il worktree `tmp/wt-ty` serve alle build del TY.
+
 ## ▶ Riprendere da qui — rc.19: il Tiny TY, la rotazione, le chiavi IA nell'account (2026-11-15)
 
 Giornata sul TY570 (casa) con il maintainer che provava un test alla volta. Tutto in `main` con un commit solo, rc.19.
