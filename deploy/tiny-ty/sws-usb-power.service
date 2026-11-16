@@ -1,0 +1,16 @@
+# Installed by install.sh (and remove-panelcontrol.sh). rc.local switches the
+# USB power on through a script of tyx_panelcontrol's folder (GPIO116); this
+# keeps it on with or without that folder. Without power the Wi-Fi dongles
+# never show up. `high` only when the pin is not an output yet: writing the
+# direction again would drop the power for a moment.
+[Unit]
+Description=SWS: USB port power on (Tiny TY, GPIO116)
+After=rc-local.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/sh -c 'g=/sys/class/gpio; [ -d $g/gpio116 ] || echo 116 > $g/export; [ "$(cat $g/gpio116/direction)" = out ] || echo high > $g/gpio116/direction; echo 1 > $g/gpio116/value'
+
+[Install]
+WantedBy=multi-user.target

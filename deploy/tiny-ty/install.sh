@@ -19,7 +19,8 @@
 #   /opt/sws/          programmi, pagine web, template, RestrictedPython
 #   /var/lib/sws/      progetti, configurazione, dati del viewer (utente sws)
 #   /etc/sws/          runtime.env e viewer.env, mai sovrascritti
-#   /etc/systemd/system/sws-runtime.service, sws-lvgl-viewer.service
+#   /etc/systemd/system/sws-runtime.service, sws-lvgl-viewer.service,
+#                      sws-usb-power.service
 #   /etc/udev/rules.d/99-sws-tiny-ty.rules
 #   /etc/sudoers.d/50-sws-clock  (solo con il chrony di Pixsys, vedi sotto)
 
@@ -39,6 +40,10 @@ POLKIT_RULES=/etc/polkit-1/rules.d/50-sws-control-panel.rules
 SUDOERS_CLOCK=/etc/sudoers.d/50-sws-clock
 # The diagnostic export of the control panel: see sws-diagnostics.
 SUDOERS_DIAGNOSTICS=/etc/sudoers.d/50-sws-diagnostics
+# Pixsys' setup program, which starts SWS as its "External program" (16-11-2026).
+PANELCONTROL=/data/tyx_panelcontrol
+STARTUP_INI=$PANELCONTROL/data/startup.ini
+USB_UNIT=/etc/systemd/system/sws-usb-power.service
 
 QUI="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -66,6 +71,11 @@ if [ "${1:-}" = "--uninstall" ]; then
         systemctl disable --now "$s" 2>/dev/null || true
         rm -f "/etc/systemd/system/$s.service"
     done
+    # The USB power is rc.local's again, through tyx_panelcontrol's folder.
+    if [ -d "$PANELCONTROL" ]; then
+        systemctl disable sws-usb-power.service 2>/dev/null || true
+        rm -f "$USB_UNIT"
+    fi
     systemctl daemon-reload
     rm -f "$REGOLA" "$POLKIT_PKLA" "$POLKIT_RULES" "$SUDOERS_CLOCK" "$SUDOERS_DIAGNOSTICS"
     rm -rf "$INSTALL_DIR"
@@ -95,7 +105,7 @@ esac
 for f in bin/sws-runtime bin/sws-lvgl-viewer www/index.html \
          sws-runtime.service sws-lvgl-viewer.service 99-sws-tiny-ty.rules \
          50-sws-control-panel.pkla 50-sws-control-panel.rules prepara-dispositivo.sh \
-         remove-panelcontrol.sh; do
+         remove-panelcontrol.sh sws-usb-power.service bin/sws-start; do
     [ -e "$QUI/$f" ] || die "manca $f: lancialo dalla cartella del pacchetto scompattato"
 done
 
@@ -136,6 +146,7 @@ install -m 755 "$QUI/bin/sws-lvgl-viewer"             "$INSTALL_DIR/bin/"
 install -m 755 "$QUI/bin/sws-runtime-launch.sh"       "$INSTALL_DIR/bin/"
 install -m 755 "$QUI/bin/sws-lvgl-viewer-launch.sh"   "$INSTALL_DIR/bin/"
 install -m 755 "$QUI/bin/sws-hw-access.sh"            "$INSTALL_DIR/bin/"
+install -m 755 "$QUI/bin/sws-start"                   "$INSTALL_DIR/bin/"
 # Run as root through sudo: root's, and in a folder only root writes.
 [ -f "$QUI/bin/sws-diagnostics" ] && install -m 755 -o root -g root "$QUI/bin/sws-diagnostics" "$INSTALL_DIR/bin/"
 for d in www templates catalogo; do
@@ -273,18 +284,19 @@ if [ -d "$(dirname "$BOOT_LOGO")" ] && [ "$(readlink "$BOOT_LOGO" 2>/dev/null)" 
     ln -sfn "$BOOT_LOGO_SWS" "$BOOT_LOGO"
 fi
 
-# ── Un sistema pulito ─────────────────────────────────────────────────────────
+# ── tyx_panelcontrol resta ────────────────────────────────────────────────────
 #
-# `tyx_panelcontrol` di Pixsys va via: UPS, USB, orologio e Device Finder
-# passano a SWS e a systemd (decisione del maintainer, 14-11-2026: «essere
-# svincolati dal loro tyx_panelcontrol e poter lavorare su un sistema pulito»).
-# Prima dei servizi: il runtime parte già col sistema nuovo. Se non riesce,
-# l'installazione continua e tyx_panelcontrol resta dov'è.
-echo "==> Sistema pulito (remove-panelcontrol.sh)"
-if ! "$QUI/remove-panelcontrol.sh" 2>&1 | sed 's/^/    /'; then
-    echo "    attenzione: tyx_panelcontrol non è stato tolto del tutto; rilancia"
-    echo "    sudo $QUI/remove-panelcontrol.sh"
-fi
+# Pixsys' setup program stays and starts SWS as its "External program"
+# (/opt/sws/bin/sws-start), which then stops it: usable at power-on, then SWS
+# is in charge (maintainer, 16-11-2026; until then remove-panelcontrol.sh took
+# it off at install). The USB power goes to a unit of ours, so that it stays
+# on whoever owns the folder; the UPS to the runtime, beep and light to the
+# viewer, as soon as tyx_panelcontrol is gone.
+echo "==> USB: l'alimentazione la tiene accesa sws-usb-power.service"
+install -m 644 "$QUI/sws-usb-power.service" "$USB_UNIT"
+systemctl daemon-reload
+systemctl enable sws-usb-power.service
+systemctl start sws-usb-power.service || true
 
 # ── Il dispositivo ────────────────────────────────────────────────────────────
 #
@@ -303,10 +315,20 @@ for s in "${SERVIZI[@]}"; do
     install -m 644 "$QUI/$s.service" "/etc/systemd/system/$s.service"
 done
 systemctl daemon-reload
-for s in "${SERVIZI[@]}"; do
-    systemctl enable "$s"
-    systemctl restart "$s"
-done
+if [ -x "$PANELCONTROL/tyx_panelcontrol" ]; then
+    # Not at boot by themselves: tyx_panelcontrol starts them through
+    # sws-start. Now, the same way, so that SWS is up right after the install.
+    for s in "${SERVIZI[@]}"; do
+        systemctl disable "$s" 2>/dev/null || true
+    done
+    "$INSTALL_DIR/bin/sws-start"
+else
+    # No Pixsys program (taken off by an older install): systemd starts them.
+    for s in "${SERVIZI[@]}"; do
+        systemctl enable "$s"
+        systemctl restart "$s"
+    done
+fi
 
 # ── Com'è andata ──────────────────────────────────────────────────────────────
 
@@ -331,6 +353,29 @@ for a in ${indirizzi:-localhost}; do
     echo "    http://$a:7444   (il codice di abbinamento è sullo schermo del pannello)"
 done
 echo "    Log: journalctl -u sws-runtime -u sws-lvgl-viewer -f"
+if [ -x "$PANELCONTROL/tyx_panelcontrol" ] && [ -f "$STARTUP_INI" ]; then
+    # sws-start has stopped tyx_panelcontrol just above: it cannot write over
+    # its file now, and reads it again at the next boot. Its on-screen keyboard
+    # makes typing the path a chore (maintainer, 16-11-2026), so it is set here.
+    echo ""
+    if grep -qx "external_path=$INSTALL_DIR/bin/sws-start" "$STARTUP_INI" \
+        && grep -qx 'external=1' "$STARTUP_INI"; then
+        echo "==> Avvio: tyx_panelcontrol avvia SWS a ogni accensione (Programma esterno)"
+    elif pgrep -f "^$PANELCONTROL/tyx_panelcontrol" >/dev/null 2>&1; then
+        echo "==> Avvio: tyx_panelcontrol è ancora acceso, il Programma esterno non si tocca."
+        echo "    In Avvio → Programma esterno: $INSTALL_DIR/bin/sws-start"
+    else
+        [ -e "$STARTUP_INI.sws-bak" ] || cp -p "$STARTUP_INI" "$STARTUP_INI.sws-bak"
+        sed -i -e "s|^external_path=.*|external_path=$INSTALL_DIR/bin/sws-start|" \
+            -e 's|^external=.*|external=1|' "$STARTUP_INI"
+        grep -q '^external_path=' "$STARTUP_INI" \
+            || sed -i "/^\[services\]/a external_path=$INSTALL_DIR/bin/sws-start" "$STARTUP_INI"
+        grep -q '^external=' "$STARTUP_INI" || sed -i '/^\[services\]/a external=1' "$STARTUP_INI"
+        sync
+        echo "==> Avvio: Programma esterno di tyx_panelcontrol = $INSTALL_DIR/bin/sws-start"
+        echo "    (il file com'era: $STARTUP_INI.sws-bak)"
+    fi
+fi
 pin="$(initial_pin)"
 echo ""
 if [ -n "$pin" ]; then

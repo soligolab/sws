@@ -141,6 +141,14 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   momento, e le tiene in memoria. `/api/identity/ai-keys` (utente), `/api/internal/ai-key/:provider` (container). In
   Fornitori e chiavi una riga dice quale chiave usa il progetto. HOWTO 32.
 
+### Cambiato
+- **Tiny TY: `tyx_panelcontrol` di Pixsys resta, e avvia SWS.** La nuova immagine da SD ha in Avvio un «Programma
+  esterno»: è `/opt/sws/bin/sws-start`, che avvia runtime e viewer e poi ferma `tyx_panelcontrol`. All'accensione il
+  setup Pixsys resta disponibile, poi comanda SWS (UPS, cicalino, luce, USB). `install.sh` non toglie più il programma
+  (prima lo faceva `remove-panelcontrol.sh`, che resta per `--uninstall`), non abilita più i servizi all'avvio, scrive
+  da sé il percorso in `startup.ini` e installa sempre `sws-usb-power.service`. Senza `tyx_panelcontrol`, come prima.
+  Le istruzioni del pacchetto usano `scp -O` e `/var/tmp` (SFTP spento, `/tmp` di 32 MB).
+
 ### Corretto
 - **Pannello di controllo LVGL: un tocco, un tasto.** I tasti agiscono alla pressione e il fotogramma dopo il
   pannello si ricostruisce: il tasto nuovo sotto il dito ancora giù riceveva una pressione sua, e la tastiera del

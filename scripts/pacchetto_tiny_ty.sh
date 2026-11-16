@@ -11,8 +11,10 @@
 #   ./scripts/pacchetto_tiny_ty.sh --no-spa    # riusa sws-editor/dist/
 #
 # Esce in dist/sws-<versione>-tiny-ty-armv7.tar.gz. Sul dispositivo:
-#   scp dist/sws-*-tiny-ty-armv7.tar.gz pixsys@<indirizzo>:~
-#   ssh pixsys@<indirizzo> 'tar xzf sws-*-tiny-ty-armv7.tar.gz && sudo ./sws-*-tiny-ty-armv7/install.sh'
+#   scp -O dist/sws-*-tiny-ty-armv7.tar.gz pixsys@<indirizzo>:/var/tmp/
+#   ssh pixsys@<indirizzo> 'cd /var/tmp && tar xzf sws-*-tiny-ty-armv7.tar.gz && sudo ./sws-*-tiny-ty-armv7/install.sh'
+# `-O`: tyx_panelcontrol spegne SFTP. /var/tmp: /tmp è di 32 MB e la home di
+# pixsys, sull'immagine di Pixsys, è di root (ty570-1ad-p1.md, punti 1 e 16).
 #
 # Niente canale di aggiornamento ancora: un aggiornamento è un pacchetto nuovo
 # installato sopra (passo 5 del piano, da decidere).
@@ -57,12 +59,14 @@ install -m 755 "$DIST/armv7/sws-runtime" "$DIST/armv7/sws-lvgl-viewer" "$STAGE/b
 install -m 755 "$REPO/deploy/tiny-ty/sws-runtime-launch.sh" \
     "$REPO/deploy/tiny-ty/sws-lvgl-viewer-launch.sh" \
     "$REPO/deploy/tiny-ty/sws-hw-access.sh" \
-    "$REPO/deploy/tiny-ty/sws-diagnostics" "$STAGE/bin/"
+    "$REPO/deploy/tiny-ty/sws-diagnostics" \
+    "$REPO/deploy/tiny-ty/sws-start" "$STAGE/bin/"
 install -m 755 "$REPO/deploy/tiny-ty/install.sh" \
     "$REPO/deploy/tiny-ty/prepara-dispositivo.sh" \
     "$REPO/deploy/tiny-ty/remove-panelcontrol.sh" "$STAGE/"
 install -m 644 "$REPO/deploy/tiny-ty/sws-runtime.service" \
     "$REPO/deploy/tiny-ty/sws-lvgl-viewer.service" \
+    "$REPO/deploy/tiny-ty/sws-usb-power.service" \
     "$REPO/deploy/tiny-ty/99-sws-tiny-ty.rules" \
     "$REPO/deploy/tiny-ty/50-sws-control-panel.pkla" \
     "$REPO/deploy/tiny-ty/50-sws-control-panel.rules" "$STAGE/"

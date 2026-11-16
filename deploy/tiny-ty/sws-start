@@ -1,0 +1,45 @@
+#!/bin/sh
+#
+# Starts SWS on a Tiny TY, and from then on SWS is in charge.
+#
+# Pixsys' tyx_panelcontrol runs at boot and launches its "External program"
+# (Startup → External program, `external_path` in
+# /data/tyx_panelcontrol/data/startup.ini): this file, /opt/sws/bin/sws-start.
+# It comes as `systemd-run --unit=tyx-panelcontrol-external` with
+# Restart=no, as root and without arguments.
+#
+# Until here tyx_panelcontrol is the device's setup, usable at power-on. Once
+# SWS is up it goes: UPS, beep, light and the rest belong to SWS and its
+# control panel (maintainer, 16-11-2026: «txy_control è disponibile fino
+# all'avvio di SWS e posso usarlo in fase di accensione, poi è SWS che
+# comanda»). It comes back at the next boot.
+#
+# The two services are started, not run here: they keep their user, their
+# restart and their journal, and outlive this short unit. install.sh runs this
+# too, to start SWS right after an install.
+
+set -u
+
+PANELCONTROL='^/data/tyx_panelcontrol/tyx_panelcontrol'
+
+# The Pixsys setup opened by a touch at power-on (`tyx_panelcontrol gui`) is
+# not closed under the user's finger: the viewer waits for it as well.
+while pgrep -f "$PANELCONTROL gui" >/dev/null 2>&1; do
+    sleep 5
+done
+
+systemctl start sws-runtime.service sws-lvgl-viewer.service
+
+# Matched on the executable path: the process renames itself. TERM first, so
+# that it can release the screen, the touch and the UPS pin on its own.
+if pgrep -f "$PANELCONTROL" >/dev/null 2>&1; then
+    echo "sws-start: stopping tyx_panelcontrol, SWS takes over"
+    pkill -TERM -f "$PANELCONTROL" || true
+    i=0
+    while pgrep -f "$PANELCONTROL" >/dev/null 2>&1 && [ "$i" -lt 10 ]; do
+        sleep 1
+        i=$((i + 1))
+    done
+    pkill -KILL -f "$PANELCONTROL" 2>/dev/null || true
+fi
+exit 0

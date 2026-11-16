@@ -195,24 +195,11 @@ fi
 
 # ── L'alimentazione USB ───────────────────────────────────────────────────────
 #
-# rc.local switched it on through a script of the folder (GPIO116). Without
-# power the Wi-Fi dongles never show up. `high` only when the pin is not an
-# output yet: writing the direction again would drop the power for a moment.
-if [ -d /sys/class/gpio ] && [ ! -f "$USB_UNIT" ]; then
+# rc.local switched it on through a script of the folder (GPIO116): the unit
+# next to this script keeps it on (install.sh installs it too).
+if [ -d /sys/class/gpio ] && [ ! -f "$USB_UNIT" ] && [ -f "$(dirname "$0")/sws-usb-power.service" ]; then
     echo "==> USB: l'alimentazione la accende sws-usb-power.service"
-    cat > "$USB_UNIT" <<'UNIT'
-[Unit]
-Description=SWS: USB port power on (Tiny TY, GPIO116)
-After=rc-local.service
-
-[Service]
-Type=oneshot
-RemainAfterExit=yes
-ExecStart=/bin/sh -c 'g=/sys/class/gpio; [ -d $g/gpio116 ] || echo 116 > $g/export; [ "$(cat $g/gpio116/direction)" = out ] || echo high > $g/gpio116/direction; echo 1 > $g/gpio116/value'
-
-[Install]
-WantedBy=multi-user.target
-UNIT
+    install -m 644 "$(dirname "$0")/sws-usb-power.service" "$USB_UNIT"
     systemctl daemon-reload
     systemctl enable --now sws-usb-power.service
 fi

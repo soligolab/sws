@@ -26,6 +26,7 @@
 #      cedono al PLC — peso della CPU sotto il predefinito, `OOMScoreAdjust`
 #      positivo, un tetto di memoria. Sono la decisione del piano, passo 3: una
 #      riga tolta non dà errori, il PLC perde semplicemente la precedenza.
+#      Fuori le `oneshot`, che toccano un pin ed escono.
 #
 # Uso:  ./scripts/check_systemd_units.sh
 set -euo pipefail
@@ -106,6 +107,10 @@ for nome, testo in testi.items():
     if not nome.startswith("tiny-ty/"):
         continue
     c = dict(direttive(testo))
+    # A oneshot that writes a GPIO and exits (sws-usb-power, 16-11-2026): it
+    # needs root to export the pin and takes no CPU or memory from the PLC.
+    if c.get("Type") == "oneshot":
+        continue
     if c.get("User", "root") == "root":
         problema(f"{nome}: gira come root", "le unit del Tiny TY girano come `sws` (CRA, sicuri per default)")
     try:
