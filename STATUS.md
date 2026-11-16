@@ -42,6 +42,9 @@ l'rc.19), «Elimina progetto e abbinamento», UPS a corrente staccata, le chiavi
 TC620, e la pagina di installazione del Tiny TY. Il Wi-Fi di casa non inoltra il DHCP dei client Wi-Fi al cavo (provato con
 `tcpdump`): è da sistemare sul router, non in SWS.
 
+**Rilascio rc.19 (16-11)**: tag `2.26.0-rc.19` su `c5ffa346`; immagini arm64/amd64 su ghcr; gateway del VPS sull'immagine
+`c5ffa346-amd64`; pacchetto Tiny TY su `sws.soligo.net/download/tiny-ty/`. **Il TC620 non è ancora aggiornato** alla rc.19.
+
 **Resta (seme `docs/plans/semi/2026-11-15-tiny-ty-funzioni-rimaste.md`)**: IP statico sul Wi-Fi, sezione Servizi, beep e luce sui
 TC/WP, backup su chiavetta (PixsysOS ≥ 2.2.0). CasaDomotica: i pulsanti e le sezioni nuove del pannello di controllo (con il
 maintainer, regola di `CLAUDE.md`). Bug piccolo annotato: «Later» al cambio password (seme `cambio-password-later-errore`).
