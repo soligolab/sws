@@ -6,6 +6,7 @@ import { api } from "@/api/client";
 import { useAppStore } from "@/store";
 import { riapriAiStream } from "@/ws/aiStream";
 import { apriChat, staccaChat, useComandiChat } from "@/ai/comandiChat";
+import { aiErrorOfRequest, aiErrorText } from "@/ai/errorCodes";
 import type { AiConfig, AiSpending, AiSpendingMonth, RegoleIa, ScopoIa, ScopoIaCfg } from "@/types";
 import { S, SaveBar } from "@/config/comuni";
 
@@ -44,6 +45,15 @@ function NonQui() {
 
 // ── La chat ──────────────────────────────────────────────────────────────────
 
+
+/** A provider's name in the IDE's language: the runtime's names are not
+ *  translated («OpenAI (immagini)» in an English IDE). */
+function providerName(t: (k: string, o?: Record<string, unknown>) => string,
+                      id: string | null | undefined, fallback?: string): string {
+  if (!id) return "";
+  return t(`aiProviders.${id}`, { defaultValue: fallback ?? id });
+}
+
 export function IaAssistenteTab() {
   const { t } = useTranslation();
   const { cfg, assente } = useConfigIa();
@@ -57,7 +67,7 @@ export function IaAssistenteTab() {
         {assente ? <NonQui /> : eff && (
           <Stato attivo={eff.attivo}>
             {eff.attivo
-              ? t("ia.chat.attiva", { fornitore: eff.effettivo.fornitore, modello: eff.effettivo.modello })
+              ? t("ia.chat.attiva", { fornitore: providerName(t, eff.effettivo.fornitore), modello: eff.effettivo.modello })
               : t("ia.chat.spenta")}
           </Stato>
         )}
@@ -90,7 +100,9 @@ export function IaFornitoriTab() {
       {cfg.da_ambiente.length > 0 && (
         <Avviso>{t("cfgUi.varAmbienteScavalcano", { elenco: cfg.da_ambiente.join(", ") })}</Avviso>
       )}
-      {cfg.fornitori.map((f) => <Fornitore key={f.id} f={f} onCambiato={carica} />)}
+      {cfg.fornitori.map((f) => f.id === "local"
+        ? <LocalModel key={f.id} f={f} saved={cfg.local ?? null} onChanged={carica} />
+        : <Fornitore key={f.id} f={f} onCambiato={carica} />)}
     </Colonna>
   );
 }
@@ -132,7 +144,7 @@ function Fornitore({ f, onCambiato }: { f: AiConfig["fornitori"][number]; onCamb
   });
 
   return (
-    <Box titolo={f.nome}>
+    <Box titolo={providerName(t, f.id, f.nome)}>
       <Stato attivo={f.chiave}>
         {f.chiave ? t("ia.fornitori.conChiave") : t("ia.fornitori.senzaChiave")}
         {" · "}{t("ia.fornitori.serve", { scopi: f.scopi.map((s) => t(`ia.scopi.nome.${s}`)).join(", ") })}
@@ -158,6 +170,100 @@ function Fornitore({ f, onCambiato }: { f: AiConfig["fornitori"][number]; onCamb
           : <button style={bottoneChiaro} disabled={busy} onClick={() => setConfermaCancella(true)}>{t("cfgUi.deleteKey")}</button>)}
       </div>
       {esito && <Esito ok={esito.ok}>{esito.testo}</Esito>}
+    </Box>
+  );
+}
+
+/** The local model (17-11-2026): an OpenAI-compatible server of the customer
+ *  (Ollama, vLLM, LM Studio, llama.cpp). Its address and model instead of a
+ *  key, which is optional; «Test» lists the models the address serves, before
+ *  anything is saved. */
+function LocalModel({ f, saved, onChanged }: {
+  f: AiConfig["fornitori"][number]; saved: NonNullable<AiConfig["local"]> | null; onChanged: () => void;
+}) {
+  const { t } = useTranslation();
+  const [url, setUrl] = useState(saved?.url ?? "");
+  const [key, setKey] = useState("");
+  const [model, setModel] = useState(saved?.model ?? "");
+  const [seesImages, setSeesImages] = useState(saved?.sees_images ?? false);
+  const [models, setModels] = useState<string[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [outcome, setOutcome] = useState<{ ok: boolean; testo: string } | null>(null);
+  const [confirmRemove, setConfirmRemove] = useState(false);
+
+  const run = async (action: () => Promise<{ ok: boolean; testo: string }>) => {
+    setBusy(true); setOutcome(null);
+    try { setOutcome(await action()); } catch (e) {
+      setOutcome({ ok: false, testo: aiErrorOfRequest(e) });
+    } finally { setBusy(false); setConfirmRemove(false); }
+  };
+  const test = () => run(async () => {
+    const r = await api.provaAiChiave("local", { url: url.trim(), chiave: key.trim() || undefined });
+    if (!r.ok) return { ok: false, testo: t("ia.local.testKo", { errore: aiErrorText(r.codice, r.errore ?? "") }) };
+    setModels(r.modelli ?? []);
+    // One model only: nothing to choose.
+    if (!model && r.modelli?.length === 1) setModel(r.modelli[0]);
+    return { ok: true, testo: t("ia.local.testOk", { n: r.modelli?.length ?? 0 }) };
+  });
+  const save = (remove = false) => run(async () => {
+    await api.putAiLocal(remove
+      ? { url: "", model: "", sees_images: false }
+      : { url: url.trim(), model: model.trim(), key: key.trim() || undefined, sees_images: seesImages });
+    setKey("");
+    if (remove) { setUrl(""); setModel(""); setModels(null); setSeesImages(false); }
+    // The purposes' menus list the models of the saved address.
+    modelliPerFornitore.delete("local");
+    riapriAiStream();
+    onChanged();
+    return { ok: true, testo: t(remove ? "ia.local.removed" : "ia.local.saved") };
+  });
+  const list = [...new Set([...(models ?? []), ...(model ? [model] : [])])].sort((a, b) => a.localeCompare(b));
+
+  return (
+    <Box titolo={t("aiProviders.local")}>
+      <Stato attivo={f.chiave}>
+        {f.chiave ? t("ia.local.ready", { modello: saved?.model ?? "" }) : t("ia.local.notReady")}
+        {" · "}{t("ia.fornitori.serve", { scopi: f.scopi.map((s) => t(`ia.scopi.nome.${s}`)).join(", ") })}
+      </Stato>
+      <Nota>{t("ia.local.explain")}</Nota>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 6 }}>
+        <label style={etichetta}>
+          {t("ia.local.url")}
+          <input data-testid="ia-url-local" value={url} placeholder="http://localhost:11434/v1"
+            onChange={(e) => setUrl(e.target.value)} style={{ ...campo, marginTop: 4 }} />
+        </label>
+        <label style={etichetta}>
+          {t("ia.local.key")}
+          <CampoPassword value={key} data-testid="ia-chiave-local"
+            placeholder={saved?.has_key ? t("cfgUi.savedLeaveEmptyToKeep") : t("ia.local.keyOptional")}
+            onChange={(e) => setKey(e.target.value)} style={{ ...campo, marginTop: 4 }} />
+        </label>
+        <label style={etichetta}>
+          {t("cfgUi.modello")}
+          <select value={model} data-testid="ia-modello-local" onChange={(e) => setModel(e.target.value)}
+            style={{ ...campo, marginTop: 4 }}>
+            <option value="">{t("ia.local.modelPick")}</option>
+            {list.map((m) => <option key={m} value={m}>{m}</option>)}
+          </select>
+        </label>
+        <label style={{ ...etichetta, display: "flex", gap: 6, alignItems: "center" }}>
+          <input type="checkbox" data-testid="ia-immagini-local" checked={seesImages}
+            onChange={(e) => setSeesImages(e.target.checked)} />
+          {t("ia.local.seesImages")}
+        </label>
+      </div>
+      <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+        <button style={bottone} data-testid="ia-salva-local" disabled={busy || !url.trim() || !model.trim()}
+          onClick={() => void save()}>{t("cfgUi.save")}</button>
+        <button style={bottoneChiaro} data-testid="ia-prova-local" disabled={busy || !url.trim()}
+          onClick={() => void test()}>{t("ia.local.test")}</button>
+        {saved && (confirmRemove
+          ? <button style={bottoneRosso} disabled={busy} data-testid="ia-conferma-togli-local"
+              onClick={() => void save(true)}>{t("ia.local.confirmRemove")}</button>
+          : <button style={bottoneChiaro} disabled={busy} data-testid="ia-togli-local"
+              onClick={() => setConfirmRemove(true)}>{t("ia.local.remove")}</button>)}
+      </div>
+      {outcome && <Esito ok={outcome.ok}>{outcome.testo}</Esito>}
     </Box>
   );
 }
@@ -230,11 +336,20 @@ function RigaScopo({ scopo, cfg, valore, onCambia }: {
   // Simboli e traduzione possono «fare come l'assistente»: è il valore vuoto.
   const puoEreditare = scopo === "simboli" || scopo === "traduzione";
   const eff = cfg.scopi[scopo];
+  // In the cloud, without a choice of the project, what the purpose uses
+  // depends on who opens the menu: their preferred provider, their keys.
+  // Writing it into the project with a change of the cap alone would impose
+  // one person's provider on everybody (review of 17-11-2026): the row stays
+  // empty, «as the account prefers», until a provider is chosen on purpose.
+  const preferred = scopo === "assistente" ? cfg.preferito_account?.testo
+    : scopo === "sfondi" ? cfg.preferito_account?.immagini : null;
+  const followsAccount = (scopo === "assistente" || scopo === "sfondi")
+    && (!!preferred || adatti.find((f) => f.id === eff.effettivo.fornitore)?.source === "user");
   // Senza una scelta salvata si mostra quello che lo scopo usa davvero (per
   // l'assistente il server prova Anthropic e poi Kimi): mostrare il primo della
   // lista e salvarlo cambiando solo il tetto spegneva la chat di chi ha solo Kimi.
   const fornitore = valore?.fornitore
-    ?? (puoEreditare ? "" : eff.effettivo.fornitore ?? adatti[0]?.id ?? "");
+    ?? (puoEreditare || followsAccount ? "" : eff.effettivo.fornitore ?? adatti[0]?.id ?? "");
   const scelto = adatti.find((f) => f.id === fornitore);
   const conChiave = !!scelto && (scelto.chiave || scelto.source != null);
   const [modelli, setModelli] = useState<string[] | null>(null);
@@ -246,6 +361,8 @@ function RigaScopo({ scopo, cfg, valore, onCambia }: {
     return () => { vivo = false; };
   }, [fornitore, conChiave]);
   const tettoDefault = scopo === "sfondi" ? cfg.tetto_sfondi_default : cfg.tetto_usd_default;
+  // A local model off the cloud costs nothing: a cap would never be reached.
+  const senzaTetto = !cfg.in_cloud && (fornitore || eff.effettivo.fornitore) === "local";
   const [tettoTesto, setTettoTesto] = useState(() => valore?.tetto_usd != null ? String(valore.tetto_usd) : "");
   const set = (campo: keyof ScopoIaCfg, v: string | number | undefined) => {
     const prossimo: ScopoIaCfg = { ...(valore ?? {}), fornitore: fornitore || undefined, [campo]: v };
@@ -262,8 +379,10 @@ function RigaScopo({ scopo, cfg, valore, onCambia }: {
             onChange={(e) => onCambia(e.target.value ? { ...(valore ?? {}), fornitore: e.target.value, modello: undefined } : null)}
             style={{ ...campo, marginTop: 4 }}>
             {puoEreditare && <option value="">{t("ia.scopi.comeAssistente")}</option>}
+            {followsAccount && <option value="">{t("ia.scopi.followsAccount")}</option>}
             {adatti.map((f) => (
-              <option key={f.id} value={f.id}>{f.nome}{f.chiave ? "" : ` — ${t("ia.fornitori.senzaChiave")}`}</option>
+              <option key={f.id} value={f.id}>
+                {providerName(t, f.id, f.nome)}{f.chiave ? "" : ` — ${t("ia.fornitori.senzaChiave")}`}</option>
             ))}
           </select>
         </label>
@@ -285,7 +404,12 @@ function RigaScopo({ scopo, cfg, valore, onCambia }: {
             </select>
           </label>
         )}
-        {scopo !== "traduzione" && (
+        {scopo !== "traduzione" && senzaTetto && (
+          <div style={{ ...etichetta, alignSelf: "end" }} data-testid={`ia-scopo-${scopo}-senza-tetto`}>
+            {t("ia.scopi.localFree")}
+          </div>
+        )}
+        {scopo !== "traduzione" && !senzaTetto && (
           <label style={etichetta}>
             {t("ia.scopi.tetto")}
             {/* Il testo resta quello scritto («0.», «2,5»): convertirlo a ogni
@@ -304,10 +428,36 @@ function RigaScopo({ scopo, cfg, valore, onCambia }: {
       <Stato attivo={eff.attivo}>
         {eff.attivo
           ? t(eff.eredita ? "ia.scopi.usaAssistente" : "ia.scopi.usa", {
-              fornitore: eff.effettivo.fornitore, modello: eff.effettivo.modello })
+              fornitore: providerName(t, eff.effettivo.fornitore), modello: eff.effettivo.modello })
           : t("ia.scopi.spento")}
       </Stato>
+      <AccountPreference scopo={scopo} cfg={cfg} />
     </Box>
+  );
+}
+
+/** Where the project chose no provider, the account's preference counts
+ *  (cloud, 17-11-2026): the row says so, or says that the preference has no
+ *  key and which provider is used instead. Read from what the server will
+ *  really use (`effettivo`), not worked out again here. */
+function AccountPreference({ scopo, cfg }: { scopo: ScopoIa; cfg: AiConfig }) {
+  const { t } = useTranslation();
+  if (scopo !== "assistente" && scopo !== "sfondi") return null;
+  const eff = cfg.scopi[scopo];
+  const preferred = scopo === "assistente" ? cfg.preferito_account?.testo : cfg.preferito_account?.immagini;
+  if (!preferred || eff.salvato?.fornitore) return null;
+  // The environment wins over the account: the preference is not what decides.
+  if (scopo === "assistente" && cfg.da_ambiente.includes("SWS_AI_FORNITORE")) return null;
+  const name = (id: string) => t(`aiProviders.${id}`, { defaultValue: id });
+  const used = eff.attivo ? eff.effettivo.fornitore : null;
+  return (
+    <div data-testid={`ia-scopo-${scopo}-preferenza`} style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", marginTop: 4 }}>
+      {used === preferred
+        ? t("ia.scopi.accountPreference", { fornitore: name(preferred) })
+        : used
+          ? t("ia.scopi.accountPreferenceNoKey", { fornitore: name(preferred), usato: name(used) })
+          : t("ia.scopi.accountPreferenceNoKeyOff", { fornitore: name(preferred) })}
+    </div>
   );
 }
 

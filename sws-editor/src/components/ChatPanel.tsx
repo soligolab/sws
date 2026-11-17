@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { useTranslation } from "react-i18next";
+import { Trans, useTranslation } from "react-i18next";
 import i18n from "i18next";
 import { editorLocale, NESSUNA_CONFERMA, type EditorAi } from "@/ai/editor";
 import { useAppStore } from "@/store";
 import { approvaSfondo, ascolta, chiedi, mandaFoto, nuovaConversazione, suConversazioneNuova } from "@/ws/aiStream";
 import { blobInBase64 } from "@/ai/fotoDalBrowser";
+import { aiErrorText } from "@/ai/errorCodes";
 import type { MsgIn, Riga } from "@/types/ai";
 import { Icona } from "@/components/Icona";
 
@@ -77,6 +78,11 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
   const [righe, setRighe]     = useState<Riga[]>([]);
   const [bozza, setBozza]     = useState("");
   const [attesa, setAttesa]   = useState(false);
+  // The turn is over and the chat waits for the person (17-11-2026): when the
+  // waiting line goes away, nothing else said so, and a model that closed
+  // without writing looked like a chat that stopped.
+  const [toccaATe, setToccaATe] = useState(false);
+  const compositore = useRef<HTMLTextAreaElement>(null);
   // Da quando si aspetta, e da quando il modello ragiona (11-11-2026): fra uno
   // strumento e l'altro la chat mostrava «…» immobili, e sembrava morta. Il
   // ragionamento non si mostra (vedi `pensiero`), ma che ci sia sì.
@@ -98,6 +104,9 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
   // tetto): qui si mostra l'ultimo valore che ha mandato.
   const [spesa, setSpesa] = useState<{ speso: number; tetto: number; stimata: boolean } | null>(null);
   const [saldo, setSaldo]     = useState<number | null>(null);
+  // Who answers. A local model costs nothing, and «0.00 $ / 10 $» would say
+  // nothing: only its tokens are shown (plan 2026-11-17, F3).
+  const [fornitore, setFornitore] = useState<string | null>(null);
   const [mostraRisorse, setMostraRisorse] = useState(() => {
     try { return localStorage.getItem("sws.chat.risorse") !== "no"; } catch { return true; }
   });
@@ -144,6 +153,7 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
       switch (m.t) {
         case "pronto":
           setStato({ attivo: m.attivo, modello: m.modello, motivo: m.motivo });
+          setFornitore(m.fornitore ?? null);
           // Una riconnessione con lo stesso id ritrova la conversazione sul
           // server (10-11-2026): i contatori restano, e la spesa è quella che
           // il tetto sta già contando. Socket nuovo e conversazione nuova:
@@ -158,6 +168,7 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
           }
           break;
         case "risorse":
+          if (m.fornitore) setFornitore(m.fornitore);
           setRisorse((r) => ({
             input: r.input + m.input,
             output: r.output + m.output,
@@ -180,7 +191,11 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
         case "pensiero":
           // Il ragionamento non si mostra: è rumore per chi sta disegnando, e
           // mostrarlo invita a leggerlo invece del diff. Si mostra **che** c'è.
-          pensaDa.current ??= Date.now();
+          // The first piece switches the line at once, not at the next tick.
+          if (pensaDa.current == null) {
+            pensaDa.current = Date.now();
+            battito((n) => n + 1);
+          }
           break;
         case "strumento":
           pensaDa.current = null;
@@ -214,7 +229,7 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
           break;
         }
         case "errore":
-          setRighe((r) => [...r, { tipo: "errore", testo: m.messaggio }]);
+          setRighe((r) => [...r, { tipo: "errore", testo: aiErrorText(m.codice, m.messaggio) }]);
           break;
         case "simbolo":
           // Ridisegnato con lo stesso slug: la miniatura nuova prende il posto
@@ -253,6 +268,8 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
         case "fine": {
           traccia("fine", baseInCodaRef.current ?? "");
           setAttesa(false);
+          setToccaATe(true);
+          compositore.current?.focus();
           const id = baseInCodaRef.current;
           if (id) {
             baseInCodaRef.current = null;
@@ -280,6 +297,7 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
     }
     setRighe((r) => [...r, { tipo: "utente", testo }]);
     setBozza("");
+    setToccaATe(false);
     setAttesa(true);
   };
 
@@ -349,7 +367,9 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
             ◔ {kTok(risorse.input)} {t("chat.risorseIn")} · {kTok(risorse.output)} {t("chat.risorseOut")}
             {risorse.cache > 0 && <> · {kTok(risorse.cache)} {t("chat.risorseCache")}</>}
           </span>
-          {spesa && (
+          {/* Hidden for a local model while nothing is spent: a symbol drawn
+              by a paid provider in the same conversation still shows. */}
+          {spesa && !(fornitore === "local" && spesa.speso === 0) && (
             <span title={t("chat.risorseSpesaTitolo")}
                   style={spesa.speso >= spesa.tetto ? { color: "var(--brand-danger, #ef4444)" } : undefined}>
               {spesa.stimata ? "≈ " : ""}{spesa.speso.toFixed(2)} $ / {spesa.tetto.toFixed(0)} $
@@ -506,20 +526,36 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
           const secondi = (da: number | null) => Math.floor((ora - (da ?? ora)) / 1000);
           const tempo = (da: number | null) => avanzamento(0, secondi(da)).tempo;
           return (
-            <div style={RIGA_STRUMENTO} data-testid="chat-attesa">
-              <span style={PUNTINO_VIVO}>●</span>{" "}
-              {pensaDa.current != null
-                ? t("chat.thinking", { tempo: tempo(pensaDa.current) })
-                : t("chat.waitingModel", { tempo: tempo(attesaDa.current) })}
+            // Shown for the whole turn, tool rows in progress included: a
+            // turn that ends silent must not look like a chat that stopped.
+            <div style={RIGA_ATTESA} data-testid="chat-attesa">
+              <span className="sws-chat-sparkle" style={SCINTILLA} aria-hidden>✻</span>
+              <span>
+                {pensaDa.current != null
+                  ? <Trans i18nKey="chat.thinking" values={{ tempo: tempo(pensaDa.current) }}
+                           components={{ dots: <Puntini /> }} />
+                  : <Trans i18nKey="chat.waitingModel" values={{ tempo: tempo(attesaDa.current) }}
+                           components={{ dots: <Puntini /> }} />}
+              </span>
             </div>
           );
         })()}
-        <style>{`@keyframes sws-pulsa { 0%, 100% { opacity: 0.25; } 50% { opacity: 1; } }`}</style>
+        {!attesa && toccaATe && (
+          <div style={RIGA_TOCCA_A_TE} data-testid="chat-tocca-a-te">✓ {t("chat.yourTurn")}</div>
+        )}
+        <style>{`@keyframes sws-pulsa { 0%, 100% { opacity: 0.25; } 50% { opacity: 1; } }
+          @keyframes sws-sparkle { 0% { transform: rotate(0deg) scale(1); opacity: 0.7; }
+            50% { transform: rotate(180deg) scale(1.15); opacity: 1; }
+            100% { transform: rotate(360deg) scale(1); opacity: 0.7; } }
+          @keyframes sws-dot { 0%, 80%, 100% { opacity: 0.15; } 40% { opacity: 1; } }
+          .sws-chat-sparkle { animation: sws-sparkle 2.4s ease-in-out infinite; }
+          .sws-chat-dot { animation: sws-dot 1.4s ease-in-out infinite; }`}</style>
         <div ref={fondo} />
       </div>
 
       <div style={COMPOSITORE}>
         <textarea
+          ref={compositore}
           value={bozza}
           onChange={(e) => setBozza(e.target.value)}
           onKeyDown={(e) => {
@@ -787,6 +823,35 @@ const BOLLA_ERRORE: React.CSSProperties = {
 const PUNTINO_VIVO: React.CSSProperties = {
   color: "var(--brand-accent, #38bdf8)", animation: "sws-pulsa 1.2s ease-in-out infinite",
 };
+
+/** The waiting line, as Claude Code shows it: a sparkle that turns, the phrase
+ *  with an ellipsis that runs, the time. Bigger than the tool rows and not
+ *  monospace: it is the one sign that the turn is still alive. */
+const RIGA_ATTESA: React.CSSProperties = {
+  display: "flex", alignItems: "center", gap: 6, padding: "2px 0",
+  fontSize: 12.5, color: "var(--brand-text-muted, #94a3b8)",
+};
+
+const SCINTILLA: React.CSSProperties = {
+  display: "inline-block", fontSize: 15, lineHeight: 1,
+  color: "var(--brand-accent, #38bdf8)",
+};
+
+/** «Your turn»: the line that closes a turn, quieter than the waiting one. */
+const RIGA_TOCCA_A_TE: React.CSSProperties = {
+  fontSize: 11.5, padding: "4px 0", color: "var(--brand-text-subtle, #64748b)",
+};
+
+/** The animated ellipsis of the waiting line: three dots lighting in turn. */
+function Puntini() {
+  return (
+    <span aria-hidden>
+      {[0, 0.2, 0.4].map((delay) => (
+        <span key={delay} className="sws-chat-dot" style={{ animationDelay: `${delay}s` }}>.</span>
+      ))}
+    </span>
+  );
+}
 
 const RIGA_STRUMENTO: React.CSSProperties = {
   fontSize: 11, fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",

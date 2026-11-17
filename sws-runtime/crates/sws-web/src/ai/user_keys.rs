@@ -17,6 +17,10 @@
 //! Since 16-11-2026 the gateway also gives the model the user prefers for each
 //! provider, and OpenAI (backgrounds) is one of them. The model is asked for
 //! every provider, the key only for those the project has none of.
+//!
+//! Since 17-11-2026 also the provider the user prefers, one for text and one
+//! for images (`GET /api/internal/ai-preferences`): it counts only where the
+//! project chose none (`client::carica_con`, `scopi::carica_sfondi_con`).
 
 use crate::ai::client::Fornitore;
 use crate::router::AppState;
@@ -34,15 +38,20 @@ struct Entry {
     model: Option<String>,
 }
 
-/// The keys and preferred models of the user, by provider name. Empty (the
-/// default) = none, and the chat works as before.
+/// The keys and preferred models of the user, by provider name, and their
+/// preferred providers. Empty (the default) = none, and the chat works as
+/// before.
 #[derive(Clone, Default)]
-pub struct UserKeys(Arc<BTreeMap<String, Entry>>);
+pub struct UserKeys {
+    entries: Arc<BTreeMap<String, Entry>>,
+    preferred_text: Option<String>,
+    preferred_images: Option<String>,
+}
 
 // Never printed, not even by accident in a debug line.
 impl std::fmt::Debug for UserKeys {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let keys = self.0.values().filter(|e| e.key.is_some()).count();
+        let keys = self.entries.values().filter(|e| e.key.is_some()).count();
         write!(f, "UserKeys({keys} keys)")
     }
 }
@@ -56,12 +65,32 @@ impl UserKeys {
     pub fn from_entries<'a>(
         entries: impl IntoIterator<Item = (&'a str, Option<String>, Option<String>)>,
     ) -> Self {
-        UserKeys(Arc::new(
-            entries
-                .into_iter()
-                .map(|(p, key, model)| (p.to_string(), Entry { key, model }))
-                .collect(),
-        ))
+        UserKeys {
+            entries: Arc::new(
+                entries
+                    .into_iter()
+                    .map(|(p, key, model)| (p.to_string(), Entry { key, model }))
+                    .collect(),
+            ),
+            ..Default::default()
+        }
+    }
+
+    /// The same, with the providers the user prefers for text and images.
+    pub fn with_preferences(mut self, text: Option<String>, images: Option<String>) -> Self {
+        self.preferred_text = text;
+        self.preferred_images = images;
+        self
+    }
+
+    /// The provider the user prefers for the text purposes, if any.
+    pub fn preferred_text(&self) -> Option<&str> {
+        self.preferred_text.as_deref()
+    }
+
+    /// The provider the user prefers for the backgrounds, if any.
+    pub fn preferred_images(&self) -> Option<&str> {
+        self.preferred_images.as_deref()
     }
 
     pub fn get(&self, f: Fornitore) -> Option<&str> {
@@ -70,16 +99,16 @@ impl UserKeys {
 
     /// The key by provider name: `openai` too.
     pub fn key_of(&self, provider: &str) -> Option<&str> {
-        self.0.get(provider)?.key.as_deref()
+        self.entries.get(provider)?.key.as_deref()
     }
 
     /// The model the user prefers for `provider`, if any.
     pub fn model_of(&self, provider: &str) -> Option<&str> {
-        self.0.get(provider)?.model.as_deref()
+        self.entries.get(provider)?.model.as_deref()
     }
 
     pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
+        self.entries.is_empty() && self.preferred_text.is_none() && self.preferred_images.is_none()
     }
 }
 
@@ -94,14 +123,24 @@ pub fn url_for(origin: &str, provider: &str, email: &str, key: bool) -> String {
     )
 }
 
+/// The address of the user's preferred providers on the gateway.
+pub fn preferences_url(origin: &str, email: &str) -> String {
+    format!(
+        "{}/api/internal/ai-preferences?user={}",
+        origin.trim_end_matches('/'),
+        utf8_percent_encode(email, NON_ALPHANUMERIC),
+    )
+}
+
 /// Whether the project has a key of its own for `provider`.
 pub fn project_has_key(config_dir: &std::path::Path, provider: &str) -> bool {
     crate::ai::scopi::ha_chiave(config_dir, provider)
 }
 
 /// The preferred model of `email` for every provider, and the key for those the
-/// project has none of, asked to the gateway. Empty when this container is not
-/// behind the gateway, or the person has nothing there.
+/// project has none of, asked to the gateway; then, with one more call, the
+/// providers the person prefers. Empty when this container is not behind the
+/// gateway, or the person has nothing there.
 pub async fn fetch_all(s: &AppState, email: &str) -> UserKeys {
     let Some(origin) = s.ritorno.origine_se_dietro_al_gateway() else {
         return UserKeys::default();
@@ -143,7 +182,45 @@ pub async fn fetch_all(s: &AppState, email: &str) -> UserKeys {
             ),
         }
     }
-    UserKeys::from_entries(found)
+    let (text, images) = fetch_preferences(s, &origin, email).await;
+    UserKeys::from_entries(found).with_preferences(text, images)
+}
+
+/// The providers `email` prefers for text and images. Nothing on any error:
+/// without a preference the fixed order holds, as before.
+async fn fetch_preferences(
+    s: &AppState,
+    origin: &str,
+    email: &str,
+) -> (Option<String>, Option<String>) {
+    let url = preferences_url(origin, email);
+    let Ok(client) = crate::remote::costruisci_client(s, &url, 10) else {
+        return (None, None);
+    };
+    match client.get(&url).send().await {
+        Ok(r) if r.status().is_success() => {
+            let v = r.json::<serde_json::Value>().await.unwrap_or_default();
+            let text = |k: &str| v.get(k).and_then(|x| x.as_str()).map(str::to_string);
+            (text("text"), text("images"))
+        }
+        // The person is not there, as far as the gateway knows: normal.
+        Ok(r) if r.status() == reqwest::StatusCode::NOT_FOUND => (None, None),
+        Ok(r) => {
+            tracing::warn!(
+                target: "sws_ai",
+                status = %r.status(),
+                "the gateway did not give the user's preferred AI providers"
+            );
+            (None, None)
+        }
+        Err(e) => {
+            tracing::warn!(
+                target: "sws_ai",
+                "cannot ask the gateway for the user's preferred AI providers: {e}"
+            );
+            (None, None)
+        }
+    }
 }
 
 #[cfg(test)]
@@ -151,16 +228,19 @@ mod tests {
     use super::*;
 
     /// The container asks the gateway about the providers of the AI menu, all
-    /// of them: a provider added there and forgotten here would have account
-    /// keys that no chat ever uses.
+    /// of them but the local model: a provider added there and forgotten here
+    /// would have account keys that no chat ever uses. The local model is not
+    /// in the account (the cloud does not reach the customer's network).
     #[test]
     fn the_providers_asked_are_those_of_the_menu() {
         let menu: Vec<&str> = crate::ai::scopi::FORNITORI
             .iter()
             .map(|(id, _, _)| *id)
+            .filter(|id| *id != "local")
             .collect();
         assert_eq!(PROVIDERS.to_vec(), menu);
         assert!(PROVIDERS.contains(&"mistral"));
+        assert!(!PROVIDERS.contains(&"local"));
     }
 
     #[test]
@@ -177,6 +257,30 @@ mod tests {
             "{u}"
         );
         assert_eq!(u.matches('&').count(), 0, "{u}");
+    }
+
+    #[test]
+    fn the_preferences_address_carries_only_the_email() {
+        assert_eq!(
+            preferences_url("https://sws.soligo.net/", "m+a@soligo.net"),
+            "https://sws.soligo.net/api/internal/ai-preferences?user=m%2Ba%40soligo%2Enet"
+        );
+        // It is one the container's return key is added to, and only there.
+        assert!(crate::gateway::ritorno::va_aggiunta(
+            &preferences_url("https://sws.soligo.net", "a&text=b"),
+            "https://sws.soligo.net"
+        ));
+    }
+
+    #[test]
+    fn a_preference_alone_is_not_empty() {
+        let k = UserKeys::default().with_preferences(Some("mistral".into()), None);
+        assert!(!k.is_empty());
+        assert_eq!(
+            (k.preferred_text(), k.preferred_images()),
+            (Some("mistral"), None)
+        );
+        assert_eq!(k.key_of("mistral"), None);
     }
 
     #[test]

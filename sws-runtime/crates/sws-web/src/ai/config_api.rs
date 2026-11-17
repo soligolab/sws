@@ -57,7 +57,10 @@ use crate::router::{AppState, AuthUser, MASKED_PASSWORD};
 // restituisce così com'è: incartarlo in un Box aggiungerebbe solo rumore.
 #[allow(clippy::result_large_err)]
 fn solo_ide(s: &AppState) -> Result<(), Response> {
-    if s.ide_only {
+    // Not on the gateway either, which has no `--viewer-port` and so looks
+    // like an IDE: it opens no project, its AI settings serve nobody, and
+    // every user of every company is an Admin there.
+    if s.ide_only && s.regia.is_none() {
         Ok(())
     } else {
         Err((
@@ -128,8 +131,10 @@ pub async fn get_ai_config(State(s): State<AppState>, req: axum::extract::Reques
                 // The model the user prefers in their account, if any.
                 "modello_account": user_keys.model_of(id),
                 "modello_default": match scopi::ImageProvider::from_name(id) {
-                    Some(p) => p.default_model(),
-                    None => Fornitore::da_nome(id).map(|f| f.modello_default()).unwrap_or(""),
+                    Some(p) => p.default_model().to_string(),
+                    None => Fornitore::da_nome(id)
+                        .map(|f| client::default_model_of(&s.config_dir, f))
+                        .unwrap_or_default(),
                 },
             })
         })
@@ -165,18 +170,43 @@ pub async fn get_ai_config(State(s): State<AppState>, req: axum::extract::Reques
                 "attivo": attivo,
                 "effettivo": { "fornitore": fornitore, "modello": modello, "tetto_usd": tetto },
                 // Simboli e traduzione senza scelta propria sono l'assistente.
+                // With the keys of the user asking: in the cloud a project
+                // without keys of its own has no assistant to compare with
+                // otherwise, and every purpose would look like its own choice.
                 "eredita": !matches!(sc, Scopo::Assistente | Scopo::Sfondi)
-                    && !scopi::ha_scelta_propria(&s.config_dir, sc),
+                    && !scopi::ha_scelta_propria_con(&s.config_dir, sc, &user_keys),
             }),
         );
     }
 
+    // The local model as saved, even half done (an address without a model
+    // yet): the menu shows what was typed. Its key, as the others, only as
+    // «there is one».
+    let local = imp.local.as_ref().map(|c| {
+        json!({
+            "url": c.url,
+            "model": c.model,
+            "sees_images": c.sees_images,
+            "has_key": client::chiave_di(&s.config_dir, Fornitore::Local).is_some(),
+        })
+    });
+
     Json(json!({
         "fornitori": fornitori,
+        "local": local,
+        // The providers the user asking prefers in their account (cloud only):
+        // the menu says so where the project chose none.
+        "preferito_account": {
+            "testo": user_keys.preferred_text(),
+            "immagini": user_keys.preferred_images(),
+        },
         "scopi": per_scopo,
         "da_ambiente": ambiente,
         "tetto_usd_default": client::TETTO_DEFAULT_USD,
         "tetto_sfondi_default": scopi::TETTO_SFONDI_USD,
+        // A local model is free on a panel or a local IDE, and its cap means
+        // nothing there; in the cloud it is counted as an estimate.
+        "in_cloud": s.in_cloud(),
     }))
     .into_response()
 }
@@ -254,6 +284,10 @@ pub struct ChiaveBody {
     pub fornitore: String,
     #[serde(default)]
     pub chiave: Option<String>,
+    /// Only for testing the local model: the address typed in the menu, not
+    /// saved yet (the models it lists are what the menu then offers).
+    #[serde(default)]
+    pub url: Option<String>,
 }
 
 /// `PUT /api/ai/chiavi` — Admin, solo IDE. Scrive la chiave di un fornitore
@@ -295,6 +329,119 @@ pub async fn put_chiave(
         json!({ "fornitore": body.fornitore }),
     );
     Json(json!({ "ok": true, "cambiata": true, "riconnetti": true })).into_response()
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LocalBody {
+    /// The base of the OpenAI-compatible API (`http://host:11434/v1`). Empty =
+    /// no local model any more.
+    pub url: String,
+    /// May be empty for now: the menu saves the address, tests it, and then
+    /// offers the models it lists.
+    #[serde(default)]
+    pub model: String,
+    /// Absent, empty or masked = unchanged.
+    #[serde(default)]
+    pub key: Option<String>,
+    #[serde(default)]
+    pub sees_images: bool,
+}
+
+/// `PUT /api/ai/local` — Admin, IDE only. The local model: address, model,
+/// whether it reads images, and its optional key.
+///
+/// The address is checked here and not only when it is used: in the cloud a
+/// private one is refused at once, with the same rule as `local_http` (which
+/// still guards every request, a name being free to resolve differently
+/// later). The key has no 16-character minimum: a vLLM `--api-key` is
+/// whatever its owner chose.
+pub async fn put_local(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Json(body): Json<LocalBody>,
+) -> Response {
+    if let Err(r) = solo_ide(&s) {
+        return r;
+    }
+    let mut imp = Impostazioni::carica(&s.config_dir);
+    let url = body.url.trim();
+    if url.is_empty() {
+        // No address, no local model: its key goes too, it would be the key
+        // of nothing.
+        imp.local = None;
+        if let Err(e) = imp.salva(&s.config_dir) {
+            return errore(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("the settings could not be written: {e}"),
+            );
+        }
+        let _ = crate::segreti::cancella_chiave(&s.config_dir, Fornitore::Local.file_chiave());
+        s.audit
+            .log("ai.local_removed", Some(user.username), json!({}));
+        return Json(json!({ "ok": true, "riconnetti": true })).into_response();
+    }
+    let cfg = client::LocalCfg {
+        url: url.to_string(),
+        model: body.model.trim().to_string(),
+        sees_images: body.sees_images,
+    };
+    if let Err(e) = crate::ai::local_http::check_url(cfg.base(), s.in_cloud()) {
+        return address_refused(
+            StatusCode::BAD_REQUEST,
+            &e,
+            json!({ "errore": e.to_string() }),
+        );
+    }
+    let key = body
+        .key
+        .as_deref()
+        .map(str::trim)
+        .filter(|k| !k.is_empty() && *k != MASKED_PASSWORD);
+    if let Some(k) = key {
+        if k.split_whitespace().count() > 1 {
+            return errore(
+                StatusCode::BAD_REQUEST,
+                "the key must be a single word".to_string(),
+            );
+        }
+        if let Err(e) =
+            crate::segreti::scrivi_chiave(&s.config_dir, Fornitore::Local.file_chiave(), k)
+        {
+            return errore(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("the key could not be written: {e}"),
+            );
+        }
+    }
+    // A new server without a new key: the saved key was for the old one, and
+    // would otherwise go to an address typed by someone who never saw it.
+    let key_dropped = key.is_none()
+        && imp
+            .local
+            .as_ref()
+            .is_some_and(|old| !crate::ai::local_http::same_origin(old.base(), cfg.base()))
+        && crate::segreti::cancella_chiave(&s.config_dir, Fornitore::Local.file_chiave())
+            .unwrap_or(false);
+    // The host is enough to tell which server: the audit keeps no more.
+    let host = reqwest::Url::parse(cfg.base())
+        .ok()
+        .and_then(|u| u.host_str().map(str::to_string));
+    let audit = json!({
+        "host": host,
+        "model": cfg.model,
+        "key_changed": key.is_some(),
+        "key_dropped": key_dropped,
+    });
+    imp.local = Some(cfg);
+    if let Err(e) = imp.salva(&s.config_dir) {
+        return errore(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("the settings could not be written: {e}"),
+        );
+    }
+    s.audit.log("ai.local_set", Some(user.username), audit);
+    Json(json!({ "ok": true, "riconnetti": true })).into_response()
 }
 
 /// `DELETE /api/ai/chiavi` — Admin, solo IDE.
@@ -342,7 +489,44 @@ pub async fn prova_chiave(
     }
     // Without a key of the project, the one of whoever asks (cloud only).
     let user_keys = crate::ai::user_keys::fetch_all(&s, &user.username).await;
-    match scopi::prova_chiave(&s.config_dir, &body.fornitore, &user_keys).await {
+    // A masked key is the saved one: the menu shows it that way.
+    let typed_key = body
+        .chiave
+        .as_deref()
+        .map(str::trim)
+        .filter(|k| !k.is_empty() && *k != MASKED_PASSWORD);
+    let local = body.url.as_deref().map(|u| (u, typed_key));
+    // An address refused before any request: with its code, for the menu to
+    // say it in its language.
+    if Fornitore::da_nome(&body.fornitore) == Some(Fornitore::Local) {
+        let url = match body.url.as_deref().map(str::trim).filter(|u| !u.is_empty()) {
+            Some(u) => client::LocalCfg {
+                url: u.to_string(),
+                ..Default::default()
+            },
+            None => Impostazioni::carica(&s.config_dir)
+                .local
+                .unwrap_or_default(),
+        };
+        if !url.base().is_empty() {
+            if let Err(e) = crate::ai::local_http::check_url(url.base(), s.in_cloud()) {
+                return address_refused(
+                    StatusCode::OK,
+                    &e,
+                    json!({ "ok": false, "errore": e.to_string() }),
+                );
+            }
+        }
+    }
+    match scopi::prova_chiave(
+        &s.config_dir,
+        &body.fornitore,
+        &user_keys,
+        local,
+        s.in_cloud(),
+    )
+    .await
+    {
         Ok(modelli) => Json(json!({ "ok": true, "modelli": modelli })).into_response(),
         Err(e) => Json(json!({ "ok": false, "errore": e })).into_response(),
     }
@@ -367,6 +551,19 @@ pub async fn get_spending(State(s): State<AppState>) -> Response {
         &crate::ai::spending::current_month(),
     ))
     .into_response()
+}
+
+/// A refused address of the local model: `body` with the code the IDE
+/// translates, when there is one.
+fn address_refused(
+    status: StatusCode,
+    e: &crate::ai::local_http::AddressError,
+    mut body: serde_json::Value,
+) -> Response {
+    if let Some(c) = e.code() {
+        body["codice"] = c;
+    }
+    (status, Json(body)).into_response()
 }
 
 fn errore(codice: StatusCode, msg: String) -> Response {
@@ -425,6 +622,8 @@ mod tests {
         std::fs::write(d.path().join("bfl.key"), "bfl-prova-0123456789abcdef").unwrap();
         let req = axum::extract::Request::new(axum::body::Body::empty());
         let v = body_of(get_ai_config(State(s), req).await).await;
+        // Not the cloud: a local model would be free here, with no cap.
+        assert_eq!(v["in_cloud"], false);
         let bfl = v["fornitori"]
             .as_array()
             .unwrap()
@@ -439,5 +638,314 @@ mod tests {
         assert_eq!(eff["attivo"], true);
         assert_eq!(eff["effettivo"]["fornitore"], "bfl");
         assert_eq!(eff["effettivo"]["modello"], "flux-2-pro");
+    }
+
+    /// In the cloud the menu reads the account of whoever opens it: the keys,
+    /// the preferred provider (shown, and used where the project chose none),
+    /// and whether a purpose really inherits the assistant.
+    #[tokio::test]
+    async fn in_the_cloud_the_menu_follows_the_account_of_who_opens_it() {
+        let d = tempfile::tempdir().unwrap();
+        if std::env::var_os("SWS_AI_FORNITORE").is_some()
+            || std::env::var_os("SWS_AI_MODELLO").is_some()
+            || [Fornitore::Anthropic, Fornitore::Kimi, Fornitore::Mistral]
+                .iter()
+                .any(|f| client::chiave_di(d.path(), *f).is_some())
+        {
+            return;
+        }
+        // A fake gateway: account keys for Kimi and Mistral, Mistral preferred.
+        let headers = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
+        let seen = headers.clone();
+        let app = axum::Router::new()
+            .route(
+                "/api/internal/ai-key/:provider",
+                axum::routing::get(
+                    |axum::extract::Path(p): axum::extract::Path<String>| async move {
+                        match p.as_str() {
+                            "kimi" | "mistral" => {
+                                Json(json!({ "key": format!("sk-account-{p}"), "model": null }))
+                                    .into_response()
+                            }
+                            _ => StatusCode::NOT_FOUND.into_response(),
+                        }
+                    },
+                ),
+            )
+            .route(
+                "/api/internal/ai-preferences",
+                axum::routing::get(move |h: axum::http::HeaderMap| {
+                    let seen = seen.clone();
+                    async move {
+                        let key = h
+                            .get(crate::gateway::ritorno::INTESTAZIONE)
+                            .and_then(|v| v.to_str().ok())
+                            .unwrap_or("-")
+                            .to_string();
+                        seen.lock().unwrap().push(key);
+                        Json(json!({ "text": "mistral", "images": null }))
+                    }
+                }),
+            );
+        let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let origin = format!("http://{}", l.local_addr().unwrap());
+        tokio::spawn(async move { axum::serve(l, app).await.unwrap() });
+
+        let mut s = crate::router::stato_di_prova(d.path()).await;
+        s.ide_only = true;
+        s.ritorno = std::sync::Arc::new(crate::gateway::ritorno::Ritorno::for_tests(
+            "acme/x:firma",
+            &origin,
+        ));
+        // Translation chose Kimi, which has no key in the project: its own
+        // choice all the same, thanks to the account.
+        std::fs::write(
+            d.path().join("ai.yaml"),
+            "scopi:\n  traduzione: {fornitore: kimi}\n",
+        )
+        .unwrap();
+        let mut req = axum::extract::Request::new(axum::body::Body::empty());
+        req.extensions_mut().insert(AuthUser {
+            username: "m@soligo.net".into(),
+            ..admin()
+        });
+        let v = body_of(get_ai_config(State(s), req).await).await;
+        assert_eq!(
+            v["preferito_account"],
+            json!({ "testo": "mistral", "immagini": null })
+        );
+        assert_eq!(
+            v["scopi"]["assistente"]["effettivo"]["fornitore"],
+            "mistral"
+        );
+        assert_eq!(v["scopi"]["traduzione"]["effettivo"]["fornitore"], "kimi");
+        assert_eq!(v["scopi"]["traduzione"]["eredita"], false);
+        assert_eq!(v["scopi"]["simboli"]["eredita"], true);
+        // The preferences were asked with the container's return key.
+        assert_eq!(*headers.lock().unwrap(), ["acme/x:firma"]);
+    }
+
+    fn admin() -> AuthUser {
+        AuthUser {
+            username: "admin".into(),
+            role: sws_auth::Role::Admin,
+            must_change_password: false,
+            allowed_zones: vec![],
+            amministratore_piattaforma: false,
+        }
+    }
+
+    async fn put_local_(s: &AppState, body: serde_json::Value) -> Response {
+        put_local(
+            State(s.clone()),
+            Extension(admin()),
+            Json(serde_json::from_value(body).unwrap()),
+        )
+        .await
+    }
+
+    /// The local model from the IDE: any address on a panel or a local IDE,
+    /// only public ones in the cloud; a short key is a key; the menu reads
+    /// it back, the key as «there is one».
+    #[tokio::test]
+    async fn the_local_model_is_saved_from_the_ide() {
+        let d = tempfile::tempdir().unwrap();
+        let mut s = crate::router::stato_di_prova(d.path()).await;
+        s.ide_only = false;
+        let r = put_local_(&s, json!({ "url": "http://192.168.1.20:11434/v1" })).await;
+        assert_eq!(r.status(), StatusCode::NOT_FOUND);
+        s.ide_only = true;
+
+        for bad in ["ftp://host/v1", "not an address", "file:///etc/passwd"] {
+            let r = put_local_(&s, json!({ "url": bad, "model": "m" })).await;
+            assert_eq!(r.status(), StatusCode::BAD_REQUEST, "{bad}");
+        }
+        let r = put_local_(
+            &s,
+            json!({ "url": "http://192.168.1.20:11434/v1", "model": "qwen3:1.7b",
+                    "key": "token-abc", "sees_images": true }),
+        )
+        .await;
+        assert_eq!(r.status(), StatusCode::OK);
+        assert_eq!(
+            std::fs::read_to_string(d.path().join("local.key")).unwrap(),
+            "token-abc"
+        );
+        let c = client::local_cfg(d.path()).unwrap();
+        assert_eq!(
+            (c.url.as_str(), c.model.as_str(), c.sees_images),
+            ("http://192.168.1.20:11434/v1", "qwen3:1.7b", true)
+        );
+        // A masked key leaves the saved one; two words are not a key.
+        let r = put_local_(
+            &s,
+            json!({ "url": "http://192.168.1.20:11434/v1", "model": "llama3.3",
+                    "key": MASKED_PASSWORD }),
+        )
+        .await;
+        assert_eq!(r.status(), StatusCode::OK);
+        assert!(d.path().join("local.key").exists());
+        let r = put_local_(
+            &s,
+            json!({ "url": "http://192.168.1.20:11434/v1", "key": "two words" }),
+        )
+        .await;
+        assert_eq!(r.status(), StatusCode::BAD_REQUEST);
+
+        // The menu: the provider is ready, its model is the saved one.
+        let req = axum::extract::Request::new(axum::body::Body::empty());
+        let v = body_of(get_ai_config(State(s.clone()), req).await).await;
+        assert_eq!(
+            v["local"],
+            json!({ "url": "http://192.168.1.20:11434/v1", "model": "llama3.3",
+                    "sees_images": false, "has_key": true })
+        );
+        let local = v["fornitori"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|f| f["id"] == "local")
+            .expect("local is in the menu");
+        assert_eq!(local["chiave"], true);
+        assert_eq!(local["modello_default"], "llama3.3");
+
+        // In the cloud a private address is refused at once.
+        s.segreto_gateway = Some(std::sync::Arc::new("secret".into()));
+        for private in [
+            "http://192.168.1.20:11434/v1",
+            "http://127.0.0.1:11434/v1",
+            "http://[::1]:8000/v1",
+        ] {
+            let r = put_local_(&s, json!({ "url": private, "model": "m" })).await;
+            assert_eq!(r.status(), StatusCode::BAD_REQUEST, "{private}");
+        }
+        let r = put_local_(
+            &s,
+            json!({ "url": "https://llm.example.com/v1", "model": "m" }),
+        )
+        .await;
+        assert_eq!(r.status(), StatusCode::OK);
+
+        // No address, no local model, and no key of nothing.
+        let r = put_local_(&s, json!({ "url": "" })).await;
+        assert_eq!(r.status(), StatusCode::OK);
+        assert!(Impostazioni::carica(d.path()).local.is_none());
+        assert!(!d.path().join("local.key").exists());
+    }
+
+    /// Review of 17-11-2026: the saved key of the local model went to any new
+    /// address, typed by an Admin who never saw it. It stays with its server:
+    /// a new path on the same server keeps it, a new server drops it.
+    #[tokio::test]
+    async fn the_local_key_stays_with_its_server() {
+        let d = tempfile::tempdir().unwrap();
+        let mut s = crate::router::stato_di_prova(d.path()).await;
+        s.ide_only = true;
+        let key = d.path().join("local.key");
+        let r = put_local_(
+            &s,
+            json!({ "url": "http://192.168.1.20:8000/v1", "model": "m", "key": "vllm-secret" }),
+        )
+        .await;
+        assert_eq!(r.status(), StatusCode::OK);
+        let r = put_local_(
+            &s,
+            json!({ "url": "http://192.168.1.20:8000/openai/v1", "model": "m" }),
+        )
+        .await;
+        assert_eq!(r.status(), StatusCode::OK);
+        assert!(key.exists(), "same server, same key");
+        let r = put_local_(
+            &s,
+            json!({ "url": "https://attacker.example/v1", "model": "m" }),
+        )
+        .await;
+        assert_eq!(r.status(), StatusCode::OK);
+        assert!(!key.exists(), "the key followed the address");
+        // A new server with its own key: that key is kept.
+        let r = put_local_(
+            &s,
+            json!({ "url": "http://10.0.0.5:11434/v1", "model": "m", "key": "other" }),
+        )
+        .await;
+        assert_eq!(r.status(), StatusCode::OK);
+        assert_eq!(std::fs::read_to_string(&key).unwrap(), "other");
+    }
+
+    /// A user and a password in the address are refused: the address goes
+    /// back to the menu and into messages, where a secret never goes.
+    #[tokio::test]
+    async fn an_address_with_a_password_is_refused() {
+        let d = tempfile::tempdir().unwrap();
+        let mut s = crate::router::stato_di_prova(d.path()).await;
+        s.ide_only = true;
+        let r = put_local_(
+            &s,
+            json!({ "url": "http://u:secret@192.168.1.20:8000/v1", "model": "m" }),
+        )
+        .await;
+        assert_eq!(r.status(), StatusCode::BAD_REQUEST);
+        let v = body_of(r).await;
+        assert!(!v.to_string().contains("secret"), "{v}");
+        assert_eq!(v["codice"]["id"], "local_address_has_credentials");
+        // The test of the address too, before any request.
+        let r = prova_chiave(
+            State(s.clone()),
+            Extension(admin()),
+            Json(
+                serde_json::from_value(
+                    json!({ "fornitore": "local", "url": "http://u:secret@192.168.1.20/v1" }),
+                )
+                .unwrap(),
+            ),
+        )
+        .await;
+        let v = body_of(r).await;
+        assert_eq!(v["ok"], false);
+        assert_eq!(v["codice"]["id"], "local_address_has_credentials");
+        assert!(Impostazioni::carica(d.path()).local.is_none());
+    }
+
+    /// Review of 17-11-2026: the gateway runs without a viewer, so it looked
+    /// like an IDE, and every user of every company is an Admin there. Its AI
+    /// routes do not exist, and it counts as the cloud for the local model.
+    #[tokio::test]
+    async fn the_gateway_has_no_ai_settings() {
+        let d = tempfile::tempdir().unwrap();
+        let mut s = crate::router::stato_di_prova(d.path()).await;
+        s.ide_only = true;
+        assert!(!s.in_cloud());
+        s.regia = Some(std::sync::Arc::new(crate::gateway::progetti::Regia::nuova(
+            crate::gateway::podman::Podman::nuovo(d.path().join("podman.sock")),
+            "image",
+            d.path(),
+            crate::gateway::progetti::ComeRaggiungere::PortaPubblicata,
+            "segretolungoabbastanza0123",
+        )));
+        assert!(s.in_cloud());
+        let r = put_local_(
+            &s,
+            json!({ "url": "http://sws-p-other-company:8444/x?", "model": "m" }),
+        )
+        .await;
+        assert_eq!(r.status(), StatusCode::NOT_FOUND);
+        assert!(Impostazioni::carica(d.path()).local.is_none());
+        let r = prova_chiave(
+            State(s.clone()),
+            Extension(admin()),
+            Json(
+                serde_json::from_value(
+                    json!({ "fornitore": "local", "url": "http://169.254.169.254/latest?x=" }),
+                )
+                .unwrap(),
+            ),
+        )
+        .await;
+        assert_eq!(r.status(), StatusCode::NOT_FOUND);
+        let req = axum::extract::Request::new(axum::body::Body::empty());
+        assert_eq!(
+            get_ai_config(State(s.clone()), req).await.status(),
+            StatusCode::NOT_FOUND
+        );
     }
 }

@@ -75,8 +75,8 @@ I dati possono essere comunicati alle autorità quando la legge lo impone.
 
 **Servizi che attivi tu.** Se nei tuoi progetti configuri servizi di terzi — Twilio (SMS e chiamate), Telegram
 (messaggi), il tuo server di posta (SMTP, per le notifiche del progetto), la traduzione automatica (MyMemory,
-LibreTranslate o Google Cloud Translation), l'assistente IA (Anthropic, Moonshot/Kimi o Mistral) e le immagini che
-genera (OpenAI o Black Forest Labs), i tuoi broker e server — il servizio manda loro i dati che servono alla
+LibreTranslate o Google Cloud Translation), l'assistente IA (Anthropic, Moonshot/Kimi, Mistral, oppure un modello
+su un server scelto dall'utente) e le immagini che genera (OpenAI o Black Forest Labs), i tuoi broker e server — il servizio manda loro i dati che servono alla
 funzione che hai scelto. Alcuni richiedono le tue credenziali; la
 traduzione con MyMemory o con l'istanza pubblica di LibreTranslate no, ma anche lì i testi da tradurre escono verso
 quel fornitore. Il rapporto con quei fornitori è tuo, alle loro condizioni e con le loro informative.

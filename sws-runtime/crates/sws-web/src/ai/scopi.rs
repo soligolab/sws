@@ -26,7 +26,7 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
-use crate::ai::client::{self, Fornitore, Impostazioni, Scelta};
+use crate::ai::client::{self, Fornitore, Impostazioni, LocalCfg, Scelta};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Scopo {
@@ -151,6 +151,9 @@ pub fn carica_per_con(config_dir: &Path, s: Scopo, user: &client::UserKeys) -> O
         );
         return assistente;
     };
+    // The address of the local model, as for the assistant: without it a
+    // symbol or a translation would go to an empty URL.
+    let (endpoint, sees_images) = client::address_of(config_dir, f);
     Some(Scelta {
         fornitore: f,
         chiave,
@@ -160,12 +163,14 @@ pub fn carica_per_con(config_dir: &Path, s: Scopo, user: &client::UserKeys) -> O
             .clone()
             .filter(|m| !m.trim().is_empty())
             .or_else(|| user.model_of(f.nome()).map(str::to_string))
-            .unwrap_or_else(|| f.modello_default().to_string()),
+            .unwrap_or_else(|| client::default_model_of(config_dir, f)),
         tetto_usd: cfg
             .tetto_usd
             .filter(|t| t.is_finite() && *t > 0.0)
             .or_else(|| assistente.as_ref().map(|a| a.tetto_usd))
             .unwrap_or(client::TETTO_DEFAULT_USD),
+        endpoint,
+        sees_images,
     })
 }
 
@@ -269,10 +274,11 @@ pub fn carica_sfondi(config_dir: &Path) -> Option<SceltaImmagini> {
 /// [`carica_sfondi`] with the user's account: their key when the project has
 /// none, their preferred model when the project chose none.
 ///
-/// The provider is the one saved for the purpose; without one, OpenAI and then
-/// Black Forest Labs. A saved provider without a key falls back to the other
-/// one, as the text purposes fall back to the assistant: better another image
-/// model than a tool switched off without saying why.
+/// The provider is the one saved for the purpose; then the one the user
+/// prefers in their account (17-11-2026); then OpenAI and Black Forest Labs. A
+/// saved provider without a key falls back to the next one, as the text
+/// purposes fall back to the assistant: better another image model than a
+/// tool switched off without saying why.
 pub fn carica_sfondi_con(config_dir: &Path, user: &client::UserKeys) -> Option<SceltaImmagini> {
     let cfg = Impostazioni::carica(config_dir)
         .scopi
@@ -280,8 +286,13 @@ pub fn carica_sfondi_con(config_dir: &Path, user: &client::UserKeys) -> Option<S
         .cloned()
         .unwrap_or_default();
     let saved = cfg.fornitore.as_deref().and_then(ImageProvider::from_name);
-    let mut order: Vec<ImageProvider> = saved.into_iter().collect();
-    order.extend(ImageProvider::ALL.into_iter().filter(|p| Some(*p) != saved));
+    let preferred = user.preferred_images().and_then(ImageProvider::from_name);
+    let mut order: Vec<ImageProvider> = Vec::new();
+    for p in saved.into_iter().chain(preferred).chain(ImageProvider::ALL) {
+        if !order.contains(&p) {
+            order.push(p);
+        }
+    }
     let (provider, chiave) = order.into_iter().find_map(|p| {
         p.project_key(config_dir)
             .or_else(|| user.key_of(p.name()).map(str::to_string))
@@ -318,7 +329,11 @@ pub fn carica_sfondi_con(config_dir: &Path, user: &client::UserKeys) -> Option<S
 // ── I fornitori, per il menù ───────────────────────────────────────────────
 
 /// I fornitori che il menù IA conosce: id, nome da mostrare, cosa sanno fare.
-pub const FORNITORI: [(&str, &str, &[&str]); 5] = [
+///
+/// `local` (the model the customer serves, F3 of plan
+/// `2026-11-17-ia-a-scelta-del-cliente`) is configured with an address, not
+/// only a key, and stays out of the account (`user_keys::PROVIDERS`).
+pub const FORNITORI: [(&str, &str, &[&str]); 6] = [
     (
         "anthropic",
         "Anthropic (Claude)",
@@ -334,14 +349,25 @@ pub const FORNITORI: [(&str, &str, &[&str]); 5] = [
         "Mistral AI",
         &["assistente", "simboli", "traduzione"],
     ),
+    (
+        "local",
+        "Local model (OpenAI-compatible)",
+        &["assistente", "simboli", "traduzione"],
+    ),
     ("openai", "OpenAI (immagini)", &["sfondi"]),
     ("bfl", "Black Forest Labs (FLUX)", &["sfondi"]),
 ];
 
+/// Is the provider ready? For the local model that means address and model,
+/// its key being optional.
 pub fn ha_chiave(config_dir: &Path, fornitore: &str) -> bool {
     match ImageProvider::from_name(fornitore) {
         Some(p) => p.project_key(config_dir).is_some(),
-        None => Fornitore::da_nome(fornitore).is_some_and(|f| client::ha_chiave(config_dir, f)),
+        None => match Fornitore::da_nome(fornitore) {
+            Some(Fornitore::Local) => client::local_cfg(config_dir).is_some(),
+            Some(f) => client::ha_chiave(config_dir, f),
+            None => false,
+        },
     }
 }
 
@@ -355,11 +381,39 @@ pub fn file_chiave(fornitore: &str) -> Option<&'static str> {
 /// «Prova la chiave»: una chiamata gratuita, l'elenco dei modelli. Torna gli id
 /// dei modelli (utili come proposte nel menù) o l'errore del fornitore. La
 /// chiave del progetto, o quella dell'account di chi chiede (`user`).
+///
+/// The local model is tested before any key is looked for, since its key is
+/// optional: `local` = the address and key typed in the menu (not saved yet),
+/// or the saved ones. `in_cloud` = a container behind the gateway, where only
+/// public addresses are reached.
 pub async fn prova_chiave(
     config_dir: &Path,
     fornitore: &str,
     user: &client::UserKeys,
+    local: Option<(&str, Option<&str>)>,
+    in_cloud: bool,
 ) -> Result<Vec<String>, String> {
+    if Fornitore::da_nome(fornitore) == Some(Fornitore::Local) {
+        let saved = Impostazioni::carica(config_dir).local.unwrap_or_default();
+        let saved_key = client::chiave_di(config_dir, Fornitore::Local);
+        let (url, key) = match local.filter(|(u, _)| !u.trim().is_empty()) {
+            Some((u, k)) => {
+                let typed = LocalCfg {
+                    url: u.to_string(),
+                    ..Default::default()
+                };
+                // The saved key only for the server it was saved for.
+                let saved_key = saved_key
+                    .filter(|_| crate::ai::local_http::same_origin(typed.base(), saved.base()));
+                (typed, k.map(str::to_string).or(saved_key))
+            }
+            None => (saved, saved_key),
+        };
+        if url.base().is_empty() {
+            return Err("no address for the local model".to_string());
+        }
+        return prova_locale(url.base(), key.as_deref(), in_cloud).await;
+    }
     let del_progetto = match ImageProvider::from_name(fornitore) {
         Some(p) => p.project_key(config_dir),
         None => match Fornitore::da_nome(fornitore) {
@@ -401,10 +455,13 @@ pub async fn prova_questa_chiave(fornitore: &str, chiave: &str) -> Result<Vec<St
         "mistral" => "https://api.mistral.ai/v1/models",
         _ => return Err(format!("fornitore `{fornitore}` sconosciuto")),
     };
-    let http = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(10))
-        .build()
-        .map_err(|e| e.to_string())?;
+    // A fixed, public address of a cloud provider: nothing to guard, but the
+    // same builder the local model's test will use with its own address.
+    let http = crate::ai::local_http::client(
+        url,
+        false,
+        reqwest::Client::builder().timeout(std::time::Duration::from_secs(10)),
+    )?;
     let mut req = http.get(url);
     req = if fornitore == "anthropic" {
         req.header("x-api-key", chiave)
@@ -424,6 +481,43 @@ pub async fn prova_questa_chiave(fornitore: &str, chiave: &str) -> Result<Vec<St
         return Err(format!("HTTP {}: {msg}", stato.as_u16()));
     }
     Ok(model_ids(&corpo))
+}
+
+/// The models of a local server: `GET <base>/models`, which Ollama, vLLM, LM
+/// Studio and llama.cpp all answer in OpenAI's shape. Through the client of
+/// `local_http`, like every request to an address the customer chose. The
+/// Bearer goes only with a key: unlike a chat request, a list of models is
+/// not refused for a missing one, and an empty header is.
+pub async fn prova_locale(
+    base: &str,
+    key: Option<&str>,
+    in_cloud: bool,
+) -> Result<Vec<String>, String> {
+    let url = format!("{}/models", base.trim_end_matches('/'));
+    let http = crate::ai::local_http::client(
+        &url,
+        in_cloud,
+        reqwest::Client::builder().timeout(std::time::Duration::from_secs(10)),
+    )?;
+    let mut req = http.get(&url);
+    if let Some(k) = key.map(str::trim).filter(|k| !k.is_empty()) {
+        req = req.header("Authorization", format!("Bearer {k}"));
+    }
+    let r = req
+        .send()
+        .await
+        .map_err(|e| format!("the local model does not answer at {url}: {e}"))?;
+    let status = r.status();
+    let body: serde_json::Value = r.json().await.unwrap_or_default();
+    if !status.is_success() {
+        let msg = crate::ai::chat_completions::error_message(&body).unwrap_or_default();
+        return Err(format!("HTTP {}: {msg}", status.as_u16()));
+    }
+    let ids = model_ids(&body);
+    if ids.is_empty() {
+        return Err(format!("{url} lists no model"));
+    }
+    Ok(ids)
 }
 
 /// The model ids of a `/v1/models` answer, sorted. Mistral lists everything it
@@ -665,11 +759,152 @@ mod tests {
     }
 
     #[test]
+    fn the_account_preference_for_images_beats_the_fixed_order_and_loses_to_the_project() {
+        if std::env::var_os("OPENAI_API_KEY").is_some() || std::env::var_os("BFL_API_KEY").is_some()
+        {
+            return;
+        }
+        let d = tempfile::tempdir().unwrap();
+        let keys = [
+            ("openai", Some("sk-oa-account".to_string()), None),
+            ("bfl", Some("bfl-account".to_string()), None),
+        ];
+        let user =
+            client::UserKeys::from_entries(keys.clone()).with_preferences(None, Some("bfl".into()));
+        // Nothing saved: the preference, not OpenAI first.
+        assert_eq!(
+            carica_sfondi_con(d.path(), &user).unwrap().fornitore,
+            ImageProvider::Bfl
+        );
+        // A model saved without a provider is OpenAI's: FLUX does not get it.
+        scrivi(d.path(), "scopi:\n  sfondi: {modello: gpt-image-1.5}\n");
+        let s = carica_sfondi_con(d.path(), &user).unwrap();
+        assert_eq!(
+            (s.fornitore, s.modello.as_str()),
+            (ImageProvider::Bfl, "flux-2-pro")
+        );
+        // The project's choice wins over the preference.
+        scrivi(d.path(), "scopi:\n  sfondi: {fornitore: openai}\n");
+        assert_eq!(
+            carica_sfondi_con(d.path(), &user).unwrap().fornitore,
+            ImageProvider::OpenAi
+        );
+        // A preference without a key: the next one that has it.
+        scrivi(d.path(), "scopi: {}\n");
+        let only_openai = client::UserKeys::from_entries([keys[0].clone()])
+            .with_preferences(None, Some("bfl".into()));
+        assert_eq!(
+            carica_sfondi_con(d.path(), &only_openai).unwrap().fornitore,
+            ImageProvider::OpenAi
+        );
+    }
+
+    #[test]
     fn bfl_is_a_backgrounds_provider_everywhere() {
         assert!(FORNITORI
             .iter()
             .any(|(id, _, sa)| *id == "bfl" && *sa == ["sfondi"]));
         assert_eq!(file_chiave("bfl"), Some("bfl.key"));
         assert!(crate::ai::user_keys::PROVIDERS.contains(&"bfl"));
+    }
+
+    /// Symbols and translation can use the local model too, and then they get
+    /// its address: without it they would go to an empty URL.
+    #[test]
+    fn the_translation_with_the_local_model_has_its_address() {
+        let d = tempfile::tempdir().unwrap();
+        let none = client::UserKeys::default();
+        scrivi(d.path(), "scopi:\n  traduzione: {fornitore: local}\n");
+        assert!(!ha_chiave(d.path(), "local"), "no address, not ready");
+        scrivi(
+            d.path(),
+            "scopi:\n  traduzione: {fornitore: local}\n\
+             local: {url: 'http://192.168.1.20:11434/v1', model: 'qwen3:1.7b'}\n",
+        );
+        assert!(ha_chiave(d.path(), "local"));
+        let t = carica_per_con(d.path(), Scopo::Traduzione, &none).unwrap();
+        assert_eq!(t.fornitore, Fornitore::Local);
+        assert_eq!(t.modello, "qwen3:1.7b");
+        assert_eq!(
+            t.endpoint.as_deref(),
+            Some("http://192.168.1.20:11434/v1/chat/completions")
+        );
+        assert!(!t.sees_images);
+        // A model of the purpose wins over the one saved with the address.
+        scrivi(
+            d.path(),
+            "scopi:\n  simboli: {fornitore: local, modello: 'llama3.3'}\n\
+             local: {url: 'http://192.168.1.20:11434/v1', model: 'qwen3:1.7b', sees_images: true}\n",
+        );
+        let t = carica_per_con(d.path(), Scopo::Simboli, &none).unwrap();
+        assert_eq!((t.modello.as_str(), t.sees_images), ("llama3.3", true));
+        assert!(t.endpoint.is_some());
+    }
+
+    /// «Prova» on the local model: the models of the server, with the address
+    /// typed in the menu or the saved one, a Bearer only with a key, and
+    /// before any key is looked for.
+    #[tokio::test]
+    async fn the_test_of_the_local_model_lists_its_models() {
+        use axum::http::{header, HeaderMap};
+        let seen = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
+        let seen2 = seen.clone();
+        let app = axum::Router::new().route(
+            "/v1/models",
+            axum::routing::get(move |h: HeaderMap| {
+                let seen = seen2.clone();
+                async move {
+                    let auth = h
+                        .get(header::AUTHORIZATION)
+                        .and_then(|v| v.to_str().ok())
+                        .unwrap_or("-")
+                        .to_string();
+                    seen.lock().unwrap().push(auth);
+                    axum::Json(serde_json::json!({ "object": "list", "data": [
+                        { "id": "qwen3:1.7b", "object": "model" },
+                        { "id": "llama3.3", "object": "model" } ] }))
+                }
+            }),
+        );
+        let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = l.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(l, app).await.unwrap() });
+        let base = format!("http://{addr}/v1");
+        let d = tempfile::tempdir().unwrap();
+        let none = client::UserKeys::default();
+
+        // Nothing saved, nothing typed.
+        let e = prova_chiave(d.path(), "local", &none, None, false)
+            .await
+            .unwrap_err();
+        assert!(e.contains("no address"), "{e}");
+        // Typed, not saved.
+        let ids = prova_chiave(d.path(), "local", &none, Some((&base, None)), false)
+            .await
+            .unwrap();
+        assert_eq!(ids, ["llama3.3", "qwen3:1.7b"]);
+        // Saved, with a short key of its own.
+        scrivi(d.path(), &format!("local: {{url: '{base}/'}}\n"));
+        std::fs::write(d.path().join("local.key"), "token-abc").unwrap();
+        prova_chiave(d.path(), "local", &none, None, false)
+            .await
+            .unwrap();
+        // Typed again, same server: the saved key goes with it.
+        prova_chiave(d.path(), "local", &none, Some((&base, None)), false)
+            .await
+            .unwrap();
+        // Review of 17-11-2026: another server typed, no key typed. The saved
+        // key is not sent there: it is the key of the saved server.
+        let other = format!("http://localhost:{}/v1", addr.port());
+        prova_chiave(d.path(), "local", &none, Some((&other, None)), false)
+            .await
+            .unwrap();
+        // In the cloud a loopback address is refused before any request.
+        let e = prova_chiave(d.path(), "local", &none, None, true)
+            .await
+            .unwrap_err();
+        assert!(e.contains("not public"), "{e}");
+        let seen = seen.lock().unwrap();
+        assert_eq!(*seen, ["-", "Bearer token-abc", "Bearer token-abc", "-"]);
     }
 }

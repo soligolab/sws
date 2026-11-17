@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
-import { AI_PROVIDERS } from "@/ai/providers";
+import { AI_IMAGE_PROVIDERS, AI_PROVIDERS, AI_TEXT_PROVIDERS } from "@/ai/providers";
 import { CampoPassword } from "@/components/CampoPassword";
 import { ModelSelect } from "@/components/ModelSelect";
 import { modulo } from "@/finestraAvviso/finestraAvviso";
-import type { MyAiKey } from "@/types";
+import type { MyAiKey, MyAiPreferences } from "@/types";
 
 const button: React.CSSProperties = {
   background: "var(--brand-surface-2, #334155)", color: "var(--brand-text, #e2e8f0)",
@@ -34,6 +34,7 @@ export function MyAiKeys({ onClose }: { onClose: () => void }) {
     <div data-testid="my-ai-keys" style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 380 }}>
       <p style={{ margin: 0, fontSize: 12, color: "var(--brand-text-muted, #94a3b8)" }}>{t("myAiKeys.help")}</p>
       {error && <div role="alert" style={{ color: "var(--brand-danger-soft, #fca5a5)", fontSize: 12 }}>{error}</div>}
+      <Preferences onError={setError} />
       {keys === null && !error && <div style={{ fontSize: 12 }}>…</div>}
       {keys !== null && AI_PROVIDERS.map((id) => (
         <Row key={id} provider={id} current={keys.find((k) => k.provider === id)} onChanged={load} onError={setError} />
@@ -41,6 +42,43 @@ export function MyAiKeys({ onClose }: { onClose: () => void }) {
       <div style={{ display: "flex", justifyContent: "flex-end" }}>
         <button type="button" style={button} onClick={onClose}>{t("common.close", { defaultValue: "OK" })}</button>
       </div>
+    </div>
+  );
+}
+
+/** The provider preferred for text and for images (17-11-2026): it counts
+ *  where the project chose none, before the fixed order. Saved at once, as the
+ *  preferred model below. */
+function Preferences({ onError }: { onError: (e: string | null) => void }) {
+  const { t } = useTranslation();
+  const [prefs, setPrefs] = useState<MyAiPreferences | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    api.getMyAiPreferences().then(setPrefs, (e) => onError(e instanceof Error ? e.message : String(e)));
+  }, [onError]);
+  if (!prefs) return null;
+  const save = async (kind: keyof MyAiPreferences, provider: string) => {
+    setBusy(true); onError(null);
+    try {
+      await api.putMyAiPreferences({ [kind]: provider || null });
+      setPrefs({ ...prefs, [kind]: provider || null });
+    } catch (e) { onError(e instanceof Error ? e.message : String(e)); }
+    finally { setBusy(false); }
+  };
+  const menu = (kind: keyof MyAiPreferences, providers: readonly string[]) => (
+    <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 12, color: "var(--brand-text-muted, #94a3b8)" }}>
+      <span style={{ minWidth: 200 }}>{t(kind === "text" ? "myAiKeys.preferredText" : "myAiKeys.preferredImages")}</span>
+      <select value={prefs[kind] ?? ""} disabled={busy} data-testid={`my-ai-pref-${kind}`} style={{ minWidth: 220 }}
+        onChange={(e) => void save(kind, e.target.value)}>
+        <option value="">{t("myAiKeys.preferredNone")}</option>
+        {providers.map((p) => <option key={p} value={p}>{t(`aiProviders.${p}`)}</option>)}
+      </select>
+    </label>
+  );
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      {menu("text", AI_TEXT_PROVIDERS)}
+      {menu("images", AI_IMAGE_PROVIDERS)}
     </div>
   );
 }

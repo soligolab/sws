@@ -12,6 +12,37 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Aggiunto
+- **L'IA a scelta del cliente** (piano `docs/archive/2026-11-17-ia-a-scelta-del-cliente.md`, 17-11-2026).
+  - **Un modello in casa** (fornitore `local`): l'assistente, i simboli e la traduzione possono usare un server che
+    parla l'API di OpenAI (Ollama, vLLM, LM Studio, llama.cpp). In IA → Fornitori e chiavi: indirizzo, chiave
+    facoltativa, «Prova» con l'elenco dei modelli, modello e la casella «il modello vede le immagini» (spenta: niente
+    foto della pagina, le immagini della storia diventano testo). `ai.yaml` → `local:`, chiave in `local.key`,
+    `PUT /api/ai/local`. Prima di mandare, su Ollama e LM Studio si chiede il contesto caricato: se non basta la
+    richiesta non parte («contesto troppo piccolo»), invece del taglio silenzioso. Il pensiero dei modelli
+    (`reasoning_content`, `reasoning`) si vede. Tutte le chiamate a un indirizzo scelto dal cliente passano da
+    `ai/local_http.rs`: nel cloud solo indirizzi pubblici (niente reti private, riservate, della piattaforma; niente
+    redirect; il DNS filtrato), utente e password nell'URL rifiutati ovunque, la chiave salvata mai mandata a un altro
+    server. Sul gateway le rotte `/api/ai/*` rispondono 404. Costa zero su pannello e IDE locale; nel cloud si conta
+    come stima, col tetto acceso.
+  - **Il fornitore preferito nell'account**: in 👤 → Le mie chiavi IA, uno per il testo e uno per le immagini. Vale
+    dove il progetto non ha scelto; l'ordine è ambiente > progetto > account > ordine fisso, e un fornitore senza
+    chiave si salta. Tabella `ai_preferences` nell'identità, `GET`/`PUT /api/identity/ai-preferences`, rotta interna
+    `/api/internal/ai-preferences`. Il menù IA del progetto dice quando vale la preferenza, e la riga di uno scopo
+    lasciata all'account non scrive nel progetto la scelta di chi la apre.
+  - **Il listino dei prezzi**: `ai/price_list.rs` e `config_dir/ai-prices.json`, aggiornato ogni giorno da models.dev
+    sul gateway e sulle istanze senza gateway, copiato dal gateway nei container aperti. Un prezzo lontano più di ×5
+    da quello noto o sotto 0,01 $/Mtok si scarta; le fasce (Haiku 5.5 sopra 100k token) contano sull'ingresso
+    totale. Nella console della piattaforma la scheda **Prezzi IA**: i prezzi in vigore con l'origine, «Aggiorna ora»
+    e le righe a mano in JSON (`/api/amministrazione/ai-prices`). Corretti nella tabella interna la cache in lettura
+    di Sonnet 5.5 (0,10) e la fascia di Haiku 5.5.
+  - **Dalla prima prova vera** (Ollama, `qwen3.5:9b`, 17-11-2026): un turno chiuso senza testo viene sollecitato una
+    volta e la seconda la chat lo dice (`model_silent`); un modello in casa che annuncia e non chiama viene sollecitato
+    una volta; un panico dentro un turno lo chiude con un errore invece di lasciare la chat in attesa per sempre;
+    `project` mandato come stringa JSON si legge come oggetto; gli errori di un progetto o di una pagina proposti dicono
+    dove (`in \`tags[12].generator\``, `serde_path_to_error`); `schema_tag` descrive il generatore; una proposta che
+    non cambia niente torna al modello invece di arrivare alla persona. Nella chat la riga d'attesa come quella di
+    Claude Code (✻ che ruota, «Sto pensando…») e «Ha finito: tocca a te.» a fine turno; nel menù IA i nomi dei
+    fornitori nella lingua dell'IDE, e per il modello in casa fuori dal cloud nessun tetto («Costa zero»).
 - **IDE: lo stile sobrio, sessioni 2 e 3** (piano `docs/archive/2026-11-14-stile-sobrio.md`). I colori scritti a mano
   nei file dell'IDE (circa 190) passano da diciannove variabili `--sws-…` che il tema scrive solo nello stile sobrio:
   il colorato resta identico, il sobrio li ricava dai suoi colori. La guardia `check_colori_ide.sh` (in
@@ -217,6 +248,8 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   Le istruzioni del pacchetto usano `scp -O` e `/var/tmp` (SFTP spento, `/tmp` di 32 MB).
 
 ### Corretto
+- **Nel cloud la traduzione con l'IA ignorava le chiavi e la preferenza dell'account**: ora le usa, come l'assistente.
+  E il menù IA diceva «come l'assistente» per i simboli e la traduzione guardando solo le chiavi del progetto.
 - **Un simbolo custom con un poligono non veniva salvato.** Il controllo sul markup (`svg_ostile`) leggeva
   `<polygon points=` come un gestore di eventi `onpoints` e rifiutava il simbolo. Ora cerca il gestore solo dove può
   cominciare un attributo.

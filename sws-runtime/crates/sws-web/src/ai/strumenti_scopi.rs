@@ -8,7 +8,7 @@ use base64::Engine as _;
 use serde_json::{json, Value};
 use tokio::sync::mpsc;
 
-use super::{bfl, client, immagini, prompt, scopi, spending, tools, Banco, Misure};
+use super::{bfl, client, immagini, local_http, prompt, scopi, spending, tools, Banco, Misure};
 use crate::router::AppState;
 
 /// Cosa la conversazione sa fare in più, deciso all'apertura del socket.
@@ -17,29 +17,54 @@ pub(crate) struct Contesto {
     pub simboli: Option<client::Scelta>,
     pub sfondi: Option<scopi::SceltaImmagini>,
     pub http: reqwest::Client,
+    /// The client of the symbol model: [`Contesto::http`] itself for a cloud
+    /// provider, a guarded one for an address the customer chose
+    /// (`local_http.rs`).
+    pub symbols_http: reqwest::Client,
     /// Where Black Forest Labs is: the real one, a fake in the tests.
     pub bfl: bfl::Endpoint,
 }
 
 impl Contesto {
     /// With the keys of the user who is writing (`user_keys.rs`); empty = the
-    /// project's alone.
-    pub fn da_con(config_dir: &std::path::Path, user: &client::UserKeys) -> Self {
-        let simboli = scopi::ha_scelta_propria_con(config_dir, scopi::Scopo::Simboli, user)
+    /// project's alone. `in_cloud` = a container behind the gateway.
+    /// `assistant` = the model of the conversation: one that does not read
+    /// images gets no page snapshot.
+    pub fn da_con(
+        config_dir: &std::path::Path,
+        user: &client::UserKeys,
+        in_cloud: bool,
+        assistant: Option<&client::Scelta>,
+    ) -> Self {
+        let mut simboli = scopi::ha_scelta_propria_con(config_dir, scopi::Scopo::Simboli, user)
             .then(|| scopi::carica_per_con(config_dir, scopi::Scopo::Simboli, user))
             .flatten();
         let sfondi = scopi::carica_sfondi_con(config_dir, user);
+        let http_base = || reqwest::Client::builder().timeout(std::time::Duration::from_secs(300));
+        let http = http_base().build().unwrap_or_default();
+        let symbols_http = match simboli.as_ref().filter(|sc| sc.endpoint.is_some()) {
+            None => http.clone(),
+            // An address the cloud refuses: no symbol model, the assistant
+            // draws by itself (`bozza_simbolo`) instead of failing every call.
+            Some(sc) => match local_http::client_for(sc, in_cloud, http_base()) {
+                Ok(c) => c,
+                Err(e) => {
+                    tracing::warn!(error = %e, "the symbol model cannot be reached: left out");
+                    simboli = None;
+                    http.clone()
+                }
+            },
+        };
         Contesto {
             opzioni: tools::Opzioni {
                 disegna_simboli: simboli.is_some(),
                 sfondi: sfondi.is_some(),
+                no_snapshot: assistant.is_some_and(|a| !a.sees_images),
             },
             simboli,
             sfondi,
-            http: reqwest::Client::builder()
-                .timeout(std::time::Duration::from_secs(300))
-                .build()
-                .unwrap_or_default(),
+            http,
+            symbols_http,
             bfl: bfl::Endpoint::default(),
         }
     }
@@ -148,10 +173,17 @@ pub(crate) async fn disegna(
             ));
         }
         let t0 = std::time::Instant::now();
-        let (risposta, uso) = client::chiedi_con_uso(&ctx.http, sc, &istruzioni, &messaggi, 16000)
-            .await
-            .map_err(|e| format!("il modello dei simboli non risponde: {e:#}"))?;
-        let costo = client::costo_usd(&sc.modello, &uso);
+        let (risposta, uso) =
+            client::chiedi_con_uso(&ctx.symbols_http, sc, &istruzioni, &messaggi, 16000)
+                .await
+                .map_err(|e| format!("il modello dei simboli non risponde: {e:#}"))?;
+        let costo = crate::ai::price_list::cost_usd(
+            &s.config_dir,
+            sc.fornitore,
+            &sc.modello,
+            &uso,
+            s.in_cloud(),
+        );
         misure.giro(&uso, costo, t0.elapsed().as_secs_f64());
         banco.spesa_simboli += costo;
         spending::add(
@@ -208,13 +240,14 @@ pub(crate) async fn disegna(
 /// Il tetto degli sfondi: la loro stima di spesa, e anche quello della
 /// conversazione, che li conta.
 fn controlla_tetto_sfondi(
+    config_dir: &std::path::Path,
     banco: &Banco,
     misure: &Misure,
     sc: &scopi::SceltaImmagini,
     tetto_usd: f64,
     edit: bool,
 ) -> Result<f64, String> {
-    let costo = immagini::estimated_usd(sc, edit);
+    let costo = immagini::estimated_usd(config_dir, sc, edit);
     if banco.spesa_sfondi + costo > sc.tetto_usd {
         return Err(format!(
             "tetto degli sfondi raggiunto: {:.2} $ su {:.2} $ (stima). Alzalo in IA → Un modello per scopo",
@@ -335,18 +368,27 @@ pub(crate) async fn genera_sfondi(
     let mut fatte = Vec::new();
     let mut interrotto = None;
     for _ in 0..quante {
-        let estimate = match controlla_tetto_sfondi(banco, misure, sc, tetto_usd, false) {
-            Ok(c) => c,
-            Err(e) if fatte.is_empty() => return Err(e),
-            Err(e) => {
-                interrotto = Some(e);
-                break;
-            }
-        };
+        let estimate =
+            match controlla_tetto_sfondi(&s.config_dir, banco, misure, sc, tetto_usd, false) {
+                Ok(c) => c,
+                Err(e) if fatte.is_empty() => return Err(e),
+                Err(e) => {
+                    interrotto = Some(e);
+                    break;
+                }
+            };
         let t0 = std::time::Instant::now();
         // Un errore dopo la prima immagine non butta quelle già pagate: il
         // modello le riceve, e il turno si ferma lo stesso (sono in chat).
-        let made = immagini::genera(&ctx.http, &ctx.bfl, sc, descrizione, regole.as_deref()).await;
+        let made = immagini::genera(
+            &ctx.http,
+            &ctx.bfl,
+            sc,
+            descrizione,
+            regole.as_deref(),
+            estimate,
+        )
+        .await;
         let img = match made {
             Ok(j) => j,
             Err(failed) => {
@@ -425,16 +467,17 @@ pub(crate) async fn varia_sfondi(
     for l in luci.iter().take(5) {
         // Come in genera_sfondi: quello che è già fatto (e pagato) resta, e il
         // modello lo riceve insieme al motivo per cui ci si è fermati.
-        let estimate = match controlla_tetto_sfondi(banco, misure, sc, tetto_usd, true) {
-            Ok(c) => c,
-            Err(e) if fatte.is_empty() => return Err(e),
-            Err(e) => {
-                interrotto = Some(e);
-                break;
-            }
-        };
+        let estimate =
+            match controlla_tetto_sfondi(&s.config_dir, banco, misure, sc, tetto_usd, true) {
+                Ok(c) => c,
+                Err(e) if fatte.is_empty() => return Err(e),
+                Err(e) => {
+                    interrotto = Some(e);
+                    break;
+                }
+            };
         let t0 = std::time::Instant::now();
-        let img = match immagini::varia(&ctx.http, &ctx.bfl, sc, &base.jpg, l).await {
+        let img = match immagini::varia(&ctx.http, &ctx.bfl, sc, &base.jpg, l, estimate).await {
             Ok(j) => j,
             Err(failed) => {
                 let e = failed_background(s, banco, misure, sc, failed, t0);
@@ -601,10 +644,12 @@ mod tests {
             opzioni: tools::Opzioni {
                 disegna_simboli: false,
                 sfondi: true,
+                no_snapshot: false,
             },
             simboli: None,
             sfondi: Some(openai_choice()),
             http: reqwest::Client::new(),
+            symbols_http: reqwest::Client::new(),
             bfl: bfl::Endpoint::default(),
         };
         let (tx, _rx) = mpsc::unbounded_channel();
@@ -654,7 +699,7 @@ mod tests {
             modello: "flux-2-pro".into(),
             ..openai_choice()
         };
-        let estimate = controlla_tetto_sfondi(&b, &m, &flux, 10.0, true).unwrap();
+        let estimate = controlla_tetto_sfondi(&s.config_dir, &b, &m, &flux, 10.0, true).unwrap();
         assert!((estimate - 0.075).abs() < 1e-9, "an edit pays the base too");
         let settled = immagini::Generated {
             jpg: vec![],
@@ -667,7 +712,7 @@ mod tests {
         );
 
         let openai = openai_choice();
-        let estimate = controlla_tetto_sfondi(&b, &m, &openai, 10.0, false).unwrap();
+        let estimate = controlla_tetto_sfondi(&s.config_dir, &b, &m, &openai, 10.0, false).unwrap();
         let unsettled = immagini::Generated {
             jpg: vec![],
             settled_usd: None,
@@ -684,9 +729,9 @@ mod tests {
 
         // The cap of the purpose counts FLUX's estimate before the call.
         b.spesa_sfondi = 0.95;
-        let e = controlla_tetto_sfondi(&b, &m, &flux, 10.0, true).unwrap_err();
+        let e = controlla_tetto_sfondi(&s.config_dir, &b, &m, &flux, 10.0, true).unwrap_err();
         assert!(e.contains("tetto degli sfondi"), "{e}");
-        assert!(controlla_tetto_sfondi(&b, &m, &flux, 10.0, false).is_ok());
+        assert!(controlla_tetto_sfondi(&s.config_dir, &b, &m, &flux, 10.0, false).is_ok());
     }
 
     fn flux_context(at: bfl::Endpoint, cap_usd: f64) -> Contesto {
@@ -694,6 +739,7 @@ mod tests {
             opzioni: tools::Opzioni {
                 disegna_simboli: false,
                 sfondi: true,
+                no_snapshot: false,
             },
             simboli: None,
             sfondi: Some(scopi::SceltaImmagini {
@@ -703,6 +749,7 @@ mod tests {
                 ..openai_choice()
             }),
             http: reqwest::Client::new(),
+            symbols_http: reqwest::Client::new(),
             bfl: at,
         }
     }

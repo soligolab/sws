@@ -8,8 +8,9 @@
 
 ## Da decidere (maintainer)
 
-- **Mistral predefinito nel cloud?** Oggi, se una persona ha più chiavi, vince Anthropic, poi Kimi, poi Mistral
-  (`ai/mod.rs`). Mistral è l'unico fornitore europeo dell'assistente: si può volerlo per primo su `sws.soligo.net`.
+- ~~**Mistral predefinito nel cloud?**~~ Superata il 17-11-2026: il maintainer non vuole un predefinito ma la libertà
+  di scelta («mistral è solo una opzione»). Ogni persona sceglie il fornitore preferito nel suo account: piano
+  [l'IA a scelta del cliente](../../archive/2026-11-17-ia-a-scelta-del-cliente.md).
 - **Le richieste FLUX fermate dal filtro dei contenuti** si contano nel tetto al costo dichiarato all'invio, perché il
   riferimento di Black Forest Labs non dice se le addebita. Con la prima prova vera si vede, e si corregge in
   `bfl.rs` (`Charge`).
@@ -18,8 +19,9 @@
 
 - **Mistral**: `max_tokens` è fermo a 32768, la cache non si pilota (`prompt_cache_key`) e il ragionamento non si
   chiede (`reasoning_effort`). Si decide coi numeri del banco dei tubi.
-- **Prezzi Mistral**: Medium, Magistral, Devstral e Pixtral non hanno prezzo sul listino letto il 16-11 e si contano
-  ai prezzi di Opus 5 (stima prudente). Sono modelli deprecati.
+- ~~**Prezzi Mistral**~~: coperto dal listino aggiornato ogni giorno da models.dev (piano
+  [l'IA a scelta del cliente](../../archive/2026-11-17-ia-a-scelta-del-cliente.md), 17-11-2026). Un modello che neanche lì ha un
+  prezzo resta contato ai prezzi di Opus 5, con la «≈».
 - **SVG libero (G3)**: valori con `&` o `\` negli attributi sono rifiutati del tutto, più stretto del necessario. Se un
   modello vero scrive spesso entità, si ammettono le cinque entità predefinite di XML.
 

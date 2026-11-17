@@ -1,19 +1,22 @@
 /** The user's own AI keys (15-11-2026): the window of the user menu, and the
  *  line in «Providers and keys» that says which key the project uses. */
 import { render, screen, fireEvent, act, cleanup } from "@testing-library/react";
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import "../src/i18n";
 import { api } from "../src/api/client";
 import { sulGateway } from "../src/api/client";
 import { MyAiKeys } from "../src/components/MyAiKeys";
-import type { MyAiKey } from "../src/types";
+import type { MyAiKey, MyAiPreferences } from "../src/types";
 
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
+// The window asks for the preferences too: never a real request from a test.
+beforeEach(() => { vi.spyOn(api, "getMyAiPreferences").mockResolvedValue({ text: null, images: null }); });
 
 describe("the user's AI keys", () => {
   it("their calls go to the gateway, not to the project's container", () => {
     expect(sulGateway("/api/identity/ai-keys")).toBe(true);
     expect(sulGateway("/api/identity/ai-keys/kimi")).toBe(true);
+    expect(sulGateway("/api/identity/ai-preferences")).toBe(true);
     // The project's own keys stay with the project.
     expect(sulGateway("/api/ai/chiavi")).toBe(false);
   });
@@ -87,5 +90,37 @@ describe("the user's AI keys", () => {
     fireEvent.change(screen.getByTestId("my-ai-key-kimi-input"), { target: { value: "due parole" } });
     await act(async () => { fireEvent.click(screen.getByTestId("my-ai-key-kimi-save")); });
     expect((await screen.findByRole("alert")).textContent).toMatch(/spaces/);
+  });
+
+  it("the preferred providers for text and images: shown, saved at once, and taken away with the empty entry", async () => {
+    let prefs: MyAiPreferences = { text: "mistral", images: null };
+    vi.spyOn(api, "getMyAiKeys").mockResolvedValue([]);
+    vi.spyOn(api, "getMyAiPreferences").mockImplementation(async () => prefs);
+    const put = vi.spyOn(api, "putMyAiPreferences").mockImplementation(async (p) => { prefs = { ...prefs, ...p }; });
+    render(<MyAiKeys onClose={() => {}} />);
+    const text = await screen.findByTestId("my-ai-pref-text") as HTMLSelectElement;
+    const images = screen.getByTestId("my-ai-pref-images") as HTMLSelectElement;
+    expect(text.value).toBe("mistral");
+    expect(images.value).toBe("");
+    // Text: the paid text providers, not the local model (it is the installation's).
+    expect([...text.options].map((o) => o.value)).toEqual(["", "anthropic", "kimi", "mistral"]);
+    expect([...images.options].map((o) => o.value)).toEqual(["", "openai", "bfl"]);
+
+    await act(async () => { fireEvent.change(images, { target: { value: "bfl" } }); });
+    expect(put).toHaveBeenLastCalledWith({ images: "bfl" });
+    expect(images.value).toBe("bfl");
+    await act(async () => { fireEvent.change(text, { target: { value: "" } }); });
+    expect(put).toHaveBeenLastCalledWith({ text: null });
+    expect(text.value).toBe("");
+  });
+
+  it("a refused preference is shown, and the menu keeps what was saved", async () => {
+    vi.spyOn(api, "getMyAiKeys").mockResolvedValue([]);
+    vi.spyOn(api, "putMyAiPreferences").mockRejectedValue(new Error("`kimi` is not a provider for images"));
+    render(<MyAiKeys onClose={() => {}} />);
+    const text = await screen.findByTestId("my-ai-pref-text") as HTMLSelectElement;
+    await act(async () => { fireEvent.change(text, { target: { value: "kimi" } }); });
+    expect((await screen.findByRole("alert")).textContent).toMatch(/not a provider/);
+    expect(text.value).toBe("");
   });
 });

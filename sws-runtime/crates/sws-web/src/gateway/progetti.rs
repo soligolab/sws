@@ -200,6 +200,10 @@ pub struct Regia {
     /// un secondo, e una mappa di lucchetti sarebbe un secondo posto dove
     /// tenere traccia dei progetti, da ripulire a mano quando si chiudono.
     apertura: tokio::sync::Mutex<()>,
+    /// The gateway's resolved AI price list (`ai/price_list.rs`), copied into
+    /// every container's configuration like the mail: the containers never
+    /// download nor merge prices themselves.
+    price_list: Option<std::path::PathBuf>,
 }
 
 impl Regia {
@@ -221,7 +225,14 @@ impl Regia {
             segreto: Arc::new(segreto.into()),
             aperti: RwLock::new(HashMap::new()),
             apertura: tokio::sync::Mutex::new(()),
+            price_list: None,
         }
+    }
+
+    /// Where the gateway keeps the resolved AI price list.
+    pub fn with_price_list(mut self, file: impl Into<std::path::PathBuf>) -> Self {
+        self.price_list = Some(file.into());
+        self
     }
 
     pub fn con_fermo_dopo(mut self, d: Duration) -> Self {
@@ -425,6 +436,36 @@ impl Regia {
         }
     }
 
+    /// The AI price list changed (a download, a manual row saved from the
+    /// console): it is copied into the containers already open, of every
+    /// company, and counts from their next turn.
+    pub async fn update_prices(&self) {
+        let Some(source) = &self.price_list else {
+            return;
+        };
+        let open: Vec<(String, String)> = self
+            .aperti
+            .read()
+            .await
+            .values()
+            .map(|a| (a.azienda.clone(), a.nome_progetto.clone()))
+            .collect();
+        for (company, name) in open {
+            let folder = if company == crate::project_registry::AZIENDA_IMPLICITA {
+                ""
+            } else {
+                company.as_str()
+            };
+            let config = cartella_config(&self.radice, folder, &name);
+            if !config.is_dir() {
+                continue;
+            }
+            if let Err(e) = write_prices_to_container(&config, source) {
+                tracing::warn!(folder = %config.display(), "AI price list of the project not updated: {e}");
+            }
+        }
+    }
+
     /// Quanti progetti di quell'azienda sono aperti adesso.
     pub async fn aperti_di(&self, azienda: &str) -> usize {
         self.aperti
@@ -581,6 +622,13 @@ impl Regia {
             let posta = posta.await;
             if let Err(e) = scrivi_posta_del_container(&config, posta.as_ref()) {
                 tracing::warn!(cartella = %config.display(), "posta del progetto non scritta: {e}");
+            }
+            // The AI price list: without it the container charges at its own
+            // built-in table, which may be older than the gateway's.
+            if let Some(source) = &self.price_list {
+                if let Err(e) = write_prices_to_container(&config, source) {
+                    tracing::warn!(folder = %config.display(), "AI price list of the project not written: {e}");
+                }
             }
         }
 
@@ -845,6 +893,25 @@ pub(crate) fn scrivi_posta_del_container(
     Ok(())
 }
 
+/// Copies the gateway's resolved AI price list into a container's
+/// configuration, where its `price_list::load` finds it. Temporary file and
+/// rename, since the container may be reading it. No list on the gateway yet
+/// (before the first download): nothing to copy, the container uses its table.
+pub(crate) fn write_prices_to_container(
+    config: &std::path::Path,
+    source: &std::path::Path,
+) -> std::io::Result<()> {
+    let bytes = match std::fs::read(source) {
+        Ok(b) => b,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(e) => return Err(e),
+    };
+    let file = config.join(crate::ai::price_list::FILE);
+    let tmp = config.join(format!("{}.tmp", crate::ai::price_list::FILE));
+    std::fs::write(&tmp, bytes)?;
+    std::fs::rename(&tmp, &file)
+}
+
 /// Dove vive la configurazione persistente del container di un progetto:
 /// `<radice>/.sws-config/<azienda>/<progetto>`. Il punto la tiene fuori
 /// dall'elenco dei progetti (`list_projects` salta le cartelle nascoste); l'azienda
@@ -1067,6 +1134,46 @@ mod tests {
         assert!(!file.exists(), "senza posta il file non resta");
         // Togliere quello che non c'e non e un errore.
         scrivi_posta_del_container(d.path(), None).unwrap();
+    }
+
+    /// The gateway's AI price list reaches the open containers, of every
+    /// company, in the configuration folder they read it from. No list on the
+    /// gateway yet: nothing written, and no error.
+    #[tokio::test]
+    async fn the_price_list_is_pushed_into_the_open_containers() {
+        let d = tempfile::tempdir().unwrap();
+        let source = d.path().join("gateway-ai-prices.json");
+        let regia = Regia::nuova(
+            crate::gateway::podman::Podman::nuovo(d.path().join("podman.sock")),
+            "immagine-di-prova",
+            d.path(),
+            ComeRaggiungere::PortaPubblicata,
+            "segretolungoabbastanza0123",
+        )
+        .with_price_list(&source);
+        let mut implicit = aperto(1, None);
+        implicit.riferimento = "-/casa".into();
+        implicit.azienda = crate::project_registry::AZIENDA_IMPLICITA.into();
+        implicit.nome_progetto = "casa".into();
+        for a in [aperto(1, None), implicit] {
+            regia.aperti.write().await.insert(a.riferimento.clone(), a);
+        }
+        let acme = cartella_config(d.path(), "acme", "impianto");
+        let casa = cartella_config(d.path(), "", "casa");
+        std::fs::create_dir_all(&acme).unwrap();
+        std::fs::create_dir_all(&casa).unwrap();
+
+        regia.update_prices().await;
+        assert!(!acme.join(crate::ai::price_list::FILE).exists());
+
+        std::fs::write(&source, r#"{"version":1}"#).unwrap();
+        regia.update_prices().await;
+        for c in [&acme, &casa] {
+            assert_eq!(
+                std::fs::read_to_string(c.join(crate::ai::price_list::FILE)).unwrap(),
+                r#"{"version":1}"#
+            );
+        }
     }
 
     /// Un riavvio del container cambia l'IP, non il nome (25-10-2026).

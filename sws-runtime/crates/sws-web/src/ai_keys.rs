@@ -74,11 +74,14 @@ pub fn forwarded() -> &'static Forwarded {
 }
 
 /// The providers of the AI menu (`ai/scopi.rs`): the assistant's, and OpenAI
-/// and Black Forest Labs for the backgrounds (16-11-2026).
+/// and Black Forest Labs for the backgrounds (16-11-2026). Not the local
+/// model: it lives on the customer's network, which an account in the cloud
+/// does not reach, and it is configured with an address, not a key.
 fn provider_known(provider: &str) -> bool {
-    crate::ai::scopi::FORNITORI
-        .iter()
-        .any(|(id, _, _)| *id == provider)
+    provider != "local"
+        && crate::ai::scopi::FORNITORI
+            .iter()
+            .any(|(id, _, _)| *id == provider)
 }
 
 /// The person who is asking, as a user of the installation. Takes the name,
@@ -277,6 +280,148 @@ pub async fn remove(
             StatusCode::INTERNAL_SERVER_ERROR.into_response()
         }
     }
+}
+
+/// Whether `provider` can be preferred for `kind`: for text the assistant's
+/// providers but the local model (not in the account, as above), for images
+/// the backgrounds'.
+fn preference_fits(kind: &str, provider: &str) -> bool {
+    let purpose = match kind {
+        "text" => "assistente",
+        "images" => "sfondi",
+        _ => return false,
+    };
+    provider != "local"
+        && crate::ai::scopi::FORNITORI
+            .iter()
+            .any(|(id, _, purposes)| *id == provider && purposes.contains(&purpose))
+}
+
+/// `{text, images}`, null where there is none. A saved name that no longer
+/// fits (a provider gone from the menu) reads as none.
+async fn preferences_json(
+    id: &sws_identita::Identita,
+    user_id: i64,
+) -> anyhow::Result<serde_json::Value> {
+    let mut saved = id.ai_preferences(user_id).await?;
+    let mut take = |kind: &str| saved.remove(kind).filter(|p| preference_fits(kind, p));
+    Ok(json!({ "text": take("text"), "images": take("images") }))
+}
+
+/// `GET /api/identity/ai-preferences` → `{text, images}`: the provider the
+/// person prefers where a project chose none.
+pub async fn get_preferences(State(s): State<AppState>, req: Request) -> Response {
+    let user = match user_of(&s, username_of(&req)).await {
+        Ok(u) => u,
+        Err(r) => return r,
+    };
+    let id = s.identita.as_ref().expect("checked by user_of");
+    match preferences_json(id, user.id).await {
+        Ok(v) => Json(v).into_response(),
+        Err(e) => {
+            tracing::error!("AI preferences: cannot read: {e}");
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
+}
+
+/// `PUT /api/identity/ai-preferences` `{text?, images?}`. A field left out is
+/// not touched; null or empty takes the preference away. Everything is checked
+/// before anything is written: a bad `images` does not leave `text` half saved.
+pub async fn put_preferences(State(s): State<AppState>, req: Request) -> Response {
+    let user = match user_of(&s, username_of(&req)).await {
+        Ok(u) => u,
+        Err(r) => return r,
+    };
+    let bytes = match axum::body::to_bytes(req.into_body(), 4 * 1024).await {
+        Ok(b) => b,
+        Err(_) => return (StatusCode::BAD_REQUEST, "body too large").into_response(),
+    };
+    let expected = "expected {\"text\": \"...\", \"images\": \"...\"}";
+    let Ok(serde_json::Value::Object(body)) = serde_json::from_slice(&bytes) else {
+        return (StatusCode::BAD_REQUEST, expected).into_response();
+    };
+    let mut changes: Vec<(&str, Option<String>)> = Vec::new();
+    for (field, value) in &body {
+        let Some(kind) = sws_identita::AI_PREFERENCE_KINDS
+            .into_iter()
+            .find(|k| k == field)
+        else {
+            return (StatusCode::BAD_REQUEST, expected).into_response();
+        };
+        let provider = match value {
+            serde_json::Value::Null => None,
+            serde_json::Value::String(p) if p.trim().is_empty() => None,
+            serde_json::Value::String(p) => Some(p.trim().to_string()),
+            _ => return (StatusCode::BAD_REQUEST, expected).into_response(),
+        };
+        if let Some(p) = &provider {
+            if !preference_fits(kind, p) {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    format!("`{p}` is not a provider for {kind}"),
+                )
+                    .into_response();
+            }
+        }
+        changes.push((kind, provider));
+    }
+    let id = s.identita.as_ref().expect("checked by user_of");
+    for (kind, provider) in changes {
+        if let Err(e) = id
+            .set_ai_preference(user.id, kind, provider.as_deref())
+            .await
+        {
+            return (StatusCode::BAD_REQUEST, e.to_string()).into_response();
+        }
+    }
+    StatusCode::NO_CONTENT.into_response()
+}
+
+#[derive(Deserialize)]
+pub struct PreferencesQuery {
+    user: String,
+}
+
+/// `GET /api/internal/ai-preferences?user=<email>` — the container asks which
+/// provider the person writing in its chat prefers. The same door as
+/// [`for_container`], but **always 200** to someone who is there, nulls
+/// included: a preference for a provider whose key only the project holds must
+/// not get lost in a 404.
+pub async fn preferences_for_container(
+    State(s): State<AppState>,
+    Query(q): Query<PreferencesQuery>,
+    req: Request,
+) -> Response {
+    let Some(caller) = req
+        .extensions()
+        .get::<crate::gateway::ritorno::Chiamante>()
+        .cloned()
+    else {
+        return StatusCode::UNAUTHORIZED.into_response();
+    };
+    if !forwarded().recent(&caller.riferimento, &q.user, Instant::now()) {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+    let none = json!({ "text": null, "images": null });
+    let value = match s.identita.as_ref() {
+        None => none,
+        Some(id) => match id.user_by_email(&q.user).await {
+            Ok(Some(u)) if u.attivo => match preferences_json(id, u.id).await {
+                Ok(v) => v,
+                Err(e) => {
+                    tracing::error!("AI preferences: cannot read: {e}");
+                    return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+                }
+            },
+            Ok(_) => none,
+            Err(e) => {
+                tracing::error!("AI preferences: cannot read the account: {e}");
+                return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+            }
+        },
+    };
+    ([(header::CACHE_CONTROL, "no-store")], Json(value)).into_response()
 }
 
 #[derive(Deserialize)]
@@ -516,6 +661,15 @@ mod tests {
         // Mistral is one of the providers since 16-11-2026 (it was the unknown
         // one of this test until then).
         assert!(provider_known("mistral"));
+        // The local model is in the menu but not in the account, on every
+        // route of it.
+        assert!(!provider_known("local"));
+        assert_eq!(
+            put_("local", r#"{"key":"token-abc-0123456789"}"#)
+                .await
+                .status(),
+            StatusCode::BAD_REQUEST
+        );
         assert!(put_("mistral", r#"{"key":"sk-mistral-1234"}"#)
             .await
             .status()
@@ -597,6 +751,115 @@ mod tests {
         )
         .await;
         assert_eq!(r.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn a_person_saves_and_takes_away_their_preferred_providers() {
+        let (s, _d, _) = state().await;
+        let get_ = || get_preferences(State(s.clone()), request(Some("m@soligo.net"), None));
+        let put_ =
+            |b: &str| put_preferences(State(s.clone()), request(Some("m@soligo.net"), Some(b)));
+        let (st, body) = status_and_text(get_().await).await;
+        assert_eq!(
+            (st, body.as_str()),
+            (StatusCode::OK, r#"{"images":null,"text":null}"#)
+        );
+        assert_eq!(
+            put_(r#"{"text":"mistral","images":"bfl"}"#).await.status(),
+            StatusCode::NO_CONTENT
+        );
+        // A field left out is not touched.
+        assert_eq!(
+            put_(r#"{"text":"kimi"}"#).await.status(),
+            StatusCode::NO_CONTENT
+        );
+        let (_, body) = status_and_text(get_().await).await;
+        assert_eq!(body, r#"{"images":"bfl","text":"kimi"}"#);
+        // A provider of the other kind, the local model, an unknown field or
+        // a number: refused, and nothing written, not even the good half.
+        for bad in [
+            r#"{"text":"openai"}"#,
+            r#"{"images":"anthropic"}"#,
+            r#"{"text":"local"}"#,
+            r#"{"text":"gemini"}"#,
+            r#"{"text":"mistral","images":"kimi"}"#,
+            r#"{"audio":"kimi"}"#,
+            r#"{"text":3}"#,
+            "not json",
+        ] {
+            assert_eq!(put_(bad).await.status(), StatusCode::BAD_REQUEST, "{bad}");
+        }
+        let (_, body) = status_and_text(get_().await).await;
+        assert_eq!(body, r#"{"images":"bfl","text":"kimi"}"#);
+        // Null and empty take it away.
+        assert_eq!(
+            put_(r#"{"text":null,"images":""}"#).await.status(),
+            StatusCode::NO_CONTENT
+        );
+        let (_, body) = status_and_text(get_().await).await;
+        assert_eq!(body, r#"{"images":null,"text":null}"#);
+        // Without a session, or without an account of the installation: no.
+        let r = put_preferences(State(s.clone()), request(None, Some(r#"{"text":"kimi"}"#))).await;
+        assert_eq!(r.status(), StatusCode::UNAUTHORIZED);
+        let r = get_preferences(State(s.clone()), request(Some("operatore"), None)).await;
+        assert_eq!(r.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn the_container_gets_the_preferences_of_someone_who_is_there_always_with_200() {
+        let (s, _d, _) = state().await;
+        let ask = |who: Option<Chiamante>, user: &str| {
+            let mut r = request(None, None);
+            if let Some(c) = who {
+                r.extensions_mut().insert(c);
+            }
+            preferences_for_container(
+                State(s.clone()),
+                Query(PreferencesQuery { user: user.into() }),
+                r,
+            )
+        };
+        // A person's session is not a container; a container where the person
+        // never was gets nothing.
+        assert_eq!(
+            ask(None, "m@soligo.net").await.status(),
+            StatusCode::UNAUTHORIZED
+        );
+        assert_eq!(
+            ask(Some(caller("acme/preferenze")), "m@soligo.net")
+                .await
+                .status(),
+            StatusCode::NOT_FOUND
+        );
+        forwarded().note("acme/preferenze", "m@soligo.net", Instant::now());
+        // There, with nothing saved: 200 and nulls, not a 404.
+        let r = ask(Some(caller("acme/preferenze")), "m@soligo.net").await;
+        assert_eq!(r.headers().get(header::CACHE_CONTROL).unwrap(), "no-store");
+        let (st, body) = status_and_text(r).await;
+        assert_eq!(
+            (st, body.as_str()),
+            (StatusCode::OK, r#"{"images":null,"text":null}"#)
+        );
+        // With a preference, and no key at all: it comes all the same.
+        let r = put_preferences(
+            State(s.clone()),
+            request(Some("m@soligo.net"), Some(r#"{"text":"mistral"}"#)),
+        )
+        .await;
+        assert_eq!(r.status(), StatusCode::NO_CONTENT);
+        let (st, body) =
+            status_and_text(ask(Some(caller("acme/preferenze")), "m@soligo.net").await).await;
+        assert_eq!(
+            (st, body.as_str()),
+            (StatusCode::OK, r#"{"images":null,"text":"mistral"}"#)
+        );
+        // Another container of the same company: no.
+        assert_eq!(
+            ask(Some(caller("acme/altro-ancora")), "m@soligo.net")
+                .await
+                .status(),
+            StatusCode::NOT_FOUND
+        );
     }
 
     #[tokio::test]

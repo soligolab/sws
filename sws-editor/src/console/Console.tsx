@@ -14,6 +14,7 @@ import { Posta } from "./Posta";
 import { Installazione } from "./Installazione";
 import { Risorse } from "./Risorse";
 import { Pannelli } from "./Pannelli";
+import { AiPrices } from "./AiPrices";
 
 /**
  * La console di amministrazione della piattaforma.
@@ -28,13 +29,13 @@ import { Pannelli } from "./Pannelli";
  * stesso `localStorage["sws.auth"]`, quindi chi è già entrato nell'IDE si
  * ritrova dentro senza riautenticarsi.
  */
-type Scheda = "risorse" | "aziende" | "marchi" | "persone" | "posta" | "pannelli" | "installazione";
+type Scheda = "risorse" | "aziende" | "marchi" | "persone" | "posta" | "pannelli" | "prezzi-ia" | "installazione";
 
 /** Le sezioni che non sono di nessuna azienda, e restano alla piattaforma.
  *
  *  Per gli altri **non compaiono**, invece di comparire e dare 403: un
  *  comando che non puo riuscire non si offre. */
-const SOLO_PIATTAFORMA: Scheda[] = ["posta", "pannelli", "installazione"];
+const SOLO_PIATTAFORMA: Scheda[] = ["posta", "pannelli", "prezzi-ia", "installazione"];
 
 export function Console() {
   const { t } = useTranslation();
@@ -138,9 +139,11 @@ export function Console() {
           </div>
         </div>
         <nav style={{ padding: 8, display: "flex", flexDirection: "column", gap: 2 }}>
-          {(["risorse", "aziende", "marchi", "persone", "posta", "pannelli", "installazione"] as Scheda[])
+          {(["risorse", "aziende", "marchi", "persone", "posta", "pannelli", "prezzi-ia", "installazione"] as Scheda[])
             .filter((s) => piattaforma || !SOLO_PIATTAFORMA.includes(s))
-            .filter((s) => s !== "pannelli" || gateway)
+            // The AI price list is edited only in the cloud (17-11-2026): a
+            // panel or a local IDE keeps its own up to date by itself.
+            .filter((s) => (s !== "pannelli" && s !== "prezzi-ia") || gateway)
             .map((s) => (
             <button
               key={s}
@@ -166,6 +169,7 @@ export function Console() {
         {scheda === "persone" && <Persone />}
         {scheda === "posta" && <Posta />}
         {scheda === "pannelli" && <Pannelli />}
+        {scheda === "prezzi-ia" && <AiPrices />}
         {scheda === "installazione" && <Installazione />}
       </main>
       </div>

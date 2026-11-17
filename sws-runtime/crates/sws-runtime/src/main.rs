@@ -1403,7 +1403,8 @@ async fn main() -> anyhow::Result<()> {
             args.gateway_fermo_minuti * 60,
         ))
         .con_massimo_container(args.gateway_max_container)
-        .con_registrazione(args.gateway_registrazione);
+        .con_registrazione(args.gateway_registrazione)
+        .with_price_list(sws_web::ai::price_list::path(&config_dir));
         let r = Arc::new(r);
         match r.riadotta().await {
             Ok(0) => info!("gateway acceso, nessun progetto da riprendere"),
@@ -1509,6 +1510,14 @@ async fn main() -> anyhow::Result<()> {
     // list) nor in a project container behind the gateway (the gateway does it).
     if args.gateway || (ide_only && !args.no_admin && !args.auth_delegata) {
         sws_web::trash::start(app_state.clone());
+    }
+
+    // The AI price list (17-11-2026): refreshed daily from models.dev by the
+    // gateway, which pushes it into the containers, and by an instance without
+    // a gateway that has the IDE (a panel's admin port, a local IDE). Never in
+    // a project container (`--auth-delegata`): it gets the gateway's file.
+    if args.gateway || (!args.auth_delegata && !args.no_admin) {
+        sws_web::ai::price_list::start(app_state.clone());
     }
 
     // Il codice di abbinamento (11-10-2026): un pannello senza nessun utente

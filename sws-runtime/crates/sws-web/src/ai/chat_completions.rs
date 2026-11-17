@@ -77,6 +77,24 @@ pub const MISTRAL: Dialect = Dialect {
     assistant_after_tool: true,
 };
 
+/// A model the customer serves (Ollama, vLLM, LM Studio, llama.cpp). The URL is
+/// the customer's, in `Scelta::endpoint`: the empty one here is never used.
+/// - `{url}` images and ids as they come: the plain OpenAI form.
+/// - The usage asked for: vLLM, LM Studio and llama.cpp send none without it,
+///   Ollama accepts it.
+/// - 8192 output tokens: vLLM refuses (400) a prompt plus `max_tokens` larger
+///   than its context, and a home server has a small one.
+/// - The assistant between a tool and a user: harmless for the OpenAI-style
+///   templates, required by the Mistral-family ones under vLLM.
+pub const LOCAL: Dialect = Dialect {
+    endpoint: "",
+    image_url_as_string: false,
+    tool_ids_alnum9: false,
+    ask_stream_usage: true,
+    max_output_tokens: 8192,
+    assistant_after_tool: true,
+};
+
 /// What the assistant «says» between a tool result and a user message, where
 /// the dialect wants a turn of the assistant there. Not empty: an assistant
 /// message without text and without calls is refused too.
@@ -324,6 +342,51 @@ pub fn to_chat_messages(d: &Dialect, messages: &[Value]) -> Vec<Value> {
     out
 }
 
+/// What takes the place of an image for a model that does not see them.
+pub const IMAGE_OMITTED: &str = "(image omitted: this model does not see images)";
+
+/// The conversation as a model that does not see images can read it: every
+/// image block, at the top of a message or inside a tool result, becomes a
+/// line of text. A conversation resumed after a switch to a text-only model
+/// still carries the snapshots of the page, and the server would refuse the
+/// whole request for them. Unchanged (and not copied) when `sees_images`.
+pub fn images_for(sees_images: bool, messages: &[Value]) -> std::borrow::Cow<'_, [Value]> {
+    fn is_image(b: &Value) -> bool {
+        b.get("type").and_then(Value::as_str) == Some("image")
+    }
+    fn strip(blocks: &mut [Value]) {
+        for b in blocks.iter_mut() {
+            if is_image(b) {
+                *b = json!({ "type": "text", "text": IMAGE_OMITTED });
+            } else if let Some(Value::Array(inner)) = b.get_mut("content") {
+                strip(inner);
+            }
+        }
+    }
+    let has_images = |m: &Value| {
+        m.get("content")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .any(|b| {
+                is_image(b)
+                    || b.get("content")
+                        .and_then(Value::as_array)
+                        .is_some_and(|a| a.iter().any(is_image))
+            })
+    };
+    if sees_images || !messages.iter().any(has_images) {
+        return std::borrow::Cow::Borrowed(messages);
+    }
+    let mut out = messages.to_vec();
+    for m in &mut out {
+        if let Some(Value::Array(blocks)) = m.get_mut("content") {
+            strip(blocks);
+        }
+    }
+    std::borrow::Cow::Owned(out)
+}
+
 // ── Back: the stream ────────────────────────────────────────────────────────
 
 /// `prompt_tokens`/`completion_tokens` as the Messages format names them, so
@@ -441,6 +504,17 @@ impl StreamState {
                 }
             }
             _ => {}
+        }
+        // The reasoning of the open models, beside the content: vLLM,
+        // llama.cpp and DeepSeek call it `reasoning_content`, Ollama
+        // `reasoning`. Shown as thinking and not kept, as above. One of the
+        // two: a server moving from one name to the other may send both.
+        if let Some(t) = ["reasoning_content", "reasoning"]
+            .iter()
+            .find_map(|k| delta.get(*k).and_then(Value::as_str))
+            .filter(|t| !t.is_empty())
+        {
+            on_event(Evento::Pensiero(t.to_string()));
         }
         for (pos, c) in delta
             .get("tool_calls")
@@ -832,6 +906,7 @@ mod tests {
         assert_eq!(u["output_tokens"], 50);
         // And the cost reads them as for any other provider.
         let c = super::super::client::costo_usd(
+            super::super::client::Fornitore::Mistral,
             "mistral-large-latest",
             &json!({
             "input_tokens": 1_000_000, "output_tokens": 1_000_000 }),
@@ -925,6 +1000,56 @@ mod tests {
         assert_eq!(r.testo(), "Fatto.");
         assert_eq!(r.content.len(), 1);
         assert!(seen.iter().any(|e| e.contains("rifletto")));
+    }
+
+    /// The reasoning of the open models comes beside the content, under one
+    /// of two names; a server that sends both is shown once.
+    #[test]
+    fn reasoning_fields_are_shown_once_and_not_kept() {
+        let s = sse(&[
+            delta(json!({ "reasoning_content": "uno " })),
+            delta(json!({ "reasoning": "due " })),
+            delta(json!({ "reasoning_content": "tre", "reasoning": "tre" })),
+            delta(json!({ "content": "Fatto." })),
+            end("stop", json!({})),
+        ]);
+        let (r, seen) = play(&s, 16);
+        let r = r.unwrap();
+        assert_eq!(r.testo(), "Fatto.");
+        assert_eq!(r.content.len(), 1);
+        let thoughts: Vec<_> = seen.iter().filter(|e| e.starts_with("Pensiero")).collect();
+        assert_eq!(thoughts.len(), 3, "{seen:?}");
+    }
+
+    /// For a model that does not see images every image becomes a line of
+    /// text, inside a tool result too; for one that sees them nothing changes
+    /// and nothing is copied.
+    #[test]
+    fn images_become_text_for_a_model_that_does_not_see_them() {
+        let img = json!({ "type": "image", "source": { "type": "base64",
+                          "media_type": "image/png", "data": "AAAA" } });
+        let messages = vec![
+            json!({ "role": "user", "content": "ciao" }),
+            json!({ "role": "user", "content": [
+                { "type": "tool_result", "tool_use_id": "t1", "content": [img.clone()] },
+                img,
+                { "type": "text", "text": "e ora?" } ] }),
+        ];
+        assert!(matches!(
+            images_for(true, &messages),
+            std::borrow::Cow::Borrowed(_)
+        ));
+        let plain = vec![json!({ "role": "user", "content": "ciao" })];
+        assert!(matches!(
+            images_for(false, &plain),
+            std::borrow::Cow::Borrowed(_)
+        ));
+        let out = images_for(false, &messages);
+        let text = serde_json::to_string(&*out).unwrap();
+        assert!(!text.contains("AAAA"), "{text}");
+        assert_eq!(text.matches(IMAGE_OMITTED).count(), 2, "{text}");
+        let chat = to_chat_messages(&LOCAL, &out);
+        assert!(!serde_json::to_string(&chat).unwrap().contains("image_url"));
     }
 
     #[test]
@@ -1207,6 +1332,7 @@ mod tests {
         let all = super::super::tools::definizioni_per(super::super::tools::Opzioni {
             disegna_simboli: true,
             sfondi: true,
+            no_snapshot: false,
         });
         assert!(!all.is_empty());
         for t in &all {

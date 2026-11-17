@@ -2,6 +2,7 @@
 // `sws-web/src/ai/mod.rs`: se cambia lì, cambia qui — sono due elenchi che
 // devono restare d'accordo, e non c'è una guardia che lo verifichi.
 
+import type { AiErrorCode } from "@/ai/errorCodes";
 import type { FaceplateDef, ProjectInfo, SynopticPage } from "@/types";
 import type { RichiestaFoto } from "@/ai/fotoDalBrowser";
 import type { ProposalImage } from "@/ai/proposalImages";
@@ -30,7 +31,9 @@ export type MsgIn =
   | { t: "pronto"; modello: string; attivo: boolean; motivo?: string | null;
       /** Lo stesso id della conversazione ritrovata sul server dopo una
        *  riconnessione (10-11-2026): storia, spesa e banco ci sono ancora. */
-      ripresa?: boolean; speso?: number; tetto?: number | null }
+      ripresa?: boolean; speso?: number; tetto?: number | null;
+      /** Who answers: `local` costs nothing, and its spending is not shown. */
+      fornitore?: string }
   | { t: "testo"; delta: string }
   | { t: "pensiero"; delta: string }
   | { t: "strumento"; nome: string; stato: "inizio" | "scrivo" | "eseguo" | "fatto" | "errore"; messaggio?: string;
@@ -69,10 +72,11 @@ export type MsgIn =
   | { t: "sfondo_approvato"; id: string; ok: boolean }
   /** La spesa di un altro modello (quello dei simboli) dentro la conversazione. */
   | { t: "risorse_extra"; costo: number; speso: number; chi: string }
-  | { t: "errore"; messaggio: string }
+  /** `codice`: an error the IDE says in its language (`ai/errorCodes.ts`). */
+  | { t: "errore"; messaggio: string; codice?: AiErrorCode }
   | { t: "risorse"; input: number; output: number; cache_lettura: number; cache_scrittura: number;
       /** Dollari del giro, della conversazione finora, e il tetto. */
-      costo?: number; speso?: number; tetto?: number; prezzi_noti?: boolean }
+      costo?: number; speso?: number; tetto?: number; prezzi_noti?: boolean; fornitore?: string }
   | { t: "tetto"; speso: number; tetto: number }
   | { t: "saldo"; disponibile: number }
   | { t: "fine" };

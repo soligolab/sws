@@ -40,6 +40,10 @@ cache del service worker con la pagina dell'app.
    nome. Anthropic e Moonshot/Kimi compaiono quindi solo fra i servizi che l'utente attiva. Dal 16-11-2026 lo
    stesso vale per Mistral (Francia) e, per le immagini, OpenAI e Black Forest Labs (Germania): l'elenco nei due
    testi è stato allineato al codice, e i due fornitori europei non portano trasferimenti fuori dall'UE.
+   Dal 17-11-2026 l'assistente può usare anche un **modello su un server scelto dall'utente** (Ollama, vLLM…): per
+   l'utente che lo tiene in casa i testi non escono verso terzi; nel cloud l'indirizzo deve essere pubblico, e il
+   rapporto è comunque fra l'utente e chi gestisce quel server. I due testi dicono «un modello su un server scelto
+   dall'utente», senza nomi.
 4. **Account inattivi**: avviso dopo 12 mesi senza accessi, cancellazione 30 giorni dopo.
 5. **Legge italiana.**
 6. **Italiano e inglese**, due pagine pubbliche (`/condizioni`, `/privacy`) raggiungibili senza login; fa fede

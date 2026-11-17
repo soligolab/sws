@@ -57,17 +57,27 @@ pub const DEFAULT_MODEL: &str = "flux-2-pro";
 
 /// The price of a megapixel, in dollars: the first one generated, each further
 /// one, each one of a reference image (the base of an edit).
-struct Prices {
-    first: f64,
-    next: f64,
-    input: f64,
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct Prices {
+    pub(crate) first: f64,
+    pub(crate) next: f64,
+    pub(crate) input: f64,
 }
+
+/// The models of [`prices`] by name, for the price list file to show them
+/// (the `-preview` aliases cost the same and are left out).
+pub(crate) const LISTED_MODELS: &[&str] = &[
+    "flux-2-pro",
+    "flux-2-flex",
+    "flux-2-klein-9b",
+    "flux-2-klein-4b",
+];
 
 /// The price list of bfl.ai/pricing, read on 16-11-2026. A megapixel is
 /// 1024×1024 and the size is rounded up to the next one, separately for the
 /// reference and for the output. A model the list does not know is counted as
 /// FLUX.2 [max], the dearest: a cap that trips early rather than never.
-fn prices(model: &str) -> Prices {
+pub(crate) fn prices(model: &str) -> Prices {
     let p = |first, next, input| Prices { first, next, input };
     match model.trim() {
         "flux-2-pro" | "flux-2-pro-preview" => p(0.03, 0.015, 0.015),
@@ -103,7 +113,11 @@ fn megapixels(w: u32, h: u32) -> f64 {
 /// image, of the same size. It is what the cap counts before the call; after
 /// it, the cost BFL settled wins.
 pub fn estimated_usd(model: &str, w: u32, h: u32, edit: bool) -> f64 {
-    let p = prices(model);
+    estimate_with(prices(model), w, h, edit)
+}
+
+/// The estimate at given prices: those of the price list file, or the table.
+pub(crate) fn estimate_with(p: Prices, w: u32, h: u32, edit: bool) -> f64 {
     let mp = megapixels(w, h);
     let out = p.first + p.next * (mp - 1.0);
     if edit {

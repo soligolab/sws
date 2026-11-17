@@ -32,6 +32,14 @@ pub fn sistema_con(regole_progetto: Option<&str>) -> Vec<Value> {
     v
 }
 
+/// The line added for a model that does not read images (a local one): the
+/// text above names `istantanea_pagina` in several places, and the tool is
+/// not there. In Italian like the rest: the model reads it.
+pub const NO_SNAPSHOT: &str = "# Niente istantanee\n\n\
+Questo modello non vede le immagini: `istantanea_pagina` non c'è. Dove queste \
+istruzioni dicono di fotografare la pagina o la tavola delle bozze, usa `valida` \
+e descrivi a parole quello che hai fatto.";
+
 /// Le regole del progetto, incorniciate. Un progetto arriva anche da altri, e
 /// le sue regole non devono poter spegnere quelle del prodotto («proponi, non
 /// scrivere», gli sfondi in due passi): il blocco lo dice al modello.

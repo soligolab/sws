@@ -973,6 +973,16 @@ pub fn rotte_di_piattaforma() -> Router<AppState> {
             "/api/amministrazione/smtp/prova",
             axum::routing::post(prova_posta),
         )
+        // The AI price list (plan 2026-11-17-ia-a-scelta-del-cliente, F2): of
+        // the installation, edited only here.
+        .route(
+            "/api/amministrazione/ai-prices",
+            get(read_ai_prices).put(save_ai_prices),
+        )
+        .route(
+            "/api/amministrazione/ai-prices/refresh",
+            axum::routing::post(refresh_ai_prices),
+        )
         // I marchi hanno un modulo loro (`marchi.rs`): sono file, non righe
         // di database, e portano con sé la questione di come servirli senza
         // che un SVG caricato da terzi possa eseguire script.
@@ -984,6 +994,92 @@ pub fn rotte_di_piattaforma() -> Router<AppState> {
             "/api/amministrazione/marchi/:id/file/:nome",
             axum::routing::put(crate::marchi::carica_file),
         )
+}
+
+// ── The AI price list ────────────────────────────────────────────────────────
+//
+// The gateway resolves it (manual rows, models.dev, built-in table) and pushes
+// it into the project containers; see `ai/price_list.rs`.
+
+/// `GET /api/amministrazione/ai-prices` — the prices in effect, and the
+/// manual rows as they were written.
+async fn read_ai_prices(State(s): State<AppState>) -> Response {
+    Json(serde_json::json!({
+        "resolved": crate::ai::price_list::current(&s.config_dir),
+        "manual": crate::ai::price_list::manual_as_written(&s.config_dir),
+    }))
+    .into_response()
+}
+
+/// `PUT /api/amministrazione/ai-prices` — the manual rows, as JSON. Refused
+/// whole on any wrong price: a 0 typed by mistake would switch the spending
+/// cap off for every project.
+///
+/// Only on the gateway: a panel or a local IDE keeps its list up to date by
+/// itself and nobody edits it (maintainer's decision, 17-11-2026).
+async fn save_ai_prices(
+    State(s): State<AppState>,
+    Extension(chi): Extension<AuthUser>,
+    Json(body): Json<serde_json::Value>,
+) -> Response {
+    if s.regia.is_none() {
+        return (
+            StatusCode::CONFLICT,
+            Json(serde_json::json!({"error": "ai_prices_cloud_only"})),
+        )
+            .into_response();
+    }
+    let list = match crate::ai::price_list::save_manual(&s.config_dir, &body) {
+        Ok(l) => l,
+        Err(detail) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({"error": "ai_prices_invalid", "detail": detail})),
+            )
+                .into_response()
+        }
+    };
+    s.audit.log(
+        "amministrazione.ai_prices_saved",
+        Some(chi.username.clone()),
+        serde_json::json!({}),
+    );
+    crate::ai::price_list::push(&s).await;
+    Json(list).into_response()
+}
+
+/// `POST /api/amministrazione/ai-prices/refresh` — «Update now»: downloads
+/// models.dev without waiting for the daily round.
+async fn refresh_ai_prices(
+    State(s): State<AppState>,
+    Extension(chi): Extension<AuthUser>,
+) -> Response {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64;
+    let outcome = crate::ai::price_list::refresh(
+        &s.config_dir,
+        &reqwest::Client::new(),
+        crate::ai::price_list::MODELS_DEV_URL,
+        now,
+    )
+    .await;
+    s.audit.log(
+        "amministrazione.ai_prices_refreshed",
+        Some(chi.username.clone()),
+        serde_json::json!({"ok": outcome.is_ok()}),
+    );
+    // Even a failed download rewrote the file with its error.
+    crate::ai::price_list::push(&s).await;
+    match outcome {
+        Ok(list) => Json(list).into_response(),
+        Err(detail) => (
+            StatusCode::BAD_GATEWAY,
+            Json(serde_json::json!({"error": "ai_prices_refresh_failed", "detail": detail})),
+        )
+            .into_response(),
+    }
 }
 
 // ── Le risorse ───────────────────────────────────────────────────────────────
@@ -1441,5 +1537,110 @@ mod prove_confine {
         )
         .await;
         assert!(smtp_di(&azienda(&b, b.acme).await).is_none());
+    }
+}
+
+/// The AI price list from the platform console: platform only, a wrong price
+/// refused, only on the gateway.
+#[cfg(test)]
+mod ai_prices_routes {
+    use super::*;
+    use crate::gateway::{
+        podman::Podman,
+        progetti::{ComeRaggiungere, Regia},
+    };
+
+    fn user(platform: bool) -> AuthUser {
+        AuthUser {
+            username: "anna@acme.it".into(),
+            role: sws_auth::Role::Admin,
+            must_change_password: false,
+            allowed_zones: vec![],
+            amministratore_piattaforma: platform,
+        }
+    }
+
+    /// The platform group with its guard, as the router mounts it, behind a
+    /// session of `who`. Returns the base URL.
+    async fn serve(s: AppState, who: AuthUser) -> String {
+        let app = rotte_di_piattaforma()
+            .route_layer(axum::middleware::from_fn(
+                crate::router::require_amministratore_piattaforma,
+            ))
+            .layer(Extension(who))
+            .with_state(s);
+        let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = l.local_addr().unwrap().port();
+        tokio::spawn(async move { axum::serve(l, app).await.unwrap() });
+        format!("http://127.0.0.1:{port}/api/amministrazione/ai-prices")
+    }
+
+    async fn gateway_state(dir: &std::path::Path) -> AppState {
+        let regia = Regia::nuova(
+            Podman::nuovo(dir.join("podman.sock")),
+            "immagine-di-prova",
+            dir,
+            ComeRaggiungere::PortaPubblicata,
+            "segretolungoabbastanza0123",
+        );
+        crate::router::build_di_prova(dir, None, Some(std::sync::Arc::new(regia)))
+            .await
+            .2
+    }
+
+    #[tokio::test]
+    async fn a_company_admin_cannot_read_nor_write_the_prices() {
+        let dir = tempfile::tempdir().unwrap();
+        let url = serve(gateway_state(dir.path()).await, user(false)).await;
+        let http = reqwest::Client::new();
+        assert_eq!(http.get(&url).send().await.unwrap().status(), 403);
+        let r = http
+            .put(&url)
+            .json(&serde_json::json!({}))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(r.status(), 403);
+        let r = http.post(format!("{url}/refresh")).send().await.unwrap();
+        assert_eq!(r.status(), 403);
+    }
+
+    #[tokio::test]
+    async fn a_zero_price_is_refused_and_a_good_one_saved() {
+        let dir = tempfile::tempdir().unwrap();
+        let url = serve(gateway_state(dir.path()).await, user(true)).await;
+        let http = reqwest::Client::new();
+        let zero = serde_json::json!({"models": {"anthropic": {"claude-opus-5-5": {"input": 0, "output": 25}}}});
+        let r = http.put(&url).json(&zero).send().await.unwrap();
+        assert_eq!(r.status(), 400);
+        let body: serde_json::Value = r.json().await.unwrap();
+        assert_eq!(body["error"], "ai_prices_invalid");
+        assert!(!dir.path().join(crate::ai::price_list::MANUAL_FILE).exists());
+
+        let good = serde_json::json!({"models": {"anthropic": {"claude-opus-5-5": {"input": 4.5, "output": 22}}}});
+        let r = http.put(&url).json(&good).send().await.unwrap();
+        assert_eq!(r.status(), 200);
+        let got: serde_json::Value = http.get(&url).send().await.unwrap().json().await.unwrap();
+        assert_eq!(got["manual"], good);
+        let row = &got["resolved"]["models"]["anthropic"]["claude-opus-5-5"];
+        assert_eq!(row["input"], 4.5);
+        assert_eq!(row["origin"], "manual");
+    }
+
+    /// Off the gateway the list keeps itself up to date and is not edited.
+    #[tokio::test]
+    async fn manual_rows_are_saved_only_on_the_gateway() {
+        let dir = tempfile::tempdir().unwrap();
+        let s = crate::router::stato_di_prova(dir.path()).await;
+        let url = serve(s, user(true)).await;
+        let good = serde_json::json!({"models": {"anthropic": {"claude-opus-5-5": {"input": 4.5, "output": 22}}}});
+        let r = reqwest::Client::new()
+            .put(&url)
+            .json(&good)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(r.status(), 409);
+        assert!(!dir.path().join(crate::ai::price_list::MANUAL_FILE).exists());
     }
 }

@@ -551,7 +551,7 @@ La chiave **non entra mai nel progetto**: il progetto si esporta, si manda in gi
 un dispositivo. Se manca, l'IDE funziona lo stesso e il pannello dice che l'assistente non è
 configurato invece di sembrare rotto.
 
-### Tre fornitori: Anthropic, Kimi o Mistral
+### Quattro fornitori: Anthropic, Kimi, Mistral o un modello in casa
 
 Kimi (Moonshot) espone la **Messages API di Anthropic** su un endpoint dedicato, quindi lo
 streaming, i blocchi, gli strumenti e i nomi degli eventi SSE sono gli stessi: il nostro lettore
@@ -569,10 +569,21 @@ costerebbe circa **0,14 $**.
 | `kimi-k3` | 3 $/Mtok | 0,30 $ | 15 $/Mtok |
 | `mistral-large-latest` (Mistral Large 4, listino del 16-11-2026) | 0,7 $/Mtok | 0,07 $ | 2,1 $/Mtok |
 
-Un modello che la tabella del codice non conosce (`prezzi()` in `ai/client.rs`) si conta ai prezzi di Opus 5 e la chat
-dice che la spesa è stimata. Fanno eccezione gli altri modelli Mistral di una famiglia col prezzo pubblicato
-(`mistral-large-…`, `mistral-small-…`, `codestral-…`, `ministral-…`): si contano al prezzo della loro famiglia, sempre
-come stima.
+**Il listino si aggiorna da solo** (dal 17-11-2026). Una volta al giorno il gateway del cloud, e ogni pannello o IDE
+che non sta dietro il gateway, scarica i prezzi da <https://models.dev> (pubblico, licenza MIT, gli stessi id dei
+fornitori) e li scrive in `<config_dir>/ai-prices.json`; nel cloud il gateway lo copia nei progetti aperti. Senza
+internet valgono i prezzi scritti nel codice. Un prezzo scaricato che si allontana più di cinque volte da quello che il
+codice conosce si scarta, e uno sotto 0,01 $ per milione di token pure: un errore della fonte non deve spegnere il tetto
+di spesa. Le immagini (gpt-image-2, FLUX.2) nessuna fonte le copre: restano quelle del codice.
+
+**Nel cloud il listino si corregge a mano**: console → **Prezzi IA** (solo amministratore della piattaforma). La
+tabella mostra i prezzi in vigore e da dove vengono (models.dev, interno, a mano); sotto, le righe a mano in JSON, che
+vincono su models.dev e arrivano subito nei progetti aperti. Su pannello e IDE locale il listino non si modifica.
+
+Un modello che il listino non conosce si conta ai prezzi di Opus 5 e la chat dice che la spesa è stimata (`≈`). Fanno
+eccezione gli altri modelli Mistral di una famiglia col prezzo pubblicato (`mistral-large-…`, `mistral-small-…`,
+`codestral-…`, `ministral-…`): si contano al prezzo della loro famiglia, sempre come stima. Un modello in casa non costa
+niente — tranne nel cloud, vedi il capitolo 33.
 
 **Dal 04-11-2026 tutto sta nel menù IA** (✨ nel pannello laterale, solo Admin; nello stile VS Code è
 l'icona viola in fondo alla barra di attività). Prima c'era una sezione nelle Preferenze IDE e due
@@ -581,7 +592,7 @@ voci nel menu ☰: non ci sono più.
 | Voce | Cosa si fa | Dove finisce |
 |---|---|---|
 | **Assistente** | si apre la chat accanto all'editor, o in una finestra | — |
-| **Fornitori e chiavi** | Anthropic, Kimi, Mistral, OpenAI, Black Forest Labs: chiave, «Prova la chiave» (gratis: l'elenco dei modelli; per Black Forest Labs il saldo dei crediti), cancella | `<config_dir>/<fornitore>.key` (`anthropic.key`, `kimi.key`, `openai.key`, `bfl.key`), permessi `600` |
+| **Fornitori e chiavi** | Anthropic, Kimi, Mistral, OpenAI, Black Forest Labs e il modello in casa (capitolo 33): chiave, «Prova la chiave» (gratis: l'elenco dei modelli; per Black Forest Labs il saldo dei crediti), cancella | `<config_dir>/<fornitore>.key` (`anthropic.key`, `kimi.key`, `openai.key`, `bfl.key`), permessi `600` |
 | **Un modello per scopo** | Assistente, Disegno dei simboli, Traduzione, Sfondi: fornitore, modello, tetto | `<config_dir>/ai.yaml`, sotto `scopi:` |
 | **Spesa** | quanto è costata l'IA all'installazione: il mese in corso e i precedenti, per scopo e per fornitore, con i totali | `<config_dir>/ai-spending.json`, ultimi 36 mesi |
 | **Regole del progetto** | il tipo di impianto e cosa ogni modello deve sapere | **nel progetto** (`project.yaml`, `ai:`) |
@@ -615,13 +626,16 @@ In alternativa `MOONSHOT_API_KEY` (o `KIMI_API_KEY`) nell'ambiente.
 API (in stile OpenAI «chat completions»), che il runtime traduce in `ai/chat_completions.rs`: per chi usa l'IDE non
 cambia niente.
 
-**Chi vince, con più chiavi**: Anthropic, perché è il default; poi Kimi, poi Mistral. Per un altro si dice a voce alta:
+**Chi vince, con più chiavi**: nell'ordine, la variabile d'ambiente `SWS_AI_FORNITORE`, poi il fornitore scelto nello
+scopo (IA → Un modello per scopo), poi — nel cloud — il **fornitore preferito nell'account** di chi scrive (capitolo 32),
+e solo alla fine l'ordine fisso: Anthropic, Kimi, Mistral, il modello in casa. Un fornitore senza chiave si salta. Per
+forzarne uno da shell:
 
 ```bash
 SWS_AI_FORNITORE=kimi ./scripts/start_editor.sh --instance 3
 ```
 
-`SWS_AI_FORNITORE` accetta `anthropic`/`claude`, `kimi`/`moonshot` e `mistral`; un valore che non riconosce
+`SWS_AI_FORNITORE` accetta `anthropic`/`claude`, `kimi`/`moonshot`, `mistral` e `local`; un valore che non riconosce
 **spegne la chat** e lo scrive nel log, invece di ricadere silenziosamente sul default. Il
 modello si cambia con `SWS_AI_MODELLO` (per esempio `kimi-k2.6`, più economico, o
 `claude-sonnet-5`), e il pannello dice sempre **fornitore e modello** con cui sta parlando:
@@ -2228,6 +2242,12 @@ o Black Forest Labs) **una volta, nel proprio account**, invece che in ognuno.
    uno; «Predefinito del fornitore» lascia decidere a SWS.
 5. Apri un progetto e usa l'assistente: se il progetto **non ha una chiave sua** per quel fornitore, usa la tua.
 
+6. **Fornitore preferito** (in testa alla finestra, dal 17-11-2026): uno per il testo (Anthropic, Kimi, Mistral) e uno
+   per le immagini (OpenAI, Black Forest Labs). Vale **solo se il progetto non ha scelto** il fornitore nello scopo: la
+   scelta del progetto vince sempre, come per le chiavi. Se il fornitore preferito non ha una chiave, né tua né del
+   progetto, si passa al successivo dell'ordine fisso. Nel menù IA del progetto la riga dell'assistente e quella degli
+   sfondi dicono quando vale la tua preferenza.
+
 Il modello si decide in quest'ordine: quello dello scopo nel progetto (Configurazione → IA → Scopi, anche lì da un
 menù), poi quello preferito nel tuo account, poi il predefinito del fornitore.
 
@@ -2244,4 +2264,63 @@ progetto», «la tua chiave» o «nessuna».
 - **Dopo un ripristino da backup** le chiavi cifrate ci sono ma non si leggono (la chiave-madre non è nella copia): la
   finestra lo dice e basta riscriverle.
 - Sul pannello senza cloud non c'è un account: lì resta solo la chiave dell'istanza.
+
+## 33. Usare un modello in casa (Ollama, vLLM, LM Studio, llama.cpp)
+
+Dal 17-11-2026 l'assistente, il disegno dei simboli e la traduzione possono usare un modello che gira su un server
+tuo, invece di un fornitore nel cloud. **I testi del progetto non escono verso terzi** e non si paga a token. Serve un
+server che parli l'API di OpenAI (`/v1/chat/completions`): Ollama, vLLM, LM Studio, llama.cpp (`llama-server`) e
+LocalAI lo fanno.
+
+### Il server: due impostazioni che non si possono saltare
+
+1. **Il contesto ad almeno 64k token.** Le istruzioni dell'assistente con i suoi strumenti pesano 25-40 mila token, e
+   SWS tiene altri 8 mila per la risposta. Con meno, Ollama e LM Studio **tagliano in silenzio** l'inizio delle
+   istruzioni e il modello risponde a caso; vLLM e llama.cpp rispondono con un errore. SWS controlla prima di mandare
+   (su Ollama e LM Studio chiede al server quanto contesto ha caricato) e, se non basta, la richiesta non parte e la
+   chat lo dice.
+   - **Ollama**: `OLLAMA_CONTEXT_LENGTH=65536` nell'ambiente del servizio (senza, sotto i 24 GB di memoria video
+     carica 4k). Con `OLLAMA_FLASH_ATTENTION=1` e `OLLAMA_KV_CACHE_TYPE=q8_0` il contesto lungo occupa la metà.
+     Verifica: `ollama ps`, colonna CONTEXT.
+   - **vLLM**: `--max-model-len 65536`.
+   - **LM Studio**: la lunghezza del contesto si imposta quando si carica il modello (il default è 4096).
+   - **llama.cpp**: `llama-server -c 65536`.
+2. **Gli strumenti accesi.** L'assistente lavora chiamando strumenti.
+   - **vLLM**: `--enable-auto-tool-choice --tool-call-parser <famiglia del modello>`.
+   - **llama.cpp**: `--jinja` (attivo di default nelle versioni recenti).
+   - **LM Studio**: un modello col supporto nativo degli strumenti (l'icona del martello).
+   - **Ollama**: niente da fare, se il modello li sa usare (`ollama show <modello>` elenca `tools`).
+
+Perché SWS lo raggiunga da un'altra macchina: Ollama con `OLLAMA_HOST=0.0.0.0:11434`, llama.cpp con
+`--host 0.0.0.0`, e la porta aperta nel firewall **solo per la rete locale**.
+
+Il modello: uno che sappia usare gli strumenti, e con le immagini se si vuole la foto della pagina. Il 17-11-2026, in
+ufficio, `qwen3.5:9b` su Ollama (strumenti, immagini, 6,4 GB di memoria video con 64k di contesto).
+
+### In SWS
+
+IA → **Fornitori e chiavi** → **Modello in casa**:
+
+1. **Indirizzo**, fino a `/v1`: `http://192.168.0.225:11434/v1` per Ollama, `:8000/v1` per vLLM, `:1234/v1` per LM
+   Studio. Utente e password nell'indirizzo sono rifiutati: la chiave ha il suo campo.
+2. **Chiave**, facoltativa: solo se il server la chiede (vLLM con `--api-key`, LM Studio con l'autenticazione accesa).
+   Se cambi server senza scrivere una chiave, quella vecchia si cancella: non si manda la chiave di un server a un
+   altro.
+3. **Prova**: chiede al server l'elenco dei modelli e riempie il menù.
+4. **Modello**, e la casella **«Il modello vede le immagini»**. Spenta, all'assistente non viene offerta la foto della
+   pagina, e le immagini delle conversazioni vecchie gli arrivano come una riga di testo.
+5. **Salva**. La chat lo usa dal messaggio successivo.
+
+Poi in **Un modello per scopo** lo si sceglie per l'assistente, i simboli o la traduzione. Senza nessuna chiave dei
+fornitori nel cloud, il modello in casa è anche l'ultimo dell'ordine fisso: configurato, si usa da solo.
+
+### Quanto costa, e dove funziona
+
+- **Sul pannello e nell'IDE locale** il modello in casa costa zero: la chat mostra i token e non la spesa, e non c'è un
+  tetto che si possa raggiungere. Il limite di giri dell'assistente resta, e c'è il tasto Stop.
+- **Nel cloud** si possono usare solo **indirizzi pubblici**: niente `localhost`, reti private o indirizzi della
+  piattaforma, e niente redirect. Un server in casa tua, dal cloud, non si vede. Un indirizzo pubblico può essere un
+  servizio a pagamento compatibile con OpenAI, quindi lì la spesa si conta come **stima** (`≈`, al prezzo di Opus per
+  un modello che il listino non conosce) e il tetto di spesa resta acceso.
+- **Non è nell'account**: il modello in casa è dell'installazione, non della persona.
 

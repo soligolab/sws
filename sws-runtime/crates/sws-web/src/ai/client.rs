@@ -26,6 +26,8 @@ use std::path::{Path, PathBuf};
 
 pub use crate::ai::user_keys::UserKeys;
 
+use crate::ai::local_http;
+
 /// Il modello di riferimento. Opus 5.5 (03-11-2026, era Opus 5): contesto da 1M,
 /// pensiero sempre acceso, e costa meno (4 $ e 20 $ per Mtok contro 5 e 25). Il
 /// suo `effort` di default è `medium`: qui lo si manda sempre esplicito, `high`.
@@ -52,6 +54,10 @@ pub enum Fornitore {
     /// Mistral AI (France): the first provider of the second protocol, OpenAI-
     /// style chat completions (plan `2026-11-10-assistente-secondo-giro`, G4).
     Mistral,
+    /// A model the customer serves themselves (Ollama, vLLM, LM Studio,
+    /// llama.cpp) behind an OpenAI-compatible endpoint: its address comes from
+    /// [`Scelta::endpoint`], never from here.
+    Local,
 }
 
 /// How a provider is spoken to. The rest of the assistant only knows the
@@ -69,6 +75,7 @@ impl Fornitore {
             Fornitore::Anthropic => "anthropic",
             Fornitore::Kimi => "kimi",
             Fornitore::Mistral => "mistral",
+            Fornitore::Local => "local",
         }
     }
 
@@ -76,6 +83,7 @@ impl Fornitore {
         match self {
             Fornitore::Anthropic | Fornitore::Kimi => Protocol::Messages,
             Fornitore::Mistral => Protocol::ChatCompletions(&crate::ai::chat_completions::MISTRAL),
+            Fornitore::Local => Protocol::ChatCompletions(&crate::ai::chat_completions::LOCAL),
         }
     }
 
@@ -84,6 +92,7 @@ impl Fornitore {
             Fornitore::Anthropic => "https://api.anthropic.com/v1/messages",
             Fornitore::Kimi => "https://api.moonshot.ai/anthropic/v1/messages",
             Fornitore::Mistral => crate::ai::chat_completions::MISTRAL.endpoint,
+            Fornitore::Local => crate::ai::chat_completions::LOCAL.endpoint,
         }
     }
 
@@ -96,6 +105,8 @@ impl Fornitore {
             // since 31-10-2026). The alias moves with the releases, and the
             // price table knows it by this name.
             Fornitore::Mistral => "mistral-large-latest",
+            // No default: the customer's server serves what it serves.
+            Fornitore::Local => "",
         }
     }
 
@@ -107,6 +118,7 @@ impl Fornitore {
             Fornitore::Anthropic => &["ANTHROPIC_API_KEY"],
             Fornitore::Kimi => &["MOONSHOT_API_KEY", "KIMI_API_KEY"],
             Fornitore::Mistral => &["MISTRAL_API_KEY"],
+            Fornitore::Local => &[],
         }
     }
 
@@ -115,6 +127,7 @@ impl Fornitore {
             Fornitore::Anthropic => "anthropic.key",
             Fornitore::Kimi => "kimi.key",
             Fornitore::Mistral => "mistral.key",
+            Fornitore::Local => "local.key",
         }
     }
 
@@ -125,7 +138,7 @@ impl Fornitore {
     /// casella vuota per metà degli utenti è peggio che non averla (scheda).
     pub fn url_saldo(self) -> Option<&'static str> {
         match self {
-            Fornitore::Anthropic | Fornitore::Mistral => None,
+            Fornitore::Anthropic | Fornitore::Mistral | Fornitore::Local => None,
             Fornitore::Kimi => Some("https://api.moonshot.ai/v1/users/me/balance"),
         }
     }
@@ -133,7 +146,10 @@ impl Fornitore {
     /// Anthropic vuole `x-api-key` + `anthropic-version`; Kimi vuole
     /// `Authorization: Bearer` e **rifiuta** di aver bisogno degli altri due.
     fn bearer(self) -> bool {
-        matches!(self, Fornitore::Kimi | Fornitore::Mistral)
+        matches!(
+            self,
+            Fornitore::Kimi | Fornitore::Mistral | Fornitore::Local
+        )
     }
 
     /// Su Anthropic il pensiero si chiede col campo `thinking`; su Kimi la
@@ -149,6 +165,7 @@ impl Fornitore {
             "anthropic" | "claude" => Some(Fornitore::Anthropic),
             "kimi" | "moonshot" => Some(Fornitore::Kimi),
             "mistral" | "mistralai" => Some(Fornitore::Mistral),
+            "local" => Some(Fornitore::Local),
             _ => None,
         }
     }
@@ -206,6 +223,23 @@ pub struct Scelta {
     /// Quanto può spendere una conversazione, in dollari, prima che il giro
     /// successivo si rifiuti di partire. Vedi [`tetto_usd`].
     pub tetto_usd: f64,
+    /// The chat-completions URL chosen by the customer (the local model).
+    /// `None` = the provider's own, fixed one: see [`chat_url`].
+    pub endpoint: Option<String>,
+    /// The model accepts images. Always true for the cloud providers; a local
+    /// model may be text-only, and then the images of the history are replaced
+    /// by a line of text before the request leaves.
+    pub sees_images: bool,
+}
+
+/// Where a chat-completions request goes: the customer's address if the choice
+/// has one, the dialect's otherwise (the fake providers of the tests pass
+/// their own dialect, and must keep working).
+pub(crate) fn chat_url<'a>(
+    scelta: &'a Scelta,
+    d: &'a crate::ai::chat_completions::Dialect,
+) -> &'a str {
+    scelta.endpoint.as_deref().unwrap_or(d.endpoint)
 }
 
 /// Il tetto di default di una conversazione. Una pagina intera generata con i
@@ -235,6 +269,98 @@ pub struct Prezzi {
     pub cache_scrittura: f64,
 }
 
+/// The built-in price list: the models it knows by exact id, with their
+/// provider. [`prezzi`] reads it, and the price list file
+/// (`crate::ai::price_list`) lists it as the last of its layers.
+pub(crate) fn builtin_rows() -> Vec<(Fornitore, &'static str, Prezzi)> {
+    let p = |i: f64, u: f64, l: f64| Prezzi {
+        ingresso: i,
+        uscita: u,
+        cache_lettura: l,
+        cache_scrittura: i * 1.25,
+    };
+    let kimi = |i: f64, u: f64, l: f64| Prezzi {
+        cache_scrittura: i,
+        ..p(i, u, l)
+    };
+    let mut rows = vec![(Fornitore::Anthropic, "claude-opus-5-5", p(4.0, 20.0, 0.20))];
+    for id in [
+        "claude-opus-5",
+        "claude-opus-4-8",
+        "claude-opus-4-7",
+        "claude-opus-4-6",
+    ] {
+        rows.push((Fornitore::Anthropic, id, p(5.0, 25.0, 0.50)));
+    }
+    rows.extend([
+        // Sonnet 5.5 reads its cache at 0.05 times the input, Sonnet 5 at 0.1
+        // (Anthropic's list and models.dev, 17-11-2026).
+        (
+            Fornitore::Anthropic,
+            "claude-sonnet-5-5",
+            p(2.0, 10.0, 0.10),
+        ),
+        (Fornitore::Anthropic, "claude-sonnet-5", p(2.0, 10.0, 0.20)),
+        (
+            Fornitore::Anthropic,
+            "claude-fable-5-1",
+            p(10.0, 50.0, 0.25),
+        ),
+        (Fornitore::Anthropic, "claude-fable-5", p(10.0, 50.0, 0.25)),
+        // Its dearer tier above 100k tokens is in `builtin_tier`.
+        (
+            Fornitore::Anthropic,
+            "claude-haiku-5-5",
+            p(0.10, 0.50, 0.01),
+        ),
+        // Kimi, from Moonshot's list (platform.kimi.ai/docs/pricing/chat, read
+        // on 16-11-2026): input, output, cached input per MTok. Unlike
+        // Anthropic, writing the cache with the default 5-minute TTL costs
+        // the plain input price, not 1.25 times it.
+        (Fornitore::Kimi, "kimi-k3", kimi(3.0, 15.0, 0.30)),
+        (Fornitore::Kimi, "kimi-k3.1-pro", kimi(2.0, 10.0, 0.20)),
+        (
+            Fornitore::Kimi,
+            "kimi-k3.1-pro-highspeed",
+            kimi(4.0, 20.0, 0.20),
+        ),
+        // Mistral (docs.mistral.ai/inference/pricing, 16-11-2026). Large 4:
+        // 0.7 $ and 2.1 $, cached input 0.07 $. Small 4: 0.15 $ and 0.6 $,
+        // cached 0.015 $. Large 3 (deprecated, retired on 30-04-2027): 0.5 $
+        // and 1.5 $, its cache at a tenth like the others.
+        (
+            Fornitore::Mistral,
+            "mistral-large-latest",
+            p(0.7, 2.1, 0.07),
+        ),
+        (
+            Fornitore::Mistral,
+            "mistral-small-latest",
+            p(0.15, 0.6, 0.015),
+        ),
+        (Fornitore::Mistral, "mistral-large-2512", p(0.5, 1.5, 0.05)),
+    ]);
+    rows
+}
+
+/// The dearer tier of a built-in model: from how many input tokens (input,
+/// cache read and cache write of one request) and at which prices, all four
+/// of them. Haiku 5.5 above 100k tokens, from models.dev on 17-11-2026.
+pub fn builtin_tier(model: &str) -> Option<(u64, Prezzi)> {
+    match model.trim().to_ascii_lowercase().as_str() {
+        "claude-haiku-5-5" => Some((
+            100_000,
+            Prezzi {
+                ingresso: 0.5,
+                uscita: 2.5,
+                cache_lettura: 0.05,
+                cache_scrittura: 0.625,
+            },
+        )),
+        _ => None,
+    }
+}
+
 /// I prezzi di un modello, e se sono noti o stimati. Un modello che la tabella
 /// non conosce si conta ai prezzi di Opus 5: meglio un tetto che scatta un po'
 /// prima che uno che non scatta mai.
@@ -248,36 +374,8 @@ pub fn prezzi(modello: &str) -> (Prezzi, bool) {
         cache_lettura: l,
         cache_scrittura: i * 1.25,
     };
-    let kimi = |i: f64, u: f64, l: f64| Prezzi {
-        cache_scrittura: i,
-        ..p(i, u, l)
-    };
     let m = modello.trim().to_ascii_lowercase();
-    let noto = match m.as_str() {
-        "claude-opus-5-5" => Some(p(4.0, 20.0, 0.20)),
-        "claude-opus-5" | "claude-opus-4-8" | "claude-opus-4-7" | "claude-opus-4-6" => {
-            Some(p(5.0, 25.0, 0.50))
-        }
-        "claude-sonnet-5-5" | "claude-sonnet-5" => Some(p(2.0, 10.0, 0.20)),
-        "claude-fable-5-1" | "claude-fable-5" => Some(p(10.0, 50.0, 0.25)),
-        "claude-haiku-5-5" => Some(p(0.10, 0.50, 0.01)),
-        // Kimi, from Moonshot's list (platform.kimi.ai/docs/pricing/chat, read
-        // on 16-11-2026): input, output, cached input per MTok. Unlike
-        // Anthropic, writing the cache with the default 5-minute TTL costs
-        // the plain input price, not 1.25 times it.
-        "kimi-k3" => Some(kimi(3.0, 15.0, 0.30)),
-        "kimi-k3.1-pro" => Some(kimi(2.0, 10.0, 0.20)),
-        "kimi-k3.1-pro-highspeed" => Some(kimi(4.0, 20.0, 0.20)),
-        // Mistral (docs.mistral.ai/inference/pricing, 16-11-2026). Large 4:
-        // 0.7 $ and 2.1 $, cached input 0.07 $. Small 4: 0.15 $ and 0.6 $,
-        // cached 0.015 $. Large 3 (deprecated, retired on 30-04-2027): 0.5 $
-        // and 1.5 $, its cache at a tenth like the others.
-        "mistral-large-latest" => Some(p(0.7, 2.1, 0.07)),
-        "mistral-small-latest" => Some(p(0.15, 0.6, 0.015)),
-        "mistral-large-2512" => Some(p(0.5, 1.5, 0.05)),
-        _ => None,
-    };
-    if let Some(x) = noto {
+    if let Some((_, _, x)) = builtin_rows().into_iter().find(|(_, id, _)| *id == m) {
         return (x, true);
     }
     // Mistral lists many more ids than the three above (dated ids, the small
@@ -302,12 +400,54 @@ pub fn prezzi(modello: &str) -> (Prezzi, bool) {
     }
 }
 
+/// The prices of a model **of a provider**, and whether they are known. The
+/// table of [`prezzi`] knows models by name only, and would charge an unknown
+/// local model (`qwen3:32b`) at the prices of Opus: a free model would then
+/// show a false cost and stop at the spending cap. A local model costs nothing,
+/// and that is known.
+pub fn prezzi_per(fornitore: Fornitore, modello: &str) -> (Prezzi, bool) {
+    match fornitore {
+        Fornitore::Local => (
+            Prezzi {
+                ingresso: 0.0,
+                uscita: 0.0,
+                cache_lettura: 0.0,
+                cache_scrittura: 0.0,
+            },
+            true,
+        ),
+        _ => prezzi(modello),
+    }
+}
+
 /// Quanto è costato un turno, dall'`usage` della risposta. I token di cache
 /// hanno il loro prezzo: contarli come ingresso pieno gonfierebbe il costo di
 /// dieci volte proprio quando la cache funziona.
-pub fn costo_usd(modello: &str, usage: &Value) -> f64 {
-    let (p, _) = prezzi(modello);
-    let tok = |c: &str| usage.get(c).and_then(Value::as_u64).unwrap_or(0) as f64;
+///
+/// This is the built-in table only; the runtime charges through
+/// `crate::ai::price_list::cost_usd`, which reads the price list file first.
+pub fn costo_usd(fornitore: Fornitore, modello: &str, usage: &Value) -> f64 {
+    let (p, _) = prezzi_per(fornitore, modello);
+    let tier = match fornitore {
+        Fornitore::Local => None,
+        _ => builtin_tier(modello),
+    };
+    cost_of(p, tier, usage)
+}
+
+/// The cost of one request at `base` prices, or at the tier's when the request
+/// reaches it. The threshold counts all the input of the request (plain, cache
+/// read, cache write), and above it the tier prices every item, output too:
+/// that is how the providers bill a long context.
+pub fn cost_of(base: Prezzi, tier: Option<(u64, Prezzi)>, usage: &Value) -> f64 {
+    let tok = |c: &str| usage.get(c).and_then(Value::as_u64).unwrap_or(0);
+    let input =
+        tok("input_tokens") + tok("cache_read_input_tokens") + tok("cache_creation_input_tokens");
+    let p = match tier {
+        Some((above, t)) if input > above => t,
+        _ => base,
+    };
+    let tok = |c: &str| tok(c) as f64;
     (tok("input_tokens") * p.ingresso
         + tok("output_tokens") * p.uscita
         + tok("cache_read_input_tokens") * p.cache_lettura
@@ -405,18 +545,32 @@ async fn ask_chat_once(
 ) -> Result<(String, Value)> {
     use crate::ai::chat_completions as cc;
     let system = [json!({ "type": "text", "text": instructions })];
+    let messages = cc::images_for(scelta.sees_images, messages);
     let body = cc::request_body(
         d,
         &scelta.modello,
         &system,
-        messages,
+        &messages,
         &[],
         false,
         max_tokens,
     );
     let name = scelta.fornitore.nome();
+    let url = chat_url(scelta, d);
+    // The local model only: a cloud provider says when a request is too long.
+    let (needed, check_after) = match scelta.fornitore {
+        Fornitore::Local => {
+            let needed = local_http::needed_tokens(
+                system.iter().chain(messages.iter()),
+                max_tokens.min(d.max_output_tokens),
+            );
+            let after = local_http::context_before(client, url, &scelta.modello, needed).await?;
+            (needed, after)
+        }
+        _ => (0, false),
+    };
     let resp = client
-        .post(d.endpoint)
+        .post(url)
         .header("Authorization", format!("Bearer {}", scelta.chiave))
         .json(&body)
         .send()
@@ -430,6 +584,9 @@ async fn ask_chat_once(
     if !status.is_success() {
         let msg = cc::error_message(&v).unwrap_or_default();
         bail!("{name} refused ({status}): {msg}");
+    }
+    if check_after {
+        local_http::context_after(client, url, &scelta.modello, needed).await?;
     }
     cc::parse_single(&v).with_context(|| format!("answer of {name}"))
 }
@@ -462,6 +619,9 @@ pub fn percorsi_chiave_di(config_dir: &Path, f: Fornitore) -> Vec<PathBuf> {
 
 /// Tutti i percorsi, di tutti i fornitori: è l'elenco che il pannello mostra
 /// quando la chat è spenta, e deve dire *tutte* le strade, non una.
+///
+/// Not `local.key`: a key alone does not turn the local model on (it wants an
+/// address and a model, in the AI menu), and listing it would say otherwise.
 pub fn percorsi_chiave(config_dir: &Path) -> Vec<PathBuf> {
     let mut v = percorsi_chiave_di(config_dir, Fornitore::Anthropic);
     v.extend(percorsi_chiave_di(config_dir, Fornitore::Kimi));
@@ -537,6 +697,16 @@ pub(crate) fn resolve_key(
     f: Fornitore,
     user: &UserKeys,
 ) -> Option<(String, KeySource)> {
+    // The local model exists only with its address and model: a `local.key`
+    // alone must not turn it on, or the request would go to an empty URL. Its
+    // key is optional, and never the account's (the account cannot reach a
+    // model on the customer's network): without one, any word, because
+    // Ollama wants a Bearer even if it reads none.
+    if f == Fornitore::Local {
+        local_cfg(config_dir)?;
+        let key = chiave_di(config_dir, f).unwrap_or_else(|| "local".to_string());
+        return Some((key, KeySource::Project));
+    }
     chiave_di(config_dir, f)
         .map(|k| (k, KeySource::Project))
         .or_else(|| user.get(f).map(|k| (k.to_string(), KeySource::User)))
@@ -552,11 +722,22 @@ pub fn carica_con(config_dir: &Path, user: &UserKeys) -> Option<Scelta> {
     // e non si capisce perché. La precedenza è questa e non l'inversa perché
     // una variabile d'ambiente è un'intenzione di chi ha avviato il processo —
     // uno script, un servizio systemd — e non va scavalcata da un file.
-    let modello_imposto = std::env::var("SWS_AI_MODELLO")
+    let modello_env = std::env::var("SWS_AI_MODELLO")
         .ok()
         .map(|m| m.trim().to_string())
-        .filter(|m| !m.is_empty())
-        .or_else(|| salvata.modello.clone());
+        .filter(|m| !m.is_empty());
+    // A model saved in `ai.yaml` belongs to the saved provider (Anthropic, the
+    // first of the fixed order, when none is saved), as for the backgrounds:
+    // the account's preference, or a provider reached because the saved one
+    // has no key, must not get a model name of another provider. The local
+    // model least of all: the customer's server would not know it.
+    let fornitore_salvato = salvata.fornitore.as_deref().and_then(Fornitore::da_nome);
+    let modello_salvato_per = |f: Fornitore| {
+        salvata
+            .modello
+            .clone()
+            .filter(|_| fornitore_salvato.unwrap_or(Fornitore::Anthropic) == f)
+    };
 
     let da_ambiente = std::env::var("SWS_AI_FORNITORE")
         .ok()
@@ -568,35 +749,65 @@ pub fn carica_con(config_dir: &Path, user: &UserKeys) -> Option<Scelta> {
             Some(f) => vec![f],
             None => {
                 tracing::warn!(value = %v, "SWS_AI_FORNITORE not recognised: \
-                                            valid values `anthropic`, `kimi` or `mistral`");
+                                            valid values `anthropic`, `kimi`, `mistral` or `local`");
                 return None;
             }
         },
-        None => match salvata.fornitore.as_deref().and_then(Fornitore::da_nome) {
+        None => match fornitore_salvato {
             Some(f) => vec![f],
             // Nessuna preferenza da nessuna parte: si prova Anthropic e poi
             // Kimi, così una macchina con due chiavi si comporta in modo
             // prevedibile invece di dipendere dall'ordine di lettura dei file.
-            // Mistral last: it is the newest, measured only on recorded
-            // answers so far (G4).
-            None => vec![Fornitore::Anthropic, Fornitore::Kimi, Fornitore::Mistral],
+            // Mistral after them: it is the newest, measured only on recorded
+            // answers so far (G4). The local model last: it is there only
+            // when someone configured it, and a key of the account must not
+            // lose to a model nobody chose for this purpose.
+            //
+            // The provider the user prefers in their account goes first
+            // (17-11-2026): environment > `ai.yaml` > account > fixed order.
+            // Without a key it is just skipped, like any other here. Never the
+            // local model: the account does not have it.
+            None => {
+                let preferito = user
+                    .preferred_text()
+                    .and_then(Fornitore::da_nome)
+                    .filter(|f| *f != Fornitore::Local);
+                preferito
+                    .into_iter()
+                    .chain(
+                        [
+                            Fornitore::Anthropic,
+                            Fornitore::Kimi,
+                            Fornitore::Mistral,
+                            Fornitore::Local,
+                        ]
+                        .into_iter()
+                        .filter(|f| Some(*f) != preferito),
+                    )
+                    .collect()
+            }
         },
     };
 
     for f in candidati {
         if let Some((chiave, source)) = resolve_key(config_dir, f, user) {
             // The project's (or the environment's) model, then the one the
-            // user prefers in their account, then the provider's default.
-            let modello = modello_imposto
+            // user prefers in their account, then the provider's default
+            // (for the local model, the one saved with its address).
+            let modello = modello_env
                 .clone()
+                .or_else(|| modello_salvato_per(f))
                 .or_else(|| user.model_of(f.nome()).map(str::to_string))
-                .unwrap_or_else(|| f.modello_default().to_string());
+                .unwrap_or_else(|| default_model_of(config_dir, f));
+            let (endpoint, sees_images) = address_of(config_dir, f);
             return Some(Scelta {
                 fornitore: f,
                 chiave,
                 source,
                 modello,
                 tetto_usd: tetto_usd(salvata.tetto_usd),
+                endpoint,
+                sees_images,
             });
         }
     }
@@ -633,6 +844,73 @@ pub struct Impostazioni {
     /// (`ai/scopi.rs`). Uno scopo assente ricade sull'assistente.
     #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
     pub scopi: std::collections::BTreeMap<String, crate::ai::scopi::ScopoCfg>,
+    /// The model the customer serves themselves (plan
+    /// `2026-11-17-ia-a-scelta-del-cliente`, F3). Here and not in `ScopoCfg`,
+    /// whose `deny_unknown_fields` would make an older runtime drop the whole
+    /// file after a downgrade. Its optional key is in `local.key`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub local: Option<LocalCfg>,
+}
+
+/// Where the local model is and what it is: `url` is the base of the
+/// OpenAI-compatible API (`http://localhost:11434/v1`), to which
+/// `/chat/completions` and `/models` are added.
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct LocalCfg {
+    #[serde(default)]
+    pub url: String,
+    #[serde(default)]
+    pub model: String,
+    /// The model reads images: the page snapshot is offered. Off by default,
+    /// since most local models are text-only and a refused image costs a turn.
+    #[serde(default)]
+    pub sees_images: bool,
+}
+
+impl LocalCfg {
+    /// The base without a trailing slash; a whole chat URL pasted by mistake
+    /// is brought back to its base.
+    pub fn base(&self) -> &str {
+        let u = self.url.trim().trim_end_matches('/');
+        u.strip_suffix("/chat/completions").unwrap_or(u)
+    }
+
+    pub fn chat_url(&self) -> String {
+        format!("{}/chat/completions", self.base())
+    }
+
+    /// Usable only with both: without an address there is nowhere to go, and
+    /// without a model the server cannot know which one to run.
+    pub fn usable(&self) -> bool {
+        !self.base().is_empty() && !self.model.trim().is_empty()
+    }
+}
+
+/// The local model, if it is configured with address and model.
+pub fn local_cfg(config_dir: &Path) -> Option<LocalCfg> {
+    Impostazioni::carica(config_dir)
+        .local
+        .filter(LocalCfg::usable)
+}
+
+/// The model of `f` when nobody chose one: the provider's default, or for the
+/// local model the one saved with its address.
+pub(crate) fn default_model_of(config_dir: &Path, f: Fornitore) -> String {
+    match f {
+        Fornitore::Local => local_cfg(config_dir)
+            .map(|c| c.model.trim().to_string())
+            .unwrap_or_default(),
+        _ => f.modello_default().to_string(),
+    }
+}
+
+/// The address and the eyes of a choice: the customer's for the local model,
+/// the provider's own (and images seen) for the others.
+pub(crate) fn address_of(config_dir: &Path, f: Fornitore) -> (Option<String>, bool) {
+    match (f, local_cfg(config_dir)) {
+        (Fornitore::Local, Some(c)) => (Some(c.chat_url()), c.sees_images),
+        _ => (None, true),
+    }
 }
 
 impl Impostazioni {
@@ -763,19 +1041,28 @@ fn corpo_richiesta(
     b
 }
 
+/// Nessun timeout complessivo: un turno con pensiero adattivo può durare
+/// minuti, e tagliarlo a metà è peggio che aspettarlo. Il timeout di
+/// connessione resta, così un broker irraggiungibile non appende la chat per
+/// sempre.
+fn chat_http() -> reqwest::ClientBuilder {
+    reqwest::Client::builder().connect_timeout(std::time::Duration::from_secs(15))
+}
+
 impl Cliente {
     pub fn new(scelta: Scelta) -> Self {
         Cliente {
             scelta,
-            // Nessun timeout complessivo: un turno con pensiero adattivo può
-            // durare minuti, e tagliarlo a metà è peggio che aspettarlo. Il
-            // timeout di connessione resta, così un broker irraggiungibile non
-            // appende la chat per sempre.
-            http: reqwest::Client::builder()
-                .connect_timeout(std::time::Duration::from_secs(15))
-                .build()
-                .expect("client HTTP"),
+            http: chat_http().build().expect("client HTTP"),
         }
+    }
+
+    /// The client of a running instance: an address chosen by the customer
+    /// goes through [`crate::ai::local_http`], which in the cloud refuses the
+    /// private ones. `in_cloud` = this is a container behind the gateway.
+    pub fn for_instance(scelta: Scelta, in_cloud: bool) -> Result<Self, String> {
+        let http = crate::ai::local_http::client_for(&scelta, in_cloud, chat_http())?;
+        Ok(Cliente { scelta, http })
     }
 
     /// Un turno. `system` va messo in cache: è grosso (lo schema) e non cambia
@@ -837,24 +1124,41 @@ impl Cliente {
     ) -> Result<Risposta> {
         use crate::ai::chat_completions as cc;
         let f = self.scelta.fornitore;
+        let messages = cc::images_for(self.scelta.sees_images, messages);
         let body = cc::request_body(
             d,
             &self.scelta.modello,
             system,
-            messages,
+            &messages,
             tools,
             true,
             MAX_TOKENS,
         );
+        let url = chat_url(&self.scelta, d);
+        // The local model only: a cloud provider says when a request is too
+        // long. The tools count: their schemas are a good part of the prompt.
+        let (needed, check_after) = match f {
+            Fornitore::Local => {
+                let needed = local_http::needed_tokens(
+                    system.iter().chain(messages.iter()).chain(tools.iter()),
+                    MAX_TOKENS.min(d.max_output_tokens),
+                );
+                let after =
+                    local_http::context_before(&self.http, url, &self.scelta.modello, needed)
+                        .await?;
+                (needed, after)
+            }
+            _ => (0, false),
+        };
         let resp = self
             .http
-            .post(d.endpoint)
+            .post(url)
             .header("content-type", "application/json")
             .header("authorization", format!("Bearer {}", self.scelta.chiave))
             .json(&body)
             .send()
             .await
-            .with_context(|| format!("the request to {} did not start", d.endpoint))?;
+            .with_context(|| format!("the request to {url} did not start"))?;
         let status = resp.status();
         if !status.is_success() {
             let text = resp.text().await.unwrap_or_default();
@@ -868,6 +1172,12 @@ impl Cliente {
                 .take(500)
                 .collect();
             bail!("{} answered {status}: {short}", f.nome());
+        }
+        // The server answers once the model is loaded and the prompt read:
+        // the stream is dropped here, before a word of an answer written on a
+        // cut prompt reaches the chat.
+        if check_after {
+            local_http::context_after(&self.http, url, &self.scelta.modello, needed).await?;
         }
         cc::read_sse(resp, on_event).await
     }
@@ -1186,7 +1496,7 @@ mod tests {
                         "cache_read_input_tokens": 2_000_000,
                         "cache_creation_input_tokens": 400_000 });
         // Opus 5.5: 4 + 2 (uscita) + 0,4 (lettura) + 2 (scrittura a 1,25×).
-        let c = costo_usd("claude-opus-5-5", &u);
+        let c = costo_usd(Fornitore::Anthropic, "claude-opus-5-5", &u);
         assert!((c - 8.4).abs() < 1e-9, "costo {c}");
         // Un modello sconosciuto si conta come Opus 5, e lo si dice.
         let (p, noto) = prezzi("modello-del-futuro");
@@ -1223,7 +1533,7 @@ mod tests {
         // A million tokens in and a hundred thousand out on a dated Large: cents,
         // not the 7.5 $ of the Opus 5 fallback.
         let u = json!({ "input_tokens": 1_000_000, "output_tokens": 100_000 });
-        let c = costo_usd("mistral-large-2610", &u);
+        let c = costo_usd(Fornitore::Mistral, "mistral-large-2610", &u);
         assert!((c - 0.91).abs() < 1e-9, "cost {c}");
         // A family with no published price keeps the cautious fallback, and so
         // does a name that only looks like one.
@@ -1249,7 +1559,7 @@ mod tests {
         assert_eq!(prezzi("kimi-k3").0.cache_scrittura, 3.0);
         let u = json!({ "input_tokens": 1_000_000, "output_tokens": 100_000,
                         "cache_read_input_tokens": 1_000_000 });
-        assert!((costo_usd("kimi-k3.1-pro", &u) - 3.2).abs() < 1e-9);
+        assert!((costo_usd(Fornitore::Kimi, "kimi-k3.1-pro", &u) - 3.2).abs() < 1e-9);
     }
 
     /// Il tetto: l'ambiente vince sul file, e un valore assurdo vale come
@@ -1398,6 +1708,86 @@ mod tests {
         );
     }
 
+    /// The provider preferred in the account (17-11-2026): it beats the fixed
+    /// order, loses to `ai.yaml`, is skipped without a key, and does not get a
+    /// model the project saved for another provider.
+    #[test]
+    fn the_account_preference_beats_the_fixed_order_and_loses_to_the_project() {
+        let d = tempfile::tempdir().unwrap();
+        if std::env::var_os("SWS_AI_FORNITORE").is_some()
+            || std::env::var_os("SWS_AI_MODELLO").is_some()
+            || [Fornitore::Anthropic, Fornitore::Kimi, Fornitore::Mistral]
+                .iter()
+                .any(|f| chiave_di(d.path(), *f).is_some())
+        {
+            return;
+        }
+        let keys = || {
+            UserKeys::from_pairs([
+                (Fornitore::Anthropic, "sk-user-ant".to_string()),
+                (Fornitore::Mistral, "sk-user-mistral".to_string()),
+            ])
+        };
+        let mistral_first = keys().with_preferences(Some("mistral".into()), None);
+        // No choice of the project: the preference, not Anthropic.
+        let sc = carica_con(d.path(), &mistral_first).unwrap();
+        assert_eq!(
+            (sc.fornitore, sc.chiave.as_str(), sc.modello.as_str()),
+            (
+                Fornitore::Mistral,
+                "sk-user-mistral",
+                Fornitore::Mistral.modello_default()
+            )
+        );
+        // A model saved without a provider belongs to the first of the fixed
+        // order: the preference does not get it.
+        std::fs::write(
+            Impostazioni::percorso(d.path()),
+            "modello: claude-opus-5-5\n",
+        )
+        .unwrap();
+        let sc = carica_con(d.path(), &mistral_first).unwrap();
+        assert_eq!(
+            (sc.fornitore, sc.modello.as_str()),
+            (Fornitore::Mistral, Fornitore::Mistral.modello_default())
+        );
+        assert_eq!(
+            carica_con(d.path(), &keys()).unwrap().modello,
+            "claude-opus-5-5"
+        );
+        // The project's choice wins over the preference.
+        std::fs::write(
+            Impostazioni::percorso(d.path()),
+            "scopi:\n  assistente: {fornitore: anthropic}\n",
+        )
+        .unwrap();
+        assert_eq!(
+            carica_con(d.path(), &mistral_first).unwrap().fornitore,
+            Fornitore::Anthropic
+        );
+        // A preference without a key: the next of the fixed order that has one.
+        std::fs::remove_file(Impostazioni::percorso(d.path())).unwrap();
+        let kimi_first = keys().with_preferences(Some("kimi".into()), None);
+        assert_eq!(
+            carica_con(d.path(), &kimi_first).unwrap().fornitore,
+            Fornitore::Anthropic
+        );
+        // Symbols and translation without a choice of their own follow it too.
+        let t = crate::ai::scopi::carica_per_con(
+            d.path(),
+            crate::ai::scopi::Scopo::Traduzione,
+            &mistral_first,
+        )
+        .unwrap();
+        assert_eq!(t.fornitore, Fornitore::Mistral);
+        // The local model is never a preference of the account.
+        let local = keys().with_preferences(Some("local".into()), None);
+        assert_eq!(
+            carica_con(d.path(), &local).unwrap().fornitore,
+            Fornitore::Anthropic
+        );
+    }
+
     fn scelta(f: Fornitore) -> Scelta {
         Scelta {
             fornitore: f,
@@ -1405,6 +1795,8 @@ mod tests {
             source: KeySource::Project,
             modello: f.modello_default().into(),
             tetto_usd: TETTO_DEFAULT_USD,
+            endpoint: None,
+            sees_images: true,
         }
     }
 
@@ -1640,7 +2032,7 @@ mod tests {
         // The usage in the names the cost and the cap read.
         assert_eq!(r.usage["input_tokens"], 9120);
         assert_eq!(r.usage["output_tokens"], 64);
-        assert!(costo_usd("mistral-large-latest", &r.usage) > 0.0);
+        assert!(costo_usd(Fornitore::Mistral, "mistral-large-latest", &r.usage) > 0.0);
         assert_eq!(
             events
                 .iter()
@@ -1843,5 +2235,467 @@ mod tests {
         let usi = r.tool_uses();
         assert_eq!(usi.len(), 1);
         assert_eq!(usi[0].1, "valida");
+    }
+
+    // ── The local model (plan 2026-11-17-ia-a-scelta-del-cliente, F1) ──────
+
+    #[test]
+    fn local_is_a_provider_of_the_second_protocol_with_no_fixed_address() {
+        assert_eq!(Fornitore::da_nome(" Local "), Some(Fornitore::Local));
+        assert_eq!(Fornitore::Local.nome(), "local");
+        assert_eq!(Fornitore::Local.file_chiave(), "local.key");
+        assert!(Fornitore::Local.env_chiave().is_empty());
+        assert_eq!(Fornitore::Local.modello_default(), "");
+        assert!(Fornitore::Local.bearer());
+        assert!(!Fornitore::Local.pensiero_anthropic());
+        assert!(Fornitore::Local.url_saldo().is_none());
+        assert_eq!(
+            Fornitore::Local.protocol(),
+            Protocol::ChatCompletions(&crate::ai::chat_completions::LOCAL)
+        );
+        // The address is the customer's: the choice's, else the dialect's.
+        let d = &crate::ai::chat_completions::LOCAL;
+        let mut sc = scelta(Fornitore::Local);
+        assert_eq!(chat_url(&sc, d), "");
+        sc.endpoint = Some("http://192.168.1.20:11434/v1/chat/completions".into());
+        assert_eq!(
+            chat_url(&sc, d),
+            "http://192.168.1.20:11434/v1/chat/completions"
+        );
+    }
+
+    /// A `local.key` alone does not turn it on, nor an address without a
+    /// model: the chat would send its requests to an empty address, or ask
+    /// the server for no model. With both, the key is optional.
+    #[test]
+    fn the_local_model_needs_address_and_model() {
+        let d = tempfile::tempdir().unwrap();
+        let none = UserKeys::default();
+        std::fs::write(d.path().join("local.key"), "token-abc").unwrap();
+        assert_eq!(resolve_key(d.path(), Fornitore::Local, &none), None);
+        let write = |yaml: &str| std::fs::write(Impostazioni::percorso(d.path()), yaml).unwrap();
+        write("local: {url: 'http://192.168.1.20:11434/v1'}\n");
+        assert_eq!(resolve_key(d.path(), Fornitore::Local, &none), None);
+        write("local: {model: 'qwen3:1.7b'}\n");
+        assert_eq!(resolve_key(d.path(), Fornitore::Local, &none), None);
+        write("local: {url: 'http://192.168.1.20:11434/v1/', model: 'qwen3:1.7b'}\n");
+        assert_eq!(
+            resolve_key(d.path(), Fornitore::Local, &none),
+            Some(("token-abc".into(), KeySource::Project))
+        );
+        // Without a key, a word: Ollama wants a Bearer, whatever it says.
+        std::fs::remove_file(d.path().join("local.key")).unwrap();
+        if chiave_di(d.path(), Fornitore::Local).is_none() {
+            assert_eq!(
+                resolve_key(d.path(), Fornitore::Local, &none),
+                Some(("local".into(), KeySource::Project))
+            );
+        }
+        // The account never gives a key to the local model.
+        let user = UserKeys::from_entries([("local", Some("sk-account".to_string()), None)]);
+        assert_ne!(
+            resolve_key(d.path(), Fornitore::Local, &user).map(|(k, _)| k),
+            Some("sk-account".to_string())
+        );
+        // The address: the base, a slash or a whole chat URL brought back to it.
+        let c = local_cfg(d.path()).unwrap();
+        assert_eq!(
+            c.chat_url(),
+            "http://192.168.1.20:11434/v1/chat/completions"
+        );
+        let pasted = LocalCfg {
+            url: "http://h:8000/v1/chat/completions".into(),
+            ..c
+        };
+        assert_eq!(pasted.base(), "http://h:8000/v1");
+    }
+
+    /// Nothing chosen, no cloud key: the local model is the last of the fixed
+    /// order, with its address, its model and its eyes. A model saved for no
+    /// provider (the old format) is not a name the local server knows.
+    #[test]
+    fn the_local_model_is_the_last_of_the_fixed_order() {
+        let d = tempfile::tempdir().unwrap();
+        let own = std::env::var_os("SWS_AI_FORNITORE").is_some()
+            || std::env::var_os("SWS_AI_MODELLO").is_some()
+            || [Fornitore::Anthropic, Fornitore::Kimi, Fornitore::Mistral]
+                .iter()
+                .any(|f| chiave_di(d.path(), *f).is_some());
+        if own {
+            return;
+        }
+        std::fs::write(
+            Impostazioni::percorso(d.path()),
+            "modello: claude-opus-5-5\n\
+             local: {url: 'http://127.0.0.1:11434/v1', model: 'qwen3:1.7b'}\n",
+        )
+        .unwrap();
+        let sc = carica(d.path()).unwrap();
+        assert_eq!(sc.fornitore, Fornitore::Local);
+        assert_eq!(sc.modello, "qwen3:1.7b");
+        assert_eq!(
+            sc.endpoint.as_deref(),
+            Some("http://127.0.0.1:11434/v1/chat/completions")
+        );
+        assert!(!sc.sees_images);
+        // A cloud key wins over it.
+        let user = UserKeys::from_pairs([(Fornitore::Mistral, "sk-user-mistral".to_string())]);
+        let sc = carica_con(d.path(), &user).unwrap();
+        assert_eq!((sc.fornitore, sc.endpoint), (Fornitore::Mistral, None));
+        // Chosen for the assistant, with a model of its own and images.
+        std::fs::write(
+            Impostazioni::percorso(d.path()),
+            "scopi:\n  assistente: {fornitore: local, modello: 'llama3.3'}\n\
+             local: {url: 'http://127.0.0.1:11434/v1', model: 'qwen3:1.7b', sees_images: true}\n",
+        )
+        .unwrap();
+        let sc = carica_con(d.path(), &user).unwrap();
+        assert_eq!(
+            (sc.fornitore, sc.modello.as_str(), sc.sees_images),
+            (Fornitore::Local, "llama3.3", true)
+        );
+    }
+
+    /// A local model costs nothing, and that is known: by name alone an
+    /// unknown model counts at the prices of Opus, and a free one would show a
+    /// false cost and hit the cap.
+    #[test]
+    fn a_local_model_costs_zero_and_the_price_is_known() {
+        let u = json!({ "input_tokens": 1_000_000, "output_tokens": 1_000_000,
+                        "cache_read_input_tokens": 1_000_000 });
+        for m in ["qwen3:32b", "claude-opus-5-5", ""] {
+            let (p, known) = prezzi_per(Fornitore::Local, m);
+            assert!(known, "{m}");
+            assert_eq!(
+                (p.ingresso, p.uscita, p.cache_lettura, p.cache_scrittura),
+                (0.0, 0.0, 0.0, 0.0)
+            );
+            assert_eq!(costo_usd(Fornitore::Local, m, &u), 0.0);
+        }
+        // The others still read the table, by model.
+        assert_eq!(
+            prezzi_per(Fornitore::Mistral, "qwen3:32b"),
+            prezzi("qwen3:32b")
+        );
+        assert!(!prezzi_per(Fornitore::Anthropic, "qwen3:32b").1);
+    }
+
+    /// A local turn as Ollama or vLLM streams it: reasoning beside the
+    /// content, one tool call, the usage only because it was asked.
+    const LOCAL_TURN: &[&str] = &[
+        "data: {\"id\":\"l1\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"reasoning_content\":\"La pagina \"},\"finish_reason\":null}]}\n\n",
+        "data: {\"id\":\"l1\",\"choices\":[{\"index\":0,\"delta\":{\"reasoning\":\"prima.\"},\"finish_reason\":null}]}\n\n",
+        "data: {\"id\":\"l1\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"Leggo.\"},\"finish_reason\":null}]}\n\n",
+        "data: {\"id\":\"l1\",\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"call_q1\",\"type\":\"function\",\"function\":{\"name\":\"leggi_pagina\",\"arguments\":\"{\\\"nome\\\": \\\"Indicatori\\\"}\"}}]},\"finish_reason\":null}]}\n\n",
+        "data: {\"id\":\"l1\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"tool_calls\"}]}\n\n",
+        "data: {\"id\":\"l1\",\"choices\":[],\"usage\":{\"prompt_tokens\":5000,\"completion_tokens\":40,\"total_tokens\":5040}}\n\n",
+        "data: [DONE]\n\n",
+    ];
+
+    /// A whole turn with tools against a fake local server, through `turno`:
+    /// the address comes from the choice, the dialect is `LOCAL`, the images
+    /// of a resumed conversation do not leave for a model that does not see
+    /// them, and the reasoning is shown.
+    #[tokio::test]
+    async fn a_local_turn_goes_to_the_address_of_the_choice() {
+        let (d, seen) = fake_provider(Fake::Stream(LOCAL_TURN)).await;
+        let sc = Scelta {
+            chiave: "local".into(),
+            modello: "qwen3:1.7b".into(),
+            endpoint: Some(d.endpoint.to_string()),
+            sees_images: false,
+            ..scelta(Fornitore::Local)
+        };
+        let cliente = Cliente::for_instance(sc, false).unwrap();
+        let png = json!({ "type": "image", "source": { "type": "base64",
+                          "media_type": "image/png", "data": "iVBORw0KGgo=" } });
+        let messages = [
+            json!({ "role": "user", "content": "Com'è la pagina?" }),
+            json!({ "role": "assistant", "content": [
+                { "type": "tool_use", "id": "toolu_1", "name": "istantanea_pagina", "input": {} } ] }),
+            json!({ "role": "user", "content": [
+                { "type": "tool_result", "tool_use_id": "toolu_1", "content": [png.clone()] },
+                png,
+                { "type": "text", "text": "E ora?" } ] }),
+        ];
+        let tools = [json!({ "name": "leggi_pagina", "description": "d",
+                             "input_schema": { "type": "object", "properties": {} } })];
+        let mut events = Vec::new();
+        let r = cliente
+            .turno(prompt_finto(), &messages, &tools, |e| {
+                events.push(format!("{e:?}"))
+            })
+            .await
+            .unwrap();
+        assert_eq!(r.testo(), "Leggo.");
+        let uses = r.tool_uses();
+        assert_eq!(uses.len(), 1);
+        assert_eq!(
+            (uses[0].0, uses[0].1, uses[0].2),
+            ("call_q1", "leggi_pagina", &json!({ "nome": "Indicatori" }))
+        );
+        assert_eq!(r.usage["input_tokens"], 5000);
+        assert!(events.iter().any(|e| e.contains("La pagina")));
+        assert!(events.iter().any(|e| e.contains("prima.")));
+
+        let seen = seen.lock().unwrap();
+        let (auth, body) = &seen[0];
+        assert_eq!(auth, "Bearer local");
+        assert_eq!(body["model"], "qwen3:1.7b");
+        assert_eq!(body["max_tokens"], 8192);
+        assert_eq!(body["stream_options"]["include_usage"], true);
+        // Ids pass unchanged: no Mistral mapping.
+        assert_eq!(body["messages"][2]["tool_calls"][0]["id"], "toolu_1");
+        let sent = body.to_string();
+        assert!(!sent.contains("image_url"), "{sent}");
+        assert!(!sent.contains("iVBORw0KGgo"), "{sent}");
+        assert!(
+            sent.contains(crate::ai::chat_completions::IMAGE_OMITTED),
+            "{sent}"
+        );
+    }
+
+    /// The single question (symbols, translation) goes to the same address.
+    #[tokio::test]
+    async fn a_single_question_to_a_local_model() {
+        let (d, seen) = fake_provider(Fake::Single(
+            r#"{"choices":[{"index":0,"message":{"role":"assistant","content":"Pump running"},"finish_reason":"stop"}],
+                "usage":{"prompt_tokens":40,"completion_tokens":3}}"#,
+        ))
+        .await;
+        let sc = Scelta {
+            endpoint: Some(d.endpoint.to_string()),
+            modello: "llama3.3".into(),
+            ..scelta(Fornitore::Local)
+        };
+        let http =
+            crate::ai::local_http::client_for(&sc, false, reqwest::Client::builder()).unwrap();
+        let messages = [json!({ "role": "user", "content": "Pompa in marcia" })];
+        let (text, usage) = chiedi_con_uso(&http, &sc, "Traduci", &messages, 100)
+            .await
+            .unwrap();
+        assert_eq!(text, "Pump running");
+        assert_eq!(costo_usd(sc.fornitore, &sc.modello, &usage), 0.0);
+        assert_eq!(seen.lock().unwrap()[0].1["model"], "llama3.3");
+    }
+
+    // ── The context the local server loaded (F3) ───────────────────────────
+
+    /// A fake Ollama: the chat route, and `/api/ps` saying the context of
+    /// `qwen3:1.7b`, `None` = not loaded. `loads` = the first chat request
+    /// loads it with that context, as Ollama does.
+    async fn fake_ollama(fake: Fake, ctx: Option<u64>, loads: Option<u64>) -> (String, Seen) {
+        use axum::http::header;
+        use axum::response::IntoResponse;
+        let seen: Seen = Default::default();
+        let loaded = std::sync::Arc::new(std::sync::Mutex::new(ctx));
+        let (seen2, loaded2) = (seen.clone(), loaded.clone());
+        let app = axum::Router::new()
+            .route(
+                "/v1/chat/completions",
+                axum::routing::post(move |axum::Json(body): axum::Json<Value>| {
+                    let (seen, loaded) = (seen2.clone(), loaded2.clone());
+                    async move {
+                        seen.lock().unwrap().push((String::new(), body));
+                        if let Some(n) = loads {
+                            *loaded.lock().unwrap() = Some(n);
+                        }
+                        match fake {
+                            Fake::Stream(p) => {
+                                ([(header::CONTENT_TYPE, "text/event-stream")], p.concat())
+                                    .into_response()
+                            }
+                            Fake::Single(b) => {
+                                ([(header::CONTENT_TYPE, "application/json")], b).into_response()
+                            }
+                            _ => unreachable!(),
+                        }
+                    }
+                }),
+            )
+            .route(
+                "/api/ps",
+                axum::routing::get(move || {
+                    let loaded = loaded.clone();
+                    async move {
+                        let models = match *loaded.lock().unwrap() {
+                            None => json!([]),
+                            Some(n) => json!([{ "name": "qwen3:1.7b", "model": "qwen3:1.7b",
+                                                "context_length": n }]),
+                        };
+                        axum::Json(json!({ "models": models }))
+                    }
+                }),
+            );
+        let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = l.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(l, app).await.unwrap() });
+        (format!("http://{addr}/v1/chat/completions"), seen)
+    }
+
+    fn local_at(url: &str) -> Scelta {
+        Scelta {
+            chiave: "local".into(),
+            modello: "qwen3:1.7b".into(),
+            endpoint: Some(url.to_string()),
+            sees_images: false,
+            ..scelta(Fornitore::Local)
+        }
+    }
+
+    /// A system prompt of about 10k tokens, as the assistant's is several times.
+    fn long_prompt() -> Vec<Value> {
+        vec![json!({ "type": "text", "text": "x".repeat(40_000) })]
+    }
+
+    /// Ollama loaded 4k: the request does not leave, and the error says how
+    /// big the context is and what to do.
+    #[tokio::test]
+    async fn a_request_bigger_than_the_loaded_context_does_not_leave() {
+        let (url, seen) = fake_ollama(Fake::Stream(LOCAL_TURN), Some(4096), None).await;
+        let cliente = Cliente::for_instance(local_at(&url), false).unwrap();
+        let messages = [json!({ "role": "user", "content": "ciao" })];
+        let e = cliente
+            .turno(long_prompt(), &messages, &[], |_| {})
+            .await
+            .unwrap_err();
+        let e = format!("{e:#}");
+        assert!(e.contains("4096") && e.contains("64k"), "{e}");
+        assert!(seen.lock().unwrap().is_empty(), "the request left");
+        // The single question (symbols, translation) the same.
+        let http =
+            crate::ai::local_http::client_for(&local_at(&url), false, reqwest::Client::builder())
+                .unwrap();
+        let e = chiedi_con_uso(&http, &local_at(&url), &"x".repeat(40_000), &messages, 100)
+            .await
+            .unwrap_err();
+        assert!(format!("{e:#}").contains("4096"), "{e:#}");
+        assert!(seen.lock().unwrap().is_empty());
+    }
+
+    /// With the context raised the same request goes. With 4k a short
+    /// question with a short answer (a translation) goes too, but not a turn
+    /// of the chat, which keeps 8192 tokens of room for its answer.
+    #[tokio::test]
+    async fn a_request_that_fits_goes() {
+        let (url, seen) = fake_ollama(Fake::Stream(LOCAL_TURN), Some(65536), None).await;
+        let messages = [json!({ "role": "user", "content": "ciao" })];
+        let r = Cliente::for_instance(local_at(&url), false)
+            .unwrap()
+            .turno(long_prompt(), &messages, &[], |_| {})
+            .await
+            .unwrap();
+        assert_eq!(r.testo(), "Leggo.");
+        assert_eq!(seen.lock().unwrap().len(), 1);
+        let (url, seen) = fake_ollama(
+            Fake::Single(
+                r#"{"choices":[{"index":0,"message":{"role":"assistant","content":"Pump"},"finish_reason":"stop"}]}"#,
+            ),
+            Some(4096),
+            None,
+        )
+        .await;
+        let http =
+            crate::ai::local_http::client_for(&local_at(&url), false, reqwest::Client::builder())
+                .unwrap();
+        let (text, _) = chiedi_con_uso(&http, &local_at(&url), "Translate", &messages, 1024)
+            .await
+            .unwrap();
+        assert_eq!(text, "Pump");
+        let e = Cliente::for_instance(local_at(&url), false)
+            .unwrap()
+            .turno(prompt_finto(), &messages, &[], |_| {})
+            .await
+            .unwrap_err();
+        let too_small = e
+            .downcast_ref::<crate::ai::local_http::ContextTooSmall>()
+            .expect("a typed error, for the chat to send its code");
+        assert_eq!(too_small.loaded, 4096);
+        assert!(too_small.needed > 8192, "{too_small:?}");
+        assert_eq!(seen.lock().unwrap().len(), 1, "only the translation left");
+    }
+
+    /// A model not loaded yet is loaded by the first request, and only then
+    /// tells its context: an answer written on a cut prompt is discarded,
+    /// before a word of it reaches the chat.
+    #[tokio::test]
+    async fn the_first_answer_of_a_model_loaded_too_small_is_discarded() {
+        let (url, seen) = fake_ollama(Fake::Stream(LOCAL_TURN), None, Some(4096)).await;
+        let messages = [json!({ "role": "user", "content": "ciao" })];
+        let mut events = Vec::new();
+        let e = Cliente::for_instance(local_at(&url), false)
+            .unwrap()
+            .turno(long_prompt(), &messages, &[], |e| {
+                events.push(format!("{e:?}"))
+            })
+            .await
+            .unwrap_err();
+        assert!(format!("{e:#}").contains("4096"), "{e:#}");
+        assert_eq!(seen.lock().unwrap().len(), 1, "it was sent once");
+        assert!(events.is_empty(), "{events:?}");
+        // The single question: its answer is not returned.
+        let (url, _) = fake_ollama(
+            Fake::Single(
+                r#"{"choices":[{"index":0,"message":{"role":"assistant","content":"Pump"},"finish_reason":"stop"}]}"#,
+            ),
+            None,
+            Some(4096),
+        )
+        .await;
+        let http =
+            crate::ai::local_http::client_for(&local_at(&url), false, reqwest::Client::builder())
+                .unwrap();
+        let e = chiedi_con_uso(&http, &local_at(&url), &"x".repeat(40_000), &messages, 100)
+            .await
+            .unwrap_err();
+        assert!(format!("{e:#}").contains("4096"), "{e:#}");
+        // Loaded big enough: the answer stays.
+        let (url, _) = fake_ollama(Fake::Stream(LOCAL_TURN), None, Some(65536)).await;
+        assert!(Cliente::for_instance(local_at(&url), false)
+            .unwrap()
+            .turno(long_prompt(), &messages, &[], |_| {})
+            .await
+            .is_ok());
+    }
+
+    /// The local model with nothing but its configuration: the address of
+    /// `ai.yaml`, no key, and a `Bearer local` on the request.
+    #[tokio::test]
+    async fn a_configured_local_model_answers_with_bearer_local() {
+        let (d, seen) = fake_provider(Fake::Stream(LOCAL_TURN)).await;
+        let dir = tempfile::tempdir().unwrap();
+        let base = d.endpoint.trim_end_matches("/chat/completions");
+        std::fs::write(
+            Impostazioni::percorso(dir.path()),
+            format!(
+                "scopi:\n  assistente: {{fornitore: local}}\n\
+                 local: {{url: '{base}', model: 'qwen3:1.7b'}}\n"
+            ),
+        )
+        .unwrap();
+        if std::env::var_os("SWS_AI_FORNITORE").is_some()
+            || std::env::var_os("SWS_AI_MODELLO").is_some()
+            || chiave_di(dir.path(), Fornitore::Local).is_some()
+        {
+            return;
+        }
+        let sc = carica(dir.path()).unwrap();
+        assert_eq!(sc.chiave, "local");
+        let tools = [json!({ "name": "leggi_pagina", "description": "d",
+                             "input_schema": { "type": "object", "properties": {} } })];
+        let r = Cliente::for_instance(sc, false)
+            .unwrap()
+            .turno(
+                prompt_finto(),
+                &[json!({ "role": "user", "content": "ciao" })],
+                &tools,
+                |_| {},
+            )
+            .await
+            .unwrap();
+        assert_eq!(r.tool_uses()[0].1, "leggi_pagina");
+        let seen = seen.lock().unwrap();
+        assert_eq!(seen[0].0, "Bearer local");
+        assert_eq!(seen[0].1["model"], "qwen3:1.7b");
     }
 }

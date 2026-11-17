@@ -243,6 +243,17 @@ pub struct AppState {
     pub project_write_lock: Arc<tokio::sync::Mutex<()>>,
 }
 
+impl AppState {
+    /// Part of the cloud: a project container behind the gateway, or the
+    /// gateway itself. Both sit on the platform's network, so an address the
+    /// customer chose (the local model) must be a public one. The gateway
+    /// counts too: it has no `segreto_gateway`, and asking only for that left
+    /// it free to reach the containers of every company.
+    pub fn in_cloud(&self) -> bool {
+        self.segreto_gateway.is_some() || self.regia.is_some()
+    }
+}
+
 /// F3.1: la scrittura di `tag` è consentita a `role`? La mappa per-tag vive
 /// in TagDb (riempita con lo scaling a open/import/PUT-tags); un tag senza
 /// `write_min_role` segue la regola storica (Operator+).
@@ -837,6 +848,9 @@ pub fn build(
             "/api/ai/chiavi/prova",
             post(crate::ai::config_api::prova_chiave),
         )
+        // The local model: an address, not only a key (F3 of plan
+        // `2026-11-17-ia-a-scelta-del-cliente`).
+        .route("/api/ai/local", put(crate::ai::config_api::put_local))
         // The AI spending history of the installation (G5, 16-11-2026).
         .route("/api/ai/spending", get(crate::ai::config_api::get_spending))
         // Stesso principio, per il fornitore di traduzione automatica (F5 del
@@ -1328,6 +1342,11 @@ pub fn build(
             "/api/identity/ai-keys/:provider/test",
             post(crate::ai_keys::test),
         )
+        // The provider the person prefers for text and images (17-11-2026).
+        .route(
+            "/api/identity/ai-preferences",
+            get(crate::ai_keys::get_preferences).put(crate::ai_keys::put_preferences),
+        )
         .route("/api/identita/marchio", get(marchio_mio))
         .route("/api/identita/marchio/privato", get(marchio_privato))
         .route("/api/identita/spazio", get(spazio_mio));
@@ -1638,6 +1657,11 @@ pub fn build(
                 .route(
                     "/api/internal/ai-key/:provider",
                     get(crate::ai_keys::for_container),
+                )
+                // And which provider that person prefers (17-11-2026).
+                .route(
+                    "/api/internal/ai-preferences",
+                    get(crate::ai_keys::preferences_for_container),
                 )
                 .route("/api/pannelli", get(crate::tunnel::gateway::collegati))
                 // L'abbinamento col codice (11-10-2026): dall'IDE di un progetto
@@ -3045,7 +3069,7 @@ async fn require_supervisor(req: Request, next: Next) -> Response {
 /// Un 403, non un 404: la console esiste e lo sa anche chi non può usarla —
 /// nasconderla non protegge nulla e rende illeggibile il guasto a chi si
 /// aspettava di entrare.
-async fn require_amministratore_piattaforma(req: Request, next: Next) -> Response {
+pub(crate) async fn require_amministratore_piattaforma(req: Request, next: Next) -> Response {
     let ok = req
         .extensions()
         .get::<AuthUser>()

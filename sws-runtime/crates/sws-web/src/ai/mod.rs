@@ -35,6 +35,8 @@ mod foto_ide;
 mod free_symbol_bench;
 mod free_symbol_tool;
 pub mod immagini;
+pub mod local_http;
+pub mod price_list;
 pub mod prompt;
 pub mod scopi;
 pub mod spending;
@@ -45,7 +47,7 @@ pub mod user_keys;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::{Query, State};
 use axum::response::IntoResponse;
-use futures_util::{SinkExt, StreamExt};
+use futures_util::{FutureExt, SinkExt, StreamExt};
 use serde_json::{json, Value};
 use tokio::sync::mpsc;
 
@@ -90,7 +92,12 @@ pub async fn ws_ai_handler(
     State(s): State<AppState>,
     Query(q): Query<std::collections::HashMap<String, String>>,
     utente: Option<axum::Extension<crate::router::AuthUser>>,
-) -> impl IntoResponse {
+) -> axum::response::Response {
+    // The gateway opens no project: a chat there would only be a way to make
+    // it call addresses on the platform's network.
+    if s.regia.is_some() {
+        return axum::http::StatusCode::NOT_FOUND.into_response();
+    }
     let id = q.get("conv").cloned();
     // Di chi è la conversazione (`conversazioni`, «Di chi è»): l'utente della
     // sessione, o «nessuno» senza autenticazione — dove c'è solo l'admin
@@ -105,6 +112,7 @@ pub async fn ws_ai_handler(
             .unwrap_or_else(|| conversazioni::NESSUNO.to_string())
     };
     ws.on_upgrade(move |socket| sessione(socket, s, id, di))
+        .into_response()
 }
 
 async fn sessione(socket: WebSocket, s: AppState, id_conversazione: Option<String>, di: String) {
@@ -197,9 +205,10 @@ async fn sessione(socket: WebSocket, s: AppState, id_conversazione: Option<Strin
             "motivo": if finto.is_some() { Value::Null }
                       else if scelta.is_none() {
                           json!(format!("nessuna chiave: metti ANTHROPIC_API_KEY o \
-                                         MOONSHOT_API_KEY o MISTRAL_API_KEY nell'ambiente, oppure la chiave in {}. \
-                                         Con più chiavi vince Anthropic, poi Kimi, poi Mistral; \
-                                         per sceglierne un altro, SWS_AI_FORNITORE=kimi o mistral",
+                                         MOONSHOT_API_KEY o MISTRAL_API_KEY nell'ambiente, oppure la chiave in {}; \
+                                         oppure un modello in casa, con indirizzo e modello nel menù IA. \
+                                         Se ce n'è più d'uno vince Anthropic, poi Kimi, poi Mistral, poi il modello in casa; \
+                                         per sceglierne un altro, SWS_AI_FORNITORE=kimi, mistral o local",
                                         client::percorsi_chiave(&s.config_dir).iter()
                                             .map(|p| p.display().to_string())
                                             .collect::<Vec<_>>().join(" o ")))
@@ -228,7 +237,8 @@ async fn sessione(socket: WebSocket, s: AppState, id_conversazione: Option<Strin
 
     // Gli scopi configurati decidono gli strumenti in più: una volta, qui, così
     // l'elenco resta lo stesso per tutta la conversazione (la cache regge).
-    let ctx = strumenti_scopi::Contesto::da_con(&s.config_dir, &user_keys);
+    let ctx =
+        strumenti_scopi::Contesto::da_con(&s.config_dir, &user_keys, s.in_cloud(), scelta.as_ref());
 
     // Il socket lo legge un compito a parte: la foto di un progetto web
     // (`foto_ide`) torna dal browser mentre il turno è in corso, cioè mentre
@@ -288,19 +298,24 @@ async fn sessione(socket: WebSocket, s: AppState, id_conversazione: Option<Strin
             // La foto di un progetto web la chiede l'IDE di QUESTO socket: la
             // conversazione può essere stata ritrovata dopo una riconnessione,
             // ma il browser che risponde è quello collegato adesso.
-            Some(f) => {
-                foto_ide::IDE
-                    .scope(ide.clone(), finto_giro(&s, &tx, f, banco))
-                    .await
-            }
+            Some(f) => foto_ide::IDE
+                .scope(ide.clone(), finto_giro(&s, &tx, f, banco))
+                .await
+                .map_err(TurnError::from),
             None => match &scelta {
                 Some(sc) => {
                     let giro = vero_giro(&s, &tx, sc, &ctx, messaggi, misure, banco);
-                    let r = foto_ide::IDE.scope(ide.clone(), giro).await;
-                    misure.scrivi(sc);
+                    // A panic inside a tool must end the turn, not the task:
+                    // otherwise «fine» never comes and the chat waits for ever
+                    // (17-11-2026, a `project` sent as a JSON string).
+                    let r = std::panic::AssertUnwindSafe(foto_ide::IDE.scope(ide.clone(), giro))
+                        .catch_unwind()
+                        .await
+                        .unwrap_or_else(|p| Err(TurnError::from(panic_message(p))));
+                    misure.scrivi(&s.config_dir, sc, s.in_cloud());
                     r
                 }
-                None => Err("nessuna chiave API configurata".to_string()),
+                None => Err("nessuna chiave API configurata".to_string().into()),
             },
         };
         if let Some(k) = &chiave {
@@ -312,7 +327,7 @@ async fn sessione(socket: WebSocket, s: AppState, id_conversazione: Option<Strin
         }
         drop(g);
         if let Err(e) = esito {
-            invia(&tx, json!({ "t": "errore", "messaggio": e }));
+            invia(&tx, e.event());
         }
         invia(&tx, json!({ "t": "fine" }));
     }
@@ -355,7 +370,12 @@ impl Misure {
             .push(json!({ "usage": usage, "costo_usd": costo, "secondi": secondi }));
     }
 
-    pub fn resoconto(&self, scelta: &client::Scelta) -> Value {
+    pub fn resoconto(
+        &self,
+        config_dir: &std::path::Path,
+        scelta: &client::Scelta,
+        in_cloud: bool,
+    ) -> Value {
         let somma = |c: &str| -> u64 {
             self.giri
                 .iter()
@@ -365,7 +385,7 @@ impl Misure {
         json!({
             "modello": scelta.modello,
             "fornitore": scelta.fornitore.nome(),
-            "prezzi_noti": client::prezzi(&scelta.modello).1,
+            "prezzi_noti": price_list::known(config_dir, scelta.fornitore, &scelta.modello, in_cloud),
             "tetto_usd": scelta.tetto_usd,
             "costo_usd": self.costo_usd,
             "minuti": self.inizio.elapsed().as_secs_f64() / 60.0,
@@ -384,7 +404,7 @@ impl Misure {
 
     /// Scrive il resoconto se `SWS_AI_MISURE` lo chiede. Un errore di
     /// scrittura va nel log e basta: la misura non deve mai rompere la chat.
-    pub fn scrivi(&self, scelta: &client::Scelta) {
+    pub fn scrivi(&self, config_dir: &std::path::Path, scelta: &client::Scelta, in_cloud: bool) {
         let Some(dir) = std::env::var_os("SWS_AI_MISURE") else {
             return;
         };
@@ -393,7 +413,8 @@ impl Misure {
         let esito = std::fs::create_dir_all(&dir).and_then(|_| {
             std::fs::write(
                 &p,
-                serde_json::to_string_pretty(&self.resoconto(scelta)).unwrap_or_default(),
+                serde_json::to_string_pretty(&self.resoconto(config_dir, scelta, in_cloud))
+                    .unwrap_or_default(),
             )
         });
         if let Err(e) = esito {
@@ -449,6 +470,80 @@ pub(crate) async fn regole_del_progetto(s: &AppState, scopo: &str) -> Option<Str
     sws_core::Project::load(&dir).ok()?.ai?.per_scopo(scopo)
 }
 
+/// Why a turn stopped. The message is what the chat shows; an error the IDE
+/// knows how to say in its own language also carries a code with its values
+/// (`{"id": "local_context_too_small", "loaded", "needed"}`), and the message
+/// stays as the fallback of an IDE that does not know the code.
+#[derive(Debug)]
+struct TurnError {
+    message: String,
+    code: Option<Value>,
+}
+
+impl From<String> for TurnError {
+    fn from(message: String) -> Self {
+        TurnError {
+            message,
+            code: None,
+        }
+    }
+}
+
+impl TurnError {
+    fn from_anyhow(e: anyhow::Error) -> Self {
+        TurnError {
+            code: e
+                .downcast_ref::<crate::ai::local_http::ContextTooSmall>()
+                .map(|c| c.code()),
+            message: format!("{e:#}"),
+        }
+    }
+
+    fn event(&self) -> Value {
+        let mut ev = json!({ "t": "errore", "messaggio": self.message });
+        if let Some(c) = &self.code {
+            ev["codice"] = c.clone();
+        }
+        ev
+    }
+}
+
+/// The text of a panic caught around a turn, for the log and the chat.
+fn panic_message(p: Box<dyn std::any::Any + Send>) -> String {
+    let what = p
+        .downcast_ref::<&str>()
+        .map(|s| s.to_string())
+        .or_else(|| p.downcast_ref::<String>().cloned())
+        .unwrap_or_default();
+    tracing::error!(panic = %what, "the assistant turn panicked");
+    format!("errore interno dell'assistente, il turno è stato fermato: {what}")
+}
+
+/// What the model is told when it closes a turn with no text and no tool
+/// call: model-facing, in Italian like the rest of the prompt.
+const SILENT_NUDGE: &str = "Hai chiuso il turno senza scrivere niente per la persona, che non \
+     vede il tuo ragionamento. Riprendi da dove eri arrivato con il passo successivo (lo \
+     schema dell'oggetto, valida, proponi_modifica), oppure scrivi alla persona una domanda.";
+
+/// What a local model is told when it closes the turn on an announcement
+/// («ora propongo…») without the call: model-facing, in Italian.
+const ANNOUNCED_NUDGE: &str = "Hai scritto cosa farai, ma il turno si è chiuso senza farlo: la \
+     persona non vede ancora niente. Se la modifica è pronta, chiama adesso proponi_modifica \
+     (o lo strumento che serve). Se invece hai finito, o ti serve una risposta della persona, \
+     scrivilo con una domanda.";
+
+/// The assistant message kept in the history in place of a silent one: the
+/// reasoning blocks it had, without blank texts, and a minimal text.
+fn silent_assistant(content: &[Value]) -> Value {
+    let mut blocchi: Vec<Value> = content
+        .iter()
+        .filter(|b| b.get("type").and_then(Value::as_str) != Some("text"))
+        .cloned()
+        .collect();
+    blocchi.push(json!({ "type": "text", "text": "…" }));
+    json!({ "role": "assistant", "content": blocchi })
+}
+
 async fn vero_giro(
     s: &AppState,
     tx: &mpsc::UnboundedSender<String>,
@@ -457,10 +552,17 @@ async fn vero_giro(
     messaggi: &mut Vec<Value>,
     misure: &mut Misure,
     banco: &mut Banco,
-) -> Result<(), String> {
-    let cliente = client::Cliente::new(scelta.clone());
+) -> Result<(), TurnError> {
+    // In the cloud (`AppState::in_cloud`) the address of a local model must
+    // be a public one (`local_http.rs`).
+    let cliente = client::Cliente::for_instance(scelta.clone(), s.in_cloud())?;
     let strumenti = tools::definizioni_per(ctx.opzioni);
-    let sistema = prompt::sistema_con(regole_del_progetto(s, "assistente").await.as_deref());
+    let mut sistema = prompt::sistema_con(regole_del_progetto(s, "assistente").await.as_deref());
+    // The prompt speaks of the snapshot in several places: one line says it is
+    // not there, rather than a second prompt to keep in step with the first.
+    if ctx.opzioni.no_snapshot {
+        sistema.push(json!({ "type": "text", "text": prompt::NO_SNAPSHOT }));
+    }
     let impronta_iniziale = impronta(s).await;
     let mut correzioni = 0usize;
     // Dopo una bozza di simbolo il giro si ferma e la persona guarda la tavola
@@ -470,6 +572,11 @@ async fn vero_giro(
     let mut bozze_in_questo_turno = false;
     // Lo stesso per gli sfondi: le candidate le sceglie la persona.
     let mut sfondi_in_questo_turno = false;
+    // How many times in this turn the model closed without writing anything.
+    let mut silenzi = 0usize;
+    // Whether a local model that closed on words, not on a call, was already
+    // asked to act in this turn.
+    let mut annuncio_sollecitato = false;
 
     let mut giro = 0usize;
     loop {
@@ -482,7 +589,8 @@ async fn vero_giro(
             return Err(format!(
                 "l'assistente ha fatto {limite} giri senza concludere: la richiesta \
                  probabilmente va spezzata in due"
-            ));
+            )
+            .into());
         }
         giro += 1;
         // Il tetto si guarda PRIMA del giro: un giro partito si paga comunque.
@@ -496,7 +604,8 @@ async fn vero_giro(
                  su {:.2} $. Apri una conversazione nuova, o alza il tetto nelle \
                  preferenze dell'IDE",
                 misure.costo_usd, scelta.tetto_usd
-            ));
+            )
+            .into());
         }
         let inizio_giro = std::time::Instant::now();
         let tx2 = tx.clone();
@@ -531,7 +640,7 @@ async fn vero_giro(
                 }
             })
             .await
-            .map_err(|e| format!("{e:#}"))?;
+            .map_err(TurnError::from_anyhow)?;
 
         // Il costo del turno nel registro, mai il contenuto.
         tracing::info!(giro, usage = %risposta.usage, stop = %risposta.stop_reason,
@@ -548,7 +657,13 @@ async fn vero_giro(
                 .and_then(Value::as_u64)
                 .unwrap_or(0)
         };
-        let costo = client::costo_usd(&scelta.modello, &risposta.usage);
+        let costo = price_list::cost_usd(
+            &s.config_dir,
+            scelta.fornitore,
+            &scelta.modello,
+            &risposta.usage,
+            s.in_cloud(),
+        );
         misure.giro(&risposta.usage, costo, inizio_giro.elapsed().as_secs_f64());
         spending::add(
             &s.config_dir,
@@ -567,13 +682,61 @@ async fn vero_giro(
             "cache_lettura": tok("cache_read_input_tokens"),
             "cache_scrittura": tok("cache_creation_input_tokens"),
             "costo": costo, "speso": misure.costo_usd, "tetto": scelta.tetto_usd,
-            "prezzi_noti": client::prezzi(&scelta.modello).1 }),
+            "prezzi_noti": price_list::known(&s.config_dir, scelta.fornitore, &scelta.modello, s.in_cloud()),
+            // A local model costs nothing: the panel shows its tokens, not a
+            // spending against a cap that cannot be reached.
+            "fornitore": scelta.fornitore.nome() }),
         );
 
+        let usi = risposta.tool_uses();
+        let silent = usi.is_empty() && risposta.testo().trim().is_empty();
+        if silent {
+            // A turn closed with nothing for the person: the chat would just
+            // stop. Seen on 17-11-2026 with qwen3.5:9b through Ollama: three
+            // tools in parallel, then a round of reasoning only, and the
+            // maintainer thought the chat was stuck. The history keeps a
+            // minimal text in its place, so that no dialect has to drop it
+            // (an empty assistant is refused by the Messages API, and two
+            // user messages in a row are refused by some providers).
+            messaggi.push(silent_assistant(&risposta.content));
+            if silenzi >= 1 {
+                return Err(TurnError {
+                    message: "il modello ha chiuso il turno senza scrivere niente, due volte"
+                        .to_string(),
+                    code: Some(json!({ "id": "model_silent" })),
+                });
+            }
+            silenzi += 1;
+            tracing::info!(
+                giro,
+                "turn closed without text: the model is asked to go on"
+            );
+            messaggi.push(json!({ "role": "user", "content": SILENT_NUDGE }));
+            continue;
+        }
         messaggi.push(json!({ "role": "assistant", "content": risposta.content }));
 
-        let usi = risposta.tool_uses();
         if usi.is_empty() {
+            // A local model that says what it is about to do, and stops: seen
+            // on 17-11-2026 with qwen3.5:9b, «Propongo la pagina completa…»
+            // after reading the page, and no call. Once per turn, and only
+            // after it has used tools: a question, or an answer that needed
+            // none, ends the turn as before. Only for local models: a paid
+            // provider would pay a round for a turn that was really over.
+            let testo = risposta.testo();
+            if scelta.fornitore == client::Fornitore::Local
+                && giro > 1
+                && !annuncio_sollecitato
+                && !testo.trim_end().ends_with('?')
+            {
+                annuncio_sollecitato = true;
+                tracing::info!(
+                    giro,
+                    "turn closed on an announcement: the model is asked to act"
+                );
+                messaggi.push(json!({ "role": "user", "content": ANNOUNCED_NUDGE }));
+                continue;
+            }
             return Ok(());
         }
 
@@ -615,6 +778,14 @@ async fn vero_giro(
             // Il 05-11-2026 il modello, invece di fermarsi, ha fotografato tre
             // volte (60 s ciascuna), e per tutto quel tempo «Usa come base» non
             // poteva partire.
+            // A model that does not read images was not offered the tool, but
+            // a prompt that names it, or an old conversation, can still make
+            // it call it: the image must not leave all the same.
+            if nome == "istantanea_pagina" && ctx.opzioni.no_snapshot {
+                risultati.push(risultato(id, &snapshot_refused(), true));
+                rimanda(tx, nome, "non disponibile: il modello non vede le immagini");
+                continue;
+            }
             if nome == "istantanea_pagina" && sfondi_in_questo_turno {
                 risultati.push(risultato(
                     id,
@@ -897,6 +1068,15 @@ fn blocchi_istantanea(scatto: &crate::istantanea::Scatto) -> Value {
     ])
 }
 
+/// The answer to a snapshot asked by a model that does not read images. In
+/// Italian like the prompt: the model reads it.
+fn snapshot_refused() -> Value {
+    json!({
+        "eseguita": false,
+        "motivo": "questo modello non vede le immagini: usa `valida` per controllare la pagina",
+    })
+}
+
 fn risultato(id: &str, contenuto: &Value, errore: bool) -> Value {
     let mut v = json!({
         "type": "tool_result",
@@ -984,6 +1164,17 @@ async fn proponi(
             "inviata": false,
             "motivo": "la proposta ha errori: correggili e richiama proponi_modifica",
             "giudizio": giudizio,
+        }));
+    }
+
+    if correzioni < MAX_CORREZIONI && tools::changes_nothing(s, input, normalizzato.as_ref()).await
+    {
+        return Proposta::Correggi(json!({
+            "inviata": false,
+            "motivo": "la proposta non cambia niente: il progetto che hai mandato è uguale a quello \
+                       sul disco, e non ci sono pagine. Le modifiche ai tag vanno DENTRO \
+                       `project.tags`, insieme ai tag che ci sono già; quelle alle pagine in \
+                       `pages`. Rimandala con la modifica dentro.",
         }));
     }
 
@@ -1616,5 +1807,273 @@ mod tests_bozze {
             t.get("cornice").is_some_and(Value::is_null),
             "senza cornice"
         );
+    }
+}
+
+#[cfg(test)]
+mod tests_no_snapshot {
+    use super::*;
+
+    pub(super) type Seen = std::sync::Arc<std::sync::Mutex<Vec<Value>>>;
+
+    /// A local server that answers the first request with a call to
+    /// `istantanea_pagina` (a model that read it in the prompt) and the
+    /// second with a closing question (a statement would be asked to act,
+    /// see `ANNOUNCED_NUDGE`).
+    async fn fake_local() -> (String, Seen) {
+        const CALL: &str = "data: {\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"call_s1\",\"type\":\"function\",\"function\":{\"name\":\"istantanea_pagina\",\"arguments\":\"{}\"}}]},\"finish_reason\":null}]}\n\n\
+             data: {\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"tool_calls\"}],\"usage\":{\"prompt_tokens\":10,\"completion_tokens\":5}}\n\n\
+             data: [DONE]\n\n";
+        const DONE: &str = "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"Fatto: altro?\"},\"finish_reason\":null}]}\n\n\
+             data: {\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":20,\"completion_tokens\":2}}\n\n\
+             data: [DONE]\n\n";
+        fake_local_seq(&[CALL, DONE]).await
+    }
+
+    /// A local server that gives the answers in order, one per request (the
+    /// last one again when they are over), and keeps the requests.
+    pub(super) async fn fake_local_seq(answers: &'static [&'static str]) -> (String, Seen) {
+        use axum::http::header;
+        let seen: Seen = Default::default();
+        let seen2 = seen.clone();
+        let app = axum::Router::new().route(
+            "/v1/chat/completions",
+            axum::routing::post(move |axum::Json(body): axum::Json<Value>| {
+                let seen = seen2.clone();
+                async move {
+                    let mut s = seen.lock().unwrap();
+                    s.push(body);
+                    let answer = answers[(s.len() - 1).min(answers.len() - 1)];
+                    ([(header::CONTENT_TYPE, "text/event-stream")], answer)
+                }
+            }),
+        );
+        let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = l.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(l, app).await.unwrap() });
+        (format!("http://{addr}/v1/chat/completions"), seen)
+    }
+
+    /// A model that does not read images: the snapshot is not among its
+    /// tools, the prompt says so, and when it calls it all the same the
+    /// answer is a text that sends it to `valida`, with no image.
+    #[tokio::test]
+    async fn a_model_without_images_gets_no_snapshot() {
+        let d = tempfile::tempdir().unwrap();
+        let s = crate::router::stato_di_prova(d.path()).await;
+        let (url, seen) = fake_local().await;
+        let scelta = client::Scelta {
+            fornitore: client::Fornitore::Local,
+            chiave: "local".into(),
+            source: client::KeySource::Project,
+            modello: "qwen3:1.7b".into(),
+            tetto_usd: 10.0,
+            endpoint: Some(url),
+            sees_images: false,
+        };
+        let ctx = strumenti_scopi::Contesto::da_con(
+            d.path(),
+            &client::UserKeys::default(),
+            false,
+            Some(&scelta),
+        );
+        assert!(ctx.opzioni.no_snapshot);
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        let mut messaggi = vec![json!({ "role": "user", "content": "Com'è la pagina?" })];
+        let mut misure = Misure::nuove();
+        let mut banco = Banco::default();
+        vero_giro(
+            &s,
+            &tx,
+            &scelta,
+            &ctx,
+            &mut messaggi,
+            &mut misure,
+            &mut banco,
+        )
+        .await
+        .unwrap();
+
+        let seen = seen.lock().unwrap().clone();
+        assert_eq!(seen.len(), 2);
+        let tools: Vec<&str> = seen[0]["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|t| t["function"]["name"].as_str())
+            .collect();
+        assert!(tools.contains(&"valida"));
+        assert!(!tools.contains(&"istantanea_pagina"), "{tools:?}");
+        assert!(seen[0]["messages"][0]["content"]
+            .to_string()
+            .contains("Niente istantanee"));
+        // The answer to the call: a text, no image.
+        let tool_msg = seen[1]["messages"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|m| m["role"] == "tool")
+            .expect("the call has its answer")
+            .to_string();
+        assert!(tool_msg.contains("non vede le immagini"), "{tool_msg}");
+        assert!(tool_msg.contains("valida"), "{tool_msg}");
+        assert!(!seen[1].to_string().contains("image_url"));
+        // The panel hears which provider: a local model shows no cost.
+        drop(tx);
+        let mut provider = None;
+        while let Some(m) = rx.recv().await {
+            let v: Value = serde_json::from_str(&m).unwrap();
+            if v["t"] == "risorse" {
+                provider = Some(v["fornitore"].clone());
+            }
+        }
+        assert_eq!(provider, Some(json!("local")));
+    }
+}
+
+#[cfg(test)]
+mod tests_silent_turn {
+    use super::tests_no_snapshot::fake_local_seq;
+    use super::*;
+
+    /// Three tools in parallel, as qwen3.5:9b did on 17-11-2026.
+    const TOOLS: &str = "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"Guardo la pagina.\",\"tool_calls\":[{\"index\":0,\"id\":\"call_a\",\"type\":\"function\",\"function\":{\"name\":\"elenca_pagine\",\"arguments\":\"{}\"}},{\"index\":1,\"id\":\"call_b\",\"type\":\"function\",\"function\":{\"name\":\"elenca_tag\",\"arguments\":\"{}\"}}]},\"finish_reason\":null}]}\n\n\
+         data: {\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"tool_calls\"}],\"usage\":{\"prompt_tokens\":10,\"completion_tokens\":5}}\n\n\
+         data: [DONE]\n\n";
+    /// Reasoning only (Ollama's `reasoning`), then the end of the turn.
+    const SILENT: &str = "data: {\"choices\":[{\"index\":0,\"delta\":{\"reasoning\":\"ora aggiungo il LED\"},\"finish_reason\":null}]}\n\n\
+         data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"  \"},\"finish_reason\":null}]}\n\n\
+         data: {\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":20,\"completion_tokens\":156}}\n\n\
+         data: [DONE]\n\n";
+    const TEXT: &str = "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"Quale tag uso?\"},\"finish_reason\":null}]}\n\n\
+         data: {\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":30,\"completion_tokens\":4}}\n\n\
+         data: [DONE]\n\n";
+
+    async fn run(
+        answers: &'static [&'static str],
+    ) -> (Result<(), TurnError>, Vec<Value>, Vec<Value>, Misure) {
+        let d = tempfile::tempdir().unwrap();
+        let s = crate::router::stato_di_prova(d.path()).await;
+        let (url, seen) = fake_local_seq(answers).await;
+        let scelta = client::Scelta {
+            fornitore: client::Fornitore::Local,
+            chiave: "local".into(),
+            source: client::KeySource::Project,
+            modello: "qwen3.5:9b".into(),
+            tetto_usd: 10.0,
+            endpoint: Some(url),
+            sees_images: false,
+        };
+        let ctx = strumenti_scopi::Contesto::da_con(
+            d.path(),
+            &client::UserKeys::default(),
+            false,
+            Some(&scelta),
+        );
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let mut messaggi = vec![json!({ "role": "user", "content": "Aggiungi un LED" })];
+        let mut misure = Misure::nuove();
+        let mut banco = Banco::default();
+        let r = vero_giro(
+            &s,
+            &tx,
+            &scelta,
+            &ctx,
+            &mut messaggi,
+            &mut misure,
+            &mut banco,
+        )
+        .await;
+        let seen = seen.lock().unwrap().clone();
+        (r, messaggi, seen, misure)
+    }
+
+    /// Tools, a silent end, the nudge, then a text: the turn ends well, the
+    /// nudge is in the history, and the extra round is counted.
+    #[tokio::test]
+    async fn a_silent_end_gets_one_nudge() {
+        let (r, messaggi, seen, misure) = run(&[TOOLS, SILENT, TEXT]).await;
+        assert!(r.is_ok(), "{:?}", r.err());
+        assert_eq!(seen.len(), 3);
+        let nudge = messaggi
+            .iter()
+            .position(|m| m["role"] == "user" && m["content"] == SILENT_NUDGE)
+            .expect("the nudge is in the history");
+        // The silent answer stays before it, with a text no dialect drops.
+        assert_eq!(messaggi[nudge - 1]["role"], "assistant");
+        assert_eq!(
+            messaggi[nudge - 1]["content"],
+            json!([{ "type": "text", "text": "…" }])
+        );
+        assert_eq!(messaggi.last().unwrap()["role"], "assistant");
+        // The provider saw the nudge as the last message of the third request.
+        let msgs = seen[2]["messages"].as_array().unwrap();
+        let last = msgs.last().unwrap();
+        assert_eq!(last["role"], "user");
+        assert_eq!(last["content"], SILENT_NUDGE);
+        assert_eq!(msgs[msgs.len() - 2]["role"], "assistant");
+        assert_eq!(misure.giri.len(), 3);
+    }
+
+    /// An announcement after tools («propongo la pagina…») without the call:
+    /// asked once to act; a question ends the turn.
+    #[tokio::test]
+    async fn an_announcement_without_the_call_gets_one_nudge() {
+        const ANNOUNCE: &str = "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"Propongo la pagina completa.\"},\"finish_reason\":null}]}\n\n\
+             data: {\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":20,\"completion_tokens\":5}}\n\n\
+             data: [DONE]\n\n";
+        let (r, messaggi, seen, _) = run(&[TOOLS, ANNOUNCE, ANNOUNCE, TEXT]).await;
+        assert!(r.is_ok(), "{:?}", r.err());
+        // Once only: the second announcement ends the turn.
+        assert_eq!(seen.len(), 3);
+        let nudges = messaggi
+            .iter()
+            .filter(|m| m["role"] == "user" && m["content"] == ANNOUNCED_NUDGE)
+            .count();
+        assert_eq!(nudges, 1);
+        // A question right after the tools ends the turn at once.
+        let (r, _, seen, _) = run(&[TOOLS, TEXT]).await;
+        assert!(r.is_ok());
+        assert_eq!(seen.len(), 2);
+    }
+
+    /// Silent twice in the same turn: a coded error, not a third round.
+    #[tokio::test]
+    async fn silent_twice_ends_with_a_code() {
+        let (r, messaggi, seen, _) = run(&[TOOLS, SILENT, SILENT, TEXT]).await;
+        let e = r.expect_err("silent twice is an error");
+        let ev = e.event();
+        assert_eq!(ev["t"], "errore");
+        assert_eq!(ev["codice"]["id"], "model_silent");
+        assert_eq!(seen.len(), 3);
+        // The history still ends with an assistant: the next question can follow.
+        assert_eq!(messaggi.last().unwrap()["role"], "assistant");
+    }
+}
+
+#[cfg(test)]
+mod tests_turn_error {
+    use super::*;
+
+    /// Review of 17-11-2026: the chat showed the local model's context error
+    /// in English to an Italian IDE. It carries a code now, under any context
+    /// the client wrapped it in; the message stays as the fallback.
+    #[test]
+    fn a_context_too_small_reaches_the_chat_with_its_code() {
+        let e = anyhow::Error::new(crate::ai::local_http::ContextTooSmall {
+            loaded: 4096,
+            needed: 20000,
+        })
+        .context("answer of local");
+        let ev = TurnError::from_anyhow(e).event();
+        assert_eq!(ev["t"], "errore");
+        assert_eq!(
+            ev["codice"],
+            json!({ "id": "local_context_too_small", "loaded": 4096, "needed": 20000 })
+        );
+        assert!(ev["messaggio"].as_str().unwrap().contains("4096"));
+        // Any other error: the message alone, as before.
+        let ev = TurnError::from("tetto di spesa raggiunto".to_string()).event();
+        assert!(ev.get("codice").is_none(), "{ev}");
     }
 }

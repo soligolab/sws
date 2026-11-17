@@ -12,6 +12,34 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — l'IA a scelta del cliente, su `main` e validata col modello in casa (2026-11-17, theobroma)
+
+Piano [l'IA a scelta del cliente](docs/archive/2026-11-17-ia-a-scelta-del-cliente.md), archiviato: su richiesta del
+maintainer, «mistral è solo una opzione […] vorrei che il cliente avesse libertà di scelta su quale IA usare». Squash
+merge su `main` e push il 17-11, ramo `feat/ai-free-choice` eliminato. Non è ancora in un'immagine.
+- **un modello in casa** (fornitore `local`: Ollama, vLLM, LM Studio, llama.cpp), con la casella «vede le immagini» e
+  il controllo del contesto prima di mandare; nel cloud solo indirizzi pubblici, e lì la spesa si conta come stima;
+- **il fornitore preferito nell'account** (testo e immagini), che vale dove il progetto non ha scelto;
+- **il listino dei prezzi** aggiornato ogni giorno da models.dev, modificabile solo dalla console della piattaforma
+  (scheda Prezzi IA).
+
+**Validato dal maintainer, in ufficio**, con Ollama sul suo PC (`http://192.168.0.225:11434/v1`, `qwen3.5:9b`):
+l'assistente ha creato `OllamaTest` (generatore a rampa) con 8 tag dei bit e la pagina «Test» con 8 LED che contano in
+binario. La prova ha fatto nascere sei correzioni (vedi CHANGELOG). La pagina è stata copiata a mano nel progetto
+`tiny-ty` del cloud (copia di sicurezza `~/sws-vps/progetti/tiny-ty-prima-ollamatest-20261117-142254.tgz`) per
+provarla sul TY570, che è abbinato al cloud. Il nuovo micro-seme
+[prova comparata dei modelli](docs/plans/semi/2026-11-17-prova-comparata-dei-modelli.md) è per più avanti.
+
+**Da fare, nell'ordine**:
+1. **La CPU del TY570 all'87 % circa** con la pagina degli 8 LED (più un viewer remoto aperto su un'altra pagina):
+   segnalato dal maintainer il 17-11, da capire subito (regola «un'anomalia che rovina l'uso passa davanti»).
+   Sospetti: le 8 espressioni Python dei bit, rivalutate a ogni cambio di qualunque tag (10 volte al secondo e a
+   cascata), o il ridisegno del viewer LVGL. Prima la misura sul pannello (serve il permesso per l'SSH).
+2. Le voci del cloud della sezione «L'IA a scelta del cliente» di `docs/COLLAUDI_IN_SOSPESO.md`, dopo il rilascio.
+3. Visto una volta e non riprodotto: un `</think>` del ragionamento di qwen finito nel testo della chat.
+4. Restano valide le voci del blocco qui sotto (collaudo della rc.20, TY570 e TC620 da aggiornare, chrony del TY).
+5. Il ramo `fix/rc18-ritocchi`, già dentro `main`, aspetta il sì del maintainer per essere eliminato.
+
 ## ▶ Riprendere da qui — la rc.20 pubblicata: chiavi IA complete, stile sobrio, assistente secondo giro (2026-11-16 notte, theobroma)
 
 **Rilascio 2.26.0-rc.20** (tag su `83ea9555`, pushato con `main`):

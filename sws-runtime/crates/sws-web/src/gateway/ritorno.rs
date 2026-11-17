@@ -114,6 +114,9 @@ pub fn va_aggiunta(url: &str, origine: &str) -> bool {
     url.strip_prefix(origine).is_some_and(|resto| {
         resto.starts_with("/dev/")
             || resto.starts_with("/api/internal/ai-key/")
+            || resto
+                .strip_prefix("/api/internal/ai-preferences")
+                .is_some_and(|q| q.is_empty() || q.starts_with('?'))
             || resto == "/api/pannelli"
             || resto == "/api/pannelli/abbina"
             || (resto.starts_with("/api/pannelli/") && resto.ends_with("/rinomina"))
@@ -141,6 +144,18 @@ impl Ritorno {
         }
     }
 
+    /// A container behind a gateway at `origin`, for the tests of what it asks
+    /// the gateway.
+    #[cfg(test)]
+    pub fn for_tests(key: &str, origin: &str) -> Self {
+        let r = Ritorno {
+            chiave: Some(key.to_string()),
+            origine: Default::default(),
+        };
+        r.ricorda_origine(origin);
+        r
+    }
+
     pub fn ricorda_origine(&self, origine: &str) {
         let origine = origine.trim().trim_end_matches('/');
         if origine.is_empty() || self.chiave.is_none() {
@@ -149,6 +164,9 @@ impl Ritorno {
         let mut o = self.origine.write().unwrap_or_else(|e| e.into_inner());
         if o.as_deref() != Some(origine) {
             *o = Some(origine.to_string());
+            // The gateway's name is the platform: a local model is never
+            // looked for there.
+            crate::ai::local_http::remember_platform_origin(origine);
         }
     }
 
@@ -219,6 +237,15 @@ mod tests {
         // The AI key of the user (15-11-2026), and nothing else under /api/internal.
         assert!(va_aggiunta(
             "https://sws.soligo.net/api/internal/ai-key/anthropic?user=m%40soligo.net",
+            o
+        ));
+        // And the provider that person prefers (17-11-2026).
+        assert!(va_aggiunta(
+            "https://sws.soligo.net/api/internal/ai-preferences?user=m%40soligo.net",
+            o
+        ));
+        assert!(!va_aggiunta(
+            "https://sws.soligo.net/api/internal/ai-preferences-other?user=x",
             o
         ));
         assert!(!va_aggiunta("https://sws.soligo.net/api/internal/other", o));

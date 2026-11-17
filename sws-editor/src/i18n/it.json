@@ -61,7 +61,10 @@
     "test": "Prova la chiave",
     "testOk": "La chiave funziona: {{n}} modelli disponibili.",
     "testKo": "La chiave non funziona: {{error}}",
-    "model": "Modello preferito"
+    "model": "Modello preferito",
+    "preferredText": "Fornitore preferito per il testo",
+    "preferredImages": "Fornitore preferito per le immagini",
+    "preferredNone": "nessuna preferenza (l'ordine fisso)"
   },
   "aiModel": {
     "default": "Predefinito del fornitore",
@@ -73,7 +76,14 @@
     "kimi": "Moonshot (Kimi)",
     "mistral": "Mistral AI",
     "openai": "OpenAI (immagini)",
-    "bfl": "Black Forest Labs (FLUX, immagini)"
+    "bfl": "Black Forest Labs (FLUX, immagini)",
+    "local": "Modello in casa (compatibile OpenAI)"
+  },
+  "aiErrors": {
+    "local_context_too_small": "Il modello in casa ha un contesto di {{loaded}} token e la richiesta ne chiede circa {{needed}}: il server la taglierebbe senza dirlo. Alzalo ad almeno 64k (HOWTO, «Un modello in casa»).",
+    "local_address_not_public": "L'indirizzo {{host}} non è pubblico: dal cloud si raggiungono solo indirizzi pubblici.",
+    "local_address_has_credentials": "L'indirizzo contiene un utente o una password: scrivi la chiave nel suo campo.",
+    "model_silent": "Il modello ha chiuso il turno senza scrivere niente, due volte. Scrivi «continua» per farlo proseguire, oppure prova un modello più grande."
   },
   "header": {
     "start": "Start",
@@ -457,8 +467,9 @@
     "applyAnyway": "Applica comunque",
     "applyAnywayHint": "Le modifiche fatte su disco fuori da questo editor andranno perse al prossimo Salva.",
     "toolWriting": "scrivo · {{kb}} kB · {{tempo}}",
-    "thinking": "sta pensando · {{tempo}}",
-    "waitingModel": "in attesa del modello · {{tempo}}",
+    "thinking": "Sto pensando<dots></dots> · {{tempo}}",
+    "waitingModel": "In attesa del modello<dots></dots> · {{tempo}}",
+    "yourTurn": "Ha finito: tocca a te.",
     "risorseHide": "Nascondi la riga risorse (si riattiva da qui)",
     "risorseShow": "Mostra token e credito",
     "risorseIn": "in",
@@ -3710,7 +3721,8 @@
       "marchi": "Marchi",
       "posta": "Posta",
       "risorse": "Risorse",
-      "pannelli": "Pannelli"
+      "pannelli": "Pannelli",
+      "prezzi-ia": "Prezzi IA"
     },
     "stato": {
       "in_prova": "in prova",
@@ -3888,6 +3900,38 @@
       "schermoAiuto": "Se acceso, chi è dell'azienda del pannello può aprirne la pagina operatore dal cloud (tasto Viewer dell'IDE). Ogni apertura si registra.",
       "schermoApri": "Apri lo schermo del pannello in una scheda nuova",
       "daRiabbinare": "Acceso, ma chiama il cloud in attesa di abbinamento: ha perso le sue credenziali (installazione pulita?). Riabbinalo col codice che mostra: ritrova nome e azienda."
+    },
+    "aiPrices": {
+      "explain": "I prezzi con cui l'installazione calcola la spesa dell'IA e il tetto di ogni conversazione. Si aggiornano da soli una volta al giorno da models.dev; le righe a mano qui sotto hanno la precedenza. Valgono per tutti i progetti del cloud.",
+      "updated": "Aggiornati da models.dev il {{date}}",
+      "never": "Mai scaricati da models.dev: valgono i prezzi interni.",
+      "refresh": "Aggiorna ora",
+      "refreshFailed": "L'aggiornamento non è riuscito: i prezzi sono rimasti quelli di prima.",
+      "lastError": "Ultimo errore: {{error}}",
+      "textTitle": "Modelli di testo",
+      "imagesTitle": "Immagini",
+      "provider": "Fornitore",
+      "model": "Modello",
+      "input": "Ingresso",
+      "output": "Uscita",
+      "cacheRead": "Cache, lettura",
+      "cacheWrite": "Cache, scrittura",
+      "origin": {
+        "title": "Origine",
+        "manual": "a mano",
+        "modelsDev": "models.dev",
+        "builtin": "interno"
+      },
+      "tier": "oltre {{n}} token",
+      "unit": "Dollari per milione di token. Oltre la soglia indicata valgono tutti i prezzi della fascia.",
+      "imagePrice": "Prezzo",
+      "perImage": "{{usd}} $ a immagine",
+      "perMegapixel": "{{first}} $ il primo megapixel, {{next}} $ i successivi, {{input}} $ per megapixel di riferimento",
+      "manualTitle": "Righe a mano",
+      "manualExplain": "In JSON: «models» per fornitore (anthropic, kimi, mistral) e modello, con input e output e, se servono, cache_read, cache_write e tier; «images» per openai (low, medium, high) e bfl. Ogni prezzo deve essere sopra zero. Si salvano tutte insieme e arrivano subito nei progetti aperti.",
+      "save": "Salva le righe a mano",
+      "saved": "Salvate: i prezzi in vigore sono quelli qui sopra.",
+      "badJson": "Il testo non è JSON valido: {{error}}"
     }
   },
   "symbols": {
@@ -4739,6 +4783,7 @@
       "spiega_traduzione": "L'opzione «IA» della traduzione automatica, in Lingue.",
       "spiega_sfondi": "Le foto di sfondo delle pagine: prima una base da approvare, poi le varianti di luce come sue modifiche.",
       "comeAssistente": "come l'assistente",
+      "followsAccount": "come preferisce l'account di chi lo usa",
       "qualita": "Qualità",
       "qualita_low": "bassa (la più economica)",
       "qualita_medium": "media",
@@ -4746,8 +4791,12 @@
       "tetto": "Tetto di spesa per conversazione ($)",
       "usa": "Userà {{fornitore}} · {{modello}}",
       "usaAssistente": "Come l'assistente: {{fornitore}} · {{modello}}",
+      "localFree": "Costa zero: nessun tetto di spesa.",
       "spento": "Spento: il fornitore non ha una chiave.",
-      "salvati": "Salvato. La chat usa i modelli nuovi dal prossimo messaggio."
+      "salvati": "Salvato. La chat usa i modelli nuovi dal prossimo messaggio.",
+      "accountPreference": "Il progetto non ha scelto: vale la preferenza del tuo account ({{fornitore}}).",
+      "accountPreferenceNoKey": "La preferenza del tuo account, {{fornitore}}, non ha una chiave: si usa {{usato}}.",
+      "accountPreferenceNoKeyOff": "La preferenza del tuo account, {{fornitore}}, non ha una chiave."
     },
     "spending": {
       "explain": "Quanto è costata l'IA a questa installazione, mese per mese: ogni chiamata a pagamento dell'assistente, del disegno dei simboli, della traduzione e degli sfondi. È un conto fatto qui, non una fattura: i modelli senza listino e le immagini di OpenAI sono stime.",
@@ -4776,6 +4825,23 @@
       "esempio_sfondi": "es. foto realistiche, luce morbida, nessuna scritta",
       "lunghezza": "{{n}} / {{max}} caratteri",
       "nonScavalcano": "Le regole del progetto non scavalcano quelle di SWS: un modello non applica mai una modifica da solo, e gli sfondi si fanno sempre in due passi."
+    },
+    "local": {
+      "explain": "Un server tuo che parla come OpenAI: Ollama, vLLM, LM Studio, llama.cpp. Scrivi l'indirizzo, premi «Prova» per avere l'elenco dei modelli, scegli il modello e salva. I testi del progetto non escono verso terzi.",
+      "url": "Indirizzo (fino a /v1)",
+      "key": "Chiave",
+      "keyOptional": "facoltativa: solo se il server la chiede",
+      "modelPick": "— premi «Prova» per l'elenco —",
+      "seesImages": "Il modello vede le immagini (la foto della pagina)",
+      "test": "Prova",
+      "testOk": "Il server risponde: {{n}} modelli disponibili.",
+      "testKo": "Il server non risponde: {{errore}}",
+      "saved": "Salvato. La chat lo usa dal prossimo messaggio.",
+      "removed": "Modello in casa tolto.",
+      "remove": "Togli",
+      "confirmRemove": "Sì, togli il modello in casa",
+      "ready": "pronto: {{modello}}",
+      "notReady": "non configurato"
     }
   },
   "logRemoto": {

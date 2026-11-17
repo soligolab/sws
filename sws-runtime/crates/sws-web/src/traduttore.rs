@@ -195,6 +195,7 @@ const LIBRE_PUBBLICA: &str = "https://libretranslate.com";
 /// chiave di un'altra — un difetto che nessuno nota finché non legge il
 /// pannello in quella lingua. Il chiamante scandisce e si ferma al primo
 /// errore.
+#[allow(clippy::too_many_arguments)]
 pub async fn traduci(
     client: &reqwest::Client,
     cfg: &ConfigTraduzione,
@@ -208,12 +209,18 @@ pub async fn traduci(
     // Le regole IA del progetto per la traduzione (`project.ai`, 04-11-2026):
     // un glossario, il registro. Le legge solo il fornitore IA.
     regole: Option<&str>,
+    // A container behind the gateway: the address of a local model must be a
+    // public one there (`ai/local_http.rs`).
+    in_cloud: bool,
+    // The account of whoever asked (cloud only): their keys where the project
+    // has none, and their preferred provider where the project chose none.
+    user: &crate::ai::client::UserKeys,
 ) -> anyhow::Result<String> {
     match cfg.fornitore {
         Fornitore::MyMemory => mymemory(client, testo, da, a).await,
         Fornitore::LibreTranslate => libretranslate(client, cfg, testo, da, a).await,
         Fornitore::Google => google(client, cfg, testo, da, a).await,
-        Fornitore::Ia => ia(client, config_dir, testo, da, a, regole).await,
+        Fornitore::Ia => ia(client, config_dir, testo, da, a, regole, in_cloud, user).await,
     }
 }
 
@@ -286,6 +293,7 @@ async fn google(
 /// per fare il lavoro di un traduttore secco. E gli si ordina di restituire
 /// **solo** la traduzione: un modello che spiega la propria scelta finirebbe
 /// con la spiegazione dentro l'etichetta di un pulsante.
+#[allow(clippy::too_many_arguments)]
 async fn ia(
     client: &reqwest::Client,
     config_dir: &std::path::Path,
@@ -293,16 +301,10 @@ async fn ia(
     da: &str,
     a: &str,
     regole: Option<&str>,
+    in_cloud: bool,
+    user: &crate::ai::client::UserKeys,
 ) -> anyhow::Result<String> {
-    // Lo scopo «traduzione» (04-11-2026): un modello suo, di solito piccolo ed
-    // economico; senza, quello dell'assistente come prima.
-    let scelta = crate::ai::scopi::carica_per(config_dir, crate::ai::scopi::Scopo::Traduzione)
-        .ok_or_else(|| {
-            anyhow::anyhow!(
-                "nessun fornitore IA configurato: impostalo nel menù IA → Scopi, oppure usa \
-                 la modalità semplice"
-            )
-        })?;
+    let scelta = ai_choice(config_dir, user)?;
     let istruzioni = format!(
         "Traduci dal {da} al {a} il testo dell'interfaccia di un sistema SCADA industriale \
          (etichette di pulsanti, unità di misura, messaggi di allarme). \
@@ -318,15 +320,55 @@ async fn ia(
     // With the usage, since 16-11-2026: a translation is a paid call like the
     // others and enters the spending history of the installation (G5).
     let messages = [serde_json::json!({ "role": "user", "content": testo })];
+    // An address the customer chose gets its own, guarded client; the shared
+    // one stays for the providers with a fixed address.
+    let own;
+    let client = match scelta.endpoint {
+        None => client,
+        Some(_) => {
+            own = crate::ai::local_http::client_for(
+                &scelta,
+                in_cloud,
+                reqwest::Client::builder()
+                    .connect_timeout(std::time::Duration::from_secs(10))
+                    .timeout(crate::ai::local_http::REQUEST_TIMEOUT),
+            )
+            .map_err(anyhow::Error::msg)?;
+            &own
+        }
+    };
     let (translated, usage) =
         crate::ai::client::chiedi_con_uso(client, &scelta, &istruzioni, &messages, 1024).await?;
     crate::ai::spending::add(
         config_dir,
         crate::ai::scopi::Scopo::Traduzione.nome(),
         scelta.fornitore.nome(),
-        crate::ai::client::costo_usd(&scelta.modello, &usage),
+        crate::ai::price_list::cost_usd(
+            config_dir,
+            scelta.fornitore,
+            &scelta.modello,
+            &usage,
+            in_cloud,
+        ),
     );
     Ok(translated)
+}
+
+/// Who translates with the AI. Lo scopo «traduzione» (04-11-2026): un modello
+/// suo, di solito piccolo ed economico; senza, quello dell'assistente come
+/// prima. With the account of whoever asked, as the chat does (17-11-2026):
+/// in the cloud a project without keys of its own would otherwise have none.
+fn ai_choice(
+    config_dir: &std::path::Path,
+    user: &crate::ai::client::UserKeys,
+) -> anyhow::Result<crate::ai::client::Scelta> {
+    crate::ai::scopi::carica_per_con(config_dir, crate::ai::scopi::Scopo::Traduzione, user)
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "nessun fornitore IA configurato: impostalo nel menù IA → Scopi, oppure usa \
+                 la modalità semplice"
+            )
+        })
 }
 
 async fn mymemory(
@@ -495,6 +537,7 @@ pub struct EsitoTraduzione {
 /// `POST /api/project/languages/translate`
 pub async fn traduci_progetto(
     State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
     Json(req): Json<RichiestaTraduzione>,
 ) -> Response {
     if let Err(r) = solo_ide(&s) {
@@ -545,6 +588,12 @@ pub async fn traduci_progetto(
         .timeout(std::time::Duration::from_secs(20))
         .build()
         .unwrap_or_default();
+    // Only the AI asks the gateway: the other services have their own key.
+    let user_keys = if cfg.fornitore == Fornitore::Ia {
+        crate::ai::user_keys::fetch_all(&s, &user.username).await
+    } else {
+        crate::ai::client::UserKeys::default()
+    };
 
     let mut tradotte = 0usize;
     let mut proposte = 0usize;
@@ -585,6 +634,8 @@ pub async fn traduci_progetto(
                         &da,
                         &req.a,
                         regole.as_deref(),
+                        s.in_cloud(),
+                        &user_keys,
                     )
                     .await
                     {
@@ -952,6 +1003,32 @@ mod tests_config_persistita {
         };
         let risolta = risolvi_config(dir.path(), Some(esplicita));
         assert_eq!(risolta.chiave.as_deref(), Some("quella-della-richiesta"));
+    }
+
+    /// The AI translation in the cloud: a project without keys of its own
+    /// uses the account of whoever asked, its preferred provider included.
+    #[test]
+    fn the_ai_translation_uses_the_account_key_and_preference() {
+        use crate::ai::client::{chiave_di, Fornitore as Ai, KeySource, UserKeys};
+        let dir = tempfile::tempdir().unwrap();
+        if std::env::var_os("SWS_AI_FORNITORE").is_some()
+            || [Ai::Anthropic, Ai::Kimi, Ai::Mistral]
+                .iter()
+                .any(|f| chiave_di(dir.path(), *f).is_some())
+        {
+            return;
+        }
+        assert!(ai_choice(dir.path(), &UserKeys::default()).is_err());
+        let user = UserKeys::from_pairs([
+            (Ai::Anthropic, "sk-user-ant".to_string()),
+            (Ai::Mistral, "sk-user-mistral".to_string()),
+        ])
+        .with_preferences(Some("mistral".into()), None);
+        let sc = ai_choice(dir.path(), &user).unwrap();
+        assert_eq!(
+            (sc.fornitore, sc.chiave.as_str(), sc.source),
+            (Ai::Mistral, "sk-user-mistral", KeySource::User)
+        );
     }
 
     #[test]

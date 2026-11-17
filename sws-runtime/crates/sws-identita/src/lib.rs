@@ -313,7 +313,7 @@ pub struct Identita {
 }
 
 mod ai_keys;
-pub use ai_keys::{AiKeyInfo, MASTER_KEY_FILE};
+pub use ai_keys::{AiKeyInfo, AI_PREFERENCE_KINDS, MASTER_KEY_FILE};
 mod registrazione;
 pub use registrazione::{Registrato, Scopo, VERSIONE_CONDIZIONI};
 mod ciclo_di_vita;
@@ -524,6 +524,16 @@ CREATE TABLE IF NOT EXISTS ai_models (
     provider    TEXT    NOT NULL,
     model       TEXT    NOT NULL,
     PRIMARY KEY (user_id, provider)
+);
+
+-- The provider a user prefers, one for text and one for images (17-11-2026).
+-- It counts only where the project chose none; which names are valid is
+-- decided by the web layer, that knows the AI menu.
+CREATE TABLE IF NOT EXISTS ai_preferences (
+    user_id     INTEGER NOT NULL REFERENCES utenti(id) ON DELETE CASCADE,
+    kind        TEXT    NOT NULL CHECK (kind IN ('text', 'images')),
+    provider    TEXT    NOT NULL,
+    PRIMARY KEY (user_id, kind)
 );
 "#;
 

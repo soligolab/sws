@@ -61,7 +61,10 @@
     "test": "Test the key",
     "testOk": "The key works: {{n}} models available.",
     "testKo": "The key does not work: {{error}}",
-    "model": "Preferred model"
+    "model": "Preferred model",
+    "preferredText": "Preferred provider for text",
+    "preferredImages": "Preferred provider for images",
+    "preferredNone": "no preference (the fixed order)"
   },
   "aiModel": {
     "default": "Provider's default",
@@ -73,7 +76,14 @@
     "kimi": "Moonshot (Kimi)",
     "mistral": "Mistral AI",
     "openai": "OpenAI (images)",
-    "bfl": "Black Forest Labs (FLUX, images)"
+    "bfl": "Black Forest Labs (FLUX, images)",
+    "local": "Local model (OpenAI-compatible)"
+  },
+  "aiErrors": {
+    "local_context_too_small": "The local model has a context of {{loaded}} tokens and the request needs about {{needed}}: the server would cut it without saying so. Raise it to at least 64k (HOWTO, «Un modello in casa»).",
+    "local_address_not_public": "The address {{host}} is not public: from the cloud only public addresses are reached.",
+    "local_address_has_credentials": "The address carries a user or a password: write the key in its own field.",
+    "model_silent": "The model closed the turn without writing anything, twice. Write «continue» to make it go on, or try a bigger model."
   },
   "header": {
     "start": "Start",
@@ -457,8 +467,9 @@
     "applyAnyway": "Apply anyway",
     "applyAnywayHint": "Changes made on disk outside this editor will be lost at the next Save.",
     "toolWriting": "writing · {{kb}} kB · {{tempo}}",
-    "thinking": "thinking · {{tempo}}",
-    "waitingModel": "waiting for the model · {{tempo}}",
+    "thinking": "Thinking<dots></dots> · {{tempo}}",
+    "waitingModel": "Waiting for the model<dots></dots> · {{tempo}}",
+    "yourTurn": "Done: your turn.",
     "risorseHide": "Hide the resources row (re-enable from here)",
     "risorseShow": "Show tokens and credit",
     "risorseIn": "in",
@@ -3710,7 +3721,8 @@
       "marchi": "Brands",
       "posta": "Mail",
       "risorse": "Resources",
-      "pannelli": "Panels"
+      "pannelli": "Panels",
+      "prezzi-ia": "AI prices"
     },
     "stato": {
       "in_prova": "trial",
@@ -3888,6 +3900,38 @@
       "schermoAiuto": "When on, members of the panel's company can open its operator page from the cloud (IDE Viewer button). Every opening is logged.",
       "schermoApri": "Open the panel's screen in a new tab",
       "daRiabbinare": "Switched on, but it calls the cloud waiting to be paired: it lost its credentials (clean install?). Pair it again with the code it shows: it gets back its name and company."
+    },
+    "aiPrices": {
+      "explain": "The prices the installation uses to work out what the AI costs and the cap of each conversation. They update by themselves once a day from models.dev; the manual rows below take precedence. They apply to every project in the cloud.",
+      "updated": "Updated from models.dev on {{date}}",
+      "never": "Never downloaded from models.dev: the built-in prices apply.",
+      "refresh": "Update now",
+      "refreshFailed": "The update failed: the prices stayed as they were.",
+      "lastError": "Last error: {{error}}",
+      "textTitle": "Text models",
+      "imagesTitle": "Images",
+      "provider": "Provider",
+      "model": "Model",
+      "input": "Input",
+      "output": "Output",
+      "cacheRead": "Cache, read",
+      "cacheWrite": "Cache, write",
+      "origin": {
+        "title": "Origin",
+        "manual": "manual",
+        "modelsDev": "models.dev",
+        "builtin": "built-in"
+      },
+      "tier": "above {{n}} tokens",
+      "unit": "Dollars per million tokens. Above the threshold shown, all the prices of the tier apply.",
+      "imagePrice": "Price",
+      "perImage": "{{usd}} $ per image",
+      "perMegapixel": "{{first}} $ the first megapixel, {{next}} $ each further one, {{input}} $ per reference megapixel",
+      "manualTitle": "Manual rows",
+      "manualExplain": "As JSON: «models» by provider (anthropic, kimi, mistral) and model, with input and output and, if needed, cache_read, cache_write and tier; «images» for openai (low, medium, high) and bfl. Every price must be above zero. They are saved all together and reach the open projects at once.",
+      "save": "Save the manual rows",
+      "saved": "Saved: the prices in effect are the ones above.",
+      "badJson": "The text is not valid JSON: {{error}}"
     }
   },
   "symbols": {
@@ -4739,6 +4783,7 @@
       "spiega_traduzione": "The «AI» option of automatic translation, in Languages.",
       "spiega_sfondi": "Page background photos: first a base to approve, then the light variants as edits of it.",
       "comeAssistente": "same as the assistant",
+      "followsAccount": "as the account of whoever uses it prefers",
       "qualita": "Quality",
       "qualita_low": "low (cheapest)",
       "qualita_medium": "medium",
@@ -4746,8 +4791,12 @@
       "tetto": "Spending cap per conversation ($)",
       "usa": "Will use {{fornitore}} · {{modello}}",
       "usaAssistente": "Same as the assistant: {{fornitore}} · {{modello}}",
+      "localFree": "Costs nothing: no spending cap.",
       "spento": "Off: the provider has no key.",
-      "salvati": "Saved. The chat uses the new models from the next message."
+      "salvati": "Saved. The chat uses the new models from the next message.",
+      "accountPreference": "The project chose none: your account's preference counts ({{fornitore}}).",
+      "accountPreferenceNoKey": "Your account's preference, {{fornitore}}, has no key: {{usato}} is used.",
+      "accountPreferenceNoKeyOff": "Your account's preference, {{fornitore}}, has no key."
     },
     "spending": {
       "explain": "What AI has cost this installation, month by month: every paid call of the assistant, of symbol drawing, of translation and of backgrounds. It is a count made here, not an invoice: models without a price list and OpenAI images are estimates.",
@@ -4776,6 +4825,23 @@
       "esempio_sfondi": "e.g. realistic photos, soft light, no writing",
       "lunghezza": "{{n}} / {{max}} characters",
       "nonScavalcano": "Project rules never override SWS's own: a model never applies a change by itself, and backgrounds are always made in two steps."
+    },
+    "local": {
+      "explain": "A server of yours that speaks like OpenAI: Ollama, vLLM, LM Studio, llama.cpp. Type the address, press «Test» to get the list of models, choose the model and save. The project's texts do not go to third parties.",
+      "url": "Address (up to /v1)",
+      "key": "Key",
+      "keyOptional": "optional: only if the server asks for one",
+      "modelPick": "— press «Test» for the list —",
+      "seesImages": "The model sees images (the photo of the page)",
+      "test": "Test",
+      "testOk": "The server answers: {{n}} models available.",
+      "testKo": "The server does not answer: {{errore}}",
+      "saved": "Saved. The chat uses it from the next message.",
+      "removed": "Local model removed.",
+      "remove": "Remove",
+      "confirmRemove": "Yes, remove the local model",
+      "ready": "ready: {{modello}}",
+      "notReady": "not configured"
     }
   },
   "logRemoto": {

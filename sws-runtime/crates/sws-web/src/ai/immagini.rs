@@ -47,11 +47,17 @@ pub fn costo_stimato(qualita: &str) -> f64 {
 }
 
 /// The estimate of one image with the chosen provider; `edit` = a variant of a
-/// base (FLUX bills the input image too).
-pub fn estimated_usd(s: &SceltaImmagini, edit: bool) -> f64 {
+/// base (FLUX bills the input image too). The price list file first
+/// (`price_list`), then the tables of this module and of `bfl`.
+pub fn estimated_usd(config_dir: &std::path::Path, s: &SceltaImmagini, edit: bool) -> f64 {
     match s.fornitore {
-        ImageProvider::OpenAi => costo_stimato(&s.qualita),
-        ImageProvider::Bfl => bfl::estimated_usd(&s.modello, WIDTH, HEIGHT, edit),
+        ImageProvider::OpenAi => crate::ai::price_list::openai_image_usd(config_dir, &s.qualita),
+        ImageProvider::Bfl => bfl::estimate_with(
+            crate::ai::price_list::bfl_prices(config_dir, &s.modello),
+            WIDTH,
+            HEIGHT,
+            edit,
+        ),
     }
 }
 
@@ -158,12 +164,15 @@ const DA_SFONDO: &str = " It is the background of an industrial supervision scre
     muted desaturated colors, low contrast. No text, no signs, no logos, no people, no watermark.";
 
 /// Una base nuova: `descrizione` (più le regole `sfondi` del progetto) → JPEG.
+/// `estimate` is what the cap counted: a FLUX failure that does not say what
+/// it charged is charged that.
 pub async fn genera(
     http: &reqwest::Client,
     bfl_at: &bfl::Endpoint,
     s: &SceltaImmagini,
     descrizione: &str,
     regole: Option<&str>,
+    estimate: f64,
 ) -> Result<Generated, Failed> {
     let mut prompt = format!("{}{DA_SFONDO}", descrizione.trim());
     if let Some(r) = regole {
@@ -173,7 +182,7 @@ pub async fn genera(
         return bfl::generate(bfl_at, &s.chiave, &s.modello, &prompt, None, WIDTH, HEIGHT)
             .await
             .map(Generated::from)
-            .map_err(|f| Failed::from_bfl(f, estimated_usd(s, false)));
+            .map_err(|f| Failed::from_bfl(f, estimate));
     }
     let corpo = json!({
         "model": s.modello, "prompt": prompt, "size": DIMENSIONE, "quality": s.qualita,
@@ -196,6 +205,7 @@ pub async fn varia(
     s: &SceltaImmagini,
     base_jpg: &[u8],
     nome_luce: &str,
+    estimate: f64,
 ) -> Result<Generated, Failed> {
     let prompt = format!("{STESSA_SCENA} {}", luce(nome_luce));
     if s.fornitore == ImageProvider::Bfl {
@@ -210,7 +220,7 @@ pub async fn varia(
         )
         .await
         .map(Generated::from)
-        .map_err(|f| Failed::from_bfl(f, estimated_usd(s, true)));
+        .map_err(|f| Failed::from_bfl(f, estimate));
     }
     let confine = format!("sws{}", crate::ai::uuid_breve());
     let mut corpo: Vec<u8> = Vec::new();
@@ -338,13 +348,15 @@ mod tests {
             qualita: "high".into(),
             tetto_usd: 1.0,
         };
-        assert_eq!(estimated_usd(&s, false), costo_stimato("high"));
-        assert_eq!(estimated_usd(&s, true), costo_stimato("high"));
+        let dir = tempfile::tempdir().unwrap();
+        let d = dir.path();
+        assert_eq!(estimated_usd(d, &s, false), costo_stimato("high"));
+        assert_eq!(estimated_usd(d, &s, true), costo_stimato("high"));
         // FLUX has no quality: megapixels, and an edit pays the base too.
         s.fornitore = ImageProvider::Bfl;
         s.modello = "flux-2-pro".into();
-        assert!((estimated_usd(&s, false) - 0.045).abs() < 1e-9);
-        assert!(estimated_usd(&s, true) > estimated_usd(&s, false));
+        assert!((estimated_usd(d, &s, false) - 0.045).abs() < 1e-9);
+        assert!(estimated_usd(d, &s, true) > estimated_usd(d, &s, false));
     }
 
     #[test]
@@ -383,12 +395,16 @@ mod prova_vera {
             &s,
             "A small alpine lake with a wooden hut on the right.",
             None,
+            costo_stimato("low"),
         )
         .await
         .unwrap()
         .jpg;
         assert_eq!(&base[..3], &[0xFF, 0xD8, 0xFF], "dev'essere un JPEG");
-        let sera = varia(&http, &bfl_at, &s, &base, "sera").await.unwrap().jpg;
+        let sera = varia(&http, &bfl_at, &s, &base, "sera", costo_stimato("low"))
+            .await
+            .unwrap()
+            .jpg;
         assert_eq!(&sera[..3], &[0xFF, 0xD8, 0xFF]);
         let out = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../tmp/sfondi");
         std::fs::create_dir_all(&out).unwrap();

@@ -145,6 +145,6 @@ export async function apriChatDellIde(
  *  The model names of every text provider: a name missing here makes the
  *  bench wait the whole timeout before going on. */
 export async function modelloDellaChat(chat: import("@playwright/test").Locator): Promise<string> {
-  await expect(chat).toContainText(/finto|claude|kimi|moonshot|mistral|codestral|ministral|nessuna chiave/i, { timeout: 15_000 }).catch(() => {});
+  await expect(chat).toContainText(/finto|claude|kimi|moonshot|mistral|codestral|ministral|local|ollama|qwen|llama|nessuna chiave/i, { timeout: 15_000 }).catch(() => {});
   return chat.innerText();
 }

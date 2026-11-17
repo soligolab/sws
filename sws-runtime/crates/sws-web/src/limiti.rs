@@ -192,7 +192,7 @@ pub fn tetto_da_testo(v: &str) -> Result<Option<Tetto>, String> {
     }))
 }
 
-fn privato(ip: IpAddr) -> bool {
+pub(crate) fn privato(ip: IpAddr) -> bool {
     match ip {
         IpAddr::V4(v) => v.is_private() || v.is_loopback() || v.is_link_local(),
         IpAddr::V6(v) => v.is_loopback() || (v.segments()[0] & 0xfe00) == 0xfc00,

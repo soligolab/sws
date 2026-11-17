@@ -295,6 +295,41 @@ mod tests {
             "{said}"
         );
         assert_eq!(judgement["ok"], true, "{judgement}");
+
+        // The project as a string with JSON inside (qwen3.5:9b, 17-11-2026):
+        // read as the object it means, where it used to panic the turn.
+        let as_text = Value::String(read.to_string());
+        let judgement = tools::valida(&s, &json!({ "project": as_text }))
+            .await
+            .unwrap();
+        assert!(on_custom(&judgement).is_none(), "{judgement}");
+        // The project as it was read changes nothing; one more tag does
+        // (17-11-2026, an empty proposal reached the person).
+        // As `proponi` asks it: on the project `valida_interna` recomposed.
+        let nothing = |input: Value| {
+            let s = &s;
+            async move {
+                let (_, normalized) = tools::valida_interna(s, &input, &[], &[], true)
+                    .await
+                    .unwrap();
+                tools::changes_nothing(s, &input, normalized.as_ref()).await
+            }
+        };
+        assert!(nothing(json!({ "project": read.clone() })).await);
+        assert!(tools::changes_nothing(&s, &json!({}), None).await);
+        let mut one_more = read.clone();
+        one_more["tags"]
+            .as_array_mut()
+            .unwrap()
+            .push(json!({ "id": "OllamaTest", "data_type": "i64" }));
+        assert!(!nothing(json!({ "project": one_more })).await);
+        assert!(!tools::changes_nothing(&s, &json!({ "pages": [{}] }), None).await);
+        for bad in [json!("non è json"), json!(42), json!([1, 2])] {
+            let e = tools::valida(&s, &json!({ "project": bad }))
+                .await
+                .expect_err("not an object");
+            assert!(e.contains("`project`"), "{e}");
+        }
     }
 
     /// One draft per slug: drawing it again the other way replaces it.

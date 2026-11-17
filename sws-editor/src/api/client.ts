@@ -58,8 +58,10 @@ import type {
   TagDef,
   TemplateEntry,
   AiConfig,
+  AiPriceList,
   AiSpending,
   MyAiKey,
+  MyAiPreferences,
   ScopoIa,
   ScopoIaCfg,
   ConfigTraduzione,
@@ -68,6 +70,7 @@ import type {
 import { prefissoGateway, prefissoSchermo } from "./prefisso";
 import { corniceAPagina } from "@/cornici/modello";
 import type { Planimetria } from "@/planimetrie/modello";
+import type { AiErrorCode } from "@/ai/errorCodes";
 import { faceplateAPagina } from "@/faceplate/modello";
 import i18n from "i18next";
 
@@ -824,7 +827,9 @@ export const sulGateway = (path: string) =>
   || /^\/api\/pannelli\/[^/]+\/schermo$/.test(path)
   // The user's own AI keys (15-11-2026): the account is the gateway's, the
   // project's container knows nothing of it.
-  || path === "/api/identity/ai-keys" || path.startsWith("/api/identity/ai-keys/");
+  || path === "/api/identity/ai-keys" || path.startsWith("/api/identity/ai-keys/")
+  // And the providers they prefer (17-11-2026), for the same reason.
+  || path === "/api/identity/ai-preferences";
 
 /** La base a cui mandare una richiesta: il prefisso del progetto, o la radice
  *  per le rotte del gateway quando siamo nel cloud. */
@@ -2421,13 +2426,45 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ fornitore }),
     }),
-  /** «Prova la chiave»: l'elenco dei modelli del fornitore, gratis. */
-  provaAiChiave: (fornitore: string) =>
-    request<{ ok: boolean; modelli?: string[]; errore?: string }>("/api/ai/chiavi/prova", {
+  /** «Prova la chiave»: l'elenco dei modelli del fornitore, gratis. For the
+   *  local model, `local` tests the address typed and not saved yet. */
+  provaAiChiave: (fornitore: string, local?: { url: string; chiave?: string }) =>
+    request<{ ok: boolean; modelli?: string[]; errore?: string; codice?: AiErrorCode }>("/api/ai/chiavi/prova", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fornitore }),
+      body: JSON.stringify({ fornitore, ...local }),
     }),
+  /** The local model: an empty `url` removes it, key included. A `key` left
+   *  out keeps the saved one. */
+  putAiLocal: (local: { url: string; model: string; key?: string; sees_images: boolean }) =>
+    request<{ ok: boolean; riconnetti: boolean }>("/api/ai/local", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(local),
+    }),
+  /** The providers the account prefers where a project chose none (cloud). */
+  getMyAiPreferences: () => request<MyAiPreferences>("/api/identity/ai-preferences"),
+  /** A field left out is not touched; null takes the preference away. */
+  putMyAiPreferences: (p: Partial<MyAiPreferences>) =>
+    request<void>("/api/identity/ai-preferences", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(p),
+    }),
+  /** The AI price list of the platform: the prices in effect, and the manual
+   *  rows as they were written. */
+  getAiPrices: () =>
+    request<{ resolved: AiPriceList; manual: unknown }>("/api/amministrazione/ai-prices"),
+  /** The manual rows, whole: the server refuses them all on a wrong price. */
+  putAiPrices: (manual: unknown) =>
+    request<AiPriceList>("/api/amministrazione/ai-prices", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(manual),
+    }),
+  /** «Update now»: downloads models.dev without waiting for the daily round. */
+  refreshAiPrices: () =>
+    request<AiPriceList>("/api/amministrazione/ai-prices/refresh", { method: "POST" }),
 
   // ── Fornitore di traduzione automatica (F5) ───────────────────────────────
   // Stesso principio dell'assistente IA sopra: solo istanza IDE, 404 altrove.

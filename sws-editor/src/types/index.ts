@@ -2683,4 +2683,52 @@ export interface AiConfig {
   da_ambiente: string[];
   tetto_usd_default: number;
   tetto_sfondi_default: number;
+  /** In the cloud a local model is counted as an estimate, with its cap;
+   *  elsewhere it is free and has none. */
+  in_cloud?: boolean;
+  /** The local model as saved, even half done (an address without a model);
+   *  null = none. Its key only as «there is one». */
+  local?: { url: string; model: string; sees_images: boolean; has_key: boolean } | null;
+  /** The providers preferred in the account of whoever opens the menu (cloud):
+   *  they count where the project chose none. */
+  preferito_account?: { testo: string | null; immagini: string | null };
+}
+
+/** The account's preferred providers, by kind; null = none. */
+export interface MyAiPreferences {
+  text: string | null;
+  images: string | null;
+}
+
+/** Dollars per million tokens. */
+export interface AiRates {
+  input: number;
+  output: number;
+  cache_read: number;
+  cache_write: number;
+}
+
+/** A model of the AI price list: its rates, the dearer ones above sizes of
+ *  the request (lowest first), and where the row comes from. */
+export interface AiModelPrice extends AiRates {
+  tiers?: (AiRates & { above_tokens: number })[];
+  origin: "manual" | "models.dev" | "builtin";
+}
+
+/** `ai-prices.json`, already resolved (`ai/price_list.rs`). */
+export interface AiPriceList {
+  version: number;
+  /** When models.dev was last downloaded; null = never. */
+  at_ms: number | null;
+  source: string;
+  /** Why the last download failed: the prices stayed as they were. */
+  last_error: string | null;
+  /** Provider → model → prices. */
+  models: Record<string, Record<string, AiModelPrice>>;
+  images: {
+    /** Quality → dollars per image. */
+    openai: Record<string, number>;
+    /** Model → dollars per megapixel. */
+    bfl: Record<string, { first: number; next: number; input: number }>;
+  };
 }

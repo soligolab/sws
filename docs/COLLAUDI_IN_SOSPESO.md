@@ -101,6 +101,36 @@ l'immagine della rc.20 e il gateway aggiornato, con chiavi vere.
        chiave del progetto o da quella dell'account.
 5. [ ] **Uno sfondo con la chiave OpenAI dell'account**, in un progetto che non ha una chiave sua.
 
+## L'IA a scelta del cliente (17-11-2026)
+
+Dal piano [l'IA a scelta del cliente](archive/2026-11-17-ia-a-scelta-del-cliente.md), ramo `feat/ai-free-choice`.
+**Il modello in casa si prova solo in ufficio**: la GPU è sul PC del maintainer, Ollama su
+`http://192.168.0.225:11434/v1` (`qwen3.5:9b` con visione e strumenti, `qwen3:8b` senza visione e con contesto massimo
+40k). theobroma lo raggiunge: basta l'IDE 8460.
+
+**Voci 1-5 validate dal maintainer il 17-11-2026** («considera validato il giro IA locale»). Provate a mano la 1, la 2
+e la 5: l'assistente ha creato i tag e la pagina degli 8 LED, che contano in binario. La 3 e la 4 le coprono i test
+automatici (`tests_no_snapshot`, `local_http`), non sono state provate a mano. Dalla prova sono nate sei correzioni
+(turno muto, panico del turno, errori che dicono dove, `schema_tag` col generatore, proposta vuota, annuncio senza
+chiamata). Restano le voci del cloud, dopo il rilascio.
+
+1. [x] **IDE 8460 → IA → Fornitori e chiavi → Modello in casa**: indirizzo, «Prova» elenca i due modelli, scelta di
+       `qwen3.5:9b` con «vede le immagini», Salva.
+2. [x] **Un turno vero dell'assistente** col modello in casa: la riga in alto mostra i token e non la spesa; la foto
+       della pagina funziona (la casella è spuntata).
+3. [x] **Senza la casella**: l'assistente non offre la foto della pagina.
+4. [x] **Il contesto troppo piccolo**: con un modello caricato a 4k (per esempio Ollama senza
+       `OLLAMA_CONTEXT_LENGTH`) la chat dice «contesto troppo piccolo» e la richiesta non parte.
+5. [x] **Il listino**: sull'IDE 8460 compare `.run-editor/config/ai-prices.json` con origine models.dev, dopo il primo
+       giro (5 minuti dall'avvio).
+6. [ ] **Nel cloud, dopo il rilascio**: console → Prezzi IA (amministratore della piattaforma) mostra i prezzi e
+       «Aggiorna ora»; una riga a mano arriva in un progetto aperto (la chat la usa al giro dopo).
+7. [ ] **Nel cloud, la preferenza**: 👤 → Le mie chiavi IA, chiavi Anthropic e Mistral e preferenza Mistral per il
+       testo. In un progetto senza scelta la chat usa Mistral e il menù IA lo dice; con una scelta nel progetto vince
+       il progetto.
+8. [ ] **Nel cloud, un indirizzo privato** (`http://192.168.x.x:11434/v1`) nel modello in casa è rifiutato con un
+       messaggio in italiano.
+
 ## Dai piani archiviati il 16-11-2026
 
 Le prove rimaste da dodici piani chiusi lo stesso giorno e spostati in `docs/archive/`. Ogni gruppo dice dove si fa.

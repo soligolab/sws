@@ -43,6 +43,9 @@ pub struct AiKeyInfo {
     pub readable: bool,
 }
 
+/// What a preferred provider is for: the text purposes, or the backgrounds.
+pub const AI_PREFERENCE_KINDS: [&str; 2] = ["text", "images"];
+
 /// The longest model id kept: provider ids are far shorter.
 const MAX_MODEL: usize = 128;
 
@@ -344,6 +347,61 @@ impl Identita {
         .await?
     }
 
+    /// The provider `user_id` prefers for `kind` (`text` or `images`); `None`
+    /// takes the preference away. Whether the provider fits the kind is for
+    /// the caller to say: this store knows only the shape of a name.
+    pub async fn set_ai_preference(
+        &self,
+        user_id: i64,
+        kind: &str,
+        provider: Option<&str>,
+    ) -> anyhow::Result<()> {
+        anyhow::ensure!(AI_PREFERENCE_KINDS.contains(&kind), "invalid kind");
+        let provider = provider
+            .map(str::trim)
+            .filter(|p| !p.is_empty())
+            .map(str::to_string);
+        if let Some(p) = &provider {
+            anyhow::ensure!(valid_provider(p), "invalid provider");
+        }
+        let conn = self.conn.clone();
+        let kind = kind.to_string();
+        task::spawn_blocking(move || -> anyhow::Result<()> {
+            let c = conn.lock().unwrap_or_else(|e| e.into_inner());
+            match provider {
+                Some(p) => c.execute(
+                    "INSERT OR REPLACE INTO ai_preferences (user_id, kind, provider)
+                     VALUES (?1, ?2, ?3)",
+                    params![user_id, kind, p],
+                )?,
+                None => c.execute(
+                    "DELETE FROM ai_preferences WHERE user_id = ?1 AND kind = ?2",
+                    params![user_id, kind],
+                )?,
+            };
+            Ok(())
+        })
+        .await?
+    }
+
+    /// The preferred providers of a user, by kind (`text`, `images`).
+    pub async fn ai_preferences(
+        &self,
+        user_id: i64,
+    ) -> anyhow::Result<std::collections::BTreeMap<String, String>> {
+        let conn = self.conn.clone();
+        task::spawn_blocking(move || -> anyhow::Result<_> {
+            let c = conn.lock().unwrap_or_else(|e| e.into_inner());
+            let mut q =
+                c.prepare("SELECT kind, provider FROM ai_preferences WHERE user_id = ?1")?;
+            let v = q
+                .query_map(params![user_id], |r| Ok((r.get(0)?, r.get(1)?)))?
+                .collect::<Result<_, _>>()?;
+            Ok(v)
+        })
+        .await?
+    }
+
     /// Removes the key. `false` if there was none: removing it twice is no error.
     pub async fn remove_ai_key(&self, user_id: i64, provider: &str) -> anyhow::Result<bool> {
         anyhow::ensure!(valid_provider(provider), "invalid provider");
@@ -400,6 +458,64 @@ mod test {
         id.set_ai_model(u, "kimi", None).await.unwrap();
         assert!(id.ai_models(u).await.unwrap().is_empty());
         assert!(id.set_ai_model(u, "kimi", Some("a b")).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn a_preferred_provider_is_saved_taken_away_and_goes_with_the_user() {
+        let (id, _d, u) = store().await;
+        assert!(id.ai_preferences(u).await.unwrap().is_empty());
+        id.set_ai_preference(u, "text", Some("mistral"))
+            .await
+            .unwrap();
+        id.set_ai_preference(u, "images", Some(" bfl "))
+            .await
+            .unwrap();
+        // Replaced, not added: one per kind.
+        id.set_ai_preference(u, "text", Some("kimi")).await.unwrap();
+        let p = id.ai_preferences(u).await.unwrap();
+        assert_eq!(
+            (
+                p.get("text").map(String::as_str),
+                p.get("images").map(String::as_str),
+                p.len()
+            ),
+            (Some("kimi"), Some("bfl"), 2)
+        );
+        // None and empty both take it away; taking it twice is no error.
+        id.set_ai_preference(u, "text", None).await.unwrap();
+        id.set_ai_preference(u, "text", None).await.unwrap();
+        id.set_ai_preference(u, "images", Some("  ")).await.unwrap();
+        assert!(id.ai_preferences(u).await.unwrap().is_empty());
+        // Odd values: a kind that is not one, a name that is not a name, a
+        // user who does not exist.
+        for (kind, p) in [
+            ("audio", "kimi"),
+            ("", "kimi"),
+            ("text", "Kimi"),
+            ("text", "a b"),
+        ] {
+            assert!(
+                id.set_ai_preference(u, kind, Some(p)).await.is_err(),
+                "{kind:?} {p:?}"
+            );
+        }
+        assert!(id
+            .set_ai_preference(9999, "text", Some("kimi"))
+            .await
+            .is_err());
+        // A user who goes takes their preferences with them (ON DELETE CASCADE).
+        id.set_ai_preference(u, "text", Some("mistral"))
+            .await
+            .unwrap();
+        {
+            let c = id.conn.lock().unwrap();
+            c.execute("DELETE FROM utenti WHERE id = ?1", params![u])
+                .unwrap();
+            let left: i64 = c
+                .query_row("SELECT COUNT(*) FROM ai_preferences", [], |r| r.get(0))
+                .unwrap();
+            assert_eq!(left, 0);
+        }
     }
 
     #[tokio::test]

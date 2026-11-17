@@ -370,12 +370,18 @@ pub struct Opzioni {
     pub disegna_simboli: bool,
     /// C'è un fornitore di immagini: `genera_sfondo` e `varia_sfondo`.
     pub sfondi: bool,
+    /// The model does not read images (a local one, unless told otherwise):
+    /// no `istantanea_pagina`. Negative, so that the default is today's list.
+    pub no_snapshot: bool,
 }
 
 /// Gli strumenti di questa conversazione: quelli di sempre, più quelli degli
 /// scopi configurati **in coda** (per non spostare il prefisso in cache).
 pub fn definizioni_per(o: Opzioni) -> Vec<Value> {
     let mut v = definizioni();
+    if o.no_snapshot {
+        v.retain(|d| d["name"] != "istantanea_pagina");
+    }
     if o.disegna_simboli {
         v.retain(|d| d["name"] != "bozza_simbolo");
         v.push(strumento(
@@ -774,7 +780,11 @@ fn schema_tag() -> Esito {
              dichiarata in `types:`) o con `array` (le dimensioni, es. [4] o [2,3]) è \
              COMPOSITO: il suo id da solo non è un dato, e gli oggetti si legano ai \
              percorsi delle foglie — `motore1.velocita`, `zone[2].t`. I percorsi li dà \
-             `elenca_tag`; `data_type` resta obbligatorio anche sui compositi.",
+             `elenca_tag`; `data_type` resta obbligatorio anche sui compositi. \
+             `generator` è un oggetto con TUTTI questi campi: `shape` (ramp, triangle o \
+             square), `period_ms` (intero), `min` e `max` (numeri), e facoltativo \
+             `enabled` (vero di default). Esempio: {{\"shape\": \"ramp\", \
+             \"period_ms\": 25600, \"min\": 0, \"max\": 256}}.",
             sws_core::tipo::NOMI.join(", ")
         ),
     }))
@@ -879,6 +889,53 @@ pub fn bozze_da_portare<'a>(
         .collect())
 }
 
+/// A proposal that would change nothing: no pages, faceplates or symbols, and
+/// a project equal to the one on the disk. On 17-11-2026 qwen3.5:9b proposed
+/// «nine new tags», the validator said ok because the project it sent was the
+/// one of the disk, and the person applied an empty diff: the model is told
+/// instead, while it can still fix it.
+pub async fn changes_nothing(s: &AppState, input: &Value, normalized: Option<&Value>) -> bool {
+    let carries = |k: &str| {
+        input
+            .get(k)
+            .is_some_and(|v| !v.is_null() && v.as_array().is_none_or(|a| !a.is_empty()))
+    };
+    if carries("pages") || carries("faceplates") || carries("simboli") {
+        return false;
+    }
+    let Some(new) = normalized else {
+        return true;
+    };
+    // Anything that cannot be compared counts as a change: the person sees
+    // the diff, as before.
+    let Ok(disk) = carica_progetto(s).await else {
+        return false;
+    };
+    let Ok(new) = serde_json::from_value::<Project>(new.clone()) else {
+        return false;
+    };
+    matches!(
+        (serde_json::to_value(&disk), serde_json::to_value(&new)),
+        (Ok(a), Ok(b)) if a == b
+    )
+}
+
+/// `serde_json::from_value` that says **where** the value is wrong: «in
+/// `tags[12].generator`: missing field `shape`». Without the path, on
+/// 17-11-2026 qwen3.5:9b spent fourteen rounds on «missing field `shape`»
+/// without finding which object it was.
+fn from_value_at<T: serde::de::DeserializeOwned>(v: Value) -> Result<T, String> {
+    serde_path_to_error::deserialize(v).map_err(|e| {
+        let path = e.path().to_string();
+        let inner = e.into_inner();
+        if path.is_empty() || path == "." {
+            inner.to_string()
+        } else {
+            format!("in `{path}`: {inner}")
+        }
+    })
+}
+
 /// Come [`valida`], ma restituisce anche il progetto **ricomposto**.
 ///
 /// Serve a `proponi`, che deve mandare al browser quello che ha davvero
@@ -907,6 +964,19 @@ pub async fn valida_interna(
     // Con delle bozze da portare il progetto cambia anche se il modello non lo
     // ha mandato: si parte da quello che `leggi_progetto` gli avrebbe dato.
     let progetto_in: Option<Value> = match input.get("project") {
+        // Small models often send the project as a string with JSON inside
+        // (qwen3.5:9b, 17-11-2026): it is read as the object it means.
+        Some(Value::String(t)) => match serde_json::from_str::<Value>(t) {
+            Ok(v) if v.is_object() => Some(v),
+            _ => {
+                return Err("`project` deve essere un oggetto JSON (il progetto), \
+                            non una stringa"
+                    .to_string())
+            }
+        },
+        Some(v) if !v.is_object() => {
+            return Err("`project` deve essere un oggetto JSON (il progetto)".to_string())
+        }
         Some(v) => Some(v.clone()),
         None if !usate.is_empty() || !free_carried.is_empty() => Some(leggi_progetto(s).await?),
         None => None,
@@ -960,7 +1030,7 @@ pub async fn valida_interna(
                 &free_carried,
             ));
             super::free_symbol_tool::merge_into_project(&mut grezzo, &disco, &free_carried)?;
-            let p = serde_json::from_value(grezzo.clone()).map_err(|e| {
+            let p = from_value_at(grezzo.clone()).map_err(|e| {
                 format!(
                     "il progetto proposto non si legge: {e}. Deve essere il \
                                       progetto INTERO come te l'ha dato leggi_progetto, con la \
@@ -973,7 +1043,7 @@ pub async fn valida_interna(
 
     let mut pagine = carica_pagine(s).await?;
     for (i, raw) in raw_pages.iter().enumerate() {
-        match serde_json::from_value::<SynopticPage>(raw.clone()) {
+        match from_value_at::<SynopticPage>(raw.clone()) {
             Ok(p) => match pagine.iter().position(|x| x.name == p.name) {
                 Some(k) => pagine[k] = p,
                 None => pagine.push(p),
@@ -1554,6 +1624,46 @@ pub fn aggiungi_area_libera(
 }
 
 #[cfg(test)]
+mod tests_where_a_value_is_wrong {
+    use super::*;
+
+    /// The path of the wrong field comes with the error, as the model needs
+    /// it: a tag with a generator and no shape, 17-11-2026.
+    #[test]
+    fn the_error_says_where() {
+        let ok: Value = serde_yaml::from_str(include_str!(
+            "../../../../../examples/templates/host-monitor/project.yaml"
+        ))
+        .unwrap();
+        from_value_at::<sws_core::project::Project>(ok.clone()).expect("a real project");
+        let mut project = ok;
+        project["tags"].as_array_mut().unwrap().push(json!(
+            { "id": "OllamaTest", "data_type": "int",
+              "generator": { "period_ms": 25600, "min": 0, "max": 256 } }
+        ));
+        let n = project["tags"].as_array().unwrap().len() - 1;
+        let e = from_value_at::<sws_core::project::Project>(project).unwrap_err();
+        assert!(e.contains(&format!("in `tags[{n}].generator`")), "{e}");
+        assert!(e.contains("shape"), "{e}");
+        // And `schema_tag` says what a generator needs, which the generated
+        // field list does not (it only names the type `GeneratorSpec`).
+        let nota = schema_tag().unwrap()["nota"].as_str().unwrap().to_string();
+        for f in [
+            "`shape`",
+            "`period_ms`",
+            "`min`",
+            "`max`",
+            "\"shape\": \"ramp\"",
+        ] {
+            assert!(nota.contains(f), "{f}: {nota}");
+        }
+        // Nothing to point at: the plain message.
+        let e = from_value_at::<SynopticPage>(json!("pagina")).unwrap_err();
+        assert!(!e.contains("in `"), "{e}");
+    }
+}
+
+#[cfg(test)]
 mod tests_area_libera {
     use super::*;
 
@@ -1607,6 +1717,7 @@ mod tests {
             definizioni_per(Opzioni {
                 disegna_simboli: true,
                 sfondi: true,
+                no_snapshot: false,
             })
             .iter()
             .map(|d| d["name"].as_str().unwrap().to_string()),
@@ -2042,12 +2153,30 @@ mod tests_opzioni {
         assert_eq!(definizioni_per(Opzioni::default()), definizioni());
     }
 
+    /// A model that does not read images is not offered the snapshot, and
+    /// the rest of the list stays as it is.
+    #[test]
+    fn without_images_there_is_no_snapshot() {
+        let base = nomi(Opzioni::default());
+        assert!(base.contains(&"istantanea_pagina".to_string()));
+        let blind = nomi(Opzioni {
+            no_snapshot: true,
+            ..Default::default()
+        });
+        let expected: Vec<String> = base
+            .into_iter()
+            .filter(|n| n != "istantanea_pagina")
+            .collect();
+        assert_eq!(blind, expected);
+    }
+
     #[test]
     fn gli_strumenti_in_piu_vanno_in_coda_e_bozza_cede_a_disegna() {
         let base = nomi(Opzioni::default());
         let tutti = nomi(Opzioni {
             disegna_simboli: true,
             sfondi: true,
+            no_snapshot: false,
         });
         assert!(!tutti.contains(&"bozza_simbolo".to_string()));
         let fine = &tutti[tutti.len() - 3..];

@@ -2,18 +2,21 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, beforeEach, vi } from "vitest";
 import "../src/i18n";
 
-const { getAiConfig, getAiSpending, putAiScopi, updateProjectAi } = vi.hoisted(() => ({
+const { getAiConfig, getAiSpending, putAiScopi, updateProjectAi, provaAiChiave, putAiLocal } = vi.hoisted(() => ({
   getAiConfig: vi.fn(),
   getAiSpending: vi.fn(),
   putAiScopi: vi.fn(async (_scopi: unknown) => ({ ok: true, riconnetti: true })),
   updateProjectAi: vi.fn(async (_regole: unknown) => {}),
+  provaAiChiave: vi.fn(async (_fornitore: string, _local?: unknown): Promise<{ ok: boolean; modelli?: string[]; errore?: string }> =>
+    ({ ok: false, errore: "no" })),
+  putAiLocal: vi.fn(async (_local: unknown) => ({ ok: true, riconnetti: true })),
 }));
 vi.mock("@/api/client", async () => {
   const actual = await vi.importActual<typeof import("@/api/client")>("@/api/client");
-  return { ...actual, api: { ...actual.api, getAiConfig, getAiSpending, putAiScopi, updateProjectAi } };
+  return { ...actual, api: { ...actual.api, getAiConfig, getAiSpending, putAiScopi, updateProjectAi, provaAiChiave, putAiLocal } };
 });
 
-import { IaAssistenteTab, IaRegoleTab, IaScopiTab, IaSpendingTab, formatUsd } from "../src/config/schede/IaTab";
+import { IaAssistenteTab, IaFornitoriTab, IaRegoleTab, IaScopiTab, IaSpendingTab, formatUsd } from "../src/config/schede/IaTab";
 import { registraComandiChat } from "../src/ai/comandiChat";
 import { useAppStore } from "../src/store";
 import type { AiConfig, AiSpending, ProjectInfo } from "../src/types";
@@ -28,6 +31,7 @@ const CFG: AiConfig = {
     { id: "anthropic", nome: "Anthropic (Claude)", scopi: ["assistente", "simboli", "traduzione"], chiave: true, modello_default: "claude-opus-5-5" },
     { id: "kimi", nome: "Moonshot (Kimi)", scopi: ["assistente", "simboli", "traduzione"], chiave: false, modello_default: "kimi-k3" },
     { id: "mistral", nome: "Mistral AI", scopi: ["assistente", "simboli", "traduzione"], chiave: false, modello_default: "mistral-large-latest" },
+    { id: "local", nome: "Local model (OpenAI-compatible)", scopi: ["assistente", "simboli", "traduzione"], chiave: false, modello_default: "" },
     { id: "openai", nome: "OpenAI (immagini)", scopi: ["sfondi"], chiave: false, modello_default: "gpt-image-2" },
     { id: "bfl", nome: "Black Forest Labs (FLUX)", scopi: ["sfondi"], chiave: false, modello_default: "flux-2-pro" },
   ],
@@ -66,11 +70,14 @@ describe("il menù IA", () => {
   });
 
   it("gli sfondi offrono solo i fornitori di immagini, l'assistente solo i modelli di testo", async () => {
+    await i18n.changeLanguage("it");
     render(<IaScopiTab />);
     const sfondi = await screen.findByTestId("ia-scopo-sfondi-fornitore") as HTMLSelectElement;
     expect([...sfondi.options].map((o) => o.value)).toEqual(["openai", "bfl"]);
     const ass = screen.getByTestId("ia-scopo-assistente-fornitore") as HTMLSelectElement;
-    expect([...ass.options].map((o) => o.value)).toEqual(["anthropic", "kimi", "mistral"]);
+    expect([...ass.options].map((o) => o.value)).toEqual(["anthropic", "kimi", "mistral", "local"]);
+    // The local model's name comes from the language files, not from the runtime's English.
+    expect(ass.options[3].textContent).toContain("Modello in casa");
   });
 
   it("la chat si apre da qui, non più dal menu ☰", async () => {
@@ -151,6 +158,204 @@ describe("il menù IA", () => {
         expect(i18n.exists(`aiProviders.${id}`, { lng: lang }), `${lang} ${id}`).toBe(true);
       }
     }
+  });
+});
+
+/** The local model and the account's preference (plan 2026-11-17-ia-a-scelta-del-cliente, F5). */
+describe("the local model and the account's preference", () => {
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    getAiConfig.mockResolvedValue(structuredClone(CFG));
+    useAppStore.setState({ authRole: "Admin" });
+    await i18n.changeLanguage("it");
+  });
+
+  it("the local card tests the typed address, offers its models, and saves address, model and images", async () => {
+    render(<IaFornitoriTab />);
+    const url = await screen.findByTestId("ia-url-local") as HTMLInputElement;
+    expect(url.placeholder).toBe("http://localhost:11434/v1");
+    // Nothing to save or test without an address; no model, nothing to save.
+    expect((screen.getByTestId("ia-prova-local") as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(url, { target: { value: " http://gpu-box:11434/v1 " } });
+    expect((screen.getByTestId("ia-salva-local") as HTMLButtonElement).disabled).toBe(true);
+    // The optional key is a password field like every other key.
+    expect((screen.getByTestId("ia-chiave-local") as HTMLInputElement).type).toBe("password");
+    fireEvent.change(screen.getByTestId("ia-chiave-local"), { target: { value: "vllm-secret" } });
+
+    provaAiChiave.mockResolvedValueOnce({ ok: true, modelli: ["qwen3:8b", "llama3.3:70b"] });
+    fireEvent.click(screen.getByTestId("ia-prova-local"));
+    await waitFor(() => expect(provaAiChiave).toHaveBeenCalledWith("local", { url: "http://gpu-box:11434/v1", chiave: "vllm-secret" }));
+    const model = screen.getByTestId("ia-modello-local") as HTMLSelectElement;
+    await waitFor(() => expect([...model.options].map((o) => o.value)).toEqual(["", "llama3.3:70b", "qwen3:8b"]));
+    expect(document.body.textContent).toContain("2 modelli");
+    fireEvent.change(model, { target: { value: "qwen3:8b" } });
+
+    // The images box is off by default.
+    const images = screen.getByTestId("ia-immagini-local") as HTMLInputElement;
+    expect(images.checked).toBe(false);
+    fireEvent.click(images);
+    fireEvent.click(screen.getByTestId("ia-salva-local"));
+    await waitFor(() => expect(putAiLocal).toHaveBeenCalledWith({
+      url: "http://gpu-box:11434/v1", model: "qwen3:8b", key: "vllm-secret", sees_images: true,
+    }));
+    // The menu is read again, and the key typed is gone from the field.
+    await waitFor(() => expect(getAiConfig).toHaveBeenCalledTimes(2));
+    expect((screen.getByTestId("ia-chiave-local") as HTMLInputElement).value).toBe("");
+  });
+
+  it("a saved local model shows what was saved, keeps its key unless a new one is typed, and is removed with a second tap", async () => {
+    const c = structuredClone(CFG);
+    c.fornitori = c.fornitori.map((f) => (f.id === "local" ? { ...f, chiave: true, source: "project" as const } : f));
+    c.local = { url: "http://10.0.0.5:8000/v1", model: "qwen3-coder", sees_images: false, has_key: true };
+    getAiConfig.mockResolvedValue(c);
+    render(<IaFornitoriTab />);
+    expect((await screen.findByTestId("ia-url-local") as HTMLInputElement).value).toBe("http://10.0.0.5:8000/v1");
+    expect((screen.getByTestId("ia-modello-local") as HTMLSelectElement).value).toBe("qwen3-coder");
+    expect((screen.getByTestId("ia-chiave-local") as HTMLInputElement).placeholder).toMatch(/vuoto/i);
+    fireEvent.click(screen.getByTestId("ia-salva-local"));
+    await waitFor(() => expect(putAiLocal).toHaveBeenCalledWith({
+      url: "http://10.0.0.5:8000/v1", model: "qwen3-coder", key: undefined, sees_images: false,
+    }));
+    putAiLocal.mockClear();
+    fireEvent.click(screen.getByTestId("ia-togli-local"));
+    expect(putAiLocal).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId("ia-conferma-togli-local"));
+    await waitFor(() => expect(putAiLocal).toHaveBeenCalledWith({ url: "", model: "", sees_images: false }));
+  });
+
+  it("a server that does not answer says why", async () => {
+    render(<IaFornitoriTab />);
+    fireEvent.change(await screen.findByTestId("ia-url-local"), { target: { value: "http://nowhere:1/v1" } });
+    provaAiChiave.mockResolvedValueOnce({ ok: false, errore: "connection refused" });
+    fireEvent.click(screen.getByTestId("ia-prova-local"));
+    await waitFor(() => expect(document.body.textContent).toContain("connection refused"));
+  });
+
+  it("where the project chose none, the rows say the account's preference counts, or that it has no key", async () => {
+    const c = structuredClone(CFG);
+    c.preferito_account = { testo: "anthropic", immagini: "bfl" };
+    c.scopi.sfondi = { salvato: null, attivo: true, eredita: false,
+                       effettivo: { fornitore: "openai", modello: "gpt-image-2", tetto_usd: 1 } };
+    getAiConfig.mockResolvedValue(c);
+    render(<IaScopiTab />);
+    expect((await screen.findByTestId("ia-scopo-assistente-preferenza")).textContent)
+      .toBe("Il progetto non ha scelto: vale la preferenza del tuo account (Anthropic (Claude)).");
+    expect(screen.getByTestId("ia-scopo-sfondi-preferenza").textContent).toMatch(/Black Forest Labs.*non ha una chiave: si usa OpenAI/);
+    // Symbols and translation follow the assistant: no note of their own.
+    expect(screen.queryByTestId("ia-scopo-simboli-preferenza")).toBeNull();
+  });
+
+  it("a choice of the project wins over the preference, and without a preference there is no note", async () => {
+    const c = structuredClone(CFG);
+    c.preferito_account = { testo: "mistral", immagini: null };
+    c.scopi.assistente = { ...c.scopi.assistente, salvato: { fornitore: "anthropic" } };
+    getAiConfig.mockResolvedValue(c);
+    render(<IaScopiTab />);
+    await screen.findByTestId("ia-scopo-assistente-fornitore");
+    expect(screen.queryByTestId("ia-scopo-assistente-preferenza")).toBeNull();
+    expect(screen.queryByTestId("ia-scopo-sfondi-preferenza")).toBeNull();
+  });
+
+  // Review of 17-11-2026: with a preference, `effettivo` is the provider of
+  // whoever opens the menu; changing only the cap wrote it into the project.
+  it("where the account decides, the row follows it and changing the cap writes no provider", async () => {
+    const c = structuredClone(CFG);
+    c.preferito_account = { testo: "mistral", immagini: null };
+    c.fornitori = c.fornitori.map((f) => (f.id === "mistral" ? { ...f, chiave: true, source: "user" as const } : f));
+    c.scopi.assistente.effettivo = { fornitore: "mistral", modello: "mistral-large-latest", tetto_usd: 10 };
+    getAiConfig.mockResolvedValue(c);
+    await i18n.changeLanguage("it");
+    render(<IaScopiTab />);
+    const sel = await screen.findByTestId("ia-scopo-assistente-fornitore") as HTMLSelectElement;
+    expect(sel.value).toBe("");
+    expect(sel.options[0].textContent).toBe("come preferisce l'account di chi lo usa");
+    // Cap and model wait for a provider chosen on purpose.
+    expect((screen.getByTestId("ia-scopo-assistente-tetto") as HTMLInputElement).disabled).toBe(true);
+    fireEvent.click(screen.getByTestId("ia-scopi-salva"));
+    await waitFor(() => expect(putAiScopi).toHaveBeenCalled());
+    expect((putAiScopi.mock.calls[0][0] as Record<string, unknown>).assistente).toBeNull();
+    // Chosen on purpose, it is the project's.
+    fireEvent.change(sel, { target: { value: "anthropic" } });
+    fireEvent.change(screen.getByTestId("ia-scopo-assistente-tetto"), { target: { value: "5" } });
+    fireEvent.click(screen.getByTestId("ia-scopi-salva"));
+    await waitFor(() => expect(putAiScopi).toHaveBeenCalledTimes(2));
+    expect((putAiScopi.mock.calls[1][0] as Record<string, unknown>).assistente)
+      .toEqual({ fornitore: "anthropic", modello: undefined, tetto_usd: 5 });
+  });
+
+  it("with the provider set by the environment, the account's preference is not what counts", async () => {
+    const c = structuredClone(CFG);
+    c.preferito_account = { testo: "mistral", immagini: null };
+    c.da_ambiente = ["SWS_AI_FORNITORE"];
+    getAiConfig.mockResolvedValue(c);
+    render(<IaScopiTab />);
+    await screen.findByTestId("ia-scopo-assistente-fornitore");
+    expect(screen.queryByTestId("ia-scopo-assistente-preferenza")).toBeNull();
+  });
+
+  it("an address the cloud refuses is said in the IDE's language", async () => {
+    await i18n.changeLanguage("it");
+    render(<IaFornitoriTab />);
+    fireEvent.change(await screen.findByTestId("ia-url-local"), { target: { value: "http://10.0.0.5/v1" } });
+    // Saving: the code comes in the body of the 400.
+    provaAiChiave.mockResolvedValueOnce({ ok: true, modelli: ["m"] });
+    fireEvent.click(screen.getByTestId("ia-prova-local"));
+    await waitFor(() => expect((screen.getByTestId("ia-modello-local") as HTMLSelectElement).value).toBe("m"));
+    putAiLocal.mockRejectedValueOnce(new Error(
+      'API /api/ai/local: 400 Bad Request — {"errore":"the address carries a user or a password","codice":{"id":"local_address_has_credentials"}}'));
+    fireEvent.click(screen.getByTestId("ia-salva-local"));
+    await waitFor(() => expect(document.body.textContent)
+      .toContain("L'indirizzo contiene un utente o una password"));
+    // Testing: the code comes with `ok: false`.
+    provaAiChiave.mockResolvedValueOnce({ ok: false, errore: "address 10.0.0.5 is not public",
+      codice: { id: "local_address_not_public", host: "10.0.0.5" } } as never);
+    fireEvent.click(screen.getByTestId("ia-prova-local"));
+    await waitFor(() => expect(document.body.textContent)
+      .toContain("L'indirizzo 10.0.0.5 non è pubblico"));
+  });
+
+  it("the codes of the AI errors have a text in both languages", () => {
+    for (const lang of ["it", "en"]) {
+      for (const id of ["local_context_too_small", "local_address_not_public", "local_address_has_credentials"]) {
+        expect(i18n.exists(`aiErrors.${id}`, { lng: lang }), `${lang} ${id}`).toBe(true);
+      }
+    }
+  });
+
+  it("provider names follow the IDE's language, and a free local model has no cap", async () => {
+    await i18n.changeLanguage("en");
+    const c = structuredClone(CFG);
+    c.scopi.assistente.effettivo = { fornitore: "local", modello: "qwen3.5:9b", tetto_usd: 10 };
+    c.scopi.simboli = { ...c.scopi.simboli, effettivo: { fornitore: "local", modello: "qwen3.5:9b", tetto_usd: 10 } };
+    getAiConfig.mockResolvedValue(c);
+    render(<IaScopiTab />);
+    const sfondi = await screen.findByTestId("ia-scopo-sfondi-fornitore") as HTMLSelectElement;
+    const names = Array.from(sfondi.options).map((o) => o.textContent ?? "");
+    expect(names.some((n) => n.startsWith("OpenAI (images)"))).toBe(true);
+    expect(names.some((n) => n.includes("immagini"))).toBe(false);
+    // The green line says the name, not the id.
+    expect(document.body.textContent).toContain("Will use Local model (OpenAI-compatible) · qwen3.5:9b");
+    // Off the cloud the local model costs nothing: no cap, for it and for
+    // the symbols that follow it; the backgrounds keep theirs.
+    expect(screen.queryByTestId("ia-scopo-assistente-tetto")).toBeNull();
+    expect(screen.getByTestId("ia-scopo-assistente-senza-tetto").textContent).toBe(i18n.t("ia.scopi.localFree"));
+    expect(screen.queryByTestId("ia-scopo-simboli-tetto")).toBeNull();
+    expect(screen.getByTestId("ia-scopo-sfondi-tetto")).toBeTruthy();
+    await i18n.changeLanguage("it");
+  });
+
+  it("in the cloud a local model keeps its cap: it is counted as an estimate there", async () => {
+    const c = structuredClone(CFG);
+    c.in_cloud = true;
+    c.scopi.assistente.effettivo = { fornitore: "local", modello: "qwen3.5:9b", tetto_usd: 10 };
+    getAiConfig.mockResolvedValue(c);
+    render(<IaScopiTab />);
+    expect(await screen.findByTestId("ia-scopo-assistente-tetto")).toBeTruthy();
+    expect(screen.queryByTestId("ia-scopo-assistente-senza-tetto")).toBeNull();
+  });
+
+  it("the local model has a name in both languages", () => {
+    for (const lang of ["it", "en"]) expect(i18n.exists("aiProviders.local", { lng: lang }), lang).toBe(true);
   });
 });
 
