@@ -31,10 +31,10 @@ provarla sul TY570, che è abbinato al cloud. Il nuovo micro-seme
 [prova comparata dei modelli](docs/plans/semi/2026-11-17-prova-comparata-dei-modelli.md) è per più avanti.
 
 **Da fare, nell'ordine**:
-1. **La CPU del TY570 all'87 % circa** con la pagina degli 8 LED (più un viewer remoto aperto su un'altra pagina):
-   segnalato dal maintainer il 17-11, da capire subito (regola «un'anomalia che rovina l'uso passa davanti»).
-   Sospetti: le 8 espressioni Python dei bit, rivalutate a ogni cambio di qualunque tag (10 volte al secondo e a
-   cascata), o il ridisegno del viewer LVGL. Prima la misura sul pannello (serve il permesso per l'SSH).
+1. ~~La CPU del TY570 all'87 %~~ **corretta lo stesso giorno** (piano archiviato
+   `docs/archive/2026-11-17-tag-calcolati-cpu.md`): `sws-runtime` dal 65 % al 6 %. Sul TY570 gira un runtime rc.20 con
+   la sola correzione, il binario di prima è `/opt/sws/bin/sws-runtime.prima-cpu-fix`; il viewer è ancora quello della
+   rc.19. Alla prossima rc il pannello va aggiornato col pacchetto vero.
 2. Le voci del cloud della sezione «L'IA a scelta del cliente» di `docs/COLLAUDI_IN_SOSPESO.md`, dopo il rilascio.
 3. Visto una volta e non riprodotto: un `</think>` del ragionamento di qwen finito nel testo della chat.
 4. Restano valide le voci del blocco qui sotto (collaudo della rc.20, TY570 e TC620 da aggiornare, chrony del TY).

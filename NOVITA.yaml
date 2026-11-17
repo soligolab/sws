@@ -47,8 +47,8 @@ versioni:
       - it: "Sul pannello LVGL un testo senza riquadro ha la y sulla linea di base, come sul web: i testi liberi salgono di circa un corpo, ricontrolla le pagine LVGL."
         en: "On the LVGL panel a text without a box has its y on the baseline, as on the web: free texts move up by about one font size, check LVGL pages."
     voci:
-      - it: "MQTT: una sorgente sola per molti dispositivi, ognuno col suo topic di disponibilità. Se una presa sparisce diventano Bad solo i suoi valori, e ha il suo allarme."
-        en: "MQTT: one source for many devices, each with its own availability topic. When a plug disappears only its values go Bad, and it has its own alarm."
+      - it: "MQTT: una sorgente sola per molti dispositivi, ognuno col suo topic di disponibilità. Se una presa sparisce diventano Bad solo i suoi valori, e ha il suo allarme. I tag calcolati pesano molto meno sul pannello."
+        en: "MQTT: one source for many devices, each with its own availability topic. When a plug disappears only its values go Bad, and it has its own alarm. Computed tags weigh much less on the panel."
       - it: "Pannello di destra con una voce per gruppo; impostazioni del progetto in una finestra; in Configurazione → IDE lo stile «Sobrio», coi tuoi colori e icone a linea, e nello stile VS Code le icone seguono la misura scelta."
         en: "Right panel with one entry per group; project settings in a window; in Configuration → IDE the «Sober» style, in your own colours with line icons, and in the VS Code style the icons follow the chosen size."
       - it: "Ramo Logica per funzioni e script: «Controlla», «Prova», suggerimenti ed errori mentre scrivi, dieci modelli coi tuoi tag, rinomina che aggiorna i pulsanti; il cron segue l'ora del pannello e dice quando parte."

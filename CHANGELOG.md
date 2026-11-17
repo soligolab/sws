@@ -248,6 +248,11 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   Le istruzioni del pacchetto usano `scp -O` e `/var/tmp` (SFTP spento, `/tmp` di 32 MB).
 
 ### Corretto
+- **I tag calcolati costavano troppa CPU sul pannello** (piano `docs/archive/2026-11-17-tag-calcolati-cpu.md`). Sul
+  TY570, 8 tag con un'espressione sui bit di un contatore a 100 ms tenevano `sws-runtime` al 65 %: per ogni espressione,
+  a ogni cambio di un tag, un `spawn_blocking`, il dizionario Python di tutti i tag e `ast.parse` + `compile`. Ora un
+  giro Python solo per tutte (`sws_pyscript::eval_expressions`), il codice compilato tenuto per testo, e si ricalcola
+  solo chi legge un tag cambiato (`expression_reads`). Misurato sul pannello: 6 %.
 - **Nel cloud la traduzione con l'IA ignorava le chiavi e la preferenza dell'account**: ora le usa, come l'assistente.
   E il menù IA diceva «come l'assistente» per i simboli e la traduzione guardando solo le chiavi del progetto.
 - **Un simbolo custom con un poligono non veniva salvato.** Il controllo sul markup (`svg_ostile`) leggeva

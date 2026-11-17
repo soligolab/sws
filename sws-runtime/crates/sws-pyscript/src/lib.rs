@@ -1099,7 +1099,7 @@ fn testo_per_il_log(stdout: &str) -> String {
     format!("{}… (altri {} byte)", &t[..fine], t.len() - fine)
 }
 
-/// Python harness used by `eval_expression`.
+/// Python harness used by `eval_expressions`.
 ///
 /// Uses the `ast` module to inject `__sws_result__ = <expr>` on the correct
 /// node so that:
@@ -1111,9 +1111,14 @@ fn testo_per_il_log(stdout: &str) -> String {
 /// Without this, naïvely prepending `__sws_result__ = ` to a multi-line block
 /// would capture only the first assignment (e.g. a list literal), not the
 /// intended result.
+///
+/// The compiled code is kept by text (17-11-2026): parsing and compiling the
+/// same eight expressions ten times a second kept a Tiny TY at 67 % CPU. The
+/// cache is emptied when it grows past what a project can hold, so that
+/// expressions edited many times do not pile up.
 const EVAL_HARNESS: &str = r#"
 import ast as __ast
-__tree = __ast.parse(__sws_expr_code__, mode='exec')
+__sws_expr_cache = {}
 def __inject(stmts):
     if not stmts:
         return
@@ -1128,10 +1133,50 @@ def __inject(stmts):
     elif isinstance(last, __ast.If):
         __inject(last.body)
         __inject(last.orelse)
-__inject(__tree.body)
-__ast.fix_missing_locations(__tree)
-exec(compile(__tree, '<expr>', 'exec'), globals())
+def __sws_compile(src):
+    code = __sws_expr_cache.get(src)
+    if code is None:
+        tree = __ast.parse(src, mode='exec')
+        __inject(tree.body)
+        __ast.fix_missing_locations(tree)
+        code = compile(tree, '<expr>', 'exec')
+        if len(__sws_expr_cache) >= 2000:
+            __sws_expr_cache.clear()
+        __sws_expr_cache[src] = code
+    return code
+def __sws_run(src, tags):
+    # A copy per expression: one that changes `tags` does not touch the next.
+    g = {'tags': dict(tags)}
+    exec(__sws_compile(src), g)
+    if '__sws_result__' not in g:
+        return (False, None)
+    return (True, g['__sws_result__'])
 "#;
+
+/// The harness's namespace, run once: `__sws_run` and its cache live here.
+static EXPR_HARNESS: PyOnceLock<Py<PyDict>> = PyOnceLock::new();
+
+fn expr_result_to_tagvalue(result: &Bound<'_, PyAny>) -> Result<TagValue, String> {
+    // bool must be checked before i64 (Python bool is a subclass of int)
+    if let Ok(b) = result.extract::<bool>() {
+        Ok(TagValue::Bool(b))
+    } else if let Ok(i) = result.extract::<i64>() {
+        Ok(TagValue::Int(i))
+    } else if let Ok(f) = result.extract::<f64>() {
+        Ok(TagValue::Float(f))
+    } else if let Ok(s) = result.extract::<String>() {
+        Ok(TagValue::Str(s))
+    } else {
+        Err(format!(
+            "expression result has unsupported Python type: {}",
+            result
+                .get_type()
+                .name()
+                .map(|s| s.to_string())
+                .unwrap_or_else(|_| "?".into())
+        ))
+    }
+}
 
 /// Evaluate a Python expression `expr` with `tags` bound to a dict snapshot
 /// of current tag values.  Returns the expression result coerced to a
@@ -1144,60 +1189,118 @@ pub async fn eval_expression(
     expr: String,
     snapshot: std::collections::HashMap<String, TagValue>,
 ) -> Result<TagValue, String> {
+    eval_expressions(vec![expr], snapshot)
+        .await
+        .pop()
+        .unwrap_or_else(|| Err("no result".to_string()))
+}
+
+/// Evaluate several expressions against the same snapshot, in one
+/// `spawn_blocking` and one Python session: the `tags` dict is built once,
+/// the code of each expression is compiled once and kept. One result per
+/// expression, in order; an expression that fails does not stop the others.
+pub async fn eval_expressions(
+    exprs: Vec<String>,
+    snapshot: std::collections::HashMap<String, TagValue>,
+) -> Vec<Result<TagValue, String>> {
+    let n = exprs.len();
     let work = tokio::task::spawn_blocking(move || {
-        Python::attach(|py| -> Result<TagValue, String> {
+        Python::attach(|py| -> Result<Vec<Result<TagValue, String>>, String> {
+            let ns = EXPR_HARNESS
+                .get_or_try_init(py, || -> PyResult<Py<PyDict>> {
+                    let ns = PyDict::new(py);
+                    let code = std::ffi::CString::new(EVAL_HARNESS).map_err(|e| {
+                        PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string())
+                    })?;
+                    py.run(code.as_c_str(), Some(&ns), None)?;
+                    Ok(ns.unbind())
+                })
+                .map_err(|e| e.to_string())?
+                .bind(py);
+            let run = ns
+                .get_item("__sws_run")
+                .map_err(|e| e.to_string())?
+                .ok_or_else(|| "harness without __sws_run".to_string())?;
             let tags_dict = PyDict::new(py);
             for (k, v) in &snapshot {
                 let py_v: Py<PyAny> = tag_value_to_py(py, v);
                 tags_dict.set_item(k, py_v).map_err(|e| e.to_string())?;
             }
-            let globals = PyDict::new(py);
-            globals
-                .set_item("tags", &tags_dict)
-                .map_err(|e| e.to_string())?;
-            globals
-                .set_item("__sws_expr_code__", &expr)
-                .map_err(|e| e.to_string())?;
-
-            let c_harness = std::ffi::CString::new(EVAL_HARNESS)
-                .map_err(|e| format!("invalid harness bytes: {e}"))?;
-            py.run(c_harness.as_c_str(), Some(&globals), None)
-                .map_err(|e| e.to_string())?;
-
-            let result = globals
-                .get_item("__sws_result__")
-                .map_err(|e| e.to_string())?
-                .ok_or_else(|| {
-                    "expression returned no value — last statement must be an expression"
-                        .to_string()
-                })?;
-
-            // bool must be checked before i64 (Python bool is a subclass of int)
-            if let Ok(b) = result.extract::<bool>() {
-                Ok(TagValue::Bool(b))
-            } else if let Ok(i) = result.extract::<i64>() {
-                Ok(TagValue::Int(i))
-            } else if let Ok(f) = result.extract::<f64>() {
-                Ok(TagValue::Float(f))
-            } else if let Ok(s) = result.extract::<String>() {
-                Ok(TagValue::Str(s))
-            } else {
-                Err(format!(
-                    "expression result has unsupported Python type: {}",
-                    result
-                        .get_type()
-                        .name()
-                        .map(|s| s.to_string())
-                        .unwrap_or_else(|_| "?".into())
-                ))
-            }
+            Ok(exprs
+                .iter()
+                .map(|src| {
+                    let out = run.call1((src, &tags_dict)).map_err(|e| e.to_string())?;
+                    let (has, value): (bool, Bound<'_, PyAny>) =
+                        out.extract().map_err(|e: PyErr| e.to_string())?;
+                    if !has {
+                        return Err(
+                            "expression returned no value — last statement must be an expression"
+                                .to_string(),
+                        );
+                    }
+                    expr_result_to_tagvalue(&value)
+                })
+                .collect())
         })
     });
     match work.await {
-        Ok(Ok(v)) => Ok(v),
-        Ok(Err(e)) => Err(e),
-        Err(e) => Err(format!("eval task panicked: {e}")),
+        Ok(Ok(v)) => v,
+        Ok(Err(e)) => (0..n).map(|_| Err(e.clone())).collect(),
+        Err(e) => (0..n)
+            .map(|_| Err(format!("eval task panicked: {e}")))
+            .collect(),
     }
+}
+
+/// The tags an expression reads by name: `tags["x"]`, `tags['x']` and
+/// `tags.get("x")`. `None` when it also reads them in another way (a name in
+/// a variable, a loop over `tags`): such an expression is evaluated at every
+/// change, as before.
+pub fn expression_reads(expr: &str) -> Option<Vec<String>> {
+    let b = expr.as_bytes();
+    let mut reads = Vec::new();
+    let mut uses = 0usize;
+    let mut i = 0usize;
+    while let Some(off) = expr[i..].find("tags") {
+        let at = i + off;
+        i = at + 4;
+        let before_ok = at == 0 || !(b[at - 1].is_ascii_alphanumeric() || b[at - 1] == b'_');
+        let after_ok = i >= b.len() || !(b[i].is_ascii_alphanumeric() || b[i] == b'_');
+        if !before_ok || !after_ok {
+            continue;
+        }
+        uses += 1;
+        let rest = expr[i..].trim_start();
+        let rest = if let Some(r) = rest.strip_prefix('[') {
+            r
+        } else if let Some(r) = rest.strip_prefix(".get(") {
+            r
+        } else {
+            continue;
+        };
+        let rest = rest.trim_start();
+        let Some(q) = rest.chars().next().filter(|c| *c == '"' || *c == '\'') else {
+            continue;
+        };
+        let Some(end) = rest[1..].find(q) else {
+            continue;
+        };
+        reads.push(rest[1..1 + end].to_string());
+    }
+    (reads.len() == uses).then_some(reads)
+}
+
+/// Whether a change of tag `changed` can change what an expression reads.
+/// A path and its root count both ways: `motore1.velocita` changes what
+/// `tags["motore1"]` reads, and `motore1` what `tags["motore1.velocita"]`
+/// does.
+pub fn reads_changed(reads: &[String], changed: &str) -> bool {
+    let under = |a: &str, b: &str| {
+        a == b
+            || a.strip_prefix(b)
+                .is_some_and(|r| r.starts_with('.') || r.starts_with('['))
+    };
+    reads.iter().any(|r| under(changed, r) || under(r, changed))
 }
 
 fn probe_restricted_python() -> bool {
@@ -2557,5 +2660,102 @@ mod tests_giro_leggero {
         assert!(HARNESS.contains("__sws_code_cache__.get((True, __sws_user_source__))"));
         assert!(HARNESS.contains("__sws_code_cache__.get((False, __sws_user_source__))"));
         assert!(HARNESS.contains("__sws_code_cache__[(__sws_sandbox__, __sws_user_source__)]"));
+    }
+}
+
+#[cfg(test)]
+mod tests_expressions {
+    use super::*;
+    use std::collections::HashMap;
+
+    fn snap() -> HashMap<String, TagValue> {
+        HashMap::from([
+            ("OllamaTest".to_string(), TagValue::Int(0b1010_0110)),
+            ("motore1.velocita".to_string(), TagValue::Float(12.5)),
+        ])
+    }
+
+    /// One round, in order, an error in the middle that does not stop the
+    /// others, and the same expression again from the cache.
+    #[tokio::test]
+    async fn several_expressions_in_one_round() {
+        let bit = |n: u32| format!("(int(tags[\"OllamaTest\"]) >> {n}) & 1 == 1");
+        let exprs = vec![
+            bit(0),
+            bit(1),
+            "tags[\"manca\"]".to_string(),
+            "x = 1".to_string(),
+            bit(1),
+            "tags[\"motore1.velocita\"] * 2".to_string(),
+        ];
+        let r = eval_expressions(exprs, snap()).await;
+        assert_eq!(r[0], Ok(TagValue::Bool(false)));
+        assert_eq!(r[1], Ok(TagValue::Bool(true)));
+        assert!(
+            r[2].as_ref().unwrap_err().contains("KeyError"),
+            "{:?}",
+            r[2]
+        );
+        assert!(
+            r[3].as_ref().unwrap_err().contains("returned no value"),
+            "{:?}",
+            r[3]
+        );
+        assert_eq!(r[4], Ok(TagValue::Bool(true)));
+        assert_eq!(r[5], Ok(TagValue::Float(25.0)));
+        // The single form says the same.
+        assert_eq!(
+            eval_expression(bit(2), snap()).await,
+            Ok(TagValue::Bool(true))
+        );
+    }
+
+    /// An expression that changes `tags` does not change what the next reads.
+    #[tokio::test]
+    async fn each_expression_has_its_own_tags() {
+        let r = eval_expressions(
+            vec![
+                "tags[\"OllamaTest\"] = 0\ntags[\"OllamaTest\"]".to_string(),
+                "tags[\"OllamaTest\"]".to_string(),
+            ],
+            snap(),
+        )
+        .await;
+        assert_eq!(r[0], Ok(TagValue::Int(0)));
+        assert_eq!(r[1], Ok(TagValue::Int(0b1010_0110)));
+    }
+
+    #[test]
+    fn the_tags_an_expression_reads() {
+        assert_eq!(
+            expression_reads("(int(tags[\"OllamaTest\"]) >> 3) & 1 == 1"),
+            Some(vec!["OllamaTest".to_string()])
+        );
+        assert_eq!(
+            expression_reads("round(tags['a.b'] / 1024, 1) + tags.get( 'c', 0)"),
+            Some(vec!["a.b".to_string(), "c".to_string()])
+        );
+        // No tag at all: never re-evaluated by a change.
+        assert_eq!(expression_reads("1 + 1"), Some(vec![]));
+        // A name in a variable, a loop: always evaluated.
+        assert_eq!(expression_reads("k = 'a'\ntags[k]"), None);
+        assert_eq!(expression_reads("sum(tags.values())"), None);
+        // Words that only contain «tags» are not reads.
+        assert_eq!(
+            expression_reads("mytags = 1\ntags_x = 2\nmytags"),
+            Some(vec![])
+        );
+    }
+
+    #[test]
+    fn a_change_reaches_who_reads_the_tag_its_root_or_a_leaf() {
+        let r = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        assert!(reads_changed(&r(&["OllamaTest"]), "OllamaTest"));
+        assert!(!reads_changed(&r(&["OllamaTest"]), "OllamaTest_b0"));
+        assert!(reads_changed(&r(&["motore1"]), "motore1.velocita"));
+        assert!(reads_changed(&r(&["motore1.velocita"]), "motore1"));
+        assert!(reads_changed(&r(&["zone"]), "zone[2].t"));
+        assert!(!reads_changed(&r(&["motore1"]), "motore10.velocita"));
+        assert!(!reads_changed(&r(&[]), "x"));
     }
 }

@@ -996,6 +996,9 @@ async fn main() -> anyhow::Result<()> {
         let derived = derived_tags.clone();
         let mut tag_rx = tag_db.subscribe();
         tokio::spawn(async move {
+            // The tags each expression reads, by its text: scanned once.
+            let mut reads_of: std::collections::HashMap<String, Option<Vec<String>>> =
+                std::collections::HashMap::new();
             loop {
                 match tag_rx.recv().await {
                     Ok(first) => {
@@ -1009,6 +1012,30 @@ async fn main() -> anyhow::Result<()> {
                         }
 
                         let pairs = derived.read().await.clone();
+                        if pairs.is_empty() {
+                            continue;
+                        }
+                        // Only the expressions that read a tag of this batch
+                        // (17-11-2026): the others would give the same value.
+                        // One that reads tags in a way the scan cannot see is
+                        // always evaluated, as before.
+                        let pairs: Vec<(String, String)> = pairs
+                            .into_iter()
+                            .filter(|(_, expr)| {
+                                if reads_of.len() > 2000 {
+                                    reads_of.clear();
+                                }
+                                let reads = reads_of
+                                    .entry(expr.clone())
+                                    .or_insert_with(|| sws_pyscript::expression_reads(expr));
+                                match reads {
+                                    Some(r) => {
+                                        changed.iter().any(|c| sws_pyscript::reads_changed(r, c))
+                                    }
+                                    None => true,
+                                }
+                            })
+                            .collect();
                         if pairs.is_empty() {
                             continue;
                         }
@@ -1036,8 +1063,14 @@ async fn main() -> anyhow::Result<()> {
                         for (k, v) in db.snapshot().await {
                             snapshot.entry(k).or_insert(v.value);
                         }
-                        for (id, expr) in pairs {
-                            match sws_pyscript::eval_expression(expr, snapshot.clone()).await {
+                        // One Python round for all of them (17-11-2026): one
+                        // expression at a time, each with its own thread, its
+                        // own dict of every tag and its own compile, kept a
+                        // Tiny TY at 67 % with eight bits of one counter.
+                        let (ids, exprs): (Vec<String>, Vec<String>) = pairs.into_iter().unzip();
+                        let results = sws_pyscript::eval_expressions(exprs, snapshot).await;
+                        for (id, result) in ids.into_iter().zip(results) {
+                            match result {
                                 Ok(value) => {
                                     // `set_tipizzato` e non `set`: un tag
                                     // derivato dichiarato `i32` non deve
