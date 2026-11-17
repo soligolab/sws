@@ -12,28 +12,40 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — stile sobrio e secondo giro dell'assistente finiti, tutto sul ramo delle chiavi IA (2026-11-16 sera, theobroma)
+## ▶ Riprendere da qui — la rc.20 pubblicata: chiavi IA complete, stile sobrio, assistente secondo giro (2026-11-16 notte, theobroma)
 
-Il ramo `feat/ai-keys-account-complete` porta adesso tutto il lavoro per la rc.20 che non è ancora in `main`:
-- **le chiavi IA dell'account complete**: tutti i fornitori, «Prova la chiave», il modello preferito in un menù a
-  tendina alfabetico, anche negli Scopi del progetto;
-- **lo stile sobrio, sessioni 2 e 3**: colori scritti a mano nel tema (guardia `check_colori_ide.sh`) e icone a linea
-  al posto delle emoji (`<Icona>`, 69 icone da Tabler);
-- **l'assistente, secondo giro**: G2 la casa sulla sua pianta, G3 l'SVG libero con le bocche, G4 Mistral, G5 FLUX.2 per
-  gli sfondi e la scheda «Spesa». Tutto provato con risposte finte.
+**Rilascio 2.26.0-rc.20** (tag su `83ea9555`, pushato con `main`):
+- immagini arm64 e amd64 su ghcr: `2.26.0-rc.20-*`, `83ea9555-*`, `rc-*`;
+- gateway del VPS sull'immagine `83ea9555-amd64` (`52be7714`), sano; `check_gateway_immagine` verde;
+- pacchetto del Tiny TY su `sws.soligo.net/download/tiny-ty/` (`latest.txt` = rc.20, sha256 `261147f4…` controllato
+  scaricandolo). Su theobroma `~/.ssh/config` non ha l'host `sws-vps`: lanciato con
+  `SWS_VPS_HOST=debian@37.187.181.142 ./scripts/publish_tiny_ty_package.sh`;
+- manuale pubblico non ripubblicato: dalla rc.19 è cambiato solo il capitolo 13, che non è pubblico;
+- vecchie immagini podman tolte (28 tag), storage a 9,4 GB.
 
-G2–G5 e le sessioni 2-3 sono state fatte da agenti in quattro rami paralleli, ognuno con due revisioni e le
-correzioni, poi messi in fila con `cherry-pick` (dieci commit) e i quattro rami eliminati. Dopo l'unione: i fornitori
-sono cinque in ogni elenco (`AI_PROVIDERS`, `user_keys::PROVIDERS`, `scopi::FORNITORI`). L'informativa e le condizioni
-d'uso nominano Mistral, OpenAI e Black Forest Labs.
+**Cosa c'è dentro** (squash `cf5b371f`):
+- **chiavi IA dell'account complete**: cinque fornitori (Anthropic, Kimi, Mistral, OpenAI, Black Forest Labs),
+  «Prova la chiave», modello preferito in un menù a tendina alfabetico, anche negli Scopi del progetto;
+- **stile sobrio, sessioni 2 e 3**: colori scritti a mano nel tema (guardia `check_colori_ide.sh`), icone a linea al
+  posto delle emoji (`<Icona>`, 88 icone, 70 da Tabler);
+- **assistente, secondo giro**: G2 la casa sulla sua pianta, G3 l'SVG libero con le bocche, G4 Mistral, G5 FLUX.2 e la
+  scheda «Spesa». Provati solo con risposte finte;
+- i quattro squash del TY570 del blocco qui sotto (tastiera, «Programma esterno», deploy degli utenti, reset che
+  resta nel cloud).
 
-**Piani archiviati**: stile sobrio, assistente secondo giro, chiavi IA dell'account complete. Il collaudo è in
-`docs/COLLAUDI_IN_SOSPESO.md` (tre sezioni del 16-11); i punti brevi dell'assistente sono nel seme
-`docs/plans/semi/2026-11-16-assistente-residui-secondo-giro.md`.
+G2–G5 e le sessioni 2-3 le hanno fatte agenti (Fable 5.2) in quattro rami paralleli, con due revisioni e le correzioni
+per ramo; unite con `cherry-pick`. Tre difetti dell'unione, che git non vedeva, corretti (`scopi::FORNITORI` a cinque,
+l'icona della scheda «Spesa», il fondo della pianta in chat). Informativa e condizioni d'uso nominano Mistral, OpenAI e
+Black Forest Labs. Piani archiviati: stile sobrio, assistente secondo giro, chiavi IA dell'account.
 
-**Da fare**: il collaudo del maintainer nell'IDE 8460 (stile sobrio nei due stili, icone), poi squash merge in `main`,
-tag rc.20, immagini, gateway, pacchetto del Tiny TY (chiedere prima). Restano i punti del blocco qui sotto (orologio
-del TY, ramo `fix/rc18-ritocchi`).
+**Da fare, nell'ordine**:
+1. **Il collaudo**: `/test-changes` con le tre sezioni del 16-11 di `docs/COLLAUDI_IN_SOSPESO.md` (stile sobrio
+   nell'IDE, chiavi dell'account nel cloud, prove dell'assistente) e quelle della rc.19. Nel cloud ora si provano anche
+   le correzioni del deploy (utenti al primo deploy e solo quando cambiano).
+2. **Una decisione**: Mistral predefinito nel cloud? (seme `docs/plans/semi/2026-11-16-assistente-residui-secondo-giro.md`).
+3. Il TY570 e il TC620 non sono aggiornati alla rc.20.
+4. Restano dal blocco qui sotto: l'orologio (`chronyd` di Pixsys) dopo che `sws-start` ferma `tyx_panelcontrol`; il
+   ramo `fix/rc18-ritocchi` (locale e su origin, già in `main`) da eliminare con un sì.
 
 ## ▶ Riprendere da qui — TY570 con la SD nuova, deploy e pannello di controllo (2026-11-16, theobroma)
 
