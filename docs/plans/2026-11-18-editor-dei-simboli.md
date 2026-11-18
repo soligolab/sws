@@ -34,6 +34,12 @@ dell'aspetto dei simboli esistenti, quindi dalla libreria deve poterne creare un
     base, comportamento conservato, salvare, vederlo su web e LVGL. La libreria personale resta in fondo (fase 7);
     nel frattempo c'è l'export `.swsym`.
 
+12. **«Salva come…» per derivare simboli diversi** (maintainer, 18-11-2026: «pensa al caso di un impianto con pompe
+    diverse»). Da qualunque simbolo — di libreria, variante o `sym:` — si salva un simbolo nuovo col suo nome, senza
+    toccare l'originale. Se l'editor è stato aperto da un oggetto in pagina, quell'oggetto passa al simbolo nuovo; gli
+    altri restano come sono, e l'editor propone di passare anche gli oggetti selezionati o quelli che usano lo stesso
+    simbolo nella pagina.
+
 ## La variante di un simbolo di libreria
 - Un `sym:` può dichiarare `overrides: "lib:<famiglia>/<slug>"`. La risoluzione dei simboli (`symbols/lib/libreria.ts`
   sul web, il caricamento dei simboli nel viewer LVGL) guarda prima le varianti del progetto: un oggetto con
@@ -43,7 +49,11 @@ dell'aspetto dei simboli esistenti, quindi dalla libreria deve poterne creare un
   i due motori hanno già (`SimboloLib.tsx`, `RotoreLib`/`PernoLib`/`LivelloLib`/`SpiaLib` in LVGL). L'editor ne
   modifica disegno, posizione e perno. I pezzi generici con regole e animazioni (fasi 4–5) si aggiungono accanto; un
   pezzo storico si potrà convertire in generico quando le fasi 4–5 ci sono.
-- **I collegamenti in pagina restano validi**: gli ingressi della variante dichiarano da quale campo dell'oggetto
+- **«Salva» e «Salva come…»**: su un simbolo di libreria «Salva» crea (o aggiorna) la variante che lo sostituisce;
+  su un `sym:` aggiorna quel simbolo. «Salva come…» crea sempre un `sym:` nuovo, senza `overrides`, che è una copia:
+  non segue più il simbolo da cui è nato. Le pompe diverse di un impianto sono così simboli fratelli, ognuno nella
+  galleria del progetto.
+- **I collegamenti in pagina restano validi**: gli ingressi della variante (e di ogni simbolo derivato) dichiarano da quale campo dell'oggetto
   leggono quando l'oggetto non ha `symbol_inputs` (`from: state_tag | alarm_tag | symbol_states | symbol_spin |
   symbol_parts.<id> | fill_level_tag`). Così un oggetto già configurato funziona senza essere toccato; il pannello
   proprietà mostra comunque una sezione sola («Ingressi»), che scrive nei campi storici finché il simbolo è una
@@ -132,7 +142,7 @@ locale**. Si apre da Strumenti ▸ Simboli (`LeftPanel.tsx`, `RamoSimboli`: «+ 
 ## Fasi (un ramo per fase, annidati se il collaudo arriva dopo)
 | # | Ramo | Cosa provi alla fine |
 |---|---|---|
-| 1 | `feat/symbol-def` | formato `sym:` e rotte; editor con **Struttura** (ingressi e tipi); **apri un simbolo della libreria** (diventa variante, parti vive conservate) **o uno vuoto**; strumenti di base (seleziona, sposta, ridimensiona, rettangolo, ellisse, tracciato semplice, colore o materiale, ordine, annulla); salva; le pompe già in pagina cambiano aspetto e restano collegate; in pagina «Ingressi» con tag o valore; uguale su web e LVGL; «Torna all'originale» |
+| 1 | `feat/symbol-def` | formato `sym:` e rotte; editor con **Struttura** (ingressi e tipi); **apri un simbolo della libreria** (diventa variante, parti vive conservate) **o uno vuoto**; strumenti di base (seleziona, sposta, ridimensiona, rettangolo, ellisse, tracciato semplice, colore o materiale, ordine, annulla); salva e **«Salva come…»** (una seconda pompa diversa, l'oggetto da cui si è aperto l'editor passa a lei); le pompe già in pagina cambiano aspetto e restano collegate; in pagina «Ingressi» con tag o valore; uguale su web e LVGL; «Torna all'originale» |
 | 2 | `feat/symbol-editor-tools` | gli strumenti grafici completi (nodi dei tracciati, gruppi, allinea, gradienti, griglia, calamita); **Importa SVG** esploso; export/import `.swsym` |
 | 3 | `feat/symbol-photo` | foto di sfondo e ritagli PNG; web e LVGL (variante alla misura); prima misura di memoria sul TY570 |
 | 4 | `feat/symbol-behaviour` | pezzi generici, ancoraggio, regole (colore, visibile, opacità, lampeggio, foto alternativa), anteprima con i controlli; uguale sul pannello; testo come etichetta LVGL; conversione dei pezzi storici in generici |
