@@ -12,7 +12,7 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — il lavoro sul CRA, sessioni 1 e 2 fatte e decisioni validate, pronte per il rilascio (2026-11-18, theobroma)
+## ▶ Riprendere da qui — il lavoro sul CRA, sessioni 1, 2 e 3 fatte; 1 e 2 validate, 3 da validare (2026-11-18, theobroma)
 
 Il maintainer ha chiesto di procedere sulla parte CRA **una sessione alla volta**, con le decisioni prese in autonomia e
 validate alla fine. Piano e registro delle decisioni: `docs/plans/2026-11-17-cra-sessioni-e-decisioni.md`. La misura del
@@ -34,10 +34,20 @@ validate alla fine. Piano e registro delle decisioni: `docs/plans/2026-11-17-cra
   l'avviso, deploy fermato prima di partire); il segreto del gateway **si cambia al rilascio** e i tre pannelli del
   cloud si riabbinano (D10), con la procedura nel piano della sessione 2, «Il rilascio». Prima: il backup del database
   del TC620 di casa. Espressioni e script dei progetti del cloud misurati sul VPS: tutti a posto.
-- **Il prossimo passo è il rilascio**, quando il maintainer lo chiede: squash merge delle due sessioni su `main`,
-  immagine, gateway col segreto nuovo, riabbinamento, collaudo, e solo allora il push.
-- **Dopo**: la sessione 3 (PIN del pannello di controllo, `admin`/`admin` e root delle installazioni native,
-  OpenPLC, cambio password sul viewer, peso della CPU dei container nel cloud), annidata sul ramo della sessione 2.
+- **Sessione 3 fatta**, ramo `fix/cra-3-control-panel-access`, **annidato** sul secondo (piano
+  `docs/plans/2026-11-18-cra-3-accesso-pannello-di-controllo.md`). Il maintainer ha rivisto le decisioni prima del
+  codice: il PIN del MAC vale solo dallo schermo (D13); dallo schermo remoto il reset tiene il cloud (D14); il blocco
+  dei PIN per origine, temporaneo, e nell'audit (D15); il codice di abbinamento solo a questa macchina (D16); il
+  cambio password anche sul viewer, con la pagina nel viewer LVGL (D17); niente `admin`/`admin` nelle native (D18);
+  l'utente dell'Editor di OpenPLC creato dall'installazione e mostrato nel pannello di controllo (D20). D19 e D21
+  validate il 18-11: niente root da nessuna parte (Linux generico `sws`, Yocto `user`); nel cloud un core per
+  progetto e 1,5 core per tutti i progetti insieme (drop-in del VPS da mettere al rilascio). Due revisioni (attacchi e regressioni), tutte
+  le correzioni fatte: le più importanti sono una pagina di un altro sito nel browser del pannello trattata come rete,
+  il tunnel come origine «cloud» per il reset, `admin`/`admin` che non si rimanda, gli installer nativi che uscivano
+  prima del codice. Voci da provare: «CRA, sessione 3» in `docs/COLLAUDI_IN_SOSPESO.md`.
+- **Il prossimo passo**: la validazione di D19 e D21, poi il rilascio delle tre sessioni quando il maintainer lo
+  chiede: squash merge in ordine su `main`, immagine, gateway col segreto nuovo, riabbinamento, collaudo, e solo
+  allora il push.
 - **Per provare le espressioni con la sandbox su theobroma**: RestrictedPython non c'è nel Python di sistema; è in
   `tmp/pydeps`, e i test girano con `PYTHONPATH=/home/ut1/sws/tmp/pydeps cargo test -p sws-pyscript`.
 

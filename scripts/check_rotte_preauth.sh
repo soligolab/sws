@@ -19,10 +19,15 @@
 #
 # COSA VERIFICA
 #
-#   1. il gruppo `open` del router completo contiene SOLO le rotte dichiarate
-#      qui sotto;
+#   1. i gruppi aperti dei tre router (`open` del router completo e della
+#      porta del viewer, `aperte` della porta di gestione dei pannelli)
+#      contengono SOLO le rotte dichiarate qui sotto;
 #   2. le rotte del ciclo di vita del progetto NON sono nel gruppo `open`;
-#   3. `/api/fs/browse-dirs` e `/api/fs/mkdir` non sono pre-auth.
+#   3. `/api/fs/browse-dirs` e `/api/fs/mkdir` non sono pre-auth;
+#   4. il pannello di controllo (`control_panel/mod.rs`, montato nei tre
+#      router) ha aperte solo le sue due rotte dichiarate, e tutto il resto
+#      dietro la sessione di servizio. Fino al 18-11-2026 questa guardia non lo
+#      vedeva: stava in un altro file, dentro un `.merge` (CRA, sessione 3).
 #
 # Uso: ./scripts/check_rotte_preauth.sh
 set -uo pipefail
@@ -69,7 +74,9 @@ esito() {
 #   /api/abbinamento                     (11-10-2026) dice al pannello in
 #                                        attesa di mostrare il codice; il
 #                                        codice esce SOLO in attesa, cioè
-#                                        quando non c'è nessun utente
+#                                        quando non c'è nessun utente, e dal
+#                                        18-11-2026 solo a una richiesta da
+#                                        questa macchina (CRA D16)
 #   /api/abbinamento/rivendica           il primo accesso del pannello:
 #                                        protetta dal codice (80 bit, limite
 #                                        ai tentativi), si chiude da sé appena
@@ -155,7 +162,7 @@ echo "── Rotte raggiungibili senza credenziali ──"
 # router completo, e il gruppo aperto della porta del viewer (7443,
 # `build_runtime_inner`) non l'ha mai guardato nessuno.
 blocco_open() {
-    awk '/let open = Router::new\(\)/ {dentro=1}
+    awk '/let (open|aperte) = Router::new\(\)/ {dentro=1}
          dentro {print}
          dentro && /;[[:space:]]*$/ {dentro=0}' "$ROUTER"
 }
@@ -208,6 +215,46 @@ if [ "${#fs_aperte[@]}" -eq 0 ]; then
     esito ok "nessuna rotta \`/api/fs/*\` è pre-auth"
 else
     esito ko "filesystem navigabile senza credenziali: ${fs_aperte[*]}"
+fi
+
+# 4. il pannello di controllo: aperte solo le sue due, il resto dietro la sessione
+#
+#   /api/control-panel            lo stato pubblico: se il gesto c'è e QUALE PIN
+#                                 vale da dove arriva la richiesta, mai il PIN
+#   /api/control-panel/session    il PIN di servizio apre una sessione breve. Il
+#                                 PIN del dispositivo vale solo dallo schermo
+#                                 (CRA D13), gli errori si contano per origine e
+#                                 vanno nell'audit (D15)
+PANNELLO=sws-runtime/crates/sws-web/src/control_panel/mod.rs
+CP_ATTESE=("/api/control-panel" "/api/control-panel/session")
+cp_blocco() { # cp_blocco <nome del gruppo>
+    awk -v g="let $1 = Router::new()" 'index($0, g) {dentro=1}
+         dentro {print}
+         dentro && /;[[:space:]]*$/ {dentro=0}' "$PANNELLO"
+}
+mapfile -t CP_APERTE < <(cp_blocco open | grep -oE '"/[^"]*"' | tr -d '"' | sort -u)
+cp_intruse=()
+for r in "${CP_APERTE[@]:-}"; do
+    trovata=0
+    for a in "${CP_ATTESE[@]}"; do [ "$r" = "$a" ] && trovata=1 && break; done
+    [ "$trovata" -eq 0 ] && cp_intruse+=("$r")
+done
+if [ "${#CP_APERTE[@]}" -eq 0 ]; then
+    esito ko "lettura del gruppo aperto del pannello di controllo fallita: aggiorna questa guardia"
+elif [ "${#cp_intruse[@]}" -eq 0 ]; then
+    esito ok "il pannello di controllo ha aperte solo ${CP_APERTE[*]}"
+else
+    esito ko "pannello di controllo, rotte aperte non dichiarate: ${cp_intruse[*]} — vanno nel gruppo \`guarded\`"
+fi
+if cp_blocco guarded | grep -q 'route_layer(middleware::from_fn(require_session))'; then
+    esito ok "il resto del pannello di controllo è dietro la sessione di servizio"
+else
+    esito ko "il gruppo \`guarded\` del pannello di controllo non finisce con \`require_session\`"
+fi
+if [ "$(grep -c 'control_panel::routes(' sws-runtime/crates/sws-web/src/router.rs)" -eq 1 ]; then
+    esito ok "il pannello di controllo si monta da un posto solo (solo dove c'è un dispositivo)"
+else
+    esito ko "\`control_panel::routes(\` compare più di una volta in router.rs: passa da \`control_panel_where_there_is_a_device\`"
 fi
 
 echo

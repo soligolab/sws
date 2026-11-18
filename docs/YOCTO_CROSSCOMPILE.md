@@ -255,7 +255,7 @@ for the `runtime.env` file):
   www/                     SPA dist (served at /)
   historian.db             SQLite, created on first start
 
-/etc/systemd/system/sws-runtime.service
+/etc/systemd/system/sws-runtime.service   (runs as `user`, not root)
 ```
 
 > Why `/data/user/sws` and not `/opt/sws`: Pixsys Yocto devices mount `/`
@@ -299,7 +299,7 @@ sudo journalctl -u sws-runtime.service -n 200 --no-pager
 | `readelf -d` shows `libssl`/`libcrypto` | a crate pulled native OpenSSL | find it (`cargo tree -i openssl-sys`); switch to `rustls`-backed features |
 | `readelf -d` shows `libgtk-4`/`libwebkit2gtk` | accidentally built `sws-kiosk` for the target | only build `-p sws-runtime` (default in `build.sh`); kiosk is host-only |
 | Deploy succeeds but `/health` is silent | systemd unit not enabled, or port 7443 firewalled | `systemctl status sws-runtime`, then `journalctl -u sws-runtime -n 100` |
-| `sws-runtime` exits with `permission denied` on `historian.db` | first start as a non-root user that can't write `/data/user/sws/` | unit currently runs `User=root` for the PoC — confirm `User=` line in `/etc/systemd/system/sws-runtime.service` |
+| `sws-runtime` exits with `permission denied` on `historian.db` | `/data/user/sws/` still belongs to root from a deploy before 18-11-2026 | the unit runs `User=user` (CRA D19): re-run `deploy.sh`, which ends with `sudo chown -R user: /data/user/sws` |
 | Re-deploy wipes `runtime.env` | shouldn't happen — `deploy.sh` only seeds it when missing | check `deploy.sh` install block; if intentional during a major upgrade, back up the file first |
 
 ---

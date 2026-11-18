@@ -92,9 +92,14 @@ export function AvvisoAggiornamento() {
   const [authRequired, setAuthRequired] = useState(true);
   const authRole = useAppStore((s) => s.authRole);
   const authToken = useAppStore((s) => s.authToken);
+  // An Admin who must still change the password: the runtime refuses the
+  // update until then (CRA D17, 18-11-2026), so the action waits for it too.
+  const mustChangePassword = useAppStore((s) => s.mustChangePassword);
   // L'azione che aspetta un login da Admin, e il login aperto per lei.
   const [inAttesa, setInAttesa] = useState<null | (() => Promise<void>)>(null);
   const tokenAlLogin = useRef<string | null>(null);
+  // Already an Admin, waiting only for the password change: no login to show.
+  const soloCambio = useRef(false);
   const [stato, setStato] = useState<StatoAggiornamento | null>(null);
   const [chiuso, setChiuso] = useState(false);
   const [esitoVisto, setEsitoVisto] = useState(false);
@@ -163,18 +168,22 @@ export function AvvisoAggiornamento() {
   const daAdmin = (azione: () => Promise<unknown>) =>
     new Promise<void>((resolve, reject) => {
       const esegui = async () => { try { await azione(); resolve(); } catch (e) { reject(e); } };
-      if (!authRequired || authRole === "Admin") { void esegui(); return; }
+      if (!authRequired || (authRole === "Admin" && !mustChangePassword)) { void esegui(); return; }
       tokenAlLogin.current = authToken;
+      soloCambio.current = authRole === "Admin";
       setInAttesa(() => esegui);
     });
   useEffect(() => {
-    if (!inAttesa || authToken === tokenAlLogin.current) return;
+    // After the login, and after the password change if one is due.
+    if (!inAttesa || mustChangePassword) return;
+    if (authToken === tokenAlLogin.current && !soloCambio.current) return;
+    soloCambio.current = false;
     const azione = inAttesa;
     setInAttesa(null);
     if (authRole === "Admin") void azione();
     else { setErrore(testoSistema("agg_serve_admin", lang)); setInCorso(false); setInAvvio(false); }
-  }, [authToken, authRole, inAttesa, lang]);
-  const login = inAttesa ? (
+  }, [authToken, authRole, inAttesa, lang, mustChangePassword]);
+  const login = inAttesa && !soloCambio.current ? (
     <div style={{ position: "fixed", inset: 0, zIndex: 9600, background: "var(--brand-bg, #0f172a)" }}>
       <LoginScreen motivo="runtimeView.loginPerAggiornare"
         testoAttesa={inAvvio ? testoSistema("agg_in_avvio", lang) : undefined}

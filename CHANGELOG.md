@@ -253,6 +253,50 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   Le istruzioni del pacchetto usano `scp -O` e `/var/tmp` (SFTP spento, `/tmp` di 32 MB).
 
 ### Corretto
+- **`lettre` 0.11.24** (da 0.11.23), la libreria della posta (notifiche e report): sei avvisi RustSec del 17-11-2026,
+  fra cui l'iniezione di comandi SMTP per un punto non raddoppiato dopo un LF o un CR, l'iniezione nella risposta a
+  STARTTLS e l'indirizzo sbagliato per un mittente con la parte locale fra virgolette (RUSTSEC-2026-0560…0565).
+  Aggiornamento compatibile, `cargo audit` di nuovo verde.
+- **Accesso al pannello di controllo, credenziali di fabbrica, OpenPLC** (sessione 3 del CRA, piano
+  `docs/plans/2026-11-18-cra-3-accesso-pannello-di-controllo.md`, decisioni D13-D21).
+  - Il PIN del dispositivo (le ultime sei cifre del MAC) apre il pannello di controllo solo dallo schermo del pannello:
+    porta del viewer, loopback, nessuna intestazione `x-sws-remote-screen` (che `schermo::dal_gateway` mette su quello
+    che inoltra). Dalla rete e dallo schermo remoto solo il PIN del progetto; `GET /api/control-panel` dice l'origine
+    e `pin: screen_only`, e il viewer web chiede di impostare il PIN del progetto.
+  - Dallo schermo remoto il reset si fa solo con `keep_cloud`.
+  - Il blocco dopo cinque PIN sbagliati si conta per origine (schermo, schermo remoto, indirizzo), 60 s, errori
+    dimenticati dopo 15 minuti; `control_panel.pin_wrong`, `control_panel.locked` e `control_panel.session_opened`
+    nell'audit, con `cloud:<utente>` dallo schermo remoto (`x-sws-remote-user`, messa dal gateway). Una sessione vale
+    solo dall'origine che l'ha aperta.
+  - `GET /api/abbinamento` dà il codice solo a una richiesta da questa macchina; in rete `code_on_screen: true`, e la
+    pagina chiede di scrivere il codice.
+  - Sulla porta del viewer chi deve cambiare la password legge ma non scrive e non comanda finché non la cambia o
+    rimanda. Il viewer LVGL chiede la password nuova subito dopo l'accesso (`must_change_password` nella risposta del
+    login), nella schermata dell'accesso con due campi nascosti; sette voci nuove nei testi di sistema.
+  - Le installazioni native non mettono più `admin`/`admin`: partono col codice di abbinamento, che l'installer
+    stampa, e un aggiornamento spegne `SWS_ADMIN_PASSWORD=admin` nel file dell'ambiente. `sws-auth` obbliga a
+    cambiare la password un `admin`/`supervisor`/`operator`/`viewer` con la password uguale al nome.
+  - Niente root da nessuna parte: Linux generico gira come utente `sws`, con la regola polkit del Tiny TY (nel tarball
+    sotto `polkit/`); il binario nativo Yocto e i suoi viewer come `user`, e deploy e installer gli passano
+    `/data/user/sws`.
+  - OpenPLC: l'installazione crea l'utente dell'Editor (`admin` e 10 caratteri senza simboli), in
+    `config/openplc-credentials.json`; sui pannelli di prima lo fa il runtime un minuto dopo l'avvio. Il pannello di
+    controllo, web e LVGL, ha la sezione OpenPLC (`GET /api/control-panel/openplc`): stato, versione, porte,
+    credenziali. Immagine presa per digest.
+  - Nel cloud un container di progetto ha un tetto di un core, dove podman ha il controller `cpu`; sul VPS tutti i
+    progetti insieme 1,5 core (`deploy/vps/user-systemd/user.slice.d/50-sws-projects.conf`, da mettere al rilascio).
+  - `check_rotte_preauth.sh` legge anche il gruppo `aperte` della porta di gestione e le rotte del pannello di
+    controllo.
+  - Dopo due revisioni: una pagina di un altro sito in un browser sul dispositivo (`Sec-Fetch-Site`, `Origin`)
+    conta come rete; la porta di gestione dal loopback è l'origine `Tunnel`, che per il reset vale come lo schermo
+    remoto; il codice di abbinamento solo sulla porta del viewer (gli installer chiedono alla 7443); `admin`/`admin`
+    non si rimanda (`factory_password`); il blocco conta il tentativo prima della verifica, che gira in
+    `spawn_blocking`, con 30 tentativi al minuto per tutta la rete; `/ws/tags` legge anche il token
+    nell'intestazione e declassa chi deve cambiare la password; `inoltra` toglie le intestazioni dello schermo
+    remoto e non porta a `/schermo`; il viewer LVGL torna all'accesso se la sessione finisce durante il cambio;
+    gli installer nativi non escono più prima del codice; `dialout` per l'utente `sws`; OpenPLC segnala un utente
+    estraneo su un container nuovo e il runtime riprova per dieci minuti; «Aggiorna ora» sul web aspetta il cambio
+    password.
 - **Sicurezza del cloud e della sandbox** (sessione 2 del CRA, piano `docs/plans/2026-11-18-cra-2-isolamento-cloud-e-sandbox.md`).
   - Ogni container di progetto riceve un segreto suo (`gateway::ritorno::container_secret`), non più quello del
     gateway: chi leggeva l'ambiente di un container poteva fare da Admin negli altri e calcolare i token dei pannelli.

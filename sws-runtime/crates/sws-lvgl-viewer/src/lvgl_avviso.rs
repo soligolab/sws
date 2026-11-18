@@ -292,19 +292,27 @@ impl Overlay {
                 // I testi che prima stavano sulla card: adesso vivono qui,
                 // perché la card durante l'accesso non si disegna più.
                 let (motivo, errore) = match avviso {
-                    Avviso::Accesso { motivo, errore, .. } => (motivo.as_str(), errore.clone()),
+                    Avviso::Accesso { motivo, errore, .. } => (
+                        motivo.as_str(),
+                        errore.as_deref().map(|e| error_text(e, lingua)),
+                    ),
                     _ => ("", None),
                 };
                 let titolo = format!("🔑 {}", testo(titolo_accesso(motivo), lingua,));
+                // The new password right after the access (CRA D17): the same
+                // screen, two hidden fields, «Later» instead of «Cancel».
+                let change = motivo == crate::aggiornamento::PASSWORD_CHANGE;
+                let t = |a: Testo, b: Testo| testo(if change { a } else { b }, lingua);
                 self.accesso =
                     crate::lvgl_render::apri_credenziali(crate::lvgl_render::TestiAccesso {
                         titolo: &titolo,
                         errore: errore.as_deref(),
-                        utente: &ultimo,
-                        annulla: testo(Testo::ConfAnnulla, lingua),
-                        accedi: testo(Testo::ConfAccedi, lingua),
-                        utente_etichetta: testo(Testo::ConfUtente, lingua),
-                        password_etichetta: testo(Testo::ConfPassword, lingua),
+                        utente: if change { "" } else { &ultimo },
+                        annulla: t(Testo::PasswordLater, Testo::ConfAnnulla),
+                        accedi: t(Testo::PasswordChange, Testo::ConfAccedi),
+                        utente_etichetta: t(Testo::PasswordNew, Testo::ConfUtente),
+                        password_etichetta: t(Testo::PasswordRepeat, Testo::ConfPassword),
+                        two_passwords: change,
                     });
                 if self.accesso.is_none() {
                     aggiornamento::accesso_fallito(stato, "tastiera non disponibile".into());
@@ -312,10 +320,48 @@ impl Overlay {
             }
             Some(schermata) => {
                 let letto = schermata.esito.borrow().clone();
-                match letto {
-                    None => self.accesso = Some(schermata),
-                    Some(None) => aggiornamento::annulla_accesso(stato),
-                    Some(Some((utente, password))) => {
+                let change = aggiornamento::password_change(stato);
+                match (letto, change) {
+                    (None, _) => self.accesso = Some(schermata),
+                    // «Later»: the server lifts the change for this session.
+                    (Some(None), Some(change)) => {
+                        let tentativo = aggiornamento::accesso_in_corso(stato, Instant::now());
+                        crate::net_worker::invia(
+                            crate::net_worker::Comando::PostponePasswordChange {
+                                base_url: base_url.to_string(),
+                                token: change.token,
+                                sessione: sessione.clone(),
+                                avviso: stato.clone(),
+                                tentativo,
+                            },
+                        );
+                    }
+                    (Some(Some((new, repeated))), Some(change)) => {
+                        match new_password_problem(&new, &repeated) {
+                            Some(problem) => {
+                                aggiornamento::accesso_fallito(
+                                    stato,
+                                    testo(problem, lingua).to_string(),
+                                );
+                            }
+                            None => {
+                                let tentativo =
+                                    aggiornamento::accesso_in_corso(stato, Instant::now());
+                                crate::net_worker::invia(
+                                    crate::net_worker::Comando::ChangePassword {
+                                        base_url: base_url.to_string(),
+                                        change,
+                                        new_password: new,
+                                        sessione: sessione.clone(),
+                                        avviso: stato.clone(),
+                                        tentativo,
+                                    },
+                                );
+                            }
+                        }
+                    }
+                    (Some(None), None) => aggiornamento::annulla_accesso(stato),
+                    (Some(Some((utente, password))), None) => {
                         let adesso = Instant::now();
                         let tentativo = aggiornamento::accesso_in_corso(stato, adesso);
                         crate::net_worker::invia(crate::net_worker::Comando::Accedi {
@@ -712,7 +758,10 @@ impl Overlay {
                 sotto: String::new(),
                 // Un rifiuto si legge qui, in rosso, e il pannellino resta
                 // aperto: riprovare non deve voler dire ricominciare.
-                compatibilita: errore.clone().map(|e| format!("⚠ {e}")).unwrap_or_default(),
+                compatibilita: errore
+                    .as_deref()
+                    .map(|e| format!("⚠ {}", error_text(e, lingua)))
+                    .unwrap_or_default(),
                 // Mentre le credenziali viaggiano: per «Aggiorna ora»
                 // l'aggiornamento non è ancora partito, e per un comando della
                 // pagina o un «Accedi» non c'è nessun aggiornamento. Dopo 10 s
@@ -720,9 +769,12 @@ impl Overlay {
                 // sul pulsante del login web (09-11-2026).
                 corpo: match (*in_corso, *lento, motivo.as_str()) {
                     (true, true, _) => testo(Testo::AccessoLento, lingua).to_string(),
-                    (false, ..) | (true, false, "cmd_serve_accesso" | "conf_accedi") => {
-                        String::new()
-                    }
+                    (false, ..)
+                    | (
+                        true,
+                        false,
+                        "cmd_serve_accesso" | "conf_accedi" | crate::aggiornamento::PASSWORD_CHANGE,
+                    ) => String::new(),
                     (true, false, "agg_accesso_aggiorna") => {
                         testo(Testo::AggInAvvio, lingua).to_string()
                     }
@@ -987,13 +1039,49 @@ fn titolo_accesso(motivo: &str) -> Testo {
     match motivo {
         "cmd_serve_accesso" => Testo::CmdServeAccesso,
         "conf_accedi" => Testo::ConfAccedi,
+        crate::aggiornamento::PASSWORD_CHANGE => Testo::PasswordChangeTitle,
         _ => Testo::AggServeAdmin,
+    }
+}
+
+/// An access error as the screen shows it: the two reasons of the password
+/// change that the panel names itself, in its language; the rest as it came.
+fn error_text(e: &str, lingua: &str) -> String {
+    match e {
+        aggiornamento::ERROR_FACTORY_PASSWORD => testo(Testo::PasswordFactory, lingua).into(),
+        aggiornamento::ERROR_SESSION_LOST => testo(Testo::PasswordSessionLost, lingua).into(),
+        other => other.into(),
+    }
+}
+
+/// What is wrong with a new password typed on the panel, before it leaves:
+/// the two fields differ, or it is shorter than the web page accepts (4).
+fn new_password_problem(new: &str, repeated: &str) -> Option<Testo> {
+    if new != repeated {
+        Some(Testo::PasswordMismatch)
+    } else if new.chars().count() < 4 {
+        Some(Testo::PasswordTooShort)
+    } else {
+        None
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_new_password_is_checked_before_it_leaves() {
+        assert_eq!(
+            new_password_problem("abcd", "abce"),
+            Some(Testo::PasswordMismatch)
+        );
+        assert_eq!(
+            new_password_problem("abc", "abc"),
+            Some(Testo::PasswordTooShort)
+        );
+        assert_eq!(new_password_problem("abcd", "abcd"), None);
+    }
 
     fn corpo(motivo: &str, in_corso: bool, lento: bool, lingua: &str) -> String {
         let a = Avviso::Accesso {

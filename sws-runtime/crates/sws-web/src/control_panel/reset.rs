@@ -12,19 +12,24 @@
 //! `keep_cloud` (16-11-2026): only the application goes — project, history,
 //! users — and the cloud pairing stays. The panel comes back paired and
 //! without users, waiting for its first project from the cloud IDE.
+//!
+//! From the cloud — its remote screen, or the tunnel on the management port —
+//! only that form (18-11-2026, decision D14 of the CRA sessions): the full
+//! reset takes the pairing too, and the new code can be read only on site, so
+//! the panel would vanish from the cloud.
 
-use super::{bad_request, gate, initial_pin, pin, project_config, LOCKOUT, MAX_FAILURES};
+use super::{bad_request, checked_pin, remote_user, Origin};
 use crate::router::AppState;
 use axum::{
     extract::State,
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     Json,
 };
 use serde::Deserialize;
 use serde_json::json;
 use std::path::Path;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 /// What of the configuration folder belongs to the project, the users and the
 /// pairing. Anything else there stays.
@@ -96,37 +101,32 @@ pub struct ResetBody {
     keep_cloud: bool,
 }
 
-pub async fn reset(State(s): State<AppState>, Json(body): Json<ResetBody>) -> Response {
+pub async fn reset(
+    State(s): State<AppState>,
+    origin: Origin,
+    headers: HeaderMap,
+    Json(body): Json<ResetBody>,
+) -> Response {
     // The same gate as the session: wrong PINs here count too.
-    let now = Instant::now();
-    if let Some(until) = gate().lock().unwrap().locked_until.filter(|t| *t > now) {
-        let secs = until.duration_since(now).as_secs().max(1);
-        return (
-            StatusCode::TOO_MANY_REQUESTS,
-            Json(json!({ "retry_after_secs": secs })),
-        )
-            .into_response();
-    }
-    let cfg = project_config(&s).await;
-    if !pin::pin_matches(&body.pin, cfg.pin_hash.as_deref(), initial_pin().as_deref()) {
-        let mut g = gate().lock().unwrap();
-        g.failures += 1;
-        if g.failures >= MAX_FAILURES {
-            g.failures = 0;
-            g.locked_until = Some(now + LOCKOUT);
-        }
-        tracing::warn!("control panel: wrong PIN for the reset");
+    match checked_pin(&s, origin, &headers, &body.pin, "reset").await {
+        Err(wait) => return wait,
         // 403, not 401: 401 is the session that expired.
-        return StatusCode::FORBIDDEN.into_response();
+        Ok(false) => return StatusCode::FORBIDDEN.into_response(),
+        Ok(true) => {}
     }
     if s.ide_only {
         return bad_request("an IDE has no device to give back".into());
     }
+    if origin.from_the_cloud() && !body.keep_cloud {
+        return bad_request(
+            "from the cloud the reset keeps the cloud pairing: the full one only on site".into(),
+        );
+    }
     let keep_cloud = body.keep_cloud;
     s.audit.log(
         "control_panel.reset",
-        None,
-        json!({ "keep_cloud": keep_cloud }),
+        remote_user(origin, &headers),
+        json!({ "keep_cloud": keep_cloud, "origin": origin.describe() }),
     );
     if keep_cloud {
         tracing::warn!(

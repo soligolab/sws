@@ -236,7 +236,11 @@ command -v podman >/dev/null || { echo "ERRORE: podman non installato." >&2; exi
 # gira in SCHED_FIFO senza toccare niente qui.
 # `--ulimit rtprio=99` invece NO: senza il drop-in il limite massimo e' 0, e
 # crun rifiuterebbe di avviare il container.
-OPENPLC_IMG="ghcr.io/autonomy-logic/openplc-runtime:v4.3.1"
+# The image by digest, not by tag (18-11-2026, CRA session 3): a tag can be
+# moved to another image, a digest cannot. It is the index of v4.3.1 (amd64,
+# arm64, arm/v7), read from ghcr.io; a new version changes both lines.
+OPENPLC_VERSION="v4.3.1"
+OPENPLC_IMG="ghcr.io/autonomy-logic/openplc-runtime@sha256:2ca9fc611f25c3ad0471b996a4bf27507ac112612292426ca6d5ca4bf06e97e6"
 OPENPLC_NAME="openplc-runtime"
 # L'immagine estratta pesa 1,02 GB (misurato sul WP630 il 30-10-2026).
 OPENPLC_MB=1500
@@ -249,6 +253,52 @@ openplc_esito() { # openplc_esito <in_corso|riuscito|non_riuscito> [messaggio]
     mkdir -p "$DATA/config" 2>/dev/null || true
     printf '{"esito": "%s", "messaggio": "%s", "quando_ms": %s000}\n' "$1" "$m" "$(date +%s)" \
         > "$DATA/config/openplc-esito.json" 2>/dev/null || true
+}
+
+# The Editor's user, created by the installation (18-11-2026, decision D20 of
+# the CRA sessions). Until then the first one to connect created it: on a
+# panel just installed, anyone on the network. A password of 10 characters
+# with no symbols and no look-alikes (the hotspot's alphabet), kept for the
+# control panel, which shows it behind the PIN. If OpenPLC already has a user
+# (made from the Editor before), nothing is touched, and the panel says the
+# password is not known here.
+openplc_credenziali() {
+    local file pw code
+    file="$DATA/config/openplc-credentials.json"
+    [ -f "$file" ] && return 0
+    pw="$(LC_ALL=C tr -dc 'abcdefghjkmnpqrstuvwxyz23456789' < /dev/urandom 2>/dev/null | head -c 10 || true)"
+    if [ "${#pw}" -ne 10 ]; then
+        echo "    ATTENZIONE: OpenPLC: password non generata, l'utente dell'Editor non e' stato creato" >&2
+        return 0
+    fi
+    code="$(curl -sk --max-time 10 -o /dev/null -w '%{http_code}' \
+        -H 'Content-Type: application/json' \
+        -d "{\"username\": \"admin\", \"password\": \"$pw\"}" \
+        https://127.0.0.1:8443/api/create-user 2>/dev/null || true)"
+    case "$code" in
+        201)
+            ( umask 077
+              printf '{"username": "admin", "password": "%s", "created_ms": %s000}\n' "$pw" "$(date +%s)" > "$file" )
+            echo "    utente dell'Editor creato: admin, la password e' nel pannello di controllo (sezione OpenPLC)"
+            ;;
+        401)
+            if [ "${OPENPLC_NUOVO:-0}" -eq 1 ]; then
+                # Un container appena creato, con l'archivio vuoto, e un utente
+                # c'e' gia': l'ha creato qualcuno dalla rete nei secondi fra
+                # l'avvio e questa richiesta. Lo si dice forte, e il pannello di
+                # controllo lo mostra.
+                ( umask 077; printf '{"known": false, "foreign": true}\n' > "$file" )
+                echo "    ATTENZIONE: OpenPLC appena installato ha gia' un utente che l'installazione non ha creato." >&2
+                echo "    Se non l'hai creato tu dall'Editor, togli il container e la cartella $dati e reinstalla OpenPLC." >&2
+            else
+                ( umask 077; printf '{"known": false}\n' > "$file" )
+                echo "    OpenPLC ha gia' un utente: lo si usa com'e' (la password non e' nota qui)"
+            fi
+            ;;
+        *)
+            echo "    ATTENZIONE: OpenPLC: utente dell'Editor non creato (risposta $code); al prossimo avvio dell'installazione si riprova" >&2
+            ;;
+    esac
 }
 
 openplc_fallito() { # openplc_fallito <messaggio>
@@ -279,7 +329,7 @@ installa_openplc() {
             openplc_fallito "spazio insufficiente: $liberi MB liberi, ne servono circa $OPENPLC_MB"
             return 1
         fi
-        echo "    scarico $OPENPLC_IMG (circa 1 GB: qualche minuto)"
+        echo "    scarico OpenPLC $OPENPLC_VERSION (circa 1 GB: qualche minuto)"
         if ! err="$(podman pull -q "$OPENPLC_IMG" 2>&1 >/dev/null)"; then
             openplc_fallito "download non riuscito: $(printf '%s' "$err" | tail -1)"
             return 1
@@ -300,7 +350,9 @@ installa_openplc() {
     fi
 
     # Se il container c'e' gia' non si ricrea: dentro c'e' il programma.
+    OPENPLC_NUOVO=0
     if ! podman container exists "$OPENPLC_NAME"; then
+        [ -f "$dati/restapi.db" ] || OPENPLC_NUOVO=1
         mkdir -p "$dati"
         # Sulla rete, tutte e quattro (decisione del maintainer, 30-10-2026):
         # «OpenPLC deve poter accedere a tutta la rete in modo indipendente, in
@@ -347,8 +399,8 @@ installa_openplc() {
 
     for _ in $(seq 1 90); do
         if curl -sk --max-time 2 -o /dev/null https://127.0.0.1:8443/ 2>/dev/null; then
-            echo "    OpenPLC acceso, senza programma. Editor di OpenPLC: questo pannello, porta 8443."
-            echo "    Crea subito il suo utente: finche' non ne ha, il primo che si collega lo crea."
+            openplc_credenziali
+            echo "    OpenPLC $OPENPLC_VERSION acceso, senza programma. Editor di OpenPLC: questo pannello, porta 8443."
             echo "    Dalla rete: Modbus 1502, S7 10102, OPC-UA 14840 (SWS: 127.0.0.1:1502)."
             openplc_esito riuscito ""
             return 0
@@ -750,6 +802,11 @@ if [ "$AUTOSTART" -eq 1 ]; then
         echo "    rete bridge (--bridge): porte pubblicate 7443/7444, ma"
         echo "    ATTENZIONE: \"Cerca runtime\" nell'IDE non troverà questo dispositivo." >&2
         echo "               Collegarsi a mano con http(s)://<ip>:7444." >&2
+        # CRA, sessione 3: lo schermo si riconosce dal loopback, e il port
+        # forwarder di podman senza root potrebbe non conservarlo.
+        echo "    ATTENZIONE: il pannello potrebbe non riconoscere il proprio schermo come locale:" >&2
+        echo "               imposta un PIN del progetto per il pannello di controllo, e leggi il" >&2
+        echo "               codice di abbinamento nel log (podman logs $NAME | grep -i abbinamento)." >&2
     fi
     sed -i "s|^Image=.*|Image=$TAG|" "$UNIT_DIR/$NAME.container"
     # Aggiornamento del runtime (27-09-2026): il runtime deve sapere che
@@ -1103,7 +1160,11 @@ for i in $(seq 1 30); do
         # Il codice di abbinamento (11-10-2026): un pannello senza utenti non
         # lascia entrare nessuno finché qualcuno non ne crea l'amministratore.
         # Si stampa qui perché è il primo posto in cui chi installa guarda.
-        CODICE="$(sonda ":7444/api/abbinamento" \
+        # Dalla porta del viewer (18-11-2026, CRA D16): il runtime dà il codice
+        # solo a chi lo chiede da questo dispositivo, su quella porta. Con
+        # `--bridge` il runtime potrebbe non riconoscere la richiesta come
+        # locale: allora resta il log.
+        CODICE="$(sonda ":7443/api/abbinamento" \
             | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("codice") or "" if d.get("in_attesa") else "")' 2>/dev/null || true)"
         if [ -n "$CODICE" ]; then
             echo

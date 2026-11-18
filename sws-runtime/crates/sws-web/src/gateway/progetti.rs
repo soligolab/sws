@@ -50,6 +50,39 @@ pub const MEMORIA_PREDEFINITA: &str = "256m";
 /// l'unica difesa che non costa niente.
 pub const PROCESSI_MASSIMI: i64 = 512;
 
+/// The CPU of a project container (18-11-2026, decision D21 of the CRA
+/// sessions): at most one core, so a script stuck in a loop cannot take the
+/// whole VPS (2 vCore).
+///
+/// No weight here: a container the gateway creates through podman's API lands
+/// in the `user.slice` of the user's systemd, the gateway and Traefik (quadlet
+/// services) in `app.slice`, so a weight would only weigh projects against each
+/// other. Between the two slices the CPU is shared by systemd, half and half
+/// under load (both at weight 100: measured on 18-11-2026, on theobroma and on
+/// the VPS).
+///
+/// Only where podman can apply them (`cpu` among its cgroup controllers):
+/// rootless, that needs systemd to delegate the controller, and a limit podman
+/// cannot apply would make every project fail to start. On the VPS it is
+/// delegated (Debian 13, measured on 18-11-2026).
+pub fn cpu_limits() -> serde_json::Value {
+    serde_json::json!({ "quota": 100_000, "period": 100_000 })
+}
+
+/// The limits of a project container, in the form podman's API wants
+/// (`memory.limit` in bytes, `pids.limit` as a number); the CPU only when
+/// `cpu` says podman can apply it.
+pub fn resource_limits(cpu: bool) -> serde_json::Value {
+    let mut r = serde_json::json!({
+        "memory": { "limit": byte_di(MEMORIA_PREDEFINITA) },
+        "pids": { "limit": PROCESSI_MASSIMI },
+    });
+    if cpu {
+        r["cpu"] = cpu_limits();
+    }
+    r
+}
+
 // Quanti container di progetto possono stare accesi **insieme**, in tutto.
 //
 // Diverso da `max_progetti_aperti`, che e' per azienda: venti aziende da un
@@ -657,6 +690,20 @@ impl Regia {
         let contenitore = nome_container(azienda, nome);
         // Un avanzo di un giro precedente occuperebbe il nome.
         let _ = self.podman.rimuovi(&contenitore).await;
+        let cpu = self
+            .podman
+            .cgroup_controllers()
+            .await
+            .is_ok_and(|c| c.iter().any(|x| x == "cpu"));
+        if !cpu {
+            static WARNED: std::sync::atomic::AtomicBool =
+                std::sync::atomic::AtomicBool::new(false);
+            if !WARNED.swap(true, std::sync::atomic::Ordering::Relaxed) {
+                tracing::warn!(
+                    "podman cannot limit the CPU here (no `cpu` cgroup controller): project containers open without a CPU limit"
+                );
+            }
+        }
 
         let mut spec = serde_json::json!({
             "image": self.immagine,
@@ -665,10 +712,7 @@ impl Regia {
             // o che forka si porta giu' la macchina intera invece di morire
             // da solo. `resource_limits` e' la forma che vuole l'API di
             // podman: `memory.limit` in byte, `pids.limit` come numero.
-            "resource_limits": {
-                "memory": { "limit": byte_di(MEMORIA_PREDEFINITA) },
-                "pids": { "limit": PROCESSI_MASSIMI },
-            },
+            "resource_limits": resource_limits(cpu),
             // Il riferimento del progetto, e le etichette pesanti dell'immagine
             // azzerate: qui i container sono uno per progetto aperto, quindi il
             // peso nel journal si moltiplica (vedi `ETICHETTE_DA_SVUOTARE`).
@@ -1242,6 +1286,20 @@ mod tests {
     }
 
     use super::*;
+
+    /// D21 (18-11-2026): one core at most, only where podman can apply it;
+    /// memory and processes always.
+    #[test]
+    fn the_cpu_limit_only_where_podman_can_apply_it() {
+        let with = resource_limits(true);
+        assert_eq!(with["cpu"]["quota"], 100_000);
+        assert_eq!(with["cpu"]["period"], 100_000);
+        assert!(with["cpu"].get("shares").is_none());
+        assert_eq!(with["pids"]["limit"], PROCESSI_MASSIMI);
+        let without = resource_limits(false);
+        assert!(without.get("cpu").is_none());
+        assert_eq!(without["memory"], with["memory"]);
+    }
 
     /// Il difetto del 27-10-2026: CasaDomotica è rimasta sulla 2.22.0
     /// attraverso **quattro** versioni del gateway, perché il progetto era

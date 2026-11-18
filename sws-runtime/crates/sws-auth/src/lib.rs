@@ -312,8 +312,8 @@ impl std::fmt::Display for UserError {
 /// contro la regola «gli utenti appartengono al progetto»: un progetto da cui
 /// `admin` era stato tolto apposta se lo vedeva tornare, e un deploy che porta
 /// gli utenti del progetto veniva silenziosamente contraddetto dall'ambiente
-/// del dispositivo — che su un'installazione nativa è `admin`/`admin`
-/// (`deploy/yocto/install.sh`).
+/// del dispositivo — che su un'installazione nativa era `admin`/`admin` fino al
+/// 18-11-2026 (D18 of the CRA sessions: since then only if set by hand).
 ///
 /// Ora entra **solo se il risultato sarebbe zero utenti**, cioè quando è l'unica
 /// cosa che tiene il pannello raggiungibile. Senza seed, zero utenti significa
@@ -369,6 +369,42 @@ fn scrivi_users_file(
     std::fs::write(store_path, yaml).map_err(|e| anyhow::anyhow!("write users.yaml: {e}"))
 }
 
+/// The account the native installers seeded until 18-11-2026, with the
+/// password everybody knows: `admin`/`admin`. Found in a users file with that
+/// password, it must change it at the next access, and «Later» does not lift
+/// it (decision D18 of the CRA sessions): the installers stopped seeding it,
+/// but a project that already has one keeps it. The other roles were seeded
+/// only with a password someone wrote, so they are not here.
+const FACTORY_ACCOUNTS: [&str; 1] = ["admin"];
+
+/// Whether `user` still has its factory password. One password check, only for
+/// the names in [`FACTORY_ACCOUNTS`].
+fn factory_password(user: &StoredUser) -> bool {
+    FACTORY_ACCOUNTS.contains(&user.username.as_str())
+        && verify_password(&user.username, &user.password_hash)
+}
+
+/// Flags the factory passwords; `true` when one was flagged, and the file has
+/// to be written. One password check per account in [`FACTORY_ACCOUNTS`] that
+/// exists and is not flagged yet: nothing for the others.
+fn flag_factory_passwords(users: &mut HashMap<String, StoredUser>) -> bool {
+    let mut flagged = false;
+    for name in FACTORY_ACCOUNTS {
+        if let Some(u) = users.get_mut(name) {
+            if !u.must_change_password && factory_password(u) {
+                u.must_change_password = true;
+                u.updated_at_ms = now_unix_ms();
+                warn!(
+                    user = name,
+                    "auth: the factory password is still set, it must be changed at the next access"
+                );
+                flagged = true;
+            }
+        }
+    }
+    flagged
+}
+
 impl AuthState {
     /// Bootstrap from `users.yaml` at `store_path`. When the file is missing
     /// or empty, fall back to the legacy `(username, role, password)` seed
@@ -392,6 +428,7 @@ impl AuthState {
             .collect();
 
         let seminati = applica_seed_di_recupero(&mut users, seed)?;
+        let seminati = flag_factory_passwords(&mut users) | seminati;
 
         if users.is_empty() {
             info!("no users defined — starting in no-auth mode (all routes open)");
@@ -502,6 +539,7 @@ impl AuthState {
             .map(|u| (u.username.clone(), u))
             .collect();
         let seminati = applica_seed_di_recupero(&mut new_users, seed)?;
+        let seminati = flag_factory_passwords(&mut new_users) | seminati;
         if new_users.is_empty() {
             info!("no users defined — starting in no-auth mode (all routes open)");
         } else if seminati {
@@ -698,6 +736,16 @@ impl AuthState {
     /// «Più tardi»: questa sessione lavora col suo ruolo anche se il cambio
     /// password è dovuto. Il segno dell'utente non cambia, quindi la domanda
     /// torna al prossimo accesso. Falso se la sessione non c'è più.
+    /// The user still has the factory password (`admin`/`admin`): «Later»
+    /// must not lift the change (D18).
+    pub async fn has_factory_password(&self, username: &str) -> bool {
+        self.users
+            .read()
+            .await
+            .get(username)
+            .is_some_and(factory_password)
+    }
+
     pub async fn rimanda_cambio_password(&self, token: &str) -> bool {
         match self.sessions.write().await.get_mut(token) {
             Some(sess) => {
@@ -998,6 +1046,61 @@ mod tests {
             Duration::from_secs(60),
         )
         .unwrap()
+    }
+
+    fn users_yaml_of(dir: &std::path::Path, accounts: &[(&str, &str)]) -> PathBuf {
+        let p = dir.join("users.yaml");
+        let users = accounts
+            .iter()
+            .map(|(name, password)| StoredUser {
+                username: (*name).into(),
+                password_hash: hash_password(password).unwrap(),
+                role: Role::Admin,
+                must_change_password: false,
+                created_at_ms: 1,
+                updated_at_ms: 1,
+                session_ttl_secs: None,
+                allowed_zones: vec![],
+            })
+            .collect();
+        std::fs::write(&p, serde_yaml::to_string(&UserFile { users }).unwrap()).unwrap();
+        p
+    }
+
+    /// D18 (18-11-2026): `admin`/`admin` left by an old native installation
+    /// must be changed at the next access, on disk too. Another password, or
+    /// another name, is left alone.
+    #[tokio::test]
+    async fn a_factory_password_must_be_changed() {
+        let d = tempfile::tempdir().unwrap();
+        let p = users_yaml_of(
+            d.path(),
+            &[
+                ("admin", "admin"),
+                ("operator", "operator"),
+                ("mario", "mario"),
+            ],
+        );
+        let a = stato(p.clone(), Vec::new());
+        {
+            let users = a.users.read().await;
+            assert!(users["admin"].must_change_password);
+            assert!(!users["operator"].must_change_password);
+            assert!(!users["mario"].must_change_password);
+        }
+        assert!(a.has_factory_password("admin").await);
+        assert!(!a.has_factory_password("operator").await);
+        let on_disk = carica_users_file(&p).unwrap();
+        assert!(on_disk
+            .users
+            .iter()
+            .any(|u| u.username == "admin" && u.must_change_password));
+
+        // The same on a project opened later.
+        let d2 = tempfile::tempdir().unwrap();
+        let p2 = users_yaml_of(d2.path(), &[("admin", "admin")]);
+        a.swap_store(p2, Vec::new()).await.unwrap();
+        assert!(a.users.read().await["admin"].must_change_password);
     }
 
     /// Il progetto ha i suoi utenti: l'ambiente non ne aggiunge. Prima di oggi

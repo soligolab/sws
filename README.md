@@ -330,8 +330,9 @@ viewer, the admin IDE, and all comm plugins, and auto-opens the last active proj
 **Authentication is on by default.** A device without users is **waiting for pairing**: it shows a
 one-time code, and whoever enters it creates the device's Admin. An IDE instance asks for a login and
 prints a first-access code on the terminal while no user exists. The only open mode is the
-development flag `--senza-autenticazione`, refused on a machine with a public address. The two
-native installers (Yocto, generic Linux) still seed `admin`/`admin`: change it at once. The runtime
+development flag `--senza-autenticazione`, refused on a machine with a public address. Since
+18-11-2026 the native installers (Yocto, generic Linux) seed no `admin`/`admin` either: they wait for
+the pairing code like the container, and print it. The runtime
 serves **HTTPS** when `tls.crt` exists: a panel in a container generates it at first start where the
 installer finds `certutil` (the Pixsys panels); elsewhere HTTPS is enabled from
 *Configuration → Instance → Device → Status → TLS certificate*.

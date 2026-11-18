@@ -452,6 +452,13 @@ pub async fn inoltra(
     // verso un pannello abbinato e solo dopo i controlli di sempre.
     req.headers_mut()
         .remove(crate::abbinamento::INTESTAZIONE_GATEWAY);
+    // Nor the remote screen's headers: on this path nobody vouches for them,
+    // and the panel's audit would write a cloud user chosen by the caller
+    // (CRA session 3).
+    req.headers_mut()
+        .remove(crate::control_panel::REMOTE_SCREEN_HEADER);
+    req.headers_mut()
+        .remove(crate::control_panel::REMOTE_USER_HEADER);
     let Some(registro) = s.tunnel.as_ref() else {
         return (StatusCode::NOT_FOUND, "questo processo non ha tunnel").into_response();
     };
@@ -499,6 +506,12 @@ pub async fn inoltra(
         .and_then(|r| r.split_once('/'))
         .map(|(_, resto)| format!("/{resto}"))
         .unwrap_or_else(|| "/".to_string());
+    // The operator page goes through `/schermo/<panel>/` only, which checks
+    // the console's switch and the person (CRA session 3): through here it
+    // skipped both.
+    if dentro == "/schermo" || dentro.starts_with("/schermo/") {
+        return (StatusCode::NOT_FOUND, "pannello non trovato").into_response();
+    }
     let query = req
         .uri()
         .query()

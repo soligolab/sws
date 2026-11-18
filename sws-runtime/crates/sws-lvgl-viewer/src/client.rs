@@ -585,6 +585,99 @@ pub async fn conferma_aggiornamento(
     Ok(())
 }
 
+/// A refusal of the password change or of «Later»: what the screen needs to
+/// decide whether to stay on the change, or go back to the access.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PasswordStepError {
+    /// The HTTP status; `None` when the runtime did not answer.
+    pub status: Option<u16>,
+    /// The server's `error` code (`invalid_password`, `factory_password`…).
+    pub code: Option<String>,
+    /// The server's reason, as it is, or the transport error.
+    pub reason: String,
+}
+
+impl std::fmt::Display for PasswordStepError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.reason)
+    }
+}
+
+/// `POST` to one of the two password routes, with the session.
+async fn password_step(
+    base_url: &str,
+    path: &[&str],
+    token: &str,
+    body: serde_json::Value,
+) -> Result<(), PasswordStepError> {
+    let transport = |e: String| PasswordStepError {
+        status: None,
+        code: None,
+        reason: e,
+    };
+    let mut url = reqwest::Url::parse(base_url).map_err(|e| transport(e.to_string()))?;
+    url.path_segments_mut()
+        .map_err(|_| transport("base URL cannot have path segments".into()))?
+        .extend(path);
+    let client = reqwest::Client::builder()
+        .use_preconfigured_tls(
+            pinned_client_config(base_url).map_err(|e| transport(e.to_string()))?,
+        )
+        .build()
+        .map_err(|e| transport(e.to_string()))?;
+    let resp = client
+        .post(url)
+        .header("Authorization", format!("Bearer {token}"))
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| transport(e.to_string()))?;
+    if resp.status().is_success() {
+        return Ok(());
+    }
+    let status = resp.status();
+    let body: serde_json::Value = resp.json().await.unwrap_or_default();
+    let text = |k: &str| body.get(k).and_then(|v| v.as_str()).map(str::to_string);
+    Err(PasswordStepError {
+        status: Some(status.as_u16()),
+        code: text("error"),
+        reason: text("detail")
+            .or_else(|| text("error"))
+            .unwrap_or_else(|| status.to_string()),
+    })
+}
+
+/// `POST /api/auth/change-password` (18-11-2026, decision D17 of the CRA
+/// sessions): the password asked at the panel's first access.
+pub async fn change_password(
+    base_url: &str,
+    token: &str,
+    old_password: &str,
+    new_password: &str,
+) -> Result<(), PasswordStepError> {
+    password_step(
+        base_url,
+        &["api", "auth", "change-password"],
+        token,
+        serde_json::json!({ "old_password": old_password, "new_password": new_password }),
+    )
+    .await
+}
+
+/// `POST /api/auth/rimanda-cambio-password`: «Later», for this session.
+pub async fn postpone_password_change(
+    base_url: &str,
+    token: &str,
+) -> Result<(), PasswordStepError> {
+    password_step(
+        base_url,
+        &["api", "auth", "rimanda-cambio-password"],
+        token,
+        serde_json::json!({}),
+    )
+    .await
+}
+
 async fn post_vuoto(base_url: &str, percorso: &[&str], token: Option<&str>) -> anyhow::Result<()> {
     let mut url = reqwest::Url::parse(base_url)?;
     url.path_segments_mut()

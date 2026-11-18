@@ -89,6 +89,9 @@ fi
 # Installer scripts
 install -m 755 "$REPO/deploy/generic-linux/install.sh"          "$STAGE/install.sh"
 cp            "$REPO/deploy/generic-linux/sws-runtime.service"  "$STAGE/sws-runtime.service"
+# The control panel's polkit rule: one copy, the Tiny TY's (same user `sws`).
+install -d "$STAGE/polkit"
+cp "$REPO/deploy/tiny-ty/50-sws-control-panel.rules" "$REPO/deploy/tiny-ty/50-sws-control-panel.pkla" "$STAGE/polkit/"
 
 # ── Create tarball ────────────────────────────────────────────────────────────
 

@@ -101,6 +101,56 @@ l'immagine della rc.20 e il gateway aggiornato, con chiavi vere.
        chiave del progetto o da quella dell'account.
 5. [ ] **Uno sfondo con la chiave OpenAI dell'account**, in un progetto che non ha una chiave sua.
 
+## CRA, sessione 3: accesso al pannello di controllo, credenziali di fabbrica, OpenPLC (18-11-2026)
+
+Dalla [sessione 3](plans/2026-11-18-cra-3-accesso-pannello-di-controllo.md), ramo `fix/cra-3-control-panel-access`,
+annidato sulla 2. Tutte dopo il rilascio delle tre sessioni.
+
+1. [ ] **Dal PC, su un pannello senza PIN del progetto** (per esempio il TY570): `curl -k -X POST
+       https://<pannello>:7443/api/control-panel/session -H 'Content-Type: application/json' -d '{"pin":"<ultime 6
+       cifre del MAC>"}'` risponde **401**; il viewer web aperto dal PC dice «Da qui serve il PIN del progetto».
+2. [ ] **Dallo schermo dello stesso pannello**: il gesto nell'angolo apre il pannello di controllo col PIN del MAC,
+       come prima; WP630 (kiosk), TC620 (LVGL), TY570 (LVGL).
+3. [ ] **Cinque PIN sbagliati dal PC**: il PC aspetta 60 s, lo schermo del pannello no. Nel registro di audit ci sono
+       `control_panel.pin_wrong` e `control_panel.locked`, con l'indirizzo del PC.
+4. [ ] **Dallo schermo remoto del cloud**, su un pannello con PIN del progetto: il pannello di controllo si apre col
+       PIN del progetto e non con quello del MAC; nella sezione Dispositivo c'è solo «Eliminare solo il progetto,
+       restando nel cloud», e una riga dice perché. Nell'audit la sessione porta `cloud:<utente>`.
+5. [ ] **Un pannello appena installato, aperto dal PC**: la pagina non mostra il codice di abbinamento, dice di
+       leggerlo sullo schermo e ha un campo per scriverlo; scritto lì, l'abbinamento riesce. Sullo schermo del pannello
+       il codice c'è come prima, e l'installer lo stampa.
+6. [ ] **Un operatore col cambio password obbligatorio, sul viewer LVGL** (TC620 o TY570): dopo l'accesso il pannello
+       chiede la password nuova e la ripetizione; «Cambia» la cambia e poi si entra; «Più tardi» lascia entrare per
+       questa sessione. Prima di cambiarla o rimandarla, un tocco su un comando non scrive niente.
+7. [ ] **Lo stesso sul viewer web** del WP630: senza cambio, un tag non si scrive (prima si scriveva).
+8. [ ] **Linux generico da tarball** (una macchina di prova con systemd): l'installer crea l'utente `sws`, il servizio
+       gira come `sws`, stampa il codice di abbinamento; dal pannello di controllo il cambio d'ora e il riavvio
+       funzionano (regola polkit). Un aggiornamento da un'installazione di prima spegne `SWS_ADMIN_PASSWORD=admin` e
+       il runtime riapre i suoi progetti.
+9. [ ] **Un progetto con `admin`/`admin`** (per esempio da un dispositivo Yocto dell'ufficio): al primo accesso SWS
+       chiede di cambiare la password.
+10. [ ] **OpenPLC installato da zero sul WP630**: l'installer dice che l'utente dell'Editor è creato; il pannello di
+       controllo ha la sezione OpenPLC con versione v4.3.1, porte, utente `admin` e la password; l'Editor dal PC si
+       collega con quelle.
+11. [ ] **OpenPLC già installato prima** (WP630 dell'ufficio, che ha un utente): la sezione dice che la password non è
+       nota qui, e niente è cambiato in OpenPLC.
+12. [ ] **Nel cloud**: un progetto con uno script in un ciclo infinito usa al massimo un core (`podman stats`), e il
+       gateway e gli altri progetti rispondono. `podman inspect <container> --format '{{.HostConfig.CpuQuota}}'` dà
+       `100000`.
+13. [ ] **Un `admin`/`admin` rimasto** (punto 9): «Più tardi» non lo lascia passare, e lo dice; sul viewer LVGL resta
+       la pagina del cambio col motivo.
+14. [ ] **Dallo stesso cloud, col tunnel generico** (`/dev/<pannello>/api/control-panel/reset` dall'IDE nel cloud,
+       oppure con `curl` e un token): il reset completo è rifiutato, quello che tiene il cloud no.
+15. [ ] **Il viewer LVGL col cambio password aperto, e il runtime riavviato nel frattempo**: «Cambia» o «Più tardi»
+       riportano all'accesso, con la riga «La sessione è finita».
+17. [ ] **Un dispositivo Yocto dell'ufficio, nativo** (`scripts/yocto/deploy.sh`): il runtime gira come `user`
+       (`ps -o user= -C sws-runtime`), apre i progetti che c'erano, e dal pannello di controllo cambio d'ora, rete e
+       riavvio funzionano; il viewer LVGL, come `user`, disegna e risponde al tocco.
+18. [ ] **Nel cloud, dopo il drop-in del VPS**: `cpu.max` del ramo dei progetti dà `150000 100000`, e con due progetti
+       in un ciclo infinito il gateway risponde.
+16. [ ] **Un'installazione `--bridge`** (se ce n'è una di prova): l'installer avvisa; dallo schermo il PIN del
+       dispositivo funziona o no? Annotare cosa succede, è il caso che non si è potuto misurare.
+
 ## CRA, sessione 2: isolamento nel cloud e sandbox delle espressioni (18-11-2026)
 
 Dalla [sessione 2](plans/2026-11-18-cra-2-isolamento-cloud-e-sandbox.md), ramo `fix/cra-2-cloud-isolation-sandbox`.

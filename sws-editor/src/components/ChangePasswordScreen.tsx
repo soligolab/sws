@@ -104,7 +104,9 @@ export function ChangePasswordScreen({ onAnnulla, rimandabile }: {
       await api.rimandaCambioPassword(perSempre);
       setMustChangePassword(false);
     } catch (e: any) {
-      setError(dettaglio(String(e?.message ?? "")) ?? t("auth.pwChangeError"));
+      const msg = String(e?.message ?? "");
+      // admin/admin is not postponed (CRA D18): it says so in the UI's language.
+      setError(msg.includes("factory_password") ? t("auth.factoryPassword") : dettaglio(msg) ?? t("auth.pwChangeError"));
     } finally {
       setBusy(false);
     }

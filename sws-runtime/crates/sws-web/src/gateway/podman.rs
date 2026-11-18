@@ -224,6 +224,18 @@ impl Podman {
         matches!(self.chiama("GET", "/_ping", None).await, Ok((200, _)))
     }
 
+    /// The cgroup controllers podman can use (`host.cgroupControllers` of
+    /// `GET /info`). Rootless, `cpu` is there only if systemd delegates it to
+    /// the user: a limit podman cannot apply makes the container fail to start.
+    pub async fn cgroup_controllers(&self) -> anyhow::Result<Vec<String>> {
+        let (stato, corpo) = self.chiama("GET", "/info", None).await?;
+        if stato != 200 {
+            anyhow::bail!("podman info: HTTP {stato}");
+        }
+        let v: serde_json::Value = serde_json::from_str(&corpo)?;
+        Ok(controllers_of(&v))
+    }
+
     /// I container **del gateway**, in qualunque stato.
     ///
     /// `all=true` di proposito: uno fermo occupa comunque un nome e va
@@ -411,6 +423,17 @@ unsafe fn libc_getuid() -> u32 {
     getuid()
 }
 
+fn controllers_of(info: &serde_json::Value) -> Vec<String> {
+    info.pointer("/host/cgroupControllers")
+        .and_then(|c| c.as_array())
+        .map(|a| {
+            a.iter()
+                .filter_map(|x| x.as_str().map(str::to_string))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -425,6 +448,13 @@ mod tests {
         // Un nome con caratteri che podman rifiuta non lo fa fallire.
         assert_eq!(nome_container("acme", "linea 3/b"), "sws-p-acme-linea-3-b");
         assert_eq!(nome_container("acme", "F2.2"), "sws-p-acme-F2.2");
+    }
+
+    #[test]
+    fn the_controllers_from_podman_info() {
+        let info = serde_json::json!({"host": {"cgroupControllers": ["cpu", "memory", "pids"]}});
+        assert_eq!(controllers_of(&info), ["cpu", "memory", "pids"]);
+        assert!(controllers_of(&serde_json::json!({"host": {}})).is_empty());
     }
 
     /// Il giro completo contro il podman **vero** della macchina.

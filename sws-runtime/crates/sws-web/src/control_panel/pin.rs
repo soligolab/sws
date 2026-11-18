@@ -9,8 +9,11 @@
 //!   (`ty570-1ad-p1-06e990` → `06e990`), so it is printed on the MAC label.
 //!
 //! The initial PIN is not a secret: whoever sees the mDNS name or the ARP table
-//! knows it. It keeps a curious finger out of the settings, nothing more; the
-//! real protection is the project's PIN, and the IDE says so until there is one.
+//! knows it. So it counts **only from the device's own screen** (18-11-2026,
+//! decision D13 of the CRA sessions): standing in front of the panel is the
+//! credential, the six digits only keep a curious finger out. From the network
+//! and from the cloud's remote screen only the project's PIN opens the panel,
+//! and the IDE says so until there is one.
 
 use std::path::Path;
 
@@ -60,29 +63,41 @@ pub fn pin_from_mac(mac: &str) -> Option<String> {
 pub enum PinSource {
     Project,
     Device,
+    /// The device's PIN, which counts only from the screen, and this request
+    /// does not come from there: the project needs a PIN of its own.
+    ScreenOnly,
     /// No project PIN and no card to read a MAC from: nobody can enter.
     None,
 }
 
-pub fn pin_source(project_hash: Option<&str>, initial: Option<&str>) -> PinSource {
+/// `on_screen`: the request comes from the device's own screen, the only place
+/// where the device's PIN counts.
+pub fn pin_source(project_hash: Option<&str>, initial: Option<&str>, on_screen: bool) -> PinSource {
     match (project_hash, initial) {
         (Some(_), _) => PinSource::Project,
-        (None, Some(_)) => PinSource::Device,
+        (None, Some(_)) if on_screen => PinSource::Device,
+        (None, Some(_)) => PinSource::ScreenOnly,
         (None, None) => PinSource::None,
     }
 }
 
 /// Whether `typed` opens the panel. The project's PIN wins over the device's:
-/// once a project sets one, the MAC no longer opens anything.
-pub fn pin_matches(typed: &str, project_hash: Option<&str>, initial: Option<&str>) -> bool {
+/// once a project sets one, the MAC no longer opens anything. The device's PIN
+/// counts only `on_screen`.
+pub fn pin_matches(
+    typed: &str,
+    project_hash: Option<&str>,
+    initial: Option<&str>,
+    on_screen: bool,
+) -> bool {
     let typed = typed.trim();
     if typed.is_empty() {
         return false;
     }
     match (project_hash, initial) {
         (Some(hash), _) => sws_auth::verify_password(typed, hash),
-        (None, Some(pin)) => typed.eq_ignore_ascii_case(pin),
-        (None, None) => false,
+        (None, Some(pin)) if on_screen => typed.eq_ignore_ascii_case(pin),
+        (None, _) => false,
     }
 }
 
@@ -123,13 +138,32 @@ mod tests {
     #[test]
     fn the_project_pin_replaces_the_device_pin() {
         let hash = sws_auth::hash_password("4711").unwrap();
-        assert!(pin_matches("06E990", None, Some("06e990")));
-        assert!(pin_matches("4711", Some(&hash), Some("06e990")));
-        assert!(!pin_matches("06e990", Some(&hash), Some("06e990")));
-        assert!(!pin_matches("", None, Some("06e990")));
-        assert!(!pin_matches("06e990", None, None));
-        assert_eq!(pin_source(Some(&hash), Some("06e990")), PinSource::Project);
-        assert_eq!(pin_source(None, Some("06e990")), PinSource::Device);
-        assert_eq!(pin_source(None, None), PinSource::None);
+        assert!(pin_matches("06E990", None, Some("06e990"), true));
+        assert!(pin_matches("4711", Some(&hash), Some("06e990"), true));
+        assert!(!pin_matches("06e990", Some(&hash), Some("06e990"), true));
+        assert!(!pin_matches("", None, Some("06e990"), true));
+        assert!(!pin_matches("06e990", None, None, true));
+        assert_eq!(
+            pin_source(Some(&hash), Some("06e990"), true),
+            PinSource::Project
+        );
+        assert_eq!(pin_source(None, Some("06e990"), true), PinSource::Device);
+        assert_eq!(pin_source(None, None, true), PinSource::None);
+    }
+
+    #[test]
+    fn the_device_pin_counts_only_on_the_screen() {
+        let hash = sws_auth::hash_password("4711").unwrap();
+        assert!(!pin_matches("06e990", None, Some("06e990"), false));
+        // The project's PIN counts from anywhere.
+        assert!(pin_matches("4711", Some(&hash), Some("06e990"), false));
+        assert_eq!(
+            pin_source(None, Some("06e990"), false),
+            PinSource::ScreenOnly
+        );
+        assert_eq!(
+            pin_source(Some(&hash), Some("06e990"), false),
+            PinSource::Project
+        );
     }
 }

@@ -78,6 +78,30 @@ describe("avviso di aggiornamento sul pannello", () => {
     expect(campoPassword()).toBeNull();
   });
 
+  it("an Admin who must change the password updates after the change, not before (CRA D17)", async () => {
+    getSystemStatus.mockResolvedValue({ auth_required: true, uptime_s: 100 });
+    render(<AvvisoAggiornamento />);
+    fireEvent.click(await screen.findByText(testoSistema("agg_aggiorna", L)));
+    await waitFor(() => expect(campoPassword()).not.toBeNull());
+    useAppStore.getState().setAuth("token-admin", "admin", "Admin", true);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(avviaAggiornamento).not.toHaveBeenCalled();
+    useAppStore.getState().setMustChangePassword(false);
+    await waitFor(() => expect(avviaAggiornamento).toHaveBeenCalledTimes(1));
+  });
+
+  it("an Admin already in, with the password still to change, waits for the change without a login", async () => {
+    getSystemStatus.mockResolvedValue({ auth_required: true, uptime_s: 100 });
+    useAppStore.getState().setAuth("token-admin", "admin", "Admin", true);
+    render(<AvvisoAggiornamento />);
+    fireEvent.click(await screen.findByText(testoSistema("agg_aggiorna", L)));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(campoPassword()).toBeNull();
+    expect(avviaAggiornamento).not.toHaveBeenCalled();
+    useAppStore.getState().setMustChangePassword(false);
+    await waitFor(() => expect(avviaAggiornamento).toHaveBeenCalledTimes(1));
+  });
+
   it("con utenti, chi entra senza essere Admin non aggiorna, e l'avviso lo dice", async () => {
     getSystemStatus.mockResolvedValue({ auth_required: true, uptime_s: 100 });
     render(<AvvisoAggiornamento />);

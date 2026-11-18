@@ -164,6 +164,51 @@ describe("ControlPanel", () => {
     expect(sent.map((c) => c.body)).toEqual([JSON.stringify({ pin: "06e990", keep_cloud: true })]);
   });
 
+  it("away from the device's screen, without a project PIN, it says to set one (CRA D13, 18-11-2026)", async () => {
+    fakeRuntime({ "GET /api/control-panel": () => reply(200, { enabled: true, pin: "screen_only", origin: "network" }) });
+    render(<ControlPanel onClose={() => {}} />);
+    expect((await screen.findByTestId("control-panel-screen-only")).textContent).toMatch(/PIN del progetto|project's PIN/);
+  });
+
+  it("from the cloud's remote screen only the reset that keeps the pairing (CRA D14, 18-11-2026)", async () => {
+    fakeRuntime({
+      "GET /api/control-panel/info": () => reply(200, { model: "TY570-1AD-P1", serial: "P1", hostname: "ty570-1ad-p1-06e990", sws_version: "2.26.0", initial_pin: null, cloud: "tunnel.soligo.net", origin: "remote_screen" }),
+    });
+    render(<ControlPanel onClose={() => {}} />);
+    await typePin("4711aa");
+    await screen.findByTestId("card-eth0");
+    fireEvent.click(screen.getByTestId("control-panel-section-device"));
+    expect(await screen.findByTestId("reset-remote-note")).toBeTruthy();
+    expect(screen.queryByTestId("reset-ask")).toBeNull();
+    expect(screen.getByTestId("reset-keep-cloud-ask")).toBeTruthy();
+  });
+
+  it("OpenPLC, where installed, shows the Editor's user and password behind the PIN (CRA D20, 18-11-2026)", async () => {
+    const calls = fakeRuntime({
+      "GET /api/control-panel/capabilities": () => reply(200, { network: true, wifi: false, time: true, reboot: true, power_off: false, openplc: true }),
+      "GET /api/control-panel/openplc": () => reply(200, {
+        installed: true, answers: true, version: "v4.3.1",
+        credentials: { username: "admin", password: "abc2345def" }, credentials_unknown: false,
+        ports: { editor: 8443, modbus: 1502, s7: 10102, opcua: 14840, discovery: 33333 },
+      }),
+    });
+    render(<ControlPanel onClose={() => {}} />);
+    await typePin("06e990");
+    await screen.findByTestId("card-eth0");
+    fireEvent.click(screen.getByTestId("control-panel-section-openplc"));
+    expect((await screen.findByTestId("openplc-password")).textContent).toBe("abc2345def");
+    expect(screen.getByTestId("openplc-state").textContent).toMatch(/v4\.3\.1/);
+    expect(calls.find((c) => c.path === "/api/control-panel/openplc")!.token).toBe("tok");
+  });
+
+  it("without OpenPLC there is no OpenPLC section", async () => {
+    fakeRuntime();
+    render(<ControlPanel onClose={() => {}} />);
+    await typePin("06e990");
+    await screen.findByTestId("card-eth0");
+    expect(screen.queryByTestId("control-panel-section-openplc")).toBeNull();
+  });
+
   it("a static address is sent, then the confirmation bar counts down and confirms", async () => {
     const calls = fakeRuntime();
     render(<ControlPanel onClose={() => {}} />);

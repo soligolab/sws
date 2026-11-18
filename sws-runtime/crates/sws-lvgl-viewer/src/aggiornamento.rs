@@ -289,7 +289,32 @@ pub struct Accesso {
     pub partito: Option<Instant>,
     /// In volo da più di [`ACCESSO_LENTO`].
     pub lento: bool,
+    /// Logged in, and the server asks for a new password first: the same
+    /// screen asks for it, and the action waits (18-11-2026, decision D17 of
+    /// the CRA sessions).
+    pub password_change: Option<PasswordChange>,
 }
+
+/// What the password change needs: the password just typed, which the server
+/// asks again, and the session. In memory only, as long as the screen.
+#[derive(Clone, Default)]
+pub struct PasswordChange {
+    pub old_password: String,
+    pub token: String,
+}
+
+impl std::fmt::Debug for PasswordChange {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("PasswordChange { .. }")
+    }
+}
+
+/// The `motivo` of the access card while it asks for the new password.
+pub const PASSWORD_CHANGE: &str = "password_change";
+/// Reasons the screen translates (`lvgl_avviso`): the factory password cannot
+/// be postponed, and the session ended while the change was asked.
+pub const ERROR_FACTORY_PASSWORD: &str = "factory_password";
+pub const ERROR_SESSION_LOST: &str = "session_lost";
 
 /// La risposta di un tentativo d'accesso che non si aspetta più: rinunciato
 /// a 60 s, annullato da chi stava davanti, o superato da un tentativo nuovo.
@@ -352,6 +377,7 @@ impl StatoAvviso {
         if let Some(a) = &self.accesso {
             return Avviso::Accesso {
                 motivo: match &a.azione {
+                    _ if a.password_change.is_some() => PASSWORD_CHANGE.into(),
                     Some(AzioneRichiesta::Quadlet) => "agg_accesso_quadlet".into(),
                     Some(AzioneRichiesta::Conferma(_)) => "agg_accesso_conferma".into(),
                     Some(AzioneRichiesta::Comando) => "cmd_serve_accesso".into(),
@@ -512,6 +538,51 @@ pub fn accesso_riuscito(
     let azione = g.accesso.take().and_then(|a| a.azione);
     g.cambiato();
     Ok(azione)
+}
+
+/// Logged in, but the server asks for a new password first: the screen stays,
+/// now asking for it, and the action waits for the change or «Later». Only
+/// for the attempt being waited for, like [`accesso_riuscito`].
+pub fn password_change_needed(
+    s: &SharedAvviso,
+    tentativo: u64,
+    change: PasswordChange,
+) -> Result<(), RispostaTardiva> {
+    let mut g = s.lock().map_err(|_| RispostaTardiva)?;
+    if !g.attende(tentativo) {
+        return Err(RispostaTardiva);
+    }
+    if let Some(a) = g.accesso.as_mut() {
+        a.in_corso = false;
+        a.lento = false;
+        a.partito = None;
+        a.errore = None;
+        a.password_change = Some(change);
+    }
+    g.cambiato();
+    Ok(())
+}
+
+/// The change cannot go on (the session is gone, or «Later» did not reach the
+/// runtime): back to the access, with the reason. `false` when the answer is
+/// no longer awaited.
+pub fn password_change_abandoned(s: &SharedAvviso, tentativo: u64, reason: String) -> bool {
+    let Ok(mut g) = s.lock() else {
+        return false;
+    };
+    if !g.attende(tentativo) {
+        return false;
+    }
+    if let Some(a) = g.accesso.as_mut() {
+        a.password_change = None;
+    }
+    g.accesso_fallito(reason);
+    true
+}
+
+/// The password change being asked, if any: the screen reads it to send.
+pub fn password_change(s: &SharedAvviso) -> Option<PasswordChange> {
+    s.lock().ok()?.accesso.as_ref()?.password_change.clone()
 }
 
 /// «Più tardi».

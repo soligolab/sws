@@ -19,11 +19,16 @@ if [ -f /etc/sws/runtime.env ]; then
     . /etc/sws/runtime.env
 fi
 
-# Defaults — change SWS_ADMIN_PASSWORD in /etc/sws/runtime.env before
-# going live. Leaving it as "admin" is only safe on an isolated network.
-: "${SWS_ADMIN_USER:=admin}"
-: "${SWS_ADMIN_PASSWORD:=admin}"
-export SWS_ADMIN_USER SWS_ADMIN_PASSWORD
+# No default password (18-11-2026, decision D18 of the CRA sessions): until
+# 18-11 an empty project received `admin`/`admin` from here. A fresh install
+# now waits for its pairing code, like the container: the installer, the log
+# and the device's screen show it, and whoever types it chooses the first
+# Admin's password. `SWS_ADMIN_PASSWORD` in the env file stays a recovery
+# account for a project with no users, and only when set there.
+if [ -n "${SWS_ADMIN_PASSWORD:-}" ]; then
+    : "${SWS_ADMIN_USER:=admin}"
+    export SWS_ADMIN_USER SWS_ADMIN_PASSWORD
+fi
 
 # Optional additional roles. Empty string disables the account.
 : "${SWS_SUPERVISOR_PASSWORD:=}"

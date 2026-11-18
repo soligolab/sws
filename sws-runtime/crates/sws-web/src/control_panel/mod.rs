@@ -27,12 +27,12 @@ pub mod reset;
 use crate::router::{active_dir, AppState};
 use axum::{
     body::Body,
-    extract::{Path, State},
-    http::{Request, StatusCode},
+    extract::{FromRequestParts, Path, State},
+    http::{request::Parts, HeaderMap, Request, StatusCode},
     middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::{get, post, put},
-    Json, Router,
+    Extension, Json, Router,
 };
 use backend::{
     Backend, Hotspot, Ipv4Change, PanelCornerOptions, RebootCorner, RebootCornerOptions,
@@ -41,6 +41,7 @@ use backend::{
 use serde::Deserialize;
 use serde_json::json;
 use std::collections::HashMap;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 use sws_core::project::ControlPanelConfig;
@@ -52,24 +53,296 @@ pub const SESSION_HEADER: &str = "x-sws-control-panel";
 /// the request does not count as use, or an open panel would never lock.
 pub const WATCH_HEADER: &str = "x-sws-control-panel-watch";
 
+/// Set by [`crate::schermo::dal_gateway`] on everything it forwards to the
+/// operator page: the request comes from the cloud's remote screen, even though
+/// it reaches the viewer port from 127.0.0.1.
+pub const REMOTE_SCREEN_HEADER: &str = "x-sws-remote-screen";
+/// The cloud user behind the remote screen. The gateway sets it and removes one
+/// sent by the browser; the panel reads it only on a remote-screen request.
+pub const REMOTE_USER_HEADER: &str = "x-sws-remote-user";
+
+/// The port the panel's routes are mounted on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Listener {
+    /// The operator page's port: the one the device's screen uses.
+    Viewer,
+    /// The management port, and the instance's full router.
+    Management,
+}
+
+/// Where a request comes from (18-11-2026, decisions D13-D16 of the CRA
+/// sessions). The device's PIN and the pairing code count only on the screen,
+/// the lockout is counted per origin, and the reset from the cloud keeps the
+/// pairing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Origin {
+    /// The device's own screen: the viewer port, from the loopback, not
+    /// forwarded from the cloud, and not a page of another site in a browser
+    /// on the device. The kiosk and the LVGL viewers call
+    /// `https://localhost:7443` or `127.0.0.1`.
+    Screen,
+    /// The cloud's remote screen: the viewer port, from the loopback, with the
+    /// header that `dal_gateway` puts on what it forwards.
+    RemoteScreen,
+    /// The management port from the loopback: the cloud tunnel (signed or
+    /// not: a panel declared by hand on the gateway gets no signature), or a
+    /// process on the device. Treated like the remote screen for the reset.
+    Tunnel,
+    /// Anything else, by address: the LAN, a container installed with
+    /// `--bridge`, a page of another site in a browser on the device.
+    Network(IpAddr),
+}
+
+impl Origin {
+    pub fn name(self) -> &'static str {
+        match self {
+            Origin::Screen => "screen",
+            Origin::RemoteScreen => "remote_screen",
+            Origin::Tunnel => "tunnel",
+            Origin::Network(_) => "network",
+        }
+    }
+
+    /// For the audit log: the address when there is one.
+    fn describe(self) -> String {
+        match self {
+            Origin::Network(ip) => format!("network {ip}"),
+            other => other.name().into(),
+        }
+    }
+
+    /// From the cloud: the full reset is refused, it would leave a code that
+    /// can be read only on site (D14).
+    pub fn from_the_cloud(self) -> bool {
+        matches!(self, Origin::RemoteScreen | Origin::Tunnel)
+    }
+}
+
+/// A page of another site, in a browser on the device: it reaches 127.0.0.1
+/// like the kiosk does, and the runtime answers it (CORS is open on the viewer
+/// port). The browser says so: `Sec-Fetch-Site` other than `same-origin` and
+/// `none`, or an `Origin` that is not the device itself. The kiosk's own page,
+/// the LVGL viewers (no such headers) and the installers are not.
+fn foreign_page(headers: &HeaderMap) -> bool {
+    let text = |h: &str| headers.get(h).and_then(|v| v.to_str().ok());
+    if let Some(site) = text("sec-fetch-site") {
+        if site != "same-origin" && site != "none" {
+            return true;
+        }
+    }
+    match text("origin") {
+        None => false,
+        Some(o) => {
+            let host = o
+                .split_once("://")
+                .map_or(o, |(_, rest)| rest)
+                .rsplit_once(':')
+                .map_or_else(|| o.split_once("://").map_or(o, |(_, r)| r), |(h, _)| h);
+            !matches!(host, "localhost" | "127.0.0.1" | "[::1]")
+        }
+    }
+}
+
+/// The origin of a request. Without the caller's address (a test, or a server
+/// that does not record it) it is the network: never more trust than known.
+pub fn origin(listener: Listener, peer: Option<SocketAddr>, headers: &HeaderMap) -> Origin {
+    let Some(peer) = peer else {
+        return Origin::Network(IpAddr::V4(Ipv4Addr::UNSPECIFIED));
+    };
+    let ip = peer.ip().to_canonical();
+    if !ip.is_loopback() || foreign_page(headers) {
+        return Origin::Network(ip);
+    }
+    match listener {
+        Listener::Viewer if headers.contains_key(REMOTE_SCREEN_HEADER) => Origin::RemoteScreen,
+        Listener::Viewer => Origin::Screen,
+        Listener::Management => Origin::Tunnel,
+    }
+}
+
+#[axum::async_trait]
+impl<S: Send + Sync> FromRequestParts<S> for Origin {
+    type Rejection = std::convert::Infallible;
+
+    async fn from_request_parts(parts: &mut Parts, _: &S) -> Result<Self, Self::Rejection> {
+        let listener = parts
+            .extensions
+            .get::<Listener>()
+            .copied()
+            .unwrap_or(Listener::Management);
+        let peer = parts.extensions.get::<SocketAddr>().copied();
+        Ok(origin(listener, peer, &parts.headers))
+    }
+}
+
+/// The cloud user of a remote-screen request, for the audit log.
+fn remote_user(origin: Origin, headers: &HeaderMap) -> Option<String> {
+    (origin == Origin::RemoteScreen)
+        .then(|| headers.get(REMOTE_USER_HEADER)?.to_str().ok())
+        .flatten()
+        .map(|u| format!("cloud:{u}"))
+}
+
 /// How long a service session lasts without being used.
 const SESSION_IDLE: Duration = Duration::from_secs(15 * 60);
-/// Wrong PINs before the panel stops listening for [`LOCKOUT`].
+/// Wrong PINs before an origin stops being listened to for [`LOCKOUT`].
 const MAX_FAILURES: u32 = 5;
 const LOCKOUT: Duration = Duration::from_secs(60);
+/// Mistakes are forgotten this long after the last one: whoever tries a PIN a
+/// minute, under the lockout, still adds up.
+const FORGET_AFTER: Duration = Duration::from_secs(15 * 60);
+/// PIN attempts from the network as a whole, per minute. Counted per address
+/// alone, many addresses would multiply both the guesses and the password
+/// checks; past this the network waits, and the screen, the remote screen and
+/// the tunnel do not.
+const NETWORK_ATTEMPTS_PER_MINUTE: u32 = 30;
+/// Network addresses followed at once. With the cap above the table does not
+/// fill in fifteen minutes; if it does, a new address waits like the rest of
+/// the network.
+const MAX_ORIGINS: usize = 512;
+
+struct Session {
+    last_use: Instant,
+    /// A session opened from the screen is not good from the network.
+    origin: Origin,
+}
+
+#[derive(Default)]
+struct Attempts {
+    failures: u32,
+    last_failure: Option<Instant>,
+    locked_until: Option<Instant>,
+}
 
 /// Sessions and failed attempts. In memory on purpose: a restart closes every
-/// session and forgets the attempts, as in `sws-auth`.
+/// session and forgets the attempts, as in `sws-auth`. The attempts are counted
+/// per origin (D15): whoever tries PINs from the network locks out only
+/// themselves, never the person in front of the screen.
 #[derive(Default)]
 struct Gate {
-    sessions: HashMap<String, Instant>,
-    failures: u32,
-    locked_until: Option<Instant>,
+    sessions: HashMap<String, Session>,
+    attempts: HashMap<Origin, Attempts>,
+    /// The network's attempts in the current minute.
+    network_window: Option<(Instant, u32)>,
+}
+
+/// What an attempt led to, counted before the PIN is checked.
+#[derive(Debug, PartialEq)]
+enum Attempt {
+    Counted,
+    /// This attempt reached [`MAX_FAILURES`]: if it is wrong, the origin is
+    /// locked out from now.
+    Locking,
+}
+
+impl Gate {
+    /// Before the PIN is checked: refused while the origin is locked, or while
+    /// the network has used its minute; otherwise the attempt counts as a
+    /// mistake until it proves right ([`Gate::succeed`]), so attempts made at
+    /// the same moment cannot all pass the check.
+    fn attempt(&mut self, origin: Origin, now: Instant) -> Result<Attempt, u64> {
+        self.forget_stale(now);
+        if let Some(until) = self
+            .attempts
+            .get(&origin)
+            .and_then(|a| a.locked_until)
+            .filter(|t| *t > now)
+        {
+            return Err(until.duration_since(now).as_secs().max(1));
+        }
+        if let Origin::Network(_) = origin {
+            let (start, n) = match self.network_window {
+                Some((start, n)) if now.duration_since(start) < LOCKOUT => (start, n),
+                _ => (now, 0),
+            };
+            if n >= NETWORK_ATTEMPTS_PER_MINUTE {
+                return Err(LOCKOUT
+                    .saturating_sub(now.duration_since(start))
+                    .as_secs()
+                    .max(1));
+            }
+            if !self.attempts.contains_key(&origin) && self.attempts.len() >= MAX_ORIGINS {
+                return Err(LOCKOUT.as_secs());
+            }
+            self.network_window = Some((start, n + 1));
+        }
+        let a = self.attempts.entry(origin).or_default();
+        a.failures += 1;
+        a.last_failure = Some(now);
+        if a.failures >= MAX_FAILURES {
+            a.failures = 0;
+            a.locked_until = Some(now + LOCKOUT);
+            Ok(Attempt::Locking)
+        } else {
+            Ok(Attempt::Counted)
+        }
+    }
+
+    /// The PIN was right: the origin starts again from zero.
+    fn succeed(&mut self, origin: Origin) {
+        self.attempts.remove(&origin);
+    }
+
+    /// An origin whose last mistake is older than [`FORGET_AFTER`], and that is
+    /// not locked, starts again from zero.
+    fn forget_stale(&mut self, now: Instant) {
+        self.attempts.retain(|_, a| {
+            a.locked_until.is_some_and(|t| t > now)
+                || a.last_failure
+                    .is_some_and(|t| now.duration_since(t) < FORGET_AFTER)
+        });
+    }
 }
 
 fn gate() -> &'static Mutex<Gate> {
     static GATE: OnceLock<Mutex<Gate>> = OnceLock::new();
     GATE.get_or_init(Default::default)
+}
+
+fn too_many(secs: u64) -> Response {
+    (
+        StatusCode::TOO_MANY_REQUESTS,
+        Json(json!({ "retry_after_secs": secs })),
+    )
+        .into_response()
+}
+
+/// Checks `typed` from `origin`, with the gate around it: `Ok(true)` right,
+/// `Ok(false)` wrong (written in the audit log, as the lockout it caused: the
+/// CRA asks to record possible unauthorised access), `Err` the answer to give
+/// while the origin waits.
+async fn checked_pin(
+    s: &AppState,
+    origin: Origin,
+    headers: &HeaderMap,
+    typed: &str,
+    action: &str,
+) -> Result<bool, Response> {
+    let attempt = gate()
+        .lock()
+        .unwrap()
+        .attempt(origin, Instant::now())
+        .map_err(too_many)?;
+    if pin_ok(s, origin, typed).await {
+        gate().lock().unwrap().succeed(origin);
+        return Ok(true);
+    }
+    let who = remote_user(origin, headers);
+    tracing::warn!(origin = %origin.describe(), action, "control panel: wrong PIN");
+    s.audit.log(
+        "control_panel.pin_wrong",
+        who.clone(),
+        json!({ "origin": origin.describe(), "action": action }),
+    );
+    if attempt == Attempt::Locking {
+        tracing::warn!(origin = %origin.describe(), secs = LOCKOUT.as_secs(), "control panel: locked out");
+        s.audit.log(
+            "control_panel.locked",
+            who,
+            json!({ "origin": origin.describe(), "secs": LOCKOUT.as_secs() }),
+        );
+    }
+    Ok(false)
 }
 
 fn backend() -> &'static Backend {
@@ -223,7 +496,9 @@ fn initial_pin() -> Option<String> {
     pin::initial_pin(std::path::Path::new(pin::SYS_CLASS_NET))
 }
 
-pub fn routes() -> Router<AppState> {
+/// The panel's routes, for the router of `listener`: only the viewer port can
+/// be the device's screen.
+pub fn routes(listener: Listener) -> Router<AppState> {
     let open = Router::new()
         .route("/api/control-panel", get(status))
         .route("/api/control-panel/session", post(open_session));
@@ -231,6 +506,7 @@ pub fn routes() -> Router<AppState> {
         .route("/api/control-panel/capabilities", get(capabilities))
         .route("/api/control-panel/info", get(info))
         .route("/api/control-panel/about", get(about::about))
+        .route("/api/control-panel/openplc", get(openplc))
         .route("/api/control-panel/diagnostics", get(diagnostics::download))
         .route(
             "/api/control-panel/diagnostics/usb",
@@ -266,12 +542,13 @@ pub fn routes() -> Router<AppState> {
             post(start_touch_calibration),
         )
         .route_layer(middleware::from_fn(require_session));
-    open.merge(guarded)
+    open.merge(guarded).layer(Extension(listener))
 }
 
 /// `GET /api/control-panel` — public: whether the project shows the gesture
-/// and the action, and which PIN counts. Never the PIN itself.
-async fn status(State(s): State<AppState>) -> Response {
+/// and the action, and which PIN counts from where the request comes. Never
+/// the PIN itself.
+async fn status(State(s): State<AppState>, origin: Origin) -> Response {
     let cfg = project_config(&s).await;
     let initial = initial_pin();
     let settings = DeviceSettings::load(&s.config_dir);
@@ -280,7 +557,10 @@ async fn status(State(s): State<AppState>) -> Response {
         "enabled": cfg.enabled,
         "gesture_enabled": cfg.gesture(),
         "button_enabled": cfg.button(),
-        "pin": pin::pin_source(cfg.pin_hash.as_deref(), initial.as_deref()),
+        "pin": pin::pin_source(cfg.pin_hash.as_deref(), initial.as_deref(), origin == Origin::Screen),
+        // `screen`, `remote_screen`, `network`: the reset from the cloud keeps
+        // the pairing, and the screens say why the device's PIN does not count.
+        "origin": origin.name(),
         // Public because the viewer applies it before anyone opens the panel.
         "brightness": settings.brightness,
         "panel_corner": settings.panel_corner,
@@ -302,37 +582,57 @@ struct PinBody {
     pin: String,
 }
 
-/// `POST /api/control-panel/session` `{pin}` → `{token, idle_secs}`.
-async fn open_session(State(s): State<AppState>, Json(body): Json<PinBody>) -> Response {
-    let now = Instant::now();
-    if let Some(until) = gate().lock().unwrap().locked_until.filter(|t| *t > now) {
-        let secs = until.duration_since(now).as_secs().max(1);
-        return (
-            StatusCode::TOO_MANY_REQUESTS,
-            Json(json!({"retry_after_secs": secs})),
+/// Whether `typed` opens the panel from `origin`: the device's PIN only from
+/// the screen (D13).
+async fn pin_ok(s: &AppState, origin: Origin, typed: &str) -> bool {
+    let cfg = project_config(s).await;
+    let typed = typed.to_string();
+    // Argon2 off the async workers: a burst of attempts must not stall the
+    // runtime's other requests.
+    tokio::task::spawn_blocking(move || {
+        pin::pin_matches(
+            &typed,
+            cfg.pin_hash.as_deref(),
+            initial_pin().as_deref(),
+            origin == Origin::Screen,
         )
-            .into_response();
+    })
+    .await
+    .unwrap_or(false)
+}
+
+/// `POST /api/control-panel/session` `{pin}` → `{token, idle_secs}`.
+async fn open_session(
+    State(s): State<AppState>,
+    origin: Origin,
+    headers: HeaderMap,
+    Json(body): Json<PinBody>,
+) -> Response {
+    match checked_pin(&s, origin, &headers, &body.pin, "session").await {
+        Err(wait) => return wait,
+        Ok(false) => return StatusCode::UNAUTHORIZED.into_response(),
+        Ok(true) => {}
     }
-    let cfg = project_config(&s).await;
-    let initial = initial_pin();
-    let ok = pin::pin_matches(&body.pin, cfg.pin_hash.as_deref(), initial.as_deref());
-    let mut g = gate().lock().unwrap();
-    if !ok {
-        g.failures += 1;
-        if g.failures >= MAX_FAILURES {
-            g.failures = 0;
-            g.locked_until = Some(now + LOCKOUT);
-        }
-        tracing::warn!("control panel: wrong PIN");
-        return StatusCode::UNAUTHORIZED.into_response();
-    }
-    g.failures = 0;
-    g.locked_until = None;
-    g.sessions
-        .retain(|_, last| now.duration_since(*last) < SESSION_IDLE);
+    let now = Instant::now();
     let token = new_token();
-    g.sessions.insert(token.clone(), now);
-    tracing::info!("control panel: service session opened");
+    {
+        let mut g = gate().lock().unwrap();
+        g.sessions
+            .retain(|_, v| now.duration_since(v.last_use) < SESSION_IDLE);
+        g.sessions.insert(
+            token.clone(),
+            Session {
+                last_use: now,
+                origin,
+            },
+        );
+    }
+    tracing::info!(origin = %origin.describe(), "control panel: service session opened");
+    s.audit.log(
+        "control_panel.session_opened",
+        remote_user(origin, &headers),
+        json!({ "origin": origin.describe() }),
+    );
     Json(json!({"token": token, "idle_secs": SESSION_IDLE.as_secs()})).into_response()
 }
 
@@ -344,13 +644,23 @@ async fn require_session(req: Request<Body>, next: Next) -> Response {
         .unwrap_or_default()
         .to_string();
     let watch = req.headers().contains_key(WATCH_HEADER);
+    let listener = req
+        .extensions()
+        .get::<Listener>()
+        .copied()
+        .unwrap_or(Listener::Management);
+    let here = origin(
+        listener,
+        req.extensions().get::<SocketAddr>().copied(),
+        req.headers(),
+    );
     let now = Instant::now();
     {
         let mut g = gate().lock().unwrap();
         match g.sessions.get_mut(&token) {
-            Some(last) if now.duration_since(*last) < SESSION_IDLE => {
+            Some(v) if now.duration_since(v.last_use) < SESSION_IDLE && v.origin == here => {
                 if !watch {
-                    *last = now;
+                    v.last_use = now;
                 }
             }
             _ => {
@@ -366,13 +676,24 @@ fn failed(e: String) -> Response {
     (StatusCode::BAD_GATEWAY, Json(json!({"error": e}))).into_response()
 }
 
-async fn capabilities() -> Response {
-    Json(backend().capabilities().await).into_response()
+async fn capabilities(State(s): State<AppState>) -> Response {
+    let mut caps = serde_json::to_value(backend().capabilities().await).unwrap_or_default();
+    // The OpenPLC section, where the installation put it (D20).
+    caps["openplc"] = json!(crate::openplc::installed(&s.config_dir));
+    Json(caps).into_response()
+}
+
+/// `GET /api/control-panel/openplc` — the OpenPLC on this device, with the
+/// Editor's credentials, behind the service PIN (decision D20 of the CRA
+/// sessions, 18-11-2026).
+async fn openplc(State(s): State<AppState>) -> Response {
+    Json(crate::openplc::panel_view(&s.config_dir).await).into_response()
 }
 
 /// `GET /api/control-panel/info` — what the device is. The initial PIN only
-/// while the project has none of its own: then it is the one to write down.
-async fn info(State(s): State<AppState>) -> Response {
+/// while the project has none of its own, and only to the screen: then it is
+/// the one to write down, and nowhere else does it open anything.
+async fn info(State(s): State<AppState>, origin: Origin) -> Response {
     use sws_plugin_host as host;
     let cfg = project_config(&s).await;
     let model = host::pixsys_device_info(
@@ -388,9 +709,11 @@ async fn info(State(s): State<AppState>) -> Response {
         "serial": host::leggi_seriale(),
         "hostname": hostname,
         "sws_version": env!("CARGO_PKG_VERSION"),
-        "initial_pin": if cfg.pin_hash.is_none() { initial_pin() } else { None },
+        "initial_pin": if cfg.pin_hash.is_none() && origin == Origin::Screen { initial_pin() } else { None },
         // The cloud the panel is paired to: the reset can then keep it.
         "cloud": s.abbinamento.tunnel().map(|(name, _)| name),
+        // From the cloud's remote screen the reset keeps the pairing (D14).
+        "origin": origin.name(),
     }))
     .into_response()
 }
@@ -555,7 +878,8 @@ async fn wifi_radio(Json(body): Json<EnabledBody>) -> Response {
 
 /// A password for a new hotspot: 10 characters with no look-alikes (no
 /// `0/o`, `1/l/i`), so it can be read off the screen and typed on a phone.
-fn proposed_password() -> String {
+/// The OpenPLC Editor's user gets one too.
+pub(crate) fn proposed_password() -> String {
     const ALPHABET: &[u8] = b"abcdefghjkmnpqrstuvwxyz23456789";
     random_bytes::<10>()
         .iter()
@@ -929,5 +1253,330 @@ mod tests {
         assert_eq!(p.len(), 10);
         assert!(!p.contains(['0', 'o', '1', 'l', 'i']));
         assert!(backend::validate_psk(&p).is_ok());
+    }
+}
+
+#[cfg(test)]
+mod origin_tests {
+    use super::*;
+
+    fn peer(ip: &str) -> Option<SocketAddr> {
+        Some(SocketAddr::new(ip.parse().unwrap(), 40000))
+    }
+
+    fn ip(s: &str) -> IpAddr {
+        s.parse().unwrap()
+    }
+
+    #[test]
+    fn the_screen_is_the_viewer_port_from_the_loopback() {
+        let none = HeaderMap::new();
+        assert_eq!(
+            origin(Listener::Viewer, peer("127.0.0.1"), &none),
+            Origin::Screen
+        );
+        assert_eq!(origin(Listener::Viewer, peer("::1"), &none), Origin::Screen);
+        assert_eq!(
+            origin(Listener::Viewer, peer("::ffff:127.0.0.1"), &none),
+            Origin::Screen
+        );
+        let mut remote = HeaderMap::new();
+        remote.insert(REMOTE_SCREEN_HEADER, "1".parse().unwrap());
+        assert_eq!(
+            origin(Listener::Viewer, peer("127.0.0.1"), &remote),
+            Origin::RemoteScreen
+        );
+        // The tunnel reaches the management port from the loopback.
+        assert_eq!(
+            origin(Listener::Management, peer("127.0.0.1"), &none),
+            Origin::Tunnel
+        );
+        assert!(Origin::Tunnel.from_the_cloud() && Origin::RemoteScreen.from_the_cloud());
+        assert!(!Origin::Screen.from_the_cloud());
+        // The LAN is the network, whatever header it sends.
+        assert_eq!(
+            origin(Listener::Viewer, peer("192.168.0.10"), &remote),
+            Origin::Network(ip("192.168.0.10"))
+        );
+        // A caller nobody recorded is the network.
+        assert!(matches!(
+            origin(Listener::Viewer, None, &none),
+            Origin::Network(_)
+        ));
+    }
+
+    /// A page of another site, in a browser on the device, reaches 127.0.0.1
+    /// too: the browser's own headers say it is not the kiosk's page.
+    #[test]
+    fn a_foreign_page_in_a_browser_on_the_device_is_the_network() {
+        let with = |pairs: &[(&'static str, &str)]| {
+            let mut h = HeaderMap::new();
+            for (k, v) in pairs {
+                h.insert(*k, v.parse().unwrap());
+            }
+            origin(Listener::Viewer, peer("127.0.0.1"), &h)
+        };
+        assert!(matches!(
+            with(&[("sec-fetch-site", "cross-site")]),
+            Origin::Network(_)
+        ));
+        assert!(matches!(
+            with(&[("origin", "https://evil.example")]),
+            Origin::Network(_)
+        ));
+        assert!(matches!(
+            with(&[("origin", "http://192.168.1.5:7443")]),
+            Origin::Network(_)
+        ));
+        // The kiosk's own page, and the LVGL viewers that send nothing.
+        assert_eq!(
+            with(&[
+                ("sec-fetch-site", "same-origin"),
+                ("origin", "https://127.0.0.1:7443")
+            ]),
+            Origin::Screen
+        );
+        assert_eq!(
+            with(&[("origin", "https://localhost:7443")]),
+            Origin::Screen
+        );
+        assert_eq!(with(&[("origin", "http://[::1]:7443")]), Origin::Screen);
+        assert_eq!(with(&[]), Origin::Screen);
+    }
+
+    #[test]
+    fn the_cloud_user_is_read_only_on_the_remote_screen() {
+        let mut h = HeaderMap::new();
+        h.insert(REMOTE_USER_HEADER, "mauro".parse().unwrap());
+        assert_eq!(
+            remote_user(Origin::RemoteScreen, &h).as_deref(),
+            Some("cloud:mauro")
+        );
+        assert_eq!(remote_user(Origin::Screen, &h), None);
+        assert_eq!(remote_user(Origin::Tunnel, &h), None);
+        assert_eq!(remote_user(Origin::Network(ip("10.0.0.1")), &h), None);
+    }
+
+    #[test]
+    fn a_lockout_is_per_origin_and_temporary() {
+        let mut g = Gate::default();
+        let now = Instant::now();
+        let lan = Origin::Network(ip("10.0.0.7"));
+        for _ in 0..MAX_FAILURES - 1 {
+            assert_eq!(g.attempt(lan, now), Ok(Attempt::Counted));
+        }
+        assert_eq!(g.attempt(lan, now), Ok(Attempt::Locking));
+        assert!(g.attempt(lan, now).is_err());
+        // Whoever tries from the network does not lock out the screen, nor
+        // another address.
+        assert_eq!(g.attempt(Origin::Screen, now), Ok(Attempt::Counted));
+        assert_eq!(
+            g.attempt(Origin::Network(ip("10.0.0.8")), now),
+            Ok(Attempt::Counted)
+        );
+        // After the lockout it listens again.
+        assert!(g
+            .attempt(lan, now + LOCKOUT + Duration::from_secs(1))
+            .is_ok());
+    }
+
+    /// The attempt counts before the PIN is checked: attempts made at the same
+    /// moment cannot all pass, and a right PIN clears the count.
+    #[test]
+    fn an_attempt_counts_until_it_proves_right() {
+        let mut g = Gate::default();
+        let now = Instant::now();
+        for _ in 0..MAX_FAILURES - 1 {
+            g.attempt(Origin::Screen, now).unwrap();
+        }
+        g.succeed(Origin::Screen);
+        for _ in 0..MAX_FAILURES - 1 {
+            assert_eq!(g.attempt(Origin::Screen, now), Ok(Attempt::Counted));
+        }
+    }
+
+    #[test]
+    fn slow_mistakes_add_up_and_old_ones_are_forgotten() {
+        let t0 = Instant::now();
+        let lan = Origin::Network(ip("10.0.0.9"));
+        let mut g = Gate::default();
+        for i in 0..u64::from(MAX_FAILURES) - 1 {
+            let t = t0 + Duration::from_secs(50 * i);
+            assert_eq!(g.attempt(lan, t), Ok(Attempt::Counted));
+        }
+        // One every 50 s stays under the lockout and still adds up.
+        let t = t0 + Duration::from_secs(50 * u64::from(MAX_FAILURES - 1));
+        assert_eq!(g.attempt(lan, t), Ok(Attempt::Locking));
+
+        let mut g = Gate::default();
+        g.attempt(lan, t0).unwrap();
+        g.forget_stale(t0 + FORGET_AFTER + Duration::from_secs(1));
+        assert!(g.attempts.is_empty());
+    }
+
+    /// Many addresses do not multiply the guesses: the network as a whole has
+    /// its minute, and the screen and the tunnel keep theirs.
+    #[test]
+    fn the_network_as_a_whole_has_a_cap() {
+        let mut g = Gate::default();
+        let now = Instant::now();
+        for i in 0..NETWORK_ATTEMPTS_PER_MINUTE {
+            let o = Origin::Network(IpAddr::V4(Ipv4Addr::from(0x0a00_0000 + i)));
+            assert!(g.attempt(o, now).is_ok());
+        }
+        assert!(g.attempt(Origin::Network(ip("172.16.0.1")), now).is_err());
+        assert!(g.attempt(Origin::Screen, now).is_ok());
+        assert!(g.attempt(Origin::Tunnel, now).is_ok());
+        assert!(g.attempt(Origin::RemoteScreen, now).is_ok());
+        // A minute later the network is heard again.
+        assert!(g
+            .attempt(Origin::Network(ip("172.16.0.1")), now + LOCKOUT)
+            .is_ok());
+    }
+
+    /// The routes with a caller of our choosing, as `main.rs` records it.
+    async fn serve_as(listener: Listener, caller: &'static str) -> (String, AppState) {
+        let dir = tempfile::tempdir().unwrap();
+        let s = crate::router::stato_di_prova(dir.path()).await;
+        std::mem::forget(dir);
+        let caller: SocketAddr = SocketAddr::new(caller.parse().unwrap(), 40000);
+        let app = routes(listener)
+            .layer(middleware::from_fn(
+                move |mut req: Request<Body>, next: Next| async move {
+                    req.extensions_mut().insert(caller);
+                    next.run(req).await
+                },
+            ))
+            .with_state(s.clone());
+        let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = l.local_addr().unwrap().port();
+        tokio::spawn(async move { axum::serve(l, app).await.unwrap() });
+        (format!("http://127.0.0.1:{port}"), s)
+    }
+
+    /// D13: the device's PIN opens the panel from the screen, not from the
+    /// network nor from the cloud's remote screen.
+    #[tokio::test]
+    async fn the_device_pin_opens_only_from_the_screen() {
+        let Some(device_pin) = initial_pin() else {
+            // A machine with no wired card has no device PIN to test.
+            return;
+        };
+        let c = reqwest::Client::new();
+        let session = |base: String, remote: bool| {
+            let mut r = c
+                .post(format!("{base}/api/control-panel/session"))
+                .json(&json!({ "pin": device_pin }));
+            if remote {
+                r = r.header(REMOTE_SCREEN_HEADER, "1");
+            }
+            r.send()
+        };
+
+        let (lan, _) = serve_as(Listener::Viewer, "10.77.0.1").await;
+        assert_eq!(session(lan.clone(), false).await.unwrap().status(), 401);
+        let status: serde_json::Value = c
+            .get(format!("{lan}/api/control-panel"))
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(status["origin"], "network");
+        assert_eq!(status["pin"], "screen_only");
+
+        let (screen, _) = serve_as(Listener::Viewer, "127.0.0.1").await;
+        assert_eq!(session(screen.clone(), true).await.unwrap().status(), 401);
+        let opened = session(screen.clone(), false).await.unwrap();
+        assert_eq!(opened.status(), 200);
+        let token = opened.json::<serde_json::Value>().await.unwrap()["token"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        // The initial PIN is shown to the screen only.
+        let info: serde_json::Value = c
+            .get(format!("{screen}/api/control-panel/info"))
+            .header(SESSION_HEADER, &token)
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(info["initial_pin"], device_pin.as_str());
+        // A session opened at the screen is not good from the network.
+        assert_eq!(
+            c.get(format!("{lan}/api/control-panel/info"))
+                .header(SESSION_HEADER, &token)
+                .send()
+                .await
+                .unwrap()
+                .status(),
+            401
+        );
+    }
+
+    /// D14: from the cloud's remote screen, the project's PIN opens the panel,
+    /// and the reset can only keep the pairing.
+    #[tokio::test]
+    async fn the_remote_screen_resets_only_keeping_the_cloud() {
+        // The remote screen, and the tunnel on the management port (D14).
+        for (listener, remote) in [(Listener::Viewer, true), (Listener::Management, false)] {
+            let (base, s) = serve_as(listener, "127.0.0.1").await;
+            let project = tempfile::tempdir().unwrap();
+            let hash = sws_auth::hash_password("4711").unwrap();
+            std::fs::write(
+                project.path().join("project.yaml"),
+                format!("meta:\n  name: p\n  version: '1'\ncontrol_panel:\n  pin_hash: '{hash}'\n"),
+            )
+            .unwrap();
+            *s.project_dir.write().await = Some(project.path().to_path_buf());
+            let c = reqwest::Client::new();
+            let post = |path: &str| {
+                let r = c.post(format!("{base}{path}"));
+                if remote {
+                    r.header(REMOTE_SCREEN_HEADER, "1")
+                } else {
+                    r
+                }
+            };
+            let opened = post("/api/control-panel/session")
+                .json(&json!({ "pin": "4711" }))
+                .send()
+                .await
+                .unwrap();
+            assert_eq!(opened.status(), 200);
+            let token = opened.json::<serde_json::Value>().await.unwrap()["token"]
+                .as_str()
+                .unwrap()
+                .to_string();
+            // Only the refusal is tried here: an accepted reset would wipe and
+            // restart the test process.
+            let full = post("/api/control-panel/reset")
+                .header(SESSION_HEADER, &token)
+                .json(&json!({ "pin": "4711", "keep_cloud": false }))
+                .send()
+                .await
+                .unwrap();
+            assert_eq!(full.status(), 400, "{listener:?}");
+        }
+    }
+
+    /// The management port is never the screen, even from the loopback: it is
+    /// where the cloud tunnel arrives.
+    #[tokio::test]
+    async fn the_management_port_is_not_the_screen() {
+        let Some(device_pin) = initial_pin() else {
+            return;
+        };
+        let (base, _) = serve_as(Listener::Management, "127.0.0.1").await;
+        let r = reqwest::Client::new()
+            .post(format!("{base}/api/control-panel/session"))
+            .json(&json!({ "pin": device_pin }))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(r.status(), 401);
     }
 }

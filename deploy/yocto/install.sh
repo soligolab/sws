@@ -73,32 +73,40 @@ rm -rf "$SWS_HOME/catalogo"
 [ -d "$SCRIPT_DIR/catalogo" ] && cp -r "$SCRIPT_DIR/catalogo" "$SWS_HOME/catalogo"
 
 # Seed the env file only on the very first install so upgrades never clobber
-# the operator's credentials.
+# the operator's settings.
 if [ ! -f "$SWS_HOME/runtime.env" ]; then
     echo "==> Seeding $SWS_HOME/runtime.env (first install)..."
     cat > "$SWS_HOME/runtime.env" <<'ENVEOF'
-# SWS runtime credentials and options (Pixsys device).
+# SWS runtime options (Pixsys device).
 # Sourced by /data/user/sws/sws-runtime-launch.sh at startup.
 # Changes take effect after: systemctl restart sws-runtime
-
-SWS_ADMIN_USER=admin
-SWS_ADMIN_PASSWORD=admin
-
-# Uncomment to enable additional roles (empty = account disabled):
-# SWS_SUPERVISOR_PASSWORD=
-# SWS_OPERATOR_PASSWORD=
-# SWS_VIEWER_PASSWORD=
+#
+# No default password (18-11-2026, CRA D18): the runtime waits for its
+# pairing code, printed at the end of the installation, in the log and on
+# the screen, and whoever types it chooses the first Admin's password.
+#
+# A recovery account, only for a project that has no users (optional):
+# SWS_ADMIN_USER=admin
+# SWS_ADMIN_PASSWORD=
 ENVEOF
     chmod 600 "$SWS_HOME/runtime.env"
-    echo ""
-    echo "    *** IMPORTANT: change SWS_ADMIN_PASSWORD in $SWS_HOME/runtime.env ***"
-    echo ""
 else
-    echo "    $SWS_HOME/runtime.env already exists — credentials preserved."
+    echo "    $SWS_HOME/runtime.env already exists — settings preserved."
+    # The factory value of the installers before 18-11-2026 goes: it is not
+    # someone's credential, it is the one everybody knows.
+    if grep -qx 'SWS_ADMIN_PASSWORD=admin' "$SWS_HOME/runtime.env"; then
+        sed -i 's/^SWS_ADMIN_PASSWORD=admin$/# SWS_ADMIN_PASSWORD=admin  (factory value, switched off by the installer: the runtime pairs with its code)/' "$SWS_HOME/runtime.env"
+        echo "    factory password admin/admin switched off in $SWS_HOME/runtime.env"
+    fi
 fi
 
 echo "==> Installing systemd service..."
 install -m 644 "$SCRIPT_DIR/sws-runtime.service" "$SERVICE_FILE"
+
+# The runtime runs as `user`, not root (CRA D19, 18-11-2026): the folder is
+# its, including what a root runtime of the installations before created.
+id user >/dev/null 2>&1 || die "the user 'user' does not exist: this installer is for PixsysOS"
+chown -R user: "$SWS_HOME"
 
 echo "==> Reloading systemd and enabling $SERVICE_NAME..."
 systemctl daemon-reload
@@ -132,6 +140,24 @@ done
 echo "    Logs:                 journalctl -u $SERVICE_NAME -f"
 echo "    Config:               $SWS_HOME/runtime.env"
 echo "    Projects:             $SWS_HOME/projects/"
+# The pairing code (CRA D18): the first access, instead of admin/admin. From
+# the operator page's port on this machine, the only one shown it (D16).
+code=""
+for _ in $(seq 1 15); do
+    # `|| true` inside: under `set -euo pipefail` a runtime not listening yet
+    # would end the script here, before the code and before the retry.
+    code="$(curl -sk --max-time 2 "https://127.0.0.1:7443/api/abbinamento" 2>/dev/null \
+        || curl -s --max-time 2 "http://127.0.0.1:7443/api/abbinamento" 2>/dev/null || true)"
+    code="$(printf '%s' "$code" | sed -n 's/.*"codice":"\([0-9A-Z-]*\)".*/\1/p')"
+    [ -n "$code" ] && break
+    sleep 1
+done
 echo ""
-echo "    First login: admin / admin"
-echo "    Change the default password immediately via the admin UI."
+if [ -n "$code" ]; then
+    echo "    Pairing code: $code"
+    echo "    Type it in the IDE («Connect») or on the panel's page, with the user"
+    echo "    and password of the first Admin. The panel's screen shows it too."
+else
+    echo "    The pairing code is on the screen and in: journalctl -u $SERVICE_NAME | grep -i abbinamento"
+    echo "    (none if the runtime already has users)"
+fi

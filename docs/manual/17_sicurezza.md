@@ -30,17 +30,24 @@ Il testo completo è in [`SECURITY.md`](../../SECURITY.md).
 ## Cosa protegge SWS, per default
 
 Le impostazioni qui sotto sono attive **senza configurare niente**. Dove esiste una deroga, è esplicita e si vede.
-Fanno eccezione le due installazioni native (Yocto e Linux generico): il loro installatore crea ancora un Admin
-`admin`/`admin`, da cambiare subito.
+Dal 18-11-2026 vale anche per le installazioni native (Yocto e Linux generico): non creano più un Admin
+`admin`/`admin`, e partono col codice di abbinamento come il container. Un `admin`/`admin` rimasto in un progetto di
+prima va cambiato al primo accesso, e non si può rimandare.
 
 ### Accesso
 
 - **Un pannello senza utenti è chiuso.** Mostra un codice di abbinamento (`XXXX-XXXX-XXXX-XXXX`) sullo schermo, nel
-  log e nella sua pagina: solo chi lo legge crea il primo amministratore, in rete locale con «Connetti» o dal cloud.
-  Vedi il capitolo [09](09_auth_rbac.md).
+  log e alla fine dell'installazione; una pagina aperta in rete non lo vede, e chiede di scriverlo. Solo chi lo legge
+  crea il primo amministratore, in rete locale con «Connetti» o dal cloud. Vedi il capitolo [09](09_auth_rbac.md).
 - **Il pannello di controllo del dispositivo** (rete, Wi-Fi, ora, riavvio, reset) non usa gli utenti del progetto:
   lo apre un **PIN di servizio**. Finché il progetto non ne imposta uno vale quello del dispositivo, le ultime sei
-  cifre del MAC, che non è un segreto. **Impostare un PIN del progetto** è la prima cosa da fare (vedi sotto).
+  cifre del MAC, **ma solo dallo schermo del pannello**: dalla rete e dallo schermo remoto del cloud serve il PIN del
+  progetto, e lo stesso vale per una pagina di un altro sito aperta in un browser sul pannello. **Impostare un PIN
+  del progetto** è la prima cosa da fare (vedi sotto). Dopo cinque PIN sbagliati chi li
+  ha scritti aspetta 60 secondi, gli altri no; ogni errore va nel registro di audit. Dallo schermo remoto il reset
+  toglie progetto e utenti ma tiene l'abbinamento al cloud.
+- **Il cambio password obbligatorio vale su tutti gli schermi**: chi deve cambiarla, prima di farlo (o di scegliere
+  «Più tardi») vede le pagine ma non scrive né comanda, anche sul viewer LVGL.
 - **Password con Argon2id**, mai in chiaro né nel database né nei log. Sessioni con scadenza.
 - **Quattro ruoli** (Viewer, Operator, Supervisor, Admin) e **zone** per pagina e per utente (ABAC).
 - **Due porte**: il viewer (`7443`) e la gestione (`7444`). Sul pannello la gestione è **ristretta** (`--no-admin`):

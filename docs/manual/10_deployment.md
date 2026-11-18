@@ -61,19 +61,25 @@ L'installer crea:
 |-----------|-----------|---------|
 | `/opt/sws/` | Binario, asset web, template | Read-only dopo install |
 | `/var/lib/sws/` | Progetti, certificati TLS, database | Scrivibile, persistente |
-| `/etc/sws/runtime.env` | Credenziali e variabili d'ambiente | Solo root |
+| `/etc/sws/runtime.env` | Variabili d'ambiente | root, leggibile dall'utente `sws` |
 | `/etc/systemd/system/sws-runtime.service` | Unità systemd | — |
+| `/etc/polkit-1/…/50-sws-control-panel.*` | Cosa può cambiare il pannello di controllo: rete, ora, riavvio | — |
 
-### 4. Configurazione credenziali
+Il servizio gira come **utente di sistema `sws`**, non root (dal 18-11-2026): l'installer lo crea e gli passa
+`/var/lib/sws`, anche su un aggiornamento.
 
-Modifica `/etc/sws/runtime.env`:
+### 4. Primo accesso e configurazione
 
-```bash
-sudo nano /etc/sws/runtime.env
-```
+**Non c'è una password di fabbrica** (dal 18-11-2026). Alla fine l'installer stampa il **codice di abbinamento**:
+si scrive in «Connetti» nell'IDE, o nella pagina del runtime, insieme all'utente e alla password del primo Admin. Il
+codice è anche nel log (`journalctl -u sws-runtime | grep -i abbinamento`). Un aggiornamento spegne un
+`SWS_ADMIN_PASSWORD=admin` rimasto da un'installazione di prima.
+
+Le altre variabili stanno in `/etc/sws/runtime.env`:
 
 ```env
-SWS_ADMIN_PASSWORD=mia_password_sicura
+# Opzionale — un account di recupero, solo per un progetto senza utenti
+SWS_ADMIN_PASSWORD=una_password_lunga
 # Opzionale — per sorgenti OPC-UA con password
 SWS_OPCUA_PWD=password_opcua
 # Opzionale — per integrazione HomeAssistant
@@ -142,8 +148,10 @@ sudo rm -rf /var/lib/sws /etc/sws
 
 ## Percorso B — Yocto (PX30 / RK3399 / RK3588)
 
-Il percorso preferito per i device Pixsys con Yocto Linux.
-Produce un binario nativo `aarch64` senza container.
+Un binario nativo `aarch64` senza container, per i device Pixsys con Yocto Linux. **È uno strumento di sviluppo**
+(dal 08-09-2026): lo installa `scripts/yocto/deploy.sh` con l'utente privilegiato del dispositivo. La strada del
+prodotto sui pannelli Pixsys è il container (percorso C). Dal 18-11-2026 il runtime e i viewer girano come `user`,
+l'utente del pannello, non root, e non c'è più `admin`/`admin`: parte col codice di abbinamento.
 
 ### Prerequisiti (una tantum sul dev server)
 
@@ -307,7 +315,8 @@ Il VPS, i quadlet, il gateway, i container di progetto e il tunnel sono descritt
 | Setup | install-container.sh --pull | Tarball + install.sh | Cross-compile | quadlet in `deploy/vps/` |
 | Aggiornamenti | dall'IDE, o pull della nuova immagine | Nuovo tarball | Script deploy.sh | nuova immagine e riavvio del gateway |
 | Dipendenze target | podman + systemd (rootless) | systemd, libssl | Yocto SDK | podman, Traefik |
-| Raccomandato per | pannelli TC620/WP630, qualunque host con podman | server senza podman | PX30, RK3399, RK3588 | IDE condiviso e pannelli dietro NAT |
+| Raccomandato per | pannelli TC620/WP630, qualunque host con podman | server senza podman | sviluppo su PX30, RK3399, RK3588 | IDE condiviso e pannelli dietro NAT |
+| Utente del runtime | `user` (rootless) | `sws` | `user` | l'utente del VPS (rootless) |
 
 ---
 

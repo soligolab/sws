@@ -24,7 +24,8 @@ export const VIEWER = (process.env.SWS_E2E_VIEWER ?? "http://localhost:7443").re
  *  semina nessun utente da sé: senza queste variabili il runtime parte in
  *  no-auth e non c'è login da fare. */
 export const ADMIN_USER = process.env.SWS_ADMIN_USER ?? "admin";
-export const ADMIN_PASS = process.env.SWS_ADMIN_PASSWORD ?? "admin";
+// Not `admin`: the factory password must be changed at the first login (CRA D18).
+export const ADMIN_PASS = process.env.SWS_ADMIN_PASSWORD ?? "admin-e2e-1234";
 
 /** Il progetto con contenuto su cui girano i test che hanno bisogno di una
  *  pagina vera. Lo crea `scripts/check_e2e.sh` dal template `demo-items-web`.

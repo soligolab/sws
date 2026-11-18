@@ -7,6 +7,8 @@
 #   - You can already ssh + sudo to the device:
 #       ssh-copy-id -i ~/.ssh/id_ed25519.pub pixsys@<host>
 #     (the maintainer does this by hand; see docs/TEST_SETUPS.md)
+#     sudo only installs: the runtime itself runs as `user`, not root
+#     (CRA D19, 18-11-2026).
 #
 # Usage:
 #   ./scripts/yocto/deploy.sh <user@host>           # release binary + restart
@@ -133,11 +135,15 @@ sudo install -m 0755 "\$STAGE/sws-runtime-launch.sh"  /data/user/sws/sws-runtime
 if [ ! -f /data/user/sws/runtime.env ]; then
   sudo tee /data/user/sws/runtime.env >/dev/null <<'ENV'
 # Per-device overrides for sws-runtime. Edit and: sudo systemctl restart sws-runtime
-# (default credentials below are for the FIRST LOGIN ONLY — change them!)
-SWS_ADMIN_USER=admin
-SWS_ADMIN_PASSWORD=admin
+# No default password (18-11-2026, CRA D18): the runtime pairs with its code
+# (screen, log). A recovery account for a project with no users (optional):
+# SWS_ADMIN_USER=admin
+# SWS_ADMIN_PASSWORD=
 ENV
   sudo chmod 0600 /data/user/sws/runtime.env
+elif sudo grep -qx 'SWS_ADMIN_PASSWORD=admin' /data/user/sws/runtime.env; then
+  # The factory value of the deploys before 18-11-2026: off.
+  sudo sed -i 's/^SWS_ADMIN_PASSWORD=admin\$/# SWS_ADMIN_PASSWORD=admin  (factory value, switched off: the runtime pairs with its code)/' /data/user/sws/runtime.env
 fi
 
 if [ -d "\$STAGE/www" ]; then
@@ -151,6 +157,10 @@ if [ -d "\$STAGE/templates" ]; then
 fi
 
 sudo install -m 0644 "\$STAGE/sws-runtime.service" /etc/systemd/system/sws-runtime.service
+
+# The runtime runs as \`user\` (CRA D19): everything here is its, including what a
+# root runtime of the deploys before 18-11-2026 created.
+sudo chown -R user: /data/user/sws
 
 rm -rf "\$STAGE"
 

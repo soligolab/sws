@@ -73,6 +73,13 @@ pub async fn dal_gateway(State(s): State<AppState>, mut req: Request<Body>) -> R
     };
     req.headers_mut().remove(INTESTAZIONE_GATEWAY);
     req.headers_mut().remove(header::COOKIE);
+    // The operator page sees 127.0.0.1 like the device's own screen: this
+    // header tells the control panel the request comes from the cloud
+    // (18-11-2026, decision D13 of the CRA sessions).
+    req.headers_mut().insert(
+        crate::control_panel::REMOTE_SCREEN_HEADER,
+        axum::http::HeaderValue::from_static("1"),
+    );
     let percorso = percorso_della_pagina(req.uri().path());
     let query = req
         .uri()
@@ -378,6 +385,14 @@ pub async fn schermo(State(s): State<AppState>, mut req: Request<Body>) -> Respo
     // Le credenziali del cloud non entrano nel tunnel; la firma sì.
     req.headers_mut().remove(header::COOKIE);
     req.headers_mut().remove(INTESTAZIONE_GATEWAY);
+    // Who is at the remote screen, for the panel's audit log: set here, never
+    // taken from the browser.
+    req.headers_mut()
+        .remove(crate::control_panel::REMOTE_USER_HEADER);
+    if let Ok(v) = axum::http::HeaderValue::from_str(&chi.username) {
+        req.headers_mut()
+            .insert(crate::control_panel::REMOTE_USER_HEADER, v);
+    }
     if let Some(firma) = crate::tunnel::gateway::firma_per(&s, &pannello) {
         if let Ok(v) = firma.parse() {
             req.headers_mut().insert(INTESTAZIONE_GATEWAY, v);

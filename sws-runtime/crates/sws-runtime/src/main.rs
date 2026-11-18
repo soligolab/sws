@@ -1633,6 +1633,13 @@ async fn main() -> anyhow::Result<()> {
         tokio::spawn(sws_web::aggiornamento_esito::versione_nuova_all_avvio(
             app_state.clone(),
         ));
+        // OpenPLC installed before 18-11-2026 may still have no Editor user:
+        // the first one to connect would create it (CRA D20). It waits for
+        // OpenPLC to come up with the panel.
+        let config = app_state.config_dir.as_ref().clone();
+        tokio::spawn(async move {
+            sws_web::openplc::ensure_editor_user(&config).await;
+        });
     }
 
     if let Ok(dir) = sws_web::router::active_dir(&app_state).await {

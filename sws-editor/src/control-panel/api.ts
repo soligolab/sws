@@ -10,7 +10,11 @@ export const SESSION_HEADER = "x-sws-control-panel";
 /** On a request the panel makes by itself: it does not keep the session alive. */
 export const WATCH_HEADER = "x-sws-control-panel-watch";
 
-export type PinSource = "project" | "device" | "none";
+/** `screen_only`: the device's PIN, which counts only from the device's own screen, and this page is not there. */
+export type PinSource = "project" | "device" | "screen_only" | "none";
+
+/** Where the request comes from, as the device sees it (absent on an older runtime). */
+export type Origin = "screen" | "remote_screen" | "network";
 
 export interface ControlPanelStatus {
   /** The master of the project, as before. */
@@ -19,6 +23,7 @@ export interface ControlPanelStatus {
   gesture_enabled?: boolean;
   button_enabled?: boolean;
   pin: PinSource;
+  origin?: Origin;
   /** The device's own brightness, `null` = the project's. */
   brightness?: number | null;
   /** The corner that opens the panel when held; absent on an older runtime = top right. */
@@ -43,6 +48,22 @@ export interface Capabilities {
   touch_calibration_service: boolean;
   /** A corner of the screen, held, reboots the device. */
   reboot_corner?: boolean;
+  /** OpenPLC is installed here: the panel shows its section (CRA D20). */
+  openplc?: boolean;
+}
+
+/** `GET /api/control-panel/openplc`: OpenPLC on this device, with the Editor's
+ *  credentials (behind the service PIN, CRA D20, 18-11-2026). */
+export interface OpenPlc {
+  installed: boolean;
+  answers: boolean;
+  version: string | null;
+  credentials: { username: string; password: string } | null;
+  /** OpenPLC had a user made from the Editor: the password is not known here. */
+  credentials_unknown: boolean;
+  /** …and on a fresh install: someone made it from the network (absent on an older runtime). */
+  credentials_foreign?: boolean;
+  ports: Record<string, number>;
 }
 
 export type RebootCorner = "none" | "top_left" | "top_right" | "bottom_right" | "bottom_left";
@@ -179,6 +200,8 @@ export interface DeviceInfo {
   initial_pin: string | null;
   /** The cloud the panel is paired to, if any. */
   cloud?: string | null;
+  /** From the cloud's remote screen the reset keeps the pairing. */
+  origin?: Origin;
 }
 
 /** A refused PIN, with the seconds to wait when the device stopped listening. */
@@ -237,6 +260,7 @@ export function session(token: string) {
     capabilities: () => call<Capabilities>("/capabilities"),
     info: () => call<DeviceInfo>("/info"),
     about: () => call<About>("/about"),
+    openplc: () => call<OpenPlc>("/openplc"),
     /** The diagnostic export, as the zip to save. */
     diagnostics: async (): Promise<Blob> => {
       const res = await fetch("/api/control-panel/diagnostics", { headers: { [SESSION_HEADER]: token } });

@@ -8,7 +8,7 @@ import { defineConfig, devices } from "@playwright/test";
  * lives on the admin port, not on 5173:
  *
  *   # Terminal A
- *   SWS_ADMIN_USER=admin SWS_ADMIN_PASSWORD=admin ./scripts/start_runtime.sh
+ *   SWS_ADMIN_USER=admin SWS_ADMIN_PASSWORD=admin-e2e-1234 ./scripts/start_runtime.sh
  *
  *   # Terminal B
  *   cd sws-editor && pnpm test:e2e
@@ -16,7 +16,10 @@ import { defineConfig, devices } from "@playwright/test";
  * The admin credentials must be passed explicitly: `start_runtime.sh` does not
  * seed a user (without them the runtime comes up in no-auth mode and the login
  * step these tests perform has nothing to log into). `dev.sh` used to seed
- * `admin`/`admin` by itself, which is why the tests assumed it.
+ * `admin`/`admin` by itself, which is why the tests assumed it. Not `admin`
+ * any more (18-11-2026, CRA D18): that password must be changed at the first
+ * login, and the tests would land on the change page. `check_e2e.sh` uses the
+ * same one.
  *
  * We deliberately don't use Playwright's `webServer` config because the runtime
  * spawn flow expects a writable `.run/` directory, a built `dist/` and the admin

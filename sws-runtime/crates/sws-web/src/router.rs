@@ -1545,7 +1545,10 @@ pub fn build(
         .route("/api/auth/login", post(login))
         // Il codice di abbinamento (11-10-2026): pre-auth per costruzione — un
         // pannello in attesa non ha nessuna credenziale da chiedere.
-        .merge(control_panel_where_there_is_a_device(&state))
+        .merge(control_panel_where_there_is_a_device(
+            &state,
+            crate::control_panel::Listener::Management,
+        ))
         .route("/api/abbinamento", get(crate::abbinamento::stato))
         .route(
             "/api/abbinamento/rivendica",
@@ -2103,7 +2106,10 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
         )
         .route("/cert", get(get_cert))
         .route("/api/auth/login", post(login))
-        .merge(control_panel_where_there_is_a_device(&state))
+        .merge(control_panel_where_there_is_a_device(
+            &state,
+            crate::control_panel::Listener::Management,
+        ))
         .route("/api/abbinamento", get(crate::abbinamento::stato))
         .route(
             "/api/abbinamento/rivendica",
@@ -2152,7 +2158,12 @@ fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>) -> Router {
     // non c'è più, da nessuna parte: nessuna interfaccia lo chiamava e gli
     // script di progetto non passano da HTTP. Resta `/api/script/run/:name`,
     // che esegue solo funzioni con un nome, dichiarate nel progetto.
-    let operator_routes = operator_routes.route_layer(middleware::from_fn(require_operator));
+    // A user who must change the password commands nothing from here either
+    // (18-11-2026, decision D17 of the CRA sessions): the screens show the
+    // change page, «Later» lifts it for the session.
+    let operator_routes = operator_routes
+        .route_layer(middleware::from_fn(require_password_changed))
+        .route_layer(middleware::from_fn(require_operator));
 
     // Anonymous-readable routes: synoptic, tags, alarms, history, WS streams.
     let read_routes = Router::new()
@@ -2203,7 +2214,8 @@ fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>) -> Router {
             post(aggiornamento_esito_visto),
         )
         .route("/ws/tags", get(ws_tags_handler))
-        .route("/ws/alarms", get(ws_alarms_handler));
+        .route("/ws/alarms", get(ws_alarms_handler))
+        .route_layer(middleware::from_fn(require_password_changed_to_write));
 
     // Self-service: token must be valid but not blocked by password-change flag.
     let self_service = Router::new()
@@ -2235,6 +2247,7 @@ fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>) -> Router {
             "/api/aggiornamento/istantanea",
             post(istantanea_dati_prendi),
         )
+        .route_layer(middleware::from_fn(require_password_changed))
         .route_layer(middleware::from_fn(require_admin));
 
     // Wrap all gated routes with optional_auth so every request has AuthUser.
@@ -2254,7 +2267,10 @@ fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>) -> Router {
         )
         .route("/cert", get(get_cert))
         .route("/api/auth/login", post(login))
-        .merge(control_panel_where_there_is_a_device(&state))
+        .merge(control_panel_where_there_is_a_device(
+            &state,
+            crate::control_panel::Listener::Viewer,
+        ))
         .route("/api/abbinamento", get(crate::abbinamento::stato))
         .route(
             "/api/abbinamento/rivendica",
@@ -2304,6 +2320,9 @@ fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>) -> Router {
         .layer(limiti)
         .layer(middleware::from_fn(crate::sicurezza_http::intestazioni))
         .layer(cors)
+        // Every request here knows it came to the operator page's port: only
+        // there can it be the device's screen (CRA D13 and D16).
+        .layer(axum::Extension(crate::control_panel::Listener::Viewer))
 }
 
 // ── Auth middleware ──────────────────────────────────────────────────────────
@@ -2734,9 +2753,12 @@ fn utente_dal_gateway(req: &Request, atteso: &str) -> Option<AuthUser> {
 /// instance, the cloud gateway and a project container have no device to
 /// command, and on the gateway the routes faced the Internet behind a PIN
 /// derived from the container's MAC (18-11-2026, CRA session 2, decision D9).
-fn control_panel_where_there_is_a_device(state: &AppState) -> Router<AppState> {
+fn control_panel_where_there_is_a_device(
+    state: &AppState,
+    listener: crate::control_panel::Listener,
+) -> Router<AppState> {
     if state.is_device() {
-        crate::control_panel::routes()
+        crate::control_panel::routes(listener)
     } else {
         Router::new()
     }
@@ -3055,6 +3077,18 @@ async fn require_password_changed(req: Request, next: Next) -> Response {
         }
     }
     next.run(req).await
+}
+
+/// The viewer port's reads are open to anyone, so a user who must change the
+/// password still reads; what changes the plant (a tag written, an update
+/// outcome closed) waits for the change (decision D17 of the CRA sessions,
+/// 18-11-2026). Before, only the management port asked for it, and the
+/// operator page let that user write.
+async fn require_password_changed_to_write(req: Request, next: Next) -> Response {
+    if req.method() == axum::http::Method::GET || req.method() == axum::http::Method::HEAD {
+        return next.run(req).await;
+    }
+    require_password_changed(req, next).await
 }
 
 /// Reject the request if the caller's role is below `min`. Must run
@@ -3888,6 +3922,18 @@ async fn rimanda_cambio_password(State(s): State<AppState>, req: Request) -> Res
     } else {
         &s.auth_dispositivo
     };
+    // `admin`/`admin` is not postponed (D18 of the CRA sessions): whoever
+    // tries it would otherwise be Admin until the next restart.
+    if archivio.has_factory_password(&user.username).await {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(serde_json::json!({
+                "error": "factory_password",
+                "detail": "the factory password admin/admin must be changed now",
+            })),
+        )
+            .into_response();
+    }
     if body.per_sempre {
         if user.role < Role::Admin {
             return (
@@ -9429,14 +9475,31 @@ async fn ws_tags_handler(
     // Il token viaggia come `?token=…` nell'URL del socket, perché un browser
     // non può mettere intestazioni su una WebSocket (`sws-editor/src/ws/wsUrl.ts`).
     uri: axum::http::Uri,
+    headers: axum::http::HeaderMap,
 ) -> impl IntoResponse {
     let epoch_rx = s.project_epoch.subscribe();
     let token = url_form_decode(uri.query().unwrap_or(""))
         .into_iter()
         .find(|(k, _)| k == "token")
-        .map(|(_, v)| v);
+        .map(|(_, v)| v)
+        // A client that is not a browser can send it as on the REST routes:
+        // it must be re-read at every write all the same (CRA session 3).
+        .or_else(|| {
+            headers
+                .get(axum::http::header::AUTHORIZATION)
+                .and_then(|v| v.to_str().ok())
+                .and_then(|v| v.strip_prefix("Bearer "))
+                .map(str::to_string)
+        });
+    // Whoever must change the password reads but does not command, from the
+    // handshake on (D17), not only once a token is re-read.
+    let handshake = if user.must_change_password {
+        Role::Viewer
+    } else {
+        user.role
+    };
     let stato = s.clone();
-    ws.on_upgrade(move |socket| handle_ws(socket, s.db, s.bus, user.role, epoch_rx, stato, token))
+    ws.on_upgrade(move |socket| handle_ws(socket, s.db, s.bus, handshake, epoch_rx, stato, token))
 }
 
 /// Il ruolo **adesso**, non quello catturato all'handshake (22-10-2026, piano
@@ -14825,6 +14888,144 @@ pub(crate) async fn build_di_prova(
         regia,
         None,
     )
+}
+
+#[cfg(test)]
+mod password_change_on_the_viewer {
+    use super::*;
+
+    /// D17 (18-11-2026): on the viewer port a user who must change the
+    /// password reads, but writes nothing until the change or «Later».
+    #[tokio::test]
+    async fn the_viewer_waits_for_the_password_change_before_writing() {
+        let dir = tempfile::tempdir().unwrap();
+        let (viewer, _, s) = build_di_prova(dir.path(), None, None).await;
+        s.auth
+            .swap_store(dir.path().join("users.yaml"), Vec::new())
+            .await
+            .unwrap();
+        s.auth
+            .create_user(sws_auth::CreateUser {
+                username: "op".into(),
+                password: "old-password-1".into(),
+                role: sws_auth::Role::Operator,
+                must_change_password: true,
+                allowed_zones: vec![],
+            })
+            .await
+            .unwrap();
+        let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base = format!("http://127.0.0.1:{}", l.local_addr().unwrap().port());
+        tokio::spawn(async move { axum::serve(l, viewer).await.unwrap() });
+        let c = reqwest::Client::new();
+        let login: serde_json::Value = c
+            .post(format!("{base}/api/auth/login"))
+            .json(&serde_json::json!({"username": "op", "password": "old-password-1"}))
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        let token = login["token"].as_str().unwrap().to_string();
+        assert_eq!(login["must_change_password"], true);
+
+        let read = c
+            .get(format!("{base}/api/tags"))
+            .bearer_auth(&token)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(read.status(), 200);
+        let write = || {
+            c.put(format!("{base}/api/tags/light"))
+                .bearer_auth(&token)
+                .json(&serde_json::json!({"value": true}))
+                .send()
+        };
+        let refused = write().await.unwrap();
+        assert_eq!(refused.status(), 403);
+        assert_eq!(
+            refused.json::<serde_json::Value>().await.unwrap()["error"],
+            "password_change_required"
+        );
+        let ack = c
+            .post(format!("{base}/api/alarms/a1/ack"))
+            .bearer_auth(&token)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(ack.status(), 403);
+
+        // «Later» lifts it for this session.
+        let later = c
+            .post(format!("{base}/api/auth/rimanda-cambio-password"))
+            .bearer_auth(&token)
+            .send()
+            .await
+            .unwrap();
+        assert!(later.status().is_success(), "{}", later.status());
+        assert_ne!(write().await.unwrap().status(), 403);
+    }
+}
+
+#[cfg(test)]
+mod factory_password_not_postponed {
+    use super::*;
+
+    /// D18: admin/admin cannot use «Later»: whoever tries it would be Admin
+    /// until the next restart.
+    #[tokio::test]
+    async fn the_factory_password_cannot_be_postponed() {
+        let dir = tempfile::tempdir().unwrap();
+        let (viewer, _, s) = build_di_prova(dir.path(), None, None).await;
+        s.auth
+            .swap_store(dir.path().join("users.yaml"), Vec::new())
+            .await
+            .unwrap();
+        for (name, password) in [("admin", "admin"), ("op", "old-password-1")] {
+            s.auth
+                .create_user(sws_auth::CreateUser {
+                    username: name.into(),
+                    password: password.into(),
+                    role: sws_auth::Role::Admin,
+                    must_change_password: true,
+                    allowed_zones: vec![],
+                })
+                .await
+                .unwrap();
+        }
+        let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base = format!("http://127.0.0.1:{}", l.local_addr().unwrap().port());
+        tokio::spawn(async move { axum::serve(l, viewer).await.unwrap() });
+        let c = reqwest::Client::new();
+        for (name, password, expected) in
+            [("admin", "admin", 403u16), ("op", "old-password-1", 204)]
+        {
+            let login: serde_json::Value = c
+                .post(format!("{base}/api/auth/login"))
+                .json(&serde_json::json!({"username": name, "password": password}))
+                .send()
+                .await
+                .unwrap()
+                .json()
+                .await
+                .unwrap();
+            let later = c
+                .post(format!("{base}/api/auth/rimanda-cambio-password"))
+                .bearer_auth(login["token"].as_str().unwrap())
+                .send()
+                .await
+                .unwrap();
+            assert_eq!(later.status().as_u16(), expected, "{name}");
+            if expected == 403 {
+                assert_eq!(
+                    later.json::<serde_json::Value>().await.unwrap()["error"],
+                    "factory_password"
+                );
+            }
+        }
+    }
 }
 
 #[cfg(test)]

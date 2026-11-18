@@ -26,7 +26,9 @@ export function AbbinamentoScreen({
   link,
   onFatto,
 }: {
-  codice: string;
+  /** `null` away from the device (CRA D16, 18-11-2026): the code is read on its
+   *  screen, in the log or from the installer, and typed here. */
+  codice: string | null;
   nome: string;
   /** The cloud link the QR carries; absent = code only. */
   link?: string | null;
@@ -35,6 +37,8 @@ export function AbbinamentoScreen({
   const { t } = useTranslation();
   const setAuth = useAppStore((s) => s.setAuth);
   const [username, setUsername] = useState("admin");
+  const [typedCode, setTypedCode] = useState("");
+  const code = codice ?? typedCode.trim();
   const [password, setPassword] = useState("");
   const [conferma, setConferma] = useState("");
   const [errore, setErrore] = useState<string | null>(null);
@@ -42,7 +46,7 @@ export function AbbinamentoScreen({
 
   const passwordCorta = password.length > 0 && password.length < 8;
   const nonCombaciano = conferma.length > 0 && password !== conferma;
-  const pronto = username.trim() !== "" && password.length >= 8 && password === conferma;
+  const pronto = code !== "" && username.trim() !== "" && password.length >= 8 && password === conferma;
 
   const invia = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,7 +57,7 @@ export function AbbinamentoScreen({
       const r = await fetch(percorsoPubblico("/api/abbinamento/rivendica"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ codice, username: username.trim(), password }),
+        body: JSON.stringify({ codice: code, username: username.trim(), password }),
       });
       const corpo = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(corpo.detail ?? `${r.status}`);
@@ -81,10 +85,10 @@ export function AbbinamentoScreen({
         </div>
 
         <p style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", margin: 0, lineHeight: 1.5 }}>
-          {t("abbinamento.spiegazione")}
+          {t(codice ? "abbinamento.spiegazione" : "abbinamento.codiceSulloSchermo")}
         </p>
 
-        <div
+        {codice && <div
           data-testid="codice-abbinamento"
           style={{
             fontFamily: "ui-monospace, monospace",
@@ -100,7 +104,7 @@ export function AbbinamentoScreen({
           }}
         >
           {codice}
-        </div>
+        </div>}
 
         {link && (
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
@@ -111,9 +115,17 @@ export function AbbinamentoScreen({
           </div>
         )}
 
-        <p style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", margin: 0, lineHeight: 1.5 }}>
+        {codice && <p style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", margin: 0, lineHeight: 1.5 }}>
           {t("abbinamento.oppureQui")}
-        </p>
+        </p>}
+
+        {!codice && (
+          <Campo etichetta={t("abbinamento.codiceCampo")}>
+            <input value={typedCode} onChange={(e) => setTypedCode(e.target.value)} autoComplete="off" autoFocus
+              data-testid="codice-abbinamento-scritto" placeholder="XXXX-XXXX-XXXX-XXXX"
+              style={{ ...input, fontFamily: "ui-monospace, monospace", letterSpacing: 1 }} />
+          </Campo>
+        )}
 
         <Campo etichetta={t("abbinamento.utente")}>
           <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" style={input} />
@@ -123,7 +135,7 @@ export function AbbinamentoScreen({
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             autoComplete="new-password"
-            autoFocus
+            autoFocus={!!codice}
             style={input}
           />
         </Campo>
@@ -177,6 +189,8 @@ export function AbbinamentoScreen({
 type Stato = {
   in_attesa: boolean;
   codice: string | null;
+  /** Waiting with a code that this page, away from the device, is not shown (CRA D16). */
+  code_on_screen?: boolean;
   nome: string;
   cloud?: string | null;
   /** Abbinato al cloud ma senza utenti: aspetta il primo progetto (fetta E). */
@@ -189,7 +203,7 @@ type Stato = {
  *  progetto». `null` = la pagina normale. */
 function daMostrare(s: Stato | null): Stato | null {
   if (!s || !s.in_attesa) return null;
-  if (s.codice || s.abbinato_cloud_senza_utenti) return s;
+  if (s.codice || s.code_on_screen || s.abbinato_cloud_senza_utenti) return s;
   return null;
 }
 
@@ -242,7 +256,7 @@ export function CancelloAbbinamento({ children }: { children: React.ReactNode })
   // l'intervallo è nato — e il passaggio «codice → attesa del progetto» non si
   // vedrebbe.
   const mostravaIlCodice = useRef(false);
-  mostravaIlCodice.current = stato !== null && stato !== "nessuno" && !!stato.codice;
+  mostravaIlCodice.current = stato !== null && stato !== "nessuno" && (!!stato.codice || !!stato.code_on_screen);
   useEffect(() => {
     if (!inAttesa) return;
     const t = setInterval(() => {
@@ -255,7 +269,7 @@ export function CancelloAbbinamento({ children }: { children: React.ReactNode })
           }
           // Abbinato dal cloud mentre si mostrava il codice: niente più codice,
           // ora si aspetta il primo progetto.
-          else if (s?.abbinato_cloud_senza_utenti) setStato((prima) => (prima !== "nessuno" && prima?.codice ? s : prima));
+          else if (s?.abbinato_cloud_senza_utenti) setStato((prima) => (prima !== "nessuno" && (prima?.codice || prima?.code_on_screen) ? s : prima));
         })
         .catch(() => { /* runtime che riparte: si riprova al giro dopo */ });
     }, PASSO_CONTROLLO_MS);
@@ -266,12 +280,12 @@ export function CancelloAbbinamento({ children }: { children: React.ReactNode })
   if (abbinato) {
     return <AvvisoAbbinato stato={abbinato} onContinua={() => setAbbinato(null)} />;
   }
-  if (stato !== "nessuno" && !stato.codice) {
+  if (stato !== "nessuno" && !stato.codice && !stato.code_on_screen) {
     return <AttesaPrimoProgetto stato={stato} />;
   }
   if (stato !== "nessuno") {
     return <AbbinamentoScreen
-        codice={stato.codice!}
+        codice={stato.codice}
         nome={stato.nome}
         link={stato.cloud_link}
         onFatto={() => setStato("nessuno")} />;

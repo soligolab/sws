@@ -9276,8 +9276,9 @@ pub(crate) type EsitoCredenziali = std::rc::Rc<RefCell<Option<Option<(String, St
 /// La schermata di accesso del pannello: **utente e password insieme**.
 pub(crate) struct Credenziali {
     overlay: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
-    /// L'occhio sul campo password: alla chiusura la rimette nascosta.
-    occhio: Option<&'static OcchioCtx>,
+    /// Gli occhi sui campi password: alla chiusura li rimettono nascosti. Il
+    /// primo c'è solo quando anche il primo campo è una password.
+    occhi: [Option<&'static OcchioCtx>; 2],
     pub esito: EsitoCredenziali,
 }
 
@@ -9298,7 +9299,7 @@ impl Credenziali {
     pub fn chiudi(&self) {
         if self.esito.borrow().is_none() {
             unsafe {
-                if let Some(o) = self.occhio {
+                for o in self.occhi.into_iter().flatten() {
                     o.chiudi();
                 }
                 lvgl_sys::lv_obj_del_async(self.overlay.as_ptr());
@@ -9311,7 +9312,7 @@ struct CredenzialiCtx {
     overlay: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
     utente: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
     password: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
-    occhio: Option<&'static OcchioCtx>,
+    occhi: [Option<&'static OcchioCtx>; 2],
     tastiera: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
     esito: EsitoCredenziali,
 }
@@ -9321,7 +9322,7 @@ impl CredenzialiCtx {
     /// cancella. Tutte le uscite passano di qui — «Annulla», la ✗ della
     /// tastiera, la conferma — dopo aver letto quello che serviva.
     unsafe fn congeda(&self) {
-        if let Some(o) = self.occhio {
+        for o in self.occhi.into_iter().flatten() {
             o.chiudi();
         }
         lvgl_sys::lv_obj_del_async(self.overlay.as_ptr());
@@ -9355,6 +9356,9 @@ pub(crate) struct TestiAccesso<'a> {
     /// erano «Utente:» e «Password:» scritte qui, in italiano su ogni pannello).
     pub utente_etichetta: &'a str,
     pub password_etichetta: &'a str,
+    /// Both fields are passwords: the new one and its repetition (18-11-2026,
+    /// decision D17 of the CRA sessions). Both hidden, both with the eye.
+    pub two_passwords: bool,
 }
 
 /// Le misure della schermata d'accesso: `(alto, h_campo, h_btn)` — lo spazio
@@ -9551,7 +9555,12 @@ pub(crate) fn apri_credenziali(testi: TestiAccesso<'_>) -> Option<Credenziali> {
         }
         etichetta(&format!("{}:", testi.utente_etichetta), y);
         y += alto + 4;
-        let ta_utente = campo(y, false, utente_iniziale)?;
+        let ta_utente = campo(y, testi.two_passwords, utente_iniziale)?;
+        let occhio_utente = if testi.two_passwords {
+            aggiungi_occhio(ov.as_ptr(), ta_utente, (x0, y, w_col, h_campo))
+        } else {
+            None
+        };
         y += h_campo + alto;
         etichetta(&format!("{}:", testi.password_etichetta), y);
         y += alto + 4;
@@ -9644,7 +9653,7 @@ pub(crate) fn apri_credenziali(testi: TestiAccesso<'_>) -> Option<Credenziali> {
             overlay: ov,
             utente: ta_utente,
             password: ta_password,
-            occhio,
+            occhi: [occhio_utente, occhio],
             tastiera: kb,
             esito: esito.clone(),
         }));
@@ -9678,7 +9687,7 @@ pub(crate) fn apri_credenziali(testi: TestiAccesso<'_>) -> Option<Credenziali> {
         }
         Some(Credenziali {
             overlay: ov,
-            occhio,
+            occhi: [occhio_utente, occhio],
             esito,
         })
     }

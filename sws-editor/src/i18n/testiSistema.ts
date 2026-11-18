@@ -76,7 +76,18 @@ export type VoceSistema =
   | "accesso_senza_risposta"
   // Il viewer aperto mentre il runtime non risponde (10-11-2026): al posto di
   // «No active project», che non era vero.
-  | "pannello_in_riavvio";
+  | "pannello_in_riavvio"
+  // The password change on the LVGL panel (18-11-2026, CRA D17): the web viewer
+  // has its own page; here only for the parity with the shared table.
+  | "password_change_title"
+  | "password_new"
+  | "password_repeat"
+  | "password_change"
+  | "password_later"
+  | "password_mismatch"
+  | "password_too_short"
+  | "password_factory"
+  | "password_session_lost";
 
 export const LINGUE_SISTEMA = ["it", "de", "fr", "es", "en"] as const;
 export type LinguaSistema = (typeof LINGUE_SISTEMA)[number];
@@ -249,6 +260,69 @@ export const TESTI_SISTEMA: Record<VoceSistema, Record<LinguaSistema, string>> =
     fr: "Le panneau redémarre, nouvelle tentative…",
     es: "El panel se está reiniciando, reintentando…",
     en: "The panel is restarting, retrying…",
+  },
+  password_change_title: {
+    it: "Cambia la password per continuare",
+    de: "Ändern Sie das Passwort, um fortzufahren",
+    fr: "Changez le mot de passe pour continuer",
+    es: "Cambia la contraseña para continuar",
+    en: "Change your password to continue",
+  },
+  password_new: {
+    it: "Nuova password",
+    de: "Neues Passwort",
+    fr: "Nouveau mot de passe",
+    es: "Nueva contraseña",
+    en: "New password",
+  },
+  password_repeat: {
+    it: "Ripeti la password",
+    de: "Passwort wiederholen",
+    fr: "Répétez le mot de passe",
+    es: "Repite la contraseña",
+    en: "Repeat the password",
+  },
+  password_change: {
+    it: "Cambia",
+    de: "Ändern",
+    fr: "Changer",
+    es: "Cambiar",
+    en: "Change",
+  },
+  password_later: {
+    it: "Più tardi",
+    de: "Später",
+    fr: "Plus tard",
+    es: "Más tarde",
+    en: "Later",
+  },
+  password_mismatch: {
+    it: "Le due password non coincidono",
+    de: "Die beiden Passwörter stimmen nicht überein",
+    fr: "Les deux mots de passe ne correspondent pas",
+    es: "Las dos contraseñas no coinciden",
+    en: "The two passwords do not match",
+  },
+  password_too_short: {
+    it: "La password deve avere almeno 4 caratteri",
+    de: "Das Passwort muss mindestens 4 Zeichen haben",
+    fr: "Le mot de passe doit avoir au moins 4 caractères",
+    es: "La contraseña debe tener al menos 4 caracteres",
+    en: "The password must have at least 4 characters",
+  },
+  password_factory: {
+    it: "La password di fabbrica va cambiata adesso",
+    de: "Das Werkspasswort muss jetzt geändert werden",
+    fr: "Le mot de passe d'usine doit être changé maintenant",
+    es: "La contraseña de fábrica debe cambiarse ahora",
+    en: "The factory password must be changed now",
+  },
+  password_session_lost: {
+    it: "La sessione è finita: accedi di nuovo",
+    de: "Die Sitzung ist abgelaufen: bitte erneut anmelden",
+    fr: "La session est terminée : reconnectez-vous",
+    es: "La sesión ha terminado: accede de nuevo",
+    en: "The session ended: log in again",
   },
   allarme_attivo: {
     it: "🔴 ALLARME ATTIVO", de: "🔴 ALARM AKTIV", fr: "🔴 ALARME ACTIVE", es: "🔴 ALARMA ACTIVA", en: "🔴 ALARM ACTIVE",

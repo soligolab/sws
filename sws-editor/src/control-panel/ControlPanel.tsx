@@ -21,12 +21,14 @@ import {
   splitNtpServers,
   isIpv4,
   isPsk,
+  getStatus,
   openSession,
   PinError,
   session as makeSession,
   SessionExpired,
   splitCidr,
   type Capabilities,
+  type OpenPlc,
   type Card,
   type ControlPanelSession,
   type DeviceInfo,
@@ -60,7 +62,7 @@ const field: CSSProperties = {
   fontSize: 16, fontFamily: "'DejaVu Sans Mono', monospace", width: 180,
 };
 
-type Section = "network" | "wifi" | "time" | "screen" | "device" | "about";
+type Section = "network" | "wifi" | "time" | "screen" | "device" | "openplc" | "about";
 
 export function ControlPanel({ onClose }: { onClose: () => void }) {
   const [api, setApi] = useState<ControlPanelSession | null>(null);
@@ -77,6 +79,12 @@ function PinDialog({ onCancel, onOpen }: { onCancel: () => void; onOpen: (token:
   const [pin, setPin] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // The device's PIN counts only from the device's own screen: from anywhere
+  // else, without a project PIN, there is nothing to type.
+  const [screenOnly, setScreenOnly] = useState(false);
+  useEffect(() => {
+    getStatus().then((s) => setScreenOnly(s.pin === "screen_only")).catch(() => {});
+  }, []);
 
   const submit = useCallback(async (value: string) => {
     setBusy(true);
@@ -119,6 +127,11 @@ function PinDialog({ onCancel, onOpen }: { onCancel: () => void; onOpen: (token:
       <div style={{ ...card, width: 420, padding: "22px 26px", marginBottom: 0, boxShadow: "0 10px 40px #000a" }}>
         <h2 style={{ margin: "0 0 4px", fontSize: 20 }}>{t("controlPanel.title")}</h2>
         <p style={{ margin: "0 0 14px", color: C.muted, fontSize: 14 }}>{t("controlPanel.pinHelp")}</p>
+        {screenOnly && (
+          <p role="alert" data-testid="control-panel-screen-only" style={{ margin: "0 0 14px", color: C.warn, fontSize: 14 }}>
+            {t("controlPanel.pinScreenOnly")}
+          </p>
+        )}
         <div style={{ display: "flex", gap: 8, justifyContent: "center", margin: "6px 0 12px" }}>
           {Array.from({ length: PIN_LENGTH }, (_, i) => (
             <span key={i} style={{
@@ -193,6 +206,7 @@ function Panel({ api, onClose, onExpired }: { api: ControlPanelSession; onClose:
     // calibration of the Tiny TY is the LVGL viewer's.
     { id: "screen", label: t("controlPanel.screen"), on: true },
     { id: "device", label: t("controlPanel.device"), on: true },
+    ...(caps?.openplc ? [{ id: "openplc" as const, label: t("controlPanel.openplc"), on: true }] : []),
     { id: "about", label: t("controlPanel.about"), on: true },
   ];
 
@@ -231,6 +245,7 @@ function Panel({ api, onClose, onExpired }: { api: ControlPanelSession; onClose:
         {section === "time" && <TimeSection api={api} guard={guard} />}
         {section === "screen" && <ScreenSection api={api} guard={guard} caps={caps} />}
         {section === "device" && <DeviceSection api={api} guard={guard} info={info} caps={caps} />}
+        {section === "openplc" && <OpenPlcSection api={api} guard={guard} />}
         {section === "about" && <AboutSection api={api} guard={guard} />}
       </main>
     </div>
@@ -1185,6 +1200,43 @@ export function formatDuration(secs: number, days: string): string {
 }
 
 /** What runs here, read only: SWS, the project, the system, the state. */
+/** OpenPLC on this device: whether it answers, its version, the ports, and the
+ *  Editor's user and password, created by the installation (CRA D20,
+ *  18-11-2026). Behind the service PIN, like the rest of the panel. */
+function OpenPlcSection({ api, guard }: { api: ControlPanelSession; guard: Guard }) {
+  const { t } = usePanelTranslation();
+  const [plc, setPlc] = useState<OpenPlc | null>(null);
+  useEffect(() => { void guard(api.openplc()).then((p) => p && setPlc(p)); }, [api, guard]);
+  if (!plc) return <div style={{ color: C.muted }}>{t("controlPanel.loading")}</div>;
+  const port = (k: string) => plc.ports[k] ?? "—";
+  return (<>
+    <div style={card} data-testid="openplc-state">
+      <Row label={t("controlPanel.openplcState")}>
+        {plc.answers ? <Tag tone="ok">{t("controlPanel.openplcAnswers")}</Tag> : <Tag tone="warn">{t("controlPanel.openplcSilent")}</Tag>}
+      </Row>
+      <Row label={t("controlPanel.openplcVersion")}>{plc.version ?? "—"}</Row>
+      <Row label={t("controlPanel.openplcPorts")}>
+        {t("controlPanel.openplcPortsValue", { editor: port("editor"), modbus: port("modbus"), s7: port("s7"), opcua: port("opcua") })}
+      </Row>
+    </div>
+    <div style={card} data-testid="openplc-credentials">
+      <div style={{ color: C.muted, fontSize: 15, marginBottom: 6 }}>{t("controlPanel.openplcEditor")}</div>
+      {plc.credentials ? (<>
+        <Row label={t("controlPanel.openplcUser")}><span style={{ fontFamily: "'DejaVu Sans Mono', monospace" }}>{plc.credentials.username}</span></Row>
+        <Row label={t("controlPanel.openplcPassword")}>
+          <span data-testid="openplc-password" style={{ fontFamily: "'DejaVu Sans Mono', monospace", fontSize: 18, letterSpacing: 1 }}>{plc.credentials.password}</span>
+        </Row>
+        <div style={{ color: C.muted, fontSize: 13 }}>{t("controlPanel.openplcHelp", { port: port("editor") })}</div>
+      </>) : (
+        <div style={{ color: C.warn, fontSize: 14 }} data-testid="openplc-note">
+          {t(plc.credentials_foreign ? "controlPanel.openplcForeign"
+            : plc.credentials_unknown ? "controlPanel.openplcUnknown" : "controlPanel.openplcNone")}
+        </div>
+      )}
+    </div>
+  </>);
+}
+
 function AboutSection({ api, guard }: { api: ControlPanelSession; guard: Guard }) {
   const { t, lang } = usePanelTranslation();
   const [about, setAbout] = useState<About | null>(null);
@@ -1339,10 +1391,16 @@ function DeviceSection({ api, guard, info, caps }: {
       {resetDone ? <div style={{ color: C.ok }}>{t(resetDone === "keep-cloud" ? "controlPanel.resetKeepCloudDone" : "controlPanel.resetDone")}</div> : (<>
         <div style={{ color: C.bad, fontSize: 17, fontWeight: 600 }}>{t("controlPanel.resetSection")}</div>
         {reset === null ? (<>
-          <ResetBlock title={t("controlPanel.reset")} help={t("controlPanel.resetHelp")}>
-            <button type="button" style={{ ...btnPrimary, background: C.bad, borderColor: C.bad }}
-              data-testid="reset-ask" onClick={() => setReset({ pin: "", wrong: false, keepCloud: false })}>{t("controlPanel.resetButton")}</button>
-          </ResetBlock>
+          {/* From the cloud's remote screen only the reset that keeps the
+              pairing: the full one leaves a code that can be read only on site. */}
+          {info.origin === "remote_screen" ? (
+            <div style={{ color: C.warn, fontSize: 13 }} data-testid="reset-remote-note">{t("controlPanel.resetRemoteOnlyKeepCloud")}</div>
+          ) : (
+            <ResetBlock title={t("controlPanel.reset")} help={t("controlPanel.resetHelp")}>
+              <button type="button" style={{ ...btnPrimary, background: C.bad, borderColor: C.bad }}
+                data-testid="reset-ask" onClick={() => setReset({ pin: "", wrong: false, keepCloud: false })}>{t("controlPanel.resetButton")}</button>
+            </ResetBlock>
+          )}
           {info.cloud && (<>
             <div style={{ borderTop: `1px solid ${C.line}`, margin: "4px 0" }} />
             <ResetBlock title={t("controlPanel.resetKeepCloud")} help={t("controlPanel.resetKeepCloudHelp", { cloud: info.cloud })}>

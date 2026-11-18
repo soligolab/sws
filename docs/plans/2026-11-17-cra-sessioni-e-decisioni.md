@@ -50,7 +50,7 @@ decidiamo». Il ramo resta aperto fra una ripresa e l'altra; si riparte dal prim
 |---|---|---|---|
 | 1 | `docs/cra-1-true-statements` | I testi falsi in pubblico corretti, lo scheletro della valutazione del rischio ([piano](2026-11-17-cra-1-testi-veri.md)) | **fatta, da validare** il 18-11: frasi false corrette in `SECURITY.md`, README, manuale e commenti; indice di `docs/sicurezza/`, bozza interna della valutazione del rischio, guardia `check_security_docs.sh`; due revisioni, correzioni in `8f9dda06` |
 | 2 | `fix/cra-2-cloud-isolation-sandbox` | Segreto del gateway per container, pannello di controllo solo sui dispositivi (anticipato dalla 3), espressioni in sandbox, `getattr` sicuro, tetti agli zip ([piano](2026-11-18-cra-2-isolamento-cloud-e-sandbox.md)) | **fatta, da validare** il 18-11: decisioni D6-D12; due revisioni, correzioni nell'ultimo commit del ramo. Il ramo **non si pusha** prima che il gateway nuovo sia nel cloud (D5) |
-| 3 | `fix/cra-3-control-panel-access` | Pannello di controllo: PIN iniziale valido solo dallo schermo, blocco del PIN non più unico per tutti, PIN sbagliati nell'audit, punto d'accesso Wi-Fi; porte di OpenPLC; cambio password obbligatorio anche sulla porta del viewer; installazioni native senza `admin`/`admin` e senza root; la guardia delle rotte aperte; nel cloud il peso della CPU dei container (D12) | da fare |
+| 3 | `fix/cra-3-control-panel-access` | Pannello di controllo: PIN iniziale valido solo dallo schermo, blocco del PIN per origine, PIN sbagliati nell'audit, codice di abbinamento solo allo schermo; utente di OpenPLC creato dall'installazione; cambio password obbligatorio anche sulla porta del viewer, con la pagina nel viewer LVGL; installazioni native senza `admin`/`admin` e senza root; la guardia delle rotte aperte; nel cloud il tetto di CPU dei container (D12) ([piano](2026-11-18-cra-3-accesso-pannello-di-controllo.md)) | **fatta, da validare** il 18-11: decisioni D13-D21, riviste col maintainer prima del codice tranne D19 (cambiata durante il lavoro) e D21 |
 | 4 | `feat/cra-4-factory-reset` | C5: il reset completo, la guardia, il Tiny TY, i dati orfani nel cloud | da fare |
 | 5 | `feat/cra-5-signing-sbom-scan` | C7 dal lato della build: firma, SBOM, scansione | da fare |
 | 6 | `feat/cra-6-update-notices` | C7 dal lato del pannello e gli avvisi | da fare |
@@ -191,3 +191,81 @@ fatto da SWS sfora i tetti (D11).
 - **Misurato dopo la validazione**: le espressioni e gli script dei progetti del cloud. Durante la sessione il VPS
   non si raggiungeva; il 18-11 sì, e passano tutti (vedi D7).
 
+
+### Sessione 3
+
+Sette decisioni le ha riviste il maintainer **prima** del codice (18-11, «rivediamo assieme le decisioni della
+sessione 3»): D13-D18 e D20. Due sono prese in autonomia e vanno validate: **D19** (cambiata durante il lavoro rispetto
+al piano) e **D21**.
+
+- **D13 — Il PIN iniziale vale solo dallo schermo del pannello.** Schermo vuol dire: porta del viewer, 127.0.0.1 o ::1,
+  e nessuna intestazione dello schermo remoto, che `dal_gateway` mette su tutto quello che inoltra. Dalla rete e dallo
+  schermo remoto vale solo il PIN del progetto. *Cambia*: chi apriva il pannello di controllo dal portatile, su un
+  progetto senza PIN, ora legge «Da qui serve il PIN del progetto» e lo imposta dall'IDE. *Si disfa*: togliendo la
+  condizione `origin == Screen` in `pin_ok`.
+- **D14 — Dallo schermo remoto il reset si fa solo tenendo l'abbinamento al cloud**, col PIN del progetto. Proposta
+  del maintainer al posto del rifiuto: il reset completo toglie l'abbinamento, e il codice nuovo si legge solo sul
+  posto. *Cambia*: dallo schermo remoto il pulsante del reset completo non c'è, e un messaggio dice perché.
+- **D15 — Il blocco dopo 5 PIN sbagliati resta di 60 s e un riavvio lo toglie, ma si conta per origine** (lo schermo,
+  lo schermo remoto, ogni indirizzo di rete). Gli errori si dimenticano 15 minuti dopo l'ultimo, così chi prova un
+  PIN al minuto si blocca lo stesso. Oltre 256 indirizzi seguiti insieme, uno nuovo aspetta come se fosse bloccato; lo
+  schermo ha sempre il suo posto. PIN sbagliati, blocchi e sessioni aperte vanno nell'audit, con l'utente del cloud
+  quando arrivano dallo schermo remoto. Una sessione aperta dallo schermo non vale dalla rete.
+- **D16 — Il codice di abbinamento si mostra solo a questa macchina**: lo schermo, il log, l'installer (una richiesta
+  da 127.0.0.1 che non viene dallo schermo remoto). Supera la decisione 14 dell'11-10. *Cambia*: una pagina aperta
+  in rete su un pannello nuovo dice dove leggere il codice e chiede di scriverlo; l'abbinamento da «Connetti»
+  nell'IDE non cambia, perché il codice lo scrive già chi lo ha letto.
+- **D17 — Il cambio password obbligatorio vale anche sulla porta del viewer.** Chi deve cambiarla legge come prima ma
+  non scrive, non comanda e non riconosce allarmi finché non la cambia o sceglie «Più tardi» (nell'audit, come
+  sull'IDE). Il viewer LVGL riceve la sua pagina, nella stessa schermata dell'accesso: due campi nascosti, «Cambia» e
+  «Più tardi»; la password appena scritta all'accesso resta in memoria per la richiesta. Almeno 4 caratteri, come la
+  pagina web.
+- **D18 — Le installazioni native non hanno più `admin`/`admin`**: partono in attesa col codice di abbinamento, come il
+  container, e l'installer lo stampa. Un aggiornamento spegne il valore di fabbrica rimasto nel file dell'ambiente. In
+  più (in autonomia, dentro la stessa decisione): un account `admin`, `supervisor`, `operator` o `viewer` con la
+  password uguale al nome, trovato in un progetto, deve cambiarla al prossimo accesso. *Si disfa*: togliendo
+  `flag_factory_passwords` in `sws-auth`.
+- **D19 — SWS non gira da root, da nessuna parte** (validata e corretta dal maintainer il 18-11: «secondo me sws
+  deve essere senza root ovunque», e «l'utente user può fare tutto»). Linux generico gira come utente di sistema
+  `sws`, con la stessa regola polkit del Tiny TY, e l'installer gli passa `/var/lib/sws`. Il binario nativo Yocto e i
+  suoi due viewer girano come `user`, l'utente del pannello, lo stesso del container; l'installazione (con `sudo`,
+  come per un servizio di sistema) gli passa `/data/user/sws`. La prima versione lasciava Yocto da root perché non
+  si poteva provare su un dispositivo: resta da provare, è una voce di collaudo.
+- **D20 — L'utente dell'Editor di OpenPLC lo crea l'installazione** (`admin`, 10 caratteri senza simboli e senza
+  lettere che si confondono). Le credenziali stanno in `config/openplc-credentials.json` (0600) e si leggono nel
+  pannello di controllo, sezione OpenPLC, dietro il PIN (richiesta del maintainer: «altrimenti non è recuperabile»).
+  Se OpenPLC ha già un utente non si tocca, e la sezione dice che la password non è nota. Sui pannelli installati
+  prima lo fa il runtime, una volta, un minuto dopo l'avvio. Immagine per digest. Le porte restano su tutte le
+  interfacce (decisione del 30-10): Modbus, S7 e OPC UA di OpenPLC non hanno credenziali per come sono fatti, e lo
+  scrive la valutazione del rischio.
+- **D21 — Nel cloud ogni container di progetto ha un tetto di un core, e tutti i progetti insieme un tetto di 1,5
+  core** (in autonomia; era la D12, rimandata), validata dal maintainer il 18-11: quota 100000/100000 per container,
+  `CPUQuota=150%` sul ramo dei progetti del VPS (`deploy/vps/user-systemd/user.slice.d/50-sws-projects.conf`, da
+  mettere al rilascio). Il gateway tiene sempre almeno mezzo core. Solo dove podman dice di saperlo applicare; sul VPS sì. *Cambia*: un
+  progetto con uno script in un ciclo infinito non prende più tutto il VPS.
+  - *Corretta il 18-11, dopo la domanda del maintainer sulle alternative*: la prima versione dava anche un peso più
+    basso (shares 512, peso 20) «perché il gateway venisse prima». Misurato: non serve a quello. I container dei
+    progetti stanno nel ramo `user.slice` di systemd, gateway e Traefik in `app.slice`; il peso conta solo fra
+    container dello stesso ramo, cioè fra progetti, e lì sono tutti uguali. Tolto. Fra i due rami systemd divide già
+    a metà sotto carico. Le alternative per proteggere di più il gateway sono nel piano della sessione 3.
+- **Dopo le due revisioni della sessione 3** (18-11), corretto nello stesso ramo:
+  - **Una pagina di un altro sito**, aperta in un browser sul dispositivo, arrivava a 127.0.0.1 come il kiosk: valeva
+    come lo schermo, e leggeva il codice di abbinamento. Ora conta come rete quando il browser lo dice
+    (`Sec-Fetch-Site` diverso da `same-origin`, o un `Origin` che non è il dispositivo).
+  - **Il tunnel sulla porta di gestione** è un'origine sua, `Tunnel`: per il reset vale come lo schermo remoto (D14
+    passava di lì). Il codice di abbinamento si dà **solo sulla porta del viewer**: un pannello dichiarato a mano sul
+    gateway non ha la firma, e il tunnel lo vedeva. Gli installer chiedono il codice alla 7443.
+  - **`admin`/`admin` non si rimanda**: con «Più tardi» era Admin fino al riavvio (D18 era solo un promemoria). Il
+    controllo vale ora solo per `admin`, l'unico che gli installer seminavano con una password nota.
+  - Il blocco dei PIN conta il tentativo **prima** di verificarlo (le richieste simultanee non passano tutte), la
+    verifica gira fuori dai thread asincroni, la rete nel suo insieme ha 30 tentativi al minuto, e il tunnel ha il suo
+    posto.
+  - Il socket dei tag con il token nell'intestazione lasciava scrivere chi doveva cambiare la password.
+  - Il tunnel generico (`/dev/<pannello>/…`) toglie le intestazioni dello schermo remoto, e non porta più alla pagina
+    operatore: lì saltava l'interruttore della console.
+  - Il viewer LVGL non resta più bloccato sulla pagina del cambio password se la sessione finisce: torna all'accesso.
+  - Gli installer nativi uscivano con un errore prima di stampare il codice, quando il runtime non era ancora su.
+  - Linux generico: l'utente `sws` ha le porte seriali (`dialout`), che da root aveva.
+  - OpenPLC: un utente trovato su un container appena creato si segnala («non l'ha creato l'installazione»), e il
+    runtime riprova a creare l'utente per dieci minuti invece di una volta.
+  - Sul web, «Aggiorna ora» di un Admin col cambio password da fare aspetta il cambio invece di fallire.

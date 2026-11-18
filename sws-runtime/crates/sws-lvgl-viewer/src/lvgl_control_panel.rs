@@ -716,6 +716,7 @@ impl Overlay {
             (Some(Section::Time), "time", caps.time),
             (Some(Section::Screen), "screen", screen_on),
             (Some(Section::Device), "device", true),
+            (Some(Section::OpenPlc), "openplc", caps.openplc),
             (Some(Section::About), "about", true),
         ];
         for (section, key, on) in sections {
@@ -821,6 +822,7 @@ impl Overlay {
             Section::Time => focused = self.time(main, s, lang),
             Section::Screen => self.screen(main, s, lang, &caps),
             Section::Device => self.device(main, s, lang, &caps),
+            Section::OpenPlc => self.openplc(main, s, lang),
             Section::About => self.about(main, s, lang),
         }
 
@@ -2013,6 +2015,40 @@ impl Overlay {
                 },
             );
         }
+    }
+
+    /// OpenPLC on this device, read only, with the Editor's user and password
+    /// (CRA D20, 18-11-2026): behind the PIN like the rest of the panel.
+    unsafe fn openplc(&mut self, main: P, s: &State, lang: &str) {
+        let Some(v) = &s.openplc else {
+            label(main, &cp::word(lang, "loading", &[]), 15, MUTED);
+            return;
+        };
+        let cp::OpenPlcView {
+            state,
+            credentials,
+            note,
+        } = cp::openplc_rows(v, lang);
+        let box_ = card(main, |_| {});
+        for (name, value) in &state {
+            let r = row(box_, name);
+            label(r, value, 16, TEXT);
+        }
+        let box_ = card(main, |_| {});
+        label(box_, &cp::word(lang, "openplcEditor", &[]), 15, MUTED);
+        for (name, value) in &credentials {
+            let r = row(box_, name);
+            label(r, value, 18, TEXT);
+        }
+        wrap(
+            label(
+                box_,
+                &note,
+                13,
+                if credentials.is_empty() { WARN } else { MUTED },
+            ),
+            pct(100),
+        );
     }
 
     /// What runs here, read only: SWS, the project, the system, the state.

@@ -309,6 +309,9 @@ pub struct Capabilities {
     pub touch_calibration_service: bool,
     #[serde(default)]
     pub reboot_corner: bool,
+    /// OpenPLC is installed here: the panel shows its section (CRA D20).
+    #[serde(default)]
+    pub openplc: bool,
 }
 
 /// The corner that reboots the device when held (`sws_web::control_panel`).
@@ -522,6 +525,7 @@ pub enum Section {
     Time,
     Screen,
     Device,
+    OpenPlc,
     About,
 }
 
@@ -697,6 +701,8 @@ pub struct State {
     pub info: Option<DeviceInfo>,
     /// `GET /about` as it came: `control_panel_about` reads it.
     pub about: Option<serde_json::Value>,
+    /// `GET /openplc` as it came: [`openplc_rows`] reads it.
+    pub openplc: Option<serde_json::Value>,
     /// The diagnostic export to the USB stick: being written, or how it ended.
     pub diagnostics: Option<Result<String, String>>,
     pub diagnostics_busy: bool,
@@ -828,6 +834,7 @@ pub fn try_out(spec: &str) {
             }
             "device" => Section::Device,
             "about" => Section::About,
+            "openplc" => Section::OpenPlc,
             "wifi" => Section::Wifi,
             "screen" | "calibration" => Section::Screen,
             _ => Section::Network,
@@ -965,6 +972,7 @@ pub fn select(section: Section) {
         }
         Section::Screen => send(Job::Display),
         Section::Device => {}
+        Section::OpenPlc => send(Job::OpenPlc),
         Section::About => send(Job::About),
     }
 }
@@ -2064,9 +2072,87 @@ enum Job {
     },
     Display,
     About,
+    OpenPlc,
     DiagnosticsUsb,
     SetDisplay(Option<u8>),
     TouchCalibration,
+}
+
+/// The OpenPLC section, from `GET /openplc` (CRA D20, 18-11-2026): label and
+/// value rows, then the Editor's credentials, or the line that says why there
+/// are none. Pure, like `control_panel_about`, so the tests need no screen.
+pub struct OpenPlcView {
+    pub state: Vec<(String, String)>,
+    pub credentials: Vec<(String, String)>,
+    pub note: String,
+}
+
+pub fn openplc_rows(v: &serde_json::Value, lang: &str) -> OpenPlcView {
+    let w = |key: &str| word(lang, key, &[]);
+    let port = |k: &str| {
+        v.pointer(&format!("/ports/{k}"))
+            .and_then(|p| p.as_u64())
+            .map_or_else(|| "—".to_string(), |p| p.to_string())
+    };
+    let answers = v.get("answers").and_then(|a| a.as_bool()) == Some(true);
+    let state = vec![
+        (
+            w("openplcState"),
+            w(if answers {
+                "openplcAnswers"
+            } else {
+                "openplcSilent"
+            }),
+        ),
+        (
+            w("openplcVersion"),
+            v.get("version")
+                .and_then(|x| x.as_str())
+                .unwrap_or("—")
+                .to_string(),
+        ),
+        (
+            w("openplcPorts"),
+            word(
+                lang,
+                "openplcPortsValue",
+                &[
+                    ("editor", &port("editor")),
+                    ("modbus", &port("modbus")),
+                    ("s7", &port("s7")),
+                    ("opcua", &port("opcua")),
+                ],
+            ),
+        ),
+    ];
+    let credentials = v.get("credentials").filter(|c| !c.is_null());
+    let text = |c: &serde_json::Value, k: &str| {
+        c.get(k).and_then(|x| x.as_str()).unwrap_or("").to_string()
+    };
+    match credentials {
+        Some(c) => OpenPlcView {
+            state,
+            credentials: vec![
+                (w("openplcUser"), text(c, "username")),
+                (w("openplcPassword"), text(c, "password")),
+            ],
+            note: word(lang, "openplcHelp", &[("port", &port("editor"))]),
+        },
+        None => {
+            let flag = |k: &str| v.get(k).and_then(|u| u.as_bool()) == Some(true);
+            OpenPlcView {
+                state,
+                credentials: Vec::new(),
+                note: w(if flag("credentials_foreign") {
+                    "openplcForeign"
+                } else if flag("credentials_unknown") {
+                    "openplcUnknown"
+                } else {
+                    "openplcNone"
+                }),
+            }
+        }
+    }
 }
 
 fn send(job: Job) {
@@ -2536,6 +2622,11 @@ async fn run(job: Job) {
                 change(|s| s.about = Some(a));
             }
         }
+        Job::OpenPlc => {
+            if let Some(v) = session_call(M::GET, "/openplc", None).await {
+                change(|s| s.openplc = Some(v));
+            }
+        }
         Job::Display => {
             if let Some(d) = session_call(M::GET, "/display", None).await {
                 let b = d
@@ -2594,6 +2685,37 @@ async fn run(job: Job) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_openplc_section_shows_the_editor_access() {
+        let v = serde_json::json!({
+            "installed": true, "answers": true, "version": "v4.3.1",
+            "credentials": {"username": "admin", "password": "abc2345def"},
+            "credentials_unknown": false,
+            "ports": {"editor": 8443, "modbus": 1502, "s7": 10102, "opcua": 14840},
+        });
+        let OpenPlcView {
+            state,
+            credentials,
+            note,
+        } = openplc_rows(&v, "it");
+        assert!(state.iter().any(|(_, v)| v == "v4.3.1"));
+        assert!(state
+            .iter()
+            .any(|(_, v)| v.contains("8443") && v.contains("1502")));
+        assert_eq!(credentials[1].1, "abc2345def");
+        assert!(note.contains("8443"), "{note}");
+
+        let unknown = serde_json::json!({"answers": false, "credentials": null, "credentials_unknown": true, "ports": {}});
+        let OpenPlcView {
+            state,
+            credentials,
+            note,
+        } = openplc_rows(&unknown, "en");
+        assert!(credentials.is_empty());
+        assert!(note.contains("not known"), "{note}");
+        assert!(state.iter().any(|(_, v)| v == "not answering"));
+    }
 
     fn zones() -> Vec<Zone> {
         [

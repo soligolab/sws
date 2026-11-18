@@ -71,6 +71,10 @@ pub struct LoginOk {
     pub username: String,
     pub role: Role,
     pub expires_at_ms: Option<u64>,
+    /// The server asks for a new password before anything else (18-11-2026,
+    /// decision D17 of the CRA sessions): the panel asks for it at once.
+    #[serde(default)]
+    pub must_change_password: bool,
 }
 
 /// Stato della sessione, condiviso fra il thread di rendering LVGL (che lo

@@ -106,9 +106,12 @@ i token dei tre pannelli abbinati al cloud non valgono più, e i pannelli vanno 
 2. **Il gateway** passa all'immagine nuova come sempre. In più, **prima di riavviarlo**, il segreto vecchio si mette
    da parte: `mv ~/sws-vps/gateway-config/segreto_gateway ~/sws-vps/gateway-config/segreto_gateway.vecchio-<data>`.
    All'avvio il gateway ne crea uno nuovo, e crea anche `container_key`. Il file vecchio si cancella a riabbinamento
-   finito.
+   finito. Con la sessione 3 (D21) va sul VPS anche il tetto per tutti i container dei progetti insieme:
+   `deploy/vps/user-systemd/user.slice.d/50-sws-projects.conf` in `~/.config/systemd/user/user.slice.d/`, poi
+   `systemctl --user daemon-reload` (le istruzioni e la verifica sono nel file; si spiega al maintainer prima di farlo).
 3. **Ogni pannello**: dal suo `abbinamento.json` (nella configurazione del runtime) si tolgono `tunnel_nome` e
-   `tunnel_token`, e si riavvia il runtime. Il codice di abbinamento resta lo stesso. Il pannello si presenta al
+   `tunnel_token`, e si riavvia il runtime. Il codice di abbinamento resta lo stesso: è nello stesso file, campo
+   `codice`, e sullo schermo (con la sessione 3 la pagina aperta in rete non lo mostra più). Il pannello si presenta al
    gateway in attesa; la console lo segna «da riabbinare» (stessa scatola, stessa riga); si inserisce il suo codice
    nell'IDE nel cloud. Serve l'accesso SSH a ogni pannello, da chiedere al maintainer con l'indirizzo. Il TC620 sta a
    casa: si riabbina da lì, o da una sessione sulla macchina `ufficio`.

@@ -131,6 +131,25 @@ pub enum Comando {
         token: Option<String>,
         scelta: String,
     },
+    /// The new password asked right after the access (18-11-2026, decision
+    /// D17 of the CRA sessions). On the access thread, like the access: the
+    /// action that asked to log in goes on when this answers.
+    ChangePassword {
+        base_url: String,
+        change: crate::aggiornamento::PasswordChange,
+        new_password: String,
+        sessione: crate::session::SharedSession,
+        avviso: crate::aggiornamento::SharedAvviso,
+        tentativo: u64,
+    },
+    /// «Later» on the password change: for this session.
+    PostponePasswordChange {
+        base_url: String,
+        token: String,
+        sessione: crate::session::SharedSession,
+        avviso: crate::aggiornamento::SharedAvviso,
+        tentativo: u64,
+    },
 }
 
 impl Comando {
@@ -156,6 +175,8 @@ impl Comando {
                 format!("risposta «{scelta}» alla conferma dell'aggiornamento")
             }
             Comando::Accedi { utente, .. } => format!("accesso come '{utente}'"),
+            Comando::ChangePassword { .. } => "password change".to_string(),
+            Comando::PostponePasswordChange { .. } => "password change postponed".to_string(),
         }
     }
 
@@ -280,6 +301,24 @@ async fn esegui(cmd: Comando) -> anyhow::Result<()> {
             scadenza: _,
         } => {
             match client::login(&base_url, &utente, &password).await {
+                Ok(ok) if ok.must_change_password => {
+                    // In, but the server wants a new password first: the
+                    // screen asks for it, and the action waits for it.
+                    let change = crate::aggiornamento::PasswordChange {
+                        old_password: password,
+                        token: ok.token.clone(),
+                    };
+                    if crate::aggiornamento::password_change_needed(&avviso, tentativo, change)
+                        .is_err()
+                    {
+                        anyhow::bail!("risposta arrivata quando non si aspettava più, ignorata");
+                    }
+                    if let Ok(mut s) = sessione.lock() {
+                        s.set_logged_in(ok);
+                    }
+                    crate::session::chiedi_ridisegno();
+                    Ok(())
+                }
                 Ok(ok) => {
                     // Prima si chiede al pannellino se aspetta ancora, poi si
                     // entra: dopo la rinuncia a 60 s o un «Annulla» la
@@ -295,34 +334,7 @@ async fn esegui(cmd: Comando) -> anyhow::Result<()> {
                     // Chi è entrato può vedere e usare oggetti che prima non
                     // poteva: la pagina si ridisegna (29-10-2026).
                     crate::session::chiedi_ridisegno();
-                    // Entrati: si riprende il gesto che aveva chiesto l'accesso.
-                    if let Some(a) = azione {
-                        use crate::aggiornamento::AzioneRichiesta as A;
-                        let token = Some(token);
-                        let dopo = match a {
-                            // Come il tocco con l'accesso già fatto: il
-                            // pulsante resta spento e dice «in avvio». Prima
-                            // la card tornava con «Aggiorna ora» premibile, e
-                            // un secondo tocco faceva un secondo apply.
-                            A::Aggiorna => {
-                                crate::aggiornamento::avvia(&avviso, &base_url, token);
-                                None
-                            }
-                            A::Quadlet => Some(Comando::AggiornaQuadlet { base_url, token }),
-                            A::Conferma(scelta) => Some(Comando::ConfermaAggiornamento {
-                                base_url,
-                                token,
-                                scelta,
-                            }),
-                            // Il comando della pagina lo ripete chi sta davanti.
-                            A::Comando => None,
-                            // Si voleva solo entrare.
-                            A::Accesso => None,
-                        };
-                        if let Some(c) = dopo {
-                            invia(c);
-                        }
-                    }
+                    riprendi_azione(azione, &avviso, base_url, token);
                     Ok(())
                 }
                 Err(e) => {
@@ -333,6 +345,155 @@ async fn esegui(cmd: Comando) -> anyhow::Result<()> {
                 }
             }
         }
+        Comando::ChangePassword {
+            base_url,
+            change,
+            new_password,
+            sessione,
+            avviso,
+            tentativo,
+        } => {
+            let r = client::change_password(
+                &base_url,
+                &change.token,
+                &change.old_password,
+                &new_password,
+            )
+            .await;
+            let step = Step {
+                avviso: &avviso,
+                sessione: &sessione,
+                tentativo,
+                postpone: false,
+            };
+            password_step_answered(r, step, base_url, change.token)
+        }
+        Comando::PostponePasswordChange {
+            base_url,
+            token,
+            sessione,
+            avviso,
+            tentativo,
+        } => {
+            let r = client::postpone_password_change(&base_url, &token).await;
+            let step = Step {
+                avviso: &avviso,
+                sessione: &sessione,
+                tentativo,
+                postpone: true,
+            };
+            password_step_answered(r, step, base_url, token)
+        }
+    }
+}
+
+/// Which password step answered, and where to write the outcome.
+struct Step<'a> {
+    avviso: &'a crate::aggiornamento::SharedAvviso,
+    sessione: &'a crate::session::SharedSession,
+    tentativo: u64,
+    postpone: bool,
+}
+
+/// What the screen does after a refusal of the change or of «Later».
+#[derive(Debug, PartialEq)]
+enum AfterRefusal {
+    /// Stays on the change, with the reason: the password can still be changed.
+    Stay(String),
+    /// The session is gone, or «Later» cannot reach the runtime: back to the
+    /// access, so nobody is left on a screen with no way out.
+    BackToAccess(String),
+}
+
+fn after_refusal(e: &client::PasswordStepError, postpone: bool) -> AfterRefusal {
+    use crate::aggiornamento::{ERROR_FACTORY_PASSWORD, ERROR_SESSION_LOST};
+    if e.status == Some(401) {
+        return AfterRefusal::BackToAccess(ERROR_SESSION_LOST.into());
+    }
+    if e.code.as_deref() == Some("factory_password") {
+        return AfterRefusal::Stay(ERROR_FACTORY_PASSWORD.into());
+    }
+    if postpone && e.status.is_none() {
+        return AfterRefusal::BackToAccess(e.reason.clone());
+    }
+    AfterRefusal::Stay(e.reason.clone())
+}
+
+/// The password changed or postponed: the screen closes and the action that
+/// asked to log in goes on. A refusal stays on the screen with the server's
+/// reason, or goes back to the access when the session is gone; it is not an
+/// authorization refusal for the page: `Ok`, so it does not open a new access.
+fn password_step_answered(
+    r: Result<(), client::PasswordStepError>,
+    step: Step<'_>,
+    base_url: String,
+    token: String,
+) -> anyhow::Result<()> {
+    match r {
+        Ok(()) => {
+            let Ok(azione) = crate::aggiornamento::accesso_riuscito(step.avviso, step.tentativo)
+            else {
+                anyhow::bail!("answer arrived when no longer awaited, ignored");
+            };
+            riprendi_azione(azione, step.avviso, base_url, token);
+        }
+        Err(e) => {
+            eprintln!("[net] password step refused: {e}");
+            match after_refusal(&e, step.postpone) {
+                AfterRefusal::Stay(reason) => {
+                    crate::aggiornamento::accesso_rifiutato(step.avviso, step.tentativo, reason)
+                }
+                AfterRefusal::BackToAccess(reason) => {
+                    if crate::aggiornamento::password_change_abandoned(
+                        step.avviso,
+                        step.tentativo,
+                        reason,
+                    ) {
+                        if let Ok(mut s) = step.sessione.lock() {
+                            s.clear();
+                        }
+                        crate::session::chiedi_ridisegno();
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Entrati: si riprende il gesto che aveva chiesto l'accesso.
+fn riprendi_azione(
+    azione: Option<crate::aggiornamento::AzioneRichiesta>,
+    avviso: &crate::aggiornamento::SharedAvviso,
+    base_url: String,
+    token: String,
+) {
+    let Some(a) = azione else {
+        return;
+    };
+    use crate::aggiornamento::AzioneRichiesta as A;
+    let token = Some(token);
+    let dopo = match a {
+        // Come il tocco con l'accesso già fatto: il pulsante resta spento e
+        // dice «in avvio». Prima la card tornava con «Aggiorna ora» premibile,
+        // e un secondo tocco faceva un secondo apply.
+        A::Aggiorna => {
+            crate::aggiornamento::avvia(avviso, &base_url, token);
+            None
+        }
+        A::Quadlet => Some(Comando::AggiornaQuadlet { base_url, token }),
+        A::Conferma(scelta) => Some(Comando::ConfermaAggiornamento {
+            base_url,
+            token,
+            scelta,
+        }),
+        // Il comando della pagina lo ripete chi sta davanti.
+        A::Comando => None,
+        // Si voleva solo entrare.
+        A::Accesso => None,
+    };
+    if let Some(c) = dopo {
+        invia(c);
     }
 }
 
@@ -413,7 +574,12 @@ fn lavora(rx: Receiver<Comando>, tetto: Duration) {
         return;
     };
     while let Ok(cmd) = rx.recv() {
-        if matches!(cmd, Comando::Accedi { .. }) {
+        if matches!(
+            cmd,
+            Comando::Accedi { .. }
+                | Comando::ChangePassword { .. }
+                | Comando::PostponePasswordChange { .. }
+        ) {
             accedi_a_parte(cmd, tetto);
             continue;
         }
@@ -576,6 +742,239 @@ mod tests {
             .enable_all()
             .build()
             .unwrap()
+    }
+
+    /// A runtime that answers by path: `(path, status, body)`. The bodies it
+    /// received are recorded, path first.
+    fn server_by_path(
+        routes: Vec<(&'static str, u16, &'static str)>,
+    ) -> (String, Arc<Mutex<Vec<String>>>) {
+        let l = TcpListener::bind("127.0.0.1:0").unwrap();
+        let base = format!("http://{}", l.local_addr().unwrap());
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let v = seen.clone();
+        std::thread::spawn(move || {
+            for s in l.incoming() {
+                let mut s = s.unwrap();
+                let mut buf = [0u8; 8192];
+                let n = s.read(&mut buf).unwrap_or(0);
+                let req = String::from_utf8_lossy(&buf[..n]).to_string();
+                let path = req.split_whitespace().nth(1).unwrap_or("").to_string();
+                let body_in = req.split("\r\n\r\n").nth(1).unwrap_or("").to_string();
+                v.lock().unwrap().push(format!("{path} {body_in}"));
+                let (status, body) = routes
+                    .iter()
+                    .find(|(p, ..)| *p == path)
+                    .map(|(_, st, b)| (*st, *b))
+                    .unwrap_or((404, "{}"));
+                let r = format!(
+                    "HTTP/1.1 {status} X\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                let _ = s.write_all(r.as_bytes());
+            }
+        });
+        (base, seen)
+    }
+
+    const LOGIN_MUST_CHANGE: &str = r#"{"token":"tok","username":"op","role":"Operator","expires_at_ms":null,"must_change_password":true}"#;
+
+    /// D17 (18-11-2026): the access answers «change the password first», the
+    /// screen asks for it, and the action goes on only after the change.
+    #[test]
+    fn a_password_to_change_is_asked_right_after_the_access() {
+        use crate::aggiornamento::{accesso_in_corso, password_change, Avviso, PASSWORD_CHANGE};
+        let (base, seen) = server_by_path(vec![
+            ("/api/auth/login", 200, LOGIN_MUST_CHANGE),
+            (
+                "/api/auth/change-password",
+                422,
+                r#"{"error":"invalid_password","detail":"the current password is wrong"}"#,
+            ),
+        ]);
+        let t0 = Instant::now();
+        let (avviso, n) = accesso_partito(t0);
+        let sessione: crate::session::SharedSession = Default::default();
+        esegui_bloccando(
+            &rt(),
+            accedi(
+                base.clone(),
+                &avviso,
+                &sessione,
+                n,
+                t0 + Duration::from_secs(5),
+            ),
+            Duration::from_secs(5),
+        )
+        .unwrap();
+        assert!(matches!(
+            avviso.lock().unwrap().avviso(),
+            Avviso::Accesso { ref motivo, in_corso: false, .. } if motivo == PASSWORD_CHANGE
+        ));
+        assert!(sessione.lock().unwrap().is_logged_in());
+        let change = password_change(&avviso).expect("the change is asked");
+        assert_eq!(change.old_password, "pw");
+        assert_eq!(change.token, "tok");
+
+        // A refusal stays on the screen, with the server's reason, and is not
+        // an authorization refusal for the page.
+        let n = accesso_in_corso(&avviso, Instant::now());
+        let r = esegui_bloccando(
+            &rt(),
+            Comando::ChangePassword {
+                base_url: base,
+                change,
+                new_password: "nuova-1".into(),
+                sessione: sessione.clone(),
+                avviso: avviso.clone(),
+                tentativo: n,
+            },
+            Duration::from_secs(5),
+        );
+        assert!(r.is_ok(), "{r:?}");
+        let g = avviso.lock().unwrap();
+        let a = g.accesso.as_ref().expect("still asking");
+        assert!(!a.in_corso);
+        assert_eq!(a.errore.as_deref(), Some("the current password is wrong"));
+        assert!(a.password_change.is_some());
+        drop(g);
+        let sent = seen.lock().unwrap().join("\n");
+        assert!(sent.contains(r#""old_password":"pw""#), "{sent}");
+        assert!(sent.contains(r#""new_password":"nuova-1""#), "{sent}");
+    }
+
+    #[test]
+    fn a_refusal_stays_on_the_change_unless_there_is_no_way_on() {
+        use crate::aggiornamento::{ERROR_FACTORY_PASSWORD, ERROR_SESSION_LOST};
+        let err = |status: Option<u16>, code: Option<&str>| client::PasswordStepError {
+            status,
+            code: code.map(str::to_string),
+            reason: "why".into(),
+        };
+        // The session is gone: back to the access, for both buttons.
+        for postpone in [false, true] {
+            assert_eq!(
+                after_refusal(&err(Some(401), None), postpone),
+                AfterRefusal::BackToAccess(ERROR_SESSION_LOST.into())
+            );
+        }
+        // admin/admin cannot be postponed: the change stays.
+        assert_eq!(
+            after_refusal(&err(Some(403), Some("factory_password")), true),
+            AfterRefusal::Stay(ERROR_FACTORY_PASSWORD.into())
+        );
+        // «Later» that does not reach the runtime does not leave a trap.
+        assert_eq!(
+            after_refusal(&err(None, None), true),
+            AfterRefusal::BackToAccess("why".into())
+        );
+        // A wrong password, or no network on «Change»: try again.
+        assert_eq!(
+            after_refusal(&err(Some(422), Some("invalid_password")), false),
+            AfterRefusal::Stay("why".into())
+        );
+        assert_eq!(
+            after_refusal(&err(None, None), false),
+            AfterRefusal::Stay("why".into())
+        );
+    }
+
+    /// The session ended while the change was asked: the screen goes back to
+    /// the access, and the panel forgets the session.
+    #[test]
+    fn a_lost_session_goes_back_to_the_access() {
+        use crate::aggiornamento::{accesso_in_corso, password_change};
+        let (base, _) = server_by_path(vec![
+            ("/api/auth/login", 200, LOGIN_MUST_CHANGE),
+            ("/api/auth/rimanda-cambio-password", 401, ""),
+        ]);
+        let t0 = Instant::now();
+        let (avviso, n) = accesso_partito(t0);
+        let sessione: crate::session::SharedSession = Default::default();
+        esegui_bloccando(
+            &rt(),
+            accedi(
+                base.clone(),
+                &avviso,
+                &sessione,
+                n,
+                t0 + Duration::from_secs(5),
+            ),
+            Duration::from_secs(5),
+        )
+        .unwrap();
+        let change = password_change(&avviso).unwrap();
+        let n = accesso_in_corso(&avviso, Instant::now());
+        esegui_bloccando(
+            &rt(),
+            Comando::PostponePasswordChange {
+                base_url: base,
+                token: change.token,
+                sessione: sessione.clone(),
+                avviso: avviso.clone(),
+                tentativo: n,
+            },
+            Duration::from_secs(5),
+        )
+        .unwrap();
+        let g = avviso.lock().unwrap();
+        let a = g.accesso.as_ref().expect("the access is asked again");
+        assert!(a.password_change.is_none());
+        assert!(!a.in_corso);
+        assert!(!sessione.lock().unwrap().is_logged_in());
+    }
+
+    #[test]
+    fn the_change_or_later_closes_the_screen() {
+        use crate::aggiornamento::{accesso_in_corso, password_change, Avviso};
+        let (base, _) = server_by_path(vec![
+            ("/api/auth/login", 200, LOGIN_MUST_CHANGE),
+            ("/api/auth/change-password", 204, ""),
+            ("/api/auth/rimanda-cambio-password", 204, ""),
+        ]);
+        for later in [false, true] {
+            let t0 = Instant::now();
+            let (avviso, n) = accesso_partito(t0);
+            let sessione: crate::session::SharedSession = Default::default();
+            esegui_bloccando(
+                &rt(),
+                accedi(
+                    base.clone(),
+                    &avviso,
+                    &sessione,
+                    n,
+                    t0 + Duration::from_secs(5),
+                ),
+                Duration::from_secs(5),
+            )
+            .unwrap();
+            let change = password_change(&avviso).unwrap();
+            let n = accesso_in_corso(&avviso, Instant::now());
+            let cmd = if later {
+                Comando::PostponePasswordChange {
+                    base_url: base.clone(),
+                    token: change.token,
+                    sessione: sessione.clone(),
+                    avviso: avviso.clone(),
+                    tentativo: n,
+                }
+            } else {
+                Comando::ChangePassword {
+                    base_url: base.clone(),
+                    change,
+                    new_password: "nuova-1".into(),
+                    sessione: sessione.clone(),
+                    avviso: avviso.clone(),
+                    tentativo: n,
+                }
+            };
+            esegui_bloccando(&rt(), cmd, Duration::from_secs(5)).unwrap();
+            assert_eq!(
+                avviso.lock().unwrap().avviso(),
+                Avviso::Niente,
+                "later={later}"
+            );
+        }
     }
 
     #[test]

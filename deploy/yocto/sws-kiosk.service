@@ -5,7 +5,9 @@ Requires=sws-runtime.service
 
 [Service]
 Type=simple
-User=pixsys
+# `user`, not `pixsys`: that account is privileged and only for tests
+# (rule of 08-09-2026); `user` has the screen (CRA D19, 18-11-2026).
+User=user
 Environment=WAYLAND_DISPLAY=wayland-0
 ExecStartPre=/bin/sleep 2
 ExecStart=/data/user/sws/sws-kiosk --url https://localhost:7443

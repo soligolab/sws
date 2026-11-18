@@ -157,7 +157,7 @@ che il launcher si decida e, nel dubbio, non prende lo schermo.
 | `--pull` / `--pull-only` | scarica dal registry |
 | `--tag <tag>` | canale o versione (`latest-arm64`, `rc-arm64`, `<versione>-arm64`) |
 | `--data <dir>` | dove stanno i volumi (predefinito `/data/user/sws`) |
-| `--bridge` | rete bridge con porte pubblicate invece di `Network=host` |
+| `--bridge` | rete bridge con porte pubblicate invece di `Network=host`. Il runtime potrebbe non riconoscere lo schermo del pannello come locale (dipende da come podman inoltra le porte): allora il PIN del dispositivo non apre il pannello di controllo e il codice di abbinamento si legge solo nel log. Serve il PIN del progetto |
 | `--senza-cloud` | il pannello non chiama mai il cloud |
 | `--tunnel`, `--tunnel-nome`, `--tunnel-token` | un tunnel configurato a mano (tutti e tre o nessuno) |
 | `--solo-unita` | riscrive solo i quadlet, dalla versione dell'immagine (lo lancia il runtime stesso) |

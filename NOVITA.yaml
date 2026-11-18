@@ -51,6 +51,13 @@ versioni:
         en: "Tag expressions run in the sandbox: no import, loops, functions, range, pow or +=. If an expression is not allowed the tag goes Bad and the log says why."
       - it: "Negli script e nelle espressioni \"…\".format() non c'è più: usa le f-string, per esempio f\"{x:.1f}\"."
         en: "In scripts and expressions \"…\".format() is gone: use f-strings, for example f\"{x:.1f}\"."
+      # CRA, sessione 3 (18-11-2026): D13, D16, D18.
+      - it: "Il PIN del dispositivo apre il pannello di controllo solo dallo schermo del pannello. Dalla rete e dal cloud serve il PIN del progetto: impostalo dall'IDE."
+        en: "The device PIN opens the control panel only from the panel's own screen. From the network and the cloud the project PIN is needed: set it from the IDE."
+      - it: "Il codice di abbinamento di un pannello nuovo non si vede più in rete: si legge sullo schermo, nel log o dall'installazione, e si scrive nella pagina o in Connetti."
+        en: "A new panel's pairing code is no longer shown over the network: read it on the screen, in the log or from the installation, and type it on the page or in Connect."
+      - it: "Le installazioni native non hanno più admin/admin: partono col codice di abbinamento. Un admin/admin rimasto va cambiato al primo accesso."
+        en: "Native installations no longer have admin/admin: they start with the pairing code. An admin/admin left over must be changed at the next login."
     voci:
       - it: "MQTT: una sorgente sola per molti dispositivi, ognuno col suo topic di disponibilità. Se una presa sparisce diventano Bad solo i suoi valori, e ha il suo allarme. I tag calcolati pesano molto meno sul pannello."
         en: "MQTT: one source for many devices, each with its own availability topic. When a plug disappears only its values go Bad, and it has its own alarm. Computed tags weigh much less on the panel."

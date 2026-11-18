@@ -12,9 +12,14 @@ RestartSec=5
 StandardOutput=journal
 StandardError=journal
 
-# Running as root for the PoC. Lock down with a dedicated user before
-# going to production (needs write access to /var/lib/sws).
-User=root
+# Not root (18-11-2026, decision D19 of the CRA sessions): the installer
+# creates the system user `sws`, hands it /var/lib/sws, and installs the polkit
+# rule that lets the control panel change network, time, reboot and power-off.
+User=sws
+Group=sws
+# Serial ports for Modbus RTU (/dev/ttyUSB*, /dev/ttyS*): root had them, `sws`
+# gets them through the group, as on the Tiny TY.
+SupplementaryGroups=dialout
 
 [Install]
 WantedBy=multi-user.target

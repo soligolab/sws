@@ -72,6 +72,28 @@ describe("CancelloAbbinamento", () => {
     await waitFor(() => expect(useAppStore.getState().authToken).toBe("t-1"));
   });
 
+  it("away from the device the code is not shown: it is typed, then sent (CRA D16, 18-11-2026)", async () => {
+    useAppStore.setState({ authToken: null } as never);
+    fetchFinto
+      .mockReturnValueOnce(risposta(200, { in_attesa: true, codice: null, code_on_screen: true, nome: "tc620" }))
+      .mockReturnValueOnce(risposta(200, { token: "t-2", username: "admin", role: "Admin", must_change_password: false, expires_at_ms: 1 }));
+    render(<CancelloAbbinamento><div>pagina</div></CancelloAbbinamento>);
+    const typed = await screen.findByTestId("codice-abbinamento-scritto");
+    expect(screen.queryByTestId("codice-abbinamento")).toBeNull();
+    expect(screen.queryByText("pagina")).toBeNull();
+    const pw = document.querySelectorAll('input[type="password"]');
+    fireEvent.change(pw[0], { target: { value: "lunga-abbastanza" } });
+    fireEvent.change(pw[1], { target: { value: "lunga-abbastanza" } });
+    // Without the code nothing is sent.
+    expect((document.querySelector('button[type="submit"]') as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(typed, { target: { value: " 7kq2-m9xd-3hwp-t4bz " } });
+    fireEvent.click(document.querySelector('button[type="submit"]')!);
+    expect(await screen.findByText("pagina")).toBeTruthy();
+    expect(JSON.parse((fetchFinto.mock.calls[1][1] as RequestInit).body as string)).toEqual({
+      codice: "7kq2-m9xd-3hwp-t4bz", username: "admin", password: "lunga-abbastanza",
+    });
+  });
+
   it("una password corta non parte", async () => {
     fetchFinto.mockReturnValueOnce(risposta(200, { in_attesa: true, codice: "7KQ2-M9XD-3HWP-T4BZ", nome: "tc620" }));
     render(<CancelloAbbinamento><div>pagina</div></CancelloAbbinamento>);

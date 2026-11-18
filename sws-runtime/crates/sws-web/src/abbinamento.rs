@@ -407,7 +407,10 @@ pub(crate) fn nome_proposto() -> String {
 /// Il codice si mostra **solo** finché il pannello è in attesa: con un utente
 /// qualsiasi non serve più a entrare, e mostrarlo vorrebbe dire lasciare in
 /// giro una chiave che domani (abbinamento al cloud) potrebbe aprire altro.
-pub async fn stato(State(s): State<crate::router::AppState>) -> Response {
+pub async fn stato(
+    State(s): State<crate::router::AppState>,
+    origin: crate::control_panel::Origin,
+) -> Response {
     let in_attesa = crate::router::fonte_auth_corrente(&s).await
         == crate::router::FonteAutenticazione::InAttesa;
     let cloud = s.abbinamento.tunnel().map(|(n, _)| n);
@@ -422,9 +425,19 @@ pub async fn stato(State(s): State<crate::router::AppState>) -> Response {
     // Abbinato al cloud ma ancora senza utenti (fetta E): chiuso in LAN, aperto
     // al gateway, in attesa del primo progetto. Il codice non c'è più.
     let codice = if cloud.is_some() { None } else { codice };
+    // The code is the panel's first credential: only the screen, the log and
+    // the installer (which asks the operator page's port from the device)
+    // show it, never the network, the cloud, or a page of another site in a
+    // browser on the device (decision D16 of the CRA sessions, 18-11-2026,
+    // which replaces decision 14 of 11-10). A page on the LAN is told where to
+    // read it, and can still type it.
+    let here = origin == crate::control_panel::Origin::Screen;
+    let code_on_screen = codice.is_some() && !here;
+    let codice = codice.filter(|_| here);
     Json(serde_json::json!({
         "in_attesa": in_attesa,
         "codice": codice,
+        "code_on_screen": code_on_screen,
         "nome": nome_proposto(),
         "cloud_link": codice.as_deref().and_then(|c| s.abbinamento.cloud_link(c)),
         "cloud": cloud,
@@ -700,6 +713,64 @@ fn salva_tunnel(s: &crate::router::AppState, t: &CredenzialiTunnel) -> anyhow::R
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    async fn status_from(
+        s: &crate::router::AppState,
+        listener: crate::control_panel::Listener,
+        caller: &str,
+        headers: &[(&'static str, &str)],
+    ) -> serde_json::Value {
+        let mut h = axum::http::HeaderMap::new();
+        for (k, v) in headers {
+            h.insert(*k, v.parse().unwrap());
+        }
+        let peer = std::net::SocketAddr::new(caller.parse().unwrap(), 40000);
+        let origin = crate::control_panel::origin(listener, Some(peer), &h);
+        let r = stato(State(s.clone()), origin).await;
+        let body = axum::body::to_bytes(r.into_body(), 1 << 16).await.unwrap();
+        serde_json::from_slice(&body).unwrap()
+    }
+
+    /// D16 (18-11-2026): the code is shown on the device's screen only (and
+    /// to the installer, which asks the same port from the device) — never to
+    /// the network, the cloud, or a page of another site in a browser there.
+    #[tokio::test]
+    async fn the_code_is_shown_only_on_this_machine() {
+        use crate::control_panel::{Listener, REMOTE_SCREEN_HEADER};
+        let dir = tempfile::tempdir().unwrap();
+        let s = crate::router::stato_di_prova(dir.path()).await;
+        let Some(code) = s.abbinamento.codice() else {
+            panic!("a fresh panel has a pairing code");
+        };
+        let local = status_from(&s, Listener::Viewer, "127.0.0.1", &[]).await;
+        assert_eq!(local["codice"], code.as_str());
+        assert_eq!(local["code_on_screen"], false);
+        let elsewhere: [(Listener, &str, &[(&'static str, &str)]); 4] = [
+            // The LAN.
+            (Listener::Viewer, "192.168.1.20", &[]),
+            // The cloud's remote screen.
+            (
+                Listener::Viewer,
+                "127.0.0.1",
+                &[(REMOTE_SCREEN_HEADER, "1")],
+            ),
+            // The tunnel, also to a panel declared by hand on the gateway.
+            (Listener::Management, "127.0.0.1", &[]),
+            // A page of another site in a browser on the device.
+            (
+                Listener::Viewer,
+                "127.0.0.1",
+                &[("sec-fetch-site", "cross-site")],
+            ),
+        ];
+        for (listener, caller, headers) in elsewhere {
+            let v = status_from(&s, listener, caller, headers).await;
+            assert!(v["codice"].is_null(), "{listener:?} {caller} {headers:?}");
+            assert!(v["cloud_link"].is_null());
+            assert_eq!(v["code_on_screen"], true);
+            assert_eq!(v["in_attesa"], local["in_attesa"]);
+        }
+    }
 
     #[test]
     fn cloud_link_only_with_a_cloud_address() {

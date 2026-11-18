@@ -12,10 +12,12 @@ RestartSec=5
 StandardOutput=journal
 StandardError=journal
 
-# The runtime binds to 0.0.0.0:7443 — needs CAP_NET_BIND_SERVICE only if you
-# ever drop it below 1024 (not the case today). Running as root keeps things
-# simple for the PoC; lock down later when graduating to product.
-User=root
+# Not root (18-11-2026, decision D19 of the CRA sessions, as the maintainer
+# asked: «sws deve essere senza root ovunque»). `user` is the panel's own
+# account: the rootless container runs as it too, and PixsysOS lets it change
+# network, time and reboot (polkit), use the serial ports and the screen. The
+# installation hands it /data/user/sws.
+User=user
 
 [Install]
 WantedBy=multi-user.target
