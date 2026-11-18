@@ -125,10 +125,10 @@ progetto aperto nel suo container.
 | | |
 |---|---|
 | unità | `sws-gateway.service` (quadlet `~/.config/containers/systemd/sws-gateway.container`) |
-| immagine | `ghcr.io/soligolab/sws-runtime:1599b500-amd64`, inchiodata al commit (dal 10-10 sera: chiave di ritorno) |
+| immagine | `ghcr.io/soligolab/sws-runtime:<commit>-amd64`, inchiodata al commit; quella in uso è nella «Versione in esecuzione» qui sotto |
 | router | `~/sws-vps/traefik/dynamic/sws-gateway.yml` → `http://sws-gateway:8444` |
 | progetti | `~/sws-vps/progetti` |
-| configurazione | `~/sws-vps/gateway-config` (ci stanno `identita.db` e il segreto del gateway) |
+| configurazione | `~/sws-vps/gateway-config` (ci stanno `identita.db`, il segreto del gateway e, dalla rc.21, `container_key`) |
 
 **Perché il quadlet è fatto così.** Tre cose che non si indovinano, e sono scritte anche dentro al
 file:
@@ -173,7 +173,28 @@ resta 404: così un bundle che manca non torna come HTML con stato 200.
 (`10.89.0.x`): il limite di 20 richieste/s vale per tutti insieme finché non c'è l'indirizzo vero (seme «indirizzo vero
 dietro Traefik»). Si aggiorna con `scripts/manuale/pubblica.sh`.
 
-**Versione in esecuzione: `a0c11846-amd64` (2.26.0-rc.17)** dal 13-11-2026 mattina: la catena del Tiny TY, il
+**Versione in esecuzione: `fe8c71338-amd64` (2.26.0-rc.21)** dal 18-11-2026, 19:52: le sessioni 1-3 del CRA e l'IA a
+scelta del cliente. Tre cambi insieme, con un solo riavvio (fermo di un secondo):
+- **l'immagine**, nella copia maestra del quadlet e poi sulla macchina (`Image=` e `--gateway-immagine`);
+- **il segreto del gateway cambiato** (CRA, D10): fino alla rc.20 stava nell'ambiente di ogni container di progetto, e
+  chi lo leggeva da dentro un progetto poteva farsi passare per il gateway. Il vecchio è in
+  `gateway-config/segreto_gateway.vecchio-2026-11-18`; all'avvio il gateway ha creato il nuovo e `container_key`, da cui
+  ricava il segreto di ogni container. I token dei pannelli abbinati sono un HMAC di quel segreto: **i tre pannelli
+  vanno riabbinati** (procedura in `docs/plans/2026-11-18-cra-2-isolamento-cloud-e-sandbox.md`, «Il rilascio»). Il
+  file vecchio si cancella a riabbinamento finito; rimetterlo al suo posto e riavviare riporta tutto com'era;
+- **il tetto di CPU dei progetti** (CRA, D21): `~/.config/systemd/user/user.slice.d/50-sws-projects.conf`
+  (`CPUQuota=150%`, copia maestra in `deploy/vps/user-systemd/`), poi `systemctl --user daemon-reload`. I container
+  dei progetti stanno nella `user.slice` del gestore utente, gateway e Traefik nella `app.slice`: tutti i progetti
+  insieme hanno al massimo 1,5 core dei 2, e al gateway resta sempre mezzo core. Ogni progetto ha poi il suo tetto di un
+  core, messo dal gateway. Verifica: `cpu.max` della `user.slice` → `150000 100000`.
+
+Copia di prima (quadlet e tutta `gateway-config`) in `~/sws-vps/backup-prima-di-rc21-2026-11-18/`, file nuovi passati
+da `~/sws-vps/staging-rc21/`. Verificato: gateway `healthy`, radice e `/health` 200, `check_gateway_immagine` verde,
+`segreto_gateway` e `container_key` nuovi in `0600`, il container di progetto vecchio non più in giro. Le rc.18, 19 e 20
+sono passate di qui con la sequenza solita senza una riga in questo file (i commit `chore(vps)`). Ripiego
+`83ea9555-amd64` (rc.20), che però vuole il segreto vecchio.
+
+Prima: **Versione in esecuzione: `a0c11846-amd64` (2.26.0-rc.17)** dal 13-11-2026 mattina: la catena del Tiny TY, il
 quadlet 8 dei pannelli, G1, il QR di abbinamento (il gateway lascia abbinare ogni membro a una sua azienda, `GET
 /api/pannelli/in-attesa/:codice`). Stessa sequenza (copia `.prima-rc17-2026-11-13`, `podman pull`, `sed` del sha in
 `Image=` e `--gateway-immagine`, `scp`, `daemon-reload`, `restart sws-gateway`). Verificato: gateway `healthy`, radice
