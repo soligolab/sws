@@ -54,6 +54,10 @@ provata sul pannello LVGL (`check_simboli_lvgl.sh`) e a volume 0.
 
 ## Aggiunta del 18-11-2026 — L'editor dei simboli: esplodere, animare, farsi aiutare dall'IA
 
+> **Diventata un piano il 18-11-2026**: [l'editor dei simboli](../2026-11-18-editor-dei-simboli.md). Il testo qui sotto è
+> l'appunto originale; le decisioni stanno nel piano. Il resto di questo seme (più dettaglio nei disegni della libreria)
+> resta seme.
+
 > Appunto preso in velocità dal maintainer in una riunione; non è un seme a parte perché il tema è questo. Vale la regola del seme: la sessione di plan viene prima.
 
 Un editor dei simboli vero, con queste capacità:
