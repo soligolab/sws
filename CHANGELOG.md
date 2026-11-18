@@ -253,6 +253,28 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   Le istruzioni del pacchetto usano `scp -O` e `/var/tmp` (SFTP spento, `/tmp` di 32 MB).
 
 ### Corretto
+- **Sicurezza del cloud e della sandbox** (sessione 2 del CRA, piano `docs/plans/2026-11-18-cra-2-isolamento-cloud-e-sandbox.md`).
+  - Ogni container di progetto riceve un segreto suo (`gateway::ritorno::container_secret`), non più quello del
+    gateway: chi leggeva l'ambiente di un container poteva fare da Admin negli altri e calcolare i token dei pannelli.
+    Segreti dei container e chiavi di ritorno si ricavano da una chiave nuova del gateway (file `container_key` della
+    sua configurazione), mai uscita; un container nato con un'altra chiave non si riadotta (etichetta
+    `net.soligo.sws.key`).
+  - Le espressioni dei tag girano nella sandbox, limitate a un sottoinsieme di Python (niente import, cicli, funzioni,
+    `+=`, nomi con `_`) e a un elenco fisso di funzioni (`sws_pyscript::EXPR_BUILTINS`: niente `range` e `pow`);
+    prima erano Python normale con tutti i builtin. Le operazioni che in un passo danno un risultato enorme
+    (`10 ** 10 ** 10`, `'x' * 10 ** 9`, `round` con milioni di cifre, larghezze di formato enormi) si rifiutano; i
+    valori annidati sono di sola lettura. Un'espressione che dà errore marca il tag «Bad» e lo scrive nel registro una
+    volta sola.
+  - Negli script in sandbox `getattr` è `safer_getattr`: `str.format` non arriva più agli attributi nascosti, e il
+    controllo del codice lo segnala con la f-string da usare. Un attributo che non c'è dà `AttributeError`, non `None`.
+  - Il pannello di controllo del dispositivo non esiste più sull'istanza IDE, sul gateway e nei container di progetto.
+  - Gli archivi zip che arrivano da fuori hanno un tetto (`zip_limits`): 10 000 voci, contate prima di leggere
+    l'indice; 64 MB espansi in tutto, 32 MB per voce. Quando l'archivio lo fa SWS, si controlla con le regole di chi
+    lo leggerà (anche gli 8 MB di un import o di un deploy): l'export si salva lo stesso e l'IDE dice perché un import
+    lo rifiuterebbe (`x-sws-export-warning`); il deploy si ferma prima di partire.
+  - Il modello «Avviso Telegram» dell'IDE scrive il messaggio con una f-string e un formato, come esempio al posto di
+    `"…".format()`.
+  - Il template `s7-demo` usava in un'espressione `tags.read(...)`, che non ha mai funzionato.
 - **Frasi false sulla sicurezza, in pubblico** (sessione 1 del CRA). `SECURITY.md` e il manuale dicevano aggiornamenti
   automatici di default: il pannello avvisa e un Admin installa, o accende il «Pilota automatico». Il README diceva
   autenticazione e TLS spenti di default: un pannello senza utenti è chiuso e il TLS si accende da sé dove

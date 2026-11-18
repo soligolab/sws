@@ -175,11 +175,10 @@ pub async fn sincronizza_da_zip(
         let Some(sicuro) = percorso_sicuro(rel) else {
             continue;
         };
-        let mut buf = Vec::new();
-        {
+        let buf = {
             let mut f = archive.by_name(nome)?;
-            std::io::copy(&mut f, &mut buf)?;
-        }
+            crate::zip_limits::read_entry(&mut f)?
+        };
         let dest = target_dir.join(&sicuro);
         if let Some(p) = dest.parent() {
             tokio::fs::create_dir_all(p).await?;
@@ -379,15 +378,9 @@ pub async fn carica(State(s): State<crate::router::AppState>, body: axum::body::
         )
             .into_response();
     }
-    let mut archivio = match zip::ZipArchive::new(Cursor::new(body.as_ref())) {
+    let mut archivio = match crate::zip_limits::open(body.as_ref()) {
         Ok(a) => a,
-        Err(e) => {
-            return (
-                StatusCode::BAD_REQUEST,
-                format!("non è uno zip leggibile: {e}"),
-            )
-                .into_response()
-        }
+        Err(e) => return (StatusCode::BAD_REQUEST, e).into_response(),
     };
     // `sincronizza_da_zip` vuole il prefisso `openplc/`, perché nasce per i
     // bundle di progetto; qui lo zip è la cartella nuda. Si riusa lo stesso
@@ -412,18 +405,16 @@ pub async fn carica(State(s): State<crate::router::AppState>, body: axum::body::
             )
                 .into_response();
         };
-        let mut buf = Vec::new();
         let letto = archivio
             .by_name(nome)
             .map_err(|e| e.to_string())
-            .and_then(|mut f| {
-                std::io::copy(&mut f, &mut buf)
-                    .map(|_| ())
-                    .map_err(|e| e.to_string())
-            });
-        if let Err(e) = letto {
-            return (StatusCode::BAD_REQUEST, format!("{nome}: {e}")).into_response();
-        }
+            .and_then(|mut f| crate::zip_limits::read_entry(&mut f).map_err(|e| e.to_string()));
+        let buf = match letto {
+            Ok(b) => b,
+            Err(e) => {
+                return (StatusCode::BAD_REQUEST, format!("{nome}: {e}")).into_response();
+            }
+        };
         let dest = destinazione.join(&sicuro);
         if let Some(p) = dest.parent() {
             if tokio::fs::create_dir_all(p).await.is_err() {

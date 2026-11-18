@@ -56,8 +56,13 @@ pub struct TagDef {
     /// Python expression evaluated against a `tags` dict snapshot of the current
     /// TagDb values.  Example: `tags["motor.v"] * tags["motor.i"]`.
     /// When set the tag is read-only; writes via the API or TagWriteBus are
-    /// rejected.  The expression is re-evaluated whenever any tag in the project
-    /// changes.
+    /// rejected.  The expression is re-evaluated when a tag it reads changes.
+    /// It runs in the sandbox and is a subset of Python: values, operators,
+    /// f-strings, `tags["…"]`, assignments, `if`/`else` and calls to a fixed
+    /// list of builtins (`round`, `min`, `max`, `abs`, `int`, `float`, `str`,
+    /// `len`, `sum`, `format`…); no `import`, loop, function, lambda,
+    /// comprehension, `+=`, `range`, `pow`, `str.format` or name starting with
+    /// `_`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub expression: Option<String>,
     /// Onda generata nativamente (T-69 Fase D): il valore è funzione PURA del

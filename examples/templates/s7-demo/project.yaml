@@ -57,7 +57,7 @@ tags:
   - id: pump1.running
     data_type: bool
     description: "Pompa 1 in marcia (derivato)"
-    expression: "tags.read('pump1.speed') > 0"
+    expression: "tags['pump1.speed'] > 0"
 
 alarms:
   - id: overheat

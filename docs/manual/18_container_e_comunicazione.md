@@ -261,7 +261,7 @@ Creato dal gateway via API di podman:
 | Immagine | quella di `--gateway-immagine` |
 | Volume | `~/sws-vps/progetti/<azienda>/<progetto>` → `/progetto` (lettura e scrittura) |
 | Argomenti | `--project /progetto --admin-port 8444 --auth-delegata` — niente viewer, niente `--no-admin` |
-| Ambiente | `SWS_SEGRETO_GATEWAY` (per riconoscere il gateway), `SWS_CHIAVE_RITORNO` (per farsi riconoscere da lui) |
+| Ambiente | `SWS_SEGRETO_GATEWAY` (per riconoscere il gateway: un segreto solo di questo container, ricavato da quello del gateway), `SWS_CHIAVE_RITORNO` (per farsi riconoscere da lui) |
 | Rete | `sws-rete`, alias col nome del container |
 
 `--auth-delegata` vuol dire che il container **non fa login**: si fida dell'identità che il gateway gli passa
@@ -510,7 +510,7 @@ acquisisce nel cloud). Dettagli e configurazione nel [capitolo 06](06_protocols.
 | **Utente dell'IDE** (cloud, installazione) | email e password → token | `identita.db` dell'installazione | idem |
 | **Amministratore di piattaforma** | è un utente dell'IDE con una spunta | `identita.db` | — |
 | **Amministratore del dispositivo** | creato all'abbinamento col codice | `utenti_dispositivo.yaml` nella config del pannello | permanente |
-| **Gateway → container** | `X-SWS-Gateway: <segreto>` + `X-SWS-Utente: <email>` | `segreto_gateway`, passato al container in `SWS_SEGRETO_GATEWAY` | finché non si cambia |
+| **Gateway → container** | `X-SWS-Gateway: <segreto del container>` + `X-SWS-Utente: <email>` | ricavato da `segreto_gateway` e dal nome del progetto, passato al container in `SWS_SEGRETO_GATEWAY`: un container non conosce il segreto del gateway | finché non si cambia |
 | **Container → gateway** | `X-SWS-Figlio: <azienda>/<progetto>:<HMAC>` | calcolata dal segreto, mai salvata | idem |
 | **Pannello → gateway** (tunnel) | `Authorization: Bearer HMAC(segreto, identità hardware)` | config del pannello, ricevuto all'abbinamento | idem |
 | **Schermo remoto** (browser → gateway) | cookie `sws_schermo`, da un biglietto monouso | memoria del gateway; legato al gettone cloud | finché vale la sessione cloud, al massimo 8 h |

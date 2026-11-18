@@ -182,6 +182,8 @@ pub struct Regia {
     /// lo si decide — condizioni d'uso riviste, posta che non finisce nello
     /// spam (`docs/archive/2026-10-26-aprire-sws-soligo-net.md`, ramo C).
     registrazione_aperta: bool,
+    /// The key of the project containers (D10): see `container_key()`.
+    container_key: Arc<String>,
     /// Il segreto che il figlio pretende a ogni richiesta (`--auth-delegata`).
     /// Uno solo per tutto il gateway: i figli non si parlano fra loro, e un
     /// segreto per container vorrebbe dire tenerne traccia senza guadagno.
@@ -213,8 +215,10 @@ impl Regia {
         radice: impl Into<std::path::PathBuf>,
         come: ComeRaggiungere,
         segreto: impl Into<String>,
+        container_key: impl Into<String>,
     ) -> Self {
         Self {
+            container_key: Arc::new(container_key.into()),
             podman,
             immagine: immagine.into(),
             radice: radice.into(),
@@ -259,6 +263,12 @@ impl Regia {
     pub fn segreto(&self) -> &str {
         &self.segreto
     }
+
+    /// The key of the project containers (decision D10): their secrets and
+    /// their return keys come from here, never from [`Self::segreto`].
+    pub fn container_key(&self) -> &str {
+        &self.container_key
+    }
 }
 
 /// Un container acceso si adotta solo se gira **la nostra** immagine
@@ -270,6 +280,13 @@ impl Regia {
 /// è una prova che l'immagine sia diversa.
 fn si_adotta(immagine_container: &str, immagine_gateway: &str) -> bool {
     immagine_container.is_empty() || immagine_container == immagine_gateway
+}
+
+/// The container was made with this gateway's container key (D10). Unlike the
+/// image, a missing label is **not** a pass: a container without it was made
+/// before 18-11-2026, with the gateway's secret in its environment.
+fn same_key(container_fingerprint: Option<&str>, container_key: &str) -> bool {
+    container_fingerprint == Some(crate::gateway::ritorno::key_fingerprint(container_key).as_str())
 }
 
 impl Regia {
@@ -331,7 +348,12 @@ impl Regia {
             // nessuno — questa funzione gira all'**avvio del gateway**, quando
             // nessun browser è collegato, e il commento della funzione lo dice
             // già. I dati stanno nel volume del progetto, non nel container.
-            if !si_adotta(&c.immagine, &self.immagine) {
+            // **Nor one made with another container key** (18-11-2026, D10):
+            // its environment holds a secret this gateway no longer sends, so
+            // every request to it would be refused. Same remedy as an old image.
+            if !si_adotta(&c.immagine, &self.immagine)
+                || !same_key(c.key_fingerprint.as_deref(), &self.container_key)
+            {
                 tracing::info!(
                     contenitore = %c.nome,
                     aveva = %c.immagine,
@@ -650,17 +672,15 @@ impl Regia {
             // Il riferimento del progetto, e le etichette pesanti dell'immagine
             // azzerate: qui i container sono uno per progetto aperto, quindi il
             // peso nel journal si moltiplica (vedi `ETICHETTE_DA_SVUOTARE`).
-            "labels": super::podman::etichette_container(&riferimento),
+            "labels": super::podman::etichette_container(
+                &riferimento,
+                &crate::gateway::ritorno::key_fingerprint(&self.container_key),
+            ),
             // Il fuso dell'host, come `Timezone=local` nei quadlet (20-10-2026): senza,
             // il container è in UTC, e la ritenzione «alle 03:00» girava alle 05:00 in
             // Italia d'estate.
             "timezone": "local",
-            "env": {
-                "SWS_SEGRETO_GATEWAY": self.segreto.as_str(),
-                // La chiave con cui il container si farà riconoscere quando
-                // chiama il gateway (i pannelli, `/dev/…`): vedi `ritorno.rs`.
-                "SWS_CHIAVE_RITORNO": crate::gateway::ritorno::chiave_per(self.segreto.as_str(), &riferimento),
-            },
+            "env": ambiente_container(self.container_key.as_str(), &riferimento),
             "mounts": [{
                 "type": "bind",
                 "source": sul_disco.to_string_lossy(),
@@ -861,6 +881,18 @@ impl std::fmt::Display for Apertura {
             Self::Podman(e) => write!(f, "non riesco ad avviare il progetto: {e}"),
         }
     }
+}
+
+/// The environment of a project container: what it needs to trust the
+/// gateway and to be recognised by it. Never the gateway's secret itself
+/// (18-11-2026, CRA session 2): its own, derived (`ritorno::container_secret`).
+fn ambiente_container(container_key: &str, riferimento: &str) -> serde_json::Value {
+    serde_json::json!({
+        "SWS_SEGRETO_GATEWAY": crate::gateway::ritorno::container_secret(container_key, riferimento),
+        // La chiave con cui il container si farà riconoscere quando
+        // chiama il gateway (i pannelli, `/dev/…`): vedi `ritorno.rs`.
+        "SWS_CHIAVE_RITORNO": crate::gateway::ritorno::chiave_per(container_key, riferimento),
+    })
 }
 
 /// La posta di ripiego del container (10-11-2026): `smtp.yaml` nella sua
@@ -1149,6 +1181,7 @@ mod tests {
             d.path(),
             ComeRaggiungere::PortaPubblicata,
             "segretolungoabbastanza0123",
+            "test-container-key",
         )
         .with_price_list(&source);
         let mut implicit = aperto(1, None);
@@ -1215,6 +1248,46 @@ mod tests {
     /// aperto e `riadotta` adottava qualunque container acceso. Il maintainer
     /// ha inseguito due volte difetti già corretti, con davanti un IDE vecchio
     /// di giorni.
+    /// A container made before the container key, or with another one, is
+    /// not adopted again: its environment holds a secret no longer sent.
+    #[test]
+    fn a_container_made_with_another_key_is_not_adopted() {
+        let k = "chiave-dei-container";
+        let right = crate::gateway::ritorno::key_fingerprint(k);
+        assert!(same_key(Some(&right), k));
+        assert!(!same_key(None, k), "made before 18-11-2026");
+        assert!(!same_key(
+            Some(&crate::gateway::ritorno::key_fingerprint("altra")),
+            k
+        ));
+        let labels = super::super::podman::etichette_container("acme/forno", &right);
+        assert_eq!(
+            labels[super::super::podman::KEY_LABEL],
+            serde_json::Value::String(right)
+        );
+    }
+
+    /// The gateway's secret never reaches a container's environment: what a
+    /// tag expression could read there opens that container only.
+    #[test]
+    fn a_container_gets_its_own_secret_not_the_gateways() {
+        let env = ambiente_container("radice-del-gateway", "acme/forno");
+        let inside = env.to_string();
+        assert!(!inside.contains("radice-del-gateway"), "{inside}");
+        assert_eq!(
+            env["SWS_SEGRETO_GATEWAY"],
+            crate::gateway::ritorno::container_secret("radice-del-gateway", "acme/forno")
+        );
+        assert_ne!(
+            env["SWS_SEGRETO_GATEWAY"],
+            ambiente_container("radice-del-gateway", "beta/forno")["SWS_SEGRETO_GATEWAY"]
+        );
+        assert_eq!(
+            env["SWS_CHIAVE_RITORNO"],
+            crate::gateway::ritorno::chiave_per("radice-del-gateway", "acme/forno")
+        );
+    }
+
     #[test]
     fn un_container_di_un_altra_immagine_non_si_adotta() {
         let nostra = "ghcr.io/soligolab/sws-runtime:2.23.3-amd64";
@@ -1305,6 +1378,7 @@ mod tests {
             &temp,
             ComeRaggiungere::PortaPubblicata,
             "segretolungoabbastanza0123",
+            "test-container-key",
         );
 
         // Il tetto si rispetta PRIMA di avviare qualunque cosa.
@@ -1354,9 +1428,29 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(senza.status(), 401, "il figlio si fida di chiunque");
-        let con = cl
+        // The gateway's own secret no longer opens a container (18-11-2026):
+        // each one has its own, derived from it.
+        let radice = cl
             .get(format!("{}/api/system", aperto.indirizzo))
             .header("X-SWS-Gateway", regia.segreto())
+            .header("X-SWS-Utente", "tizio@acme.it")
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(
+            radice.status(),
+            401,
+            "the gateway's secret must not open a container"
+        );
+        let con = cl
+            .get(format!("{}/api/system", aperto.indirizzo))
+            .header(
+                "X-SWS-Gateway",
+                crate::gateway::ritorno::container_secret(
+                    regia.container_key(),
+                    &aperto.riferimento,
+                ),
+            )
             .header("X-SWS-Utente", "tizio@acme.it")
             .send()
             .await
@@ -1406,6 +1500,7 @@ mod tests {
             &temp,
             ComeRaggiungere::PortaPubblicata,
             "segretolungoabbastanza0123",
+            "test-container-key",
         );
 
         let primo = regia

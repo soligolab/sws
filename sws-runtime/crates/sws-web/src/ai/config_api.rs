@@ -921,6 +921,7 @@ mod tests {
             d.path(),
             crate::gateway::progetti::ComeRaggiungere::PortaPubblicata,
             "segretolungoabbastanza0123",
+            "test-container-key",
         )));
         assert!(s.in_cloud());
         let r = put_local_(

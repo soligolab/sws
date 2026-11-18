@@ -12,22 +12,34 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — il lavoro sul CRA, sessione 1 fatta, sul ramo `docs/cra-1-true-statements` (2026-11-18, theobroma)
+## ▶ Riprendere da qui — il lavoro sul CRA, sessioni 1 e 2 fatte e decisioni validate, pronte per il rilascio (2026-11-18, theobroma)
 
 Il maintainer ha chiesto di procedere sulla parte CRA **una sessione alla volta**, con le decisioni prese in autonomia e
 validate alla fine. Piano e registro delle decisioni: `docs/plans/2026-11-17-cra-sessioni-e-decisioni.md`. La misura del
 17-11 è in `tmp/cra/` (non versionata, solo su theobroma).
 
-- **Sessione 1 fatta, da validare**: frasi false corrette in `SECURITY.md`, README, manuale e commenti; nascono
-  `docs/sicurezza/LEGGIMI.md`, la bozza **interna** `docs/sicurezza/valutazione-rischio.md` e la guardia
-  `check_security_docs.sh`. Due revisioni indipendenti, correzioni in `8f9dda06`.
-- **Il ramo NON si pusha e non va su `main`** prima della sessione 2: valutazione del rischio, piani e un commento di
-  `gateway/ritorno.rs` descrivono la catena del cloud ancora aperta (un'espressione legge l'ambiente del container,
-  dove c'è il segreto del gateway). Regola «un ramo alla volta»: le sessioni dopo si **annidano** su questo ramo.
-- **Prossimo**: la sessione 2 (segreto del gateway per container, espressioni in sandbox, `getattr` sicuro, tetti agli
-  zip). Poi la 3 (pannello di controllo anche su IDE e gateway, PIN, `admin`/`admin` e root delle installazioni native).
-- **Da validare dal maintainer**: D1-D5 del registro. D2 ribalta la decisione 3 del 05-10 (aggiornamenti automatici
-  di default); D3 lascia fuori dal CRA 2FA e LDAP, che restano la voce P6.
+- **Sessione 1 fatta**, ramo `docs/cra-1-true-statements`: frasi false corrette in `SECURITY.md`, README, manuale e
+  commenti; `docs/sicurezza/LEGGIMI.md`, la bozza **interna** `docs/sicurezza/valutazione-rischio.md`, la guardia
+  `check_security_docs.sh`.
+- **Sessione 2 fatta**, ramo `fix/cra-2-cloud-isolation-sandbox`, **annidato** sul primo: ogni container del cloud ha
+  un segreto suo, ricavato da una chiave nuova del gateway (D6, D10); il pannello di controllo solo sui dispositivi
+  (D9); le espressioni dei tag nella sandbox, con un elenco fisso di funzioni e i controlli sui risultati enormi (D7);
+  `safer_getattr` negli script (D8); tetti agli zip (D11). Due revisioni per sessione, tutte le correzioni fatte;
+  il tetto di CPU dei container è rimandato alla sessione 3 (D12).
+- **I due rami NON si pushano e non vanno su `main`** prima che il gateway nuovo sia nel cloud (D5): valutazione del
+  rischio e piani descrivono la catena del cloud. Merge e rilascio insieme, poi le voci di collaudo delle due sessioni
+  in `docs/COLLAUDI_IN_SOSPESO.md`.
+- **D1-D12 validate dal maintainer il 18-11.** Le sue aggiunte, fatte lo stesso giorno: un esempio di f-string nel
+  modello «Avviso Telegram» (D8); l'avviso quando un archivio fatto da SWS sfora i tetti (D11: export salvato con
+  l'avviso, deploy fermato prima di partire); il segreto del gateway **si cambia al rilascio** e i tre pannelli del
+  cloud si riabbinano (D10), con la procedura nel piano della sessione 2, «Il rilascio». Prima: il backup del database
+  del TC620 di casa. Espressioni e script dei progetti del cloud misurati sul VPS: tutti a posto.
+- **Il prossimo passo è il rilascio**, quando il maintainer lo chiede: squash merge delle due sessioni su `main`,
+  immagine, gateway col segreto nuovo, riabbinamento, collaudo, e solo allora il push.
+- **Dopo**: la sessione 3 (PIN del pannello di controllo, `admin`/`admin` e root delle installazioni native,
+  OpenPLC, cambio password sul viewer, peso della CPU dei container nel cloud), annidata sul ramo della sessione 2.
+- **Per provare le espressioni con la sandbox su theobroma**: RestrictedPython non c'è nel Python di sistema; è in
+  `tmp/pydeps`, e i test girano con `PYTHONPATH=/home/ut1/sws/tmp/pydeps cargo test -p sws-pyscript`.
 
 ## ▶ Riprendere da qui — l'IA a scelta del cliente, su `main` e validata col modello in casa (2026-11-17, theobroma)
 

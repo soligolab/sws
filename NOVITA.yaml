@@ -46,6 +46,11 @@ versioni:
       # testi liberi posizionati a occhio sul pannello.
       - it: "Sul pannello LVGL un testo senza riquadro ha la y sulla linea di base, come sul web: i testi liberi salgono di circa un corpo, ricontrolla le pagine LVGL."
         en: "On the LVGL panel a text without a box has its y on the baseline, as on the web: free texts move up by about one font size, check LVGL pages."
+      # CRA, sessione 2 (18-11-2026): D7 e D8.
+      - it: "Le espressioni dei tag girano nella sandbox: niente import, cicli, funzioni, range, pow o +=. Se un'espressione non è ammessa il tag diventa Bad e il registro dice perché."
+        en: "Tag expressions run in the sandbox: no import, loops, functions, range, pow or +=. If an expression is not allowed the tag goes Bad and the log says why."
+      - it: "Negli script e nelle espressioni \"…\".format() non c'è più: usa le f-string, per esempio f\"{x:.1f}\"."
+        en: "In scripts and expressions \"…\".format() is gone: use f-strings, for example f\"{x:.1f}\"."
     voci:
       - it: "MQTT: una sorgente sola per molti dispositivi, ognuno col suo topic di disponibilità. Se una presa sparisce diventano Bad solo i suoi valori, e ha il suo allarme. I tag calcolati pesano molto meno sul pannello."
         en: "MQTT: one source for many devices, each with its own availability topic. When a plug disappears only its values go Bad, and it has its own alarm. Computed tags weigh much less on the panel."

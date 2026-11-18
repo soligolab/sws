@@ -1582,6 +1582,7 @@ mod ai_prices_routes {
             dir,
             ComeRaggiungere::PortaPubblicata,
             "segretolungoabbastanza0123",
+            "test-container-key",
         );
         crate::router::build_di_prova(dir, None, Some(std::sync::Arc::new(regia)))
             .await

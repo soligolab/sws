@@ -38,8 +38,9 @@ decidiamo». Il ramo resta aperto fra una ripresa e l'altra; si riparte dal prim
 - Una sessione alla volta, ognuna col suo ramo, i suoi test, due revisioni e le correzioni.
 - I rami sono **annidati** (regola «un ramo alla volta», opzione 2): niente arriva su `main` e niente viene pushato
   finché il maintainer non ha validato. Dopo la validazione si fanno gli squash merge in ordine.
-- Nessun accesso a pannelli o al VPS in queste sessioni: quello che vuole un dispositivo diventa una voce di
-  `docs/COLLAUDI_IN_SOSPESO.md`.
+- Nessun accesso ai pannelli in queste sessioni: quello che vuole un dispositivo diventa una voce di
+  `docs/COLLAUDI_IN_SOSPESO.md`. Il VPS sì, dal 18-11 («sul VPS sei in grado di entrare»), per leggere e misurare;
+  cambiarlo resta un passo del rilascio.
 - Ogni sessione aggiunge il suo paragrafo a `docs/sicurezza/valutazione-rischio.md` e al capitolo 17 del manuale, così
   C8 cresce col lavoro.
 
@@ -48,8 +49,8 @@ decidiamo». Il ramo resta aperto fra una ripresa e l'altra; si riparte dal prim
 | # | Ramo | Cosa | Stato |
 |---|---|---|---|
 | 1 | `docs/cra-1-true-statements` | I testi falsi in pubblico corretti, lo scheletro della valutazione del rischio ([piano](2026-11-17-cra-1-testi-veri.md)) | **fatta, da validare** il 18-11: frasi false corrette in `SECURITY.md`, README, manuale e commenti; indice di `docs/sicurezza/`, bozza interna della valutazione del rischio, guardia `check_security_docs.sh`; due revisioni, correzioni in `8f9dda06` |
-| 2 | `fix/cra-2-cloud-isolation-sandbox` | Segreto del gateway per container, espressioni in sandbox, `getattr` sicuro, tetti agli zip | da fare |
-| 3 | `fix/cra-3-control-panel-access` | Pannello di controllo: PIN iniziale valido solo dallo schermo, rotte tolte dove non c'è un dispositivo (IDE e gateway del cloud), blocco del PIN non più unico per tutti, PIN sbagliati nell'audit, punto d'accesso Wi-Fi; porte di OpenPLC; cambio password obbligatorio anche sulla porta del viewer; installazioni native senza `admin`/`admin` e senza root; la guardia delle rotte aperte | da fare |
+| 2 | `fix/cra-2-cloud-isolation-sandbox` | Segreto del gateway per container, pannello di controllo solo sui dispositivi (anticipato dalla 3), espressioni in sandbox, `getattr` sicuro, tetti agli zip ([piano](2026-11-18-cra-2-isolamento-cloud-e-sandbox.md)) | **fatta, da validare** il 18-11: decisioni D6-D12; due revisioni, correzioni nell'ultimo commit del ramo. Il ramo **non si pusha** prima che il gateway nuovo sia nel cloud (D5) |
+| 3 | `fix/cra-3-control-panel-access` | Pannello di controllo: PIN iniziale valido solo dallo schermo, blocco del PIN non più unico per tutti, PIN sbagliati nell'audit, punto d'accesso Wi-Fi; porte di OpenPLC; cambio password obbligatorio anche sulla porta del viewer; installazioni native senza `admin`/`admin` e senza root; la guardia delle rotte aperte; nel cloud il peso della CPU dei container (D12) | da fare |
 | 4 | `feat/cra-4-factory-reset` | C5: il reset completo, la guardia, il Tiny TY, i dati orfani nel cloud | da fare |
 | 5 | `feat/cra-5-signing-sbom-scan` | C7 dal lato della build: firma, SBOM, scansione | da fare |
 | 6 | `feat/cra-6-update-notices` | C7 dal lato del pannello e gli avvisi | da fare |
@@ -58,6 +59,10 @@ decidiamo». Il ramo resta aperto fra una ripresa e l'altra; si riparte dal prim
 ## Le decisioni prese in autonomia
 
 Ogni riga: la decisione, il perché, cosa cambia per chi usa SWS, come si disfa.
+
+**D1-D12 validate dal maintainer il 18-11-2026**, con quattro aggiunte scritte nelle righe: il perché di D2, l'esempio
+di f-string fra i modelli (D8), il segreto del gateway da cambiare al rilascio (D10), e l'avviso quando un archivio
+fatto da SWS sfora i tetti (D11).
 
 ### Generali
 
@@ -73,6 +78,8 @@ Ogni riga: la decisione, il perché, cosa cambia per chi usa SWS, come si disfa.
   l'avviso di versione nuova, l'installazione da un Admin, la finestra programmata e il «Pilota automatico». Si
   correggono i testi che dicevano il contrario. *Cambia*: niente nel comportamento; cambia la decisione scritta.
   *Si disfa*: accendendo il pilota automatico di default, con la sua riga di compatibilità nelle Novità.
+  *Il maintainer, validandola*: «l'aggiornamento e il metodo da usare è una cosa che definisce chi configura
+  l'impianto, noi mettiamo a disposizione l'aggiornamento automatico con le sue opzioni ma è spento di default».
 - **D3 — Nelle sessioni CRA non si fanno, perché il CRA non li chiede e costano all'uso**, e si dichiarano nella
   valutazione del rischio:
   - la firma del registro di audit (oggi è una catena di hash, firmata solo se c'è `SWS_AUDIT_KEY`);
@@ -107,3 +114,80 @@ Ogni riga: la decisione, il perché, cosa cambia per chi usa SWS, come si disfa.
 
   *Cambia*: chi legge il manuale oggi sa del PIN e sa come difendersi. *Si disfa*: togliendo dal capitolo 17 il
   paragrafo sul pannello di controllo.
+
+### Sessione 2
+
+- **D6 — Ogni container di progetto ha un segreto suo**, e il gateway lo ricalcola quando inoltra. Il segreto del
+  gateway non esce più dal gateway. *Cambia*: niente per chi usa il cloud; col gateway nuovo i container si rifanno
+  tutti. *Si disfa*: rimettendo il segreto del gateway nell'ambiente del container. *Corretta dalla D10*: il segreto
+  del container non si ricava più dal segreto del gateway.
+- **D7 — Un'espressione di un tag è un sottoinsieme di Python, nella sandbox**: valori, operatori, f-string,
+  `tags[...]`, assegnazioni, `if`/`else` e un elenco fisso di funzioni (`round`, `min`, `max`, `abs`, `int`, `float`,
+  `str`, `len`, `sum`, `format` e poche altre). Niente `import`, cicli, funzioni, lambda, classi, `try`, `with`,
+  comprensioni, `+=`, `range`, `pow`, `str.format`, nomi o attributi che cominciano con `_`. I valori annidati
+  (strutture e array) sono di sola lettura. Le 29 espressioni misurate sui progetti di theobroma passano tutte.
+  - *Corretta dopo la revisione del 18-11*: la prima versione diceva «senza cicli un'espressione finisce sempre». Non
+    era vero: `10 ** 10 ** 10` tiene l'interprete per ore, e non lo si può fermare. Ora le operazioni che in un passo
+    solo danno un risultato enorme si rifiutano subito: `**`, `<<`, `*` su testi ed elenchi, `round` con migliaia di
+    cifre, una larghezza di formato enorme, i metodi che allungano un testo (`ljust`, `zfill`…). Restano possibili,
+    scritte apposta, catene di operazioni che riempiono la memoria. Nel cloud le ferma il tetto di memoria del
+    container, che è del solo progetto; sul pannello chi scrive il progetto è già il suo amministratore.
+  - Senza RestrictedPython l'espressione non gira, salvo la deroga di sviluppo, che usa gli stessi nodi, le stesse
+    funzioni e gli stessi controlli.
+  - Un'espressione che dà errore lascia l'ultimo valore, ma **marcato «Bad»**, e il registro lo dice una volta sola
+    per errore, non a ogni cambio dei tag che legge. Prima il valore vecchio restava «Good» e il registro si
+    riempiva.
+
+  *Cambia*: un'espressione che usa altro smette di dare valori, il tag diventa «Bad» e il registro dice perché; riga
+  di compatibilità nelle Novità. *Si disfa*: togliendo il controllo dei nodi e tornando a `exec`.
+  *Misurato sul VPS il 18-11*, dopo la validazione: le 37 espressioni e i 13 script e funzioni dei 16 progetti del
+  cloud passano tutti, compilati e fatti girare con le regole nuove.
+- **D8 — Negli script in sandbox `getattr` è `safer_getattr` di RestrictedPython**: niente attributi con `_`, niente
+  `str.format`. Nessuno script dei progetti di theobroma usa `.format(`. Il controllo del codice (quello che usa
+  l'assistente) segnala `.format(` con il suggerimento della f-string. *Corretta dopo la revisione*: `safer_getattr`
+  dà `None` per un attributo che non c'è, e un errore di battitura diventava «NoneType is not callable» più avanti;
+  ora è un `AttributeError` col nome, come in Python. *Cambia*: chi usa `.format` passa alle f-string; riga di
+  compatibilità nelle Novità. *Si disfa*: rimettendo `getattr`. *Chiesto dal maintainer validandola*: un esempio fra
+  gli script. Il modello «Avviso Telegram» dell'IDE ora scrive il messaggio con una f-string e un formato (i minuti da
+  cui l'allarme è attivo, con un decimale), e un commento spiega come si legge.
+- **D9 — Il pannello di controllo esiste solo dove c'è un dispositivo**: non sull'istanza IDE, non sul gateway (dove
+  dava su Internet), non nei container di progetto. *Cambia*: niente per chi usa un pannello; l'IDE legge ancora la
+  luminosità solo da un dispositivo. *Si disfa*: togliendo la condizione `is_device` dalle tre `merge`.
+- **D10 — I container hanno una chiave loro, separata dal segreto del gateway** (dopo la revisione del 18-11). La
+  D6 ricavava il segreto di ogni container dal segreto del gateway. Ma quel segreto **è stato nell'ambiente di ogni
+  container fino a oggi**, e chiunque l'abbia letto con un'espressione lo ha ancora: con la D6 da solo poteva
+  ricalcolare il segreto di qualunque container. Ora:
+  - il gateway crea una seconda chiave, nel file `container_key` della sua configurazione, che non è mai uscita;
+  - da questa si ricavano il segreto di ogni container (`"container:<azienda>/<progetto>"`) e le chiavi di ritorno
+    (`"return:<azienda>/<progetto>"`), con due etichette diverse: un segreto di container non vale come chiave di
+    ritorno;
+  - un container porta l'impronta della chiave con cui è nato, e il gateway non riadotta un container senza
+    l'impronta giusta: quelli di prima si rifanno.
+
+  **I token dei pannelli** abbinati al cloud si ricavano ancora dal segreto del gateway: chi lo ha letto può
+  presentarsi come uno di quei pannelli. **Decisione del maintainer (18-11): il segreto si cambia al rilascio**, e i
+  tre pannelli di prova (`tc620-garage`, `ty570-1ad-p1-06e990`, `wp630-ufficio`) si riabbinano. Il TC620 di casa ha
+  dati da conservare: prima, il backup del suo database. La procedura è nel
+  [piano della sessione 2](2026-11-18-cra-2-isolamento-cloud-e-sandbox.md), «Il rilascio». *Cambia*: niente per chi
+  usa il cloud. *Si disfa*: ricavando di nuovo il segreto del container dal segreto del gateway.
+- **D11 — Un archivio zip che arriva da fuori ha un tetto** (bundle di progetto, logica PLC, deploy): al massimo
+  10 000 voci, contate prima di leggere l'archivio; al massimo 64 MB una volta espanso, e meno per un archivio
+  piccolo (8 volte la sua misura, più 16 MB); al massimo 32 MB una sola voce. Un progetto vero con molte immagini sta
+  sotto: le immagini non si comprimono, quindi un archivio da 8 MB si espande poco più di 8 MB. *Cambia*: un archivio
+  oltre il tetto si rifiuta con un messaggio che lo dice. *Si disfa*: alzando le costanti in `zip_limits.rs`.
+  *Chiesto dal maintainer validandola*: quando è SWS a fare l'archivio, deve dire se sfora. L'export lo salva lo
+  stesso (è il progetto, e un backup) e l'IDE dice perché un import lo rifiuterebbe; il deploy si ferma prima di
+  partire, col motivo. Il controllo è quello dell'altro lato: i tetti di qui sopra **e** gli 8 MB che un import o un
+  deploy accettano. Il tetto vero oggi è questo secondo: i bundle non sono compressi, e sul VPS `CasaDomotica_WP630`
+  ne fa già 6 e `CasaDomotica` 5.
+- **D12 — Il tetto di CPU dei container del cloud non si mette in questa sessione**, anche se la revisione lo
+  proponeva. Il motivo: su podman senza root il controllo della CPU c'è solo se systemd lo delega all'utente, e un
+  tetto che il VPS non sa applicare fa fallire l'avvio di **ogni** progetto. Il VPS in questa sessione non si
+  raggiunge, quindi non si può verificare. Il danno di oggi è limitato: l'interprete Python di un container usa al
+  massimo un core su due. Passa alla sessione 3, con la verifica sul VPS e, meglio di un tetto, un peso più basso per
+  i container dei progetti rispetto al gateway. *Si disfa*: è una cosa non fatta.
+  *Misurato sul VPS il 18-11*: Debian 13, podman 5.4.2, 2 core; systemd delega all'utente 1000 i controller
+  `cpu memory pids`. Il peso e il tetto si possono quindi mettere: lo fa la sessione 3.
+- **Misurato dopo la validazione**: le espressioni e gli script dei progetti del cloud. Durante la sessione il VPS
+  non si raggiungeva; il 18-11 sì, e passano tutti (vedi D7).
+

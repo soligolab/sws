@@ -79,6 +79,11 @@ pub fn e_nostro(nome: &str) -> bool {
 /// dopo un riavvio, sa a quale progetto corrisponde ciascuno.
 pub const ETICHETTA_RIFERIMENTO: &str = "net.soligo.sws.progetto";
 
+/// A fingerprint of the container key the container was created with
+/// (18-11-2026, D10): a container made with another key, or before the key
+/// existed, is not adopted again.
+pub const KEY_LABEL: &str = "net.soligo.sws.key";
+
 /// Le etichette di **contenuto** dell'immagine, che nei container non devono
 /// entrare (22-10-2026). Gemelle delle righe `Label=…=` dei quadlet, e
 /// `check_etichette_container.sh` tiene i due elenchi uguali.
@@ -108,11 +113,18 @@ pub const ETICHETTE_DA_SVUOTARE: [&str; 6] = [
 
 /// Le etichette da mettere in uno spec di creazione: il riferimento del
 /// progetto, e le pesanti dell'immagine azzerate.
-pub fn etichette_container(riferimento: &str) -> serde_json::Map<String, serde_json::Value> {
+pub fn etichette_container(
+    riferimento: &str,
+    key_fingerprint: &str,
+) -> serde_json::Map<String, serde_json::Value> {
     let mut m = serde_json::Map::new();
     m.insert(
         ETICHETTA_RIFERIMENTO.into(),
         serde_json::Value::String(riferimento.into()),
+    );
+    m.insert(
+        KEY_LABEL.into(),
+        serde_json::Value::String(key_fingerprint.into()),
     );
     for e in ETICHETTE_DA_SVUOTARE {
         m.insert(e.into(), serde_json::Value::String(String::new()));
@@ -133,6 +145,8 @@ pub struct Contenitore {
     /// riporta. Serve a `Regia::riadotta` per non adottare un container di
     /// una versione precedente (27-10-2026).
     pub immagine: String,
+    /// [`KEY_LABEL`]. `None` for a container made before 18-11-2026.
+    pub key_fingerprint: Option<String>,
 }
 
 pub struct Podman {
@@ -257,6 +271,11 @@ impl Podman {
                         .and_then(|v| v.as_str())
                         .unwrap_or_default()
                         .to_string(),
+                    key_fingerprint: c
+                        .get("Labels")
+                        .and_then(|l| l.get(KEY_LABEL))
+                        .and_then(|v| v.as_str())
+                        .map(String::from),
                     nome,
                 })
             })

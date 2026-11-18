@@ -18,7 +18,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
-    io::{Cursor, Read, Write},
+    io::{Cursor, Write},
     path::PathBuf,
     sync::Arc,
 };
@@ -252,6 +252,12 @@ impl AppState {
     /// it free to reach the containers of every company.
     pub fn in_cloud(&self) -> bool {
         self.segreto_gateway.is_some() || self.regia.is_some()
+    }
+
+    /// This instance commands a device: neither an IDE instance (no viewer),
+    /// nor the cloud gateway, nor a project container behind it.
+    pub fn is_device(&self) -> bool {
+        !self.ide_only && self.regia.is_none() && self.segreto_gateway.is_none()
     }
 }
 
@@ -1539,7 +1545,7 @@ pub fn build(
         .route("/api/auth/login", post(login))
         // Il codice di abbinamento (11-10-2026): pre-auth per costruzione — un
         // pannello in attesa non ha nessuna credenziale da chiedere.
-        .merge(crate::control_panel::routes())
+        .merge(control_panel_where_there_is_a_device(&state))
         .route("/api/abbinamento", get(crate::abbinamento::stato))
         .route(
             "/api/abbinamento/rivendica",
@@ -2097,7 +2103,7 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
         )
         .route("/cert", get(get_cert))
         .route("/api/auth/login", post(login))
-        .merge(crate::control_panel::routes())
+        .merge(control_panel_where_there_is_a_device(&state))
         .route("/api/abbinamento", get(crate::abbinamento::stato))
         .route(
             "/api/abbinamento/rivendica",
@@ -2248,7 +2254,7 @@ fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>) -> Router {
         )
         .route("/cert", get(get_cert))
         .route("/api/auth/login", post(login))
-        .merge(crate::control_panel::routes())
+        .merge(control_panel_where_there_is_a_device(&state))
         .route("/api/abbinamento", get(crate::abbinamento::stato))
         .route(
             "/api/abbinamento/rivendica",
@@ -2723,6 +2729,19 @@ fn utente_dal_gateway(req: &Request, atteso: &str) -> Option<AuthUser> {
     })
 }
 
+/// The device control panel (network, Wi-Fi, time, reboot, power-off,
+/// reset, diagnostics) exists only on an instance that is a device. An IDE
+/// instance, the cloud gateway and a project container have no device to
+/// command, and on the gateway the routes faced the Internet behind a PIN
+/// derived from the container's MAC (18-11-2026, CRA session 2, decision D9).
+fn control_panel_where_there_is_a_device(state: &AppState) -> Router<AppState> {
+    if state.is_device() {
+        crate::control_panel::routes()
+    } else {
+        Router::new()
+    }
+}
+
 pub(crate) fn confronto_costante(a: &[u8], b: &[u8]) -> bool {
     if a.len() != b.len() {
         return false;
@@ -2902,7 +2921,7 @@ async fn auth_utente_o_figlio(State(s): State<AppState>, mut req: Request, next:
         let segreto = s
             .regia
             .as_ref()
-            .map(|r| r.segreto().to_string())
+            .map(|r| r.container_key().to_string())
             .unwrap_or_default();
         let Some(chiamante) = crate::gateway::ritorno::verifica(&segreto, &dato) else {
             return StatusCode::UNAUTHORIZED.into_response();
@@ -7018,6 +7037,9 @@ const BUNDLE_FORMAT_VERSION: &str = "1.0";
 /// e un PNG 1920×1080 con sfumature lo supera.
 pub(crate) const LIMITE_CORPO_UPLOAD: usize = 8 * 1024 * 1024;
 
+/// The header of an export that an import would refuse, with the reason.
+const EXPORT_WARNING_HEADER: &str = "x-sws-export-warning";
+
 #[derive(serde::Serialize, serde::Deserialize)]
 struct BundleManifest {
     format_version: String,
@@ -7182,7 +7204,13 @@ async fn export_project_zip(
 
     tracing::info!(name = %project_name, bytes = buf.len(), "project export");
 
-    (
+    // The archive is still given: it is the project, and a backup. But if an
+    // import would refuse it, the IDE says so now, not on the day it is needed.
+    let refused = crate::zip_limits::will_be_refused(&buf, LIMITE_CORPO_UPLOAD);
+    if let Some(why) = &refused {
+        warn!(name = %project_name, "export: {why}");
+    }
+    let mut response = (
         StatusCode::OK,
         [
             (header::CONTENT_TYPE, "application/zip".to_string()),
@@ -7193,7 +7221,11 @@ async fn export_project_zip(
         ],
         buf,
     )
-        .into_response()
+        .into_response();
+    if let Some(v) = refused.and_then(|why| header::HeaderValue::from_str(&why).ok()) {
+        response.headers_mut().insert(EXPORT_WARNING_HEADER, v);
+    }
+    response
 }
 
 // Ogni cartella del bundle è un argomento: raggrupparle in una struct sposterebbe
@@ -7388,11 +7420,9 @@ async fn import_project_zip(
         Err(c) => return c.into_response(),
     };
     // 1. Parse the ZIP from raw bytes.
-    let mut archive = match zip::ZipArchive::new(Cursor::new(body.as_ref())) {
+    let mut archive = match crate::zip_limits::open(body.as_ref()) {
         Ok(a) => a,
-        Err(e) => {
-            return (StatusCode::BAD_REQUEST, format!("not a valid zip: {e}")).into_response()
-        }
+        Err(e) => return (StatusCode::BAD_REQUEST, e).into_response(),
     };
 
     // 2. Read manifest.json and validate format_version.
@@ -7700,9 +7730,7 @@ fn read_zip_text(
         Err(zip::result::ZipError::FileNotFound) => return Ok(None),
         Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, e)),
     };
-    let mut buf = String::new();
-    file.read_to_string(&mut buf)?;
-    Ok(Some(buf))
+    crate::zip_limits::read_entry_text(&mut file).map(Some)
 }
 
 /// Replace-mode sync of a flat `<prefix>/*.yaml` directory from an import
@@ -14800,6 +14828,61 @@ pub(crate) async fn build_di_prova(
 }
 
 #[cfg(test)]
+mod control_panel_only_on_a_device {
+    use super::*;
+    use crate::gateway::podman::Podman;
+    use crate::gateway::progetti::{ComeRaggiungere, Regia};
+
+    async fn status_of(admin: Router, path: &'static str) -> u16 {
+        let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let porta = l.local_addr().unwrap().port();
+        tokio::spawn(async move { axum::serve(l, admin).await.unwrap() });
+        reqwest::get(format!("http://127.0.0.1:{porta}{path}"))
+            .await
+            .unwrap()
+            .status()
+            .as_u16()
+    }
+
+    /// On a device the control panel answers; on the cloud gateway it does not
+    /// exist (D9, 18-11-2026): there it faced the Internet.
+    #[tokio::test]
+    async fn the_gateway_has_no_control_panel_and_a_device_has_one() {
+        let dir = tempfile::tempdir().unwrap();
+        let (_, device, s) = build_di_prova(dir.path(), None, None).await;
+        assert!(s.is_device());
+        assert_eq!(status_of(device, "/api/control-panel").await, 200);
+
+        let dir = tempfile::tempdir().unwrap();
+        let regia = Regia::nuova(
+            Podman::nuovo(dir.path().join("podman.sock")),
+            "immagine-di-prova",
+            dir.path(),
+            ComeRaggiungere::PortaPubblicata,
+            "segretolungoabbastanza0123",
+            "test-container-key",
+        );
+        let (_, gateway, s) = build_di_prova(dir.path(), None, Some(Arc::new(regia))).await;
+        assert!(!s.is_device());
+        assert_eq!(status_of(gateway.clone(), "/api/control-panel").await, 404);
+        assert_eq!(status_of(gateway, "/api/control-panel/session").await, 404);
+    }
+
+    /// An IDE instance and a project container are not devices either.
+    #[tokio::test]
+    async fn an_ide_and_a_project_container_are_not_devices() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut s = stato_di_prova(dir.path()).await;
+        assert!(s.is_device());
+        s.ide_only = true;
+        assert!(!s.is_device());
+        s.ide_only = false;
+        s.segreto_gateway = Some(Arc::new("x".repeat(32)));
+        assert!(!s.is_device());
+    }
+}
+
+#[cfg(test)]
 mod prove_socket_riconvalida {
     use super::*;
 
@@ -15036,6 +15119,7 @@ mod prove_finestre_staccate {
             &dir,
             ComeRaggiungere::PortaPubblicata,
             "segretolungoabbastanza0123",
+            "test-container-key",
         );
         let (_, admin, _) = build_di_prova(&dir, Some(www), Some(Arc::new(regia))).await;
         let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();

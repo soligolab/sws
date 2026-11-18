@@ -23,9 +23,25 @@ pub mod rotte;
 /// `instance_id`: un identificativo prevedibile è un fastidio, un **segreto**
 /// prevedibile è una porta aperta. Meglio non partire.
 pub fn segreto_persistente(config_dir: &std::path::Path) -> anyhow::Result<String> {
+    persistente(config_dir, "segreto_gateway")
+}
+
+/// The key from which the gateway derives what each project container knows:
+/// its own secret (`ritorno::container_secret`) and its return key
+/// (`ritorno::chiave_per`). Kept apart from [`segreto_persistente`] and new
+/// on 18-11-2026 (CRA session 2, decision D10): until then those two came
+/// from the gateway's secret, which every container had in its environment
+/// and any tag expression could read. A new key makes whatever was read then
+/// useless for containers and return keys; the panels' tunnel tokens still
+/// come from the gateway's secret (see the decision log).
+pub fn persistent_container_key(config_dir: &std::path::Path) -> anyhow::Result<String> {
+    persistente(config_dir, "container_key")
+}
+
+fn persistente(config_dir: &std::path::Path, file: &str) -> anyhow::Result<String> {
     use std::io::Read as _;
 
-    let percorso = config_dir.join("segreto_gateway");
+    let percorso = config_dir.join(file);
     if let Ok(gia) = std::fs::read_to_string(&percorso) {
         let g = gia.trim();
         // La soglia è la stessa che il figlio pretende (`--auth-delegata`):

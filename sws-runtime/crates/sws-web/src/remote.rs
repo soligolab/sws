@@ -1239,15 +1239,11 @@ pub(crate) fn costruisci_client(
 /// dire al maintainer se differiscono da quelli sul dispositivo.
 fn read_bundle_meta(zip: &[u8]) -> (Option<String>, Vec<String>) {
     let entry = |a: &mut zip::ZipArchive<std::io::Cursor<&[u8]>>, name: &str| -> Option<String> {
-        use std::io::Read;
         let mut e = a.by_name(name).ok()?;
-        let mut buf = String::new();
-        e.read_to_string(&mut buf).ok()?;
-        Some(buf)
+        crate::zip_limits::read_entry_text(&mut e).ok()
     };
-    let mut archive = match zip::ZipArchive::new(std::io::Cursor::new(zip)) {
-        Ok(a) => a,
-        Err(_) => return (None, Vec::new()),
+    let Ok(mut archive) = crate::zip_limits::open(zip) else {
+        return (None, Vec::new());
     };
     let name = entry(&mut archive, "manifest.json")
         .and_then(|txt| serde_json::from_str::<serde_json::Value>(&txt).ok())
@@ -3409,6 +3405,13 @@ pub async fn remote_deploy(
             "✓ Esportato ({:.1} KB)",
             zip.len() as f64 / 1024.0
         ));
+        // The panel would refuse it on arrival, with a less clear reason.
+        if let Some(why) =
+            crate::zip_limits::will_be_refused(&zip, crate::router::LIMITE_CORPO_UPLOAD)
+        {
+            send(&format!("✗ {why}"));
+            return;
+        }
 
         if let Some(avviso) = sws_core::Project::load(&proj_dir)
             .ok()

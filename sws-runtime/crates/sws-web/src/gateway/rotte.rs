@@ -216,7 +216,10 @@ pub async fn inoltra_al_progetto(
         Err(r) => return r,
     };
     let regia = s.regia.as_ref().expect("verificata sopra");
-    let segreto = regia.segreto().to_string();
+    // The secret of this container, not the gateway's: see
+    // `ritorno::container_secret`.
+    let segreto =
+        crate::gateway::ritorno::container_secret(regia.container_key(), &aperto.riferimento);
     // Who is working in this project right now: the AI key of the user is handed
     // to its container only for someone noted here (`ai_keys.rs`).
     crate::ai_keys::forwarded().note(&aperto.riferimento, &utente, std::time::Instant::now());

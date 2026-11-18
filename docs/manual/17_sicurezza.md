@@ -61,8 +61,12 @@ Fanno eccezione le due installazioni native (Yocto e Linux generico): il loro in
   **cambiato** non è mai accettato da solo: la sorgente si ferma e lo dice finché non lo si approva dal trust store.
 - **Certificati dei pannelli**: un certificato pubblico valido (per esempio quello del cloud) passa con la verifica
   dei browser; un autofirmato vale per impronta, e un'impronta cambiata è rifiutata.
-- **Gli script del progetto girano nella sandbox** (RestrictedPython). Senza sandbox il runtime non li esegue e
-  dice perché. La deroga `SWS_SCRIPT_SENZA_SANDBOX=1` è solo per le macchine di sviluppo.
+- **Gli script del progetto e le espressioni dei tag calcolati girano nella sandbox** (RestrictedPython). Senza
+  sandbox il runtime non li esegue e dice perché. Un'espressione è un sottoinsieme di Python: valori, operatori,
+  f-string, `tags["…"]`, `if`/`else` e un elenco fisso di funzioni (`round`, `min`, `max`, `int`, `float`, `str`,
+  `len`, `sum`, `format`…); niente `import`, cicli, funzioni, `range`, `pow` o `"…".format()`. Un'operazione che
+  darebbe un risultato enorme (`10 ** 10 ** 10`) si rifiuta subito. Un'espressione che dà errore lascia l'ultimo
+  valore marcato «Bad». La deroga `SWS_SCRIPT_SENZA_SANDBOX=1` è solo per le macchine di sviluppo.
 
 ### Il browser (dal 17-10-2026)
 

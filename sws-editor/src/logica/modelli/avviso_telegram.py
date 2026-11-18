@@ -11,7 +11,8 @@ if tags.read("{{tag:allarme}}"):
     if {{id:dal}} == 0:
         state.set("{{id:dal}}", now_ms())
     elif now_ms() - {{id:dal}} >= {{id:attesa_ms}} and now_ms() - state.get("{{id:inviato}}", 0) >= {{id:pausa_ms}}:
-        send_telegram("{{t:messaggio}} {{tag:allarme}}")
+        # {{t:c3}}
+        send_telegram(f"{{t:messaggio}} {{tag:allarme}}, {{t:da}} {(now_ms() - {{id:dal}}) / 60000:.1f} min")
         state.set("{{id:inviato}}", now_ms())
 else:
     state.set("{{id:dal}}", 0)

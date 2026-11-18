@@ -1003,6 +1003,11 @@ async fn main() -> anyhow::Result<()> {
             // The tags each expression reads, by its text: scanned once.
             let mut reads_of: std::collections::HashMap<String, Option<Vec<String>>> =
                 std::collections::HashMap::new();
+            // The last error logged for each derived tag: an expression that
+            // fails fails at every change of the tags it reads, and the log
+            // would say the same thing many times a second.
+            let mut failing: std::collections::HashMap<String, String> =
+                std::collections::HashMap::new();
             loop {
                 match tag_rx.recv().await {
                     Ok(first) => {
@@ -1082,11 +1087,18 @@ async fn main() -> anyhow::Result<()> {
                                     // prodotto. Non `ingest`, che
                                     // applicherebbe anche la scala raw→eng:
                                     // qui il valore e gia ingegneristico.
+                                    failing.remove(&id);
                                     db.set_tipizzato(id, value, TagQuality::Good).await;
                                 }
                                 Err(e) => {
-                                    warn!(tag = %id, "derived tag eval error: {e}");
-                                    // Keep last good value; just log — don't overwrite with garbage.
+                                    // The last good value stays, marked Bad
+                                    // (18-11-2026): an expression the sandbox
+                                    // refuses must not look like a live value.
+                                    if failing.get(&id) != Some(&e) {
+                                        warn!(tag = %id, "derived tag eval error: {e}");
+                                        failing.insert(id.clone(), e);
+                                    }
+                                    db.marca_qualita(&id, TagQuality::Bad).await;
                                 }
                             }
                         }
@@ -1435,6 +1447,8 @@ async fn main() -> anyhow::Result<()> {
             args.projects_root.clone(),
             come,
             segreto,
+            // Its own file, not derived from the gateway's secret (D10).
+            sws_web::gateway::persistent_container_key(&config_dir)?,
         )
         .con_fermo_dopo(std::time::Duration::from_secs(
             args.gateway_fermo_minuti * 60,

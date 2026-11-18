@@ -22,7 +22,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use std::{
-    io::{Cursor, Read},
+    io::Read,
     path::{Path as StdPath, PathBuf},
     sync::Arc,
 };
@@ -3042,11 +3042,9 @@ pub async fn upload_project_zip(
     }
 
     // 1. Parse the ZIP.
-    let mut archive = match zip::ZipArchive::new(Cursor::new(body.as_ref())) {
+    let mut archive = match crate::zip_limits::open(body.as_ref()) {
         Ok(a) => a,
-        Err(e) => {
-            return (StatusCode::BAD_REQUEST, format!("not a valid zip: {e}")).into_response()
-        }
+        Err(e) => return (StatusCode::BAD_REQUEST, e).into_response(),
     };
 
     // 2. Determine the project name.
@@ -3333,11 +3331,10 @@ fn read_zip_entry<R: Read + std::io::Seek>(
     name: &str,
 ) -> zip::result::ZipResult<Option<Vec<u8>>> {
     match archive.by_name(name) {
-        Ok(mut entry) => {
-            let mut buf = Vec::new();
-            entry.read_to_end(&mut buf)?;
-            Ok(Some(buf))
-        }
+        // No longer than it declares: `zip_limits::check` added those up.
+        Ok(mut entry) => Ok(Some(
+            crate::zip_limits::read_entry(&mut entry).map_err(zip::result::ZipError::Io)?,
+        )),
         Err(zip::result::ZipError::FileNotFound) => Ok(None),
         Err(e) => Err(e),
     }
@@ -4119,7 +4116,7 @@ mod tests {
                 .unwrap();
             z.finish().unwrap();
         }
-        let mut a = zip::ZipArchive::new(Cursor::new(buf.as_slice())).unwrap();
+        let mut a = zip::ZipArchive::new(std::io::Cursor::new(buf.as_slice())).unwrap();
         assert_eq!(
             a.by_index(0).unwrap().compression(),
             zip::CompressionMethod::Deflated

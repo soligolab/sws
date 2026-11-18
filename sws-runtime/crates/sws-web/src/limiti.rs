@@ -247,7 +247,7 @@ pub async fn limita(State(s): State<AppState>, req: Request, next: Next) -> Resp
             .headers()
             .get(crate::gateway::ritorno::INTESTAZIONE)
             .and_then(|v| v.to_str().ok())
-            .and_then(|v| crate::gateway::ritorno::verifica(regia.segreto(), v));
+            .and_then(|v| crate::gateway::ritorno::verifica(regia.container_key(), v));
         if figlio.is_some() {
             return next.run(req).await;
         }

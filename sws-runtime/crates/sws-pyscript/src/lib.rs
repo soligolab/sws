@@ -307,7 +307,7 @@ try:
         import builtins as __sws_b__, operator as __sws_op__, warnings as __sws_w__
         from RestrictedPython import compile_restricted, safe_builtins
         from RestrictedPython.Eval import default_guarded_getiter
-        from RestrictedPython.Guards import guarded_iter_unpack_sequence, guarded_unpack_sequence
+        from RestrictedPython.Guards import guarded_iter_unpack_sequence, guarded_unpack_sequence, safer_getattr
         from RestrictedPython.PrintCollector import PrintCollector
 
         # `print` riscritto da RestrictedPython: raccoglie in `printed` come
@@ -343,9 +343,21 @@ try:
         for __sws_n__ in __sws_builtin_aggiunti__:
             __sws_builtins__[__sws_n__] = getattr(__sws_b__, __sws_n__)
 
+        # `safer_getattr` gives `None` for a missing attribute: a typo would
+        # surface later, as "NoneType is not callable".
+        __sws_missing__ = object()
+        def __sws_getattr__(o, name):
+            v = safer_getattr(o, name, __sws_missing__)
+            if v is __sws_missing__:
+                raise AttributeError(f'{type(o).__name__!r} object has no attribute {name!r}')
+            return v
+
         __sws_globals__ = {
             '__builtins__': __sws_builtins__,
-            '_getattr_':   getattr,
+            # `safer_getattr`, not `getattr` (18-11-2026, CRA session 2, D8):
+            # with plain `getattr`, `"{0.__class__…}".format(x)` walked to the
+            # hidden attributes and to the process's environment.
+            '_getattr_':   __sws_getattr__,
             '_getitem_':   lambda o, k: o[k],
             '_write_':     lambda x: x,
             '_print_':     __SwsPrint__,
@@ -1101,31 +1113,184 @@ fn testo_per_il_log(stdout: &str) -> String {
 
 /// Python harness used by `eval_expressions`.
 ///
-/// Uses the `ast` module to inject `__sws_result__ = <expr>` on the correct
-/// node so that:
+/// Uses the `ast` module to make the value of the expression the result:
 ///  - single-line expressions → assigned directly
 ///  - multi-line blocks ending with an expression → that expression is captured
 ///  - multi-line blocks ending with `if/else` → the last Expr in each branch
 ///    is captured (handles `if cond: val_a else: val_b` patterns)
 ///
-/// Without this, naïvely prepending `__sws_result__ = ` to a multi-line block
-/// would capture only the first assignment (e.g. a list literal), not the
-/// intended result.
+/// Without this, naïvely prepending an assignment to a multi-line block would
+/// capture only the first assignment (e.g. a list literal), not the intended
+/// result. The result goes in `sws_expression_result`: RestrictedPython
+/// refuses names that start with `_`.
 ///
-/// The compiled code is kept by text (17-11-2026): parsing and compiling the
-/// same eight expressions ten times a second kept a Tiny TY at 67 % CPU. The
-/// cache is emptied when it grows past what a project can hold, so that
-/// expressions edited many times do not pile up.
+/// **A tag expression is a subset of Python, in the sandbox** (18-11-2026, CRA
+/// session 2, decision D7). Until then it ran with `exec` and every builtin:
+/// whoever could edit a project could run any code in the runtime, read its
+/// environment and, in the cloud, the gateway's secret. Now:
+///  - only the nodes a computed value needs ([`EXPR_NODES`]): no import, loop,
+///    function, lambda, class, `try`, `with`, comprehension, `+=`, and no name
+///    that starts with `_` or `sws_`. Without loops an expression always ends,
+///    so it needs no trace function and no deadline, which cost CPU on a Tiny
+///    TY;
+///  - only the builtins of [`EXPR_BUILTINS`], in every mode: no `range`, no
+///    `pow`, no `getattr`;
+///  - no attribute that starts with `_`, and none of [`EXPR_REFUSED_ATTRIBUTES`]
+///    (`str.format` walks into hidden attributes; the padding methods allocate
+///    whatever width they are given);
+///  - `**`, `<<`, `*`, `%`, `round` and the format specs of f-strings and
+///    `format` go through guards that refuse a result too large to be a tag
+///    value (`10 ** 10 ** 10` would hold the interpreter for hours, with no way
+///    to stop it). They stop the one-step blow-ups that can be typed by
+///    mistake, not every chain of operations: in the cloud the container's
+///    limits bound what is left, on a device whoever edits the project already
+///    has the device;
+///  - nested values (`tags["motor"]["speed"]`, arrays) are read-only, so an
+///    expression cannot change what the next one in the round reads;
+///  - compiled by RestrictedPython, with its `safer_getattr` (raising on a
+///    missing attribute instead of giving `None`);
+///  - without RestrictedPython the expression does not run, unless the
+///    development exemption `SWS_SCRIPT_SENZA_SANDBOX=1` is on: then it runs
+///    as plain Python, with the same nodes, builtins and guards.
+///
+/// The compiled code is kept by text and mode (17-11-2026): parsing and
+/// compiling the same eight expressions ten times a second kept a Tiny TY at
+/// 67 % CPU. A refused or malformed expression is kept too, with its error, so
+/// that it is not parsed again at every change. The cache is emptied when it
+/// grows past what a project can hold, so that expressions edited many times
+/// do not pile up.
 const EVAL_HARNESS: &str = r#"
 import ast as __ast
+import builtins as __b
+import re as __re
+import types as __types
+import warnings as __w
 __sws_expr_cache = {}
+
+try:
+    from RestrictedPython import compile_restricted as __compile_restricted
+    from RestrictedPython.Guards import (safer_getattr as __safer_getattr,
+        guarded_unpack_sequence as __unpack, guarded_iter_unpack_sequence as __iter_unpack)
+    from RestrictedPython.Eval import default_guarded_getiter as __getiter
+    __sws_restricted = True
+except ImportError:
+    __sws_restricted = False
+
+__MISSING = object()
+
+def __getattr_strict(o, name):
+    # `safer_getattr` gives `None` for a missing attribute: a typo would
+    # surface later, as "NoneType is not callable".
+    v = __safer_getattr(o, name, __MISSING)
+    if v is __MISSING:
+        raise AttributeError(f'{type(o).__name__!r} object has no attribute {name!r}')
+    return v
+
+# ── Guards: a result too large to be a tag value is refused ──────────────────
+__MAX_BITS = 100_000
+__MAX_LEN = 1_000_000
+__MAX_SPEC = 1_000
+
+def sws_pow(a, b):
+    if (isinstance(a, int) and isinstance(b, int) and b > 0 and abs(a) > 1
+            and a.bit_length() * b > __MAX_BITS):
+        raise ValueError('** gives a number too large for a tag expression')
+    return a ** b
+
+def sws_shift(a, b):
+    if isinstance(a, int) and isinstance(b, int) and a != 0 and b > __MAX_BITS:
+        raise ValueError('<< gives a number too large for a tag expression')
+    return a << b
+
+def __too_long(seq, n):
+    return (isinstance(seq, (str, bytes, list, tuple)) and isinstance(n, int)
+            and len(seq) * n > __MAX_LEN)
+
+def sws_mul(a, b):
+    if __too_long(a, b) or __too_long(b, a):
+        raise ValueError('* gives a value too long for a tag expression')
+    return a * b
+
+def sws_mod(a, b):
+    if isinstance(a, (str, bytes)):
+        raise TypeError('% formatting is not available in a tag expression: use an f-string')
+    return a % b
+
+def __check_spec(spec):
+    if any(int(d) > __MAX_SPEC for d in __re.findall(r'\d+', spec)):
+        raise ValueError(f'the format {spec!r} is too wide for a tag expression')
+
+def sws_format(value, spec='', conversion=-1):
+    if conversion == 115:
+        value = str(value)
+    elif conversion == 114:
+        value = repr(value)
+    elif conversion == 97:
+        value = ascii(value)
+    __check_spec(str(spec))
+    return format(value, spec)
+
+def __round(number, ndigits=None):
+    if ndigits is not None and isinstance(ndigits, int) and abs(ndigits) > __MAX_SPEC:
+        raise ValueError('round with too many digits for a tag expression')
+    return round(number, ndigits)
+
+__ebuiltins = {n: getattr(__b, n) for n in __sws_expr_builtins__}
+__ebuiltins['round'] = __round
+__ebuiltins['format'] = sws_format
+__GUARDS = {'sws_pow': sws_pow, 'sws_shift': sws_shift, 'sws_mul': sws_mul,
+            'sws_mod': sws_mod, 'sws_format': sws_format}
+
+__ALLOWED = tuple(getattr(__ast, n) for n in __sws_expr_nodes__ if hasattr(__ast, n)) + (
+    __ast.operator, __ast.unaryop, __ast.boolop, __ast.cmpop, __ast.expr_context)
+__REFUSED_ATTRS = frozenset(__sws_expr_refused_attributes__)
+
+def __check(tree):
+    for node in __ast.walk(tree):
+        if not isinstance(node, __ALLOWED):
+            line = getattr(node, 'lineno', None)
+            where = f' (line {line})' if line else ''
+            raise SyntaxError(f'{type(node).__name__} is not allowed in a tag expression{where}')
+        if isinstance(node, __ast.Name) and node.id.startswith(('_', 'sws_')):
+            raise SyntaxError(f'the name {node.id} is not allowed in a tag expression')
+        if isinstance(node, __ast.Attribute) and (
+                node.attr.startswith('_') or node.attr in __REFUSED_ATTRS):
+            hint = ': use an f-string' if node.attr in ('format', 'format_map') else ''
+            raise SyntaxError(f'the attribute {node.attr} is not allowed in a tag expression{hint}')
+
+# Inside a class body every `__name` is mangled, the module aliases too.
+_A = __ast
+
+class __Guard(_A.NodeTransformer):
+    OPS = {_A.Pow: 'sws_pow', _A.LShift: 'sws_shift', _A.Mult: 'sws_mul', _A.Mod: 'sws_mod'}
+
+    def visit_BinOp(self, node):
+        self.generic_visit(node)
+        guard = self.OPS.get(type(node.op))
+        if guard is None:
+            return node
+        call = _A.Call(func=_A.Name(id=guard, ctx=_A.Load()),
+                       args=[node.left, node.right], keywords=[])
+        return _A.copy_location(call, node)
+
+    def visit_FormattedValue(self, node):
+        self.generic_visit(node)
+        if node.format_spec is None:
+            return node
+        call = _A.Call(func=_A.Name(id='sws_format', ctx=_A.Load()),
+                       args=[node.value, node.format_spec, _A.Constant(node.conversion)],
+                       keywords=[])
+        _A.copy_location(call, node)
+        return _A.copy_location(
+            _A.FormattedValue(value=call, conversion=-1, format_spec=None), node)
+
 def __inject(stmts):
     if not stmts:
         return
     last = stmts[-1]
     if isinstance(last, __ast.Expr):
         stmts[-1] = __ast.Assign(
-            targets=[__ast.Name(id='__sws_result__', ctx=__ast.Store())],
+            targets=[__ast.Name(id='sws_expression_result', ctx=__ast.Store())],
             value=last.value,
             lineno=last.lineno, col_offset=0,
             end_lineno=getattr(last, 'end_lineno', last.lineno),
@@ -1133,25 +1298,156 @@ def __inject(stmts):
     elif isinstance(last, __ast.If):
         __inject(last.body)
         __inject(last.orelse)
-def __sws_compile(src):
-    code = __sws_expr_cache.get(src)
-    if code is None:
-        tree = __ast.parse(src, mode='exec')
-        __inject(tree.body)
-        __ast.fix_missing_locations(tree)
-        code = compile(tree, '<expr>', 'exec')
+
+def __sws_compile(src, restricted):
+    key = (restricted, src)
+    hit = __sws_expr_cache.get(key)
+    if hit is None:
+        try:
+            tree = __ast.parse(src, mode='exec')
+            __check(tree)
+            tree = __Guard().visit(tree)
+            __inject(tree.body)
+            __ast.fix_missing_locations(tree)
+            if restricted:
+                with __w.catch_warnings():
+                    __w.simplefilter('ignore')
+                    code = __compile_restricted(tree, '<expr>', 'exec')
+            else:
+                code = compile(tree, '<expr>', 'exec')
+            hit = (True, code)
+        except Exception as e:
+            hit = (False, (type(e), str(e)))
         if len(__sws_expr_cache) >= 2000:
             __sws_expr_cache.clear()
-        __sws_expr_cache[src] = code
-    return code
-def __sws_run(src, tags):
+        __sws_expr_cache[key] = hit
+    ok, value = hit
+    if ok:
+        return value
+    cls, msg = value
+    try:
+        err = cls(msg)
+    except Exception:
+        err = SyntaxError(msg)
+    raise err
+
+def __freeze(v):
+    if isinstance(v, dict):
+        return __types.MappingProxyType({k: __freeze(x) for k, x in v.items()})
+    if isinstance(v, list):
+        return tuple(__freeze(x) for x in v)
+    return v
+
+def __sws_freeze(tags):
+    # Once per round: the nested values are shared by every expression.
+    return {k: __freeze(v) if isinstance(v, (dict, list)) else v for k, v in tags.items()}
+
+def __sws_run(src, tags, mandatory):
+    restricted = __sws_restricted
+    if not restricted and mandatory:
+        raise RuntimeError(
+            'tag expression not evaluated: RestrictedPython is not installed, and without the sandbox '
+            'an expression would have full privileges (SWS_SCRIPT_SENZA_SANDBOX=1 allows it on '
+            'development machines)')
     # A copy per expression: one that changes `tags` does not touch the next.
-    g = {'tags': dict(tags)}
-    exec(__sws_compile(src), g)
-    if '__sws_result__' not in g:
+    g = {'__builtins__': __ebuiltins, 'tags': dict(tags)}
+    g.update(__GUARDS)
+    if restricted:
+        g.update({
+            '_getattr_': __getattr_strict,
+            '_getitem_': lambda o, k: o[k],
+            '_write_': lambda x: x,
+            '_getiter_': __getiter,
+            '_unpack_sequence_': __unpack,
+            '_iter_unpack_sequence_': __iter_unpack,
+        })
+    exec(__sws_compile(src, restricted), g)
+    if 'sws_expression_result' not in g:
         return (False, None)
-    return (True, g['__sws_result__'])
+    return (True, g['sws_expression_result'])
 "#;
+
+/// The `ast` nodes a tag expression may contain (decision D7): what a
+/// computed value needs. Operators, comparison operators and contexts are
+/// always allowed; anything else is refused with its name.
+const EXPR_NODES: &[&str] = &[
+    "Module",
+    "Expr",
+    "Assign",
+    "If",
+    "Pass",
+    "Name",
+    "Constant",
+    "BinOp",
+    "UnaryOp",
+    "BoolOp",
+    "Compare",
+    "IfExp",
+    "Call",
+    "keyword",
+    "Subscript",
+    "Slice",
+    "Index",
+    "Tuple",
+    "List",
+    "Dict",
+    "Set",
+    "Attribute",
+    "JoinedStr",
+    "FormattedValue",
+];
+
+/// The builtins a tag expression may call (decision D7), the same with or
+/// without RestrictedPython. What the projects use (`round`, `min`, `max`,
+/// `int`, `abs`, `sum`, `len`) and its neighbours; not `range`, which with
+/// `list` or `sum` fills memory or holds the CPU, and not `pow`, whose third
+/// form and huge exponents the `**` guard would not see. `round` and `format`
+/// are guarded.
+pub const EXPR_BUILTINS: &[&str] = &[
+    "abs",
+    "all",
+    "any",
+    "bin",
+    "bool",
+    "chr",
+    "dict",
+    "divmod",
+    "enumerate",
+    "float",
+    "format",
+    "hex",
+    "int",
+    "isinstance",
+    "len",
+    "list",
+    "map",
+    "max",
+    "min",
+    "oct",
+    "ord",
+    "reversed",
+    "round",
+    "set",
+    "sorted",
+    "str",
+    "sum",
+    "tuple",
+    "zip",
+];
+
+/// Attributes a tag expression may not use, whatever the object: `format` and
+/// `format_map` walk into hidden attributes, the others allocate the width or
+/// length they are given.
+pub const EXPR_REFUSED_ATTRIBUTES: &[&str] = &[
+    "format",
+    "format_map",
+    "ljust",
+    "rjust",
+    "center",
+    "zfill",
+    "expandtabs",
+    "to_bytes",
+];
 
 /// The harness's namespace, run once: `__sws_run` and its cache live here.
 static EXPR_HARNESS: PyOnceLock<Py<PyDict>> = PyOnceLock::new();
@@ -1204,11 +1500,19 @@ pub async fn eval_expressions(
     snapshot: std::collections::HashMap<String, TagValue>,
 ) -> Vec<Result<TagValue, String>> {
     let n = exprs.len();
+    // Read here, on the caller's thread: the rule is the process's.
+    let mandatory = sandbox_obbligatoria();
     let work = tokio::task::spawn_blocking(move || {
         Python::attach(|py| -> Result<Vec<Result<TagValue, String>>, String> {
             let ns = EXPR_HARNESS
                 .get_or_try_init(py, || -> PyResult<Py<PyDict>> {
                     let ns = PyDict::new(py);
+                    ns.set_item("__sws_expr_builtins__", EXPR_BUILTINS.to_vec())?;
+                    ns.set_item("__sws_expr_nodes__", EXPR_NODES.to_vec())?;
+                    ns.set_item(
+                        "__sws_expr_refused_attributes__",
+                        EXPR_REFUSED_ATTRIBUTES.to_vec(),
+                    )?;
                     let code = std::ffi::CString::new(EVAL_HARNESS).map_err(|e| {
                         PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string())
                     })?;
@@ -1226,10 +1530,18 @@ pub async fn eval_expressions(
                 let py_v: Py<PyAny> = tag_value_to_py(py, v);
                 tags_dict.set_item(k, py_v).map_err(|e| e.to_string())?;
             }
+            let tags_dict = ns
+                .get_item("__sws_freeze")
+                .map_err(|e| e.to_string())?
+                .ok_or_else(|| "harness without __sws_freeze".to_string())?
+                .call1((&tags_dict,))
+                .map_err(|e| e.to_string())?;
             Ok(exprs
                 .iter()
                 .map(|src| {
-                    let out = run.call1((src, &tags_dict)).map_err(|e| e.to_string())?;
+                    let out = run
+                        .call1((src, &tags_dict, mandatory))
+                        .map_err(|e| e.to_string())?;
                     let (has, value): (bool, Bound<'_, PyAny>) =
                         out.extract().map_err(|e: PyErr| e.to_string())?;
                     if !has {
@@ -1552,6 +1864,13 @@ if __sws_syntax__ is None and __sws_vietato__ is None and __sws_albero__ is not 
                                f'funzioni di progetto per il resto.')
             __sws_riga__ = _n.lineno
             break
+        # Compiles, and is refused when it runs (`safer_getattr`, D8).
+        if (__sws_sandbox__ and isinstance(_n, ast.Attribute)
+                and _n.attr in ('format', 'format_map')):
+            __sws_vietato__ = (f'Line {_n.lineno}: `.{_n.attr}()` is not available in the '
+                               f"sandbox: use an f-string, f'{{x:.1f}}'.")
+            __sws_riga__ = _n.lineno
+            break
         if isinstance(_n, ast.Name) and isinstance(_n.ctx, ast.Load):
             if _n.id in __sws_forniti__:
                 continue
@@ -1737,6 +2056,21 @@ mod tests_check {
             "un errore di sintassi non è un divieto della sandbox"
         );
         assert!(r.messaggio.contains("SyntaxError"), "{}", r.messaggio);
+    }
+
+    /// `str.format` compiles and is refused when it runs (D8): the check says
+    /// so before, with the way out.
+    #[tokio::test]
+    async fn str_format_is_flagged_with_the_f_string_hint() {
+        let e = motore();
+        if !e.is_sandboxed() {
+            return;
+        }
+        let out = e.check("a = 1\nx = '{0}'.format(a)\n".into()).await;
+        assert!(!out.ok);
+        let r = &out.rilievi[0];
+        assert!(r.vietato && r.riga == Some(2), "{r:?}");
+        assert!(r.messaggio.contains("f-string"), "{}", r.messaggio);
     }
 
     #[tokio::test]
@@ -2347,6 +2681,36 @@ tags.write('ok', ok)
         assert!(r.is_err(), "un import resta vietato");
     }
 
+    /// D8 (18-11-2026): `getattr` in the sandbox is RestrictedPython's safe
+    /// one. `str.format` reached hidden attributes and the environment; normal
+    /// methods and f-strings keep working.
+    #[tokio::test]
+    async fn format_no_longer_walks_into_hidden_attributes() {
+        let (e, db) = motore();
+        if !e.is_sandboxed() {
+            return;
+        }
+        let r = e
+            .execute("x = '{0.__class__}'.format(1)\n".into(), "s")
+            .await;
+        assert!(r.is_err(), "str.format must be refused: {r:?}");
+        db.set("ok".into(), TagValue::Str(String::new()), TagQuality::Good)
+            .await;
+        e.execute(
+            "n = 2\ntags.write('ok', f'{n * 2}' + 'abc'.upper())\n".into(),
+            "s",
+        )
+        .await
+        .expect("f-strings and normal methods work");
+        assert_eq!(valore(&db, "ok").await, Some(TagValue::Str("4ABC".into())));
+        // A missing attribute is an error, as in Python, not `None`.
+        let r = e.execute("x = 'abc'.uper()\n".into(), "s").await;
+        assert!(
+            format!("{r:?}").contains("AttributeError"),
+            "a typo must name the attribute: {r:?}"
+        );
+    }
+
     /// Ogni nome dell'elenco unico esiste davvero a esecuzione: l'harness li
     /// costruisce da `NOMI_FORNITI`, e un nome senza oggetto si fermerebbe qui.
     #[tokio::test]
@@ -2723,6 +3087,229 @@ mod tests_expressions {
         .await;
         assert_eq!(r[0], Ok(TagValue::Int(0)));
         assert_eq!(r[1], Ok(TagValue::Int(0b1010_0110)));
+    }
+
+    fn sandbox_available() -> bool {
+        probe_restricted_python()
+    }
+
+    /// D7 (18-11-2026): what a computed value does not need is refused, with
+    /// its name, in every mode.
+    #[tokio::test]
+    async fn an_expression_cannot_import_loop_or_reach_hidden_names() {
+        let cases = [
+            ("__import__('os').getcwd()", "__import__"),
+            ("import os\nos.getcwd()", "Import"),
+            ("from os import getcwd\ngetcwd()", "ImportFrom"),
+            ("x = 0\nfor i in range(3):\n    x = x + i\nx", "For"),
+            ("x = 0\nwhile x < 3:\n    x = x + 1\nx", "While"),
+            ("(lambda: 1)()", "Lambda"),
+            ("def f():\n    return 1\nf()", "FunctionDef"),
+            ("sum([i for i in range(3)])", "ListComp"),
+            ("(1).__class__", "__class__"),
+            ("try:\n    x = 1\nexcept Exception:\n    x = 2\nx", "Try"),
+            ("x = 1\nx += 1\nx", "AugAssign"),
+            ("sws_pow(2, 3)", "sws_pow"),
+            ("'{0}'.format(1)", "format"),
+            ("'a'.ljust(10)", "ljust"),
+        ];
+        let exprs: Vec<String> = cases.iter().map(|(e, _)| e.to_string()).collect();
+        let r = eval_expressions(exprs, snap()).await;
+        for ((expr, word), out) in cases.iter().zip(r) {
+            let e = out.expect_err(expr);
+            assert!(e.contains(word) && e.contains("not allowed"), "{expr}: {e}");
+        }
+    }
+
+    /// In the sandbox `str.format` is refused, and so is any builtin that is
+    /// not among the safe ones (`open`, `eval`).
+    #[tokio::test]
+    async fn in_the_sandbox_format_open_and_eval_are_refused() {
+        if !sandbox_available() {
+            return;
+        }
+        let r = eval_expressions(
+            vec![
+                "'{0}'.format(tags['OllamaTest'])".into(),
+                "open('/etc/passwd').read()".into(),
+                "eval('1+1')".into(),
+                "round(tags['motore1.velocita'] * 2 + abs(-1), 1)".into(),
+            ],
+            snap(),
+        )
+        .await;
+        assert!(r[0].is_err(), "{:?}", r[0]);
+        assert!(r[1].is_err(), "{:?}", r[1]);
+        assert!(r[2].is_err(), "{:?}", r[2]);
+        assert_eq!(r[3], Ok(TagValue::Float(26.0)));
+    }
+
+    /// The builtins are the list of `EXPR_BUILTINS`, in every mode: `range`
+    /// and `pow` are not there.
+    #[tokio::test]
+    async fn only_the_listed_builtins_exist() {
+        let r = eval_expressions(
+            vec![
+                "range(3)".into(),
+                "pow(2, 3)".into(),
+                "getattr(1, 'real')".into(),
+                "max(min(4, 9), abs(-2), int('3'), len('ab'), round(2.567, 2))".into(),
+                "sorted(set([3, 1, 2]))[0] + sum(map(int, ['1', '2']))".into(),
+            ],
+            snap(),
+        )
+        .await;
+        for out in &r[..3] {
+            assert!(out.as_ref().unwrap_err().contains("NameError"), "{out:?}");
+        }
+        assert_eq!(r[3], Ok(TagValue::Int(4)));
+        assert_eq!(r[4], Ok(TagValue::Int(4)));
+    }
+
+    /// A result too large to be a tag value is refused at once, instead of
+    /// holding the interpreter or filling memory; the same operators on normal
+    /// values keep working.
+    #[tokio::test]
+    async fn a_result_too_large_is_refused() {
+        let big = [
+            "10 ** 10 ** 10",
+            "1 << 10 ** 9",
+            "'x' * 10 ** 9",
+            "[0] * 10 ** 9",
+            "round(5, -10 ** 7)",
+            "f'{1:>1000000000}'",
+            "format(1, '>1000000000')",
+        ];
+        let normal = [
+            ("2 ** 10", TagValue::Int(1024)),
+            ("1 << 4", TagValue::Int(16)),
+            ("7 % 3", TagValue::Int(1)),
+            ("tags['motore1.velocita'] * 2", TagValue::Float(25.0)),
+            ("'ab' * 2", TagValue::Str("abab".into())),
+            ("f'{3.14159:.2f}'", TagValue::Str("3.14".into())),
+            ("f'{\"a\"!r:>4}'", TagValue::Str(" 'a'".into())),
+            ("format(3.14159, '.1f')", TagValue::Str("3.1".into())),
+            ("round(2.567, 2)", TagValue::Float(2.57)),
+        ];
+        let mut exprs: Vec<String> = big.iter().map(|e| e.to_string()).collect();
+        exprs.extend(normal.iter().map(|(e, _)| e.to_string()));
+        exprs.push("'%d' % 3".into());
+        let t0 = std::time::Instant::now();
+        let r = eval_expressions(exprs, snap()).await;
+        assert!(t0.elapsed().as_secs() < 5, "{:?}", t0.elapsed());
+        for (expr, out) in big.iter().zip(&r) {
+            let e = out.as_ref().expect_err(expr);
+            assert!(
+                e.contains("too large")
+                    || e.contains("too long")
+                    || e.contains("too wide")
+                    || e.contains("too many"),
+                "{expr}: {e}"
+            );
+        }
+        for ((expr, want), out) in normal.iter().zip(&r[big.len()..]) {
+            assert_eq!(out.as_ref(), Ok(want), "{expr}");
+        }
+        assert!(r.last().unwrap().as_ref().unwrap_err().contains("f-string"));
+    }
+
+    /// A refused expression keeps its error from the cache: the same text,
+    /// every time.
+    #[tokio::test]
+    async fn a_refused_expression_gives_the_same_error_every_time() {
+        let bad = "import os\nos.getcwd()".to_string();
+        let r = eval_expressions(vec![bad.clone(), bad.clone()], snap()).await;
+        let r2 = eval_expression(bad, snap()).await;
+        assert!(r[0].is_err());
+        assert_eq!(r[0], r[1]);
+        assert_eq!(r[0], r2);
+    }
+
+    /// The nested values are read-only: an expression cannot change what the
+    /// next one reads, and a missing attribute is an error, not `None`.
+    #[tokio::test]
+    async fn nested_values_are_read_only() {
+        let mut s = snap();
+        s.insert(
+            "m".into(),
+            TagValue::Struct(std::collections::BTreeMap::from([(
+                "v".to_string(),
+                TagValue::Int(5),
+            )])),
+        );
+        s.insert(
+            "a".into(),
+            TagValue::Array(vec![TagValue::Int(1), TagValue::Int(2)]),
+        );
+        let r = eval_expressions(
+            vec![
+                "tags['m']['v'] = 9\n1".into(),
+                "tags['m']['v'] + tags['m'].get('v') + len(tags['a']) + tags['a'][1]".into(),
+                "tags['a'].append(3)".into(),
+                "'abc'.uper()".into(),
+            ],
+            s,
+        )
+        .await;
+        assert!(
+            r[0].as_ref().unwrap_err().contains("TypeError"),
+            "{:?}",
+            r[0]
+        );
+        assert_eq!(r[1], Ok(TagValue::Int(14)));
+        assert!(r[2].is_err(), "{:?}", r[2]);
+        assert!(
+            r[3].as_ref().unwrap_err().contains("AttributeError"),
+            "{:?}",
+            r[3]
+        );
+    }
+
+    /// Every expression of the templates still compiles and runs: the subset
+    /// of D7 covers what the projects use. A runtime error on the values of
+    /// this test (a division, a string) is fine; a refused construct is not.
+    #[tokio::test]
+    async fn the_expressions_of_the_templates_still_run() {
+        let root =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../examples/templates");
+        let mut exprs = Vec::new();
+        let mut snapshot = HashMap::new();
+        for entry in std::fs::read_dir(&root).unwrap() {
+            let p = entry.unwrap().path().join("project.yaml");
+            let Ok(text) = std::fs::read_to_string(&p) else {
+                continue;
+            };
+            let v: serde_yaml::Value = serde_yaml::from_str(&text).unwrap();
+            for t in v["tags"].as_sequence().into_iter().flatten() {
+                if let Some(id) = t["id"].as_str() {
+                    snapshot.insert(id.to_string(), TagValue::Int(3));
+                }
+                if let Some(e) = t["expression"].as_str() {
+                    exprs.push((p.display().to_string(), e.to_string()));
+                }
+            }
+        }
+        assert!(exprs.len() >= 10, "found only {} expressions", exprs.len());
+        let r = eval_expressions(exprs.iter().map(|(_, e)| e.clone()).collect(), snapshot).await;
+        for ((file, expr), out) in exprs.iter().zip(r) {
+            if let Err(e) = out {
+                let refused = [
+                    "not allowed",
+                    "SyntaxError",
+                    "NameError",
+                    "not safe",
+                    "invalid attribute name",
+                    "restricted name",
+                    "too large",
+                    "too long",
+                    "f-string",
+                ];
+                assert!(
+                    !refused.iter().any(|w| e.contains(w)),
+                    "{file}: {expr}: {e}"
+                );
+            }
+        }
     }
 
     #[test]

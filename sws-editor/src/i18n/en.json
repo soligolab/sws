@@ -207,6 +207,7 @@
     "importConfirmSecretsNote": "\nYou checked «Include credentials»: if the bundle carries them, they will replace the current project's too.",
     "includeSecrets": "Include credentials (passwords, tokens)",
     "imported": "Imported {{file}} ({{count}} tags)",
+    "exportWillBeRefused": "Saved {{file}}, but an import or a deploy would refuse it: {{reason}}",
     "logPanel": "Log panel",
     "saveCopyToPc": "💾 Save a copy to my PC…",
     "openFromPc": "📂 Replace from a copy on my PC…",
@@ -5103,7 +5104,9 @@
       "t": {
         "c1": "Alert: if the condition stays true for WAIT_MS, sends a Telegram message.",
         "c2": "Then it stays quiet for PAUSE_MS. The Telegram channel must be set in the project notifications.",
-        "messaggio": "Alarm active:"
+        "c3": "The message is an f-string: a computed value between curly braces, and after the colon its format (.1f means one decimal).",
+        "messaggio": "Alarm active:",
+        "da": "for"
       }
     }
   },

@@ -8,13 +8,16 @@
 //!
 //! The maintainer's choice: **one key per container**, which stands for "this
 //! company" and not for a user. It is not stored: it is
-//! `HMAC-SHA256(gateway secret, "<company>/<project>")`, so the gateway
+//! `HMAC-SHA256(container key, "return:<company>/<project>")`, so the gateway
 //! computes it again when needed (also for a container adopted again after
-//! the gateway restarted). The design wants a container unable to derive the
-//! key of another, because it does not know the secret. **Today that does
-//! not hold**: the gateway also hands the secret itself to every project
-//! container, in `SWS_SEGRETO_GATEWAY` (the `env` of the container in
-//! `gateway/progetti.rs`), which needs it to trust the `X-SWS-Utente` header.
+//! the gateway restarted). A container cannot derive the key of another,
+//! because it does not know the container key.
+//!
+//! Since 18-11-2026 (CRA session 2, decisions D6 and D10) the container key is
+//! its own file on the gateway (`gateway::persistent_container_key`), not
+//! the gateway's secret: until then every container had that secret in its
+//! environment, and a tag expression could read it. Each container receives
+//! [`container_secret`], to trust the gateway, and its own return key.
 //!
 //! Il container la riceve all'avvio in `SWS_CHIAVE_RITORNO`, già nella forma
 //! che rimanda: `<azienda>/<progetto>:<hmac esadecimale>`, nell'intestazione
@@ -54,10 +57,41 @@ pub(crate) fn hmac_sha256_hex(chiave: &[u8], messaggio: &[u8]) -> String {
 
 /// La chiave del container del progetto `riferimento` (`<azienda>/<nome>`),
 /// nella forma che il container rimanda.
-pub fn chiave_per(segreto: &str, riferimento: &str) -> String {
+pub fn chiave_per(container_key: &str, riferimento: &str) -> String {
     format!(
         "{riferimento}:{}",
-        hmac_sha256_hex(segreto.as_bytes(), riferimento.as_bytes())
+        return_signature(container_key, riferimento)
+    )
+}
+
+/// The signature of a return key. Its own label (`return:`), so it never
+/// equals a [`container_secret`] (`container:`), whatever the reference.
+fn return_signature(container_key: &str, riferimento: &str) -> String {
+    hmac_sha256_hex(
+        container_key.as_bytes(),
+        format!("return:{riferimento}").as_bytes(),
+    )
+}
+
+/// A short public fingerprint of the container key, for the container's
+/// label: it says which key a container was made with, and reveals nothing.
+pub fn key_fingerprint(container_key: &str) -> String {
+    hmac_sha256_hex(container_key.as_bytes(), b"fingerprint")[..16].to_string()
+}
+
+/// The secret with which the gateway vouches for its users to the container
+/// of `riferimento` (`<company>/<project>`), in `X-SWS-Gateway`. One per
+/// container, derived and never stored, like [`chiave_per`] but with its own
+/// label, so the two never coincide.
+///
+/// Until 18-11-2026 every container received the gateway's secret itself:
+/// whoever could read the environment of one container (a tag expression, a
+/// script) could vouch for any user to any other container, compute the
+/// tunnel token of any panel and the return key of any container.
+pub fn container_secret(container_key: &str, riferimento: &str) -> String {
+    hmac_sha256_hex(
+        container_key.as_bytes(),
+        format!("container:{riferimento}").as_bytes(),
     )
 }
 
@@ -69,7 +103,7 @@ pub fn verifica(segreto: &str, valore: &str) -> Option<Chiamante> {
     if azienda.is_empty() || nome.is_empty() || segreto.is_empty() {
         return None;
     }
-    let attesa = hmac_sha256_hex(segreto.as_bytes(), riferimento.as_bytes());
+    let attesa = return_signature(segreto, riferimento);
     if !crate::router::confronto_costante(firma.as_bytes(), attesa.as_bytes()) {
         return None;
     }
@@ -194,6 +228,49 @@ impl Ritorno {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// D10: what a project could read until 18-11-2026 was the gateway's
+    /// secret. A return key signed with it is refused, because return keys
+    /// now come from the container key; and a container's own secret is not
+    /// a return key either, whatever reference is put in front of it.
+    #[test]
+    fn the_old_secret_and_a_container_secret_are_not_return_keys() {
+        let old_secret = "segreto-del-gateway-letto-da-un-progetto";
+        let key = "the-containers-key";
+        let forged = format!(
+            "acme/forno:{}",
+            hmac_sha256_hex(old_secret.as_bytes(), b"acme/forno")
+        );
+        assert!(verifica(key, &forged).is_none());
+        assert!(verifica(key, &chiave_per(old_secret, "acme/forno")).is_none());
+        assert!(verifica(key, &chiave_per(key, "acme/forno")).is_some());
+        let disguised = format!(
+            "container:acme/forno:{}",
+            container_secret(key, "acme/forno")
+        );
+        assert!(verifica(key, &disguised).is_none());
+        let fingerprint = key_fingerprint(key);
+        assert_eq!(fingerprint.len(), 16);
+        assert_ne!(fingerprint, key_fingerprint(old_secret));
+        assert!(!key.contains(&fingerprint));
+    }
+
+    /// One secret per container: another container's is different, neither is
+    /// the gateway's, and it is not the return key of the same container.
+    #[test]
+    fn each_container_has_its_own_secret() {
+        let a = container_secret("radice", "acme/forno");
+        let b = container_secret("radice", "beta/forno");
+        assert_ne!(a, b);
+        assert_ne!(a, "radice");
+        assert_eq!(
+            a,
+            container_secret("radice", "acme/forno"),
+            "derived, not random"
+        );
+        assert!(!chiave_per("radice", "acme/forno").ends_with(&a));
+        assert_eq!(a.len(), 64);
+    }
 
     #[test]
     fn hmac_come_la_rfc_4231() {

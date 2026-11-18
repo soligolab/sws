@@ -207,6 +207,7 @@
     "importConfirmSecretsNote": "\nHai spuntato «Includi le credenziali»: se il bundle le porta, sostituiranno anche quelle del progetto corrente.",
     "includeSecrets": "Includi le credenziali (password, token)",
     "imported": "Importato {{file}} ({{count}} tag)",
+    "exportWillBeRefused": "Salvato {{file}}, ma un import o un deploy lo rifiuterebbe: {{reason}}",
     "logPanel": "Pannello log",
     "saveCopyToPc": "💾 Salva copia sul PC…",
     "openFromPc": "📂 Sostituisci da copia sul PC…",
@@ -5103,7 +5104,9 @@
       "t": {
         "c1": "Avviso: se la condizione resta vera per ATTESA_MS, manda un messaggio Telegram.",
         "c2": "Poi tace per PAUSA_MS. Serve il canale Telegram nelle notifiche del progetto.",
-        "messaggio": "Allarme attivo:"
+        "c3": "Il messaggio è una f-string: fra parentesi graffe un valore calcolato, dopo i due punti il suo formato (.1f vuol dire una cifra decimale).",
+        "messaggio": "Allarme attivo:",
+        "da": "da"
       }
     }
   },

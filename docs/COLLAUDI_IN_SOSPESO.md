@@ -101,6 +101,33 @@ l'immagine della rc.20 e il gateway aggiornato, con chiavi vere.
        chiave del progetto o da quella dell'account.
 5. [ ] **Uno sfondo con la chiave OpenAI dell'account**, in un progetto che non ha una chiave sua.
 
+## CRA, sessione 2: isolamento nel cloud e sandbox delle espressioni (18-11-2026)
+
+Dalla [sessione 2](plans/2026-11-18-cra-2-isolamento-cloud-e-sandbox.md), ramo `fix/cra-2-cloud-isolation-sandbox`.
+
+1. [x] **Prima del rilascio**: le espressioni dei tag e gli script dei progetti del cloud passano le regole nuove.
+       Misurato sul VPS il 18-11: 37 espressioni e 13 script e funzioni in 16 progetti, nessun problema.
+2. [ ] **TY570, pagina degli 8 LED**: i LED contano ancora, e la CPU di `sws-runtime` resta vicina al 6 % del 17-11.
+3. [ ] **Nel cloud, dopo il rilascio**: un progetto si apre e lavora come prima (i container si rifanno col gateway
+       nuovo); `https://sws.soligo.net/api/control-panel` non dà più il JSON del pannello di controllo (dà la pagina
+       dell'IDE, come ogni rotta che non c'è) e `POST /api/control-panel/session` risponde 405. Così è già sull'IDE
+       8460 di theobroma, provato il 18-11.
+4. [ ] **Nel cloud, dopo il rilascio**: il segreto che un container ha nell'ambiente non apre il container di un altro
+       progetto.
+5. [ ] **Un progetto con un'espressione vietata** (per esempio un `import`): il tag diventa «Bad» con l'ultimo valore,
+       e il registro dice cosa non è ammesso **una volta sola**, non a ogni cambio.
+6. [ ] **Il rilascio con il segreto nuovo** (D10, deciso dal maintainer il 18-11), con la procedura del piano della
+       sessione 2, «Il rilascio»: **prima** il backup del database del TC620 di casa, poi il gateway col segreto nuovo,
+       poi `tc620-garage`, `ty570-1ad-p1-06e990` e `wp630-ufficio` riabbinati e di nuovo raggiungibili dal cloud.
+7. [ ] **Nel cloud, dopo il rilascio**: nella configurazione del gateway c'è il file `container_key`, e `podman ps
+       --format '{{.Labels}}'` mostra l'etichetta `net.soligo.sws.key` sui container di progetto.
+8. [ ] **Import di un progetto vero con molte immagini** (CasaDomotica): passa sotto i tetti degli zip (D11).
+9. [ ] **Export di un progetto oltre gli 8 MB** (per esempio una copia di CasaDomotica con qualche immagine grande in
+       più): il file si salva, e il menu dice che un import o un deploy lo rifiuterebbe; un deploy dello stesso progetto
+       si ferma prima di partire, col motivo.
+10. [ ] **Il modello «Avviso Telegram»** (Logica → Nuovo da modello): il messaggio dice da quanti minuti l'allarme è
+       attivo, con un decimale (f-string, D8).
+
 ## CRA, sessione 1: testi veri e bozza della valutazione del rischio (17/18-11-2026)
 
 Dalla [sessione 1](plans/2026-11-17-cra-1-testi-veri.md) delle sessioni CRA, ramo `docs/cra-1-true-statements`. Solo

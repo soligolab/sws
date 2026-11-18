@@ -65,7 +65,10 @@ export function MainMenu({
       const a    = Object.assign(document.createElement("a"), { href: url, download: filename });
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 1000);
-      setIoStat(`✓ ${filename}`);
+      // The server still gives the archive, and says if an import would
+      // refuse it (decision D11 of the CRA sessions).
+      const warning = res.headers.get("x-sws-export-warning");
+      setIoStat(warning ? t("menu.exportWillBeRefused", { file: filename, reason: warning }) : `✓ ${filename}`);
     } catch (e: any) { setIoStat(`${t("header.error")}: ${e?.message ?? e}`); }
     finally { setIoBusy(null); setTimeout(() => setIoStat(null), 5000); }
   };
@@ -353,7 +356,7 @@ export function MainMenu({
       {ioStatus && (
         <div style={{
           position: "absolute", top: "100%", right: 0, marginTop: 4, zIndex: 9000,
-          whiteSpace: "nowrap", padding: "4px 10px", borderRadius: 4,
+          width: "max-content", maxWidth: 520, whiteSpace: "normal", padding: "4px 10px", borderRadius: 4,
           background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)",
           fontSize: 11, color: ioStatus.startsWith("✓") ? "var(--brand-success-soft, #86efac)" : "var(--brand-danger-soft, #fca5a5)",
         }}>

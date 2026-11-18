@@ -8,6 +8,14 @@
 > approfondita e dedicata, per sviscerarne tutti i dettagli. Qui ci sono i fatti trovati il 05-11-2026, le
 > misure e le opzioni già visibili, non un progetto d'esecuzione.
 
+> **Aggiornamento del 18-11-2026.** La [sessione 2 del CRA](../2026-11-18-cra-2-isolamento-cloud-e-sandbox.md)
+> ha chiuso A1 (le espressioni dei tag sono un sottoinsieme di Python nella sandbox, decisione D7) e A2
+> (`safer_getattr` negli script, D8), e i costi per giro delle espressioni (un giro Python solo, codice in cache).
+> Restano gli altri punti, più uno nuovo: **l'IDE non controlla un'espressione prima del deploy**. Oggi un'espressione
+> rifiutata si scopre dal tag «Bad» e dal registro del pannello; il controllo potrebbe usare lo stesso harness delle
+> espressioni (`EVAL_HARNESS` in `sws-runtime/crates/sws-pyscript/src/lib.rs`), solo compilando, come `Engine::check`
+> fa per gli script.
+
 ## Da dove nasce
 
 La sessione L0 del piano [Logica unificata](../../archive/2026-11-04-logica-unificata.md) (ramo `fix/sandbox-python`,

@@ -1511,6 +1511,8 @@ fn schema_python(sandbox_attiva: bool) -> Esito {
             "`import` di qualunque modulo — niente `os`, `time`, `requests`, `math`.",
             "gli attributi dunder (`__class__`, `__globals__`…).",
             "`exec`, `eval`, `open`, l'accesso al filesystem e alla rete.",
+            "`str.format` and `format_map` (they reach hidden attributes): use an \
+             f-string, `f'{x:.1f}'`.",
         ],
         "sandbox_attiva": sandbox_attiva,
         "nota_sandbox": if sandbox_attiva {

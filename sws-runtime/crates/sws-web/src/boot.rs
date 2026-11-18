@@ -24,7 +24,6 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
-use std::io::Read;
 use std::path::{Path as FsPath, PathBuf};
 use tracing::warn;
 
@@ -366,16 +365,13 @@ pub async fn sincronizza_da_zip(
         if !(fname.ends_with(".yaml") || fname.ends_with(".png")) {
             continue;
         }
-        let mut buf = Vec::new();
-        match archive.by_name(name) {
-            Ok(mut f) => {
-                f.read_to_end(&mut buf)?;
-            }
+        let buf = match archive.by_name(name) {
+            // An image too large is skipped from the size it declares, before
+            // it is expanded.
+            Ok(f) if fname.ends_with(".png") && f.size() > MAX_BOOT_PNG_BYTES as u64 => continue,
+            Ok(mut f) => crate::zip_limits::read_entry(&mut f)?,
             Err(_) => continue,
-        }
-        if fname.ends_with(".png") && buf.len() > MAX_BOOT_PNG_BYTES {
-            continue;
-        }
+        };
         tokio::fs::create_dir_all(target_dir).await?;
         tokio::fs::write(target_dir.join(fname), buf).await?;
         kept.insert(fname.to_string());
