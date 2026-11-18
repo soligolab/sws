@@ -9,4 +9,4 @@ Nel **movimento su percorso**, la gestione dei **trigger** per passare da uno st
 ## Da sapere quando si riprende
 
 - Da vedere nella sessione di plan com'è fatto oggi il movimento su percorso (oggetto sinottico, due motori).
-- Vicino all'[editor dei simboli](2026-11-18-editor-simboli-esplodi-e-anima.md): ancoraggio e animazioni.
+- Vicino all'[editor dei simboli](2026-11-03-libreria-simboli-piu-ricca.md): ancoraggio e animazioni.

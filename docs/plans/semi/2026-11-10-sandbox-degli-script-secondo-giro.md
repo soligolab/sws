@@ -172,3 +172,12 @@ costanti dell'utente stanno nello stesso posto delle guardie.
 - `sum(range(10**12))` si ferma col timeout, o il runtime dice che lo script è stato fermato per memoria.
 - Il registro mostra il `print` anche quando il giro finisce in errore.
 - Il tempo per giro di «giornata» sul WP630, prima e dopo.
+
+## Aggiunta del 18-11-2026 — Script Python: debug passo-passo e ingressi simulati
+
+> Appunto preso in velocità dal maintainer in una riunione; non è un seme a parte perché il tema è questo. Vale la regola del seme: la sessione di plan viene prima.
+
+Gli **script Python** con **debug** e **avanzamento passo-passo**, con la possibilità di **variare in simulazione la variabile in ingresso** e **vedere quelle in uscita**.
+
+- Seme [la sandbox degli script, secondo giro](2026-11-10-sandbox-degli-script-secondo-giro.md): il debug passo-passo deve convivere con la sandbox (RestrictedPython) e i suoi limiti.
+- Da decidere: dove gira la simulazione (IDE o runtime), come si evita di scrivere sui tag veri.

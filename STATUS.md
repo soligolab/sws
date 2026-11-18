@@ -12,12 +12,13 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Quindici semi dalla riunione del 18-11-2026 (ufficio)
+## ▶ Gli appunti della riunione del 18-11-2026 (ufficio)
 
-Il maintainer ha registrato in riunione quindici appunti, qui sono semi in `docs/plans/semi/2026-11-18-*.md` (editor dei simboli con animazioni,
-analisi predittiva con IA locale, esplora storico, ricette a fasi e a grafico, schedulatore, viewer di trend, debug degli script, protocollo Siemens
-cifrato, report designer, movimento su percorso con trigger, riassunto IA dell'impianto, creazione guidata degli utenti, store and forward, regole
-password, SMTP nostro). Nessun codice. Il report designer si sovrappone al seme dei report con grafici: nella sessione di plan vanno visti insieme.
+Quindici appunti del maintainer. **Sei sono finiti dentro semi che già c'erano** («non servono semi separati se esiste già
+qualcosa di pertinente»): editor dei simboli → libreria dei simboli; report designer e riassunto IA → report con grafici;
+debug degli script → sandbox degli script; creazione guidata utenti e regole password → permessi per istanza. **Nove semi
+nuovi** `docs/plans/semi/2026-11-18-*.md`: analisi predittiva, esplora storico, ricette a fasi, schedulatore, viewer di trend,
+protocollo Siemens cifrato, movimento su percorso con trigger, store and forward, SMTP nostro. Nessun codice.
 
 ## ▶ Riprendere da qui — l'IA a scelta del cliente, su `main` e validata col modello in casa (2026-11-17, theobroma)
 
