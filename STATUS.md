@@ -12,11 +12,12 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — la rc.21 costruita e nel cloud: CRA sessioni 1-3 e l'IA a scelta del cliente; manca il push (2026-11-18 sera, theobroma)
+## ▶ Riprendere da qui — la rc.21 pubblicata e nel cloud: CRA sessioni 1-3 e l'IA a scelta del cliente (2026-11-18 sera, theobroma)
 
-Il maintainer ha chiesto il rilascio delle tre sessioni CRA («procedi»). Fatto, **tranne il push**, che viene dopo il
-collaudo (D5: i documenti del CRA non vanno su origin prima che il cloud sia corretto, e adesso lo è).
-- **Su `main`, non pushati**:
+Il maintainer ha chiesto il rilascio delle tre sessioni CRA («procedi»), poi la chiusura della giornata
+(`/finalizza-giornata`): `main` e il tag `2.26.0-rc.21` sono su origin. D5 è rispettata: il push è venuto dopo il
+gateway corretto nel cloud. Il collaudo resta da fare.
+- **Su `main`, pushati**:
   - `78ab8543a`, `ae47dd371`, `5bdaba816`: gli squash delle tre sessioni, ognuno con l'albero uguale al suo ramo (i
     conflitti erano solo dell'annidamento); rami eliminati. Nella sessione 3 c'è anche `lettre` 0.11.24: `cargo audit`
     era rosso per sei avvisi del 17-11;
@@ -31,9 +32,9 @@ collaudo (D5: i documenti del CRA non vanno su origin prima che il cloud sia cor
   `deploy/vps/STATO.md`. Immagini vecchie tolte, resta la rc.20 come ripiego.
 - **Backup del database del TC620** fatto dal maintainer prima del gateway: `historian.db` di CasaDomotica, 1,3 GB, con
   `-wal` e `-shm`, in `~/backup-tc620-2026-11-18/` sul PC di casa.
-- **Ramo aperto**: `fix/manuale-pubblica-riavvio` (`202faea58`). `pubblica.sh` lasciava il manuale a 403 (i bind mount
-  di `sws-manuale` tengono la cartella vecchia): ora riavvia il container e controlla tre pagine. Provato; aspetta l'ok
-  del maintainer per lo squash.
+- **`pubblica.sh` lasciava il manuale a 403** (i bind mount di `sws-manuale` tengono la cartella vecchia): ora riavvia
+  il container e controlla tre pagine. Squash `50221c974` col sì del maintainer. Eliminato anche il ramo vecchio
+  `fix/rc18-ritocchi`, in locale e su origin: nessun ramo di lavoro aperto.
 - **IDE 8460** ricompilato sulla rc.21, brand Pixsys.
 
 **Da fare, nell'ordine**:
@@ -45,8 +46,8 @@ collaudo (D5: i documenti del CRA non vanno su origin prima che il cloud sia cor
    `segreto_gateway.vecchio-2026-11-18` sul VPS si cancella a riabbinamento finito.
 3. **Collaudo** con `/test-changes`: le sezioni «CRA, sessione 1/2/3» e «L'IA a scelta del cliente» di
    `docs/COLLAUDI_IN_SOSPESO.md`.
-4. **Push** di `main` e del tag `2.26.0-rc.21` (fino ad allora `check_release_coerente` è rosso su questo, ed è
-   giusto). Poi l'archivio dei piani delle sessioni 2 e 3.
+4. Dopo il collaudo, l'archivio dei piani delle sessioni 2 e 3; poi la sessione 4 del CRA, quando la chiede il
+   maintainer (`docs/plans/2026-11-17-cra-sessioni-e-decisioni.md`).
 
 ## ▶ Il lavoro sul CRA, sessioni 1, 2 e 3 fatte e validate (2026-11-18, theobroma)
 
