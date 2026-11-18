@@ -253,6 +253,11 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   Le istruzioni del pacchetto usano `scp -O` e `/var/tmp` (SFTP spento, `/tmp` di 32 MB).
 
 ### Corretto
+- **`scripts/manuale/pubblica.sh` lasciava il manuale pubblico a 403.** Lo scambio della cartella `sito` (e il `mv` di
+  `nginx.conf` e `robots.txt`) non arrivava a `sws-manuale`: i bind mount tengono la cartella e i file trovati
+  all'avvio, e nginx serviva la cartella vecchia, già cancellata. Visto al rilascio della rc.21: lo script diceva
+  «pubblicate 28 pagine» e il sito rispondeva 403. Ora il container si riavvia sempre, e alla fine lo script chiede
+  tre pagine al sito e si ferma se una non risponde 200.
 - **`lettre` 0.11.24** (da 0.11.23), la libreria della posta (notifiche e report): sei avvisi RustSec del 17-11-2026,
   fra cui l'iniezione di comandi SMTP per un punto non raddoppiato dopo un LF o un CR, l'iniezione nella risposta a
   STARTTLS e l'indirizzo sbagliato per un mittente con la parte locale fra virgolette (RUSTSEC-2026-0560…0565).
