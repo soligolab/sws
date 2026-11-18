@@ -5,13 +5,15 @@
 //!   processo (`sws_core::prestazioni`) e l'ultimo riassunto del viewer LVGL.
 //!   **Chi la chiede accende la richiesta per un minuto**: è il segnale che fa
 //!   parlare il viewer.
-//! - `GET /api/prestazioni/richiesta` e `POST /api/prestazioni/viewer`: le due
-//!   del viewer, **senza sessione**. Il viewer di un pannello in chiaro o senza
-//!   utenti non ne ha una, e sul pannello il runtime pubblica le porte su una
-//!   rete rootless, dove l'indirizzo di chi chiama non dice se è la stessa
-//!   macchina: un controllo «solo da loopback» non si potrebbe fidare. Sono
-//!   innocue per costruzione — la prima dice solo sì o no, la seconda accetta
-//!   un riassunto piccolo, e solo mentre qualcuno sta guardando.
+//! - `GET /api/prestazioni/richiesta` and `POST /api/prestazioni/viewer`: the
+//!   viewer's two routes, **without a session**. The viewer of a panel in
+//!   plain HTTP or without users has none. A "loopback only" check would not
+//!   hold on every panel either: the installer's default is `Network=host`,
+//!   but with `--bridge` the runtime publishes its ports on podman's rootless
+//!   network, where the caller's address does not say whether it is the same
+//!   machine. They are harmless by construction — the first only says yes or
+//!   no, the second accepts a small summary, and only while someone is
+//!   watching.
 
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;

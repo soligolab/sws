@@ -6,12 +6,15 @@
 //! **server**, non dal browser: non porta nessuna sessione, e `/dev/` sta dietro
 //! `require_auth`. Al primo collaudo col TC620 «Connetti» dava 401.
 //!
-//! Scelta del maintainer: **una chiave per container**, che vale come «questa
-//! azienda» e non come un utente. Non si memorizza: è
-//! `HMAC-SHA256(segreto del gateway, "<azienda>/<progetto>")`, quindi il gateway
-//! la ricalcola quando serve (anche per un container riadottato dopo un suo
-//! riavvio) e un container non può ricavare quella di un altro, perché non
-//! conosce il segreto.
+//! The maintainer's choice: **one key per container**, which stands for "this
+//! company" and not for a user. It is not stored: it is
+//! `HMAC-SHA256(gateway secret, "<company>/<project>")`, so the gateway
+//! computes it again when needed (also for a container adopted again after
+//! the gateway restarted). The design wants a container unable to derive the
+//! key of another, because it does not know the secret. **Today that does
+//! not hold**: the gateway also hands the secret itself to every project
+//! container, in `SWS_SEGRETO_GATEWAY` (the `env` of the container in
+//! `gateway/progetti.rs`), which needs it to trust the `X-SWS-Utente` header.
 //!
 //! Il container la riceve all'avvio in `SWS_CHIAVE_RITORNO`, già nella forma
 //! che rimanda: `<azienda>/<progetto>:<hmac esadecimale>`, nell'intestazione

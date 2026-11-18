@@ -10,16 +10,17 @@
 
 | Ruolo | Chi |
 |---|---|
-| Fabbricante | **Soligonet** (decisione del 05-10-2026, [gap analysis CRA](../archive/2026-10-05-cra-gap-analysis.md) §7) |
-| Referente per le segnalazioni | **il maintainer**, per Soligonet |
+| Fabbricante | **Mauro Soligo (Soligonet)**: una persona fisica, che pubblica SWS con il nome «Soligonet» (decisione del 05-10-2026, [gap analysis CRA](../archive/2026-10-05-cra-gap-analysis.md) §7, precisata il 10-11-2026 in [`docs/legale/LEGGIMI.md`](../legale/LEGGIMI.md), punto 7) |
+| Referente per le segnalazioni | **il maintainer**, Mauro Soligo |
 | Contatto pubblico | `security@soligo.net`, segnalazione privata GitHub, `/.well-known/security.txt` |
-| Destinatari | il **CSIRT coordinatore** dello Stato del fabbricante (per l'Italia **CSIRT Italia**, ACN) ed **ENISA**, attraverso la **piattaforma unica di segnalazione** |
+| Destinatari | il **CSIRT coordinatore** dello Stato del fabbricante (per l'Italia **CSIRT Italia**, ACN: nome **non verificato** sull'elenco degli CSIRT coordinatori pubblicato da ENISA il 04-09-2026) ed **ENISA**, attraverso la **piattaforma unica di segnalazione** |
 
 ## Quando scatta
 
 1. **Vulnerabilità attivamente sfruttata** in SWS: c'è evidenza che qualcuno la usa davvero contro un impianto.
 2. **Incidente grave** che incide sulla sicurezza di SWS: compromissione del repository, della CI, del registry delle
-   immagini (ghcr.io), della chiave di firma, del gateway cloud o del tunnel.
+   immagini (ghcr.io), della chiave di firma delle immagini (quando ci sarà: sessione 5 del lavoro sul CRA), del
+   gateway cloud, del tunnel o del sito da cui si scarica il pacchetto del Tiny TY.
 
 Una vulnerabilità segnalata ma **non** sfruttata segue la gestione normale (`SECURITY.md`): non è un caso art. 14.
 
@@ -33,7 +34,9 @@ Una vulnerabilità segnalata ma **non** sfruttata segue la gestione normale (`SE
 | **1 mese** dalla notifica | — | relazione finale |
 
 Il fabbricante informa anche **gli utenti** colpiti (ed eventualmente il pubblico) sulla vulnerabilità o
-sull'incidente e sulle misure da prendere: per SWS, avviso GitHub e, se serve, messaggio nell'IDE e sui pannelli.
+sull'incidente e sulle misure da prendere: per SWS, avviso GitHub e, se serve, una versione nuova con la sua voce
+nelle Novità, che i pannelli in container mostrano. Il Tiny TY, le installazioni native e l'IDE oggi non ricevono
+avvisi: per loro serve un messaggio diretto ai clienti, finché la sessione 6 non porta l'avviso.
 
 ## Passi
 
@@ -50,11 +53,14 @@ sull'incidente e sulle misure da prendere: per SWS, avviso GitHub e, se serve, m
 - [x] creare l'alias `security@soligo.net` e verificarne la consegna (fatto, verificato dal maintainer il 15-10-2026);
 - [x] attivare «Private vulnerability reporting» nel repository GitHub (fatto dal maintainer il 15-10-2026, da
       Settings → Advanced Security);
-- [ ] **rimandato**: registrare Soligonet sulla piattaforma unica di segnalazione ENISA. Decisione del maintainer
-      del 15-10-2026: si fa quando il prodotto verrà **immesso sul mercato** e ci sarà l'attività che lo vende; prima
-      di allora non serve. Quel giorno, annotare qui **dove** stanno le credenziali, non le credenziali;
+- [ ] **rimandato**: registrare Mauro Soligo (Soligonet) sulla piattaforma unica di segnalazione ENISA. Decisione
+      del maintainer del 15-10-2026: si fa quando il prodotto verrà **immesso sul mercato** e ci sarà l'attività che
+      lo vende; prima di allora non serve. Quel giorno, annotare qui **dove** stanno le credenziali, non le
+      credenziali. Dalle FAQ di ENISA sulla piattaforma (ricerca del 17-11-2026, da rileggere alla fonte): non
+      serve registrarsi prima di avere qualcosa da notificare;
 - [ ] **rimandato con la registrazione**: verificare chi è il CSIRT coordinatore competente e i suoi contatti, e
-      annotarli qui.
+      annotarli qui. Dalle stesse FAQ: scegliere lo CSIRT sbagliato può invalidare la notifica, quindi il nome va
+      letto sull'elenco di ENISA prima della prima notifica.
 
 ## Registro dei casi
 

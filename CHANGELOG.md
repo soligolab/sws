@@ -12,6 +12,11 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Aggiunto
+- **Documenti di sicurezza per il CRA** (sessione 1 di `docs/plans/2026-11-17-cra-sessioni-e-decisioni.md`):
+  `docs/sicurezza/LEGGIMI.md`, l'indice della cartella, e `docs/sicurezza/valutazione-rischio.md`, la prima bozza
+  interna della valutazione dei rischi (ambito, beni, attori, i quattordici requisiti dell'Allegato I parte I misurati
+  sul codice, con chi chiude ogni buco). La guardia `scripts/check_security_docs.sh`, fra quelle statiche, controlla
+  l'indice, le quattordici righe, che ogni `file:riga` citato esista, e che le frasi false corrette non tornino.
 - **L'IA a scelta del cliente** (piano `docs/archive/2026-11-17-ia-a-scelta-del-cliente.md`, 17-11-2026).
   - **Un modello in casa** (fornitore `local`): l'assistente, i simboli e la traduzione possono usare un server che
     parla l'API di OpenAI (Ollama, vLLM, LM Studio, llama.cpp). In IA → Fornitori e chiavi: indirizzo, chiave
@@ -248,6 +253,13 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   Le istruzioni del pacchetto usano `scp -O` e `/var/tmp` (SFTP spento, `/tmp` di 32 MB).
 
 ### Corretto
+- **Frasi false sulla sicurezza, in pubblico** (sessione 1 del CRA). `SECURITY.md` e il manuale dicevano aggiornamenti
+  automatici di default: il pannello avvisa e un Admin installa, o accende il «Pilota automatico». Il README diceva
+  autenticazione e TLS spenti di default: un pannello senza utenti è chiuso e il TLS si accende da sé dove
+  l'installatore trova `certutil`. Corretti anche il fabbricante («Mauro Soligo (Soligonet)»), il reset (parziale dal
+  15-11), la porta 8080 (non sul pannello in container), «tutto autenticato» sulla 7444, `--senza-autenticazione`
+  «solo su loopback», l'IDE portatile «senza login», e i commenti del codice che dicevano lo stesso. Il capitolo 17 dice
+  ora la difesa di oggi per il pannello di controllo: impostare un PIN del progetto.
 - **I tag calcolati costavano troppa CPU sul pannello** (piano `docs/archive/2026-11-17-tag-calcolati-cpu.md`). Sul
   TY570, 8 tag con un'espressione sui bit di un contatore a 100 ms tenevano `sws-runtime` al 65 %: per ogni espressione,
   a ogni cambio di un tag, un `spawn_blocking`, il dizionario Python di tutti i tag e `ast.parse` + `compile`. Ora un

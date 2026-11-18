@@ -290,6 +290,14 @@ When in doubt: **CRA-friendly architecture yes, CRA-compliant process no.**
 > same day: Soligonet is the sole manufacturer, 5 years of support, security updates on by default,
 > the pairing code doubles as the panel's first access, and the CRA stays «a guideline in the
 > background» rather than a work programme.
+>
+> **Re-measured on 2026-11-17.** Two statements above are not what the code does. The audit log is
+> hash-chained but **signed only if** `SWS_AUDIT_KEY` is set, and no installer sets it. The automatic
+> update exists (snapshot, rollback, the «Pilota automatico» window) but is **off by default**: a panel
+> shows a notice and an Admin installs. Decision D2 of the
+> [CRA sessions](plans/2026-11-17-cra-sessioni-e-decisioni.md) proposes to keep it off (it reverses
+> «security updates on by default» of 2026-10-05, waiting for the maintainer's validation). The current
+> state, requirement by requirement, is in `docs/sicurezza/valutazione-rischio.md`.
 
 ---
 

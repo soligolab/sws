@@ -3,7 +3,8 @@
 # SWS editor (IDE-only) portable launcher.
 # Unpack the tarball anywhere and run ./run-editor.sh — no root, no systemd.
 #
-# Serves ONLY the admin IDE (canvas designer) on http://localhost:8460.
+# Serves ONLY the admin IDE (canvas designer) on port 8460, on all interfaces
+# (http://localhost:8460 from this PC; plain HTTP until a certificate is set).
 # There is NO operator viewer: the editor designs projects, then deploys them
 # to a runtime device from the IDE (ConfigView -> Runtime -> Connect).
 #
@@ -14,9 +15,9 @@
 #   SWS_ADMIN_PORT      IDE port (default 8460)
 #   RUST_LOG=debug      verbose logging
 #
-# By default the editor runs in no-auth mode (no login), matching the dev
-# editor (scripts/start_editor.sh). Set SWS_ADMIN_USER + SWS_ADMIN_PASSWORD
-# before launching to require a login instead.
+# The IDE always asks for a login: it is an IDE instance (no --viewer-port), so
+# the runtime opens data/config/identita.db and, while no user exists, prints a
+# first-access code on this terminal. That code creates the administrator.
 
 set -euo pipefail
 

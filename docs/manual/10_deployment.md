@@ -264,8 +264,9 @@ dalla macchina di sviluppo.
 - Un pannello senza utenti è **chiuso** e mostra un codice di abbinamento, che `install-container.sh` stampa
   alla fine: vedi [capitolo 09](09_auth_rbac.md#1-un-pannello-nuovo-è-chiuso-labbinamento).
   `SWS_ADMIN_PASSWORD`, se impostata, crea un Admin al primo avvio.
-- Il runtime parte in **HTTP**; il TLS si abilita generando o caricando un certificato dall'IDE
-  (*Configurazione → Sicurezza → Certificati*), salvato in `config/` e riusato ai riavvii.
+- Il TLS si accende da sé al primo avvio dove l'installatore trova `certutil`; altrove il runtime parte in **HTTP**
+  e il TLS si abilita generando o caricando un certificato dall'IDE (*Configurazione → Sicurezza → Certificati*),
+  salvato in `config/` e riusato ai riavvii. Vedi la sezione «Gestione certificati TLS» più sotto.
 - Procedura completa, aggiornamento e diagnosi: `docs/DEPLOY_CONTAINER_AARCH64.md` e
   `docs/DEPLOY_CONTAINER_X86_64.md`.
 
@@ -312,9 +313,15 @@ Il VPS, i quadlet, il gateway, i container di progetto e il tunnel sono descritt
 
 ## Gestione certificati TLS (opzionale)
 
-SWS parte in **HTTP plain** di default — nessun certificato, primo accesso diretto su
-`http://<host>:7444`. Il TLS è **opt-in**: si attiva quando esiste `tls.crt` nella directory
-config. Le directory config per ambiente:
+Il runtime serve in HTTPS quando esiste `tls.crt` nella directory config, altrimenti in **HTTP plain**.
+Chi lo crea dipende da come è installato:
+- **pannello in container dove l'installatore trova `certutil`** (i pannelli Pixsys): il runtime genera il
+  certificato al primo avvio e parte in HTTPS da sé;
+- **pannello in container senza `certutil`, installazioni native (generic, Yocto), sviluppo**: parte in chiaro
+  finché un Admin non genera o carica un certificato;
+- **Tiny TY**: in chiaro di default; il viewer dello schermo passa a HTTPS quando trova `tls.crt`.
+
+Le directory config per ambiente:
 - **Dev**: `.run/config/`
 - **Produzione (generic)**: `/var/lib/sws/config/`
 - **Yocto**: `/data/user/sws/config/`

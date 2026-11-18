@@ -46,6 +46,7 @@ STATICHE=(
     check_manuale_widget    # il capitolo dei widget nomina tutti i tipi della palette
     check_password_browser  # nessuna password salvata in localStorage/sessionStorage
     check_rotte_preauth     # le rotte senza credenziali sono una lista bianca dichiarata, non una conseguenza
+    check_security_docs     # security docs: complete index, the 14 requirements, citations in range, no false claim back
     check_amministrazione   # ogni rotta della console passa dalla sua guardia, e da nessun'altra parte
     check_confinamento      # chi riceve un percorso da fuori lo confina nella radice dei progetti (Q46), tutti
     check_audit_attore      # ogni azione della console di amministrazione dice chi l'ha fatta

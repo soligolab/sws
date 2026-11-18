@@ -76,7 +76,8 @@ Il codice si legge anche nel log (`podman logs sws-runtime | grep -i abbinamento
 `install-container.sh`.
 
 **In rete locale**: dall'IDE, **Configurazione → Istanza → Device → Connessione → «Connetti»**, con l'indirizzo
-del pannello (`http://<ip-del-pannello>:7444`). Compare il campo del codice: si inseriscono codice, nome utente e
+del pannello: `https://<ip-del-pannello>:7444` sui pannelli Pixsys, dove il TLS si accende da sé al primo avvio,
+`http://` dove l'installatore non ha trovato `certutil`. Compare il campo del codice: si inseriscono codice, nome utente e
 una password di almeno 8 caratteri, e nasce l'**Admin del dispositivo**. Da lì l'IDE fa deploy, backup,
 aggiornamenti e legge i log del pannello.
 
@@ -89,15 +90,17 @@ aggiornamenti e legge i log del pannello.
 ## 4. Verifica
 
 ```bash
-curl http://<ip-del-pannello>:7443/health
+curl -k https://<ip-del-pannello>:7443/health
 # → ok
 ```
 
-Con il TLS attivo l'indirizzo diventa `https://` (aggiungere `-k` per il certificato autofirmato); al primo accesso
-dal browser conviene aprire `http://<ip-del-pannello>:8080`, che spiega come accettare il certificato
+Su un pannello in container dove l'installatore trova `certutil` (i pannelli Pixsys) il TLS si accende da sé al
+primo avvio, e le porte parlano solo HTTPS: `-k` perché il certificato è autofirmato. Dove `certutil` manca il
+pannello parte in chiaro e l'indirizzo è `http://`. Al primo accesso dal browser si accetta il certificato
 ([capitolo 10](10_deployment.md)).
 
-Gli operatori vedono le pagine su `http://<ip-del-pannello>:7443`, o sullo schermo del pannello. Le porte e cosa
+Gli operatori vedono le pagine su `https://<ip-del-pannello>:7443` (o `http://`, come sopra), o sullo schermo del
+pannello. Le porte e cosa
 aprire sul firewall: [capitolo 18, §4](18_container_e_comunicazione.md#4-le-porte).
 
 ---

@@ -114,9 +114,10 @@ pub struct AppState {
     /// istanze IDE — su un dispositivo gli utenti sono quelli del progetto, e
     /// mescolare i due elenchi è il guasto del 14-09-2026 (vedi `sws-identita`).
     pub identita: Option<sws_identita::Identita>,
-    /// `--senza-autenticazione`: scorciatoia **dichiarata** per lo sviluppo
-    /// locale. `main.rs` rifiuta di partire se il listener non è su loopback,
-    /// quindi non può restare accesa per sbaglio su un server.
+    /// `--senza-autenticazione`: a **declared** shortcut for local
+    /// development. `main.rs` refuses to start when the machine's outbound
+    /// address is public (a private LAN is accepted). It does not catch a
+    /// server behind NAT or a port forward: it is a shortcut, not a guard.
     pub senza_auth_sviluppo: bool,
     /// Codice monouso del **primo accesso**, stampato all'avvio quando
     /// l'installazione non ha ancora nessun utente. Dimostra accesso alla
@@ -2322,9 +2323,9 @@ fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>) -> Router {
 /// La risposta non è scegliere fra i due elenchi: è **tenerli separati**.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FonteAutenticazione {
-    /// Admin sintetico, nessuna credenziale richiesta. Ormai un caso solo:
-    /// `--senza-autenticazione`, scorciatoia dichiarata per lo sviluppo
-    /// locale, che `main.rs` accetta solo su loopback.
+    /// Synthetic Admin, no credentials asked. One case only by now:
+    /// `--senza-autenticazione`, the declared shortcut for local development,
+    /// which `main.rs` refuses on a machine with a public address.
     Nessuna,
     /// Un **dispositivo** senza nessun utente (11-10-2026, decisione CRA 4).
     /// Fino al 10-10 qui c'era «aperto a tutti, da Admin»; ora non entra
@@ -13940,7 +13941,8 @@ mod primo_utente_tests {
 
     #[test]
     fn la_scorciatoia_di_sviluppo_vince_su_tutto() {
-        // `--senza-autenticazione`, che `main.rs` accetta solo su loopback.
+        // `--senza-autenticazione`, which `main.rs` refuses only on a machine
+        // with a public address.
         assert_eq!(
             fonte_autenticazione(true, true, true, true, false),
             F::Nessuna

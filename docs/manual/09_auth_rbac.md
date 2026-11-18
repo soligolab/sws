@@ -18,6 +18,10 @@
 per questo è **chiuso**: non entra nessuno, nemmeno in lettura, e mostra un **codice di
 abbinamento** che chi sta davanti usa per creare la prima credenziale. Lo stesso vale per un'IDE
 appena installata, che stampa all'avvio un **codice di primo accesso** da usare una volta sola.
+Fanno eccezione le due **installazioni native** (Yocto e Linux generico, [capitolo 10](10_deployment.md)): il loro
+installatore crea ancora un Admin `admin` con password `admin`, da cambiare subito. E il **pannello di controllo del
+dispositivo** (rete, ora, riavvio, reset) non usa gli utenti del progetto: lo apre un PIN di servizio
+([capitolo 17](17_sicurezza.md)).
 
 > **Cambiato l'11-10-2026.** Fino al 10-10 un progetto senza utenti girava in «no-auth mode»:
 > tutte le rotte aperte e un Admin sintetico per chiunque passasse. Non esiste più. Un pannello
@@ -34,7 +38,7 @@ stessa decisione vale per tutte le rotte:
 | Pannello **con utenti** | utenti del progetto + Admin del dispositivo | `users.yaml` del progetto, `utenti_dispositivo.yaml` della config |
 | **IDE** (PC, server, cloud) | utenti dell'installazione | `identita.db` della config |
 | **Container di progetto** nel cloud | la dice il gateway, firmata | nessuna: `X-SWS-Gateway` + `X-SWS-Utente` |
-| `--senza-autenticazione` | nessuna: Admin sintetico | — (solo loopback) |
+| `--senza-autenticazione` | nessuna: Admin sintetico | — (rifiutata su una macchina con un indirizzo pubblico) |
 
 Riferimento: `fonte_autenticazione` in `sws-runtime/crates/sws-web/src/router.rs:1644`, usata da
 `require_auth` (`:2166`) e `optional_auth` (`:2351`).
@@ -61,7 +65,8 @@ riesce a disegnare la schermata col codice invece di una pagina bianca.
   cifre (`O` vale `0`, `I` e `L` valgono `1`).
 - **Casuale, generato al primo avvio** e salvato in `<config>/abbinamento.json` con permessi
   `0600`: resta lo stesso fra reinstallazioni del container e aggiornamenti, e ne nasce uno nuovo
-  dopo un factory reset.
+  dopo «Eliminare progetto e abbinamento» (Impostazioni dispositivo → Restituire il dispositivo).
+  Con «Eliminare solo il progetto, restando nel cloud» il file resta e il codice non cambia.
 - **Monouso**: appena viene usato se ne genera un altro, che si mostra solo se il pannello torna
   senza utenti.
 - **Dieci tentativi sbagliati in cinque minuti** e il pannello smette di accettarne finché la

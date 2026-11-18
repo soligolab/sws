@@ -1,11 +1,14 @@
 # Security Policy
 
-SWS is made by **Soligonet**, which acts as the manufacturer under the EU Cyber Resilience Act.
+SWS is made by **Mauro Soligo (Soligonet)**, who acts as the manufacturer under the EU Cyber Resilience Act.
 
 ## Supported versions
 
 Security fixes are provided for the **latest release only**, for **5 years from the date of the latest release**.
-Panels receive updates automatically by default (`AutoUpdate=registry`), with a snapshot and rollback.
+Updates are **not installed automatically by default**. A panel that follows an update channel shows a notice when
+a newer version is available, and an Admin installs it or turns on a scheduled window ("Autopilot"). Every update
+takes a snapshot of the data first and can be rolled back. The Tiny TY package and the native installs (Yocto, generic
+Linux) have no update channel and no notice yet: they are updated by hand.
 
 ## Reporting a vulnerability
 

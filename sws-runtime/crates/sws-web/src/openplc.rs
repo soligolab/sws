@@ -22,7 +22,9 @@ const FILE_ESITO: &str = "openplc-esito.json";
 /// Un «in corso» più vecchio di così è un'installazione morta per strada: il
 /// download da 1 GB sul WP630 sta sotto i cinque minuti.
 const SCADENZA_MS: i64 = 30 * 60 * 1000;
-/// Le porte che l'installer pubblica, solo su 127.0.0.1.
+/// The REST API port of OpenPLC. The installer publishes it, like the other
+/// OpenPLC ports, on every interface of the host (`podman create -p 8443:8443 …`
+/// in `install-container.sh`): it is this runtime that calls it on 127.0.0.1.
 const PORTA_API: u16 = 8443;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

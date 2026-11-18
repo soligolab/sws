@@ -16,9 +16,10 @@ no systemd, no installation.
 
 Then open the IDE: <http://localhost:8460>
 
-By default the editor runs in **no-auth mode** (no login), like the development
-editor. Set `SWS_ADMIN_USER` + `SWS_ADMIN_PASSWORD` before launching if you want
-a login prompt.
+The IDE always asks for a login. On the first run, when no user exists yet, the
+editor prints a **first-access code** on the terminal: open the IDE, enter the
+code and create the administrator account. The code stops working as soon as
+the first user exists.
 
 ## What you get
 
@@ -35,13 +36,16 @@ ConfigView -> Runtime -> Connect. (Runtime devices are installed from the
 ## Options (environment variables)
 
 - `SWS_ADMIN_PORT` — IDE port (default 8460)
-- `SWS_ADMIN_USER` / `SWS_ADMIN_PASSWORD` — admin account (enables the login)
+- `SWS_ADMIN_USER` / `SWS_ADMIN_PASSWORD` — not the IDE login: they seed an
+  Admin user into a project opened without users (written to that project's
+  `users.yaml`, so it travels to the device with the deploy)
 - `RUST_LOG=debug` — verbose logging
 
 ## Notes
 
-- Runs plain HTTP on localhost (a browser secure context). Enable HTTPS later
-  from ConfigView -> Status -> TLS Certificate.
+- Listens on all interfaces, in plain HTTP until a certificate is set: from
+  another PC of the LAN, logins travel unencrypted. Enable HTTPS from
+  ConfigView -> Status -> TLS Certificate, or keep port 8460 behind a firewall.
 - If the binary cannot find libpython, point the loader at it, e.g.:
 
   ```sh

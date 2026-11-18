@@ -36,13 +36,14 @@ generic Linux and x86_64 hosts for development and evaluation.
 - Live tag database with soft real-time streaming
 - ISA-18.2 alarm engine (4-state, acknowledge, shelving, delay, inhibit, journal)
 - SQLite-backed historian with deadband/on-change/periodic sampling and interactive trend charts
-- Recipe manager (ISA-88-style setpoint sets), sandboxed Python scripting (cron/interval/
-  startup/tag-change triggers), SMTP notifications, GitOps (per-project git pull/rollback)
+- Recipe manager (ISA-88-style setpoint sets), Python scripting in a RestrictedPython sandbox
+  (cron/interval/startup/tag-change triggers; tag expressions are plain Python), SMTP notifications, GitOps (per-project git pull/rollback)
 
 **Operations**
 - Multi-device management and remote deploy from the IDE, mDNS discovery on the LAN
-- Optional authentication (RBAC + ABAC zone permissions) and optional TLS — both off by default
-  in the PoC, both one click away
+- Authentication (RBAC + ABAC zone permissions): a panel without users is closed until it is
+  paired with a one-time code; the IDE asks for a login and prints a first-access code. TLS starts
+  by itself on panels whose installer finds `certutil` (the Pixsys panels), one click away elsewhere
 - Append-only audit log, installable PWA
 
 **Two rendering engines**
@@ -189,9 +190,10 @@ TLS certificate**:
 - **Carica cert+key** — upload a CA-signed PEM certificate instead.
 - **Disabilita TLS** — removes the certificate and returns to plain HTTP.
 
-Once TLS is active, accept the self-signed certificate on first access without leaving the app:
-open the plain-HTTP companion port (`:8080` for the runtime, `:8090` for the standalone editor)
-— it serves a guided acceptance page. To trust the certificate elsewhere on the LAN:
+Once TLS is active, accept the self-signed certificate on first access. Where the runtime is
+started with `--http-port` (`start_runtime.sh`, `start_editor.sh`) the plain-HTTP companion port
+(`:8080` for the runtime, `:8090` for the standalone editor) serves a guided acceptance page; a
+panel in a container does not open it. To trust the certificate elsewhere on the LAN:
 
 ```bash
 curl -k https://<device-ip>:7443/cert -o sws.crt
@@ -325,9 +327,13 @@ viewer, the admin IDE, and all comm plugins, and auto-opens the last active proj
 | `8460` | Standalone editor IDE (no viewer) | started by `start_editor.sh` on a dev PC |
 | `8080` / `8090` | HTTP companion (TLS-cert acceptance helper) | only when TLS is enabled |
 
-**Auth & TLS are both optional by default (PoC).** A project without a `users.yaml` runs in
-**no-auth mode** — all routes are open, no login screen. The runtime starts in **plain HTTP**
-unless a TLS certificate is present; HTTPS is enabled on demand from
+**Authentication is on by default.** A device without users is **waiting for pairing**: it shows a
+one-time code, and whoever enters it creates the device's Admin. An IDE instance asks for a login and
+prints a first-access code on the terminal while no user exists. The only open mode is the
+development flag `--senza-autenticazione`, refused on a machine with a public address. The two
+native installers (Yocto, generic Linux) still seed `admin`/`admin`: change it at once. The runtime
+serves **HTTPS** when `tls.crt` exists: a panel in a container generates it at first start where the
+installer finds `certutil` (the Pixsys panels); elsewhere HTTPS is enabled from
 *Configuration → Instance → Device → Status → TLS certificate*.
 
 **Monorepo layout:**
@@ -374,8 +380,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). All contributors must sign off commits w
 Report vulnerabilities via GitHub Security Advisories or `security@soligo.net`.
 See [SECURITY.md](SECURITY.md) for the full disclosure policy.
 
-> ⚠️ In no-auth + plain-HTTP mode (the PoC default) the IDE and admin API are fully open and
-> unencrypted. Enable authentication and TLS before exposing a runtime on an untrusted network.
+> ⚠️ In plain HTTP, logins and project data travel unencrypted. Enable TLS before exposing a
+> runtime on an untrusted network, and keep ports 7443 and 7444 inside the plant network.
 
 ---
 

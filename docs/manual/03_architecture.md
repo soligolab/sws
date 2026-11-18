@@ -117,7 +117,8 @@ processo sws-runtime
       │       │
       └── --admin-port (7444) ─── Gestione
               │                   con --no-admin (pannello): solo API ristretta per l'IDE remoto,
-              │                     nessuna interfaccia servita, tutto autenticato
+              │                     nessuna interfaccia servita, autenticata tranne
+              │                     abbinamento e pannello di controllo (PIN di servizio)
               │                   senza --no-admin (IDE su PC, container di progetto):
               │                     SPA index-admin.html e tutte le rotte di gestione
 ```
@@ -131,7 +132,8 @@ processo sws-runtime
 - il **gateway del cloud**, una porta sola davanti a tutti i progetti, dietro Traefik;
 - i **container di progetto**, uno per progetto aperto nel cloud, senza viewer;
 - il **tunnel**: un WebSocket uscente con cui il pannello si fa raggiungere dal cloud senza porte aperte in entrata;
-- la **porta 8080** di accompagnamento quando il TLS è attivo, per accettare il certificato autofirmato.
+- la **porta 8080** di accompagnamento quando il TLS è attivo, per accettare il certificato autofirmato: solo dove
+  chi lancia il runtime passa `--http-port`, non sul pannello in container.
 
 La tabella completa delle porte, chi ascolta e cosa aprire sul firewall di un impianto sono nel
 [capitolo 18, §4](18_container_e_comunicazione.md#4-le-porte); l'elenco delle rotte di ogni router nel

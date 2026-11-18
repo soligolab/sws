@@ -101,6 +101,20 @@ l'immagine della rc.20 e il gateway aggiornato, con chiavi vere.
        chiave del progetto o da quella dell'account.
 5. [ ] **Uno sfondo con la chiave OpenAI dell'account**, in un progetto che non ha una chiave sua.
 
+## CRA, sessione 1: testi veri e bozza della valutazione del rischio (17/18-11-2026)
+
+Dalla [sessione 1](plans/2026-11-17-cra-1-testi-veri.md) delle sessioni CRA, ramo `docs/cra-1-true-statements`. Solo
+documenti e commenti: qui si verifica che le frasi nuove siano vere sui dispositivi.
+
+1. [ ] **WP630 o TC620 appena installato**: parte in HTTPS da sé, e `http://<pannello>:8080` non risponde.
+2. [ ] **Un pannello installato dove manca `certutil`**: parte in chiaro.
+3. [ ] **TY570 appena installato**: in chiaro, nessun avviso di versione nuova.
+4. [ ] **Dopo «Eliminare progetto e abbinamento»**: in `config/` restano `tls.key`, `audit.jsonl` e, con un
+       aggiornamento non confermato, `istantanea/` (lo dice il capitolo 17).
+5. [ ] **Con OpenPLC installato**: la 1502 risponde da un altro PC della rete.
+6. [ ] **Dal maintainer**: il nome dello CSIRT sull'elenco di ENISA; se il repository GitHub è pubblico; il recapito
+       postale; la validazione delle decisioni D1-D5; ripubblicare il sito del manuale dopo il merge.
+
 ## L'IA a scelta del cliente (17-11-2026)
 
 Dal piano [l'IA a scelta del cliente](archive/2026-11-17-ia-a-scelta-del-cliente.md), ramo `feat/ai-free-choice`.

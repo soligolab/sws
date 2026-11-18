@@ -1,5 +1,9 @@
 # Gap analysis CRA — SWS e il Cyber Resilience Act europeo
 
+> **Rimisurata il 17-11-2026**: questa è la misura del 05-10-2026. Quella di oggi è nel piano
+> [CRA, sessione 1](../plans/2026-11-17-cra-1-testi-veri.md) e nella bozza `docs/sicurezza/valutazione-rischio.md`,
+> che nasce con quella sessione.
+
 > **Analisi — decisione** (05-10-2026), richiesta del maintainer: «avvia una gap analysis per la compatibilità CRA
 > europea». È una **prima passata**: misura SWS com'è oggi (`main` = 2.12.0-rc.23) contro i requisiti del
 > Regolamento (UE) 2024/2847, e propone una roadmap. Le decisioni marcate **[D]** sono del maintainer; quando il

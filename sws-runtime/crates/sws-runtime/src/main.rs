@@ -158,14 +158,15 @@ struct Args {
     #[arg(long)]
     mcp: bool,
 
-    /// Scorciatoia per lo sviluppo locale: nessuna autenticazione, Admin
-    /// sintetico come prima del 06-10-2026.
+    /// Shortcut for local development: no authentication, a synthetic Admin
+    /// as before 06-10-2026.
     ///
-    /// Va **chiesta a voce alta** sulla riga di comando, e il processo
-    /// **rifiuta di partire se il listener non e su loopback**: il CRA vieta
-    /// le credenziali predefinite, non un opt-out dichiarato. Il verso conta —
-    /// fino a ieri l'assenza di password era il default silenzioso di ogni
-    /// IDE, oggi e una cosa che si deve chiedere.
+    /// It must be **asked for out loud** on the command line, and the process
+    /// **refuses to start on a machine with a public address**. A private LAN
+    /// is accepted, because the development IDE is opened from another PC.
+    /// The CRA forbids default credentials, not a declared opt-out. The
+    /// direction matters: before that date no password was the silent default
+    /// of every IDE, now it is something one has to ask for.
     #[arg(long)]
     senza_autenticazione: bool,
 
@@ -549,10 +550,12 @@ async fn main() -> anyhow::Result<()> {
         "SWS runtime starting"
     );
 
-    // TLS is opt-in: if config_dir/tls.crt exists, start in HTTPS mode.
+    // TLS follows config_dir/tls.crt: if it exists, start in HTTPS mode.
     // Otherwise serve plain HTTP — localhost is a "secure context" in all
     // modern browsers, so the editor works without any cert acceptance step.
-    // Users can enable TLS from Device → Stato → Certificato TLS.
+    // The certificate comes from an Admin, who generates or uploads it from
+    // the IDE, or from the block below: where the installer left the
+    // browser-trust marker, the runtime generates it at first start.
     std::fs::create_dir_all(&args.config).context("creating config directory")?;
     // La cartella dei progetti deve esistere prima che qualcuno la elenchi: il
     // default è fuori dal repo (Q46) e su una macchina nuova non c'è ancora.
@@ -630,12 +633,13 @@ async fn main() -> anyhow::Result<()> {
     let generator_tags: GeneratorTagsRegistry = Arc::new(tokio::sync::RwLock::new(Vec::new()));
     let script_supervisor: ScriptSupervisorCell = Arc::new(tokio::sync::RwLock::new(None));
 
-    // Env-var credentials are optional. Dall'11-10-2026 un dispositivo senza
-    // utenti **non** è aperto: è «in attesa di abbinamento» e mostra un codice
-    // (vedi `abbinamento.rs`). Il vecchio «no-auth mode, all routes are open»
-    // resta solo con `--senza-autenticazione`, che `main.rs` accetta soltanto
-    // su loopback. Set SWS_ADMIN_PASSWORD to seed an
-    // admin account and enable authentication.
+    // Env-var credentials are optional. Since 11-10-2026 a device without
+    // users is **not** open: it is "waiting for pairing" and shows a code
+    // (see `abbinamento.rs`). The old "no-auth mode, all routes are open"
+    // survives only with `--senza-autenticazione`, which this file refuses
+    // on a machine with a public address (a private LAN is accepted). Set
+    // SWS_ADMIN_PASSWORD to seed a recovery admin account into a project
+    // that has no users.
     let admin_user = std::env::var("SWS_ADMIN_USER").unwrap_or_else(|_| "admin".into());
     let admin_pwd = std::env::var("SWS_ADMIN_PASSWORD").unwrap_or_default();
     let mut accounts: Vec<(String, Role, String)> = vec![(admin_user, Role::Admin, admin_pwd)];

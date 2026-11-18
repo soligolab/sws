@@ -10,6 +10,8 @@
 > protezione che non è scritta qui, per chi installa SWS, non esiste.
 >
 > Aggiornato al 18-10-2026 (onde 1 e 2). Misurato sul codice il 20-10-2026.
+> Corretto il 17-11-2026 nei punti che non erano più veri (aggiornamenti, TLS, reset, 2FA e LDAP). La riscrittura
+> completa è in programma con la sessione 7 del lavoro sul CRA.
 
 ## Chi risponde, e come si segnala
 
@@ -28,16 +30,22 @@ Il testo completo è in [`SECURITY.md`](../../SECURITY.md).
 ## Cosa protegge SWS, per default
 
 Le impostazioni qui sotto sono attive **senza configurare niente**. Dove esiste una deroga, è esplicita e si vede.
+Fanno eccezione le due installazioni native (Yocto e Linux generico): il loro installatore crea ancora un Admin
+`admin`/`admin`, da cambiare subito.
 
 ### Accesso
 
 - **Un pannello senza utenti è chiuso.** Mostra un codice di abbinamento (`XXXX-XXXX-XXXX-XXXX`) sullo schermo, nel
   log e nella sua pagina: solo chi lo legge crea il primo amministratore, in rete locale con «Connetti» o dal cloud.
   Vedi il capitolo [09](09_auth_rbac.md).
+- **Il pannello di controllo del dispositivo** (rete, Wi-Fi, ora, riavvio, reset) non usa gli utenti del progetto:
+  lo apre un **PIN di servizio**. Finché il progetto non ne imposta uno vale quello del dispositivo, le ultime sei
+  cifre del MAC, che non è un segreto. **Impostare un PIN del progetto** è la prima cosa da fare (vedi sotto).
 - **Password con Argon2id**, mai in chiaro né nel database né nei log. Sessioni con scadenza.
 - **Quattro ruoli** (Viewer, Operator, Supervisor, Admin) e **zone** per pagina e per utente (ABAC).
 - **Due porte**: il viewer (`7443`) e la gestione (`7444`). Sul pannello la gestione è **ristretta** (`--no-admin`):
-  nessuna interfaccia, solo le rotte che l'IDE chiama, tutte autenticate. Ascolta su **tutte le interfacce**
+  nessuna interfaccia, solo le rotte che l'IDE chiama, autenticate tranne l'abbinamento e il pannello di controllo
+  del dispositivo (che chiede il PIN di servizio). Ascolta su **tutte le interfacce**
   (`0.0.0.0`, `sws-runtime/crates/sws-runtime/src/main.rs`), perché l'IDE in rete locale la raggiunge con «Connetti»;
   chi non la vuole raggiungibile la chiude col firewall. Con `--kiosk` è il **viewer** ad ascoltare solo su
   `127.0.0.1`. Porte e flussi: [capitolo 18, §4](18_container_e_comunicazione.md#4-le-porte).
@@ -53,8 +61,8 @@ Le impostazioni qui sotto sono attive **senza configurare niente**. Dove esiste 
   **cambiato** non è mai accettato da solo: la sorgente si ferma e lo dice finché non lo si approva dal trust store.
 - **Certificati dei pannelli**: un certificato pubblico valido (per esempio quello del cloud) passa con la verifica
   dei browser; un autofirmato vale per impronta, e un'impronta cambiata è rifiutata.
-- **Gli script Python girano nella sandbox** (RestrictedPython). Senza sandbox il runtime non li esegue e dice
-  perché. La deroga `SWS_SCRIPT_SENZA_SANDBOX=1` è solo per le macchine di sviluppo.
+- **Gli script del progetto girano nella sandbox** (RestrictedPython). Senza sandbox il runtime non li esegue e
+  dice perché. La deroga `SWS_SCRIPT_SENZA_SANDBOX=1` è solo per le macchine di sviluppo.
 
 ### Il browser (dal 17-10-2026)
 
@@ -85,8 +93,11 @@ per un ufficio con molte persone dietro lo stesso indirizzo.
 
 ### Aggiornamenti e catena di fornitura
 
-- **Aggiornamenti automatici** per default (`AutoUpdate=registry`), in una finestra scelta da chi gestisce il
-  pannello, con istantanea dei dati prima e ritorno alla versione precedente se il servizio non riparte.
+- **Aggiornamenti**: di default **non si installano da soli**. Un pannello che segue un canale avvisa quando c'è
+  una versione nuova; un Admin la installa, la programma per un giorno e un'ora, oppure accende il «Pilota
+  automatico», che installa da sé ogni versione nuova nella finestra scelta. Ogni aggiornamento prende prima
+  un'istantanea dei dati, e si torna alla versione precedente se il servizio non riparte. Il pacchetto del Tiny TY
+  oggi non ha né canale né avviso: si aggiorna a mano.
 - **In CI**: `cargo audit` sulle dipendenze Rust (le eccezioni dichiarate una per una in
   `sws-runtime/.cargo/audit.toml`) e una SBOM CycloneDX a ogni build.
 - **Registro delle azioni**: autenticazioni, scritture di tag e modifiche del progetto finiscono in un audit log
@@ -124,22 +135,27 @@ Scritto qui perché chi installa SWS sappia cosa deve coprire da sé, finché no
 
 | | Cosa | Quando |
 |---|---|---|
-| C4 | **TLS acceso di default sul pannello.** Dal 25-10-2026 un pannello Pixsys che ha il certificato del dispositivo e gira in chiaro **lo propone** nella card TLS, col comando da lanciare una volta come `pixsys` (HOWTO §29); un «no» si ricorda. Gli altri pannelli restano in chiaro finché non si accende a mano: un autofirmato farebbe comparire l'avviso del browser sullo schermo | parziale: l'accensione richiede `sudo`, il runtime non può farla da solo |
-| P6 | **2FA e LDAP / Active Directory** | onda 3, con C4 |
-| C5 | **Reset di fabbrica dei dati** (progetti, storico, utenti, segreti, certificati) | onda 4 |
-| C7 | **Firma delle immagini** (cosign) con verifica sul pannello, **SBOM per release**, scansione dell'immagine in CI | onda 5 |
+| C4 | **TLS acceso di default sul pannello.** Dal 26-10-2026 il pannello in container genera il certificato e parte in HTTPS da sé, al primo avvio, dove l'installatore trova `certutil` (i pannelli Pixsys): lì il browser dello schermo si fida del certificato e non mostra avvisi. Dove `certutil` manca il pannello resta in chiaro finché un Admin non genera o carica un certificato: un autofirmato farebbe comparire l'avviso del browser sullo schermo. Il Tiny TY e le installazioni native partono in chiaro | parziale: acceso da sé solo dove c'è `certutil` |
+| P6 | **2FA e LDAP / Active Directory** | in programma, con una sessione di plan dedicata |
+| C5 | **Reset di fabbrica dei dati.** Dal 15-11-2026 c'è un reset **parziale**: Impostazioni dispositivo → Restituire il dispositivo → «Eliminare progetto e abbinamento» toglie i progetti con storico, utenti e segreti, gli utenti del dispositivo e l'abbinamento al cloud. **Tutto il resto resta sul pannello**, in particolare: il certificato e la chiave TLS, il registro di audit, i log, le impostazioni del pannello, rete e Wi-Fi, e l'istantanea dei dati presa prima di un aggiornamento, se quell'aggiornamento non è ancora stato confermato | parziale: il reset completo è in programma |
+| C7 | **Firma delle immagini** (cosign) con verifica sul pannello, **SBOM per release**, scansione dell'immagine in CI | in programma |
 | — | **Limiti per indirizzo nel cloud**: dietro Traefik rootless ogni visitatore arriva con lo stesso indirizzo interno, quindi il gateway oggi non limita (seme [`2026-10-18-indirizzo-vero-dietro-traefik.md`](../plans/semi/2026-10-18-indirizzo-vero-dietro-traefik.md)) | da decidere |
-| C8 | **Valutazione del rischio e fascicolo tecnico** (Allegato VII) | si scrivono man mano, a partire da questo capitolo |
+| C8 | **Valutazione del rischio e fascicolo tecnico** (Allegato VII) | si scrivono man mano: la valutazione del rischio è una bozza interna dal 17-11-2026 (`docs/sicurezza/valutazione-rischio.md`), il fascicolo segue |
 
 ## Per chi installa: le cose da fare a mano
 
-1. **Attivare HTTPS** sul pannello se la rete non è fidata (Configurazione → Sicurezza → Certificati), e accettare il certificato da `http://<pannello>:8080`.
+1. **Attivare HTTPS** sul pannello se non si è acceso da sé e la rete non è fidata (Configurazione → Sicurezza → Certificati), e accettare il certificato autofirmato nel browser al primo accesso.
 2. **Abbinare il pannello** appena acceso: finché non ha utenti è chiuso, ma il codice è sullo schermo.
-3. **Non esporre la porta 7444** fuori dalla rete dell'impianto: ascolta su tutte le interfacce, anche sul pannello,
+3. **Impostare un PIN del progetto** per il pannello di controllo del dispositivo: IDE → Istanza → Device →
+   «Schermo e accesso» → «Pannello di controllo del dispositivo». Finché manca, vale il PIN del dispositivo, che
+   chiunque in rete può leggere. Sulle installazioni native, **cambiare la password di `admin`**.
+4. **Non esporre la porta 7444** fuori dalla rete dell'impianto: ascolta su tutte le interfacce, anche sul pannello,
    quindi va chiusa col firewall verso chi non usa l'IDE. Per raggiungere un pannello da fuori c'è il tunnel del
    cloud, che non apre porte in entrata.
-4. **Dichiarare le origini iframe** solo se servono, e solo quelle.
-5. **Tenere attivi gli aggiornamenti automatici**, o almeno leggere gli avvisi di sicurezza su GitHub.
+5. **Dichiarare le origini iframe** solo se servono, e solo quelle.
+6. **Installare le versioni nuove** quando il pannello le segnala, o accendere il «Pilota automatico», e leggere gli
+   avvisi di sicurezza su GitHub. Il Tiny TY e le installazioni native non segnalano niente: vanno controllati a
+   mano.
 
 ---
 

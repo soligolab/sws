@@ -280,7 +280,7 @@ archiviati); avvisa avvicinandosi al limite e rifiuta la creazione di progetti n
 | Porta | Chi ascolta | Dove | A chi serve | Note |
 |---|---|---|---|---|
 | **7443** | runtime del pannello | `0.0.0.0` (`127.0.0.1` con `--kiosk`) | operatori: pagine, dati vivi, comandi, login | HTTP, o HTTPS se il TLS è attivo |
-| **7444** | runtime del pannello (`--no-admin`) | `0.0.0.0` | l'IDE: deploy, utenti, backup, aggiornamento, storico, log | **API ristretta**, tutto autenticato, nessuna interfaccia |
+| **7444** | runtime del pannello (`--no-admin`) | `0.0.0.0` | l'IDE: deploy, utenti, backup, aggiornamento, storico, log | **API ristretta**, nessuna interfaccia; autenticata tranne l'abbinamento e il pannello di controllo del dispositivo (PIN di servizio) |
 | **8444** | gateway e container di progetto | rete interna del VPS | Traefik e il gateway | non esposta |
 | **8080** | runtime con TLS attivo (`--http-port`) | `0.0.0.0` | browser al primo accesso | pagina per accettare il certificato autofirmato e scaricarlo (`/cert`) |
 | **80 / 443** | Traefik | VPS | Internet | `sws.soligo.net` (IDE e console), `tunnel.soligo.net` (pannelli) |
@@ -296,9 +296,9 @@ archiviati); avvisa avvicinandosi al limite e rifiuta la creazione di progetti n
 > nell'URL va corretto una volta.
 
 **Da aprire su un firewall di impianto**: la **7443** verso chi deve vedere le pagine, la **7444** verso chi usa
-l'IDE in LAN, la **8080** solo se si usa il TLS del pannello. **In uscita**, se il pannello deve essere
-raggiungibile dal cloud: **443 verso `tunnel.soligo.net`** e verso `ghcr.io` per gli aggiornamenti. Nient'altro in
-entrata: il tunnel lo apre il pannello.
+l'IDE in LAN. La **8080** non serve sul pannello in container: l'immagine non la apre. **In uscita**, se il
+pannello deve essere raggiungibile dal cloud: **443 verso `tunnel.soligo.net`** e verso `ghcr.io` per gli
+aggiornamenti. Nient'altro in entrata: il tunnel lo apre il pannello.
 
 ---
 
@@ -552,7 +552,7 @@ Admin (tutto il resto). Dettagli nel [capitolo 09](09_auth_rbac.md).
 | Dove | Come |
 |---|---|
 | **Cloud** | Traefik con Let's Encrypt; il gateway aggiunge HSTS quando la richiesta arriva in HTTPS |
-| **Pannello** | HTTP di base; HTTPS si attiva dall'IDE (genera o carica `tls.crt`/`tls.key` nella config). Con il TLS attivo si accende la **8080** per accettare il certificato autofirmato |
+| **Pannello** | HTTPS da sé al primo avvio dove l'installatore trova `certutil` (i pannelli Pixsys); altrove HTTP finché un Admin non lo attiva dall'IDE (genera o carica `tls.crt`/`tls.key` nella config); Tiny TY in HTTP di default. La **8080** per accettare il certificato autofirmato si accende solo dove chi lancia il runtime passa `--http-port` (lo fa `start_runtime.sh`), non sul pannello in container |
 | **IDE → pannello** | certificato pubblico valido: verifica dei browser; autofirmato: impronta memorizzata al primo contatto, rifiuto se cambia |
 | **Sorgenti di campo** | MQTT su TLS e il viewer LVGL usano lo stesso meccanismo a impronte dell'IDE; OPC UA ha un trust store suo per sorgente (`opcua-pki/<sorgente>/trusted`), con la stessa regola: fiducia al primo contatto, rifiuto se cambia |
 

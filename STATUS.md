@@ -12,6 +12,23 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — il lavoro sul CRA, sessione 1 fatta, sul ramo `docs/cra-1-true-statements` (2026-11-18, theobroma)
+
+Il maintainer ha chiesto di procedere sulla parte CRA **una sessione alla volta**, con le decisioni prese in autonomia e
+validate alla fine. Piano e registro delle decisioni: `docs/plans/2026-11-17-cra-sessioni-e-decisioni.md`. La misura del
+17-11 è in `tmp/cra/` (non versionata, solo su theobroma).
+
+- **Sessione 1 fatta, da validare**: frasi false corrette in `SECURITY.md`, README, manuale e commenti; nascono
+  `docs/sicurezza/LEGGIMI.md`, la bozza **interna** `docs/sicurezza/valutazione-rischio.md` e la guardia
+  `check_security_docs.sh`. Due revisioni indipendenti, correzioni in `8f9dda06`.
+- **Il ramo NON si pusha e non va su `main`** prima della sessione 2: valutazione del rischio, piani e un commento di
+  `gateway/ritorno.rs` descrivono la catena del cloud ancora aperta (un'espressione legge l'ambiente del container,
+  dove c'è il segreto del gateway). Regola «un ramo alla volta»: le sessioni dopo si **annidano** su questo ramo.
+- **Prossimo**: la sessione 2 (segreto del gateway per container, espressioni in sandbox, `getattr` sicuro, tetti agli
+  zip). Poi la 3 (pannello di controllo anche su IDE e gateway, PIN, `admin`/`admin` e root delle installazioni native).
+- **Da validare dal maintainer**: D1-D5 del registro. D2 ribalta la decisione 3 del 05-10 (aggiornamenti automatici
+  di default); D3 lascia fuori dal CRA 2FA e LDAP, che restano la voce P6.
+
 ## ▶ Riprendere da qui — l'IA a scelta del cliente, su `main` e validata col modello in casa (2026-11-17, theobroma)
 
 Piano [l'IA a scelta del cliente](docs/archive/2026-11-17-ia-a-scelta-del-cliente.md), archiviato: su richiesta del
