@@ -169,7 +169,10 @@ Dalla [sessione 2](plans/2026-11-18-cra-2-isolamento-cloud-e-sandbox.md), ramo `
 6. [ ] **Il rilascio con il segreto nuovo** (D10, deciso dal maintainer il 18-11), con la procedura del piano della
        sessione 2, «Il rilascio»: **prima** il backup del database del TC620 di casa, poi il gateway col segreto nuovo,
        poi `tc620-garage`, `ty570-1ad-p1-06e990` e `wp630-ufficio` riabbinati e di nuovo raggiungibili dal cloud.
-7. [ ] **Nel cloud, dopo il rilascio**: nella configurazione del gateway c'è il file `container_key`, e `podman ps
+       *18-11 sera*: backup fatto (1,3 GB), gateway sulla rc.21 col segreto nuovo. Il TC620 si riabbina togliendo il
+       token; WP630 e TY570 con un factory reset e un'installazione pulita (decisione del maintainer del 18-11).
+7. [ ] **Nel cloud, dopo il rilascio**: nella configurazione del gateway c'è il file `container_key` (*c'è dal 18-11,
+       19:52*), e `podman ps
        --format '{{.Labels}}'` mostra l'etichetta `net.soligo.sws.key` sui container di progetto.
 8. [ ] **Import di un progetto vero con molte immagini** (CasaDomotica): passa sotto i tetti degli zip (D11).
 9. [ ] **Export di un progetto oltre gli 8 MB** (per esempio una copia di CasaDomotica con qualche immagine grande in
