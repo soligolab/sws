@@ -22,6 +22,40 @@ sull'oggetto in pagina (`symbol_states`, `symbol_spin`, `symbol_parts`) con cinq
 7. **Su PC**: export/import del simbolo come file **e** una libreria personale/aziendale condivisa fra i progetti.
 8. Effetti difficili (neon, sfocatura, bollicine, fumo, fuoco) **in una fase loro, dopo**.
 
+**Seconda tornata di decisioni (18-11-2026).** L'idea, nelle parole del maintainer: «il cliente quasi mai si accontenta
+dell'aspetto dei simboli esistenti, quindi dalla libreria deve poterne creare uno da zero o editare quello esistente».
+9. **Modificare un simbolo della libreria crea una variante che lo sostituisce in tutto il progetto**: le pompe già in
+   pagina prendono il nuovo aspetto, anche quelle messe dopo. «Torna all'originale» cancella la variante. La libreria
+   di SWS non si tocca.
+10. **La variante conserva il comportamento**: le parti vive del simbolo di libreria (corpo colorato per stato, girante,
+    livello, lancetta, leva, spie) diventano pezzi e ingressi già configurati, e **i tag già collegati in pagina restano
+    collegati**.
+11. **La fase 1 è «libreria modificabile»**: aprire un simbolo della libreria o uno vuoto, struttura, strumenti di
+    base, comportamento conservato, salvare, vederlo su web e LVGL. La libreria personale resta in fondo (fase 7);
+    nel frattempo c'è l'export `.swsym`.
+
+## La variante di un simbolo di libreria
+- Un `sym:` può dichiarare `overrides: "lib:<famiglia>/<slug>"`. La risoluzione dei simboli (`symbols/lib/libreria.ts`
+  sul web, il caricamento dei simboli nel viewer LVGL) guarda prima le varianti del progetto: un oggetto con
+  `symbol: "lib:…/pompa"` (o un suo alias storico `replaces`) disegna la variante. Una sola variante per simbolo.
+- **Le parti vive restano quelle di oggi nella fase 1**: la conversione porta `level`, `rotor`, `needle`, `lever`,
+  `lamp` e il corpo come **pezzi di tipo storico**, con la stessa geometria e lo stesso id, disegnati dal codice che
+  i due motori hanno già (`SimboloLib.tsx`, `RotoreLib`/`PernoLib`/`LivelloLib`/`SpiaLib` in LVGL). L'editor ne
+  modifica disegno, posizione e perno. I pezzi generici con regole e animazioni (fasi 4–5) si aggiungono accanto; un
+  pezzo storico si potrà convertire in generico quando le fasi 4–5 ci sono.
+- **I collegamenti in pagina restano validi**: gli ingressi della variante dichiarano da quale campo dell'oggetto
+  leggono quando l'oggetto non ha `symbol_inputs` (`from: state_tag | alarm_tag | symbol_states | symbol_spin |
+  symbol_parts.<id> | fill_level_tag`). Così un oggetto già configurato funziona senza essere toccato; il pannello
+  proprietà mostra comunque una sezione sola («Ingressi»), che scrive nei campi storici finché il simbolo è una
+  variante di libreria.
+- **Misura e attacchi**: se la variante cambia proporzioni, gli oggetti già in pagina tengono il loro riquadro e il
+  simbolo si adatta (come «adatta proporzioni» oggi); se sposta gli attacchi dei tubi, l'editor avvisa con il numero
+  di tubi collegati.
+- **Aggiornamenti della libreria di SWS**: una variante non segue più l'originale. L'editor lo dice; «Torna
+  all'originale» è la strada per riprenderlo.
+- **Pannelli vecchi**: un pannello che non conosce i `sym:` non disegnerebbe le varianti. Il deploy controlla la
+  versione del runtime e avvisa prima di mandare un progetto con simboli `sym:`.
+
 ## Il formato nuovo: `SymbolDef` (famiglia `sym:`)
 La *descrizione* dei `prj:` non basta (colori chiusi, niente raster): si affianca un formato nuovo; `lib:`, `prj:` e
 `custom:` restano come sono e funzionano come oggi. Codice e chiavi in inglese.
@@ -98,10 +132,10 @@ locale**. Si apre da Strumenti ▸ Simboli (`LeftPanel.tsx`, `RamoSimboli`: «+ 
 ## Fasi (un ramo per fase, annidati se il collaudo arriva dopo)
 | # | Ramo | Cosa provi alla fine |
 |---|---|---|
-| 1 | `feat/symbol-def` | formato `sym:` e rotte; editor con **Struttura** (ingressi e tipi) e grafica minima (rettangolo, ellisse, colore); salva; in pagina il pannello «Ingressi» con tag o valore; si vede su web e LVGL; export/import `.swsym` |
-| 2 | `feat/symbol-editor-tools` | gli strumenti grafici completi (tracciati e nodi, gruppi, allinea, gradienti, griglia), annulla; **Importa SVG** esploso; **Duplica dalla libreria** |
+| 1 | `feat/symbol-def` | formato `sym:` e rotte; editor con **Struttura** (ingressi e tipi); **apri un simbolo della libreria** (diventa variante, parti vive conservate) **o uno vuoto**; strumenti di base (seleziona, sposta, ridimensiona, rettangolo, ellisse, tracciato semplice, colore o materiale, ordine, annulla); salva; le pompe già in pagina cambiano aspetto e restano collegate; in pagina «Ingressi» con tag o valore; uguale su web e LVGL; «Torna all'originale» |
+| 2 | `feat/symbol-editor-tools` | gli strumenti grafici completi (nodi dei tracciati, gruppi, allinea, gradienti, griglia, calamita); **Importa SVG** esploso; export/import `.swsym` |
 | 3 | `feat/symbol-photo` | foto di sfondo e ritagli PNG; web e LVGL (variante alla misura); prima misura di memoria sul TY570 |
-| 4 | `feat/symbol-behaviour` | pezzi, ancoraggio, regole (colore, visibile, opacità, lampeggio, foto alternativa), anteprima con i controlli; uguale sul pannello; testo come etichetta LVGL |
+| 4 | `feat/symbol-behaviour` | pezzi generici, ancoraggio, regole (colore, visibile, opacità, lampeggio, foto alternativa), anteprima con i controlli; uguale sul pannello; testo come etichetta LVGL; conversione dei pezzi storici in generici |
 | 5 | `feat/symbol-anim` | rotazione (continua e per valore), oscillazione, vibrazione, pulsazione, riempimento, spostamento sui due motori; «Anteprima effetti»; pagina «Laboratorio simboli» in CasaDomotica misurata sul TY570 |
 | 6 | `feat/symbol-ai` | pannello IA: disegna SVG, genera foto, modifica il simbolo aperto |
 | 7 | `feat/symbol-library` | libreria personale/aziendale nel cloud e nell'IDE locale |
@@ -123,6 +157,7 @@ riverificano col maintainer prima di aprirle.
 - Le foto pesano sui pannelli piccoli: variante alla misura dell'oggetto, limiti di pixel, budget per pagina.
 - Un SVG importato può essere enorme o ostile: liste bianche e limiti, come `free_symbol.rs`.
 - Colori propri vs stile di progetto: un `sym:` con colori suoi non segue ISA-101/volume — va detto nell'editor.
+- Una variante cambia l'aspetto di ogni oggetto che usa quel simbolo in tutto il progetto: l'editor mostra «usato da N oggetti in M pagine» prima di salvare.
 - Tre formati di simbolo convivono (`lib:`, `prj:`, `custom:`) più `sym:`: la galleria li deve tenere distinti.
 - Gli strumenti grafici sono tanti: la fase 2 è la più lunga e può spezzarsi in due rami.
 - Modificare un simbolo cambia tutti gli oggetti che lo usano.
