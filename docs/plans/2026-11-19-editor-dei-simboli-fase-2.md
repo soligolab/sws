@@ -49,7 +49,7 @@ La fase 1 (squash `8b7bb6a30`) ha esteso le descrizioni dei simboli del progetto
    seleziona e si modifica una per volta; le modifiche valgono per il simbolo vero, uscendo tutto torna al suo posto.
 5. «+ Nuovo simbolo» **in testa al ramo Simboli**.
 
-## Sessione 1 — l'editor si usa (ramo `feat/symbol-editor-tools` da `main`)
+## Sessione 1 — l'editor si usa (fatta: `b99855ddf` su `main`, 19-11-2026)
 
 ### 1. Le bocche dei tubi
 - **Rust, `simboli_prj.rs`**: `explicit_ports(&Descrizione) -> Descrizione` — espande le scorciatoie

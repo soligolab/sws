@@ -29,7 +29,9 @@
 
 ## L'editor dei simboli, fase 2, sessione 1 (19-11-2026)
 
-Dal piano [fase 2](plans/2026-11-19-editor-dei-simboli-fase-2.md), ramo `feat/symbol-editor-tools`. IDE 8460 (o 8462).
+Dal piano [fase 2](plans/2026-11-19-editor-dei-simboli-fase-2.md), su `main` (`b99855ddf`), sui pannelli dalla rc.22.
+IDE 8460. Già provati dal maintainer nell'IDE il 19-11, dopo due giri di correzioni: vista esplosa, calamita, strati
+raggruppati, trascinamento con l'aggancio («ora funziona come mi aspettavo»). Restano soprattutto le bocche coi tubi.
 
 1. [ ] **Bocche di una pompa**: «Modifica simbolo» su una pompa con un tubo agganciato: le bocche si vedono col nome di
        prima (`n-left`…), «Attacchi dei tubi» dice 1 tubo; salvando, il tubo resta agganciato.
@@ -47,6 +49,13 @@ Dal piano [fase 2](plans/2026-11-19-editor-dei-simboli-fase-2.md), ramo `feat/sy
        una le sceglie tutte e si spostano insieme; dall'elenco degli strati se ne sceglie ancora una sola.
 8. [ ] **Prova**: stato acceso/allarme, livello, girante che gira, leva, spia.
 9. [ ] **«+ Nuovo simbolo»** in cima a Strumenti ▸ Simboli, senza aprire famiglie.
+
+## Il QR della schermata d'abbinamento (19-11-2026)
+
+Su `main` (`e068ebd23`), sui pannelli dalla rc.22. Segnalato dal maintainer sul WP630 reinstallato.
+
+1. [ ] **WP630 senza abbinamento**: il QR è grande (circa 200 px), sopra la spiegazione e centrato; il codice sta su una
+       riga sola. Lo stesso sul TY570 e nel pannello di controllo.
 
 ## La galleria dei simboli solo dello stesso tipo (19-11-2026)
 
