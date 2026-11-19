@@ -27,6 +27,21 @@
 
 ---
 
+## Il setpoint sul pannello LVGL come sul web (19-11-2026)
+
+Dal piano [setpoint LVGL come il web](plans/2026-11-19-setpoint-lvgl-come-il-web.md), ramo `fix/setpoint-lvgl`. Sul TY570,
+pagina «Idrico - Parametri» di `DemoTY570_fiera`.
+
+1. [ ] **La riga**: etichetta, «Attuale: … bar», il campo largo fino ai pulsanti, ✓ arancio attenuato e ⌨ grigio, come nel
+       browser; «—» e campo vuoto quando il valore non c'è.
+2. [ ] **Il tastierino sopra tutto**: toccando il campo o il ⌨ la scheda sta sopra la colonna «COMANDI IMPIANTO» e il
+       pulsante in basso a destra, e i tasti rispondono tutti, compresi ✓ e «Annulla».
+3. [ ] **min/max**: un valore fuori (per esempio 1 su «Pressione alta», min 3) mostra «Sotto il minimo (3)» e non scrive;
+       un valore buono scrive e chiude la scheda.
+4. [ ] **La conferma**: un setpoint con «chiedi conferma» apre la finestra prima di scrivere; uno critico chiede la password.
+5. [ ] **Il colore del ✓**: cambiato nel pannello proprietà, cambia nella riga e nel tastierino, sul web e sul pannello.
+6. [ ] **Cambiando pagina** con la scheda aperta (da un altro pannello o dal cloud), la scheda si chiude.
+
 ## Il navigatore di pagine: i pulsanti in più (19-11-2026)
 
 Dal piano [navigatore, pulsanti in più](plans/2026-11-19-navigatore-pulsanti-in-piu.md), ramo `feat/nav-links`. Si prova

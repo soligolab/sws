@@ -4620,6 +4620,7 @@ export function ObjectProps({
           <div><div style={LABEL}>{t("props.buttonFontSize")}</div><BindableInput obj={obj} propName="button_font_size" onChange={onChange}>{numInput("button_font_size", 12)}</BindableInput></div>
         </div>
       </>);
+      metti("colori", field(t("props.confirmFill"), colorInput("confirm_fill")));
     }
 
     /* Checkbox */

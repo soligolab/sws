@@ -87,7 +87,10 @@ export type VoceSistema =
   | "password_mismatch"
   | "password_too_short"
   | "password_factory"
-  | "password_session_lost";
+  | "password_session_lost"
+  | "keypad_invalid"
+  | "keypad_below_min"
+  | "keypad_above_max";
 
 export const LINGUE_SISTEMA = ["it", "de", "fr", "es", "en"] as const;
 export type LinguaSistema = (typeof LINGUE_SISTEMA)[number];
@@ -323,6 +326,27 @@ export const TESTI_SISTEMA: Record<VoceSistema, Record<LinguaSistema, string>> =
     fr: "La session est terminée : reconnectez-vous",
     es: "La sesión ha terminado: accede de nuevo",
     en: "The session ended: log in again",
+  },
+  keypad_invalid: {
+    it: "Valore non valido",
+    de: "Ungültiger Wert",
+    fr: "Valeur non valide",
+    es: "Valor no válido",
+    en: "Invalid value",
+  },
+  keypad_below_min: {
+    it: "Sotto il minimo ({min})",
+    de: "Unter dem Minimum ({min})",
+    fr: "Sous le minimum ({min})",
+    es: "Por debajo del mínimo ({min})",
+    en: "Below the minimum ({min})",
+  },
+  keypad_above_max: {
+    it: "Sopra il massimo ({max})",
+    de: "Über dem Maximum ({max})",
+    fr: "Au-dessus du maximum ({max})",
+    es: "Por encima del máximo ({max})",
+    en: "Above the maximum ({max})",
   },
   allarme_attivo: {
     it: "🔴 ALLARME ATTIVO", de: "🔴 ALARM AKTIV", fr: "🔴 ALARME ACTIVE", es: "🔴 ALARMA ACTIVA", en: "🔴 ALARM ACTIVE",

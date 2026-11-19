@@ -1,0 +1,28 @@
+{
+  "_nota": "Casi condivisi fra sws-editor/src/components/numericKeypadLogic.ts e sws-lvgl-viewer/src/numeric_keypad.rs: cosa fa ogni tasto del tastierino numerico del setpoint e cosa accetta la conferma. Se i due motori divergessero, lo stesso tasto scriverebbe due numeri diversi sul web e sul pannello.",
+  "tasti": [
+    { "nome": "il primo tasto sostituisce il valore precaricato", "iniziale": 6, "tasti": ["5"], "atteso": "5" },
+    { "nome": "poi i tasti si accodano", "iniziale": 6, "tasti": ["5", "2"], "atteso": "52" },
+    { "nome": "un punto come primo tasto diventa 0.", "iniziale": 6, "tasti": ["."], "atteso": "0." },
+    { "nome": "il secondo punto si ignora", "iniziale": null, "tasti": ["1", ".", "5", "."], "atteso": "1.5" },
+    { "nome": "senza valore si parte dal vuoto", "iniziale": null, "tasti": ["7"], "atteso": "7" },
+    { "nome": "C svuota", "iniziale": 6, "tasti": ["C"], "atteso": "" },
+    { "nome": "⌫ toglie l'ultima cifra, anche dal valore precaricato", "iniziale": 6.25, "tasti": ["⌫"], "atteso": "6.2" },
+    { "nome": "± cambia il segno e lo toglie", "iniziale": 6, "tasti": ["±", "±"], "atteso": "6" },
+    { "nome": "± sul vuoto lascia il meno da solo", "iniziale": null, "tasti": ["±"], "atteso": "-" },
+    { "nome": "dopo ± il tasto si accoda: il valore non è più quello precaricato", "iniziale": 6, "tasti": ["±", "1"], "atteso": "-61" },
+    { "nome": "un valore decimale precaricato si scrive come lo scrive JavaScript", "iniziale": 0.5, "tasti": [], "atteso": "0.5" },
+    { "nome": "un intero precaricato non ha decimali", "iniziale": 12, "tasti": [], "atteso": "12" }
+  ],
+  "conferme": [
+    { "nome": "vuoto: non valido", "bozza": "", "min": null, "max": null, "atteso": { "errore": "invalid" } },
+    { "nome": "solo il meno: non valido", "bozza": "-", "min": null, "max": null, "atteso": { "errore": "invalid" } },
+    { "nome": "un numero col punto in fondo vale", "bozza": "1.", "min": null, "max": null, "atteso": { "valore": 1 } },
+    { "nome": "un punto all'inizio vale", "bozza": ".5", "min": null, "max": null, "atteso": { "valore": 0.5 } },
+    { "nome": "negativo", "bozza": "-2.5", "min": null, "max": null, "atteso": { "valore": -2.5 } },
+    { "nome": "sotto il minimo", "bozza": "1", "min": 2, "max": 10, "atteso": { "errore": "below_min" } },
+    { "nome": "sopra il massimo", "bozza": "11", "min": 2, "max": 10, "atteso": { "errore": "above_max" } },
+    { "nome": "il minimo e il massimo sono compresi", "bozza": "10", "min": 2, "max": 10, "atteso": { "valore": 10 } },
+    { "nome": "solo il massimo", "bozza": "-50", "min": null, "max": 10, "atteso": { "valore": -50 } }
+  ]
+}

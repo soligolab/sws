@@ -71,7 +71,7 @@ export const PREDEFINITI: Record<string, Record<string, RegolaColore>> = {
   slider:   { fill: { hex: "#3b82f6" }, slider_track_color: { vuoto: "derivato" }, slider_pv_color: { auto: "testo" } },
   checkbox: { fill: { hex: "#3b82f6" } },
   radio:    { fill: { hex: "#3b82f6" } },
-  setpoint: { fill: { hex: "#3b82f6" } },
+  setpoint: { fill: { hex: "#3b82f6" }, confirm_fill: { hex: "#dd5d21" } },
   pipe:    { stroke: { auto: "sottile" }, fill_color: { hex: "#3b82f6" }, gradient_light_color: { vuoto: "derivato" }, gradient_dark_color: { vuoto: "derivato" },
              state_off_color: { vuoto: "derivato" }, state_on_color: { vuoto: "derivato" }, state_alarm_color: { hex: "#ef4444" } },
   sparkline: { spark_color: { hex: "#3b82f6" } },

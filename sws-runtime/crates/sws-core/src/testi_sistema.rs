@@ -136,6 +136,11 @@ pub enum Testo {
     PasswordTooShort,
     PasswordFactory,
     PasswordSessionLost,
+    // The numeric keypad of the setpoint (19-11-2026): it was `keypad.*` of the IDE, two languages and the
+    // IDE's language, and the LVGL panel needs it too. `{min}`, `{max}` are the limits.
+    KeypadInvalid,
+    KeypadBelowMin,
+    KeypadAboveMax,
 }
 
 /// Tutte le voci, per i test che devono iterarle senza ripetere l'elenco a
@@ -213,6 +218,9 @@ pub const TUTTI: &[Testo] = &[
     Testo::PasswordTooShort,
     Testo::PasswordFactory,
     Testo::PasswordSessionLost,
+    Testo::KeypadInvalid,
+    Testo::KeypadBelowMin,
+    Testo::KeypadAboveMax,
 ];
 
 /// Dal nome nella fixture alla voce. `None` = la fixture ha una voce che
@@ -291,6 +299,9 @@ pub fn da_nome(nome: &str) -> Option<Testo> {
         "password_too_short" => Testo::PasswordTooShort,
         "password_factory" => Testo::PasswordFactory,
         "password_session_lost" => Testo::PasswordSessionLost,
+        "keypad_invalid" => Testo::KeypadInvalid,
+        "keypad_below_min" => Testo::KeypadBelowMin,
+        "keypad_above_max" => Testo::KeypadAboveMax,
         _ => return None,
     })
 }
@@ -702,6 +713,21 @@ pub fn testo(t: Testo, lingua: &str) -> &'static str {
         (PasswordSessionLost, "fr") => "La session est terminée : reconnectez-vous",
         (PasswordSessionLost, "es") => "La sesión ha terminado: accede de nuevo",
         (PasswordSessionLost, _) => "The session ended: log in again",
+        (KeypadInvalid, "it") => "Valore non valido",
+        (KeypadInvalid, "de") => "Ungültiger Wert",
+        (KeypadInvalid, "fr") => "Valeur non valide",
+        (KeypadInvalid, "es") => "Valor no válido",
+        (KeypadInvalid, _) => "Invalid value",
+        (KeypadBelowMin, "it") => "Sotto il minimo ({min})",
+        (KeypadBelowMin, "de") => "Unter dem Minimum ({min})",
+        (KeypadBelowMin, "fr") => "Sous le minimum ({min})",
+        (KeypadBelowMin, "es") => "Por debajo del mínimo ({min})",
+        (KeypadBelowMin, _) => "Below the minimum ({min})",
+        (KeypadAboveMax, "it") => "Sopra il massimo ({max})",
+        (KeypadAboveMax, "de") => "Über dem Maximum ({max})",
+        (KeypadAboveMax, "fr") => "Au-dessus du maximum ({max})",
+        (KeypadAboveMax, "es") => "Por encima del máximo ({max})",
+        (KeypadAboveMax, _) => "Above the maximum ({max})",
     }
 }
 

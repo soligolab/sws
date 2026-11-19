@@ -498,6 +498,7 @@
     "sezioni": [
       "Access",
       "Blink",
+      "Colours",
       "Command",
       "Events",
       "Layer & Visibility",
@@ -539,7 +540,8 @@
       "W",
       "X",
       "Y",
-      "z-index"
+      "z-index",
+      "✓ colour"
     ]
   },
   "led": {

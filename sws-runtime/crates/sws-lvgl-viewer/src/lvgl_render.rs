@@ -540,11 +540,10 @@ pub enum LiveKind {
         centro_tag: Option<String>,
         centro_formato: Option<String>,
     },
-    /// Etichetta valore corrente — l'apertura/chiusura del tastierino e la
-    /// scrittura sul tag sono guidate da callback FFI (vedi
-    /// `SetpointCtx`/`sws_setpoint_*_cb`), questo binding aggiorna solo il
-    /// testo quando il tag cambia da un'altra sorgente (stesso principio di
-    /// `Text`).
+    /// The field and the «Attuale:» row of a setpoint, live. The keypad and
+    /// the write are driven by FFI callbacks (`SetpointCtx`,
+    /// `sws_setpoint_open_cb`, `numeric_keypad.rs`); this binding updates the
+    /// texts and the value the keypad opens on.
     Setpoint {
         value_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
         /// La riga «Attuale: …» (22-10-2026): viva come il valore, o
@@ -556,11 +555,8 @@ pub enum LiveKind {
         tag: Option<String>,
         unit: String,
         decimali: usize,
-        /// Il contesto del setpoint, *leakato* e quindi `'static`, per leggere
-        /// la bozza (22-10-2026). Serve a NON sovrascrivere il campo mentre un
-        /// valore digitato aspetta il ✓: senza, il giro successivo di
-        /// `update_bindings` ci rimetterebbe sopra il valore del tag e la
-        /// bozza sparirebbe sotto le dita di chi l'ha scritta.
+        /// The setpoint's context, leaked and so `'static`: `update_bindings`
+        /// keeps its `current` value, the one the keypad opens on.
         ///
         /// Puntatore grezzo e non riferimento: questo tipo viaggia in un
         /// `Vec` che attraversa funzioni del ciclo, e un `&'static` con dentro
@@ -935,6 +931,22 @@ unsafe extern "C" fn sws_button_clicked_cb(e: *mut lvgl_sys::lv_event_t) {
     if scritture.is_empty() {
         return;
     }
+    unsafe { write_or_confirm(user_data, scritture) };
+}
+
+/// Sends `scritture` for the command whose context is `user_data` (a leaked
+/// [`ButtonClickCtx`]), through its confirmation rule if it has one: the
+/// confirmation window, the password of a critical command. Shared by the
+/// button click and the setpoint keypad (19-11-2026: until then the setpoint
+/// wrote without asking, even when `critical`).
+///
+/// # Safety
+/// `user_data` must point to a leaked `ButtonClickCtx`.
+pub(crate) unsafe fn write_or_confirm(
+    user_data: *mut std::ffi::c_void,
+    scritture: Vec<(String, TagValue)>,
+) {
+    let ctx = unsafe { &*(user_data as *const ButtonClickCtx) };
     let Some(regola) = &ctx.conferma else {
         manda_scritture(&ctx.tx, &scritture);
         return;
@@ -4002,6 +4014,7 @@ mod colori_predefiniti {
         ("pipe", "state_alarm_color", "#ef4444"),
         ("trend", "bg_color", "#0f172a"),
         ("table", "bg_color", "#1e293b"),
+        ("setpoint", "confirm_fill", "#dd5d21"),
     ];
 
     /// L'hex della tabella. Panica su una coppia assente: è un errore del
@@ -11503,154 +11516,99 @@ fn draw_pie_donut(
     posti
 }
 
-/// Contesto per il tastierino numerico di `setpoint`: sia il pulsante di
-/// modifica (mostra l'overlay, pre-riempie la textarea col valore corrente)
-/// sia la tastiera stessa (`LV_EVENT_READY`/`LV_EVENT_CANCEL`) condividono
-/// lo stesso contesto — non serve differenziarli, entrambi agiscono sulla
-/// stessa coppia textarea/overlay.
+/// The context of a `setpoint`, leaked: what the keypad needs when the field
+/// or the ⌨ is touched (19-11-2026).
 struct SetpointCtx {
     tag: String,
-    tx: mpsc::Sender<TagCommand>,
-    textarea_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
-    overlay_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
-    value_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
-    /// Il valore digitato e **non ancora scritto** (22-10-2026).
+    label: Option<String>,
+    unit: Option<String>,
+    min: Option<f64>,
+    max: Option<f64>,
+    confirm_fill: (u8, u8, u8),
+    /// The current value, kept by `update_bindings`: the keypad opens on it.
     ///
-    /// Il tastierino non scrive più da sé: riempie il campo, e il ✓ scrive —
-    /// la semantica del web, dove il campo tiene una bozza e il pulsante la
-    /// conferma. Scelta del maintainer: due passi invece di uno, più sicuro
-    /// per un setpoint d'impianto.
-    ///
-    /// `RefCell` e non un lock: le callback LVGL sparano sincrone dentro
-    /// `task_handler()`, sullo stesso thread del ciclo di rendering, mai in
-    /// parallelo con `update_bindings` — lo stesso ragionamento di
-    /// `AlarmAckCtx`.
-    bozza: RefCell<Option<f64>>,
-    unita: String,
-    decimali: usize,
+    /// `Cell` and not a lock: LVGL callbacks fire synchronously inside
+    /// `task_handler()`, on the rendering thread, never in parallel with
+    /// `update_bindings` — the same reasoning as `AlarmAckCtx`.
+    current: std::cell::Cell<Option<f64>>,
+    /// The content language, read when the keypad opens.
+    lang: SharedLang,
+    /// The leaked [`ButtonClickCtx`] with the confirmation rule of the object:
+    /// the keypad's ✓ writes through [`write_or_confirm`], like a button.
+    write: *mut std::ffi::c_void,
 }
 
-/// Click sul pulsante "✎": mostra l'overlay e pre-riempie la textarea con
-/// il testo attualmente mostrato dalla label del valore (già tenuto
-/// aggiornato dal vivo da `update_bindings` — niente bisogno di leggere di
-/// nuovo il `TagSnapshot` qui, la callback FFI non ce l'ha comunque).
-unsafe extern "C" fn sws_setpoint_edit_clicked_cb(e: *mut lvgl_sys::lv_event_t) {
+/// A touch on the field or on the ⌨: opens the keypad on the current value.
+unsafe extern "C" fn sws_setpoint_open_cb(e: *mut lvgl_sys::lv_event_t) {
     let user_data = unsafe { lvgl_sys::lv_event_get_user_data(e) };
     if user_data.is_null() {
         return;
     }
     let ctx = unsafe { &*(user_data as *const SetpointCtx) };
-    unsafe {
-        let current = lvgl_sys::lv_label_get_text(ctx.value_ptr.as_ptr());
-        lvgl_sys::lv_textarea_set_text(ctx.textarea_ptr.as_ptr(), current);
-        lvgl_sys::lv_obj_clear_flag(
-            ctx.overlay_ptr.as_ptr(),
-            lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t,
-        );
-    }
-}
-
-/// `LV_EVENT_READY` sulla tastiera (tasto "OK"): legge il testo digitato,
-/// prova a interpretarlo come numero, scrive il tag se valido — se non è un
-/// numero valido, lascia la textarea com'è (l'operatore la corregge) invece
-/// di scrivere qualcosa di sbagliato o azzerare silenziosamente, stesso
-/// principio del `setpointDraft` nel web (`SvgCanvas.tsx`: un valore non
-/// numerico non fa scattare `onWriteTag`).
-unsafe extern "C" fn sws_setpoint_ready_cb(e: *mut lvgl_sys::lv_event_t) {
-    let user_data = unsafe { lvgl_sys::lv_event_get_user_data(e) };
-    if user_data.is_null() {
-        return;
-    }
-    let ctx = unsafe { &*(user_data as *const SetpointCtx) };
-    unsafe {
-        let c_text = lvgl_sys::lv_textarea_get_text(ctx.textarea_ptr.as_ptr());
-        if !c_text.is_null() {
-            if let Ok(text) = std::ffi::CStr::from_ptr(c_text).to_str() {
-                if let Ok(n) = text.trim().parse::<f64>() {
-                    // Non scrive: mette la bozza nel campo, e il ✓ la scrive.
-                    *ctx.bozza.borrow_mut() = Some(n);
-                    let d = ctx.decimali;
-                    let u = &ctx.unita;
-                    testo_etichetta(
-                        ctx.value_ptr.as_ptr(),
-                        text_cstring(&format!("{n:.d$}{u}")).as_ptr(),
-                    );
-                    // Il bordo diventa quello del comando: si vede a colpo
-                    // d'occhio che quel numero non è ancora andato.
-                    stile::bordo(
-                        ctx.value_ptr.as_ptr(),
-                        Some((0x3b, 0x82, 0xf6)),
-                        1.0,
-                        stile::MAIN,
-                    );
-                    lvgl_sys::lv_obj_add_flag(
-                        ctx.overlay_ptr.as_ptr(),
-                        lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t,
-                    );
-                }
+    let write = ctx.write;
+    let tag = ctx.tag.clone();
+    let lang = ctx
+        .lang
+        .lock()
+        .unwrap_or_else(|e: std::sync::PoisonError<_>| e.into_inner())
+        .clone();
+    crate::numeric_keypad::open(crate::numeric_keypad::Request {
+        label: ctx.label.clone(),
+        unit: ctx.unit.clone(),
+        initial: ctx.current.get(),
+        min: ctx.min,
+        max: ctx.max,
+        confirm_fill: ctx.confirm_fill,
+        lang,
+        on_confirm: Box::new(move |v| {
+            // Without a tag there is nothing to write, as on the web.
+            if !tag.is_empty() {
+                unsafe { write_or_confirm(write, vec![(tag, TagValue::Float(v))]) };
             }
-        }
-    }
-}
-
-/// Click sul ✓: scrive la bozza, se c'è (22-10-2026).
-///
-/// Senza bozza non fa niente, e non è pigrizia: premere ✓ senza aver digitato
-/// vorrebbe dire riscrivere il valore corrente sul tag, cioè un comando
-/// all'impianto che nessuno ha chiesto.
-unsafe extern "C" fn sws_setpoint_conferma_cb(e: *mut lvgl_sys::lv_event_t) {
-    let user_data = unsafe { lvgl_sys::lv_event_get_user_data(e) };
-    if user_data.is_null() {
-        return;
-    }
-    let ctx = unsafe { &*(user_data as *const SetpointCtx) };
-    let Some(n) = ctx.bozza.borrow_mut().take() else {
-        return;
-    };
-    let _ = ctx.tx.send(TagCommand {
-        tag: ctx.tag.clone(),
-        value: TagValue::Float(n),
+        }),
     });
-    // Il bordo torna normale: la bozza non c'è più, e il vivo riprende a
-    // scrivere nel campo da `update_bindings`.
+}
+
+/// How wide a text is in the panel's font at `px`.
+fn text_width(s: &str, px: u16) -> i16 {
+    let c = text_cstring(s);
+    let font =
+        lvgl_font::at_size(px).unwrap_or(unsafe { &lvgl_sys::lv_font_montserrat_14 as *const _ });
+    let mut p = lvgl_sys::lv_point_t { x: 0, y: 0 };
     unsafe {
-        stile::bordo(
-            ctx.value_ptr.as_ptr(),
-            Some((0x33, 0x41, 0x55)),
-            1.0,
-            stile::MAIN,
+        lvgl_sys::lv_txt_get_size(
+            &mut p,
+            c.as_ptr(),
+            font,
+            0,
+            0,
+            i16::MAX as lvgl_sys::lv_coord_t,
+            lvgl_sys::LV_TEXT_FLAG_NONE as lvgl_sys::lv_text_flag_t,
         );
+    }
+    p.x
+}
+
+/// The text of the «Attuale:» row: the value with its decimals and unit, or
+/// «—» when there is none — the web's.
+fn setpoint_current_text(word: &str, v: Option<f64>, decimali: usize, unit: &str) -> String {
+    match v {
+        Some(v) => format!("{word} {v:.decimali$}{unit}"),
+        None => format!("{word} —"),
     }
 }
 
-/// `LV_EVENT_CANCEL` sulla tastiera (tasto "Esc"): chiude l'overlay senza
-/// scrivere nulla.
-unsafe extern "C" fn sws_setpoint_cancel_cb(e: *mut lvgl_sys::lv_event_t) {
-    let user_data = unsafe { lvgl_sys::lv_event_get_user_data(e) };
-    if user_data.is_null() {
-        return;
-    }
-    let ctx = unsafe { &*(user_data as *const SetpointCtx) };
-    unsafe {
-        lvgl_sys::lv_obj_add_flag(
-            ctx.overlay_ptr.as_ptr(),
-            lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t,
-        );
-    }
-}
-
-/// `setpoint`: label col valore corrente + pulsante "✎" che apre un
-/// overlay a schermo intero con `lv_textarea` + `lv_keyboard` in modalità
-/// `LV_KEYBOARD_MODE_NUMBER`. **Primo pattern di interazione a inserimento
-/// testo di questo motore** — tutti gli altri widget interattivi
-/// (bottone/checkbox/slider) sono manipolazione diretta, non richiedono un
-/// tastierino a schermo. `lv_keyboard_set_textarea` collega tastiera e
-/// campo: i tasti scrivono direttamente nella textarea assegnata, nessun
-/// `lv_group`/focus esplicito necessario per l'uso touch (verificato in
-/// `lv_keyboard.c` prima di assumerlo — il gruppo serve per la navigazione
-/// da encoder/tastiera fisica, non per il tocco diretto sui tasti).
-/// `read_only` disabilita il pulsante invece di ometterlo, così il layout
-/// resta prevedibile indipendentemente dal synottico.
+/// `setpoint`: the web's three rows (19-11-2026, plan
+/// `docs/plans/2026-11-19-setpoint-lvgl-come-il-web.md`) — the label, «Attuale:
+/// …», and a row with the field that fills the width, the ✓ and the ⌨. A touch
+/// on the field or on the ⌨ opens the keypad card (`numeric_keypad.rs`) on the
+/// top layer, and its ✓ writes through the object's confirmation rule.
+///
+/// Until this date the field was as wide as its number, the two buttons sat at
+/// the right edge in the LVGL theme's blue, and the keyboard was a hidden child
+/// of the page that the objects drawn after it covered (TY570, «Idrico -
+/// Parametri»). On the panel the field is not typed into, so the row's ✓ stays
+/// dimmed like the web's without a draft; in read-only the ⌨ goes away.
 fn render_setpoint(
     screen: &mut lvgl::Obj,
     obj: &SynopticObject,
@@ -11663,52 +11621,32 @@ fn render_setpoint(
 ) -> anyhow::Result<LiveBinding> {
     let w = obj.width.unwrap_or(140.0);
     let h = obj.height.unwrap_or(56.0);
-    // Lo spazio prima dell'unità c'è anche sul web (`const unit = obj.unit ?
-    // ` ${obj.unit}` : ""`) e qui mancava: il pannello scriveva «0.0bar»
-    // contro «0.0 bar» del browser. Divergenza vecchia, trovata guardando
-    // un'istantanea il 22-10-2026.
-    let unit = obj
+    let unit_raw = obj
         .unit
         .as_deref()
         .map(str::trim)
         .filter(|u| !u.is_empty())
+        .map(str::to_string);
+    // Lo spazio prima dell'unità c'è anche sul web (`const unit = obj.unit ?
+    // ` ${obj.unit}` : ""`).
+    let unit = unit_raw
+        .as_deref()
         .map(|u| format!(" {u}"))
         .unwrap_or_default();
     let read_only = obj.read_only.unwrap_or(false);
     // Tre corpi, non cinque (22-10-2026): etichetta, testo, pulsantini. Sono i
-    // letterali del web, perché è il web il riferimento — qui l'etichetta era
-    // già 11 e il valore ereditava i 14 dello schermo contro i 12 del browser.
+    // letterali del web, perché è il web il riferimento.
     let corpo_etichetta = obj.label_font_size.unwrap_or(11.0);
     let corpo_testo = obj.font_size.unwrap_or(12.0);
     let corpo_pulsanti = obj.button_font_size.unwrap_or(12.0);
+    let px = |c: f64| c.round().clamp(6.0, 200.0) as u16;
 
     let mut container = create_child_obj(screen)?;
     let container_ptr = container.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
-
-    // Un `lv_obj` nasce con lo stile del tema: scheda **bianca**, bordo,
-    // padding su tutti i lati e scorrimento acceso. Su una pagina scura, con
-    // un box di 48 pixel d'altezza, il risultato era una scheda bianca con due
-    // barre di scorrimento e il valore tagliato a metà — visto in
-    // un'istantanea il 2026-08-31.
-    //
-    // Il contenitore qui non è un elemento di interfaccia: è solo il riquadro
-    // che tiene insieme etichetta, valore e pulsante, esattamente come il
-    // `<div>` del web, che è trasparente. Quindi trasparente, senza bordo,
-    // senza padding e senza scorrimento — e con lo sfondo dell'oggetto solo se
-    // l'oggetto lo dichiara.
+    // Il contenitore è il `<div>` del web, trasparente: via gli stili del tema
+    // (scheda bianca, bordo, padding, colore del testo scuro) e lo scorrimento.
+    // `lv_obj_remove_style_all` è una macro e non arriva nei binding.
     unsafe {
-        // `lv_obj_remove_style_all` è una macro e non arriva nei binding: è
-        // `lv_obj_remove_style(obj, NULL, LV_PART_ANY | LV_STATE_ANY)`.
-        //
-        // Toglie in un colpo bianco, bordo e padding — ma soprattutto il
-        // **colore del testo** che il tema mette sulla scheda, scuro perché
-        // pensato per uno sfondo bianco. Azzerare le singole proprietà
-        // lasciava quel colore, e il valore restava scritto in grigio scuro su
-        // sfondo scuro: leggibile solo sapendo che c'era.
-        //
-        // Toglierlo fa riprendere l'ereditarietà dallo schermo, dove Q18 ha già
-        // messo il colore giusto per lo sfondo della pagina — la stessa strada
-        // di `--synoptic-text` sul web.
         lvgl_sys::lv_obj_remove_style(
             container_ptr.as_ptr(),
             core::ptr::null_mut(),
@@ -11716,22 +11654,13 @@ fn render_setpoint(
         );
         lvgl_sys::lv_obj_clear_flag(container_ptr.as_ptr(), lvgl_sys::LV_OBJ_FLAG_SCROLLABLE);
     }
-    // Posizione e dimensione DOPO aver tolto gli stili, non prima: in LVGL 8
-    // `lv_obj_set_pos`/`set_size` scrivono stili **locali** (`LV_STYLE_X`,
-    // `LV_STYLE_WIDTH`…), quindi `lv_obj_remove_style(NULL, ANY)` se li porta
-    // via insieme al resto. Facendolo nell'ordine sbagliato il contenitore
-    // collassa a zero per zero e sparisce con tutto il suo contenuto — provato,
-    // e visto in un'istantanea.
+    // Posizione e dimensione DOPO aver tolto gli stili: in LVGL 8 sono stili
+    // locali, e `lv_obj_remove_style(NULL, ANY)` se li porterebbe via.
     set_pos_size(&mut container, obj, w, h)?;
-
     if let Some(bg) = &obj.fill {
         apply_bg_color(&mut container, bg, styles)?;
     }
-    // L'altezza minima dai tre corpi, dalla stessa funzione che usa il web
-    // (22-10-2026): tre righe in 48 px non ci stanno, e il riquadro si allarga
-    // invece di far cadere una riga o di stringere il testo. I sette setpoint
-    // misurati fra template e progetti veri stanno tutti a 48 e crescono tutti
-    // di 13.
+    // L'altezza minima dai tre corpi, dalla stessa funzione che usa il web.
     unsafe {
         let minima = sws_core::geometria_testo::altezza_minima_setpoint(
             corpo_etichetta,
@@ -11744,64 +11673,24 @@ fn render_setpoint(
         }
     }
 
-    // Le due righe hanno le altezze del web (`fontSize: 11` per l'etichetta,
-    // poi il valore): infilarne tre in 48 pixel non riesce a nessuno dei due
-    // motori, ma due ci stanno, e il valore è la riga che conta.
-    let mut y_cursor: i16 = 0;
+    // The web's column: `padding: 4px 2px`, `gap: 3`.
+    let mut y: i16 = 4;
     if let Some(label) = &obj.label {
-        let mut lbl =
-            Label::create(&mut container).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
-        lbl.set_pos(2, y_cursor)
-            .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
-        lbl.set_text(&text_cstring(label))
-            .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
-        let mut lbl_style = Style::default();
-        // Attenuata come sul web (`--brand-text-muted`): l'etichetta accompagna
-        // il valore, non compete con lui.
-        lbl_style.set_text_color(Color::from_rgb((148, 163, 184)));
-        lbl.add_style(Part::Main, &mut lbl_style)
-            .map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
-        if let Some(px) = lvgl_font::at_size(corpo_etichetta.round().clamp(6.0, 200.0) as u16) {
-            unsafe {
-                lvgl_sys::lv_obj_set_style_text_font(
-                    lbl.raw()
-                        .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
-                        .as_ptr(),
-                    px,
-                    0,
-                )
-            };
+        unsafe {
+            let l = lvgl_sys::lv_label_create(container_ptr.as_ptr());
+            lvgl_sys::lv_obj_set_pos(l, 2, y);
+            testo_etichetta(l, text_cstring(label).as_ptr());
+            // Attenuata come sul web (`--brand-text-muted`).
+            stile::testo(l, (0x94, 0xa3, 0xb8), stile::MAIN);
+            stile::font(l, px(corpo_etichetta), stile::MAIN);
         }
-        styles.push(lbl_style);
-        y_cursor += (corpo_etichetta * 1.2).round() as i16 + 3;
+        y += (corpo_etichetta * 1.2).round() as i16 + 3;
     }
 
-    // La riga «Attuale: …» (22-10-2026): sul web c'è da sempre, qui non c'era.
-    // È viva come il valore — senza, mostrerebbe il numero del momento in cui
-    // la pagina è stata aperta. Il testo viene dalla tabella dei testi di
-    // sistema, quindi segue la lingua dei CONTENUTI e non quella dell'IDE: era
-    // il difetto di `viewer.currentValue`, due lingue e la lingua sbagliata.
-    let mut attuale_lbl =
-        Label::create(&mut container).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
-    attuale_lbl
-        .set_pos(2, y_cursor)
-        .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
-    let corpo_attuale = sws_core::geometria_testo::corpo_annotazione(corpo_testo);
-    unsafe {
-        let p = attuale_lbl
-            .raw()
-            .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
-            .as_ptr();
-        stile::testo(p, (0x64, 0x74, 0x8b), stile::MAIN);
-        stile::font(
-            p,
-            corpo_attuale.round().clamp(6.0, 200.0) as u16,
-            stile::MAIN,
-        );
-    }
-    let attuale_ptr = attuale_lbl
-        .raw()
-        .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+    let initial = lookup(tags, &obj.tag).map(|t| tag_value_as_f64(&t.value));
+    let decimali = obj.decimals.unwrap_or(1) as usize;
+    // La riga «Attuale: …», viva come il valore; la parola viene dalla tabella
+    // dei testi di sistema, nella lingua dei CONTENUTI.
     let attuale_testo = crate::testi_sistema::testo(
         crate::testi_sistema::Testo::SpAttuale,
         &shared_lang
@@ -11810,210 +11699,153 @@ fn render_setpoint(
             .clone(),
     )
     .to_string();
-    y_cursor += (corpo_attuale * 1.2).round() as i16 + 3;
-
-    let mut value_lbl =
-        Label::create(&mut container).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
-    value_lbl
-        .set_pos(2, y_cursor)
-        .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
-    let initial = lookup(tags, &obj.tag)
-        .map(|t| tag_value_as_f64(&t.value))
-        .unwrap_or(0.0);
-    let decimali = obj.decimals.unwrap_or(1) as usize;
-    value_lbl
-        .set_text(&text_cstring(&format!("{initial:.decimali$}{unit}")))
-        .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
-    let value_ptr = value_lbl.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
-    // Il valore si disegna come il CAMPO del web — riquadro col numero dentro
-    // — e non come una scritta nuda (22-10-2026). È anche il bersaglio del
-    // dito: toccarlo apre il tastierino, che è la decisione del maintainer
-    // («chi arriva dal browser tocca il numero, e non succedere niente è
-    // esattamente il difetto che stiamo correggendo altrove»).
-    unsafe {
-        let p = value_ptr.as_ptr();
-        stile::font(p, corpo_testo.round().clamp(6.0, 200.0) as u16, stile::MAIN);
-        stile::sfondo(p, (0x0f, 0x17, 0x2a), stile::MAIN);
-        stile::bordo(p, Some((0x33, 0x41, 0x55)), 1.0, stile::MAIN);
-        stile::raggio(p, 4.0, stile::MAIN);
-        stile::margini(p, 3, 6, stile::MAIN);
-    }
-    // La riga «Attuale:» col valore di partenza: `update_bindings` la tiene
-    // aggiornata, ma senza questo resterebbe vuota fino al primo giro — e in
-    // un'istantanea di un progetto senza sorgenti resterebbe vuota e basta.
-    unsafe {
+    let corpo_attuale = sws_core::geometria_testo::corpo_annotazione(corpo_testo);
+    let attuale_ptr = unsafe {
+        let l = lvgl_sys::lv_label_create(container_ptr.as_ptr());
+        lvgl_sys::lv_obj_set_pos(l, 2, y);
+        stile::testo(l, (0x64, 0x74, 0x8b), stile::MAIN);
+        stile::font(l, px(corpo_attuale), stile::MAIN);
         testo_etichetta(
-            attuale_ptr.as_ptr(),
-            text_cstring(&format!("{attuale_testo} {initial:.decimali$}{unit}")).as_ptr(),
+            l,
+            text_cstring(&setpoint_current_text(
+                &attuale_testo,
+                initial,
+                decimali,
+                &unit,
+            ))
+            .as_ptr(),
         );
-    }
-
-    // Overlay a schermo intero, figlio dello `screen` (non del container:
-    // deve poter coprire l'intera pagina, non solo il box del setpoint) —
-    // creato nascosto, mostrato solo dal click sul pulsante ✎.
-    let mut overlay = create_child_obj(screen)?;
-    overlay
-        .set_pos(0, 0)
-        .map_err(|e| anyhow::anyhow!("set_pos overlay: {e:?}"))?;
-    overlay
-        .set_size(risoluzione().0, risoluzione().1)
-        .map_err(|e| anyhow::anyhow!("set_size overlay: {e:?}"))?;
-    let mut overlay_style = Style::default();
-    overlay_style.set_bg_color(Color::from_rgb((15, 23, 42)));
-    overlay
-        .add_style(Part::Main, &mut overlay_style)
-        .map_err(|e| anyhow::anyhow!("add_style overlay: {e:?}"))?;
-    styles.push(overlay_style);
-    let overlay_ptr = overlay.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
-
-    let mut textarea = unsafe {
-        let ptr = lvgl_sys::lv_textarea_create(overlay_ptr.as_ptr());
-        let nn = core::ptr::NonNull::new(ptr)
-            .ok_or_else(|| anyhow::anyhow!("lv_textarea_create ha restituito null"))?;
-        <lvgl::Obj as Widget>::from_raw(nn)
+        core::ptr::NonNull::new(l)
+            .ok_or_else(|| anyhow::anyhow!("lv_label_create ha restituito null"))?
     };
-    textarea
-        .set_pos(20, 20)
-        .map_err(|e| anyhow::anyhow!("set_pos textarea: {e:?}"))?;
-    textarea
-        .set_size(risoluzione().0 - 40, 50)
-        .map_err(|e| anyhow::anyhow!("set_size textarea: {e:?}"))?;
-    let textarea_ptr = textarea.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
-    unsafe {
-        lvgl_sys::lv_textarea_set_accepted_chars(textarea_ptr.as_ptr(), c"0123456789.-".as_ptr());
-        lvgl_sys::lv_textarea_set_one_line(textarea_ptr.as_ptr(), true);
-    }
+    y += (corpo_attuale * 1.2).round() as i16 + 3;
 
-    let keyboard_ptr = unsafe {
-        let ptr = lvgl_sys::lv_keyboard_create(overlay_ptr.as_ptr());
-        core::ptr::NonNull::new(ptr)
-            .ok_or_else(|| anyhow::anyhow!("lv_keyboard_create ha restituito null"))?
+    // The row, `display: flex; gap: 4`: the buttons are as wide as their glyph
+    // plus the web's padding (10 and 8 px a side) and as high as the field
+    // (text, 3 px of padding and 1 px of border, above and below).
+    let row_h = (corpo_testo * 1.2).round() as i16 + 8;
+    let ok_w = text_width("✓", px(corpo_pulsanti)) + 20;
+    let kb_w = if read_only {
+        0
+    } else {
+        text_width("⌨", px(corpo_pulsanti)) + 16
     };
+    let inner = (w - 4.0).round() as i16;
+    let field_w = (inner - ok_w - 4 - if read_only { 0 } else { kb_w + 4 }).max(20);
+
+    // The field: the bare number, like `<input type=number>` — no unit, no
+    // fixed decimals, empty without a value.
+    let value_ptr = unsafe {
+        let f = lvgl_sys::lv_label_create(container_ptr.as_ptr());
+        lvgl_sys::lv_obj_set_pos(f, 2, y);
+        lvgl_sys::lv_obj_set_size(f, field_w, row_h);
+        lvgl_sys::lv_label_set_long_mode(
+            f,
+            lvgl_sys::LV_LABEL_LONG_CLIP as lvgl_sys::lv_label_long_mode_t,
+        );
+        stile::font(f, px(corpo_testo), stile::MAIN);
+        stile::sfondo(f, (0x0f, 0x17, 0x2a), stile::MAIN);
+        stile::bordo(f, Some((0x33, 0x41, 0x55)), 1.0, stile::MAIN);
+        stile::raggio(f, 4.0, stile::MAIN);
+        stile::margini(f, 3, 6, stile::MAIN);
+        let testo = initial
+            .map(crate::numeric_keypad::js_number)
+            .unwrap_or_default();
+        testo_etichetta(f, text_cstring(&testo).as_ptr());
+        core::ptr::NonNull::new(f)
+            .ok_or_else(|| anyhow::anyhow!("lv_label_create ha restituito null"))?
+    };
+
+    // A button like the web's `<button>`: none of the LVGL theme (blue, shadow,
+    // pill corners, growing when pressed).
+    let pulsante = |x: i16,
+                    larghezza: i16,
+                    glifo: &str,
+                    fondo: (u8, u8, u8),
+                    testo: Option<(u8, u8, u8)>| unsafe {
+        let b = lvgl_sys::lv_btn_create(container_ptr.as_ptr());
+        lvgl_sys::lv_obj_remove_style(
+            b,
+            core::ptr::null_mut(),
+            (lvgl_sys::LV_PART_ANY | lvgl_sys::LV_STATE_ANY) as lvgl_sys::lv_style_selector_t,
+        );
+        lvgl_sys::lv_obj_set_pos(b, x, y);
+        lvgl_sys::lv_obj_set_size(b, larghezza, row_h);
+        stile::sfondo(b, fondo, stile::MAIN);
+        stile::raggio(b, 4.0, stile::MAIN);
+        let l = lvgl_sys::lv_label_create(b);
+        testo_etichetta(l, text_cstring(glifo).as_ptr());
+        if let Some(c) = testo {
+            stile::testo(l, c, stile::MAIN);
+        }
+        stile::font(l, px(corpo_pulsanti), stile::MAIN);
+        lvgl_sys::lv_obj_align(l, lvgl_sys::LV_ALIGN_CENTER as lvgl_sys::lv_align_t, 0, 0);
+        b
+    };
+    // The ✓: `confirm_fill` (default #DD5D21, the colour table), white text,
+    // dimmed like the web's without a draft — on the panel there never is one.
+    let confirm_fill = colore_campo(obj.confirm_fill.as_deref(), "setpoint", "confirm_fill");
+    let ok = pulsante(
+        2 + field_w + 4,
+        ok_w,
+        "✓",
+        confirm_fill,
+        Some((0xff, 0xff, 0xff)),
+    );
     unsafe {
-        lvgl_sys::lv_keyboard_set_textarea(keyboard_ptr.as_ptr(), textarea_ptr.as_ptr());
-        lvgl_sys::lv_keyboard_set_mode(
-            keyboard_ptr.as_ptr(),
-            lvgl_sys::LV_KEYBOARD_MODE_NUMBER as lvgl_sys::lv_keyboard_mode_t,
-        );
-        crate::lvgl_font::restore_symbols_on(keyboard_ptr.as_ptr());
-        lvgl_sys::lv_obj_add_flag(
-            overlay_ptr.as_ptr(),
-            lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t,
-        );
+        lvgl_sys::lv_obj_set_style_opa(ok, 128, stile::MAIN);
+        lvgl_sys::lv_obj_clear_flag(ok, lvgl_sys::LV_OBJ_FLAG_CLICKABLE);
     }
 
+    let write = leak_ctx(ButtonClickCtx {
+        comando: Comando::Fisse(Vec::new()),
+        corrente: Rc::new(RefCell::new(None)),
+        tx: tag_tx.clone(),
+        conferma: regola_conferma(obj),
+        in_attesa: RefCell::new(Vec::new()),
+        critico: RefCell::new(None),
+    });
     let ctx: &'static SetpointCtx = Box::leak(Box::new(SetpointCtx {
         tag: obj.tag.clone().unwrap_or_default(),
-        tx: tag_tx.clone(),
-        textarea_ptr,
-        overlay_ptr,
-        value_ptr,
-        bozza: RefCell::new(None),
-        unita: unit.clone(),
-        decimali,
+        label: obj.label.clone(),
+        unit: unit_raw,
+        min: obj.min,
+        max: obj.max,
+        confirm_fill,
+        current: std::cell::Cell::new(initial),
+        lang: shared_lang.clone(),
+        write,
     }));
-    unsafe {
-        lvgl_sys::lv_obj_add_event_cb(
-            keyboard_ptr.as_ptr(),
-            Some(sws_setpoint_ready_cb),
-            lvgl_sys::lv_event_code_t_LV_EVENT_READY,
-            ctx as *const SetpointCtx as *mut std::ffi::c_void,
-        );
-        lvgl_sys::lv_obj_add_event_cb(
-            keyboard_ptr.as_ptr(),
-            Some(sws_setpoint_cancel_cb),
-            lvgl_sys::lv_event_code_t_LV_EVENT_CANCEL,
-            ctx as *const SetpointCtx as *mut std::ffi::c_void,
-        );
-    }
+    let ctx_ptr = ctx as *const SetpointCtx as *mut std::ffi::c_void;
 
     if !read_only {
-        // Il tocco sul campo apre il tastierino, esattamente come il ⌨.
+        // The ⌨, and the touch on the field: both open the keypad («chi arriva
+        // dal browser tocca il numero, e non succedere niente è esattamente il
+        // difetto», 22-10-2026).
+        let kb = pulsante(
+            2 + field_w + 4 + ok_w + 4,
+            kb_w,
+            "⌨",
+            (0x33, 0x41, 0x55),
+            None,
+        );
         unsafe {
+            lvgl_sys::lv_obj_set_style_bg_opa(kb, 170, lvgl_sys::LV_STATE_PRESSED);
+            lvgl_sys::lv_obj_add_event_cb(
+                kb,
+                Some(sws_setpoint_open_cb),
+                lvgl_sys::lv_event_code_t_LV_EVENT_CLICKED,
+                ctx_ptr,
+            );
             lvgl_sys::lv_obj_add_flag(value_ptr.as_ptr(), lvgl_sys::LV_OBJ_FLAG_CLICKABLE);
             lvgl_sys::lv_obj_add_event_cb(
                 value_ptr.as_ptr(),
-                Some(sws_setpoint_edit_clicked_cb),
+                Some(sws_setpoint_open_cb),
                 lvgl_sys::lv_event_code_t_LV_EVENT_CLICKED,
-                ctx as *const SetpointCtx as *mut std::ffi::c_void,
-            );
-        }
-        let mut edit_btn =
-            Btn::create(&mut container).map_err(|e| anyhow::anyhow!("Btn::create: {e:?}"))?;
-        edit_btn
-            .set_pos((w - 46.0).round() as i16, y_cursor.saturating_sub(2))
-            .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
-        // Largo abbastanza da contenere la scritta: a 22x22 il tema lo
-        // arrotondava in un cerchio e la lettera restava tagliata.
-        edit_btn
-            .set_size(44, 24)
-            .map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
-        let mut edit_lbl =
-            Label::create(&mut edit_btn).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
-        // ⌨ come sul web, al posto della parola «Scrivi»: un glifo non va
-        // tradotto, e il bottone è lo stesso dei due motori (22-10-2026).
-        edit_lbl
-            .set_text(&text_cstring("⌨"))
-            .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
-        unsafe {
-            let l = edit_lbl
-                .raw()
-                .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
-                .as_ptr();
-            lvgl_sys::lv_obj_align(l, lvgl_sys::LV_ALIGN_CENTER as lvgl_sys::lv_align_t, 0, 0);
-            if let Some(f) = lvgl_font::at_size(corpo_pulsanti.round().clamp(6.0, 200.0) as u16) {
-                lvgl_sys::lv_obj_set_style_text_font(l, f, 0);
-            }
-        }
-        let edit_ptr = edit_btn.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
-        unsafe {
-            lvgl_sys::lv_obj_add_event_cb(
-                edit_ptr.as_ptr(),
-                Some(sws_setpoint_edit_clicked_cb),
-                lvgl_sys::lv_event_code_t_LV_EVENT_CLICKED,
-                ctx as *const SetpointCtx as *mut std::ffi::c_void,
-            );
-        }
-
-        // Il ✓, come sul web: scrive la bozza che il tastierino ha messo nel
-        // campo. Prima di oggi su questo motore non c'era, perché il
-        // tastierino scriveva da sé.
-        let mut ok_btn =
-            Btn::create(&mut container).map_err(|e| anyhow::anyhow!("Btn::create: {e:?}"))?;
-        ok_btn
-            .set_pos((w - 92.0).round() as i16, y_cursor.saturating_sub(2))
-            .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
-        ok_btn
-            .set_size(40, 24)
-            .map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
-        let mut ok_lbl =
-            Label::create(&mut ok_btn).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
-        ok_lbl
-            .set_text(&text_cstring("✓"))
-            .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
-        unsafe {
-            let l = ok_lbl
-                .raw()
-                .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
-                .as_ptr();
-            lvgl_sys::lv_obj_align(l, lvgl_sys::LV_ALIGN_CENTER as lvgl_sys::lv_align_t, 0, 0);
-            if let Some(f) = lvgl_font::at_size(corpo_pulsanti.round().clamp(6.0, 200.0) as u16) {
-                lvgl_sys::lv_obj_set_style_text_font(l, f, 0);
-            }
-        }
-        unsafe {
-            lvgl_sys::lv_obj_add_event_cb(
-                ok_btn
-                    .raw()
-                    .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
-                    .as_ptr(),
-                Some(sws_setpoint_conferma_cb),
-                lvgl_sys::lv_event_code_t_LV_EVENT_CLICKED,
-                ctx as *const SetpointCtx as *mut std::ffi::c_void,
+                ctx_ptr,
             );
         }
     }
-    let _ = container_ptr;
 
     Ok(LiveBinding {
         kind: LiveKind::Setpoint {
@@ -17526,6 +17358,9 @@ pub fn render_page_objects(
         // essere quello attivo ma non viene distrutto da questa chiamata
         // (auto_del=false dentro la sua implementazione) — tocca a noi,
         // subito dopo, ora che il nuovo è già a schermo.
+        // The setpoint's keypad lives on the top layer, which outlives the
+        // screen: a keypad left open would write on a page no longer shown.
+        crate::numeric_keypad::close();
         lvgl_sys::lv_disp_load_scr(new_scr_ptr);
         if !old_scr_ptr.is_null() {
             lvgl_sys::lv_obj_del(old_scr_ptr);
@@ -18600,30 +18435,28 @@ pub fn update_bindings(
                 decimali,
                 ctx,
             } => {
-                // Se l'overlay di modifica è visibile, non sovrascrivere:
-                // stesso principio della guardia "dragging" di `BarLike`,
-                // altrimenti il valore digitato verrebbe rimpiazzato dal
-                // vecchio valore del tag a metà digitazione.
-                // Una bozza in attesa del ✓ non si tocca: il campo mostra il
-                // numero digitato finché non viene scritto o annullato.
-                let in_bozza = !ctx.is_null()
-                    && unsafe { (*(*ctx as *const SetpointCtx)).bozza.borrow().is_some() };
                 let raw = lookup(tags, tag).map(|t| tag_value_as_f64(&t.value));
+                if !ctx.is_null() {
+                    unsafe { (*(*ctx as *const SetpointCtx)).current.set(raw) };
+                }
                 if let Some(v) = raw {
-                    let d = *decimali;
                     unsafe {
-                        if !in_bozza {
-                            testo_etichetta(
-                                value_ptr.as_ptr(),
-                                text_cstring(&format!("{v:.d$}{unit}")).as_ptr(),
-                            );
-                        }
+                        testo_etichetta(
+                            value_ptr.as_ptr(),
+                            text_cstring(&crate::numeric_keypad::js_number(v)).as_ptr(),
+                        );
                         // La riga «Attuale:» segue lo stesso valore: sul web
                         // sono due testi dello stesso numero, e devono dire la
                         // stessa cosa.
                         testo_etichetta(
                             attuale_ptr.as_ptr(),
-                            text_cstring(&format!("{attuale_testo} {v:.d$}{unit}")).as_ptr(),
+                            text_cstring(&setpoint_current_text(
+                                attuale_testo,
+                                Some(v),
+                                *decimali,
+                                unit,
+                            ))
+                            .as_ptr(),
                         );
                     }
                 }

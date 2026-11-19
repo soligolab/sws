@@ -176,6 +176,7 @@ pub struct SynopticObject {
     /// Corpo dei pulsantini di comando dentro un oggetto — il ✓ e il ⌨ di un
     /// `setpoint` (22-10-2026).
     pub button_font_size: Option<f64>,
+    pub confirm_fill: Option<String>,
     /// Corpo dell'unità di misura (25-10-2026): `gauge` e `kpi_tile`.
     #[serde(default)]
     pub unit_font_size: Option<f64>,

@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import { useTranslation } from "react-i18next";
+import { predefinito } from "@/coloriPredefiniti";
+import { useLinguaContenuti } from "@/i18n/linguaContenuti";
+import { testoSistema, testoSistemaCon } from "@/i18n/testiSistema";
+import { initialDraft, press as pressKey, validateDraft, type KeypadError } from "@/components/numericKeypadLogic";
 
 // ── Tastierino numerico touch (F3.4, piano SCADA-widgets) ───────────────────
 //
@@ -9,6 +12,9 @@ import { useTranslation } from "react-i18next";
 // numerico primario del setpoint su touch (e comodo anche col mouse).
 // Valida min/max PRIMA di confermare, con messaggio esplicito — l'input
 // HTML si limitava a rifiutare in silenzio.
+//
+// The keys and the confirmation are `numericKeypadLogic.ts`, twin of the LVGL card
+// (`numeric_keypad.rs`, 19-11-2026); the messages are system texts in the content language.
 
 const BTN: React.CSSProperties = {
   padding: "14px 0",
@@ -28,38 +34,35 @@ interface Props {
   initial?: number;
   min?: number;
   max?: number;
+  /** Background of the ✓ (the setpoint's `confirm_fill`). */
+  confirmFill?: string;
   onConfirm: (value: number) => void;
   onCancel: () => void;
 }
 
-export function NumericKeypad({ label, unit, initial, min, max, onConfirm, onCancel }: Props) {
-  const { t } = useTranslation();
-  const [draft, setDraft] = useState<string>(initial !== undefined && Number.isFinite(initial) ? String(initial) : "");
+function errorText(e: KeypadError, lang: string): string {
+  if (e.kind === "below_min") return testoSistemaCon("keypad_below_min", lang, { min: String(e.min) });
+  if (e.kind === "above_max") return testoSistemaCon("keypad_above_max", lang, { max: String(e.max) });
+  return testoSistema("keypad_invalid", lang);
+}
+
+export function NumericKeypad({ label, unit, initial, min, max, confirmFill, onConfirm, onCancel }: Props) {
+  const lingua = useLinguaContenuti();
+  const [draft, setDraft] = useState<string>(initialDraft(initial));
   const [error, setError] = useState<string | null>(null);
 
   const press = (k: string) => {
     setError(null);
-    setDraft((d) => {
-      if (k === "C") return "";
-      if (k === "⌫") return d.slice(0, -1);
-      if (k === "±") return d.startsWith("-") ? d.slice(1) : `-${d}`;
-      if (k === "." && d.includes(".")) return d;
-      // Un primo tasto numerico sostituisce il valore precaricato, come si
-      // aspetta chiunque abbia usato un HMI: si preme "5" per scrivere 5,
-      // non per accodarlo al valore attuale.
-      return d === String(initial ?? "") ? (k === "." ? "0." : k) : d + k;
-    });
+    setDraft((d) => pressKey(d, k, initial));
   };
 
   const confirm = () => {
-    const n = Number(draft);
-    if (draft.trim() === "" || !Number.isFinite(n)) {
-      setError(t("keypad.invalid"));
+    const r = validateDraft(draft, min, max);
+    if ("error" in r) {
+      setError(errorText(r.error, lingua.lang));
       return;
     }
-    if (min !== undefined && n < min) { setError(t("keypad.belowMin", { min })); return; }
-    if (max !== undefined && n > max) { setError(t("keypad.aboveMax", { max })); return; }
-    onConfirm(n);
+    onConfirm(r.value);
   };
 
   return createPortal(
@@ -90,14 +93,14 @@ export function NumericKeypad({ label, unit, initial, min, max, onConfirm, onCan
           ))}
           <button style={{ ...BTN, fontSize: 15 }} onClick={() => press("C")}>C</button>
           <button style={{ ...BTN, fontSize: 15 }} onClick={() => press("⌫")}>⌫</button>
-          <button style={{ ...BTN, background: "var(--brand-primary, #3b82f6)", color: "var(--brand-on-primary, #fff)" }}
+          <button style={{ ...BTN, background: confirmFill ?? predefinito("setpoint", "confirm_fill"), color: "#fff" /* fixed-colour */ }}
             onClick={confirm}>✓</button>
         </div>
         <button
           style={{ ...BTN, padding: "8px 0", fontSize: 13, background: "transparent",
                    color: "var(--brand-text-subtle, #64748b)" }}
           onClick={onCancel}>
-          {t("common.cancel")}
+          {testoSistema("annulla", lingua.lang)}
         </button>
       </div>
     </div>,

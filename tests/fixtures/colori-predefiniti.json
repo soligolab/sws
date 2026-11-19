@@ -65,7 +65,7 @@
     "slider":   { "fill": { "hex": "#3b82f6" }, "slider_track_color": { "vuoto": "derivato" }, "slider_pv_color": { "auto": "testo" } },
     "checkbox": { "fill": { "hex": "#3b82f6" } },
     "radio":    { "fill": { "hex": "#3b82f6" } },
-    "setpoint": { "fill": { "hex": "#3b82f6" } },
+    "setpoint": { "fill": { "hex": "#3b82f6" }, "confirm_fill": { "hex": "#dd5d21" } },
     "pipe":    { "stroke": { "auto": "sottile" }, "fill_color": { "hex": "#3b82f6" }, "gradient_light_color": { "vuoto": "derivato" }, "gradient_dark_color": { "vuoto": "derivato" },
                "state_off_color": { "vuoto": "derivato" }, "state_on_color": { "vuoto": "derivato" }, "state_alarm_color": { "hex": "#ef4444" } },
     "sparkline": { "spark_color": { "hex": "#3b82f6" } },
@@ -104,7 +104,7 @@
     ["bar_chart", "bg_color"], ["pie_chart", "bg_color"], ["pie_chart", "pie_hole_color"],
     ["xy_plot", "bg_color"], ["kpi_tile", "bg_color"], ["alarm_history", "bg_color"],
     ["recipe_panel", "bg_color"], ["state_lamp", "text_list_default_color"], ["alarm_bell", "fill"],
-    ["pipe", "state_alarm_color"], ["trend", "bg_color"], ["table", "bg_color"]
+    ["pipe", "state_alarm_color"], ["trend", "bg_color"], ["table", "bg_color"], ["setpoint", "confirm_fill"]
   ],
   "da_progetto": [
     ["symbol", "state_off_color"], ["symbol", "state_on_color"], ["symbol", "state_alarm_color"]

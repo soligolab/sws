@@ -126,6 +126,7 @@ mod lvgl_ritardo;
 mod mini_serie;
 mod model;
 mod net_worker;
+mod numeric_keypad;
 mod parametri;
 mod pixel;
 mod riavvio;

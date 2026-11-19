@@ -284,6 +284,18 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   Le istruzioni del pacchetto usano `scp -O` e `/var/tmp` (SFTP spento, `/tmp` di 32 MB).
 
 ### Corretto
+- **Il setpoint sul pannello LVGL come sul web** (piano `docs/plans/2026-11-19-setpoint-lvgl-come-il-web.md`, ramo
+  `fix/setpoint-lvgl`, visto dal maintainer sul TY570 il 19-11-2026). Il **tastierino** era un figlio della pagina
+  creato nascosto: gli oggetti disegnati dopo gli stavano sopra e prendevano i tocchi (mezza tastiera coperta). Ora è
+  una scheda al centro dello schermo sul layer superiore, come quella del web (`numeric_keypad.rs`), con etichetta, unità,
+  «min · max» ed errore; si chiude cambiando pagina. Il suo ✓ scrive in un passo (prima: bozza nel campo e ✓ accanto),
+  **passando dalla conferma** (`require_confirm`, `critical`: prima su LVGL si scriveva senza chiedere) e **rifiutando un
+  valore fuori da min/max**. La **riga** ha le misure del web: il campo riempie la larghezza, ✓ e ⌨ larghi quanto il
+  glifo, senza il blu, l'ombra e gli angoli a pillola del tema LVGL; il campo mostra il numero nudo e «Attuale:» dice «—»
+  senza valore. La logica dei tasti è una per due motori (`numericKeypadLogic.ts` / `numeric_keypad.rs`, fixture
+  `tests/fixtures/tastierino-numerico.json`); i messaggi del tastierino sono testi di sistema (`keypad_*`, cinque lingue,
+  lingua dei contenuti) anche sul web. Campo nuovo **`confirm_fill`**, il colore del ✓, predefinito `#DD5D21` sui due
+  motori (prima sul web era il colore del marchio).
 - **`scripts/manuale/pubblica.sh` lasciava il manuale pubblico a 403.** Lo scambio della cartella `sito` (e il `mv` di
   `nginx.conf` e `robots.txt`) non arrivava a `sws-manuale`: i bind mount tengono la cartella e i file trovati
   all'avvio, e nginx serviva la cartella vecchia, già cancellata. Visto al rilascio della rc.21: lo script diceva

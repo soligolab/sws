@@ -5449,7 +5449,7 @@ function SvgObjectCorpo(p: ObjProps) {
                 onClick={(e) => { e.stopPropagation(); commit(); }}
                 title={t("canvas.setpointWrite")}
                 style={{
-                  background: "var(--brand-primary, #3b82f6)", border: "none", borderRadius: 4,
+                  background: obj.confirm_fill ?? predefinito("setpoint", "confirm_fill"), border: "none", borderRadius: 4,
                   color: "#fff", cursor: readOnly ? "default" : "pointer", padding: "0 10px", fontSize: corpoPulsanti,
                   opacity: (readOnly || setpointDraft === null) ? 0.5 : 1, flexShrink: 0,
                 }}
@@ -5482,6 +5482,7 @@ function SvgObjectCorpo(p: ObjProps) {
             initial={currentVal !== undefined && Number.isFinite(currentVal) ? currentVal : undefined}
             min={obj.min}
             max={obj.max}
+            confirmFill={obj.confirm_fill ?? predefinito("setpoint", "confirm_fill")}
             onConfirm={(n) => { setKeypadOpen(false); guardedWrite(obj.tag, n); }}
             onCancel={() => setKeypadOpen(false)}
           />

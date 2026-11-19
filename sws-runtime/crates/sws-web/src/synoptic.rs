@@ -558,6 +558,10 @@ pub struct SynopticObject {
     /// senza, la GET di un sinottico lo lascia per strada.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub button_font_size: Option<f64>,
+    /// Background of the ✓ of a `setpoint`, in the row and in the keypad
+    /// (19-11-2026). Default `#DD5D21` on both engines (`colori-predefiniti.json`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub confirm_fill: Option<String>,
     /// Corpo dell'unità di misura (25-10-2026): `gauge` e `kpi_tile`, dove
     /// valore e unità hanno corpi diversi. Stesso motivo di `label_font_size`.
     #[serde(skip_serializing_if = "Option::is_none")]

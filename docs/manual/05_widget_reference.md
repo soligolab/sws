@@ -318,8 +318,14 @@ Campo numerico con incremento e decremento: l'operatore **imposta** un valore in
 |-----------|-------------|
 | `tag` | Tag scritto (e riletto, per mostrare il valore corrente) |
 | `label` | Etichetta sopra il campo |
-| `min` / `max` | Estremi ammessi |
+| `min` / `max` | Estremi ammessi: il tastierino rifiuta un valore fuori, e lo dice |
 | `step` | Passo dei pulsanti + e − |
+| `confirm_fill` | Colore del ✓, nella riga e nel tastierino (predefinito `#DD5D21`) |
+
+Si scrive col **tastierino**: lo apre il tocco sul campo o sul ⌨, ed è una scheda al centro dello schermo con l'etichetta, il
+numero con l'unità, «min · max» e i tasti; il suo ✓ scrive subito. Sul web il campo si può anche digitare, e allora il ✓
+accanto scrive quello che c'è nel campo. Se il setpoint chiede conferma (`require_confirm`) o è un comando critico
+(`critical`), la scrittura passa da lì, sul web e sul pannello.
 
 ```yaml
 id: o_setpoint
