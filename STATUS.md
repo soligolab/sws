@@ -12,22 +12,25 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — due correzioni LVGL sui rami (grigio sui simboli, tastiera a 5 righe); poi le animazioni (2026-11-19 sera, theobroma)
+## ▶ Riprendere da qui — animazioni dei simboli 2a e 2b fatte; la tastiera sul TY570 da provare (2026-11-19 notte, theobroma)
 
-- **Rami aperti, annidati, nel worktree `/home/ut1/sws-nav-links`**:
-  - `fix/lvgl-stale-lib-layers` (`a73c76257`): sul pannello LVGL il grigio dei dati vecchi e il lampeggio sfumato non
-    arrivavano agli strati dei simboli `lib:`/`prj:` (il recolor in LVGL 8.3 non si eredita). Trovato col piano delle
-    animazioni, verificato con una fotografia del viewer (escursione 0 prima, 66 dopo); `check_fade_raster.sh` ha il
-    caso nuovo;
-  - `fix/lvgl-keyboard-5-rows` (`83f5c0c8b`), figlio del primo: la segnalazione del maintainer sul TY570 in verticale
-    («tasti alti e strettissimi»). «A-Z» passa a una tastiera alfabetica da 7 tasti per riga, «QWE» torna indietro, la
-    scelta resta (`lvgl_keyboard` nella cartella di stato). Provato con le istantanee del viewer, **manca il TY570**.
-  - Collaudo: sezione «La tastiera a 5 righe e il grigio sui simboli» in `docs/COLLAUDI_IN_SOSPESO.md`.
-- **Da vedere un'altra volta** (il maintainer: «alla fine funziona bene, forse era solo un ritardo di avvio»): sul TY570
-  in verticale il viewer ha mostrato la pagina molto in ritardo. La copia ruotata in `drm_display.rs` va pixel per
-  pixel; i log del viewer non li ho letti (SSH non chiesto).
-- **Prossimo**: il piano delle animazioni `docs/plans/2026-11-19-animazioni-dei-simboli.md` (approvato), sessione 2a
-  sul ramo `feat/symbol-anim`, annidato sulle correzioni se non sono ancora chiuse.
+- **Tre rami annidati nel worktree `/home/ut1/sws-nav-links`** (uno dentro l'altro, in quest'ordine):
+  - `fix/lvgl-stale-lib-layers` (`a73c76257`): il grigio dei dati vecchi e il lampeggio sfumato arrivano sugli strati
+    dei simboli `lib:`/`prj:` del pannello (verificato con le fotografie del viewer);
+  - `fix/lvgl-keyboard-5-rows` (`83f5c0c8b`): «A-Z» → tastiera alfabetica da 7 tasti per riga, «QWE» indietro, la scelta
+    ricordata. **Installata sul TY570** (`ty570-1ad-p1-06e990.local`, pacchetto di prova
+    `tmp/wt-ty/dist/sws-2.26.0-rc.21-prova-tastiera-tiny-ty-armv7.tar.gz`, il pannello dice `2.26.0-rc.21 (83f5c0c8b)`):
+    il maintainer non l'ha ancora provata;
+  - `feat/symbol-anim`: le animazioni dei simboli, piano `docs/plans/2026-11-19-animazioni-dei-simboli.md`.
+    **2a** (`2ae3c17fa`): i tipi nuovi (`slide`, `vibrate`, `pulse`, `signal`, `dir`, `ccw`), `Unknown`, il legame con
+    valore fisso, il valutatore condiviso in `sws-core/src/symbol_behaviour.rs` + `symbols/lib/behaviour.ts` con la
+    fixture `tests/fixtures/symbol-pieces.json`, il compilatore, l'assistente. **2b** (`1818a63ec`): il web disegna ogni
+    pezzo, «Collegamenti» con Tag | Valore fisso, il validatore controlla i legami delle parti.
+- **Prossimo**: la **2c** (il pannello LVGL: pezzi nuovi, opacità composta, budget per pagina, giranti veloci; poi le
+  misure sul TY570 col maintainer, SSH da chiedere), poi la **2d** (l'editor: «Anima…», parametri, maniglie, «Prova» con
+  «Anima»). Le voci di collaudo delle animazioni si scrivono alla 2d.
+- **Da vedere un'altra volta**: sul TY570 in verticale il viewer ha mostrato la pagina molto in ritardo (il maintainer:
+  «forse era solo un ritardo di avvio»). La copia ruotata in `drm_display.rs` va pixel per pixel.
 
 ## Su `main` anche la sessione 1 della fase 2 dell'editor e il QR d'abbinamento; ora il plan della sessione 2 (2026-11-19, theobroma)
 
