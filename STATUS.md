@@ -12,6 +12,36 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — il collaudo da zero sul WP630, con l'editor dei simboli dentro (2026-11-19, ufficio → lavoro)
+
+**Il prossimo passo è il piano [collaudo da zero sul WP630](docs/plans/2026-11-19-collaudo-da-zero-wp630.md)**, al
+lavoro su `theobroma`: l'editor dei simboli dal ramo, poi squash e rc.21, factory reset del WP630, installazione,
+abbinamento, deploy, IA nel cloud, il pannello come dispositivo. Il maintainer ha scelto il perimetro «tutto il
+sospeso»; l'ordine e le esclusioni (il TC620, «Aggiorna ora», l'hardware che manca) sono nel piano.
+
+**L'editor dei simboli, fase 1, è sul ramo `feat/symbol-def`** (pushato il 19-11 apposta per arrivare su `theobroma`,
+non mergiato). Piano [l'editor dei simboli](docs/plans/2026-11-18-editor-dei-simboli.md), sessione di plan col
+maintainer il 18-11 (decisioni 1-12: comportamento nel simbolo, varianti della libreria che la sostituiscono, «Salva
+come…», foto ed SVG nelle fasi dopo). Definition of done verde tranne la conferma del maintainer: `cargo test`,
+`pnpm build`, vitest, `check_static.sh` 57/57. Dettaglio nel CHANGELOG del ramo.
+
+**Scelta di realizzazione da sapere**: invece del formato nuovo `sym:` del piano, la fase 1 **estende la descrizione dei
+`prj:`** (campo `overrides`, colori `#rrggbb`): così web e LVGL disegnano subito le varianti con il codice che hanno,
+parità compresa. Il formato `sym:` resta l'idea per foto e SVG importati (fasi 2-3) — da rivedere all'inizio della fase 2.
+
+**Il collaudo dell'editor, cosa guardare** (IDE 8460 dal ramo, progetto di prova; il login lo fa il maintainer — la
+notte del 19-11 la prova dal browser si è fermata lì):
+- una pompa in pagina → «Modifica simbolo» → l'editor apre la variante; spostare/ridimensionare forme, cambiare colore,
+  salvare: **tutte** le pompe del progetto cambiano, i tag collegati funzionano ancora; «Torna all'originale»;
+- «Salva come…» da un oggetto: diventa il simbolo nuovo, le altre pompe restano;
+- «+ Nuovo simbolo» in Strumenti ▸ Simboli ▸ progetto; Struttura → aggiungi ingresso «Rotazione», trascina il perno;
+- dopo la rc.21, la stessa pagina sul WP630, web e LVGL: la variante si vede uguale.
+
+**Non fatto in fase 1, da sapere**: nessuna anteprima con valori simulati nell'editor (fase 4); un pannello con runtime
+più vecchio ignora `overrides` e mostra il disegno originale (nessun avviso al deploy ancora); `NOVITA.yaml` senza voce
+— il blocco 2.26.0 è pieno a 15, da decidere al merge quali due voci fondere. Il tracciato si sposta e si scala ma non
+se ne modificano i nodi (fase 2).
+
 ## ▶ Gli appunti della riunione del 18-11-2026 (ufficio)
 
 Quindici appunti del maintainer. **Sei sono finiti dentro semi che già c'erano** («non servono semi separati se esiste già
