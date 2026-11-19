@@ -154,6 +154,11 @@ locale**. Si apre da Strumenti ▸ Simboli (`LeftPanel.tsx`, `RamoSimboli`: «+ 
 Ogni fase mette un esempio in CasaDomotica (regola di `CLAUDE.md`). La fase 1 è quella da cui si parte; le altre si
 riverificano col maintainer prima di aprirle.
 
+**Riverifica del 19-11-2026** (piano [fase 2](2026-11-19-editor-dei-simboli-fase-2.md)): la fase 1 è su `main`
+(`8b7bb6a30`) ma sulle descrizioni `prj:`, non sul formato `sym:`, e così si continua finché non servono le foto. La
+fase 2 diventa tre sessioni: bocche dei tubi e strumenti (con la vista esplosa e l'anteprima degli ingressi), poi le
+animazioni agganciate ai tag (che anticipano le fasi 4 e 5), poi l'import SVG e il file del simbolo.
+
 ## Verifica (ogni fase)
 - `cargo check`, `cargo test` (compilatore `symbol_def`, sicurezza dell'import, fixture `symbol-pieces.json`,
   `compila_come_genera_py` invariato), `pnpm build`, `pnpm exec vitest run` (riduttore dell'editor, valutatore, import
