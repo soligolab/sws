@@ -301,6 +301,21 @@ export function varianteDi(libId: string): SimboloLib | undefined {
   return progetto.symbols.find((s) => s.overrides === libId);
 }
 
+/** The kind (`pumps`, `valves`…, the manifest's sub-group) a symbol id belongs to, for the gallery of the
+ *  properties panel (plan 2026-11-19-galleria-simboli-stesso-tipo): a library id or an old alias its
+ *  symbol's; a project variant its library symbol's; a copy («Salva come…») or a new project symbol its
+ *  own `kind`; an imported SVG `"custom"`. `null` when it is not known. */
+export function symbolKind(m: ManifestLib, id: string, prj: readonly SimboloLib[] = progetto.symbols): string | null {
+  if (id.startsWith("custom:")) return "custom";
+  if (id.startsWith("prj:")) {
+    const s = sovrapposti.get(id)?.voce ?? prj.find((x) => x.id === id);
+    if (!s) return null;
+    if (s.overrides) return simboloOriginale(m, s.overrides)?.kind ?? (s.kind || null);
+    return s.kind || null;
+  }
+  return simboloOriginale(m, id)?.kind ?? null;
+}
+
 /** Il simbolo dal manifesto già caricato, fuori da React (creazione di un oggetto). */
 export function trovaSimboloLib(id: string): SimboloLib | undefined {
   return manifesto ? cercaSimbolo(manifesto, id) : undefined;

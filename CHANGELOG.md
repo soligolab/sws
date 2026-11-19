@@ -12,6 +12,14 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Aggiunto
+- **La galleria dei simboli offre solo lo stesso tipo** (piano `docs/plans/2026-11-19-galleria-simboli-stesso-tipo.md`,
+  ramo `feat/symbol-gallery-kind`, richiesta del maintainer del 19-11-2026). Nel pannello proprietà di un simbolo il
+  cambio mostra solo i simboli della stessa tipologia (`kind` del manifest: pompe, valvole, serbatoi…): prima i simboli
+  del progetto di quella tipologia, poi quelli della libreria; una pompa di libreria con una variante nel progetto si
+  vede col disegno della variante, segnata ✎. `symbolKind` in `libreria.ts`: la variante prende la tipologia
+  dell'originale, una copia «Salva come…» o un simbolo nuovo la sua, gli SVG importati stanno fra loro. Il selettore
+  all'inserimento resta completo. Nell'editor dei simboli la «Categoria» è un elenco delle tipologie della libreria per
+  famiglia, più «Del progetto» e «Altro…» col testo libero di prima.
 - **Il navigatore di pagine ha i «Pulsanti in più»** (piano `docs/plans/2026-11-19-navigatore-pulsanti-in-piu.md`, ramo
   `feat/nav-links`): un elenco di pulsanti che non vengono dall'albero delle pagine e aprono la pagina scelta, per
   **entrare in un sotto-menù** (si sceglie da quale pagina si parte e il nome del pulsante) o per **uscirne**. Campo

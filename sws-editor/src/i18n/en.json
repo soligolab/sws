@@ -1520,7 +1520,8 @@
     "cerca": "Search a symbol…",
     "gruppoClassici": "Classic symbols",
     "gruppoProgetto": "Project symbols",
-    "nessuno": "No symbol matches «{{q}}»"
+    "nessuno": "No symbol matches «{{q}}»",
+    "modifiedInProject": "changed in the project"
   },
   "characterPicker": {
     "open": "Insert a special character",
@@ -4105,6 +4106,7 @@
         "building": "Building and HVAC"
       },
       "tipo": {
+        "project": "Project",
         "pulsanti": "Pushbuttons",
         "interruttori": "Switches",
         "manopole": "Knobs and joysticks",
@@ -5438,6 +5440,7 @@
     "nameIt": "Name (it)",
     "nameEn": "Name (en)",
     "category": "Category",
+    "categoryOther": "Other…",
     "size": "Size",
     "bodyMaterial": "Body material",
     "inputs": "Inputs",

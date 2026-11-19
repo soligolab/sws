@@ -778,6 +778,12 @@ quattro famiglie (`process` 68, `machines` 34, `electrical` 26, `building` 10), 
 (`sws-core/src/simboli_lib.rs`). Gli id hanno la forma `lib:<famiglia>/<nome>`, per esempio
 `lib:process/ball-valve`.
 
+Selezionato un simbolo, il pannello proprietà («Parametri → Simbolo») offre per il cambio **solo i simboli della stessa
+tipologia**: una pompa mostra le pompe, una valvola le valvole. In testa quelli del progetto di quella tipologia; una pompa
+della libreria modificata nel progetto si vede col disegno modificato (✎). La tipologia di un simbolo del progetto è la
+sua «Categoria» nell'editor dei simboli, da un elenco delle tipologie della libreria. Per mettere un simbolo di un altro
+tipo si aggiunge un oggetto nuovo.
+
 | Proprietà | Descrizione |
 |-----------|-------------|
 | `symbol_id` | Il simbolo |

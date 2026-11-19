@@ -602,6 +602,45 @@ function PieceProps({ d, sel, one, layer, catalog, commit, onDup, onDel, onReord
   );
 }
 
+/** The category (`tipo`) of a project symbol: the library's kinds by family, «Project», or «Other…» with
+ *  the free text of before (19-11-2026). The gallery of the properties panel offers the symbols of the
+ *  same kind, so a new symbol put in «Pumps» is offered with the pumps. */
+export function CategorySelect({ value, onChange }: { value: string; onChange: (tipo: string) => void }) {
+  const { t } = useTranslation();
+  const manifesto = useManifestoLib();
+  const families: { family: string; kinds: string[] }[] = [];
+  for (const s of manifesto?.symbols ?? []) {
+    let f = families.find((x) => x.family === s.family);
+    if (!f) { f = { family: s.family, kinds: [] }; families.push(f); }
+    if (!f.kinds.includes(s.kind)) f.kinds.push(s.kind);
+  }
+  const known = value === "project" || families.some((f) => f.kinds.includes(value));
+  const [other, setOther] = useState(!known);
+  const showText = other || !known;
+  return (
+    <>
+      <select style={input} aria-label={t("symbolEditor.category")} value={showText ? "__other" : value}
+        onChange={(e) => {
+          if (e.target.value === "__other") { setOther(true); return; }
+          setOther(false);
+          onChange(e.target.value);
+        }}>
+        <option value="project">{t("symbols.lib.tipo.project")}</option>
+        {families.map((f) => (
+          <optgroup key={f.family} label={t(`symbols.lib.famiglia.${f.family}`)}>
+            {f.kinds.map((k) => <option key={k} value={k}>{t(`symbols.lib.tipo.${k}`, { defaultValue: k })}</option>)}
+          </optgroup>
+        ))}
+        <option value="__other">{t("symbolEditor.categoryOther")}</option>
+      </select>
+      {showText && (
+        <input style={input} value={value} maxLength={30} aria-label={t("symbolEditor.categoryOther")}
+          onChange={(e) => onChange(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-"))} />
+      )}
+    </>
+  );
+}
+
 function StructureProps({ d, catalog, commit, isVariant }: {
   d: DescrizioneSimbolo; catalog: Catalog | null; commit: (d: DescrizioneSimbolo) => void; isVariant: boolean;
 }) {
@@ -613,8 +652,9 @@ function StructureProps({ d, catalog, commit, isVariant }: {
       {isVariant && <p style={{ margin: 0, color: C.muted }}>{t("symbolEditor.variantNote")}</p>}
       <Field label={t("symbolEditor.nameIt")}><input style={input} value={d.it} maxLength={60} onChange={(e) => commit({ ...d, it: e.target.value })} /></Field>
       <Field label={t("symbolEditor.nameEn")}><input style={input} value={d.en} maxLength={60} onChange={(e) => commit({ ...d, en: e.target.value })} /></Field>
-      <Field label={t("symbolEditor.category")}><input style={input} value={d.tipo ?? "project"} maxLength={30}
-        onChange={(e) => commit({ ...d, tipo: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-") })} /></Field>
+      <Field label={t("symbolEditor.category")}>
+        <CategorySelect value={d.tipo ?? "project"} onChange={(tipo) => commit({ ...d, tipo })} />
+      </Field>
       <Field label={t("symbolEditor.size")}>
         <Num value={d.w} step={10} onChange={(n) => commit({ ...d, w: validSize(n) })} />
         <Num value={d.h} step={10} onChange={(n) => commit({ ...d, h: validSize(n) })} />

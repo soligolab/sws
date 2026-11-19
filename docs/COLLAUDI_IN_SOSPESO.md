@@ -27,6 +27,18 @@
 
 ---
 
+## La galleria dei simboli solo dello stesso tipo (19-11-2026)
+
+Dal piano [galleria dei simboli](plans/2026-11-19-galleria-simboli-stesso-tipo.md), ramo `feat/symbol-gallery-kind`.
+
+1. [ ] Selezionata una pompa, «Parametri → Simbolo» mostra solo le pompe; un serbatoio solo i serbatoi; un pulsante solo i
+       pulsanti.
+2. [ ] «Modifica simbolo» su una pompa e salvataggio: la tessera di quella pompa mostra il disegno modificato col ✎.
+3. [ ] «Salva come…» da una pompa: la copia compare in testa fra le pompe.
+4. [ ] «+ Nuovo simbolo» con Categoria «Pompe» (dall'elenco): il simbolo nuovo compare fra le pompe; «Altro…» lascia
+       scrivere una categoria propria.
+5. [ ] Inserendo un simbolo nuovo dalla barra, il selettore mostra ancora tutta la libreria.
+
 ## Il setpoint sul pannello LVGL come sul web (19-11-2026)
 
 Dal piano [setpoint LVGL come il web](plans/2026-11-19-setpoint-lvgl-come-il-web.md), ramo `fix/setpoint-lvgl`. Sul TY570,

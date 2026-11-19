@@ -52,7 +52,7 @@ import { faceplateDallaSelezione } from "@/editor/faceplateDaSelezione";
 import { eFaceplateDef, faceplateAPagina, anteprimaParametri } from "@/faceplate/modello";
 import { ProprietaFaceplate } from "@/faceplate/ProprietaFaceplate";
 import type { SimboloLib } from "@/symbols/lib/manifest";
-import { trovaSimboloLib, useManifestoLib, useSimboloLib } from "@/symbols/lib/libreria";
+import { etichettaSimbolo, symbolKind, trovaSimboloLib, useManifestoLib, useSimboliProgetto, useSimboloLib } from "@/symbols/lib/libreria";
 import { AnteprimaLib } from "@/symbols/lib/AnteprimaLib";
 import { CONTORNO_DISEGNO, useStileProgetto } from "@/symbols/stileProgetto";
 import { NOMI_ICONE_SLIDER } from "@/canvas/slider/icone";
@@ -249,12 +249,19 @@ function EditSymbolButton({ symbolId, objectId }: { symbolId: string; objectId: 
 
 type GalleryTile =
   | { kind: "custom"; id: string; label: string; url: string }
-  | { kind: "lib"; id: string; label: string; sim: SimboloLib };
+  /** `sim` is what the tile draws: the project variant of a library symbol, when there is one
+   *  (`modified`); `replaces` is the old alias of the library symbol, for the selection. */
+  | { kind: "lib"; id: string; label: string; sim: SimboloLib; replaces?: string; modified?: boolean };
 
-function SymbolGallery({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const { t } = useTranslation();
+/** The symbols the gallery offers. Without `onlyKindOf` (the picker at insertion) the whole library;
+ *  with it (the properties panel, 19-11-2026) only the symbols of the same kind as that id: a pump
+ *  offers pumps — first the project's own of that kind, then the library's, a library symbol with a
+ *  project variant drawn as the variant, which is what the project draws anyway. */
+export function SymbolGallery({ value, onChange, onlyKindOf }: { value: string; onChange: (v: string) => void; onlyKindOf?: string }) {
+  const { t, i18n: lingua } = useTranslation();
   const customSymbols = useAppStore((s) => s.customSymbols);
   const manifestoLib = useManifestoLib();
+  const prj = useSimboliProgetto();
   const [cerca, setCerca] = useState("");
 
   // Fase 3 del piano dei simboli di libreria: la libreria per famiglia e
@@ -263,7 +270,29 @@ function SymbolGallery({ value, onChange }: { value: string; onChange: (v: strin
   const q = cerca.trim().toLowerCase();
   const passa = (...testi: string[]) => !q || testi.some((x) => x.toLowerCase().includes(q));
   const gruppi: { chiave: string; titolo: string; sotto?: string; tiles: GalleryTile[] }[] = [];
-  for (const sim of manifestoLib?.symbols ?? []) {
+  const kind = onlyKindOf !== undefined && manifestoLib ? symbolKind(manifestoLib, onlyKindOf, prj) : null;
+  if (kind === "custom") {
+    const tiles = customSymbols.filter((s) => passa(s.label, s.id))
+      .map((s) => ({ kind: "custom" as const, id: `custom:${s.id}`, label: s.label, url: s.url }));
+    if (tiles.length) gruppi.push({ chiave: "custom", titolo: t("symbol.gruppoProgetto"), tiles });
+  } else if (kind) {
+    const titolo = t(`symbols.lib.tipo.${kind}`, { defaultValue: kind });
+    const tiles: GalleryTile[] = [];
+    for (const s of prj) {
+      if (s.overrides || s.kind !== kind) continue;
+      const label = etichettaSimbolo(s, t, lingua.language);
+      if (passa(label, s.id)) tiles.push({ kind: "lib", id: s.id, label, sim: s });
+    }
+    for (const sim of manifestoLib?.symbols ?? []) {
+      if (sim.kind !== kind) continue;
+      const label = t(sim.label);
+      if (!passa(label, sim.id)) continue;
+      const variant = prj.find((s) => s.overrides === sim.id);
+      tiles.push({ kind: "lib", id: sim.id, label, sim: variant ?? sim, replaces: sim.replaces, modified: !!variant });
+    }
+    if (tiles.length) gruppi.push({ chiave: kind, titolo, tiles });
+  }
+  for (const sim of kind ? [] : manifestoLib?.symbols ?? []) {
     const famiglia = t(`symbols.lib.famiglia.${sim.family}`);
     const tipo = t(`symbols.lib.tipo.${sim.kind}`);
     const label = t(sim.label);
@@ -271,9 +300,9 @@ function SymbolGallery({ value, onChange }: { value: string; onChange: (v: strin
     const chiave = `${sim.family}/${sim.kind}`;
     let g = gruppi.find((x) => x.chiave === chiave);
     if (!g) { g = { chiave, titolo: famiglia, sotto: tipo, tiles: [] }; gruppi.push(g); }
-    g.tiles.push({ kind: "lib", id: sim.id, label, sim });
+    g.tiles.push({ kind: "lib", id: sim.id, label, sim, replaces: sim.replaces });
   }
-  const progetto = customSymbols.filter((s) => passa(s.label, s.id))
+  const progetto = kind ? [] : customSymbols.filter((s) => passa(s.label, s.id))
     .map((s) => ({ kind: "custom" as const, id: `custom:${s.id}`, label: s.label, url: s.url }));
   if (progetto.length) gruppi.push({ chiave: "custom", titolo: t("symbol.gruppoProgetto"), tiles: progetto });
 
@@ -295,7 +324,7 @@ function SymbolGallery({ value, onChange }: { value: string; onChange: (v: strin
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 4 }}>
               {g.tiles.map((tile) => (
                 <TesseraSimbolo key={tile.id} tile={tile} onChange={onChange}
-                  sel={value === tile.id || (tile.kind === "lib" && tile.sim.replaces === value)} />
+                  sel={value === tile.id || (tile.kind === "lib" && (tile.replaces === value || tile.sim.id === value))} />
               ))}
             </div>
           </div>
@@ -306,11 +335,15 @@ function SymbolGallery({ value, onChange }: { value: string; onChange: (v: strin
 }
 
 function TesseraSimbolo({ tile, sel, onChange }: { tile: GalleryTile; sel: boolean; onChange: (v: string) => void }) {
+  const { t } = useTranslation();
+  const modified = tile.kind === "lib" && tile.modified;
   return (
     <button
-      title={tile.label}
+      title={modified ? `${tile.label} — ${t("symbol.modifiedInProject")}` : tile.label}
+      data-testid={`symbol-tile-${tile.id}`}
       onClick={() => onChange(tile.id)}
       style={{
+        position: "relative",
         background: sel ? "var(--sws-select-bg, #1e3a5f)" : "var(--brand-bg, #0f172a)",
         border: `2px solid ${sel ? "var(--brand-warning-soft, #facc15)" : "var(--brand-surface-2, #334155)"}`,
         borderRadius: 4,
@@ -324,6 +357,10 @@ function TesseraSimbolo({ tile, sel, onChange }: { tile: GalleryTile; sel: boole
         minWidth: 0,
       }}
     >
+      {modified && (
+        <span aria-label={t("symbol.modifiedInProject")} style={{ position: "absolute", top: 1, right: 3, fontSize: 9,
+          color: "var(--brand-warning-soft, #facc15)" }}>✎</span>
+      )}
       <div style={{ width: 44, height: 38, display: "flex", alignItems: "center", justifyContent: "center" }}>
         {tile.kind === "lib" ? (
           <AnteprimaLib sim={tile.sim} />
@@ -5719,7 +5756,8 @@ export function ObjectProps({
     if (obj.type === "symbol") {
       metti("parametri", <>
         {field(t("props.symbol"),
-          <SymbolGallery value={obj.symbol_id ?? "lib:process/centrifugal-pump"} onChange={(v) => onChange({ symbol_id: v as any })} />
+          <SymbolGallery value={obj.symbol_id ?? "lib:process/centrifugal-pump"} onlyKindOf={obj.symbol_id ?? "lib:process/centrifugal-pump"}
+            onChange={(v) => onChange({ symbol_id: v as any })} />
         )}
         <EditSymbolButton symbolId={obj.symbol_id ?? "lib:process/centrifugal-pump"} objectId={obj.id} />
         {/* Le parti vive (lancette, leve, spie) stanno in «Collegamenti» dal

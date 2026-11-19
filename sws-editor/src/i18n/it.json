@@ -1520,7 +1520,8 @@
     "cerca": "Cerca un simbolo…",
     "gruppoClassici": "Simboli classici",
     "gruppoProgetto": "Del progetto",
-    "nessuno": "Nessun simbolo per «{{q}}»"
+    "nessuno": "Nessun simbolo per «{{q}}»",
+    "modifiedInProject": "modificato nel progetto"
   },
   "characterPicker": {
     "open": "Inserisci un carattere speciale",
@@ -4105,6 +4106,7 @@
         "building": "Edificio e HVAC"
       },
       "tipo": {
+        "project": "Del progetto",
         "pulsanti": "Pulsanti",
         "interruttori": "Interruttori",
         "manopole": "Manopole e manipolatori",
@@ -5438,6 +5440,7 @@
     "nameIt": "Nome (it)",
     "nameEn": "Nome (en)",
     "category": "Categoria",
+    "categoryOther": "Altro…",
     "size": "Misura",
     "bodyMaterial": "Materiale del corpo",
     "inputs": "Ingressi",
