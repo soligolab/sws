@@ -41,6 +41,17 @@ notte del 19-11 la prova dal browser si è fermata lì):
 - «+ Nuovo simbolo» in Strumenti ▸ Simboli ▸ progetto; Struttura → aggiungi ingresso «Rotazione», trascina il perno;
 - dopo la rc.21, la stessa pagina sul WP630, web e LVGL: la variante si vede uguale.
 
+**Primo giro del maintainer, 19-11 mattina su `ufficio`** (IDE 8460 dal ramo, progetto `~/sws_projects/test_20261119`):
+- **passata**: la variante modificata e salvata aggiorna tutte e 3 le istanze in pagina;
+- dal progetto risultano usati anche «Salva come…» (`centrifugal-pump-red`, `-green`) e «+ Nuovo simbolo» con un
+  rotore (`new-symbol`): esiti non ancora detti dal maintainer, da chiedere;
+- **anomalia, da correggere sul ramo**: «+ Nuovo simbolo» non si trova — sta in Strumenti ▸ Simboli ▸ «Del progetto»,
+  ultima famiglia, chiusa di default. Proposto un pulsante più in vista (in testa al ramo Simboli o nella galleria del
+  pannello proprietà, accanto a «Modifica simbolo»): da decidere col maintainer;
+- **non un difetto dell'editor, ma da annotare**: «Anteprima effetti» non faceva girare `new-symbol` perché la rotazione
+  è «da tag» su `rotazione`, tag senza sorgente (lo slider in modifica non scrive). Da riprovare con rotazione
+  «Sempre». L'anteprima non dice perché un effetto non parte: possibile seme.
+
 **Non fatto in fase 1, da sapere**: nessuna anteprima con valori simulati nell'editor (fase 4); un pannello con runtime
 più vecchio ignora `overrides` e mostra il disegno originale (nessun avviso al deploy ancora); `NOVITA.yaml` senza voce
 — il blocco 2.26.0 è pieno a 15, da decidere al merge quali due voci fondere. Il tracciato si sposta e si scala ma non
