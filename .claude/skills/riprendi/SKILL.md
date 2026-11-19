@@ -1,6 +1,6 @@
 ---
 name: riprendi
-description: Ciclo di ripresa lavoro sul repo sws — rilevazione rami locali potenzialmente obsoleti (solo proposta), scelta del piano da cui ripartire (da docs/plans/ o da una Open Question), riverifica delle specifiche col maintainer, implementazione, test secondo la definition of done, commit/push su richiesta esplicita, e archiviazione del piano concluso. Usalo a inizio sessione o a inizio di ogni nuovo step di lavoro.
+description: Ciclo di ripresa lavoro sul repo sws — pulizia del disco (cache di cargo, poi worktree e target vecchi su proposta), rilevazione rami locali potenzialmente obsoleti (solo proposta), scelta del piano da cui ripartire (da docs/plans/ o da una Open Question), riverifica delle specifiche col maintainer, implementazione, test secondo la definition of done, commit/push su richiesta esplicita, e archiviazione del piano concluso. Usalo a inizio sessione o a inizio di ogni nuovo step di lavoro.
 ---
 
 # Riprendi — ciclo di ripresa lavoro
@@ -8,7 +8,81 @@ description: Ciclo di ripresa lavoro sul repo sws — rilevazione rami locali po
 Segui questi passi in ordine. Fermati a chiedere conferma dove indicato: questa skill
 **propone**, non decide al posto del maintainer — coerente con le regole di `CLAUDE.md`.
 
-**Primo passo, sempre: lancia tu `./scripts/session_start.sh`**, anche se in questa sessione
+## Prima di tutto: la pulizia del disco
+
+Richiesta del maintainer del 19-11-2026, dopo una giornata finita col disco pieno: 1,4 TB usati su
+1,5, la cartella temporanea di Claude Code a 0 MB, i comandi che non restituivano più niente. Il
+grosso era cargo: `sws-runtime/target` 144 GB (98 di `deps/`, 38 di `incremental/`), i target dei
+container 28 GB, un worktree dimenticato in `/tmp` 30 GB. Parole sue: «modifica la skill riprendi per
+fare un po' di pulizia prima di scaricare le modifiche dal server».
+
+**a. Automatico, senza chiedere** (è solo cache: costa al più una ricompilazione):
+```bash
+df -h / | tail -1
+for w in $(git worktree list --porcelain | awk '/^worktree /{print $2}'); do
+  SWS_POTA_RADICE="$w" ./scripts/pota_incremental.sh --esegui
+done
+# deps/: di ogni crate resta la versione più recente; si tolgono le versioni superate più
+# vecchie di 3 giorni. Non i file con più collegamenti (i binari in uso), non i target con
+# una compilazione in corso. Così le dipendenze non si ricompilano da capo.
+python3 - --esegui $(git worktree list --porcelain | awk '/^worktree /{print $2"/sws-runtime/target"}') <<'PY'
+import fcntl, os, re, sys, time
+from collections import defaultdict
+esegui = sys.argv[1] == "--esegui"
+pat = re.compile(r"^(.*)-[0-9a-f]{16}(\..+)?$")
+old = time.time() - 3 * 86400
+tot = n = 0
+for root in sys.argv[2:]:
+    for prof in ("debug", "release"):
+        deps = os.path.join(root, prof, "deps")
+        if not os.path.isdir(deps):
+            continue
+        lock = os.path.join(root, prof, ".cargo-lock")
+        if os.path.exists(lock):
+            lk = open(lock)
+            try:
+                fcntl.flock(lk, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except OSError:
+                print(f"  salto {deps}: una compilazione è in corso")
+                continue
+        gruppi = defaultdict(list)
+        for f in os.listdir(deps):
+            m, p = pat.match(f), os.path.join(deps, f)
+            if m and os.path.isfile(p):
+                gruppi[(m.group(1), m.group(2) or "")].append(p)
+        for files in gruppi.values():
+            files.sort(key=os.path.getmtime)
+            for p in files[:-1]:
+                st = os.stat(p)
+                if st.st_mtime < old and st.st_nlink == 1:
+                    n += 1; tot += st.st_size
+                    if esegui:
+                        os.remove(p)
+print(f"deps: {n} file superati da una versione più nuova, {tot / 1e9:.1f} GB liberati.")
+PY
+df -h / | tail -1
+```
+Riporta nelle righe di stato quanto è stato liberato e lo spazio libero dopo.
+
+**b. Su proposta, e solo se il disco è sopra l'85 % o ci sono meno di 50 GB liberi** — una tabella
+**cosa — GB — ipotesi**, e si toglie solo quello che il maintainer conferma, uno per uno:
+- **worktree staccati** (`git worktree list`, quelli con `(detached HEAD)`), soprattutto quelli
+  delle sessioni passate in `/tmp/claude-*`: misura con `du -sh`, guarda `git -C <wt> status --short`
+  (deve essere vuoto: altrimenti dentro c'è lavoro, e non si propone). Si toglie con
+  `git worktree remove --force <wt>` e poi `git worktree prune`. **Mai** un worktree con un ramo
+  (ci sono rami aperti, e magari gli IDE di prova girano da lì), mai `tmp/wt-ty` e
+  `~/sws-build-rc16` senza dire che la prossima build dei pacchetti o delle immagini partirà da zero;
+- **i target dei container nella copia principale** (`sws-runtime/target-container-*`): le build delle
+  immagini si fanno in `~/sws-build-rc16`, che ha i suoi. Solo se nessuna build di container è in
+  corso (`podman ps`), regola di `CLAUDE.md` e della memoria;
+- le **immagini podman vecchie** si tolgono senza chiedere (memoria «Immagini podman vecchie»), mai
+  durante una build; le `builder` si tengono.
+
+**Non si toccano mai**: `~/yocto`, `~/sws_projects`, `.run-editor/`, i progetti di prova in `tmp/`
+(gli IDE 8462/8464 li usano), gli archivi dei clienti in `tmp/`, `target/*/build/` (dentro c'è LVGL
+compilato in C).
+
+**Poi, sempre: lancia tu `./scripts/session_start.sh`**, anche se in questa sessione
 è già stato lanciato — richiesta del maintainer del 29-09-2026 («lancia tu lo script session
 start e mettilo nella skill»). `/riprendi` si usa quando si cambia macchina, cioè proprio quando
 origin può essersi mosso da un'altra parte dopo l'ultimo controllo: una sessione lunga che lo
