@@ -12,25 +12,27 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — animazioni dei simboli 2a e 2b fatte; la tastiera sul TY570 da provare (2026-11-19 notte, theobroma)
+## ▶ Riprendere da qui — le animazioni dei simboli finite sul ramo (2a–2d); da collaudare, e le misure sul TY570 (2026-11-19 notte, theobroma)
 
-- **Tre rami annidati nel worktree `/home/ut1/sws-nav-links`** (uno dentro l'altro, in quest'ordine):
-  - `fix/lvgl-stale-lib-layers` (`a73c76257`): il grigio dei dati vecchi e il lampeggio sfumato arrivano sugli strati
-    dei simboli `lib:`/`prj:` del pannello (verificato con le fotografie del viewer);
-  - `fix/lvgl-keyboard-5-rows` (`83f5c0c8b`): «A-Z» → tastiera alfabetica da 7 tasti per riga, «QWE» indietro, la scelta
-    ricordata. **Installata sul TY570** (`ty570-1ad-p1-06e990.local`, pacchetto di prova
-    `tmp/wt-ty/dist/sws-2.26.0-rc.21-prova-tastiera-tiny-ty-armv7.tar.gz`, il pannello dice `2.26.0-rc.21 (83f5c0c8b)`):
-    il maintainer non l'ha ancora provata;
-  - `feat/symbol-anim`: le animazioni dei simboli, piano `docs/plans/2026-11-19-animazioni-dei-simboli.md`.
-    **2a** (`2ae3c17fa`): i tipi nuovi (`slide`, `vibrate`, `pulse`, `signal`, `dir`, `ccw`), `Unknown`, il legame con
-    valore fisso, il valutatore condiviso in `sws-core/src/symbol_behaviour.rs` + `symbols/lib/behaviour.ts` con la
-    fixture `tests/fixtures/symbol-pieces.json`, il compilatore, l'assistente. **2b** (`1818a63ec`): il web disegna ogni
-    pezzo, «Collegamenti» con Tag | Valore fisso, il validatore controlla i legami delle parti.
-- **Prossimo**: la **2c** (il pannello LVGL: pezzi nuovi, opacità composta, budget per pagina, giranti veloci; poi le
-  misure sul TY570 col maintainer, SSH da chiedere), poi la **2d** (l'editor: «Anima…», parametri, maniglie, «Prova» con
-  «Anima»). Le voci di collaudo delle animazioni si scrivono alla 2d.
-- **Da vedere un'altra volta**: sul TY570 in verticale il viewer ha mostrato la pagina molto in ritardo (il maintainer:
-  «forse era solo un ritardo di avvio»). La copia ruotata in `drm_display.rs` va pixel per pixel.
+- **Tre rami annidati nel worktree `/home/ut1/sws-nav-links`** (uno dentro l'altro):
+  - `fix/lvgl-stale-lib-layers` (`a73c76257`): il grigio dei dati vecchi e il lampeggio sfumato sugli strati dei simboli
+    del pannello;
+  - `fix/lvgl-keyboard-5-rows` (`83f5c0c8b`): la tastiera a 5 righe. **Installata sul TY570**
+    (`ty570-1ad-p1-06e990.local`, pacchetto di prova `tmp/wt-ty/dist/sws-2.26.0-rc.21-prova-tastiera-tiny-ty-armv7.tar.gz`,
+    il pannello dice `2.26.0-rc.21 (83f5c0c8b)`): il maintainer non l'ha ancora provata;
+  - `feat/symbol-anim`: le animazioni dei simboli, piano `docs/plans/2026-11-19-animazioni-dei-simboli.md`, **tutte e
+    quattro le sessioni**: 2a formato e valutatore condiviso (`2ae3c17fa`), 2b web e «Collegamenti» con Tag | Valore
+    fisso (`1818a63ec`), 2c pannello LVGL con l'opacità composta, il budget di pagina e la guardia
+    `check_pezzi_lvgl.sh` (`e817a1eb4`), 2d editor con «Anima…», i parametri, la maniglia del movimento, «Prova» con
+    «Anima» e l'avviso sui pezzi collegati (`e0efb9f4c`).
+- **IDE di prova 8462 (del maintainer) e 8464 riavviati dal ramo** delle animazioni, con il runtime nuovo.
+- **Collaudo**: le sezioni «Le animazioni dei simboli» e «La tastiera a 5 righe e il grigio sui simboli» in
+  `docs/COLLAUDI_IN_SOSPESO.md`. Le **misure sul TY570** (quattro scenari del piano, SSH da chiedere) fissano il
+  budget delle animazioni (ora 6 MB). CasaDomotica col primo pezzo animato al merge, col maintainer.
+- **Dopo il collaudo**: squash dei tre rami su `main` (in ordine), poi la rc.22 per il WP630 e la fiera; poi la
+  sessione 3 della fase 2 (importa SVG, esporta/importa il simbolo).
+- **Da vedere un'altra volta**: sul TY570 in verticale il viewer ha mostrato la pagina molto in ritardo («forse era solo
+  un ritardo di avvio»).
 
 ## Su `main` anche la sessione 1 della fase 2 dell'editor e il QR d'abbinamento; ora il plan della sessione 2 (2026-11-19, theobroma)
 
