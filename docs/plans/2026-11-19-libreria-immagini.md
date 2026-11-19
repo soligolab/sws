@@ -95,6 +95,10 @@ Com'è oggi (esplorazione del codice):
   non hanno le varianti alla misura (resta lì, non si fa qui).
 
 ## Le sessioni
+
+> **Avanzamento**: A e B fatte il 19-11-2026 notte, sul ramo `feat/image-library`. Differenze dal piano: il nome di
+> un'immagine incollata è `pasted-<data-ora>.png` (un nome di file è codice); la gestione sta in una riga sotto la
+> griglia della libreria.
 | | cosa | dove ci si ferma |
 |---|---|---|
 | A | server (misure, niente sovrascrittura, rinomina); `optimize.ts` e `UploadImage.tsx`; libreria con «Del progetto» e «+ Carica»; piazzamento con proporzioni e centro; campo immagine nelle proprietà; sfondo tolto dall'immagine | si carica e si piazza in modo ordinato |

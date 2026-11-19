@@ -33,3 +33,12 @@ risoluzione e far scegliere quanti sfondi precaricare».
   l'immagine all'upload alla misura della pagina?).
 - Il precarico: all'avvio (avvio più lungo) o in sottofondo dopo la prima pagina; e il web, che ha la cache del browser.
 - Se convenga decodificare il JPEG direttamente alla misura giusta invece di passare da resvg (la prima apertura).
+
+## Aggiunta del 19-11-2026 (libreria immagini)
+
+Gli **oggetti Immagine** sul pannello non hanno le varianti alla misura degli sfondi di pagina (`sized_image` le
+prepara solo per `sfondo_immagine`): il file intero si decodifica e si scala a ogni visita della pagina. Dal
+19-11-2026 la libreria propone di ottimizzare all'upload (lato lungo 1920 px), che limita il danno ma non lo toglie:
+una foto da 1920 px in un riquadro da 240 resta otto volte più grande del necessario. Quando si riprende questo seme,
+valutare la variante alla misura anche per gli oggetti Immagine (con `contain` e la trasparenza, che oggi il JPEG
+alla misura non tiene).
