@@ -1576,12 +1576,24 @@ export const api = {
 
   /** POST /api/simboli/compila — compila senza salvare: l'editor disegna i
    *  simboli del progetto che ha in memoria. */
-  compilaSimboli: (descrizioni: DescrizioneSimbolo[]) =>
-    request<SimboloCompilato[]>("/api/simboli/compila", {
+  /** `trace`: every drawn element carries `data-op="<n>"` (the symbol editor). */
+  compilaSimboli: (descrizioni: DescrizioneSimbolo[], opts?: { trace?: boolean }) =>
+    request<SimboloCompilato[]>(`/api/simboli/compila${opts?.trace ? "?trace=true" : ""}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(descrizioni),
     }),
+
+  /** GET /api/symbols/library/:family/:slug — a library symbol as a project
+   *  variant to edit (`overrides` set, family dropped). */
+  librarySymbolDescription: (family: string, slug: string) =>
+    request<DescrizioneSimbolo>(
+      `/api/symbols/library/${encodeURIComponent(family)}/${encodeURIComponent(slug)}`,
+    ),
+
+  /** GET /api/symbols/catalog — materials, veils and limits of a description. */
+  symbolCatalog: () =>
+    request<{ materials: { name: string; color: string }[]; veils: { name: string; type: string }[] }>("/api/symbols/catalog"),
 
   /** PUT /api/project/simboli — i simboli disegnati nel progetto, tutti. */
   updateSimboli: (simboli: DescrizioneSimbolo[]) =>

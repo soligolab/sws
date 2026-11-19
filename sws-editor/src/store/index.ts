@@ -38,7 +38,9 @@ import {
 } from "@/faceplate/modello";
 import { scalaCornice, scalaPagina, type Misura } from "@/scala/scalaPagina";
 import { gruppiPerLeCopie } from "@/editor/gruppiSelezione";
+import type { SymbolEditorTarget } from "@/symbols/editor/open";
 import type {
+  DescrizioneSimbolo,
   GlobalScriptDef,
   AlarmDef,
   PipePoint,
@@ -712,6 +714,14 @@ interface AppState {
    *  bordo allarme/stale/flusso pipe/rotazioni. Effimero, default off. */
   previewEffects: boolean;
   setPreviewEffects: (on: boolean) => void;
+  /** The symbol editor, open on a draft (plan 2026-11-18-editor-dei-simboli).
+   *  Ephemeral and outside the page history: the editor keeps its own undo. */
+  symbolEditor: SymbolEditorTarget | null;
+  openSymbolEditor: (target: SymbolEditorTarget) => void;
+  closeSymbolEditor: () => void;
+  /** The project symbols (`project.simboli`) in memory; the caller saves them
+   *  with `api.updateSimboli`. */
+  updateProjectSimboli: (simboli: DescrizioneSimbolo[]) => void;
   /** Crocino sul canvas per il waypoint in focus nella tabella MOVIMENTO. */
   motionMarker: { x: number; y: number } | null;
   setMotionMarker: (pt: { x: number; y: number } | null) => void;
@@ -2202,6 +2212,11 @@ export const useAppStore = create<AppState>((set, get) => {
     setCapturePathTarget: (id) => set({ capturePathTarget: id }),
     previewEffects: false,
     setPreviewEffects: (on) => set({ previewEffects: on }),
+    symbolEditor: null,
+    openSymbolEditor: (target) => set({ symbolEditor: target }),
+    closeSymbolEditor: () => set({ symbolEditor: null }),
+    updateProjectSimboli: (simboli) =>
+      set((s) => ({ project: s.project ? { ...s.project, simboli } : s.project })),
     motionMarker: null,
     setMotionMarker: (pt) => set({ motionMarker: pt }),
     mostraTracciato: true,

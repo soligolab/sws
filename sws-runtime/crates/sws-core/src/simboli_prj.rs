@@ -425,6 +425,12 @@ pub struct Descrizione {
     pub en: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub replaces: Option<String>,
+    /// The library symbol this project symbol is a variant of
+    /// (`lib:<family>/<slug>`): every object that draws that symbol draws this
+    /// one instead (plan 2026-11-18-editor-dei-simboli, decision 9). Project
+    /// symbols only; the library never has it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub overrides: Option<String>,
     pub ops: Vec<Op>,
 }
 
@@ -570,6 +576,10 @@ struct Costruzione<'a> {
     flange: Vec<[f64; 4]>,
     bocche: Vec<BoccaDichiarata>,
     n: u32,
+    /// With a trace, every drawn element carries `data-op="<n>"`, the index of
+    /// the operation that drew it in `Descrizione::ops` (before the shortcuts
+    /// are expanded): how the symbol editor knows what was clicked. Never saved.
+    traccia: Option<usize>,
 }
 
 impl<'a> Costruzione<'a> {
@@ -584,6 +594,7 @@ impl<'a> Costruzione<'a> {
             flange: vec![],
             bocche: vec![],
             n: 0,
+            traccia: None,
         };
         c.statico();
         c
@@ -604,6 +615,19 @@ impl<'a> Costruzione<'a> {
 
     fn qui(&mut self) -> &mut Vec<String> {
         &mut self.strati.last_mut().expect("c'è sempre uno strato").corpo
+    }
+
+    /// Adds a drawn element to the current layer, marked with its operation
+    /// when tracing.
+    fn metti(&mut self, e: String) {
+        let e = match self.traccia {
+            Some(i) => match e.strip_suffix("/>") {
+                Some(testa) => format!("{testa} data-op=\"{i}\"/>"),
+                None => e,
+            },
+            None => e,
+        };
+        self.qui().push(e);
     }
 
     fn velo(&mut self, nome: &str) -> Result<String, String> {
@@ -670,7 +694,7 @@ impl<'a> Costruzione<'a> {
                     None => {
                         let e =
                             format!("<{tag}{}{}{}/>", attrs(&geo.0), attrs(&a), attrs(&extra.0));
-                        self.qui().push(e);
+                        self.metti(e);
                     }
                     Some(v) => {
                         let url = self.velo(v)?;
@@ -683,8 +707,8 @@ impl<'a> Costruzione<'a> {
                         let ombra = format!(
                             "<use href=\"#{rif}\" fill=\"{url}\" stroke=\"none\" opacity=\"1\" data-shade=\"{v}\"/>"
                         );
-                        self.qui().push(pieno);
-                        self.qui().push(ombra);
+                        self.metti(pieno);
+                        self.metti(ombra);
                     }
                 }
             }
@@ -704,7 +728,7 @@ impl<'a> Costruzione<'a> {
                     "<{tag}{} fill=\"{url}\"{fo} stroke=\"none\" opacity=\"1\" data-shade=\"{velo}\"/>",
                     attrs(&geo.0)
                 );
-                self.qui().push(e);
+                self.metti(e);
             }
             Op::Riflesso { tag, geo, opacita } => {
                 let e = format!(
@@ -712,7 +736,7 @@ impl<'a> Costruzione<'a> {
                     attrs(&geo.0),
                     fmt(*opacita)
                 );
-                self.qui().push(e);
+                self.metti(e);
             }
             Op::Tratto { d, mat, extra } => {
                 let mut a = vec![testo("fill", "none")];
@@ -723,7 +747,7 @@ impl<'a> Costruzione<'a> {
                     a.push(testo("data-mat-stroke", m));
                 }
                 let e = format!("<path d=\"{d}\"{}{}/>", attrs(&a), attrs(&extra.0));
-                self.qui().push(e);
+                self.metti(e);
             }
             Op::Bocca { x, y, side, d, id } => {
                 if !LATI.contains(&side.as_str()) {
@@ -962,6 +986,9 @@ impl<'a> Costruzione<'a> {
         if let Some(r) = &d.replaces {
             v["replaces"] = json!(r);
         }
+        if let Some(o) = &d.overrides {
+            v["overrides"] = json!(o);
+        }
         if d.family.is_none() {
             // Un simbolo del progetto non ha chiavi in it.json: le etichette
             // viaggiano con lui.
@@ -980,9 +1007,25 @@ fn round2(v: f64) -> f64 {
 /// quelli che impediscono di disegnare (un materiale che non esiste); le regole
 /// di forma le controlla [`regole`].
 pub fn compila(d: &Descrizione) -> Result<Compilato, String> {
+    compila_con(d, false)
+}
+
+/// Like [`compila`], with every drawn element marked `data-op="<n>"` (see
+/// `Costruzione::traccia`). For the symbol editor only: the bytes differ from
+/// the saved drawing.
+pub fn compila_con_traccia(d: &Descrizione) -> Result<Compilato, String> {
+    compila_con(d, true)
+}
+
+fn compila_con(d: &Descrizione, traccia: bool) -> Result<Compilato, String> {
     let mut c = Costruzione::new(d);
-    for op in espandi(&d.ops) {
-        c.esegui(&op)?;
+    for (i, op) in d.ops.iter().enumerate() {
+        if traccia {
+            c.traccia = Some(i);
+        }
+        for op in espandi(std::slice::from_ref(op)) {
+            c.esegui(&op)?;
+        }
     }
     let svg = c.svg();
     let voce = c.voce(&svg);
@@ -1009,7 +1052,12 @@ fn extra_ammesso(k: &str, v: &Valore) -> Result<(), String> {
         "stroke_opacity" | "fill_opacity" => numero(v, 0.0, 1.0),
         "stroke_linecap" => fra(v, &["butt", "round", "square"]),
         "stroke_linejoin" => fra(v, &["round", "miter", "bevel"]),
-        "stroke" | "fill" => fra(v, &["none"]),
+        // A project symbol may carry its own colours (plan
+        // 2026-11-18-editor-dei-simboli): `#rgb` or `#rrggbb`, nothing else.
+        "stroke" | "fill" => match v {
+            Valore::Testo(t) if t == "none" || colore_esadecimale(t) => Ok(()),
+            _ => Err(format!("«{k}» vale «none» o un colore #rgb / #rrggbb")),
+        },
         "stroke_dasharray" => match v {
             Valore::Testo(t)
                 if !t.is_empty() && t.split_whitespace().all(|p| p.parse::<f64>().is_ok()) =>
@@ -1021,9 +1069,15 @@ fn extra_ammesso(k: &str, v: &Valore) -> Result<(), String> {
         },
         _ => Err(format!(
             "attributo «{k}» non ammesso (sono stroke_width, stroke_opacity, fill_opacity, \
-             stroke_linecap, stroke_linejoin, stroke_dasharray, stroke e fill solo «none»)"
+             stroke_linecap, stroke_linejoin, stroke_dasharray, stroke e fill «none» o #rrggbb)"
         )),
     }
+}
+
+/// `#rgb` or `#rrggbb`.
+pub fn colore_esadecimale(t: &str) -> bool {
+    t.strip_prefix('#')
+        .is_some_and(|h| (h.len() == 3 || h.len() == 6) && h.chars().all(|c| c.is_ascii_hexdigit()))
 }
 
 /// Gli attributi che un'operazione scrive sul suo elemento, per trovare quelli
@@ -1146,6 +1200,18 @@ pub fn regole(d: &Descrizione, c: &Compilato) -> Vec<String> {
     }
     if colore_materiale(&d.body).is_none() {
         male.push(format!("materiale del corpo «{}» sconosciuto", d.body));
+    }
+    if let Some(o) = &d.overrides {
+        let buono = d.family.is_none()
+            && o.strip_prefix("lib:").is_some_and(|r| {
+                r.split_once('/')
+                    .is_some_and(|(f, s)| nome_ammesso(f, 2, 30) && nome_ammesso(s, 2, 60))
+            });
+        if !buono {
+            male.push(format!(
+                "overrides «{o}»: only a project symbol overrides, and only a library symbol (lib:<family>/<slug>)"
+            ));
+        }
     }
     if d.w.max(d.h) > MAX_LATO {
         male.push(format!(
@@ -1548,6 +1614,39 @@ mod tests {
             ]
         }))
         .unwrap()
+    }
+
+    #[test]
+    fn a_project_symbol_may_have_its_own_colours_and_override_a_library_one() {
+        let mut d: Descrizione = serde_json::from_str(include_str!(
+            "../../../../tests/fixtures/simboli-prj/gabbia-laminazione.json"
+        ))
+        .unwrap();
+        d.ops.push(
+            serde_json::from_value(json!({
+                "op": "forma", "tag": "rect",
+                "geo": [["x", 1], ["y", 1], ["width", 5], ["height", 5]],
+                "extra": [["fill", "#12ab3c"], ["stroke", "#fff"]]
+            }))
+            .unwrap(),
+        );
+        let c = compila_e_controlla(&d).expect("own colours are allowed");
+        assert!(c.svg.contains("fill=\"#12ab3c\""));
+        let mut cattivo = d.clone();
+        cattivo.ops.push(
+            serde_json::from_value(json!({
+                "op": "forma", "tag": "rect",
+                "geo": [["x", 1], ["y", 1], ["width", 5], ["height", 5]],
+                "extra": [["fill", "url(#x)"]]
+            }))
+            .unwrap(),
+        );
+        assert!(compila_e_controlla(&cattivo).is_err());
+        d.overrides = Some("lib:process/centrifugal-pump".into());
+        let c = compila_e_controlla(&d).unwrap();
+        assert_eq!(c.voce["overrides"], "lib:process/centrifugal-pump");
+        d.overrides = Some("prj:altro".into());
+        assert!(compila_e_controlla(&d).is_err());
     }
 
     #[test]

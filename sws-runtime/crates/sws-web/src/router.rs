@@ -507,6 +507,16 @@ pub fn build(
             "/api/simboli/compila",
             post(crate::simboli_progetto::compila),
         )
+        // The symbol editor: a library symbol as a description to start from
+        // (plan 2026-11-18-editor-dei-simboli).
+        .route(
+            "/api/symbols/library/:family/:slug",
+            get(crate::simboli_progetto::library_description),
+        )
+        .route(
+            "/api/symbols/catalog",
+            get(crate::simboli_progetto::catalog),
+        )
         .route("/api/project/datastores", put(update_project_datastores))
         .route(
             "/api/project/global-scripts",

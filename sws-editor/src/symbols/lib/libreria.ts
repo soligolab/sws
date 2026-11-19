@@ -284,12 +284,32 @@ export function prefissoIstanza(objId: string): string {
  *  progetti esistenti non cambiano e prendono il disegno nuovo. */
 export function cercaSimbolo(m: ManifestLib, id: string): SimboloLib | undefined {
   if (id.startsWith("prj:")) return sovrapposti.get(id)?.voce ?? progetto.symbols.find((s) => s.id === id);
+  const lib = simboloOriginale(m, id);
+  if (!lib) return undefined;
+  // A project variant of this library symbol is drawn in its place (plan
+  // 2026-11-18-editor-dei-simboli). Twin of `ManifestLib::simbolo_o_alias`.
+  return progetto.symbols.find((s) => s.overrides === lib.id) ?? lib;
+}
+
+/** The library symbol itself, ignoring project variants. */
+export function simboloOriginale(m: ManifestLib, id: string): SimboloLib | undefined {
   return m.symbols.find((s) => s.id === id) ?? m.symbols.find((s) => s.replaces === id);
+}
+
+/** The project variant of a library symbol, if the project has one. */
+export function varianteDi(libId: string): SimboloLib | undefined {
+  return progetto.symbols.find((s) => s.overrides === libId);
 }
 
 /** Il simbolo dal manifesto già caricato, fuori da React (creazione di un oggetto). */
 export function trovaSimboloLib(id: string): SimboloLib | undefined {
   return manifesto ? cercaSimbolo(manifesto, id) : undefined;
+}
+
+/** The library symbol for `id` (a `lib:` id or a builtin alias), ignoring
+ *  project variants, outside React. */
+export function trovaSimboloOriginale(id: string): SimboloLib | undefined {
+  return manifesto ? simboloOriginale(manifesto, id) : undefined;
 }
 
 /** Il builtin `id` ha un sostituto nella libreria? (Picker: non si offre due volte.) */

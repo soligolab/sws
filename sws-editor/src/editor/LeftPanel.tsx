@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { openNewSymbol, openSymbolEditorFor } from "@/symbols/editor/open";
 import { ImgProgetto } from "@/canvas/ImmagineSvg";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
@@ -1042,7 +1043,10 @@ function RamoSimboli({ ultimoGruppo }: { ultimoGruppo: boolean }) {
   const custom = useAppStore((s) => s.customSymbols);
   const disegnati = useSimboliProgetto();
   const famiglie = famiglieSimboli(manifesto?.symbols ?? []);
-  const voci = [...famiglie.map((f) => f.famiglia), ...(custom.length || disegnati.length ? ["__progetto"] : [])];
+  // The project family is always there: it holds «+ New symbol» (plan
+  // 2026-11-18-editor-dei-simboli).
+  void custom; void disegnati;
+  const voci = [...famiglie.map((f) => f.famiglia), "__progetto"];
   return (
     <>
       {voci.map((f, i) => (
@@ -1089,9 +1093,19 @@ function FamigliaSimboli({ famiglia, tipologie, titolo, ultima, ultimoGruppo }: 
           nome={c.label} onClick={() => aggiungiOggetto("symbol", { symbol_id: `custom:${c.id}` })}
           guide={guideAlbero(ultima ? esterne : [...esterne, 27], { x: 43, finoA: 50, ultimo: i === nProgetto - 1 })} />
       ))}
+      {aperta && famiglia === "__progetto" && (
+        <RigaStrumento testid="simbolo-nuovo" rientro={52} titolo={t("symbolEditor.newSymbolTitle")}
+          icona={<span style={{ width: px, textAlign: "center", flexShrink: 0 }}>+</span>}
+          nome={t("symbolEditor.newSymbol")} onClick={() => openNewSymbol()}
+          guide={guideAlbero(ultima ? esterne : [...esterne, 27], { x: 43, finoA: 50, ultimo: nProgetto === 0 })} />
+      )}
       {aperta && famiglia === "__progetto" && disegnati.map((s, i) => (
         <RigaStrumento key={s.id} testid={`simbolo-${s.id}`} rientro={52} titolo={t("leftPanel.strumentoAggiungi")}
           icona={<AnteprimaLib sim={s} w={Math.round(px * 1.15)} h={px} />}
+          nota={<span role="button" tabIndex={0} data-testid={`modifica-${s.id}`} title={t("symbolEditor.editSymbol")}
+            style={{ flexShrink: 0, padding: "0 4px", cursor: "pointer" }}
+            onClick={(e) => { e.stopPropagation(); void openSymbolEditorFor(s.id); }}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); void openSymbolEditorFor(s.id); } }}><Icona nome="pencil" emoji="✎" /></span>}
           nome={etichettaSimbolo(s, t, i18n.language)} onClick={() => aggiungiOggetto("symbol", { symbol_id: s.id })}
           guide={guideAlbero(ultima ? esterne : [...esterne, 27], { x: 43, finoA: 50, ultimo: custom.length + i === nProgetto - 1 })} />
       ))}

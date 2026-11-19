@@ -124,6 +124,10 @@ pub struct SimboloLib {
     /// Il builtin che questo disegno sostituisce (alias).
     #[serde(default)]
     pub replaces: Option<String>,
+    /// A project symbol that is a variant of this library symbol
+    /// (`lib:<family>/<slug>`): it is drawn in its place.
+    #[serde(default)]
+    pub overrides: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -145,7 +149,30 @@ impl ManifestLib {
 
     /// Per id `lib:…`, oppure per **alias**: il disegno che sostituisce il
     /// builtin `id` (`replaces`, M3 del piano). Come `cercaSimbolo` sul web.
+    ///
+    /// A library symbol with a project variant (`overrides`, plan
+    /// 2026-11-18-editor-dei-simboli) gives the variant: every object that
+    /// draws the pump draws the pump the customer redrew.
     pub fn simbolo_o_alias(&self, id: &str) -> Option<&SimboloLib> {
+        let s = self.simbolo(id).or_else(|| {
+            self.symbols
+                .iter()
+                .find(|s| s.replaces.as_deref() == Some(id))
+        })?;
+        if !s.id.starts_with("lib:") {
+            return Some(s);
+        }
+        Some(
+            self.symbols
+                .iter()
+                .find(|v| v.overrides.as_deref() == Some(s.id.as_str()))
+                .unwrap_or(s),
+        )
+    }
+
+    /// The library symbol itself, ignoring project variants: what «Torna
+    /// all'originale» goes back to.
+    pub fn simbolo_originale(&self, id: &str) -> Option<&SimboloLib> {
         self.simbolo(id).or_else(|| {
             self.symbols
                 .iter()
@@ -203,5 +230,36 @@ mod tests {
                 assert!(m.materials.contains_key(mat), "{}: materiale {mat}", s.id);
             }
         }
+    }
+
+    /// A project variant of a library symbol (`overrides`) is drawn wherever
+    /// the library symbol is asked for, by id and by builtin alias; the
+    /// original stays reachable.
+    #[test]
+    fn a_project_variant_replaces_its_library_symbol() {
+        let mut m = manifesto_incluso();
+        let mut v = m.simbolo("lib:process/centrifugal-pump").unwrap().clone();
+        v.id = "prj:my-pump".into();
+        v.file = "prj/my-pump.svg".into();
+        v.replaces = None;
+        v.overrides = Some("lib:process/centrifugal-pump".into());
+        m.symbols.push(v);
+        for id in ["lib:process/centrifugal-pump", "pump", "prj:my-pump"] {
+            assert_eq!(
+                m.simbolo_o_alias(id).map(|s| s.id.as_str()),
+                Some("prj:my-pump"),
+                "{id}"
+            );
+        }
+        assert_eq!(
+            m.simbolo_originale("pump").map(|s| s.id.as_str()),
+            Some("lib:process/centrifugal-pump")
+        );
+        // Other library symbols are untouched.
+        assert_eq!(
+            m.simbolo_o_alias("lib:process/vertical-tank")
+                .map(|s| s.id.as_str()),
+            Some("lib:process/vertical-tank")
+        );
     }
 }

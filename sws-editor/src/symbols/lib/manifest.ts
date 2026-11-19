@@ -61,6 +61,9 @@ export interface SimboloLib {
   replaces?: string;
   /** Solo i simboli del progetto (`prj:`): le etichette, che non sono in it.json. */
   labels?: { it: string; en: string };
+  /** A project symbol that is a variant of this library symbol: it is drawn
+   *  in its place. Twin of `SimboloLib::overrides` in `sws-core`. */
+  overrides?: string;
 }
 
 export interface ManifestLib {

@@ -12,6 +12,28 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Aggiunto
+- **L'editor dei simboli, fase 1** (piano `docs/plans/2026-11-18-editor-dei-simboli.md`, ramo `feat/symbol-def`).
+  - Un editor a tutto schermo per i simboli del progetto: si apre da «Modifica simbolo» nel pannello proprietà di un
+    simbolo, dalla matita sui simboli del progetto in Strumenti ▸ Simboli e da «+ Nuovo simbolo» nella stessa famiglia.
+    Disegno al centro con lo stesso `SimboloLibSvg` del canvas (WYSIWYG), strati e forme a sinistra, schede «Pezzo» e
+    «Struttura» a destra. Strumenti: seleziona (anche con Maiusc), sposta, ridimensiona dagli angoli, rettangolo,
+    ellisse, linea; colore da materiale, colore proprio (`#rrggbb`) o colore dello stato; volume, contorno; su/giù,
+    duplica, elimina; annulla e ripeti propri dell'editor; frecce, Canc, Ctrl+D, Ctrl+Z/Y.
+  - **Struttura**: nomi it/en, categoria, misura, materiale del corpo, e gli **ingressi** — oggi i comportamenti che i
+    due motori sanno già disegnare (stato, livello, rotazione, lancetta, leva, spia), con la geometria della parte e il
+    perno trascinabile sul disegno.
+  - **Un simbolo della libreria si modifica come variante** (`overrides: "lib:<famiglia>/<slug>"` nella descrizione):
+    salvata, sostituisce quel simbolo in tutto il progetto — `cercaSimbolo` sul web e `ManifestLib::simbolo_o_alias`
+    sul pannello LVGL la trovano al posto dell'originale, anche per alias (`pump`). Parti vive e id restano gli stessi,
+    quindi i tag già collegati continuano a funzionare. «Torna all'originale» cancella la variante.
+  - **«Salva come…»** fa un simbolo nuovo e indipendente; l'oggetto da cui si è aperto l'editor passa a lui, e
+    l'editor propone di passare anche gli altri della pagina che usano lo stesso simbolo.
+  - Runtime: `GET /api/symbols/library/:family/:slug` (la descrizione di un simbolo di libreria pronta come variante,
+    dalla fixture `simboli-descrizioni.json` inclusa nel runtime: tutti i 195 compilano, test
+    `every_library_symbol_becomes_a_valid_variant`), `GET /api/symbols/catalog` (materiali, veli, limiti),
+    `POST /api/simboli/compila?trace=true` (ogni elemento disegnato porta `data-op`, per la selezione; mai salvato).
+    Il compilatore accetta `fill`/`stroke` `#rgb`/`#rrggbb` negli extra di un simbolo del progetto; la libreria e
+    `compila_come_genera_py` non cambiano.
 - **Documenti di sicurezza per il CRA** (sessione 1 di `docs/plans/2026-11-17-cra-sessioni-e-decisioni.md`):
   `docs/sicurezza/LEGGIMI.md`, l'indice della cartella, e `docs/sicurezza/valutazione-rischio.md`, la prima bozza
   interna della valutazione dei rischi (ambito, beni, attori, i quattordici requisiti dell'Allegato I parte I misurati

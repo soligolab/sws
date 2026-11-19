@@ -1001,6 +1001,7 @@ impl CustomSymbol {
             parts: Vec::new(),
             ports,
             replaces: None,
+            overrides: None,
         })
     }
 }

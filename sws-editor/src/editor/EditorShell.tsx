@@ -1,4 +1,6 @@
 import { avviso, chiedi, conferma, modulo } from "@/finestraAvviso/finestraAvviso";
+import { SymbolEditorHost } from "@/symbols/editor/SymbolEditor";
+import { openSymbolEditorFor } from "@/symbols/editor/open";
 import { createContext, Fragment, lazy, Suspense, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AnteprimaImmagine, ImgProgetto } from "@/canvas/ImmagineSvg";
 import { dimenticaImmagine } from "@/canvas/ImmagineSvg";
@@ -220,6 +222,25 @@ export function oggettoSimbolo(symbolId: string, x: number, y: number): Omit<Syn
     symbol_id: symbolId as SynopticObject["symbol_id"],
     ...(modo ? { button_mode: modo } : {}),
   } as Omit<SynopticObject, "id">;
+}
+
+// ── EditSymbolButton ──────────────────────────────────────────────────────────
+
+/** «Edit symbol»: opens the symbol editor on the symbol of the object (plan
+ *  2026-11-18-editor-dei-simboli). A library symbol is edited as a project
+ *  variant; an imported SVG cannot be edited (yet). */
+function EditSymbolButton({ symbolId, objectId }: { symbolId: string; objectId: string }) {
+  const { t } = useTranslation();
+  if (symbolId.startsWith("custom:")) return null;
+  return (
+    <button type="button" data-testid="edit-symbol" style={{
+      marginTop: 4, padding: "4px 8px", fontSize: 12, borderRadius: 4, cursor: "pointer",
+      border: "1px solid var(--brand-border, #334155)", background: "transparent", color: "var(--brand-text, #e2e8f0)",
+    }} onClick={async () => {
+      const why = await openSymbolEditorFor(symbolId, objectId).catch((e) => String(e?.message ?? e));
+      if (why) await avviso({ livello: "errore", testo: why });
+    }}>{t("symbolEditor.editSymbol")}</button>
+  );
 }
 
 // ── SymbolGallery ─────────────────────────────────────────────────────────────
@@ -1236,6 +1257,7 @@ export function EditorShell() {
     // matters — <main> is a flex row and the canvas would otherwise squeeze
     // the two strips.
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 0, overflow: "hidden" }}>
+      <SymbolEditorHost />
       <EditorToolbar viewApi={viewApi} zoom={zoom} canFitPage={fitPageSize !== null} />
       <PageTabs />
       <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
@@ -5698,6 +5720,7 @@ export function ObjectProps({
         {field(t("props.symbol"),
           <SymbolGallery value={obj.symbol_id ?? "lib:process/centrifugal-pump"} onChange={(v) => onChange({ symbol_id: v as any })} />
         )}
+        <EditSymbolButton symbolId={obj.symbol_id ?? "lib:process/centrifugal-pump"} objectId={obj.id} />
         {/* Le parti vive (lancette, leve, spie) stanno in «Collegamenti» dal
             02-11-2026, con gli altri tag del simbolo. */}
         <AdattaProporzioni obj={obj} onChange={onChange} />

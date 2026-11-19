@@ -2067,6 +2067,9 @@ export interface DescrizioneSimbolo {
   body: string;
   it: string;
   en: string;
+  /** Library symbol this one is a project variant of (`lib:<family>/<slug>`):
+   *  drawn wherever that symbol is (plan 2026-11-18-editor-dei-simboli). */
+  overrides?: string;
   ops: Record<string, unknown>[];
 }
 
