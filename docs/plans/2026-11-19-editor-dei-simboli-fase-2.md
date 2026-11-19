@@ -34,7 +34,8 @@ La fase 1 (squash `8b7bb6a30`) ha esteso le descrizioni dei simboli del progetto
 3. Tre sessioni, in quest'ordine:
    - **sessione 1** (sotto, nel dettaglio): bocche, strumenti di disegno, vista esplosa, anteprima degli ingressi,
      «+ Nuovo simbolo» in vista;
-   - **sessione 2**: **animazioni agganciate ai tag**, tutte e quattro le famiglie — rotazione (continua mentre un tag
+   - **sessione 2** (piano dettagliato: [animazioni dei simboli](2026-11-19-animazioni-dei-simboli.md), 19-11-2026):
+     **animazioni agganciate ai tag**, tutte e quattro le famiglie — rotazione (continua mentre un tag
      è vero, o all'angolo di un valore), colore/accensione/visibilità/lampeggio, movimento fra due posizioni e
      riempimento in qualunque forma, vibrazione e pulsazione — su una forma o un gruppo scelto nell'editor, su web e
      LVGL, misurate sul TY570; in pagina la sezione «Ingressi» (tag o valore fisso). **Comincia con una sessione di
