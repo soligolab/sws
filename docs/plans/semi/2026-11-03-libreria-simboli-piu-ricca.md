@@ -51,3 +51,21 @@ provata sul pannello LVGL (`check_simboli_lvgl.sh`) e a volume 0.
 - Il costo su LVGL, misurato.
 - La parità con `simboli_prj.rs` resta automatica (il test `compila_come_genera_py`), ma il vocabolario può crescere
   (veli nuovi, materiali nuovi): va aggiunto ai due lati.
+
+## Aggiunta del 18-11-2026 — L'editor dei simboli: esplodere, animare, farsi aiutare dall'IA
+
+> **Diventata un piano il 18-11-2026**: [l'editor dei simboli](../2026-11-18-editor-dei-simboli.md). Il testo qui sotto è
+> l'appunto originale; le decisioni stanno nel piano. Il resto di questo seme (più dettaglio nei disegni della libreria)
+> resta seme.
+
+> Appunto preso in velocità dal maintainer in una riunione; non è un seme a parte perché il tema è questo. Vale la regola del seme: la sessione di plan viene prima.
+
+Un editor dei simboli vero, con queste capacità:
+- **esplodere** un simbolo ed **editare i singoli pezzi**;
+- **l'aspetto legato a un tag** (lo stato): ogni pezzo cambia in funzione del valore;
+- **animazioni**, scelte da un menù delle più tipiche: rotazione, oscillazione, riempimento, sfocatura, bollicine, fumo, fuoco, neon, vibrazione, ecc.;
+- **ogni componente del simbolo ha le sue proprietà**, tra cui il **punto di ancoraggio** per il movimento;
+- un **form dedicato per l'IA**, per modificare il simbolo a parole.
+
+- Seme [libreria dei simboli più ricca](2026-11-03-libreria-simboli-piu-ricca.md) e piano archiviato dell'[assistente che disegna i simboli](../../archive/2026-11-03-assistente-genera-simboli-e-sinottici.md): la sorgente dei simboli e l'IA che li disegna esistono già.
+- Da decidere nella sessione di plan: dove vive l'animazione (dato del simbolo o dell'oggetto), la parità con il motore LVGL (regola WYSIWYG e due motori), il costo sui pannelli piccoli.

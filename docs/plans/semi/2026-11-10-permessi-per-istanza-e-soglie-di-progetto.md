@@ -140,3 +140,21 @@ Nota dell'appunto: «se serve, è una soglia per progetto, non una modifica dei 
   stavano nel README dei piani fino al 16-11-2026: si leggono nella sua storia git.
 - [Il progetto letto da un anonimo](2026-10-26-progetto-letto-da-un-anonimo.md): è la stessa `GET /api/project` da
   cui LVGL ricava le soglie.
+
+## Aggiunta del 18-11-2026 — Creazione guidata degli utenti dentro l'impianto
+
+> Appunto preso in velocità dal maintainer in una riunione; non è un seme a parte perché il tema è questo. Vale la regola del seme: la sessione di plan viene prima.
+
+Una **funzione di creazione guidata degli utenti**, direttamente **nell'impianto**, per aggiungere gli **utenti specifici**, compreso l'**edit dei livelli di permesso**.
+
+- Vicino al seme [permessi per istanza e soglie di progetto](2026-11-10-permessi-per-istanza-e-soglie-di-progetto.md) e alle [regole password](2026-11-10-permessi-per-istanza-e-soglie-di-progetto.md).
+- Da decidere: chi può crearli (e con che ruolo massimo), come si accorda con gli utenti del cloud.
+
+## Aggiunta del 18-11-2026 — Configurazione delle regole sulle password
+
+> Appunto preso in velocità dal maintainer in una riunione; non è un seme a parte perché il tema è questo. Vale la regola del seme: la sessione di plan viene prima.
+
+La **configurazione delle regole sulle password**.
+
+- L'appunto non dice quali regole: lunghezza, complessità, scadenza, storico? Da chiedere al maintainer nella sessione di plan.
+- Vicino al cambio password al primo accesso e alla [creazione guidata degli utenti](2026-11-10-permessi-per-istanza-e-soglie-di-progetto.md).

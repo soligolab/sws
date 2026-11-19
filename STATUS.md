@@ -36,18 +36,76 @@ gateway corretto nel cloud. Il collaudo resta da fare.
   il container e controlla tre pagine. Squash `50221c974` col sì del maintainer. Eliminato anche il ramo vecchio
   `fix/rc18-ritocchi`, in locale e su origin: nessun ramo di lavoro aperto.
 - **IDE 8460** ricompilato sulla rc.21, brand Pixsys.
+- **Il 19-11 mattina** il push di chiusura è stato rifiutato: `origin/main` aveva otto commit di documenti fatti a casa
+  nella notte (i semi della riunione del 18-11, l'editor dei simboli, il collaudo da zero sul WP630; blocchi qui sotto).
+  Unito con un **merge**, non un rebase: il tag `2.26.0-rc.21` era già salito e deve restare nella storia di `main`.
+  Conflitti solo in `STATUS.md` e `docs/plans/README.md`, tenute tutte e due le parti; il piano del collaudo da zero
+  rinumerato alla **rc.22** (scelta del maintainer).
 
 **Da fare, nell'ordine**:
 1. **TC620**: riabbinarlo (i comandi sono stati dati al maintainer: togliere `tunnel_nome` e `tunnel_token` da
    `/data/user/sws/config/abbinamento.json`, copia `.prima-riabbinamento-2026-11-18`, riavviare, «Abbina un
    pannello…» col codice). Poi aggiornarlo alla rc.21.
 2. **WP630 e TY570**: decisione del maintainer del 18-11, si riabbinano con un **factory reset e un'installazione
-   pulita** (il WP630 il 19-11, il TY570 quando torna). Prova anche D16 e D18 da zero. Il file
+   pulita** (il WP630 il 19-11, il TY570 quando torna). Per il WP630 è il piano del collaudo da zero, blocco qui sotto. Prova anche D16 e D18 da zero. Il file
    `segreto_gateway.vecchio-2026-11-18` sul VPS si cancella a riabbinamento finito.
 3. **Collaudo** con `/test-changes`: le sezioni «CRA, sessione 1/2/3» e «L'IA a scelta del cliente» di
    `docs/COLLAUDI_IN_SOSPESO.md`.
 4. Dopo il collaudo, l'archivio dei piani delle sessioni 2 e 3; poi la sessione 4 del CRA, quando la chiede il
    maintainer (`docs/plans/2026-11-17-cra-sessioni-e-decisioni.md`).
+
+## ▶ Riprendere da qui — il collaudo da zero sul WP630, con l'editor dei simboli dentro (2026-11-19, ufficio → lavoro)
+
+**Il prossimo passo è il piano [collaudo da zero sul WP630](docs/plans/2026-11-19-collaudo-da-zero-wp630.md)**, al
+lavoro su `theobroma`: l'editor dei simboli dal ramo, poi squash e **rc.22** (la rc.21 è uscita il 18-11 sera, blocco sopra), factory reset del WP630, installazione,
+abbinamento, deploy, IA nel cloud, il pannello come dispositivo. Il maintainer ha scelto il perimetro «tutto il
+sospeso»; l'ordine e le esclusioni (il TC620, «Aggiorna ora», l'hardware che manca) sono nel piano.
+
+**«Rust audit» della CI di `main` torna verde col merge del 19-11**: `lettre` 0.11.24 è arrivato su `main` con la
+sessione 3 del CRA. Sul ramo c'è la stessa correzione (`c9690f53`), più un `cargo fmt` (`c60b2cf2`); provato con
+`git merge-tree`, il ramo si unisce al `main` nuovo senza conflitti nel codice (solo CHANGELOG, STATUS e README).
+
+**L'editor dei simboli, fase 1, è sul ramo `feat/symbol-def`** (pushato il 19-11 apposta per arrivare su `theobroma`,
+non mergiato). Piano [l'editor dei simboli](docs/plans/2026-11-18-editor-dei-simboli.md), sessione di plan col
+maintainer il 18-11 (decisioni 1-12: comportamento nel simbolo, varianti della libreria che la sostituiscono, «Salva
+come…», foto ed SVG nelle fasi dopo). Definition of done verde tranne la conferma del maintainer: `cargo test`,
+`pnpm build`, vitest, `check_static.sh` 57/57. Dettaglio nel CHANGELOG del ramo.
+
+**Scelta di realizzazione da sapere**: invece del formato nuovo `sym:` del piano, la fase 1 **estende la descrizione dei
+`prj:`** (campo `overrides`, colori `#rrggbb`): così web e LVGL disegnano subito le varianti con il codice che hanno,
+parità compresa. Il formato `sym:` resta l'idea per foto e SVG importati (fasi 2-3) — da rivedere all'inizio della fase 2.
+
+**Il collaudo dell'editor, cosa guardare** (IDE 8460 dal ramo, progetto di prova; il login lo fa il maintainer — la
+notte del 19-11 la prova dal browser si è fermata lì):
+- una pompa in pagina → «Modifica simbolo» → l'editor apre la variante; spostare/ridimensionare forme, cambiare colore,
+  salvare: **tutte** le pompe del progetto cambiano, i tag collegati funzionano ancora; «Torna all'originale»;
+- «Salva come…» da un oggetto: diventa il simbolo nuovo, le altre pompe restano;
+- «+ Nuovo simbolo» in Strumenti ▸ Simboli ▸ progetto; Struttura → aggiungi ingresso «Rotazione», trascina il perno;
+- dopo la rc.22, la stessa pagina sul WP630, web e LVGL: la variante si vede uguale.
+
+**Primo giro del maintainer, 19-11 mattina su `ufficio`** (IDE 8460 dal ramo, progetto `~/sws_projects/test_20261119`):
+- **passata**: la variante modificata e salvata aggiorna tutte e 3 le istanze in pagina;
+- dal progetto risultano usati anche «Salva come…» (`centrifugal-pump-red`, `-green`) e «+ Nuovo simbolo» con un
+  rotore (`new-symbol`): esiti non ancora detti dal maintainer, da chiedere;
+- **anomalia, da correggere sul ramo**: «+ Nuovo simbolo» non si trova — sta in Strumenti ▸ Simboli ▸ «Del progetto»,
+  ultima famiglia, chiusa di default. Proposto un pulsante più in vista (in testa al ramo Simboli o nella galleria del
+  pannello proprietà, accanto a «Modifica simbolo»): da decidere col maintainer;
+- **non un difetto dell'editor, ma da annotare**: «Anteprima effetti» non faceva girare `new-symbol` perché la rotazione
+  è «da tag» su `rotazione`, tag senza sorgente (lo slider in modifica non scrive). Da riprovare con rotazione
+  «Sempre». L'anteprima non dice perché un effetto non parte: possibile seme.
+
+**Non fatto in fase 1, da sapere**: nessuna anteprima con valori simulati nell'editor (fase 4); un pannello con runtime
+più vecchio ignora `overrides` e mostra il disegno originale (nessun avviso al deploy ancora); `NOVITA.yaml` senza voce
+— il blocco 2.26.0 è pieno a 15, da decidere al merge quali due voci fondere. Il tracciato si sposta e si scala ma non
+se ne modificano i nodi (fase 2).
+
+## ▶ Gli appunti della riunione del 18-11-2026 (ufficio)
+
+Quindici appunti del maintainer. **Sei sono finiti dentro semi che già c'erano** («non servono semi separati se esiste già
+qualcosa di pertinente»): editor dei simboli → libreria dei simboli; report designer e riassunto IA → report con grafici;
+debug degli script → sandbox degli script; creazione guidata utenti e regole password → permessi per istanza. **Nove semi
+nuovi** `docs/plans/semi/2026-11-18-*.md`: analisi predittiva, esplora storico, ricette a fasi, schedulatore, viewer di trend,
+protocollo Siemens cifrato, movimento su percorso con trigger, store and forward, SMTP nostro. Nessun codice.
 
 ## ▶ Il lavoro sul CRA, sessioni 1, 2 e 3 fatte e validate (2026-11-18, theobroma)
 
@@ -85,7 +143,6 @@ validate alla fine. Piano e registro delle decisioni: `docs/plans/2026-11-17-cra
 - **Rilasciate nella rc.21** il 18-11 sera: vedi il blocco qui sopra.
 - **Per provare le espressioni con la sandbox su theobroma**: RestrictedPython non c'è nel Python di sistema; è in
   `tmp/pydeps`, e i test girano con `PYTHONPATH=/home/ut1/sws/tmp/pydeps cargo test -p sws-pyscript`.
-
 ## ▶ Riprendere da qui — l'IA a scelta del cliente, su `main` e validata col modello in casa (2026-11-17, theobroma)
 
 Piano [l'IA a scelta del cliente](docs/archive/2026-11-17-ia-a-scelta-del-cliente.md), archiviato: su richiesta del

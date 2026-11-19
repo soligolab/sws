@@ -39,3 +39,24 @@ Oggi un report è una sequenza di tabelle. Il maintainer lo vuole come un docume
 - **Quali riepiloghi**, e come si dichiarano per un tag (contatore, misura istantanea, stato).
 - **Se l'editor dei report diventa visuale**, con un'anteprima.
 - **Le lingue del report**, e se segue la lingua dei contenuti.
+
+## Aggiunta del 18-11-2026 — Report designer: template editabili, KPI, kanban
+
+> Appunto preso in velocità dal maintainer in una riunione; non è un seme a parte perché il tema è questo. Vale la regola del seme: la sessione di plan viene prima.
+
+Un **report designer**:
+- **template di base editabili**;
+- **KPI**, **kanban**;
+- **intestazione**, **titolo**, **logo**, ecc.
+
+- Si sovrappone al seme [report con grafici, riepiloghi e un aspetto configurabile](2026-11-12-report-con-grafici-e-aspetto.md): nella sessione di plan i due vanno guardati insieme, probabilmente come un lavoro solo. Anche il piano archiviato sui [report programmati](../../archive/2026-10-26-report-programmati.md) dice com'è fatto oggi.
+- Il [riassunto IA dello stato dell'impianto](2026-11-12-report-con-grafici-e-aspetto.md) è pensato per entrare in un report.
+
+## Aggiunta del 18-11-2026 — Un riassunto dello stato dell'impianto fatto dall'IA
+
+> Appunto preso in velocità dal maintainer in una riunione; non è un seme a parte perché il tema è questo. Vale la regola del seme: la sessione di plan viene prima.
+
+Usare l'**IA** per fare un **riassunto dello stato dell'impianto**, per esempio sugli **andamenti del giorno prima**, da poter **inserire nel report**.
+
+- Dipende dal [report designer](2026-11-12-report-con-grafici-e-aspetto.md) e dallo storico; usa [l'IA a scelta del cliente](../../archive/2026-11-17-ia-a-scelta-del-cliente.md) (compreso il modello in casa, per chi non vuole mandare i dati fuori).
+- Da decidere: quali dati vanno al modello, chi paga, cosa succede se il riassunto è sbagliato.
