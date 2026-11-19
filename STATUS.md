@@ -12,6 +12,30 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — su `main` editor dei simboli fase 1, navigatore, setpoint LVGL, galleria; la fase 2 dell'editor sul ramo (2026-11-19, theobroma)
+
+- **Squash su `main`, non pushati** (`main` avanti di 5 su origin): `8b7bb6a30` l'editor dei simboli fase 1 (il ramo
+  `feat/symbol-def` del maintainer, il primo giro di collaudo passato), `442261d72` i «Pulsanti in più» del navigatore
+  (ingresso e uscita dei sotto-menù, per la demo della fiera), `563e9a911` il setpoint LVGL come il web (la scheda del
+  tastierino sopra la pagina, conferma e min/max, `confirm_fill`), `b13802d96` la galleria dei simboli solo dello stesso
+  tipo; `e588e1e81` il piano della fase 2 dell'editor. Il ramo `feat/symbol-def` c'è ancora su origin (da togliere al
+  push, col sì del maintainer). Collaudi: le sezioni del 19-11 in `docs/COLLAUDI_IN_SOSPESO.md`.
+- **Rami aperti, annidati, nel worktree `/home/ut1/sws-nav-links`** (il checkout `/home/ut1/sws` resta su `main` per il
+  collaudo da zero sul WP630):
+  - `fix/abbinamento-qr` (`56461ee14`): il QR della schermata d'abbinamento grande e sopra il testo, il codice su una riga
+    (segnalato dal maintainer sul WP630 reinstallato). Aspetta il suo sì;
+  - `feat/symbol-editor-tools`, figlio del primo: la **sessione 1 della fase 2** dell'editor — bocche dei tubi esplicite
+    (`explicit_ports`, strumento «Bocca», tubi agganciati, avvisi, validatore con le varianti), strumenti (zoom, riquadro,
+    copia/incolla, griglia e calamita, ruota/specchia, allinea, cerchio, polilinea, contorno, opacità, tratteggio, `d` a
+    mano, strati nascosti/bloccati), vista esplosa, scheda «Prova», «+ Nuovo simbolo» in cima. Definition of done verde;
+    da collaudare (voci «L'editor dei simboli, fase 2, sessione 1»). IDE di prova **8462** dal worktree, con una copia
+    della fiera in `tmp/fiera-prova/` (non il progetto del cloud).
+- **Prossimo**: il collaudo della sessione 1; poi la sessione 2 (animazioni agganciate ai tag) che comincia con una
+  sessione di plan; la rc.22 con tutto questo per il WP630 e la fiera. Da correggere: l'installatore del Tiny TY dice
+  ancora che il PIN del MAC vale ovunque (dalla rc.21 vale solo dallo schermo).
+- I pannelli: TC620 riabbinato dal maintainer il 18-11 sera? (da chiedere); TY570 sulla rc.21, token tolto il 19-11
+  mattina, da abbinare dal cloud col codice; WP630 in reinstallazione da zero.
+
 ## ▶ Riprendere da qui — la rc.21 pubblicata e nel cloud: CRA sessioni 1-3 e l'IA a scelta del cliente (2026-11-18 sera, theobroma)
 
 Il maintainer ha chiesto il rilascio delle tre sessioni CRA («procedi»), poi la chiusura della giornata
