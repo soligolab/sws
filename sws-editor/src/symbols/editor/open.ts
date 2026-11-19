@@ -11,7 +11,7 @@ import { api } from "@/api/client";
 import { useAppStore } from "@/store";
 import type { DescrizioneSimbolo, SynopticObject } from "@/types";
 import { trovaSimboloOriginale } from "@/symbols/lib/libreria";
-import { emptySymbol } from "./model";
+import { emptySymbol, needsExplicitPorts } from "./model";
 
 export interface SymbolEditorTarget {
   draft: DescrizioneSimbolo;
@@ -30,6 +30,19 @@ export function takenSlugs(except?: string): string[] {
   return projectSymbols().map((s) => s.slug).filter((s) => s !== except);
 }
 
+/** The description with its ports explicit (phase 2): the ports the compiler
+ *  infers from flanges become `bocca` operations with the same id, so the pipes
+ *  attached stay attached and each port can be moved on its own. Unchanged if
+ *  there is nothing to make explicit, or if the runtime can't be asked. */
+export async function withExplicitPorts(d: DescrizioneSimbolo): Promise<DescrizioneSimbolo> {
+  if (!needsExplicitPorts(d)) return d;
+  try {
+    return await api.symbolExplicitPorts(d);
+  } catch {
+    return d;
+  }
+}
+
 /** Opens the editor on the symbol `symbolId` draws. Returns why not, if it
  *  cannot be edited (an imported SVG, a builtin without a library drawing). */
 export async function openSymbolEditorFor(symbolId: string, fromObjectId?: string): Promise<string | null> {
@@ -37,18 +50,18 @@ export async function openSymbolEditorFor(symbolId: string, fromObjectId?: strin
   if (symbolId.startsWith("prj:")) {
     const d = projectSymbols().find((s) => `prj:${s.slug}` === symbolId);
     if (!d) return i18n.t("symbolEditor.notFound");
-    open({ draft: structuredClone(d), isNew: false, fromObjectId });
+    open({ draft: await withExplicitPorts(structuredClone(d)), isNew: false, fromObjectId });
     return null;
   }
   const lib = trovaSimboloOriginale(symbolId);
   if (!lib) return i18n.t("symbolEditor.notEditable");
   const variant = projectSymbols().find((s) => s.overrides === lib.id);
   if (variant) {
-    open({ draft: structuredClone(variant), isNew: false, fromObjectId });
+    open({ draft: await withExplicitPorts(structuredClone(variant)), isNew: false, fromObjectId });
     return null;
   }
   const [family, slug] = lib.id.slice(4).split("/");
-  const d = await api.librarySymbolDescription(family, slug);
+  const d = await withExplicitPorts(await api.librarySymbolDescription(family, slug));
   // The library slug may already be a project symbol of the customer's.
   const taken = takenSlugs();
   let s = d.slug;
@@ -123,4 +136,28 @@ export function usage(d: DescrizioneSimbolo): { objects: number; pages: number; 
   const current = st.pages.find((p) => p.id === st.currentPageId);
   const onPage = current?.objects.filter((o) => o.type === "symbol" && o.symbol_id && ids.has(o.symbol_id)) ?? [];
   return { objects, pages, onPage };
+}
+
+/** The pipes attached to the ports of `d`, on every page: for each port id, how
+ *  many, and those on the current page (the ones a rename can follow). */
+export function pipesOnPorts(d: DescrizioneSimbolo): Map<string, { total: number; here: { pipeId: string; end: "from_port" | "to_port" }[] }> {
+  const ids = new Set(idsDrawing(d));
+  const st = useAppStore.getState();
+  const out = new Map<string, { total: number; here: { pipeId: string; end: "from_port" | "to_port" }[] }>();
+  for (const p of st.pages) {
+    const symbols = new Set(p.objects.filter((o) => o.type === "symbol" && o.symbol_id && ids.has(o.symbol_id)).map((o) => o.id));
+    if (!symbols.size) continue;
+    for (const o of p.objects) {
+      if (o.type !== "pipe") continue;
+      for (const [objKey, end] of [["from_obj_id", "from_port"], ["to_obj_id", "to_port"]] as const) {
+        const port = o[end];
+        if (!port || !o[objKey] || !symbols.has(o[objKey] as string)) continue;
+        const e = out.get(port) ?? { total: 0, here: [] };
+        e.total += 1;
+        if (p.id === st.currentPageId) e.here.push({ pipeId: o.id, end });
+        out.set(port, e);
+      }
+    }
+  }
+  return out;
 }

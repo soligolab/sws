@@ -166,6 +166,23 @@ fn library_descriptions() -> &'static [Descrizione] {
     })
 }
 
+/// The old builtin alias (`pump`) of a library symbol id, if it has one.
+pub fn library_alias(lib_id: &str) -> Option<String> {
+    library_descriptions()
+        .iter()
+        .find(|d| d.id() == lib_id)
+        .and_then(|d| d.replaces.clone())
+}
+
+/// The library description for a library id, ready to be a variant (tests).
+#[cfg(test)]
+pub fn library_variant(lib_id: &str) -> Option<Descrizione> {
+    library_descriptions()
+        .iter()
+        .find(|d| d.id() == lib_id)
+        .map(as_project_symbol)
+}
+
 /// A library symbol turned into a project symbol to edit: no family, no
 /// builtin alias, `overrides` pointing at the original, and the few things the
 /// library is allowed and a project symbol is not made right (`regole`: a shape
@@ -241,6 +258,28 @@ pub async fn library_description(Path((family, slug)): Path<(String, String)>) -
     {
         Some(d) => Json(as_project_symbol(d)).into_response(),
         None => (StatusCode::NOT_FOUND, "library symbol not found").into_response(),
+    }
+}
+
+/// `POST /api/symbols/explicit-ports` — the description with its pipe ports
+/// written out as `bocca` operations with the ids the compiler gave them
+/// (`simboli_prj::explicit_ports`). The symbol editor asks for it when it
+/// opens a symbol, so the ports can be moved one by one without renaming the
+/// others, and the pipes already attached stay attached.
+pub async fn explicit_ports(Json(v): Json<Value>) -> Response {
+    let d: Descrizione = match serde_json::from_value(v) {
+        Ok(d) => d,
+        Err(e) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                format!("descrizione non valida: {e}"),
+            )
+                .into_response()
+        }
+    };
+    match simboli_prj::explicit_ports(&d) {
+        Ok(e) => Json(e).into_response(),
+        Err(e) => (StatusCode::BAD_REQUEST, e).into_response(),
     }
 }
 
@@ -373,6 +412,25 @@ mod tests {
             }
         }
         assert!(bad.is_empty(), "{bad:#?}");
+    }
+
+    /// A library symbol opened in the editor: variant first, then explicit
+    /// ports. It must still be a valid project symbol, with the library's ports.
+    #[test]
+    fn every_library_variant_with_explicit_ports_is_valid() {
+        for lib in library_descriptions() {
+            let v = as_project_symbol(lib);
+            let e = simboli_prj::explicit_ports(&v).unwrap();
+            let before = simboli_prj::compila(&v).unwrap();
+            let c = simboli_prj::compila_e_controlla(&e)
+                .unwrap_or_else(|err| panic!("{}: {err:?}", lib.slug));
+            assert_eq!(
+                before.voce.get("ports"),
+                c.voce.get("ports"),
+                "{}",
+                lib.slug
+            );
+        }
     }
 
     #[test]

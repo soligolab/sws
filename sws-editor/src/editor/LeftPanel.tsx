@@ -1043,12 +1043,20 @@ function RamoSimboli({ ultimoGruppo }: { ultimoGruppo: boolean }) {
   const custom = useAppStore((s) => s.customSymbols);
   const disegnati = useSimboliProgetto();
   const famiglie = famiglieSimboli(manifesto?.symbols ?? []);
-  // The project family is always there: it holds «+ New symbol» (plan
-  // 2026-11-18-editor-dei-simboli).
+  // The project family is always there, for the project's own symbols.
   void custom; void disegnati;
   const voci = [...famiglie.map((f) => f.famiglia), "__progetto"];
+  const px = useAppStore((s) => s.misuraIcone);
+  const esterne = ultimoGruppo ? [] : [13];
   return (
     <>
+      {/* «+ New symbol» at the top of the branch, always in sight (symbol editor
+          phase 2, 19-11-2026): at the bottom of the closed project family, the
+          maintainer did not find it. */}
+      <RigaStrumento testid="simbolo-nuovo" rientro={36} titolo={t("symbolEditor.newSymbolTitle")}
+        icona={<span style={{ width: px, textAlign: "center", flexShrink: 0 }}>+</span>}
+        nome={t("symbolEditor.newSymbol")} onClick={() => openNewSymbol()}
+        guide={guideAlbero(esterne, { x: 27, finoA: 34, ultimo: false })} />
       {voci.map((f, i) => (
         <FamigliaSimboli key={f} famiglia={f} tipologie={famiglie.find((x) => x.famiglia === f)?.tipologie ?? []}
           ultima={i === voci.length - 1} ultimoGruppo={ultimoGruppo}
@@ -1093,12 +1101,6 @@ function FamigliaSimboli({ famiglia, tipologie, titolo, ultima, ultimoGruppo }: 
           nome={c.label} onClick={() => aggiungiOggetto("symbol", { symbol_id: `custom:${c.id}` })}
           guide={guideAlbero(ultima ? esterne : [...esterne, 27], { x: 43, finoA: 50, ultimo: i === nProgetto - 1 })} />
       ))}
-      {aperta && famiglia === "__progetto" && (
-        <RigaStrumento testid="simbolo-nuovo" rientro={52} titolo={t("symbolEditor.newSymbolTitle")}
-          icona={<span style={{ width: px, textAlign: "center", flexShrink: 0 }}>+</span>}
-          nome={t("symbolEditor.newSymbol")} onClick={() => openNewSymbol()}
-          guide={guideAlbero(ultima ? esterne : [...esterne, 27], { x: 43, finoA: 50, ultimo: nProgetto === 0 })} />
-      )}
       {aperta && famiglia === "__progetto" && disegnati.map((s, i) => (
         <RigaStrumento key={s.id} testid={`simbolo-${s.id}`} rientro={52} titolo={t("leftPanel.strumentoAggiungi")}
           icona={<AnteprimaLib sim={s} w={Math.round(px * 1.15)} h={px} />}

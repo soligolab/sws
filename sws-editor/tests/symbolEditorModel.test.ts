@@ -7,6 +7,9 @@ import type { DescrizioneSimbolo } from "../src/types";
 import {
   addInput, boxToBox, deleteOps, duplicateOps, emptySymbol, fillOf, inputs, insertInLayer, layers, newRect,
   removeInput, reorderOp, saveAsCopy, setFill, setPartGeo, slugFrom, transformOp, transformPath, type Op,
+  addPort, movePort, needsExplicitPorts, ports, resizeSymbol, setPort, validPortId,
+  absolutePath, align, distribute, explodedOffsets, mapBox, matrixOp, matrixPath, moveToLayer, newCircle, newPath,
+  setExtra, turnMatrix, validPathD, type Box,
 } from "../src/symbols/editor/model";
 
 const gabbia: DescrizioneSimbolo = JSON.parse(
@@ -117,5 +120,151 @@ describe("save as", () => {
     expect(slugFrom("Pompa è già!", [])).toBe("pompa-e-gia");
     expect(slugFrom("P", [])).toMatch(/^[a-z0-9-]{3,40}$/);
     expect(slugFrom("x".repeat(80), [])).toHaveLength(34);
+  });
+});
+
+describe("pipe ports (phase 2)", () => {
+  const base = (): DescrizioneSimbolo => ({ slug: "s", w: 100, h: 60, body: "body-pump", it: "S", en: "S", ops: [] });
+
+  it("a new port goes on the nearest border, with a free id and the last diameter", () => {
+    let r = addPort(base(), 3, 30);
+    expect(ports(r.d)).toEqual([{ op: 0, id: "p1", x: 0, y: 30, side: "left", d: 10 }]);
+    r = addPort(setPort(r.d, 0, { d: 14 }), 70, 58);
+    expect(ports(r.d)[1]).toMatchObject({ id: "p2", x: 70, y: 60, side: "bottom", d: 14 });
+  });
+
+  it("a port on the border slides along its side; one inside moves freely", () => {
+    let d = addPort(base(), 99, 10).d;
+    d = movePort(d, 0, 40, 50);
+    expect(ports(d)[0]).toMatchObject({ x: 100, y: 50, side: "right" });
+    d = setPort(d, 0, { x: 50 });
+    d = movePort(d, 0, 20, 70);
+    expect(ports(d)[0]).toMatchObject({ x: 20, y: 60 });
+  });
+
+  it("a new side puts the port on that side", () => {
+    const d = setPort(addPort(base(), 0, 30).d, 0, { side: "top" });
+    expect(ports(d)[0]).toMatchObject({ side: "top", y: 0, x: 0 });
+  });
+
+  it("registrations and ports without an id need making explicit", () => {
+    expect(needsExplicitPorts(base())).toBe(false);
+    expect(needsExplicitPorts({ ...base(), ops: [{ op: "flangia_v", x: 0, y: 10 }] })).toBe(true);
+    expect(needsExplicitPorts({ ...base(), ops: [{ op: "bocca", x: 0, y: 10, side: "left", d: 10 }] })).toBe(true);
+    expect(needsExplicitPorts(addPort(base(), 0, 10).d)).toBe(false);
+  });
+
+  it("port ids", () => {
+    expect(validPortId("inlet")).toBe(true);
+    expect(validPortId("n-left-2")).toBe(true);
+    expect(validPortId("A")).toBe(false);
+    expect(validPortId("con spazio")).toBe(false);
+  });
+
+  it("a new size scales shapes, parts and ports, or only the size", () => {
+    let d = addPort(base(), 100, 30).d;
+    d = { ...d, ops: [...d.ops, { op: "forma", tag: "rect", geo: [["x", 10], ["y", 10], ["width", 80], ["height", 40]], mat: "steel", extra: [] }] };
+    const big = resizeSymbol(d, 200, 120, true);
+    expect(ports(big)[0]).toMatchObject({ x: 200, y: 60, d: 20 });
+    expect((big.ops[1] as { geo: [string, number][] }).geo).toEqual([["x", 20], ["y", 20], ["width", 160], ["height", 80]]);
+    const same = resizeSymbol(d, 200, 120, false);
+    expect(same.ops).toEqual(d.ops);
+    expect([same.w, same.h]).toEqual([200, 120]);
+  });
+});
+
+describe("drawing tools (phase 2)", () => {
+  const rect = (x: number, y: number, w: number, h: number): Op =>
+    ({ op: "forma", tag: "rect", geo: [["x", x], ["y", y], ["width", w], ["height", h]], mat: "steel", extra: [] });
+  const sym = (ops: Op[]): DescrizioneSimbolo => ({ slug: "s", w: 100, h: 100, body: "body-pump", it: "S", en: "S", ops });
+
+  it("a quarter turn about the centre turns a rect, an ellipse, a port", () => {
+    const m = turnMatrix("cw", 50, 50);
+    expect((matrixOp(rect(10, 20, 30, 10), m).geo as [string, number][])).toEqual([["x", 70], ["y", 10], ["width", 10], ["height", 30]]);
+    const e: Op = { op: "forma", tag: "ellipse", geo: [["cx", 20], ["cy", 50], ["rx", 10], ["ry", 4]], mat: "steel", extra: [] };
+    expect(matrixOp(e, m).geo).toEqual([["cx", 50], ["cy", 20], ["rx", 4], ["ry", 10]]);
+    const port: Op = { op: "bocca", x: 0, y: 50, side: "left", d: 10, id: "a" };
+    expect(matrixOp(port, m)).toMatchObject({ x: 50, y: 0, side: "top" });
+  });
+
+  it("a mirror flips a port's side and an arc's sweep", () => {
+    const m = turnMatrix("flipH", 50, 50);
+    expect(matrixOp({ op: "bocca", x: 0, y: 30, side: "left", d: 8, id: "a" }, m)).toMatchObject({ x: 100, y: 30, side: "right" });
+    expect(matrixPath("M10 10 A5 5 0 0 1 20 10", m)).toBe("M90 10 A5 5 0 0 0 80 10");
+  });
+
+  it("H and V become L before a turn, relative commands absolute", () => {
+    expect(absolutePath("M10 10 h20 v5 H0 z")).toBe("M10 10 L30 10 L30 15 L0 15 Z");
+    expect(matrixPath("M0 0 H10", turnMatrix("cw", 0, 0))).toBe("M0 0 L0 10");
+  });
+
+  it("align and distribute use the boxes", () => {
+    const d = sym([rect(10, 10, 10, 10), rect(40, 30, 20, 10), rect(80, 60, 10, 10)]);
+    const boxes = new Map<number, Box>([[0, { x: 10, y: 10, w: 10, h: 10 }], [1, { x: 40, y: 30, w: 20, h: 10 }], [2, { x: 80, y: 60, w: 10, h: 10 }]]);
+    const left = align(d, [0, 1, 2], boxes, "left");
+    expect(left.ops.map((o) => (o.geo as [string, number][])[0][1])).toEqual([10, 10, 10]);
+    const spread = distribute(d, [0, 1, 2], boxes, "h");
+    // gap = (90 - 10 - 40) / 2 = 20: the middle one starts at 20 + 20 = 40.
+    expect((spread.ops[1].geo as [string, number][])[0][1]).toBe(40);
+  });
+
+  it("the exploded view moves each box away from the centre, and fans out the ones on it", () => {
+    const off = explodedOffsets(new Map([
+      [0, { x: 0, y: 0, w: 20, h: 20 }],
+      [1, { x: 40, y: 40, w: 20, h: 20 }],
+      [2, { x: 30, y: 30, w: 40, h: 40 }],
+    ]), [50, 50], 1, 100);
+    expect(off.get(0)).toEqual([-40, -40]);
+    // Two shapes on the centre: two directions, both moved by a third of the symbol and more.
+    const [a, b] = [off.get(1)!, off.get(2)!];
+    expect(Math.hypot(...a)).toBeCloseTo(35, 0);
+    expect(Math.hypot(...b)).toBeCloseTo(35, 0);
+    expect(a).not.toEqual(b);
+  });
+
+  it("a box moved and resized", () => {
+    expect(mapBox({ x: 10, y: 10, w: 20, h: 10 }, { sx: 1, sy: 1, tx: 5, ty: -2 })).toEqual({ x: 15, y: 8, w: 20, h: 10 });
+    const a = boxToBox({ x: 0, y: 0, w: 10, h: 10 }, { x: 5, y: 5, w: 20, h: 30 });
+    expect(mapBox({ x: 0, y: 0, w: 10, h: 10 }, a)).toEqual({ x: 5, y: 5, w: 20, h: 30 });
+  });
+
+  it("in the exploded view a group moves as one, from the box around it", () => {
+    const boxes = new Map([
+      [0, { x: 0, y: 0, w: 20, h: 20 }],
+      [1, { x: 80, y: 0, w: 20, h: 20 }],
+      [2, { x: 40, y: 80, w: 20, h: 20 }],
+    ]);
+    const off = explodedOffsets(boxes, [50, 50], 1, 100, [[0, 1]]);
+    // The group's box is 0..100 × 0..20: its centre is above the symbol's.
+    expect(off.get(0)).toEqual([0, -40]);
+    expect(off.get(1)).toEqual([0, -40]);
+    expect(off.get(2)).toEqual([0, 40]);
+    // A group member without a box is left out, and a group of none is no group.
+    expect(explodedOffsets(boxes, [50, 50], 1, 100, [[0, 1, 9], []]).get(9)).toBeUndefined();
+  });
+
+  it("new circle and polyline; path d check; extras", () => {
+    expect(newCircle({ x: 0, y: 0, w: 20, h: 10 }).geo).toEqual([["cx", 10], ["cy", 5], ["r", 5]]);
+    expect(newPath([[0, 0], [10, 0], [10, 10]], true)).toMatchObject({ op: "forma", tag: "path", geo: [["d", "M0 0 L10 0 L10 10 Z"]] });
+    expect(newPath([[0, 0], [10, 0]], false)).toMatchObject({ op: "tratto", d: "M0 0 L10 0" });
+    expect(validPathD("M0 0 L10 10 Z")).toBe(true);
+    expect(validPathD("M0 0\nL1 1")).toBe(false);
+    const d = setExtra(sym([rect(0, 0, 10, 10)]), 0, "stroke", "#ff0000");
+    expect(d.ops[0].extra).toEqual([["stroke", "#ff0000"]]);
+    expect(setExtra(d, 0, "stroke", undefined).ops[0].extra).toEqual([]);
+  });
+
+  it("no fill reads as no fill, not as the state's colour", () => {
+    const op: Op = { op: "forma", tag: "circle", geo: [["cx", 5], ["cy", 5], ["r", 5]], mat: null, extra: [["fill", "none"]] };
+    expect(fillOf(op)).toEqual({ none: true });
+    expect(setFill(sym([op]), 0, { body: true }).ops[0].extra).toEqual([]);
+    expect(setFill(sym([rect(0, 0, 1, 1)]), 0, { none: true }).ops[0]).toMatchObject({ mat: null, extra: [["fill", "none"]] });
+  });
+
+  it("moving shapes to another layer keeps their order", () => {
+    const d = sym([rect(0, 0, 1, 1), rect(1, 1, 1, 1), { op: "statico" }, rect(2, 2, 1, 1)]);
+    const r = moveToLayer(d, [0, 1], "layer-1");
+    expect(r.d.ops.map((o) => o.op === "forma" ? (o.geo as [string, number][])[0][1] : o.op)).toEqual(["statico", 2, 0, 1]);
+    expect(r.at).toEqual([2, 3]);
   });
 });

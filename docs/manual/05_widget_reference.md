@@ -784,6 +784,34 @@ della libreria modificata nel progetto si vede col disegno modificato (✎). La 
 sua «Categoria» nell'editor dei simboli, da un elenco delle tipologie della libreria. Per mettere un simbolo di un altro
 tipo si aggiunge un oggetto nuovo.
 
+**L'editor dei simboli** (pannello proprietà → «Modifica simbolo», oppure Strumenti ▸ Simboli → «+ Nuovo simbolo», in
+cima al ramo). Una pompa della libreria modificata diventa una variante che la sostituisce in tutto il progetto; «Salva
+come…» ne fa un simbolo nuovo.
+- **Strumenti**: seleziona (anche a riquadro, Maiusc aggiunge e toglie, Alt+clic passa alla forma sotto, Ctrl+A tutto),
+  rettangolo, ellisse, cerchio, linea, polilinea (un clic per punto; doppio clic o Invio finisce una linea, un clic sul
+  primo punto chiude la forma), bocca. Ctrl+C/X/V copia, taglia e incolla anche fra simboli diversi; Ctrl+D duplica;
+  le frecce spostano.
+- **Vista**: rotella o + e − per lo zoom, «Adatta», spazio+trascina o tasto centrale per spostarsi. Griglia con passo
+  5/10/20 e aggancio: con l'aggancio, spostando, l'angolo in alto a sinistra di ciò che si sposta cade sulla griglia.
+  La calamita allinea bordi e centri alle altre forme e al bordo del simbolo, con le guide rosse.
+- **Ruota di 90° e specchia**, **allinea e distribuisci**: sulla selezione, scritti nella geometria.
+- **Vista esplosa**: le forme si allontanano dal centro (il cursore dice quanto) per vederle e sceglierle una per una;
+  le modifiche valgono per il simbolo vero.
+- **Strati**: nascondi (◉/○) e blocca (□/■) solo nell'editor; «Sposta nello strato» nel pannello «Pezzo».
+- **Raggruppa** (⧉ accanto allo strato): le forme dello strato diventano un oggetto solo. Un clic sul disegno le sceglie
+  tutte, il riquadro le prende insieme, e nella vista esplosa restano unite. Dall'elenco degli strati si sceglie ancora
+  una forma sola. Il raggruppamento vale finché l'IDE resta aperto: non è salvato nel simbolo.
+- **Pezzo**: materiale, colore proprio o nessun riempimento; contorno dello strato, proprio o nessuno; spessore,
+  opacità, tratteggio, estremità; il tracciato `d` di una linea o di una forma libera, come testo.
+- **Bocche dei tubi** («Attacchi dei tubi» nella scheda «Struttura»): sono i punti dove si agganciano i tubi in pagina.
+  Aprendo un simbolo le bocche che il disegno aveva diventano punti veri con lo stesso nome, quindi i tubi già
+  agganciati restano dove sono. Lo strumento «Bocca» ne mette una sul bordo più vicino; si trascinano (una sul bordo
+  scorre lungo il suo lato), si rinominano, si cambia lato e diametro. L'elenco dice quanti tubi ha ognuna; salvando,
+  una bocca tolta o rinominata con tubi agganciati chiede conferma, e i tubi della pagina seguono la rinomina.
+- **Misura**: con «scala il disegno» acceso, cambiare larghezza o altezza scala forme, pezzi e bocche.
+- **Prova**: la scheda mostra il simbolo coi valori dei suoi ingressi (stato, livello, girante, lancetta, leva, spia),
+  come in pagina; non salva niente.
+
 | Proprietà | Descrizione |
 |-----------|-------------|
 | `symbol_id` | Il simbolo |

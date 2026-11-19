@@ -1592,6 +1592,11 @@ export const api = {
     ),
 
   /** GET /api/symbols/catalog — materials, veils and limits of a description. */
+  /** POST /api/symbols/explicit-ports — the description with its pipe ports written out as `bocca`
+   *  operations with the ids the compiler gave them (symbol editor phase 2). */
+  symbolExplicitPorts: (d: DescrizioneSimbolo) =>
+    request<DescrizioneSimbolo>("/api/symbols/explicit-ports", { method: "POST", body: JSON.stringify(d) }),
+
   symbolCatalog: () =>
     request<{ materials: { name: string; color: string }[]; veils: { name: string; type: string }[] }>("/api/symbols/catalog"),
 

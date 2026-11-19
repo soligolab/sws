@@ -38,7 +38,9 @@ La fase 1 (squash `8b7bb6a30`) ha esteso le descrizioni dei simboli del progetto
      è vero, o all'angolo di un valore), colore/accensione/visibilità/lampeggio, movimento fra due posizioni e
      riempimento in qualunque forma, vibrazione e pulsazione — su una forma o un gruppo scelto nell'editor, su web e
      LVGL, misurate sul TY570; in pagina la sezione «Ingressi» (tag o valore fisso). **Comincia con una sessione di
-     plan approfondita**: formato dei pezzi, valutatore condiviso, motori, budget del pannello;
+     plan approfondita**: formato dei pezzi, valutatore condiviso, motori, budget del pannello. Fra le domande: **i
+     gruppi**. Dalla sessione 1 uno strato si raggruppa (⧉), ma solo nell'editor e finché l'IDE è aperto; per
+     animarlo il gruppo diventa un dato del simbolo, e si decide se resta lo strato o un insieme di forme scelte;
    - **sessione 3**: **importa SVG esploso** (gruppi e trasformazioni appiattiti, colori in `#rrggbb`, gradienti
      approssimati coi veli, `evenodd`/`clipPath`/`mask` lasciati con un avviso) ed **esporta/importa il simbolo** come
      file; allineare lo schema dell'assistente (`schema_simbolo`, `ai/tools.rs:1306`, dice ancora «niente colori

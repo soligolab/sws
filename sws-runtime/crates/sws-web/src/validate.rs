@@ -1170,6 +1170,20 @@ pub fn semantic(project: &Project, pages: &[SynopticPage]) -> Vec<Finding> {
             Some((d.id(), porte.unwrap_or_default()))
         })
         .collect();
+    // A variant of a library symbol is drawn in its place, ports included
+    // (symbol editor, 19-11-2026): a pipe on `lib:…`, or on its old alias, is
+    // checked against the variant's ports, not the library's.
+    let varianti: Vec<(String, Vec<String>)> = project
+        .simboli
+        .iter()
+        .filter_map(|d| Some((d.overrides.clone()?, bocche_prj.get(&d.id())?.clone())))
+        .collect();
+    for (lib, ports) in varianti {
+        if let Some(alias) = crate::simboli_progetto::library_alias(&lib) {
+            bocche_prj.insert(alias, ports.clone());
+        }
+        bocche_prj.insert(lib, ports);
+    }
     // The custom symbols drawn as free SVG declare their ports too (G3): in
     // the same map, under their `custom:` id.
     for symbol in &project.custom_symbols {
@@ -2258,10 +2272,16 @@ fn controlla_oggetto(
             .filter(|b| b.obj_type == "symbol")
             .and_then(|b| b.symbol_id.as_deref());
         let bocche: Vec<&str> = match sid {
-            Some(sid) if sid.starts_with("prj:") || sid.starts_with("custom:") => bocche_prj
-                .get(sid)
-                .map(|v| v.iter().map(String::as_str).collect())
-                .unwrap_or_default(),
+            Some(sid)
+                if sid.starts_with("prj:")
+                    || sid.starts_with("custom:")
+                    || bocche_prj.contains_key(sid) =>
+            {
+                bocche_prj
+                    .get(sid)
+                    .map(|v| v.iter().map(String::as_str).collect())
+                    .unwrap_or_default()
+            }
             Some(sid) => SYMBOL_PORTS
                 .iter()
                 .find(|(k, _)| *k == sid)
@@ -3953,6 +3973,43 @@ alarms: []
             .expect("avviso");
         assert!(matches!(f.severity, Severity::Warning));
         assert!(f.hint.as_deref().unwrap().contains("n-left"), "{f:?}");
+    }
+
+    /// A pump with a variant in the project: a pipe on `lib:…/centrifugal-pump`
+    /// (or on `pump`) is checked against the variant's ports.
+    #[test]
+    fn a_pipe_on_a_library_symbol_with_a_variant_uses_the_variants_ports() {
+        let mut v =
+            crate::simboli_progetto::library_variant("lib:process/centrifugal-pump").unwrap();
+        v = sws_core::simboli_prj::explicit_ports(&v).unwrap();
+        for op in v.ops.iter_mut() {
+            if let sws_core::simboli_prj::Op::Bocca { id: Some(id), .. } = op {
+                *id = format!("inlet-{id}");
+            }
+        }
+        let mut p: Project = serde_yaml::from_str(PROGETTO).unwrap();
+        p.simboli = vec![v];
+        for sid in ["lib:process/centrifugal-pump", "pump"] {
+            let pagina_con = |porta: &str| -> SynopticPage {
+                serde_yaml::from_str(&pagina(&format!(
+                    "- {{ id: pompa, type: symbol, x: 0, y: 0, width: 80, height: 80, symbol_id: \"{sid}\" }}\n\
+                     - {{ id: t, type: pipe, x: 0, y: 0, from_obj_id: pompa, from_port: {porta}, points: [{{x: 0, y: 0}}, {{x: 100, y: 0}}] }}"
+                )))
+                .unwrap()
+            };
+            let sul_capo =
+                |rs: &[Finding]| rs.iter().filter(|f| f.path.ends_with(".from_port")).count();
+            assert_eq!(
+                sul_capo(&semantic(&p, &[pagina_con("inlet-n-top")])),
+                0,
+                "{sid}"
+            );
+            assert_eq!(
+                sul_capo(&semantic(&p, &[pagina_con("n-top")])),
+                1,
+                "{sid}: the library's port is gone"
+            );
+        }
     }
 
     /// I simboli disegnati nel progetto (`prj:`): ci devono essere, e le loro

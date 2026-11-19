@@ -115,6 +115,14 @@ describe("ramo Strumenti", () => {
     expect(aggiunte).toEqual([["symbol", { symbol_id: sim.id }]]);
   });
 
+  it("«+ New symbol» is at the top of the Symbols branch, without opening a family", () => {
+    render(<LeftPanel />);
+    fireEvent.click(screen.getByText(t("editor.palette.group.simboli")));
+    fireEvent.click(screen.getByTestId("simbolo-nuovo"));
+    expect(useAppStore.getState().symbolEditor?.isNew).toBe(true);
+    act(() => useAppStore.getState().closeSymbolEditor());
+  });
+
   /** Il filtro dentro «Strumenti» non c'è più: dal 26-10-2026 lo assorbe la
    *  ricerca globale in cima alla colonna (scelta del maintainer — due campi
    *  che cercano negli strumenti sono due punti che fanno la stessa cosa).

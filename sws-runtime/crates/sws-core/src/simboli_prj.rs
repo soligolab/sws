@@ -1420,6 +1420,51 @@ pub fn regole(d: &Descrizione, c: &Compilato) -> Vec<String> {
     male
 }
 
+/// The description with its pipe ports written out as `bocca` operations,
+/// each with the id the compiler gave it (symbol editor phase 2, 19-11-2026).
+///
+/// The compiler infers the ports of a drawing from the flanges on its border
+/// (`porte`), and names them by position (`n-left`, `n-right-2`): moving or
+/// adding a flange in the editor moved, renamed or dropped a port, and the
+/// pipes attached to it fell back to the centre without a word. Here the
+/// registrations go (`flangia`, `tronchetto`, the registration half of the
+/// shortcuts, whose shapes stay) and every port becomes a `bocca` with its
+/// current id: the drawing and the ports compile exactly as before, and from
+/// then on a port is moved, renamed or removed on its own.
+pub fn explicit_ports(d: &Descrizione) -> Result<Descrizione, String> {
+    let c = compila(d)?;
+    let ports = c
+        .voce
+        .get("ports")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let mut ops: Vec<Op> = Vec::with_capacity(d.ops.len() + ports.len());
+    for op in &d.ops {
+        match op {
+            Op::Flangia { .. } | Op::Tronchetto { .. } | Op::Bocca { .. } => {}
+            Op::FlangiaV { .. } | Op::FlangiaO { .. } | Op::TuboO { .. } | Op::TuboV { .. } => {
+                ops.extend(
+                    espandi(std::slice::from_ref(op))
+                        .into_iter()
+                        .filter(|o| matches!(o, Op::Forma { .. })),
+                );
+            }
+            altro => ops.push(altro.clone()),
+        }
+    }
+    for p in ports {
+        ops.push(Op::Bocca {
+            x: p["x"].as_f64().unwrap_or(0.0),
+            y: p["y"].as_f64().unwrap_or(0.0),
+            side: p["side"].as_str().unwrap_or("left").to_string(),
+            d: p["d"].as_f64().unwrap_or(10.0),
+            id: p["id"].as_str().map(str::to_string),
+        });
+    }
+    Ok(Descrizione { ops, ..d.clone() })
+}
+
 /// Compila e controlla: la via di chi riceve una descrizione da fuori.
 pub fn compila_e_controlla(d: &Descrizione) -> Result<Compilato, Vec<String>> {
     let c = compila(d).map_err(|e| vec![e])?;
@@ -1647,6 +1692,55 @@ mod tests {
         assert_eq!(c.voce["overrides"], "lib:process/centrifugal-pump");
         d.overrides = Some("prj:altro".into());
         assert!(compila_e_controlla(&d).is_err());
+    }
+
+    /// Every library symbol: with its ports made explicit it draws the same
+    /// bytes and has the same ports (ids, positions, sides, diameters), and
+    /// it still passes the rules. The editor relies on it to open a pump
+    /// without moving a single pipe.
+    #[test]
+    fn explicit_ports_change_neither_the_drawing_nor_the_ports() {
+        let mut with_ports = 0;
+        for d in descrizioni_della_libreria() {
+            let before = compila(&d).unwrap();
+            let e = explicit_ports(&d).unwrap();
+            let after = compila(&e).unwrap();
+            assert_eq!(before.svg, after.svg, "{}: the drawing changed", d.slug);
+            assert_eq!(
+                before.voce.get("ports"),
+                after.voce.get("ports"),
+                "{}: the ports changed",
+                d.slug
+            );
+            assert!(
+                !e.ops.iter().any(|o| matches!(
+                    o,
+                    Op::Flangia { .. }
+                        | Op::Tronchetto { .. }
+                        | Op::FlangiaV { .. }
+                        | Op::FlangiaO { .. }
+                        | Op::TuboO { .. }
+                        | Op::TuboV { .. }
+                )),
+                "{}: a registration is left",
+                d.slug
+            );
+            assert!(
+                e.ops
+                    .iter()
+                    .all(|o| !matches!(o, Op::Bocca { id: None, .. })),
+                "{}: a port without its id",
+                d.slug
+            );
+            assert_eq!(regole(&e, &after), Vec::<String>::new(), "{}", d.slug);
+            if before.voce.get("ports").is_some() {
+                with_ports += 1;
+            }
+        }
+        assert!(
+            with_ports >= 90,
+            "only {with_ports} library symbols with ports: is the fixture the right one?"
+        );
     }
 
     #[test]

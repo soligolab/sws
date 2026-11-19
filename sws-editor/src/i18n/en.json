@@ -5362,6 +5362,29 @@
     "wifiDetails": "Wi-Fi network addresses"
   },
   "symbolEditor": {
+    "scaleDrawing": "A new size scales the drawing, the parts and the ports",
+    "port": {
+      "one": "Port",
+      "title": "Pipe ports",
+      "note": "Ports are where pipes attach on a page. «Port» tool: a click near the border adds one; drag them, and one on the border slides along its side.",
+      "none": "No ports: on a page pipes attach only to the centre and the sides of the box.",
+      "pipes": "Pipes attached: {{n}}",
+      "id": "Name",
+      "idTaken": "Another port has this name.",
+      "idRule": "2 to 30 characters: lowercase letters, digits, «-».",
+      "sideLabel": "Side",
+      "diameter": "Diameter",
+      "side": {
+        "left": "left",
+        "top": "top",
+        "right": "right",
+        "bottom": "bottom"
+      },
+      "renamedWithPipes": "«{{from}}» becomes «{{to}}»: {{n}} pipes attached.",
+      "removedWithPipes": "«{{id}}» is gone: {{n}} pipes attached will end at the centre of the symbol.",
+      "changedTitle": "Ports with pipes attached",
+      "changedText": "The pipes on this page follow the renamed ports; those on other pages must be attached again. Save?"
+    },
     "title": "Symbol editor",
     "editSymbol": "Edit symbol",
     "newSymbol": "New symbol",
@@ -5401,15 +5424,19 @@
       "stub": "Pipe stub"
     },
     "tool": {
+      "port": "Port",
       "select": "Select",
       "rect": "Rectangle",
       "ellipse": "Ellipse",
-      "line": "Line"
+      "line": "Line",
+      "circle": "Circle",
+      "poly": "Polyline"
     },
     "errors": "The symbol cannot be saved like this:",
     "tab": {
       "piece": "Piece",
-      "structure": "Structure"
+      "structure": "Structure",
+      "try": "Try"
     },
     "closeTitle": "Close the editor?",
     "closeUnsaved": "There are unsaved changes: they will be lost.",
@@ -5430,12 +5457,13 @@
     "fill": {
       "material": "Material",
       "own": "Own colour",
-      "body": "State colour"
+      "body": "State colour",
+      "none": "No fill"
     },
     "ownColourNote": "An own colour does not follow the project's symbol style.",
     "veil": "Volume",
     "noVeil": "None (flat)",
-    "strokeWidth": "Outline",
+    "strokeWidth": "Outline width",
     "variantNote": "This is a variant of a library symbol: once saved, it replaces that symbol in the whole project. The SWS library does not change.",
     "nameIt": "Name (it)",
     "nameEn": "Name (en)",
@@ -5460,6 +5488,65 @@
       "a1": "maximum angle",
       "open": "open angle",
       "closed": "closed angle"
-    }
+    },
+    "polyHint": "One click per point; double click or Enter ends a line; a click on the first point closes the shape.",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "fit": "Fit",
+    "grid": "Grid",
+    "gridStep": "Grid step",
+    "gridSnap": "Snap",
+    "magnet": "Magnet",
+    "turnCw": "Turn 90° clockwise",
+    "turnCcw": "Turn 90° anticlockwise",
+    "flipH": "Mirror left and right",
+    "flipV": "Mirror top and bottom",
+    "align": {
+      "left": "Align left",
+      "hcenter": "Align centres (horizontal)",
+      "right": "Align right",
+      "top": "Align top",
+      "vcenter": "Align centres (vertical)",
+      "bottom": "Align bottom"
+    },
+    "distributeH": "Distribute horizontally",
+    "distributeV": "Distribute vertically",
+    "explode": "Exploded view",
+    "explodeHint": "The shapes move away from the centre to see and pick them one by one; the changes apply to the real symbol.",
+    "explodeAmount": "How far apart",
+    "layerShow": "Show the layer",
+    "layerHide": "Hide the layer (in the editor only)",
+    "layerLock": "Lock the layer (not selectable)",
+    "layerUnlock": "Unlock the layer",
+    "layerGroup": "Group: the shapes of the layer are one object, picked together and kept together in the exploded view. The list below still picks a single shape.",
+    "layerUngroup": "Ungroup: the shapes of the layer are picked and moved apart one by one",
+    "moveToLayer": "Move to layer",
+    "lineColour": "Line colour",
+    "outline": "Outline colour",
+    "outlineLayer": "The layer's",
+    "outlineNone": "None",
+    "fillOpacity": "Fill opacity",
+    "strokeOpacity": "Outline opacity",
+    "dash": "Dashes",
+    "linecap": "Line ends",
+    "cap": {
+      "butt": "Butt",
+      "round": "Round",
+      "square": "Square"
+    },
+    "pathD": "Path (d)",
+    "pathDRule": "Commands and numbers only, on one line, at most 4000 characters.",
+    "tryNote": "The symbol as a page shows it, with the values below. Nothing is saved.",
+    "tryNone": "This symbol has no inputs to try.",
+    "try": {
+      "drawn": "As drawn",
+      "off": "Off",
+      "on": "On",
+      "alarm": "Alarm",
+      "spin": "Spinning",
+      "open": "Open",
+      "lit": "Lit"
+    },
+    "magnetHint": "Magnet: while moving, drawing or resizing, the edges and the centre of the shape (or the point: a port, a pivot, a vertex) snap to the edges and centres of the other shapes and to the border and centre of the symbol, when they are close. A red line shows the snap."
   }
 }

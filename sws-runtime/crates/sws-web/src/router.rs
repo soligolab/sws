@@ -517,6 +517,10 @@ pub fn build(
             "/api/symbols/catalog",
             get(crate::simboli_progetto::catalog),
         )
+        .route(
+            "/api/symbols/explicit-ports",
+            post(crate::simboli_progetto::explicit_ports),
+        )
         .route("/api/project/datastores", put(update_project_datastores))
         .route(
             "/api/project/global-scripts",

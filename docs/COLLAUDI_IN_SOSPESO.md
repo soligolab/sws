@@ -27,6 +27,27 @@
 
 ---
 
+## L'editor dei simboli, fase 2, sessione 1 (19-11-2026)
+
+Dal piano [fase 2](plans/2026-11-19-editor-dei-simboli-fase-2.md), ramo `feat/symbol-editor-tools`. IDE 8460 (o 8462).
+
+1. [ ] **Bocche di una pompa**: «Modifica simbolo» su una pompa con un tubo agganciato: le bocche si vedono col nome di
+       prima (`n-left`…), «Attacchi dei tubi» dice 1 tubo; salvando, il tubo resta agganciato.
+2. [ ] **Bocca nuova**: strumento «Bocca» su un simbolo nuovo, poi in pagina un tubo agganciato lì, sul web e sul TY570;
+       spostare la bocca nell'editor sposta il capo del tubo.
+3. [ ] **Rinomina e cancella**: rinominare una bocca con un tubo chiede conferma e il tubo la segue; cancellarla dice che
+       il tubo finirà al centro.
+4. [ ] **Misura**: cambiare la larghezza con «scala il disegno» acceso scala tutto, bocche comprese.
+5. [ ] **Strumenti**: zoom con la rotella, riquadro, Ctrl+A, copia/incolla fra due simboli, griglia con aggancio,
+       calamita con le guide, ruota/specchia, allinea/distribuisci, cerchio, polilinea chiusa e aperta, contorno, nessun
+       riempimento, opacità, tratteggio, `d` a mano.
+6. [ ] **Vista esplosa**: le forme di una pompa si allontanano; una si sceglie, si sposta, e uscendo è al suo posto
+       (spostata della stessa quantità).
+7. [ ] **Strato raggruppato**: ⧉ sullo strato della girante; nella vista esplosa le sue forme restano unite, un clic su
+       una le sceglie tutte e si spostano insieme; dall'elenco degli strati se ne sceglie ancora una sola.
+8. [ ] **Prova**: stato acceso/allarme, livello, girante che gira, leva, spia.
+9. [ ] **«+ Nuovo simbolo»** in cima a Strumenti ▸ Simboli, senza aprire famiglie.
+
 ## La galleria dei simboli solo dello stesso tipo (19-11-2026)
 
 Dal piano [galleria dei simboli](plans/2026-11-19-galleria-simboli-stesso-tipo.md), ramo `feat/symbol-gallery-kind`.

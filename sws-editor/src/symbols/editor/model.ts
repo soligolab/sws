@@ -162,8 +162,11 @@ export function transformOp(op: Op, a: Affine): Op {
       if (typeof geo.cy === "number") geo.cy = py(a, geo.cy);
       return { ...op, geo };
     }
-    case "bocca":
-      return { ...op, x: px(a, Number(op.x)), y: py(a, Number(op.y)) };
+    case "bocca": {
+      // The diameter follows the drawing it attaches to.
+      const s = Math.min(Math.abs(a.sx), Math.abs(a.sy));
+      return { ...op, x: px(a, Number(op.x)), y: py(a, Number(op.y)), d: r2(Number(op.d) * s) };
+    }
     case "flangia": case "tronchetto": {
       const [x, y, w, h] = op.rect as number[];
       return { ...op, rect: [px(a, x), py(a, y), r2(w * Math.abs(a.sx)), r2(h * Math.abs(a.sy))] };
@@ -187,6 +190,11 @@ export function boxToBox(from: Box, to: Box): Affine {
   const sx = from.w === 0 ? 1 : to.w / from.w;
   const sy = from.h === 0 ? 1 : to.h / from.h;
   return { sx, sy, tx: to.x - from.x * sx, ty: to.y - from.y * sy };
+}
+
+/** Where `a` takes a box (positive scales, as a move or a resize has). */
+export function mapBox(b: Box, a: Affine): Box {
+  return { x: r2(b.x * a.sx + a.tx), y: r2(b.y * a.sy + a.ty), w: r2(b.w * a.sx), h: r2(b.h * a.sy) };
 }
 
 // ── edits: each returns a new description ──────────────────────────────────
@@ -253,19 +261,65 @@ export function newEllipse(b: Box, mat = "steel"): Op {
   };
 }
 
+export function newCircle(b: Box, mat = "steel"): Op {
+  const r = r2(Math.min(b.w, b.h) / 2);
+  return { op: "forma", tag: "circle", geo: [["cx", r2(b.x + b.w / 2)], ["cy", r2(b.y + b.h / 2)], ["r", r]], mat, velo: null, extra: [] };
+}
+
+/** A path through `points`: closed it is a filled shape, open a line. */
+export function newPath(points: [number, number][], closed: boolean): Op {
+  const d = points.map(([x, y], k) => `${k ? "L" : "M"}${r2(x)} ${r2(y)}`).join(" ") + (closed ? " Z" : "");
+  return closed
+    ? { op: "forma", tag: "path", geo: [["d", d]], mat: "steel", velo: null, extra: [] }
+    : { op: "tratto", d, mat: "steel-dark", extra: [["stroke_width", 2]] };
+}
+
+/** A path `d` the compiler accepts (`path_ammesso`): commands and numbers only,
+ *  on one line, at most 4000 characters. */
+export function validPathD(d: string): boolean {
+  return d.length > 0 && d.length <= 4000 && /^[MmLlHhVvCcSsQqTtAaZz0-9.,\-+eE ]+$/.test(d);
+}
+
+/** Sets the `d` of a path (a `tratto`, or a `forma` path). */
+export function setPathD(d: DescrizioneSimbolo, i: number, path: string): DescrizioneSimbolo {
+  const ops = [...(d.ops as Op[])];
+  const op = ops[i];
+  if (op.op === "tratto") ops[i] = { ...op, d: path };
+  else if (op.op === "forma") ops[i] = { ...op, geo: (op.geo as Pairs).map(([k, v]) => [k, k === "d" ? path : v]) };
+  return withOps(d, ops);
+}
+
+/** Sets (or, with `undefined`, removes) one extra attribute: `stroke`,
+ *  `fill_opacity`, `stroke_dasharray`… */
+export function setExtra(d: DescrizioneSimbolo, i: number, key: string, value: number | string | undefined): DescrizioneSimbolo {
+  const ops = [...(d.ops as Op[])];
+  const op = { ...ops[i] };
+  const extra = ((op.extra as Pairs | undefined) ?? []).filter(([k]) => k !== key);
+  op.extra = value === undefined ? extra : [...extra, [key, typeof value === "number" ? r2(value) : value]];
+  ops[i] = op;
+  return withOps(d, ops);
+}
+
+export function extraOf(op: Op, key: string): number | string | undefined {
+  return (op.extra as Pairs | undefined)?.find(([k]) => k === key)?.[1];
+}
+
 /** A straight path from (x1, y1) to (x2, y2): a line with the outline. */
 export function newLine(x1: number, y1: number, x2: number, y2: number): Op {
   return { op: "tratto", d: `M${r2(x1)} ${r2(y1)} L${r2(x2)} ${r2(y2)}`, mat: "steel-dark", extra: [["stroke_width", 2]] };
 }
 
 /** How an operation is coloured: a material, its own colour, or the body's. */
-export type Fill = { mat: string } | { color: string } | { body: true };
+export type Fill = { mat: string } | { color: string } | { body: true } | { none: true };
 
 export function fillOf(op: Op): Fill | undefined {
   if (op.op === "forma") {
     if (typeof op.mat === "string") return { mat: op.mat };
     const c = (op.extra as Pairs | undefined)?.find(([k]) => k === "fill")?.[1];
     if (typeof c === "string" && c.startsWith("#")) return { color: c };
+    // `fill: none` (17 library shapes: rims, outlines) is no fill, not the
+    // colour of the state: choosing it filled them (phase 1).
+    if (c === "none") return { none: true };
     return { body: true };
   }
   if (op.op === "tratto") {
@@ -285,6 +339,7 @@ export function setFill(d: DescrizioneSimbolo, i: number, f: Fill): DescrizioneS
   const extra = ((op.extra as Pairs | undefined) ?? []).filter(([k]) => k !== key);
   if ("mat" in f) { op.mat = f.mat; op.extra = extra; }
   else if ("color" in f) { op.mat = null; op.extra = [...extra, [key, f.color]]; }
+  else if ("none" in f) { op.mat = null; op.extra = [...extra, [key, "none"]]; }
   else { op.mat = null; op.extra = extra; }
   ops[i] = op;
   return withOps(d, ops);
@@ -373,6 +428,335 @@ export function renamePart(d: DescrizioneSimbolo, opIndex: number, id: string): 
   if (op?.op !== "parte") return d;
   ops[opIndex] = { ...op, id };
   return withOps(d, ops);
+}
+
+// ── quarter turns and mirrors ──────────────────────────────────────────────
+//
+// The format has no `transform` (phase 2, 19-11-2026): a rotation by 90° or a
+// mirror is written into the geometry. `Matrix` is [a, b, c, d, e, f]:
+// x' = a·x + c·y + e, y' = b·x + d·y + f, with a…d in {-1, 0, 1}.
+
+export type Matrix = [number, number, number, number, number, number];
+
+/** The quarter turn (`dir` 1 = clockwise on screen) or mirror about (cx, cy). */
+export function turnMatrix(kind: "cw" | "ccw" | "flipH" | "flipV", cx: number, cy: number): Matrix {
+  const [a, b, c, d] =
+    kind === "cw" ? [0, 1, -1, 0] : kind === "ccw" ? [0, -1, 1, 0] : kind === "flipH" ? [-1, 0, 0, 1] : [1, 0, 0, -1];
+  return [a, b, c, d, cx - a * cx - c * cy, cy - b * cx - d * cy];
+}
+
+const apply = (m: Matrix, x: number, y: number): [number, number] => [r2(m[0] * x + m[2] * y + m[4]), r2(m[1] * x + m[3] * y + m[5])];
+const swapsAxes = (m: Matrix) => m[0] === 0;
+
+/** A path with only absolute commands, H and V written as L: what a quarter
+ *  turn or a mirror needs, since a horizontal line may become a vertical one. */
+export function absolutePath(d: string): string {
+  const out: string[] = [];
+  let cx = 0, cy = 0, sx = 0, sy = 0;
+  const re = /([MmLlHhVvCcSsQqTtAaZz])([^MmLlHhVvCcSsQqTtAaZz]*)/g;
+  for (const m of d.matchAll(re)) {
+    const cmd = m[1];
+    const up = cmd.toUpperCase();
+    const rel = cmd !== up;
+    const nums = (m[2].match(NUM) ?? []).map(Number);
+    if (up === "Z") { out.push("Z"); cx = sx; cy = sy; continue; }
+    const n = ARGS[up];
+    for (let k = 0; k + n <= nums.length; k += n) {
+      const g = nums.slice(k, k + n);
+      const X = (v: number) => (rel ? cx + v : v), Y = (v: number) => (rel ? cy + v : v);
+      switch (up) {
+        case "H": { const x = X(g[0]); out.push(`L${r2(x)} ${r2(cy)}`); cx = x; break; }
+        case "V": { const y = Y(g[0]); out.push(`L${r2(cx)} ${r2(y)}`); cy = y; break; }
+        case "A": {
+          const x = X(g[5]), y = Y(g[6]);
+          out.push(`A${g[0]} ${g[1]} ${g[2]} ${g[3]} ${g[4]} ${r2(x)} ${r2(y)}`);
+          cx = x; cy = y; break;
+        }
+        default: {
+          const pts: number[] = [];
+          for (let j = 0; j < n; j += 2) pts.push(r2(X(g[j])), r2(Y(g[j + 1])));
+          // `M` with more pairs: the next ones are lines.
+          out.push(`${up === "M" && k > 0 ? "L" : up}${pts.join(" ")}`);
+          cx = pts[n - 2]; cy = pts[n - 1];
+          if (up === "M" && k === 0) { sx = cx; sy = cy; }
+        }
+      }
+    }
+  }
+  return out.join(" ");
+}
+
+/** A path turned or mirrored by `m`: every point moved; an arc swaps its radii
+ *  on a quarter turn, turns its axis, and flips its sweep on a mirror. */
+export function matrixPath(d: string, m: Matrix): string {
+  const mirror = m[0] * m[3] - m[1] * m[2] < 0;
+  const out: string[] = [];
+  const re = /([MLCSQTAZ])([^MLCSQTAZ]*)/g;
+  for (const x of absolutePath(d).matchAll(re)) {
+    const up = x[1];
+    const g = (x[2].match(NUM) ?? []).map(Number);
+    if (up === "Z") { out.push("Z"); continue; }
+    if (up === "A") {
+      const [rx, ry, rot, large, sweep, ex, ey] = g;
+      const [nx, ny] = apply(m, ex, ey);
+      const [nrx, nry] = swapsAxes(m) ? [ry, rx] : [rx, ry];
+      out.push(`A${nrx} ${nry} ${r2(swapsAxes(m) ? rot + 90 : mirror ? -rot : rot)} ${large} ${mirror ? 1 - sweep : sweep} ${nx} ${ny}`);
+      continue;
+    }
+    const pts: number[] = [];
+    for (let j = 0; j + 1 < g.length; j += 2) pts.push(...apply(m, g[j], g[j + 1]));
+    out.push(up + pts.join(" "));
+  }
+  return out.join(" ");
+}
+
+function matrixGeo(tag: string, geo: Pairs, m: Matrix): Pairs {
+  const get = (k: string) => getPair(geo, k);
+  const set = (vals: Record<string, number | string>): Pairs => geo.map(([k, v]) => [k, k in vals ? vals[k] : v]);
+  switch (tag) {
+    case "rect": {
+      const x = get("x") ?? 0, y = get("y") ?? 0, w = get("width") ?? 0, h = get("height") ?? 0;
+      const [x0, y0] = apply(m, x, y), [x1, y1] = apply(m, x + w, y + h);
+      const vals: Record<string, number> = { x: Math.min(x0, x1), y: Math.min(y0, y1), width: r2(Math.abs(x1 - x0)), height: r2(Math.abs(y1 - y0)) };
+      if (swapsAxes(m) && get("rx") !== undefined && get("ry") !== undefined) { vals.rx = get("ry")!; vals.ry = get("rx")!; }
+      return set(vals);
+    }
+    case "ellipse": {
+      const [cx, cy] = apply(m, get("cx") ?? 0, get("cy") ?? 0);
+      return set(swapsAxes(m) ? { cx, cy, rx: get("ry") ?? 0, ry: get("rx") ?? 0 } : { cx, cy });
+    }
+    case "circle": {
+      const [cx, cy] = apply(m, get("cx") ?? 0, get("cy") ?? 0);
+      return set({ cx, cy });
+    }
+    case "path":
+      return set({ d: matrixPath(String(geo.find(([k]) => k === "d")?.[1] ?? ""), m) });
+    default:
+      return geo;
+  }
+}
+
+const TURN_SIDE: Record<string, [number, number]> = { left: [-1, 0], right: [1, 0], top: [0, -1], bottom: [0, 1] };
+
+/** One operation turned or mirrored (shapes, lines and ports; the rest as is). */
+export function matrixOp(op: Op, m: Matrix): Op {
+  switch (op.op) {
+    case "forma": case "luce": case "riflesso":
+      return { ...op, geo: matrixGeo(String(op.tag), op.geo as Pairs, m) };
+    case "tratto":
+      return { ...op, d: matrixPath(String(op.d), m) };
+    case "bocca": {
+      const [x, y] = apply(m, Number(op.x), Number(op.y));
+      const v = TURN_SIDE[String(op.side)] ?? [-1, 0];
+      const nv = [m[0] * v[0] + m[2] * v[1], m[1] * v[0] + m[3] * v[1]];
+      const side = Object.entries(TURN_SIDE).find(([, s]) => s[0] === nv[0] && s[1] === nv[1])?.[0] ?? op.side;
+      return { ...op, x, y, side };
+    }
+    default:
+      return op;
+  }
+}
+
+export function matrixOps(d: DescrizioneSimbolo, which: number[], m: Matrix): DescrizioneSimbolo {
+  const set = new Set(which);
+  return withOps(d, (d.ops as Op[]).map((op, i) => (set.has(i) ? matrixOp(op, m) : op)));
+}
+
+// ── align and distribute ───────────────────────────────────────────────────
+
+export type AlignMode = "left" | "hcenter" | "right" | "top" | "vcenter" | "bottom";
+
+/** Aligns the operations `which` (their boxes in `boxes`) on the selection box. */
+export function align(d: DescrizioneSimbolo, which: number[], boxes: Map<number, Box>, mode: AlignMode): DescrizioneSimbolo {
+  const bs = which.map((i) => [i, boxes.get(i)] as const).filter((x): x is readonly [number, Box] => !!x[1]);
+  const u = union(bs.map(([, b]) => b));
+  if (!u) return d;
+  let out = d;
+  for (const [i, b] of bs) {
+    const dx = mode === "left" ? u.x - b.x : mode === "right" ? u.x + u.w - (b.x + b.w) : mode === "hcenter" ? u.x + u.w / 2 - (b.x + b.w / 2) : 0;
+    const dy = mode === "top" ? u.y - b.y : mode === "bottom" ? u.y + u.h - (b.y + b.h) : mode === "vcenter" ? u.y + u.h / 2 - (b.y + b.h / 2) : 0;
+    if (dx || dy) out = transformOps(out, [i], { sx: 1, sy: 1, tx: r2(dx), ty: r2(dy) });
+  }
+  return out;
+}
+
+/** Spreads the operations evenly: the same gap between one and the next,
+ *  the first and the last where they are. */
+export function distribute(d: DescrizioneSimbolo, which: number[], boxes: Map<number, Box>, axis: "h" | "v"): DescrizioneSimbolo {
+  const bs = which.map((i) => [i, boxes.get(i)] as const).filter((x): x is readonly [number, Box] => !!x[1]);
+  if (bs.length < 3) return d;
+  const pos = (b: Box) => (axis === "h" ? b.x : b.y), size = (b: Box) => (axis === "h" ? b.w : b.h);
+  const sorted = [...bs].sort((a, b) => pos(a[1]) - pos(b[1]));
+  const first = sorted[0][1], last = sorted[sorted.length - 1][1];
+  const free = pos(last) + size(last) - pos(first) - sorted.reduce((s, [, b]) => s + size(b), 0);
+  const gap = free / (sorted.length - 1);
+  let at = pos(first) + size(first) + gap;
+  let out = d;
+  for (const [i, b] of sorted.slice(1, -1)) {
+    const delta = r2(at - pos(b));
+    if (delta) out = transformOps(out, [i], axis === "h" ? { sx: 1, sy: 1, tx: delta, ty: 0 } : { sx: 1, sy: 1, tx: 0, ty: delta });
+    at += size(b) + gap;
+  }
+  return out;
+}
+
+// ── exploded view ──────────────────────────────────────────────────────────
+
+/** How far each operation moves in the exploded view: away from the centre of
+ *  the symbol, along the line from it to the centre of its box, by `k` times
+ *  that distance (at least a third of the symbol, so a small offset still
+ *  shows). Shapes around the centre — a pump's body, its ring, its impeller —
+ *  have no direction of their own: they open as a fan, one direction each, in
+ *  the order they are drawn. Operations in one of `groups` (a grouped layer)
+ *  move as one: one offset, from the box around all of them. Only for the
+ *  view: the geometry does not change. */
+export function explodedOffsets(
+  boxes: Map<number, Box>, centre: [number, number], k: number, size = 100, groups: number[][] = [],
+): Map<number, [number, number]> {
+  const near = 0.15 * size, min = 0.35 * size;
+  // What moves: a group, or a shape on its own; in the order they are drawn.
+  const grouped = groups.map((g) => g.filter((i) => boxes.has(i)).sort((a, b) => a - b)).filter((g) => g.length);
+  const inGroup = new Set(grouped.flat());
+  const units = [...[...boxes.keys()].filter((i) => !inGroup.has(i)).map((i) => [i]), ...grouped].sort((a, b) => a[0] - b[0]);
+  const vec = (u: number[]): [number, number] => {
+    const b = union(u.map((i) => boxes.get(i)!))!;
+    return [b.x + b.w / 2 - centre[0], b.y + b.h / 2 - centre[1]];
+  };
+  const central = units.filter((u) => Math.hypot(...vec(u)) < near);
+  const out = new Map<number, [number, number]>();
+  for (const u of units) {
+    let [vx, vy] = vec(u);
+    let len = Math.hypot(vx, vy);
+    let mag = k * Math.max(len, min);
+    if (len < near) {
+      const a = -Math.PI / 2 + (2 * Math.PI * central.indexOf(u)) / central.length;
+      [vx, vy, len, mag] = [Math.cos(a), Math.sin(a), 1, k * min];
+    }
+    for (const i of u) out.set(i, [r2((vx / len) * mag), r2((vy / len) * mag)]);
+  }
+  return out;
+}
+
+// ── layers ─────────────────────────────────────────────────────────────────
+
+/** Moves the operations `which` to the end of layer `layerId`, in their order;
+ *  gives back their new indexes. */
+export function moveToLayer(d: DescrizioneSimbolo, which: number[], layerId: string): { d: DescrizioneSimbolo; at: number[] } {
+  const set = new Set(which);
+  const moving = (d.ops as Op[]).filter((_, i) => set.has(i));
+  let out = withOps(d, (d.ops as Op[]).filter((_, i) => !set.has(i)));
+  const at: number[] = [];
+  for (const op of moving) {
+    const r = insertInLayer(out, layerId, op);
+    out = r.d;
+    at.push(r.at);
+  }
+  return { d: out, at };
+}
+
+// ── pipe ports (`bocca`) ───────────────────────────────────────────────────
+//
+// Symbol editor phase 2 (19-11-2026): the ports are `bocca` operations with an
+// id, made explicit when the editor opens a symbol (`/api/symbols/explicit-ports`),
+// so they move and change one by one and the pipes attached keep their id.
+
+export type Side = "left" | "top" | "right" | "bottom";
+export const SIDES: Side[] = ["left", "top", "right", "bottom"];
+
+export interface Port { op: number; id: string; x: number; y: number; side: Side; d: number }
+
+export function ports(d: DescrizioneSimbolo): Port[] {
+  return (d.ops as Op[]).flatMap((op, i) => op.op === "bocca"
+    ? [{ op: i, id: String(op.id ?? ""), x: Number(op.x), y: Number(op.y), side: (SIDES.includes(op.side as Side) ? op.side : "left") as Side, d: Number(op.d) }]
+    : []);
+}
+
+/** Operations the compiler turns into ports by itself (a flange on the border,
+ *  a declared port without an id): the editor makes them explicit first. */
+export function needsExplicitPorts(d: DescrizioneSimbolo): boolean {
+  return (d.ops as Op[]).some((op) => ["flangia", "tronchetto", "flangia_v", "flangia_o", "tubo_o", "tubo_v"].includes(op.op)
+    || (op.op === "bocca" && !op.id));
+}
+
+const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+
+/** The side of the border nearest to (x, y), and the point on it. */
+export function nearestEdge(w: number, h: number, x: number, y: number): { side: Side; x: number; y: number } {
+  const c: { side: Side; dist: number; x: number; y: number }[] = [
+    { side: "left", dist: Math.abs(x), x: 0, y: clamp(y, 0, h) },
+    { side: "top", dist: Math.abs(y), x: clamp(x, 0, w), y: 0 },
+    { side: "right", dist: Math.abs(w - x), x: w, y: clamp(y, 0, h) },
+    { side: "bottom", dist: Math.abs(h - y), x: clamp(x, 0, w), y: h },
+  ];
+  const best = c.reduce((a, b) => (b.dist < a.dist ? b : a));
+  return { side: best.side, x: r2(best.x), y: r2(best.y) };
+}
+
+/** A port id not used yet: `p1`, `p2`… */
+export function freePortId(d: DescrizioneSimbolo): string {
+  const used = new Set(ports(d).map((p) => p.id));
+  let n = 1;
+  while (used.has(`p${n}`)) n++;
+  return `p${n}`;
+}
+
+/** A new port on the border nearest to (x, y), with the diameter of the last
+ *  one (or 10), at the end of the operations. */
+export function addPort(d: DescrizioneSimbolo, x: number, y: number): { d: DescrizioneSimbolo; at: number } {
+  const e = nearestEdge(d.w, d.h, x, y);
+  const last = ports(d).at(-1);
+  const ops = [...(d.ops as Op[]), { op: "bocca", x: e.x, y: e.y, side: e.side, d: last?.d ?? 10, id: freePortId(d) }];
+  return { d: withOps(d, ops), at: ops.length - 1 };
+}
+
+function onBorder(p: { x: number; y: number; side: Side }, w: number, h: number): boolean {
+  return (p.side === "left" && p.x === 0) || (p.side === "right" && p.x === w)
+    || (p.side === "top" && p.y === 0) || (p.side === "bottom" && p.y === h);
+}
+
+/** Port `i` moved to (x, y): one on the border slides along its side, one
+ *  inside the drawing moves freely (within it). */
+export function movePort(d: DescrizioneSimbolo, i: number, x: number, y: number): DescrizioneSimbolo {
+  const ops = [...(d.ops as Op[])];
+  const op = ops[i];
+  if (op?.op !== "bocca") return d;
+  const p = { x: Number(op.x), y: Number(op.y), side: op.side as Side };
+  let nx = clamp(x, 0, d.w), ny = clamp(y, 0, d.h);
+  if (onBorder(p, d.w, d.h)) {
+    if (p.side === "left" || p.side === "right") nx = p.x; else ny = p.y;
+  }
+  ops[i] = { ...op, x: r2(nx), y: r2(ny) };
+  return withOps(d, ops);
+}
+
+/** Changes a port. A new side puts it on that side of the border. */
+export function setPort(d: DescrizioneSimbolo, i: number, patch: Partial<{ id: string; x: number; y: number; side: Side; d: number }>): DescrizioneSimbolo {
+  const ops = [...(d.ops as Op[])];
+  const op = ops[i];
+  if (op?.op !== "bocca") return d;
+  const next: Op = { ...op, ...patch };
+  if (patch.side && patch.side !== op.side) {
+    if (patch.side === "left") next.x = 0;
+    if (patch.side === "right") next.x = d.w;
+    if (patch.side === "top") next.y = 0;
+    if (patch.side === "bottom") next.y = d.h;
+  }
+  for (const k of ["x", "y", "d"] as const) if (typeof next[k] === "number") next[k] = r2(next[k] as number);
+  ops[i] = next;
+  return withOps(d, ops);
+}
+
+/** A port id the compiler accepts: 2–30 characters a-z, 0-9, «-». */
+export function validPortId(id: string): boolean {
+  return /^[a-z0-9-]{2,30}$/.test(id);
+}
+
+/** The symbol at a new size: with `scale` every shape, part and port goes with
+ *  it; without, only the size changes (as before). */
+export function resizeSymbol(d: DescrizioneSimbolo, w: number, h: number, scale: boolean): DescrizioneSimbolo {
+  if (!scale || (w === d.w && h === d.h)) return { ...d, w, h };
+  const a: Affine = { sx: w / d.w, sy: h / d.h, tx: 0, ty: 0 };
+  return { ...d, w, h, ops: (d.ops as Op[]).map((op) => transformOp(op, a)) };
 }
 
 // ── whole symbols ──────────────────────────────────────────────────────────

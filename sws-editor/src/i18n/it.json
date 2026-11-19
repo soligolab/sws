@@ -5362,6 +5362,29 @@
     "wifiDetails": "Indirizzi della rete Wi-Fi"
   },
   "symbolEditor": {
+    "scaleDrawing": "Cambiando la misura, scala il disegno, i pezzi e le bocche",
+    "port": {
+      "one": "Bocca",
+      "title": "Attacchi dei tubi",
+      "note": "Le bocche sono i punti dove si agganciano i tubi in pagina. Strumento «Bocca»: un clic vicino al bordo ne mette una; si trascinano, e una sul bordo scorre lungo il suo lato.",
+      "none": "Nessuna bocca: in pagina i tubi si agganciano solo al centro e ai lati del riquadro.",
+      "pipes": "Tubi agganciati: {{n}}",
+      "id": "Nome",
+      "idTaken": "C'è già una bocca con questo nome.",
+      "idRule": "Da 2 a 30 caratteri: lettere minuscole, cifre, «-».",
+      "sideLabel": "Lato",
+      "diameter": "Diametro",
+      "side": {
+        "left": "sinistra",
+        "top": "sopra",
+        "right": "destra",
+        "bottom": "sotto"
+      },
+      "renamedWithPipes": "«{{from}}» diventa «{{to}}»: {{n}} tubi agganciati.",
+      "removedWithPipes": "«{{id}}» non c'è più: {{n}} tubi agganciati finiranno al centro del simbolo.",
+      "changedTitle": "Bocche con tubi agganciati",
+      "changedText": "I tubi di questa pagina seguono le bocche rinominate; quelli su altre pagine vanno riagganciati. Salvare?"
+    },
     "title": "Editor del simbolo",
     "editSymbol": "Modifica simbolo",
     "newSymbol": "Nuovo simbolo",
@@ -5401,15 +5424,19 @@
       "stub": "Tronchetto"
     },
     "tool": {
+      "port": "Bocca",
       "select": "Seleziona",
       "rect": "Rettangolo",
       "ellipse": "Ellisse",
-      "line": "Linea"
+      "line": "Linea",
+      "circle": "Cerchio",
+      "poly": "Polilinea"
     },
     "errors": "Il simbolo non si può salvare così:",
     "tab": {
       "piece": "Pezzo",
-      "structure": "Struttura"
+      "structure": "Struttura",
+      "try": "Prova"
     },
     "closeTitle": "Chiudere l'editor?",
     "closeUnsaved": "Ci sono modifiche non salvate: andranno perse.",
@@ -5430,12 +5457,13 @@
     "fill": {
       "material": "Materiale",
       "own": "Colore proprio",
-      "body": "Colore dello stato"
+      "body": "Colore dello stato",
+      "none": "Nessun riempimento"
     },
     "ownColourNote": "Un colore proprio non segue lo stile dei simboli del progetto.",
     "veil": "Volume",
     "noVeil": "Nessuno (piatto)",
-    "strokeWidth": "Contorno",
+    "strokeWidth": "Spessore del contorno",
     "variantNote": "È una variante di un simbolo della libreria: salvandola, sostituisce quel simbolo in tutto il progetto. La libreria di SWS non cambia.",
     "nameIt": "Nome (it)",
     "nameEn": "Nome (en)",
@@ -5460,6 +5488,65 @@
       "a1": "angolo massimo",
       "open": "angolo aperta",
       "closed": "angolo chiusa"
-    }
+    },
+    "polyHint": "Un clic per punto; doppio clic o Invio per finire una linea; un clic sul primo punto chiude la forma.",
+    "zoomIn": "Ingrandisci",
+    "zoomOut": "Rimpicciolisci",
+    "fit": "Adatta",
+    "grid": "Griglia",
+    "gridStep": "Passo della griglia",
+    "gridSnap": "Aggancia",
+    "magnet": "Calamita",
+    "turnCw": "Ruota di 90° in senso orario",
+    "turnCcw": "Ruota di 90° in senso antiorario",
+    "flipH": "Specchia a destra e sinistra",
+    "flipV": "Specchia in alto e in basso",
+    "align": {
+      "left": "Allinea a sinistra",
+      "hcenter": "Allinea al centro (orizzontale)",
+      "right": "Allinea a destra",
+      "top": "Allinea in alto",
+      "vcenter": "Allinea al centro (verticale)",
+      "bottom": "Allinea in basso"
+    },
+    "distributeH": "Distribuisci in orizzontale",
+    "distributeV": "Distribuisci in verticale",
+    "explode": "Vista esplosa",
+    "explodeHint": "Le forme si allontanano dal centro per vederle e sceglierle una per una; le modifiche valgono per il simbolo vero.",
+    "explodeAmount": "Quanto si allontanano",
+    "layerShow": "Mostra lo strato",
+    "layerHide": "Nascondi lo strato (solo nell'editor)",
+    "layerLock": "Blocca lo strato (non si seleziona)",
+    "layerUnlock": "Sblocca lo strato",
+    "layerGroup": "Raggruppa: le forme dello strato sono un oggetto solo, si scelgono insieme e restano unite nella vista esplosa. Dall'elenco qui sotto si sceglie ancora una forma sola.",
+    "layerUngroup": "Separa: le forme dello strato si scelgono e si allontanano una per una",
+    "moveToLayer": "Sposta nello strato",
+    "lineColour": "Colore della linea",
+    "outline": "Colore del contorno",
+    "outlineLayer": "Quello dello strato",
+    "outlineNone": "Nessuno",
+    "fillOpacity": "Opacità riempimento",
+    "strokeOpacity": "Opacità contorno",
+    "dash": "Tratteggio",
+    "linecap": "Estremità",
+    "cap": {
+      "butt": "Tronche",
+      "round": "Arrotondate",
+      "square": "Quadrate"
+    },
+    "pathD": "Tracciato (d)",
+    "pathDRule": "Solo comandi e numeri, su una riga, al più 4000 caratteri.",
+    "tryNote": "Il simbolo come lo mostra una pagina, coi valori qui sotto. Non si salva niente.",
+    "tryNone": "Questo simbolo non ha ingressi da provare.",
+    "try": {
+      "drawn": "Come disegnato",
+      "off": "Spento",
+      "on": "Acceso",
+      "alarm": "Allarme",
+      "spin": "Gira",
+      "open": "Aperta",
+      "lit": "Accesa"
+    },
+    "magnetHint": "Calamita: spostando, disegnando o ridimensionando, i bordi e il centro della forma (o il punto: una bocca, un perno, un vertice) si agganciano ai bordi e ai centri delle altre forme e al bordo e al centro del simbolo, se sono vicini. Una linea rossa mostra l'aggancio."
   }
 }

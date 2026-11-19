@@ -12,6 +12,23 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Aggiunto
+- **L'editor dei simboli, fase 2, sessione 1** (piano `docs/plans/2026-11-19-editor-dei-simboli-fase-2.md`, ramo
+  `feat/symbol-editor-tools`).
+  - **Le bocche dei tubi**: `simboli_prj::explicit_ports` e `POST /api/symbols/explicit-ports` rendono esplicite le bocche
+    che il compilatore ricavava dalle flange (stesso id, stesso disegno: provato su tutta la libreria); l'editor apre
+    ogni simbolo così, le disegna col lato d'uscita, ha lo strumento «Bocca» (bordo più vicino, id `p1`…), il
+    trascinamento lungo il lato, il pannello della bocca, l'elenco «Attacchi dei tubi» coi tubi agganciati, e al
+    salvataggio avvisa per bocche tolte o rinominate con tubi (i tubi della pagina seguono la rinomina). Il validatore
+    controlla un tubo su un `lib:` con variante nelle bocche della variante.
+  - **Strumenti**: zoom e spostamento della vista, selezione a riquadro, Ctrl+A, Maiusc che toglie, Alt+clic sotto,
+    copia/taglia/incolla, griglia con passo e aggancio (l'angolo in alto a sinistra cade sulla griglia), calamita con
+    le guide, ruota di 90° e specchia (scritti nella geometria, archi compresi), allinea e distribuisci, cerchio e
+    polilinea, contorno proprio o nessuno, nessun
+    riempimento (un `fill:none` della libreria non si legge più come «colore dello stato»), opacità, tratteggio,
+    estremità, il `d` dei tracciati come testo, strati nascosti e bloccati, «sposta nello strato», strati raggruppati
+    (le forme di uno strato sono un oggetto solo: un clic le sceglie tutte, la vista esplosa le tiene unite).
+  - **Vista esplosa** radiale, **scheda «Prova»** coi valori degli ingressi, **«scala il disegno»** cambiando la misura,
+    **«+ Nuovo simbolo» in cima** a Strumenti ▸ Simboli.
 - **La galleria dei simboli offre solo lo stesso tipo** (piano `docs/plans/2026-11-19-galleria-simboli-stesso-tipo.md`,
   ramo `feat/symbol-gallery-kind`, richiesta del maintainer del 19-11-2026). Nel pannello proprietà di un simbolo il
   cambio mostra solo i simboli della stessa tipologia (`kind` del manifest: pompe, valvole, serbatoi…): prima i simboli
