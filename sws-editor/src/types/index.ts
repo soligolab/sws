@@ -421,6 +421,8 @@ export interface SynopticObject {
   /** Prima delle voci, il percorso dalla radice al loro genitore. */
   nav_breadcrumb?: boolean;
   nav_items?: NavItem[];
+  /** Extra buttons that don't come from the tree: they open the chosen page (to enter a sub-menu, or to leave it). */
+  nav_links?: NavLink[];
   /** Language switch controls (T-40): the language code this lang_button sets. */
   target_lang?: string;
   // Numeric range (gauge, slider, progress_bar)
@@ -1998,6 +2000,15 @@ export interface NavItem {
   order?: number;
   /** Esclude la pagina da questo navigatore (resta raggiungibile da altri). */
   hidden?: boolean;
+}
+
+/** An extra button of the page navigator: it opens `page_id`, wherever that page is in the tree. */
+export interface NavLink {
+  page_id: string;
+  /** Button text; `{{token}}` allowed. Empty = page name. */
+  label?: string;
+  /** Position (1 = first) among the visible entries; empty = at the end. */
+  order?: number;
 }
 
 /** Un nodo dell'albero delle pagine: l'id di una pagina e i suoi figli, in ordine. */

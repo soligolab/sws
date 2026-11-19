@@ -4,7 +4,7 @@
 // `tests/fixtures/navigatore-pagine.json` e li leggono entrambe — se web e LVGL
 // divergessero, lo stesso progetto mostrerebbe due menù diversi.
 
-import type { LanguageTable, NavItem, PageTreeNode, SynopticObject } from "@/types";
+import type { LanguageTable, NavItem, NavLink, PageTreeNode, SynopticObject } from "@/types";
 import { resolveMsg } from "@/i18n/projectI18n";
 import { appiattisci, figliDi, percorsoFinoA, posizioneDi, riconcilia } from "@/pageTree";
 
@@ -15,9 +15,11 @@ export interface VoceNavigatore {
   attiva: boolean;
   /** Viene dal percorso (briciole), non dalle voci vere e proprie. */
   percorso: boolean;
+  /** An extra button (`nav_links`), not a page of the tree. Present only when true. */
+  extra?: true;
 }
 
-export type ConfigNavigatore = Pick<SynopticObject, "nav_source" | "nav_node" | "nav_breadcrumb" | "nav_items">;
+export type ConfigNavigatore = Pick<SynopticObject, "nav_source" | "nav_node" | "nav_breadcrumb" | "nav_items" | "nav_links">;
 
 export function vociNavigatore(
   pagine: readonly { id: string; name: string }[],
@@ -79,6 +81,27 @@ export function vociNavigatore(
     base.splice(Math.max(0, Math.min(Math.floor(x.ordine) - 1, base.length)), 0, x.id);
   }
 
+  // The extra buttons go among the entries after them: the ones with a position
+  // at their place (same rule as the exceptions), the others at the end, in the
+  // order they were written. One towards a page that isn't here is dropped.
+  type Slot = { page: string } | { link: NavLink };
+  const voci: Slot[] = base.map((id) => ({ page: id }));
+  const links = (cfg.nav_links ?? []).map((link, i) => ({ link, i })).filter((x) => nome.has(x.link.page_id));
+  const conPostoLink = links
+    .filter((x) => typeof x.link.order === "number" && Number.isFinite(x.link.order))
+    .sort((a, b) => (a.link.order as number) - (b.link.order as number) || a.i - b.i);
+  // Two buttons asking for the same place keep the order they were written in.
+  let last: number | null = null;
+  for (const x of conPostoLink) {
+    const wanted = Math.floor(x.link.order as number) - 1;
+    const pos = Math.max(0, Math.min(last === null ? wanted : Math.max(wanted, last + 1), voci.length));
+    voci.splice(pos, 0, { link: x.link });
+    last = pos;
+  }
+  for (const x of links) {
+    if (!(typeof x.link.order === "number" && Number.isFinite(x.link.order))) voci.push({ link: x.link });
+  }
+
   const percorso = cfg.nav_breadcrumb && contenitore !== null
     ? percorsoFinoA(alb, contenitore).filter(visibile)
     : [];
@@ -92,7 +115,25 @@ export function vociNavigatore(
       percorso: dalPercorso,
     };
   };
-  return [...percorso.map((id) => voce(id, true)), ...base.map((id) => voce(id, false))];
+  // An extra button is lit on its page and on the pages next to it (same
+  // parent): «Idro» towards the first page of a sub-menu stays lit on every page
+  // of that sub-menu. Towards a top-level page, only on that page.
+  const genitore = (id: string) => posizioneDi(alb, id)?.genitore ?? null;
+  const voceLink = (l: NavLink): VoceNavigatore => {
+    const propria = l.label?.trim();
+    const g = genitore(l.page_id);
+    return {
+      id: l.page_id,
+      label: resolveMsg(propria ? propria : nome.get(l.page_id) ?? l.page_id, lang, table),
+      attiva: l.page_id === corrente || (g !== null && genitore(corrente) === g),
+      percorso: false,
+      extra: true,
+    };
+  };
+  return [
+    ...percorso.map((id) => voce(id, true)),
+    ...voci.map((s) => ("page" in s ? voce(s.page, false) : voceLink(s.link))),
+  ];
 }
 
 export interface RettangoloBottone { x: number; y: number; w: number; h: number }

@@ -3213,7 +3213,11 @@
     "labelPh": "Etichetta",
     "posPh": "pos.",
     "posTitle": "Posizione fra le voci visibili (1 = prima)",
-    "hideTitle": "Nascondi da questo navigatore"
+    "hideTitle": "Nascondi da questo navigatore",
+    "links": "Pulsanti in più",
+    "linksHint": "Un pulsante che apre la pagina scelta: per entrare in un sotto-menù (dalla sua prima pagina) o per uscirne. Si accende anche sulle pagine sorelle della pagina scelta. Posizione vuota = in fondo.",
+    "linkPage": "La pagina che il pulsante apre",
+    "addLink": "Pulsante"
   },
   "quickTag": {
     "intro": "La definizione resta in attesa e si crea con il salvataggio del progetto.",

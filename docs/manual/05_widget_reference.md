@@ -215,9 +215,18 @@ Disponibile su web e LVGL, con le stesse voci e gli stessi pixel.
 | `nav_btn_size`, `nav_align`, `nav_gap` | Misura fissa, allineamento del blocco (`start`/`center`/`end`), spazio fra i bottoni |
 | `nav_active_fill`, `nav_active_color` | Sfondo e testo della pagina corrente (`fill`, `color`, `stroke` valgono per gli altri) |
 | `nav_items` | Eccezioni per pagina: `{ page_id, label?, order?, hidden? }` — etichetta (accetta `{{token}}`), posizione fra le voci visibili, esclusione da **questo** navigatore |
+| `nav_links` | **Pulsanti in più**, che non vengono dall'albero: `{ page_id, label?, order? }` — aprono la pagina scelta. Etichetta vuota = nome della pagina; posizione fra le voci visibili, vuota = in fondo |
 
 Con `children_of_current` si costruisce un menù a livelli: le pagine di un ramo compaiono solo quando si è nel ramo. Una pagina nascosta a un
 navigatore resta raggiungibile da un altro. Il nome mostrato è quello della pagina (anche `{{token}}`) salvo etichetta propria.
+
+**Entrare in un sotto-menù e uscirne** (pannello proprietà → «Pulsanti in più»). Esempio: le pagine «Idrico - …» sono figlie di
+«Sistema», e la barra della cornice mostra le pagine di primo livello.
+- Nella barra della cornice, un pulsante in più verso «Idrico - Sinottico» con etichetta «Idro»: è l'**ingresso**, e si sceglie da
+  quale pagina del sotto-menù si parte. Resta acceso su **tutte** le pagine del sotto-menù, perché un pulsante in più si accende
+  sulla sua pagina e sulle pagine sorelle (stesso genitore).
+- Nelle pagine Idrico, un navigatore verticale «Figli di una pagina» → Sistema, con un pulsante in più verso «Sistema» ed etichetta
+  «← Sistema»: è l'**uscita**. Verso una pagina di primo livello il pulsante si accende solo su quella pagina.
 
 > **Quando la barra del viewer non c'è.** In due casi sul pannello resta **solo la pagina**, e
 > l'unico modo di cambiarla è ciò che hai messo tu *dentro* la pagina: un `page_navigator`, dei

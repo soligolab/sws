@@ -5474,6 +5474,17 @@ fn nav_impostazioni(
                 hidden: i.hidden.unwrap_or(false),
             })
             .collect(),
+        links: obj
+            .nav_links
+            .as_deref()
+            .unwrap_or_default()
+            .iter()
+            .map(|l| sws_core::page_tree::NavLink {
+                page_id: l.page_id.clone(),
+                label: l.label.clone(),
+                order: l.order,
+            })
+            .collect(),
     };
     let geo = NavGeometria::da_campi(
         obj.nav_orientation.as_deref(),
@@ -22357,6 +22368,31 @@ mod navigatore_tests {
         );
         assert!(geo.verticale && !geo.riempie);
         assert_eq!((geo.misura, geo.gap, geo.allineamento), (50.0, 6.0, 2));
+    }
+
+    #[test]
+    fn the_extra_buttons_come_from_nav_links() {
+        let obj: SynopticObject = serde_json::from_str(
+            r#"{"type":"page_navigator","nav_source":"roots",
+                "nav_links":[{"page_id":"idrico_sinottico","label":"Idro","order":2},{"page_id":"sistema"}]}"#,
+        )
+        .unwrap();
+        let (cfg, _) = nav_impostazioni(&obj);
+        assert_eq!(
+            cfg.links,
+            vec![
+                sws_core::page_tree::NavLink {
+                    page_id: "idrico_sinottico".into(),
+                    label: Some("Idro".into()),
+                    order: Some(2.0)
+                },
+                sws_core::page_tree::NavLink {
+                    page_id: "sistema".into(),
+                    label: None,
+                    order: None
+                },
+            ]
+        );
     }
 
     #[test]

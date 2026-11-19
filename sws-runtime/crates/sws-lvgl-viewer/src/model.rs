@@ -250,6 +250,7 @@ pub struct SynopticObject {
     pub nav_node: Option<String>,
     pub nav_breadcrumb: Option<bool>,
     pub nav_items: Option<Vec<NavItem>>,
+    pub nav_links: Option<Vec<NavLink>>,
 
     // ── trend ──
     /// Secondi di storico visibili nella finestra (default 60, come
@@ -895,6 +896,14 @@ pub struct NavItem {
     pub label: Option<String>,
     pub order: Option<f64>,
     pub hidden: Option<bool>,
+}
+
+/// Port of `NavLink` in `types/index.ts`: an extra button of the page navigator.
+#[derive(Debug, Deserialize, Clone)]
+pub struct NavLink {
+    pub page_id: String,
+    pub label: Option<String>,
+    pub order: Option<f64>,
 }
 
 /// Porta `TextListEntry` di `types/index.ts` — un valore scalare o un range

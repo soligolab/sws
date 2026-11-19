@@ -131,6 +131,43 @@
         {"id":"imp","label":"Impianto","attiva":false,"percorso":false},
         {"id":"al","label":"Allarmi","attiva":false,"percorso":false},
         {"id":"imp2","label":"Impianto 2","attiva":false,"percorso":false}
+      ] },
+    { "nome": "pulsante in più per entrare in un sotto-menù: al suo posto, acceso sulle pagine sorelle della destinazione",
+      "corrente": "p2", "lang": "it",
+      "cfg": {"source":"roots","links":[{"page_id":"p1","label":"Pompe","order":2}]},
+      "atteso": [
+        {"id":"home","label":"Home","attiva":false,"percorso":false},
+        {"id":"p1","label":"Pompe","attiva":true,"percorso":false,"extra":true},
+        {"id":"imp","label":"Impianto","attiva":false,"percorso":false},
+        {"id":"al","label":"Allarmi","attiva":false,"percorso":false},
+        {"id":"imp2","label":"Impianto 2","attiva":false,"percorso":false}
+      ] },
+    { "nome": "pulsante in più per uscire verso una pagina di primo livello: in fondo, spento fuori da quella pagina",
+      "corrente": "p1", "lang": "it",
+      "cfg": {"source":"children_of","node":"imp","links":[{"page_id":"home","label":"← Home"}]},
+      "atteso": [
+        {"id":"p1","label":"Pompa 1","attiva":true,"percorso":false},
+        {"id":"p2","label":"Pompa 2","attiva":false,"percorso":false},
+        {"id":"home","label":"← Home","attiva":false,"percorso":false,"extra":true}
+      ] },
+    { "nome": "pulsante in più sulla sua pagina: acceso; senza etichetta prende il nome della pagina",
+      "corrente": "home", "lang": "it",
+      "cfg": {"source":"children_of","node":"imp","links":[{"page_id":"home","label":"  "}]},
+      "atteso": [
+        {"id":"p1","label":"Pompa 1","attiva":false,"percorso":false},
+        {"id":"p2","label":"Pompa 2","attiva":false,"percorso":false},
+        {"id":"home","label":"Home","attiva":true,"percorso":false,"extra":true}
+      ] },
+    { "nome": "pulsanti in più: verso una pagina che non c'è, ignorato; stessa posizione, l'ordine scritto; etichetta tradotta; anche verso una pagina già fra le voci",
+      "corrente": "al", "lang": "en",
+      "cfg": {"source":"roots","links":[{"page_id":"zzz","label":"boh","order":1},{"page_id":"al","label":"{{t_home}}","order":1},{"page_id":"imp","order":1}]},
+      "atteso": [
+        {"id":"al","label":"Start","attiva":true,"percorso":false,"extra":true},
+        {"id":"imp","label":"Impianto","attiva":false,"percorso":false,"extra":true},
+        {"id":"home","label":"Home","attiva":false,"percorso":false},
+        {"id":"imp","label":"Impianto","attiva":false,"percorso":false},
+        {"id":"al","label":"Alarms","attiva":true,"percorso":false},
+        {"id":"imp2","label":"Impianto 2","attiva":false,"percorso":false}
       ] }
   ]
 }

@@ -91,6 +91,7 @@ pub const OBJECT_FIELDS: &[Field] = &[
     Field { name: "nav_node", ty: "string", required: false, group: "Page navigator (`page_navigator`): un bottone per pagina, dall'albero delle pagine.", doc: "" },
     Field { name: "nav_breadcrumb", ty: "bool", required: false, group: "Page navigator (`page_navigator`): un bottone per pagina, dall'albero delle pagine.", doc: "" },
     Field { name: "nav_items", ty: "any", required: false, group: "Page navigator (`page_navigator`): un bottone per pagina, dall'albero delle pagine.", doc: "" },
+    Field { name: "nav_links", ty: "any", required: false, group: "Page navigator (`page_navigator`): un bottone per pagina, dall'albero delle pagine.", doc: "Extra buttons of the page navigator, `[{page_id, label?, order?}]`: they open the chosen page (to enter a sub-menu or to leave it)." },
     Field { name: "min", ty: "number", required: false, group: "Numeric range", doc: "" },
     Field { name: "max", ty: "number", required: false, group: "Numeric range", doc: "" },
     Field { name: "unit", ty: "string", required: false, group: "Numeric range", doc: "" },

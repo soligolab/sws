@@ -80,7 +80,7 @@ export function PageNavigatorView({
           const attiva = v.attiva;
           return (
             <g
-              key={`${v.percorso ? "p" : "v"}-${v.id}`}
+              key={`${v.extra ? "x" : v.percorso ? "p" : "v"}-${i}-${v.id}`}
               style={{ cursor: isEditMode ? undefined : "pointer" }}
               opacity={v.percorso && !attiva ? 0.75 : 1}
               onClick={(e) => {

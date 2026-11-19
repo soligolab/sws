@@ -12,7 +12,7 @@ const fixture = JSON.parse(readFileSync(resolve(__dirname, "../../tests/fixtures
   pagine: { id: string; name: string }[];
   albero: PageTreeNode[];
   tabella: LanguageTable;
-  casi: { nome: string; corrente: string; lang: string; cfg: ConfigNavigatore & { source: string; node?: string; breadcrumb?: boolean; items?: ConfigNavigatore["nav_items"] }; atteso: VoceNavigatore[] }[];
+  casi: { nome: string; corrente: string; lang: string; cfg: ConfigNavigatore & { source: string; node?: string; breadcrumb?: boolean; items?: ConfigNavigatore["nav_items"]; links?: ConfigNavigatore["nav_links"] }; atteso: VoceNavigatore[] }[];
 };
 
 describe("navigatore di pagine — casi condivisi con il Rust", () => {
@@ -22,6 +22,7 @@ describe("navigatore di pagine — casi condivisi con il Rust", () => {
       nav_node: c.cfg.node,
       nav_breadcrumb: c.cfg.breadcrumb,
       nav_items: c.cfg.items,
+      nav_links: c.cfg.links,
     };
     expect(vociNavigatore(fixture.pagine, fixture.albero, c.corrente, cfg, c.lang, fixture.tabella)).toEqual(c.atteso);
   });

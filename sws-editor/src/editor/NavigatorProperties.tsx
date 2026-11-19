@@ -1,6 +1,6 @@
 // Il pannello proprietà del navigatore di pagine: orientamento, da dove
-// vengono le voci, misure, colori, e la tabella delle eccezioni per pagina
-// (etichetta, posizione, esclusione).
+// vengono le voci, misure, colori, la tabella delle eccezioni per pagina
+// (etichetta, posizione, esclusione) e the extra buttons towards a chosen page.
 //
 // Un componente a parte perché `EditorShell` è già enorme; riceve dal pannello
 // i suoi stessi costruttori di campo, così l'aspetto è quello degli altri tipi.
@@ -9,10 +9,10 @@ import { useNomePagina } from "@/i18n/nomePagina";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppStore } from "@/store";
-import { paginePerNavigazione } from "@/boot/tipi";
+import { pagineNavigabili, paginePerNavigazione } from "@/boot/tipi";
 import { CampoTestoTradotto } from "@/editor/CampoTestoTradotto";
 import { ordinaPagine, riconcilia, righe } from "@/pageTree";
-import type { NavItem, SynopticObject } from "@/types";
+import type { NavItem, NavLink, SynopticObject } from "@/types";
 import { CampoNumero } from "@/components/CampoNumero";
 
 type Campo = (etichetta: string, contenuto: ReactNode) => ReactNode;
@@ -46,6 +46,15 @@ export function NavigatorProperties({
   const items = obj.nav_items ?? [];
   const sorgente = obj.nav_source ?? "all";
   const fill = obj.nav_fill ?? true;
+
+  const links = obj.nav_links ?? [];
+  const navigable = ordinaPagine(pagineNavigabili(pagine), albero);
+  const changeLink = (index: number, patch: Partial<NavLink>) =>
+    onChange({ nav_links: links.map((l, i) => (i === index ? { ...l, ...patch } : l)) });
+  const removeLink = (index: number) => {
+    const rest = links.filter((_, i) => i !== index);
+    onChange({ nav_links: rest.length > 0 ? rest : undefined });
+  };
 
   const cambiaItem = (pageId: string, patch: Partial<NavItem>) => {
     const esiste = items.some((i) => i.page_id === pageId);
@@ -141,6 +150,41 @@ export function NavigatorProperties({
           </div>
         );
       })}
+
+      <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, margin: "10px 0 4px",
+                    color: "var(--brand-text-muted, #94a3b8)" }}>
+        {t("nav.links")}
+      </div>
+      <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginBottom: 6 }}>{t("nav.linksHint")}</div>
+      {links.map((l, i) => (
+        <div key={i} data-testid={`nav-link-${i}`}
+          style={{ display: "grid", gridTemplateColumns: "1fr 46px 26px", gap: 4, alignItems: "center", marginBottom: 6 }}>
+          <select style={{ ...inputStyle, cursor: "pointer", gridColumn: "1 / -1" }} title={t("nav.linkPage")}
+            value={l.page_id} onChange={(e) => changeLink(i, { page_id: e.target.value })}>
+            {!navigable.some((p) => p.id === l.page_id) && <option value={l.page_id}>{l.page_id}</option>}
+            {navigable.map((p) => (
+              <option key={p.id} value={p.id}>{" ".repeat(livelli.get(p.id) ?? 0)}{nomePagina(p.name)}</option>
+            ))}
+          </select>
+          <CampoTestoTradotto
+            valore={l.label}
+            placeholder={t("nav.labelPh")}
+            stile={inputStyle}
+            onChange={(v) => changeLink(i, { label: v.trim() === "" ? undefined : v })}
+          />
+          <CampoNumero
+            min={1} style={{ ...inputStyle, padding: "2px 4px" }} title={t("nav.posTitle")}
+            placeholder={t("nav.posPh")}
+            value={l.order ?? ""}
+            onTesto={(e) => changeLink(i, { order: e === "" ? undefined : Number(e) })}
+          />
+          <button title={t("props.remove")} onClick={() => removeLink(i)}
+            style={{ ...inputStyle, width: 26, padding: 0, cursor: "pointer" }}>×</button>
+        </div>
+      ))}
+      <button data-testid="nav-link-add" disabled={navigable.length === 0}
+        onClick={() => onChange({ nav_links: [...links, { page_id: navigable[0].id }] })}
+        style={{ ...inputStyle, cursor: "pointer", marginBottom: 4 }}>+ {t("nav.addLink")}</button>
     </>
   );
 }

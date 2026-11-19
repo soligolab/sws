@@ -33,6 +33,12 @@ describe("pagine orfane e navigatore di pagine", () => {
       pagina("a", [{ id: "nb", type: "navbutton", x: 0, y: 0, target_page: "b" } as SynopticObject]), pagina("b"), pagina("z")];
     expect(findOrphanPageIds(conAltro, "home", albero).size).toBe(0);
   });
+
+  it("an extra button reaches its page: entering a sub-menu from a top-level navigator", () => {
+    const pagine = [pagina("home", [navigatore({ nav_source: "roots", nav_links: [{ page_id: "a", label: "Sub" }] })]),
+      pagina("a"), pagina("b"), pagina("z")];
+    expect([...findOrphanPageIds(pagine, "home", albero)]).toEqual(["b"]);
+  });
 });
 
 describe("orfane — il navigatore della cornice conta (16-10-2026)", () => {

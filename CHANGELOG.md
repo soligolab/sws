@@ -12,6 +12,15 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Aggiunto
+- **Il navigatore di pagine ha i «Pulsanti in più»** (piano `docs/plans/2026-11-19-navigatore-pulsanti-in-piu.md`, ramo
+  `feat/nav-links`): un elenco di pulsanti che non vengono dall'albero delle pagine e aprono la pagina scelta, per
+  **entrare in un sotto-menù** (si sceglie da quale pagina si parte e il nome del pulsante) o per **uscirne**. Campo
+  `nav_links: [{page_id, label?, order?}]`: etichetta vuota = nome della pagina, `{{token}}` ammessi; posizione fra le voci
+  visibili come per `nav_items`, vuota = in fondo, e a parità di posizione vale l'ordine scritto. Un pulsante in più si
+  accende sulla sua pagina **e sulle pagine sorelle** (stesso genitore): l'ingresso resta acceso su tutto il sotto-menù.
+  Uno verso una pagina che non c'è o una pagina-finestra non si disegna. Logica in `voci_navigatore` / `vociNavigatore`
+  con i casi nuovi in `tests/fixtures/navigatore-pagine.json`; web, LVGL e il pannello proprietà («+ Pulsante»); conta
+  per le pagine orfane.
 - **L'editor dei simboli, fase 1** (piano `docs/plans/2026-11-18-editor-dei-simboli.md`, ramo `feat/symbol-def`).
   - Un editor a tutto schermo per i simboli del progetto: si apre da «Modifica simbolo» nel pannello proprietà di un
     simbolo, dalla matita sui simboli del progetto in Strumenti ▸ Simboli e da «+ Nuovo simbolo» nella stessa famiglia.

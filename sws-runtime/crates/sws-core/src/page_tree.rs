@@ -212,12 +212,23 @@ impl NavSource {
     }
 }
 
+/// An extra button that does not come from the tree (`nav_links`): it opens the
+/// chosen page, to enter a sub-menu or to leave it.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct NavLink {
+    pub page_id: String,
+    pub label: Option<String>,
+    /// Position among the visible entries (1 = first); `None` = at the end.
+    pub order: Option<f64>,
+}
+
 #[derive(Debug, Clone)]
 pub struct NavConfig {
     pub source: NavSource,
     pub node: Option<String>,
     pub breadcrumb: bool,
     pub items: Vec<NavVoceOverride>,
+    pub links: Vec<NavLink>,
 }
 
 /// Una voce da disegnare.
@@ -229,6 +240,8 @@ pub struct NavVoce {
     pub attiva: bool,
     /// Viene dal percorso (briciole), non dalle voci vere e proprie.
     pub percorso: bool,
+    /// An extra button (`nav_links`), not a page of the tree.
+    pub extra: bool,
 }
 
 /// Le voci di un navigatore di pagine: quali pagine, in che ordine, con che
@@ -297,6 +310,36 @@ pub fn voci_navigatore(
         base.insert(pos, id);
     }
 
+    // The extra buttons go among the entries after them: the ones with a position
+    // at their place (same rule as the exceptions), the others at the end, in the
+    // order they were written. One towards a page that isn't here is dropped.
+    let mut voci: Vec<Slot> = base.into_iter().map(Slot::Page).collect();
+    let links: Vec<(usize, &NavLink)> = cfg
+        .links
+        .iter()
+        .enumerate()
+        .filter(|(_, l)| nome(&l.page_id).is_some())
+        .collect();
+    let mut placed: Vec<(usize, f64)> = links
+        .iter()
+        .filter_map(|(i, l)| l.order.filter(|o| o.is_finite()).map(|o| (*i, o)))
+        .collect();
+    placed.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap().then(a.0.cmp(&b.0)));
+    // Two buttons asking for the same place keep the order they were written in.
+    let mut last: Option<i64> = None;
+    for (i, ordine) in placed {
+        let wanted = (ordine.floor() as i64) - 1;
+        let wanted = last.map_or(wanted, |l| wanted.max(l + 1));
+        let pos = wanted.clamp(0, voci.len() as i64);
+        voci.insert(pos as usize, Slot::Link(i));
+        last = Some(pos);
+    }
+    for (i, l) in &links {
+        if !l.order.is_some_and(f64::is_finite) {
+            voci.push(Slot::Link(*i));
+        }
+    }
+
     let percorso: Vec<String> = match (cfg.breadcrumb, contenitore.as_deref()) {
         (true, Some(c)) => percorso_fino_a(&alb, c)
             .into_iter()
@@ -315,13 +358,41 @@ pub fn voci_navigatore(
             label: risolvi(propria.unwrap_or_else(|| nome(id).unwrap_or(id))),
             attiva: id == corrente,
             percorso: dal_percorso,
+            extra: false,
+        }
+    };
+    // An extra button is lit on its page and on the pages next to it (same
+    // parent): «Idro» towards the first page of a sub-menu stays lit on every
+    // page of that sub-menu. Towards a top-level page, only on that page.
+    let genitore = |id: &str| posizione_di(&alb, id, None).and_then(|(g, _)| g);
+    let link = |l: &NavLink| {
+        let propria = l.label.as_deref().map(str::trim).filter(|s| !s.is_empty());
+        let attiva = l.page_id == corrente
+            || genitore(&l.page_id)
+                .is_some_and(|g| genitore(corrente).as_deref() == Some(g.as_str()));
+        NavVoce {
+            id: l.page_id.clone(),
+            label: risolvi(propria.unwrap_or_else(|| nome(&l.page_id).unwrap_or(&l.page_id))),
+            attiva,
+            percorso: false,
+            extra: true,
         }
     };
     percorso
         .iter()
         .map(|id| voce(id, true))
-        .chain(base.iter().map(|id| voce(id, false)))
+        .chain(voci.iter().map(|s| match s {
+            Slot::Page(id) => voce(id, false),
+            Slot::Link(i) => link(&cfg.links[*i]),
+        }))
         .collect()
+}
+
+/// One place in the navigator: a page of the tree or an extra button
+/// (index into `NavConfig::links`).
+enum Slot {
+    Page(String),
+    Link(usize),
 }
 
 /// Come si dispongono i bottoni di un navigatore.
@@ -516,6 +587,18 @@ mod tests {
                             .collect()
                     })
                     .unwrap_or_default(),
+                links: cfg_j["links"]
+                    .as_array()
+                    .map(|a| {
+                        a.iter()
+                            .map(|l| NavLink {
+                                page_id: l["page_id"].as_str().unwrap().to_string(),
+                                label: l["label"].as_str().map(str::to_string),
+                                order: l["order"].as_f64(),
+                            })
+                            .collect()
+                    })
+                    .unwrap_or_default(),
             };
             let lang = c["lang"].as_str().unwrap();
             let got = voci_navigatore(
@@ -534,6 +617,7 @@ mod tests {
                     label: v["label"].as_str().unwrap().to_string(),
                     attiva: v["attiva"].as_bool().unwrap(),
                     percorso: v["percorso"].as_bool().unwrap(),
+                    extra: v["extra"].as_bool().unwrap_or(false),
                 })
                 .collect();
             assert_eq!(got, atteso, "navigatore: {}", c["nome"]);

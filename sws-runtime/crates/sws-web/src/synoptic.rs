@@ -279,6 +279,10 @@ pub struct SynopticObject {
     pub nav_breadcrumb: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub nav_items: Option<Value>,
+    /// Extra buttons of the page navigator, `[{page_id, label?, order?}]`: they
+    /// open the chosen page (to enter a sub-menu or to leave it).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub nav_links: Option<Value>,
     // Numeric range
     #[serde(skip_serializing_if = "Option::is_none")]
     pub min: Option<f64>,

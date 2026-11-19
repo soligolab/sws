@@ -27,6 +27,18 @@
 
 ---
 
+## Il navigatore di pagine: i pulsanti in più (19-11-2026)
+
+Dal piano [navigatore, pulsanti in più](plans/2026-11-19-navigatore-pulsanti-in-piu.md), ramo `feat/nav-links`. Si prova
+sul progetto della fiera (`DemoTY570_fiera`), dopo averlo aggiornato come dice il piano.
+
+1. [ ] **L'ingresso**: nella cornice, «Idro» in seconda posizione apre «Idrico - Sinottico»; se le pagine Idro hanno la
+       cornice, «Idro» resta acceso su tutte e sei.
+2. [ ] **L'uscita**: nelle pagine Idro il navigatore verticale mostra le sei pagine e in fondo «← Sistema», che riporta a
+       Sistema; la pagina corrente è accesa, «← Sistema» no.
+3. [ ] **Web e LVGL uguali**: la stessa pagina sul TY570 e nel browser, pulsanti negli stessi posti.
+4. [ ] **Il pannello proprietà**: «+ Pulsante», cambio della pagina, etichetta tradotta (`{{token}}`), posizione, «×».
+
 ## L'assistente: faceplate e sfondi (dal piano archiviato il 10-11-2026)
 
 Dal piano [l'assistente disegna i simboli e compone il sinottico](archive/2026-11-03-assistente-genera-simboli-e-sinottici.md),

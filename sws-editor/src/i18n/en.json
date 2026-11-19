@@ -3213,7 +3213,11 @@
     "labelPh": "Label",
     "posPh": "pos.",
     "posTitle": "Position among the visible entries (1 = first)",
-    "hideTitle": "Hide from this navigator"
+    "hideTitle": "Hide from this navigator",
+    "links": "Extra buttons",
+    "linksHint": "A button that opens the chosen page: to enter a sub-menu (from its first page) or to leave it. It lights up on the sibling pages of the chosen page too. Empty position = at the end.",
+    "linkPage": "The page the button opens",
+    "addLink": "Button"
   },
   "quickTag": {
     "intro": "The definition is kept pending and created when the project is saved.",
