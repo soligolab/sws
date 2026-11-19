@@ -19,6 +19,10 @@ lavoro su `theobroma`: l'editor dei simboli dal ramo, poi squash e rc.21, factor
 abbinamento, deploy, IA nel cloud, il pannello come dispositivo. Il maintainer ha scelto il perimetro «tutto il
 sospeso»; l'ordine e le esclusioni (il TC620, «Aggiorna ora», l'hardware che manca) sono nel piano.
 
+**La CI di `main` è rossa su «Rust audit» finché il ramo non entra**: `lettre` 0.11.23 ha sei avvisi nuovi
+(RUSTSEC-2026-0560…0565). La correzione compatibile, `lettre` 0.11.24, è sul ramo (`c9690f53`), insieme a un `cargo fmt`
+(`c60b2cf2`). `main` è stato pushato lo stesso, con soli documenti, per scelta del maintainer.
+
 **L'editor dei simboli, fase 1, è sul ramo `feat/symbol-def`** (pushato il 19-11 apposta per arrivare su `theobroma`,
 non mergiato). Piano [l'editor dei simboli](docs/plans/2026-11-18-editor-dei-simboli.md), sessione di plan col
 maintainer il 18-11 (decisioni 1-12: comportamento nel simbolo, varianti della libreria che la sostituiscono, «Salva
