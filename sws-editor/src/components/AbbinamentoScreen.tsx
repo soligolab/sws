@@ -92,9 +92,12 @@ export function AbbinamentoScreen({
           data-testid="codice-abbinamento"
           style={{
             fontFamily: "ui-monospace, monospace",
-            fontSize: 26,
+            // One line (19-11-2026, WP630): at 26 px with a 2 px spacing the code
+            // wrapped in the 420 px card. Never wider than the screen either.
+            fontSize: "min(24px, 6vw)",
             fontWeight: 700,
-            letterSpacing: 2,
+            letterSpacing: 1,
+            whiteSpace: "nowrap",
             textAlign: "center",
             padding: "14px 8px",
             borderRadius: 6,
@@ -107,9 +110,12 @@ export function AbbinamentoScreen({
         </div>}
 
         {link && (
-          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            <QrCode text={link} size={132} label={t("abbinamento.qrEtichetta")} />
-            <p style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", margin: 0, lineHeight: 1.5 }}>
+          // The QR above its explanation, centred and big enough for a phone: next
+          // to a long paragraph in a flex row the text squeezed it to a few
+          // millimetres (19-11-2026, WP630).
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+            <QrCode text={link} size={200} label={t("abbinamento.qrEtichetta")} />
+            <p style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", margin: 0, lineHeight: 1.5, textAlign: "center" }}>
               {t("abbinamento.qrSpiega")}
             </p>
           </div>

@@ -292,6 +292,10 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   Le istruzioni del pacchetto usano `scp -O` e `/var/tmp` (SFTP spento, `/tmp` di 32 MB).
 
 ### Corretto
+- **La schermata d'abbinamento del pannello**: il QR era di pochi millimetri (stava in una riga flessibile accanto a un
+  paragrafo lungo, che lo schiacciava) e il codice andava su due righe (visto sul WP630 appena installato, 19-11-2026).
+  Ora il QR sta sopra la sua spiegazione, centrato, a 200 px e mai ristretto (`QrCode` con `flexShrink: 0`, vale anche
+  nel pannello di controllo); il codice sta su una riga, con un corpo che non supera la larghezza dello schermo.
 - **Il setpoint sul pannello LVGL come sul web** (piano `docs/plans/2026-11-19-setpoint-lvgl-come-il-web.md`, ramo
   `fix/setpoint-lvgl`, visto dal maintainer sul TY570 il 19-11-2026). Il **tastierino** era un figlio della pagina
   creato nascosto: gli oggetti disegnati dopo gli stavano sopra e prendevano i tocchi (mezza tastiera coperta). Ora è

@@ -34,6 +34,11 @@ describe("CancelloAbbinamento", () => {
     const { unmount } = render(<CancelloAbbinamento><div>pagina</div></CancelloAbbinamento>);
     expect((await screen.findByTestId("codice-abbinamento")).textContent).toBe("7KQ2-M9XD-3HWP-T4BZ");
     expect(screen.getByTestId("qr-abbinamento").querySelector("path")!.getAttribute("d")).not.toBe("");
+    // Readable by a phone and on one line (19-11-2026, WP630: a few millimetres of QR, the code on two lines).
+    const qr = screen.getByTestId("qr-abbinamento") as unknown as SVGSVGElement;
+    expect(Number(qr.getAttribute("width"))).toBeGreaterThanOrEqual(200);
+    expect(qr.style.flexShrink).toBe("0");
+    expect(screen.getByTestId("codice-abbinamento").style.whiteSpace).toBe("nowrap");
     unmount();
     fetchFinto.mockReturnValueOnce(risposta(200, { in_attesa: true, codice: "7KQ2-M9XD-3HWP-T4BZ", nome: "tc620" }));
     render(<CancelloAbbinamento><div>pagina</div></CancelloAbbinamento>);

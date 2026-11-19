@@ -29,7 +29,9 @@ export function QrCode({ text, size = 180, label }: { text: string; size?: numbe
       height={size}
       viewBox={`0 0 ${cells} ${cells}`}
       shapeRendering="crispEdges"
-      style={{ display: "block", borderRadius: 6 }}
+      // Never squeezed by a neighbour in a flex row: a QR smaller than its size
+      // is a QR a phone can't read.
+      style={{ display: "block", borderRadius: 6, flexShrink: 0, maxWidth: "100%" }}
     >
       <rect width={cells} height={cells} fill="#ffffff" />
       <path d={d} fill="#000000" />
