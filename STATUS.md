@@ -12,7 +12,24 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — su `main` anche la sessione 1 della fase 2 dell'editor e il QR d'abbinamento; ora il plan della sessione 2 (2026-11-19, theobroma)
+## ▶ Riprendere da qui — due correzioni LVGL sui rami (grigio sui simboli, tastiera a 5 righe); poi le animazioni (2026-11-19 sera, theobroma)
+
+- **Rami aperti, annidati, nel worktree `/home/ut1/sws-nav-links`**:
+  - `fix/lvgl-stale-lib-layers` (`a73c76257`): sul pannello LVGL il grigio dei dati vecchi e il lampeggio sfumato non
+    arrivavano agli strati dei simboli `lib:`/`prj:` (il recolor in LVGL 8.3 non si eredita). Trovato col piano delle
+    animazioni, verificato con una fotografia del viewer (escursione 0 prima, 66 dopo); `check_fade_raster.sh` ha il
+    caso nuovo;
+  - `fix/lvgl-keyboard-5-rows` (`83f5c0c8b`), figlio del primo: la segnalazione del maintainer sul TY570 in verticale
+    («tasti alti e strettissimi»). «A-Z» passa a una tastiera alfabetica da 7 tasti per riga, «QWE» torna indietro, la
+    scelta resta (`lvgl_keyboard` nella cartella di stato). Provato con le istantanee del viewer, **manca il TY570**.
+  - Collaudo: sezione «La tastiera a 5 righe e il grigio sui simboli» in `docs/COLLAUDI_IN_SOSPESO.md`.
+- **Da vedere un'altra volta** (il maintainer: «alla fine funziona bene, forse era solo un ritardo di avvio»): sul TY570
+  in verticale il viewer ha mostrato la pagina molto in ritardo. La copia ruotata in `drm_display.rs` va pixel per
+  pixel; i log del viewer non li ho letti (SSH non chiesto).
+- **Prossimo**: il piano delle animazioni `docs/plans/2026-11-19-animazioni-dei-simboli.md` (approvato), sessione 2a
+  sul ramo `feat/symbol-anim`, annidato sulle correzioni se non sono ancora chiuse.
+
+## Su `main` anche la sessione 1 della fase 2 dell'editor e il QR d'abbinamento; ora il plan della sessione 2 (2026-11-19, theobroma)
 
 - **Squash su `main`, non pushati** (`main` avanti di 8 su origin):
   - `8b7bb6a30` l'editor dei simboli fase 1 (il ramo `feat/symbol-def` del maintainer);
