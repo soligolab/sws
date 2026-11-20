@@ -15,7 +15,7 @@
 ## ▶ Riprendere da qui — importa SVG e il file del simbolo fatti sul ramo; sei rami annidati da collaudare (2026-11-20, theobroma)
 
 - **Il maintainer, partendo**: «fin che non torno puoi proseguire annidando il resto dello sviluppo?». Fatta la
-  sessione 3 della fase 2 dell'editor dei simboli, sul ramo **`feat/symbol-import`** (`4ba23a6e2`), annidato su
+  sessione 3 della fase 2 dell'editor dei simboli, sul ramo **`feat/symbol-import`** (`72f9662ce`), annidato su
   `feat/symbol-ai`. Piano: `docs/plans/2026-11-20-importa-svg-e-file-del-simbolo.md`, con in fondo **le sei decisioni
   prese senza il maintainer, da rivedere** (file JSON e non zip, mai variante, strato fermo o corpo, Ctrl+V,
   `evenodd` solo avviso, proporzioni dell'SVG).
@@ -25,12 +25,14 @@
     (`grid.html`).
   - «Esporta» scarica `<slug>.swsym`; Strumenti ▸ Simboli ▸ «Importa un simbolo…» apre un `.swsym` o un `.svg` come
     simbolo nuovo. Provati nell'IDE 8464: import, Ctrl+V, esportazione e ritorno, copia/incolla con i tasti veri.
-  - Corretto lungo la strada: Ctrl+Z dopo «Duplica» o un import bloccava l'editor.
+  - Corretto lungo la strada: Ctrl+Z dopo «Duplica» o un import bloccava l'editor. E, in un commit a parte
+    (`bcbc2df29`), Invio nel nome di una bocca ora conferma: i campi dell'editor ricevono i tasti, la radice
+    dell'editor li ferma prima della pagina. Nella scheda «IA» torna Ctrl+Invio.
   - Definition of done verde sul ramo: vitest 2820, cargo test, check_static 58/58, eslint, tsc, build.
 - **Sei rami annidati nel worktree `/home/ut1/sws-nav-links`**, uno dentro l'altro, in quest'ordine:
   `fix/lvgl-stale-lib-layers` (`a73c76257`) → `fix/lvgl-keyboard-5-rows` (`83f5c0c8b`) → `feat/symbol-anim`
   (`e0efb9f4c`) → `feat/image-library` (`925e343f3`) → `feat/symbol-ai` (`924d04a39`) → **`feat/symbol-import`**
-  (`4ba23a6e2`). Gli IDE 8462 e 8464 servono già l'editor di quest'ultimo (solo l'editor è cambiato).
+  (`72f9662ce`, poi `bcbc2df29`). Gli IDE 8462 e 8464 servono già l'editor di quest'ultimo (solo l'editor è cambiato).
 
 ### L'assistente IA nell'editor dei simboli (ramo `feat/symbol-ai`)
 
@@ -53,8 +55,6 @@
   simbolo importato da SVG e uno disegnato dall'IA (con un modello che sappia disegnare). Della fase 2 non resta
   niente: le fasi dopo (3 le foto, che decidono il formato `sym:`; 7 la libreria personale, con le domande sul cloud)
   vogliono prima una sessione di plan col maintainer.
-- **Notato e non toccato**: nell'editor dei simboli l'Invio nel nome di una bocca non conferma, perché l'editor ferma
-  tutti i tasti sulla finestra prima che arrivino ai campi.
 
 ## le animazioni dei simboli finite sul ramo (2a–2d); da collaudare, e le misure sul TY570 (2026-11-19 notte, theobroma)
 

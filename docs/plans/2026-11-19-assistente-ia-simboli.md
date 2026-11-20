@@ -104,7 +104,9 @@ differenze:
   costo è zero.
 - **Niente Ctrl+Invio** nel campo: l'editor ferma tutti i tasti sulla finestra (`stopPropagation` in cattura), e
   un `onKeyDown` dentro l'editor non arriva mai. Lo stesso vale per l'Invio che dovrebbe confermare il nome di una
-  bocca (`SymbolEditor.tsx`, campo `symbol-port-id`): non funziona da prima, non è stato toccato.
+  bocca (`SymbolEditor.tsx`, campo `symbol-port-id`): non funziona da prima, non è stato toccato. *Corretto il
+  20-11-2026 sul ramo annidato `feat/symbol-import` (`bcbc2df29`): i campi dell'editor ricevono i tasti, e Ctrl+Invio
+  c'è.*
 - **Accettando**, nome, etichette, categoria e variante restano quelli che l'editor ha in quel momento, anche se
   sono cambiati mentre il modello disegnava.
 

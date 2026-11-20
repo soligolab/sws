@@ -85,7 +85,7 @@ con un simbolo importato da SVG (regola di `CLAUDE.md`).
 6. Un simbolo vuoto **prende le proporzioni** dell'SVG importato.
 
 ## Esecuzione (20-11-2026, theobroma)
-Ramo `feat/symbol-import`, commit `4ba23a6e2`. Definition of done verde sul ramo (vitest 2820, cargo test,
+Ramo `feat/symbol-import`, commit `72f9662ce`. Definition of done verde sul ramo (vitest 2820, cargo test,
 `check_static` 58/58, eslint, tsc, build); collaudo del maintainer da fare.
 
 **Differenze dal piano**
@@ -116,5 +116,9 @@ Ramo `feat/symbol-import`, commit `4ba23a6e2`. Definition of done verde sul ramo
 
 **Trovato lungo la strada**: Ctrl+Z dopo «Duplica» (e dopo un import) bloccava l'editor: la selezione è per indice e
 restava su forme che non c'erano più. Annulla e ripristina ora tolgono la selezione.
+
+**Sullo stesso ramo, a parte** (`bcbc2df29`): Invio nel nome di una bocca non confermava, perché l'editor fermava
+tutti i tasti sulla finestra prima di React (annotato nel piano dell'assistente IA). Ora un campo dentro l'editor
+riceve i tasti e la radice dell'editor li ferma prima della pagina; nella scheda «IA» torna Ctrl+Invio.
 
 **Resta aperto**: le sei decisioni qui sopra, da confermare al collaudo; CasaDomotica dopo il merge.
