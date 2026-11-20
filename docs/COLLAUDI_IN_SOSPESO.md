@@ -56,18 +56,20 @@ Dal piano [importa SVG e il file del simbolo](plans/2026-11-20-importa-svg-e-fil
 `feat/symbol-import` (annidato sull'assistente IA). IDE di prova dal worktree. Le decisioni prese senza il maintainer
 sono in fondo al piano: si confermano qui.
 
-1. [ ] **Importa SVG… in un simbolo nuovo**: «+ Nuovo simbolo», «Importa SVG…», un disegno vero (un'icona, un
+1. [x] **Importa SVG… in un simbolo nuovo**: «+ Nuovo simbolo», «Importa SVG…», un disegno vero (un'icona, un
        disegno fatto con Inkscape o Illustrator) → al posto del riquadro, con le proporzioni del disegno, forme scelte;
-       la finestra dice cosa è stato lasciato fuori. Ctrl+Z torna al riquadro.
+       la finestra dice cosa è stato lasciato fuori. Ctrl+Z torna al riquadro. — confermato dal maintainer il 20-11-2026 sull'IDE 8462.
 2. [ ] **In un simbolo che ha già un disegno**: trascinare un `.svg` sul disegno → uno strato fermo nuovo in cima, le
        forme scelte si spostano e si scalano insieme; ogni forma si modifica da sola.
 3. [ ] **Ctrl+V**: copiare il codice di un SVG da un editor di testo e incollarlo nell'editor → importato; Ctrl+C e
        Ctrl+V di forme dell'editor funzionano come prima.
-4. [ ] **Esporta / Importa un simbolo…**: «Esporta» scarica `<slug>.swsym`; in un altro progetto, Strumenti ▸ Simboli
-       ▸ «Importa un simbolo…» lo apre come simbolo nuovo; «Salva», poi in pagina e sul pannello come gli altri.
+4. [x] **Esporta / Importa un simbolo…**: «Esporta» scarica `<slug>.swsym`; in un altro progetto, Strumenti ▸ Simboli
+       ▸ «Importa un simbolo…» lo apre come simbolo nuovo; «Salva», poi in pagina e sul pannello come gli altri. — confermato dal maintainer il 20-11-2026 sull'IDE 8462.
 5. [ ] **Sul pannello**: un simbolo importato da SVG messo in una pagina e mandato al TY570 si vede come nell'IDE.
-6. [ ] **Invio nei campi dell'editor**: il nome di una bocca si conferma con Invio; nella scheda «IA» Ctrl+Invio
-       manda la richiesta. Canc e Backspace in un campo non tolgono né forme né oggetti della pagina.
+6. [x] **Invio nei campi dell'editor**: il nome di una bocca si conferma con Invio; nella scheda «IA» Ctrl+Invio
+       manda la richiesta. Canc e Backspace in un campo non tolgono né forme né oggetti della pagina. — confermato dal maintainer il 20-11-2026 sull'IDE 8462 (con Ctrl+Z dopo «Duplica», che bloccava l'editor).
+7. [x] **Le richieste nate al collaudo**: «Nuovo strato fisso» in «Sposta nello strato», ▲ ▼ sugli strati, cerchi e
+       rettangoli scritti come tracciati riconosciuti all'import (l'SVG del sistema robotico) — confermato dal maintainer il 20-11-2026 sull'IDE 8462.
 
 ## L'assistente IA nell'editor dei simboli (20-11-2026)
 
@@ -75,8 +77,8 @@ Dal piano [assistente IA dei simboli](plans/2026-11-19-assistente-ia-simboli.md)
 sulla libreria immagini). IDE di prova dal worktree; lo scopo «Disegno dei simboli» su un modello che sappia
 disegnare (vedi le misure nel piano: qwen3.5:9b locale non ci riesce quasi mai).
 
-1. [ ] **Disegna nuovo**: un simbolo nuovo, scheda «IA», una frase → la proposta accanto al disegno di adesso, con
-       modello, tentativi e costo; «Accetta» la mette nell'editor, Ctrl+Z la toglie.
+1. [x] **Disegna nuovo**: un simbolo nuovo, scheda «IA», una frase → la proposta accanto al disegno di adesso, con
+       modello, tentativi e costo; «Accetta» la mette nell'editor, Ctrl+Z la toglie. — confermato dal maintainer il 20-11-2026 sull'IDE 8462 (con Opus; il 9b locale disegna male).
 2. [ ] **Modifica questo**: una pompa della libreria aperta come variante, «aggiungi una targa sopra» → la proposta
        tiene le bocche; «Accetta», poi un ritocco che parte dalla proposta; «Scarta».
 3. [ ] **Da una foto**: «Aggiungi una foto» di una macchina vera → il disegno nello stile della libreria. Con un
@@ -84,18 +86,31 @@ disegnare (vedi le misure nel piano: qwen3.5:9b locale non ci riesce quasi mai).
 4. [ ] **Errori**: senza nessun modello configurato, il rimando a Configurazione → IA; un disegno non valido dopo tre
        tentativi mostra gli errori.
 5. [ ] **Il resto dell'editor non si blocca** mentre l'IA disegna; «Interrompi» ferma l'attesa.
+6. [x] **L'intervista prima del disegno**: una richiesta vaga → le domande con le risposte da cliccare, poi la scheda
+       da correggere e «Disegna» — confermato dal maintainer il 20-11-2026 sull'IDE 8462 (con Opus il simbolo è venuto giusto al primo colpo).
+
+## La chat chiede prima di lavorare, e si legge meglio (20-11-2026)
+
+Dal collaudo del 20-11-2026, ramo `feat/symbol-ai-interview` (in `main` dal 20-11). IDE 8462.
+
+1. [ ] **L'intervista**: in chat una richiesta vaga («fammi una pagina per la pompa del pozzo») → la scheda «Prima di
+       cominciare» con al più quattro domande e le risposte da cliccare; per un lavoro grande, i passi in cui lo
+       spezzerebbe e «Come procedo?». «Rispondi» manda le risposte, e l'assistente riparte da lì.
+2. [ ] **Una richiesta chiara parte subito**, senza domande.
+3. [ ] **Il testo formattato**: titoli, grassetto, codice, elenchi e tabelle dell'assistente si vedono formattati, a
+       sinistra con la barra; i messaggi della persona a destra, nella bolla del colore del marchio.
 
 ## La libreria immagini (19-11-2026)
 
 Dal piano [libreria immagini](plans/2026-11-19-libreria-immagini.md), ramo `feat/image-library` (annidato sulle
 animazioni). IDE 8462 dal worktree.
 
-1. [ ] **Carica e piazza**: Strumenti ▸ Immagine apre «Del progetto» con «+ Carica immagine…» per primo; una foto del
+1. [x] **Carica e piazza**: Strumenti ▸ Immagine apre «Del progetto» con «+ Carica immagine…» per primo; una foto del
        telefono (4000 px, qualche MB) → la scheda propone l'ottimizzazione già spuntata, con la misura dopo; caricata è
-       già scelta, «Inserisci» la mette al centro con le sue proporzioni.
+       già scelta, «Inserisci» la mette al centro con le sue proporzioni. — confermato dal maintainer il 20-11-2026 sull'IDE 8462 (corretta lungo la strada: selezionare il nome trascinando fuori dalla scheda chiudeva la libreria).
 2. [ ] **Nome già usato**: ricaricare lo stesso file → sostituisci ovunque / tieni tutte e due / annulla.
-3. [ ] **Scorciatoie**: un file trascinato sul canvas finisce dove cade; una schermata incollata con Ctrl+V finisce al
-       centro; con oggetti copiati nell'editor (senza passare da un altro programma) Ctrl+V incolla gli oggetti.
+3. [x] **Scorciatoie**: un file trascinato sul canvas finisce dove cade; una schermata incollata con Ctrl+V finisce al
+       centro; con oggetti copiati nell'editor (senza passare da un altro programma) Ctrl+V incolla gli oggetti. — confermato dal maintainer il 20-11-2026 sull'IDE 8462.
 4. [ ] **Gestione**: rinomina (la pagina la mostra ancora), sostituisci, elimina con il conteggio, «non usata», il
        totale contro gli 8 MB; Configurazione ▸ Risorse ▸ «Apri la libreria immagini».
 5. [ ] **Proprietà**: miniatura, nome, «Cambia…»; sull'oggetto Immagine niente immagine di sfondo.
@@ -106,11 +121,11 @@ animazioni). IDE 8462 dal worktree.
 Dal piano [animazioni dei simboli](plans/2026-11-19-animazioni-dei-simboli.md), ramo `feat/symbol-anim` (annidato sulle
 due correzioni LVGL). IDE 8462 dal worktree; pannello con un pacchetto di prova o con la rc che le porta.
 
-1. [ ] **«Anima…»**: nell'editor dei simboli, su una pompa: la girante «gira mentre l'ingresso è vero»; un tondo
+1. [x] **«Anima…»**: nell'editor dei simboli, su una pompa: la girante «gira mentre l'ingresso è vero»; un tondo
        diventa un segnale (verde a 1, rosso che lampeggia da 2 a 9, nascosto a 0); un rettangolo «si sposta» verso
-       l'alto, con la sagoma tratteggiata trascinata dove deve arrivare. «Prova» con «Anima» li mostra tutti.
-2. [ ] **In pagina**: «Collegamenti ▸ Parti» ha una riga per pezzo, con Tag | Valore fisso; legati al simulatore si
-       muovono, a canvas fermo con «Anteprima effetti» spento movimento e colore si vedono, rotazione e lampeggio no.
+       l'alto, con la sagoma tratteggiata trascinata dove deve arrivare. «Prova» con «Anima» li mostra tutti. — confermato dal maintainer il 20-11-2026 sull'IDE 8462.
+2. [x] **In pagina**: «Collegamenti ▸ Parti» ha una riga per pezzo, con Tag | Valore fisso; legati al simulatore si
+       muovono, a canvas fermo con «Anteprima effetti» spento movimento e colore si vedono, rotazione e lampeggio no. — confermato dal maintainer il 20-11-2026 sull'IDE 8462 (corretto lungo la strada: «Valore fisso» su un segnale non faceva niente).
 3. [ ] **Rinomina**: rinominare nell'editor un pezzo collegato chiede conferma, e l'oggetto della pagina segue.
 4. [ ] **Pannello (WP630 o TY570)**: gli stessi pezzi, uguali al web; la riga `animations: … KB of … KB` nel log.
 5. [ ] **Misure sul TY570** (con SSH chiesto): i quattro scenari del piano, i numeri annotati nel piano, il budget
@@ -120,8 +135,8 @@ due correzioni LVGL). IDE 8462 dal worktree; pannello con un pacchetto di prova 
 
 Rami `fix/lvgl-stale-lib-layers` e, annidato, `fix/lvgl-keyboard-5-rows`; sui pannelli con la rc che li porta.
 
-1. [ ] **TY570 in verticale, accesso**: la tastiera ha «A-Z» nell'ultima riga; toccato, cinque righe da sette con le
-       lettere in ordine; «ABC» maiuscole, «1#» simboli, «QWE» torna indietro. Si scrive utente e password.
+1. [x] **TY570 in verticale, accesso**: la tastiera ha «A-Z» nell'ultima riga; toccato, cinque righe da sette con le
+       lettere in ordine; «ABC» maiuscole, «1#» simboli, «QWE» torna indietro. Si scrive utente e password. — confermato dal maintainer il 20-11-2026 sull'IDE 8462: «ora si vede bene».
 2. [ ] **La scelta ricordata**: dopo un riavvio del viewer la tastiera si riapre a 5 righe. Anche sulle celle di una
        tabella e sul motivo di un comando critico.
 3. [ ] **Il grigio sui simboli**: una pompa `lib:` con `stale_after_s` e un tag che smette di aggiornarsi diventa

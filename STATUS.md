@@ -25,8 +25,12 @@ nell'import) → `00f6c4cb1` l'intervista prima di lavorare (scheda IA e chat) e
   su origin. Il worktree `/home/ut1/sws-nav-links` è staccato su `77757d919` (lo usano ancora gli IDE 8462 e 8464).
 - `check_static` 58/58 su `main`; il codice è lo stesso della punta della catena (vitest 2831, cargo test 2092,
   clippy, fmt, tsc, build verdi lì). IDE 8460 ricostruito da `main`.
-- **Collaudo del 20-11 sull'IDE 8462**: 8 test su 8 passati, più le correzioni sopra. Da registrare in
-  `COLLAUDI_IN_SOSPESO.md` (aspetta il sì del maintainer); la chat con l'intervista era ancora in prova.
+- **Collaudo del 20-11 sull'IDE 8462: 8 test su 8 passati, nessuna anomalia aperta** (registrato in
+  `COLLAUDI_IN_SOSPESO.md`): «Anima…», «Collegamenti ▸ Parti», la libreria immagini (caricare, trascinare,
+  incollare), importa SVG, esporta e reimporta il simbolo, Invio nei campi, la scheda IA con l'intervista (con
+  Opus); la tastiera a 5 righe sul TY570. Corretti lungo la strada: «Valore fisso» su un segnale, la libreria che si
+  chiudeva selezionando il nome, Ctrl+Z dopo «Duplica»; aggiunti «Nuovo strato fisso», ▲ ▼ sugli strati, cerchi e
+  rettangoli all'import. Restano aperte le prove sul pannello e l'intervista della chat.
 - **Prossimo**: la rc.22 (`NOVITA.yaml` it/en, build, tag quando si costruisce). Annotato per dopo: «Salva e chiudi /
   Esci senza salvare / Annulla» alla chiusura dell'editor dei simboli. Poi CasaDomotica con le funzioni nuove.
 - **Piano nuovo, in corso**: [sfondi alla misura della pagina](docs/plans/2026-11-20-sfondi-alla-misura-della-pagina.md)
