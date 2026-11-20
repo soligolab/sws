@@ -102,6 +102,28 @@ describe("the library", () => {
     fireEvent.click(screen.getByTestId("image-browser-confirm"));
     expect(onSelect).toHaveBeenCalledWith("/api/project/images/nuova.png", undefined);
   });
+
+  it("dragging to select the name and letting go outside the card closes nothing; a press on the backdrop does", async () => {
+    const onClose = vi.fn();
+    render(<ImageBrowser mode="place" onSelect={() => {}} onClose={onClose} />);
+    await screen.findByTestId("image-project-forno.jpg");
+    fireEvent.change(screen.getByTestId("image-upload-input"), { target: { files: [new File(["png"], "nuova.png", { type: "image/png" })] } });
+    const name = await screen.findByTestId("upload-image-name");
+    // Pressed in the field, let go on the backdrop: the browser sends the
+    // click to the backdrop (20-11-2026: both windows closed).
+    const backdrop = screen.getByTestId("upload-image").parentElement!;
+    fireEvent.mouseDown(name);
+    fireEvent.mouseUp(backdrop);
+    fireEvent.click(backdrop);
+    expect(screen.getByTestId("upload-image")).toBeTruthy();
+    expect(onClose).not.toHaveBeenCalled();
+    // A press that starts on the backdrop closes the card, not the library.
+    fireEvent.mouseDown(backdrop);
+    expect(screen.queryByTestId("upload-image")).toBeNull();
+    expect(onClose).not.toHaveBeenCalled();
+    fireEvent.mouseDown(screen.getByTestId("image-browser").parentElement!);
+    expect(onClose).toHaveBeenCalled();
+  });
 });
 
 describe("the upload card", () => {

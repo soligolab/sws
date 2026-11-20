@@ -41,6 +41,13 @@ export function partiLegabili(sim: SimboloLib | undefined) {
 
 type Parte = SimboloLib["parts"][number];
 
+/** The fixed value a signal starts from: its first entry's, so the drawing
+ *  shows it at once. */
+function primoValore(p: Parte): boolean | number | string {
+  const e = p.kind === "signal" ? p.entries?.[0] : undefined;
+  return e?.value ?? e?.value_min ?? "";
+}
+
 /** What a fixed value of the part is: yes/no, a number, or a text. */
 function valueKind(p: Parte): "bool" | "number" | "text" {
   if (p.kind === "needle" || p.kind === "level" || p.kind === "slide") return "number";
@@ -88,7 +95,9 @@ function PartiDelSimbolo({ obj, onChange, stileCampo }: {
   const legami = obj.symbol_parts ?? {};
   const metti = (id: string, patch: Partial<ParteLegata>) => {
     const nuovo = { ...(legami[id] ?? {}), ...patch };
-    for (const k of Object.keys(nuovo) as (keyof ParteLegata)[]) if (nuovo[k] === undefined || nuovo[k] === "") delete nuovo[k];
+    // An empty tag is no tag; an empty text is still a fixed value (a signal's):
+    // dropped, «Valore fisso» did nothing (collaudo of 20-11-2026).
+    for (const k of Object.keys(nuovo) as (keyof ParteLegata)[]) if (nuovo[k] === undefined || (k === "tag" && nuovo[k] === "")) delete nuovo[k];
     const tutti = { ...legami, [id]: nuovo };
     if (Object.keys(nuovo).length === 0) delete tutti[id];
     onChange({ symbol_parts: Object.keys(tutti).length > 0 ? tutti : undefined });
@@ -146,7 +155,7 @@ function PartiDelSimbolo({ obj, onChange, stileCampo }: {
                       onClick={() => {
                         if (on) return;
                         if (m === "tag") metti(p.id, { value: undefined });
-                        else metti(p.id, { tag: undefined, value: kind === "bool" ? true : kind === "number" ? 0 : "" });
+                        else metti(p.id, { tag: undefined, value: kind === "bool" ? true : kind === "number" ? 0 : primoValore(p) });
                       }}>
                       {t(m === "tag" ? "props.parteTag" : "props.parteValore")}
                     </button>

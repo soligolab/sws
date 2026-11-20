@@ -100,7 +100,8 @@ export function UploadImage({ files, taken, onDone, onCancel }: {
   };
 
   const card = (
-    <div style={OVERLAY} onClick={onCancel}>
+    // A press that starts on the backdrop, not a click (see ImageBrowser).
+    <div style={OVERLAY} onMouseDown={(e) => { if (e.target === e.currentTarget) onCancel(); }}>
       <div style={CARD} onClick={(e) => e.stopPropagation()} data-testid="upload-image">
         <strong style={{ fontSize: 14 }}>
           {t("images.upload.title")}{files.length > 1 ? ` (${i + 1}/${files.length})` : ""}

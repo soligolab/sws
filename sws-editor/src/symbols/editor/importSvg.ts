@@ -326,6 +326,59 @@ function length(v: string | null, otherwise = 0): number {
   return Number(m[1]) * UNITS[m[2].toLowerCase()];
 }
 
+const near = (a: number, b: number, tol: number) => Math.abs(a - b) <= tol;
+
+/** A circle, an ellipse or a straight rectangle drawn as a path: what icon
+ *  sites write (two half arcs for a circle, SVG Repo) becomes the shape it is,
+ *  with its fields in the editor (collaudo of 20-11-2026: «sono tutti Path»). */
+export function primOfPath(segs: Seg[]): Prim | undefined {
+  const s = segs[segs.length - 1]?.c === "Z" ? segs.slice(0, -1) : segs;
+  if (s[0]?.c !== "M") return undefined;
+  const [x0, y0] = s[0].p;
+  const rest = s.slice(1);
+  // Two half arcs, back to the start.
+  if (rest.length === 2 && rest.every((x) => x.c === "A")) {
+    const [a, b] = rest as Extract<Seg, { c: "A" }>[];
+    const tol = Math.max(a.rx, a.ry) * 0.005;
+    if (!near(a.rx, b.rx, tol) || !near(a.ry, b.ry, tol) || !near(b.p[0], x0, tol) || !near(b.p[1], y0, tol)) return undefined;
+    const quarter = ((a.rot % 180) + 180) % 180;
+    const round = near(a.rx, a.ry, tol);
+    if (!round && !near(quarter, 0, 1e-6) && !near(quarter, 90, 1e-6)) return undefined;
+    const [rx, ry] = !round && near(quarter, 90, 1e-6) ? [a.ry, a.rx] : [a.rx, a.ry];
+    const [x1, y1] = a.p;
+    const half = Math.hypot(x1 - x0, y1 - y0) / 2;
+    // The two ends are opposite on an axis, at the distance of that radius.
+    const horizontal = near(y1, y0, tol) && near(half, rx, Math.max(rx, ry) * 0.01);
+    const vertical = near(x1, x0, tol) && near(half, ry, Math.max(rx, ry) * 0.01);
+    if (!horizontal && !vertical && !(round && near(half, rx, rx * 0.01))) return undefined;
+    const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+    // Within one per cent, a circle: what the drawing meant.
+    if (near(rx, ry, Math.max(rx, ry) * 0.01)) {
+      const r = (rx + ry) / 2;
+      return { tag: "ellipse", cx, cy, rx: r, ry: r, circle: true };
+    }
+    return { tag: "ellipse", cx, cy, rx, ry, circle: false };
+  }
+  // Four straight sides along the axes (the last one may be the Z).
+  const lines = rest.filter((x): x is { c: "L"; p: number[] } => x.c === "L");
+  if (lines.length !== rest.length || lines.length < 3 || lines.length > 4) return undefined;
+  const pts: [number, number][] = [[x0, y0], ...lines.map((x) => [x.p[0], x.p[1]] as [number, number])];
+  // Three sides are a rectangle only if the path closes: an open one is a line.
+  if (pts.length === 4 && segs[segs.length - 1]?.c !== "Z") return undefined;
+  if (pts.length === 5) {
+    if (!near(pts[4][0], x0, 1e-6) || !near(pts[4][1], y0, 1e-6)) return undefined;
+    pts.pop();
+  }
+  for (let k = 0; k < 4; k++) {
+    const [p, q] = [pts[k], pts[(k + 1) % 4]];
+    if (!near(p[0], q[0], 1e-6) && !near(p[1], q[1], 1e-6)) return undefined;
+  }
+  const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
+  const x = Math.min(...xs), y = Math.min(...ys), w = Math.max(...xs) - x, h = Math.max(...ys) - y;
+  if (!(w > 0 && h > 0) || new Set(xs.map(String)).size !== 2 || new Set(ys.map(String)).size !== 2) return undefined;
+  return { tag: "rect", x, y, w, h, rx: 0, ry: 0 };
+}
+
 function geometryOf(el: Element): Geometry | null {
   const n = (k: string, otherwise = 0) => length(el.getAttribute(k), otherwise);
   switch (el.localName) {
@@ -357,11 +410,11 @@ function geometryOf(el: Element): Geometry | null {
       const segs: Seg[] = [];
       for (let k = 0; k + 1 < v.length; k += 2) segs.push({ c: k ? "L" : "M", p: [v[k], v[k + 1]] });
       if (el.localName === "polygon") segs.push({ c: "Z" });
-      return { segs };
+      return { segs, prim: el.localName === "polygon" ? primOfPath(segs) : undefined };
     }
     case "path": {
       const segs = parsePath(el.getAttribute("d") ?? "");
-      return drawsSomething(segs) ? { segs } : null;
+      return drawsSomething(segs) ? { segs, prim: primOfPath(segs) } : null;
     }
     default:
       return null;

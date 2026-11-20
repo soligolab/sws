@@ -8,7 +8,7 @@ import {
   addInput, boxToBox, deleteOps, duplicateOps, emptySymbol, fillOf, inputs, insertInLayer, layers, newRect,
   removeInput, reorderOp, saveAsCopy, setFill, setPartGeo, slugFrom, transformOp, transformPath, type Op,
   addPort, movePort, needsExplicitPorts, ports, resizeSymbol, setPort, validPortId,
-  absolutePath, align, distribute, explodedOffsets, mapBox, matrixOp, matrixPath, moveToLayer, newCircle, newPath,
+  absolutePath, align, distribute, explodedOffsets, mapBox, matrixOp, matrixPath, moveLayer, moveToLayer, moveToNewLayer, newCircle, newPath,
   setExtra, turnMatrix, validPathD, type Box,
   animateSelection, partDefaults, setPartKind, setPartParam, freePartId,
 } from "../src/symbols/editor/model";
@@ -267,6 +267,35 @@ describe("drawing tools (phase 2)", () => {
     const r = moveToLayer(d, [0, 1], "layer-1");
     expect(r.d.ops.map((o) => o.op === "forma" ? (o.geo as [string, number][])[0][1] : o.op)).toEqual(["statico", 2, 0, 1]);
     expect(r.at).toEqual([2, 3]);
+  });
+
+  it("a whole layer moves back or forward, with its shapes; static layers follow their new place", () => {
+    const x = (o: Record<string, unknown>) => (o.op === "forma" ? (o.geo as [string, number][])[0][1] : String(o.op));
+    const d = sym([rect(0, 0, 1, 1), { op: "corpo" }, rect(1, 1, 1, 1), { op: "statico" }, rect(2, 2, 1, 1), rect(3, 3, 1, 1)]);
+    // The body forward, past layer-1.
+    const fwd = moveLayer(d, "body", 1);
+    expect(fwd.d.ops.map(x)).toEqual([0, "statico", 2, 3, "corpo", 1]);
+    expect(fwd.at).toEqual([5]);
+    expect([...fwd.renamed]).toEqual([]);
+    // The first layer, which has no operation of its own, gets one when it moves.
+    const first = moveLayer(d, "layer-0", 1);
+    expect(first.d.ops.map(x)).toEqual(["corpo", 1, "statico", 0, "statico", 2, 3]);
+    expect(first.at).toEqual([3]);
+    expect([...first.renamed]).toEqual([["layer-0", "layer-1"], ["layer-1", "layer-2"]]);
+    expect(layers(first.d).map((l) => l.id)).toEqual(["layer-0", "body", "layer-1", "layer-2"]);
+    // Nothing to do at the ends, nor behind an empty first layer.
+    expect(moveLayer(d, "layer-1", 1).at).toEqual([]);
+    expect(moveLayer(d, "layer-0", -1).at).toEqual([]);
+    const empty = sym([{ op: "corpo" }, rect(0, 0, 1, 1)]);
+    expect(moveLayer(empty, "body", -1).d).toBe(empty);
+  });
+
+  it("«new static layer» puts the shapes in a layer of their own on top, in their order", () => {
+    const d = sym([{ op: "corpo" }, rect(0, 0, 1, 1), rect(1, 1, 1, 1), rect(2, 2, 1, 1)]);
+    const r = moveToNewLayer(d, [1, 3]);
+    expect(r.d.ops.map((o) => o.op === "forma" ? (o.geo as [string, number][])[0][1] : o.op)).toEqual(["corpo", 1, "statico", 0, 2]);
+    expect(r.at).toEqual([3, 4]);
+    expect(layers(r.d).map((l) => l.id)).toEqual(["layer-0", "body", "layer-1"]);
   });
 });
 

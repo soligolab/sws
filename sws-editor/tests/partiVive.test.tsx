@@ -116,4 +116,20 @@ describe("the animated pieces in Collegamenti", () => {
     fireEvent.change(screen.getByTestId("parte-beacon-fisso"), { target: { value: "on" } });
     expect(last.symbol_parts?.beacon).toEqual({ value: "on" });
   });
+
+  it("a signal switched to a fixed value starts from its first entry, and an empty field stays a fixed value", () => {
+    withPieces();
+    let last: Partial<SynopticObject> = {};
+    const { rerender } = render(<Collegamenti obj={obj({ symbol_parts: { beacon: { tag: "b" } } })}
+      onChange={(p) => { last = p; }} stileCampo={{}} />);
+    // 20-11-2026: the switch wrote an empty text, dropped at once — nothing happened.
+    fireEvent.click(screen.getByTestId("parte-beacon-value"));
+    expect(last.symbol_parts?.beacon).toEqual({ value: 1 });
+    rerender(<Collegamenti obj={obj({ symbol_parts: { beacon: { value: 1 } } })} onChange={(p) => { last = p; }} stileCampo={{}} />);
+    fireEvent.change(screen.getByTestId("parte-beacon-fisso"), { target: { value: "" } });
+    expect(last.symbol_parts?.beacon).toEqual({ value: "" });
+    // An empty tag is still no tag.
+    fireEvent.click(screen.getByTestId("parte-beacon-tag"));
+    expect(last.symbol_parts).toBeUndefined();
+  });
 });

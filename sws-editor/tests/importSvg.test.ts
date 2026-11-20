@@ -172,6 +172,23 @@ describe("importSvg", () => {
     expect(r.warnings).toEqual({ text: 1, image: 1, evenodd: 1, clip: 1, mask: 1, filter: 1 });
   });
 
+  it("recognises circles, ellipses and rectangles written as paths (SVG Repo)", () => {
+    const r = ok(svg(`
+      <path d="M443.102 610.442a68.898 68.816 0 1 0 137.796 0 68.898 68.816 0 1 0-137.796 0Z" fill="#433F43"/>
+      <path d="M100 500a80 40 0 1 0 160 0a80 40 0 1 0-160 0z" fill="#abc"/>
+      <path d="M100 100H300V200H100Z" fill="#123"/>
+      <polygon points="400,100 500,100 500,150 400,150" fill="#456"/>
+      <path d="M600 100H700V200H600" fill="none" stroke="#000"/>
+      <path d="M600 300a50 50 0 0 1 100 0" fill="#789"/>
+      <path transform="rotate(30 700 700)" d="M650 650H750V750H650Z" fill="#000"/>`, 'viewBox="0 0 1000 1000"'));
+    expect(r.ops.map((o) => o.tag ?? o.op)).toEqual(["circle", "ellipse", "rect", "rect", "tratto", "path", "path"]);
+    // Within one per cent of round: a circle, the radius their mean.
+    expect(pairs(r.ops[0], "geo")).toEqual({ cx: 51.2, cy: 61.04, r: 6.89 });
+    expect(pairs(r.ops[1], "geo")).toEqual({ cx: 18, cy: 50, rx: 8, ry: 4 });
+    expect(pairs(r.ops[2], "geo")).toEqual({ x: 10, y: 10, width: 20, height: 10 });
+    for (const o of r.ops) expect(compilerAccepts(o)).toBeNull();
+  });
+
   it("writes a shape that goes beyond the drawing as a path, which may", () => {
     const r = ok(svg('<rect x="-20" y="0" width="50" height="10"/><circle cx="100" cy="50" r="10"/>'));
     expect(r.ops.map((o) => o.tag)).toEqual(["path", "path"]);

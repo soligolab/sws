@@ -167,7 +167,11 @@ export function ImageBrowser({ mode = "choose", onSelect, onClose }: Props) {
   ];
 
   const modal = (
-    <div style={OVERLAY} onClick={onClose} onKeyDown={(e) => { if (e.key === "Escape") onClose(); }}>
+    // Closed by a press that starts on the backdrop: a click is sent to the
+    // common ancestor, and selecting the name in the upload card by dragging
+    // out of it closed both windows (collaudo of 20-11-2026).
+    <div style={OVERLAY} onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      onKeyDown={(e) => { if (e.key === "Escape") onClose(); }}>
       <div style={{ ...CARD, outline: dragOver ? "2px dashed var(--brand-primary, #3b82f6)" : undefined }}
         data-testid="image-browser"
         onClick={(e) => e.stopPropagation()}

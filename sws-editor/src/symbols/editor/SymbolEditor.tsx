@@ -22,7 +22,7 @@ import type { SignalEntry, SimboloLib } from "@/symbols/lib/manifest";
 import { useStileProgetto } from "@/symbols/stileProgetto";
 import {
   addInput, addPort, align, boxToBox, deleteOps, distribute, duplicateOps, explodedOffsets, extraOf, fillOf, inputs,
-  insertInLayer, layers, mapBox, matrixOps, movePort, moveToLayer, newCircle, newEllipse, newLine, newPath, newRect, ports, r2,
+  insertInLayer, layers, mapBox, matrixOps, moveLayer, movePort, moveToLayer, moveToNewLayer, NEW_LAYER, newCircle, newEllipse, newLine, newPath, newRect, ports, r2,
   removeInput, renamePart, reorderOp, resizeSymbol, saveAsCopy, setExtra, setFill, setGeo, setPartGeo, setPathD,
   setPort, setVeil, transformOps, turnMatrix, union, validPathD, validPortId, validSize, INPUT_KINDS, SIDES,
   animateSelection, setPartParam,
@@ -696,6 +696,18 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
     commit(matrixOps(d, sel, turnMatrix(kind, r2(box.x + box.w / 2), r2(box.y + box.h / 2))));
   }, [commit, d, sel, boxes]);
   const doAlign = (mode: AlignMode) => commit(align(d, drawing(sel), boxes, mode));
+  // A whole layer back or forward; what the editor keeps by layer id (hidden,
+  // locked, grouped) follows it, since static layers are named by their place.
+  const shiftLayer = (id: string, dir: 1 | -1) => {
+    const r = moveLayer(d, id, dir);
+    if (!r.at.length) return;
+    commit(r.d);
+    setSel(r.at);
+    const follow = (set: Set<string>) => new Set([...set].map((x) => r.renamed.get(x) ?? x));
+    setHidden(follow);
+    setLocked(follow);
+    setGrouped(follow);
+  };
   const doDistribute = (axis: "h" | "v") => commit(distribute(d, drawing(sel), boxes, axis));
 
   const doClose = useCallback(async () => {
@@ -942,6 +954,13 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
             <div key={`${l.id}-${l.start}`} style={{ marginBottom: 6 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                 <span onClick={() => setSel(l.ops.filter(pickable))} style={{ flex: 1, cursor: "pointer", color: C.muted, fontWeight: 600 }}>{layerLabel(l, t)}</span>
+                {([[-1, "▲", "symbolEditor.layerUp"], [1, "▼", "symbolEditor.layerDown"]] as const).map(([dir, g, k]) => {
+                  const can = moveLayer(d, l.id, dir).at.length > 0;
+                  return (
+                    <button key={dir} type="button" title={t(k)} disabled={!can} data-testid={`symbol-layer-${dir < 0 ? "up" : "down"}-${l.id}`}
+                      style={{ ...tiny(can), minWidth: 18, padding: "0 2px" }} onClick={() => shiftLayer(l.id, dir)}>{g}</button>
+                  );
+                })}
                 <button type="button" title={t(hidden.has(l.id) ? "symbolEditor.layerShow" : "symbolEditor.layerHide")}
                   data-testid={`symbol-layer-hide-${l.id}`} style={{ ...tiny(true), minWidth: 20 }}
                   onClick={() => setHidden((s) => { const n = new Set(s); if (n.has(l.id)) n.delete(l.id); else n.add(l.id); return n; })}>
@@ -1206,7 +1225,11 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
                   )}
                   <PieceProps d={d} sel={sel} one={one} layer={oneLayer} layers={ls} catalog={catalog} commit={commit}
                     onDup={dup} onDel={del} onReorder={(dir) => { const r = reorderOp(d, sel[0], dir); commit(r.d); setSel([r.at]); }}
-                    onMoveToLayer={(id) => { const r = moveToLayer(d, drawing(sel), id); commit(r.d); setSel(r.at); }} />
+                    onMoveToLayer={(id) => {
+                      const r = id === NEW_LAYER ? moveToNewLayer(d, drawing(sel)) : moveToLayer(d, drawing(sel), id);
+                      commit(r.d);
+                      setSel(r.at);
+                    }} />
                 </>
               )
             ) : tab === "structure" ? (
@@ -1251,9 +1274,10 @@ function PieceProps({ d, sel, one, layer, layers: ls, catalog, commit, onDup, on
   if (!sel.length) return <p style={{ color: C.subtle, margin: 0 }}>{t("symbolEditor.noSelection")}</p>;
   const toLayer = (
     <Field label={t("symbolEditor.moveToLayer")}>
-      <select style={input} value="" onChange={(e) => { if (e.target.value) onMoveToLayer(e.target.value); }}>
+      <select style={input} value="" data-testid="symbol-move-to-layer" onChange={(e) => { if (e.target.value) onMoveToLayer(e.target.value); }}>
         <option value="" />
         {ls.filter((l) => l.id !== layer?.id).map((l) => <option key={`${l.id}-${l.start}`} value={l.id}>{layerLabel(l, t)}</option>)}
+        <option value={NEW_LAYER}>{t("symbolEditor.newLayer")}</option>
       </select>
     </Field>
   );

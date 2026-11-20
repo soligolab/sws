@@ -758,6 +758,57 @@ export function moveToLayer(d: DescrizioneSimbolo, which: number[], layerId: str
   return { d: out, at };
 }
 
+/** A whole layer one place back (`-1`, up in the list) or forward (`1`), with
+ *  its shapes and its behaviour: the order of the layers is the order they
+ *  are drawn in (collaudo of 20-11-2026). The first layer has no operation of
+ *  its own: when it moves it gets a `statico`. `renamed` = the ids that
+ *  change (static layers are named by their place); `at` = the moved shapes. */
+export function moveLayer(d: DescrizioneSimbolo, layerId: string, dir: 1 | -1):
+  { d: DescrizioneSimbolo; at: number[]; renamed: Map<string, string> } {
+  const ops = d.ops as Op[];
+  const ls = layers(d);
+  const k = ls.findIndex((l) => l.id === layerId);
+  const none = { d, at: [] as number[], renamed: new Map<string, string>() };
+  const j = k + dir;
+  if (k < 0 || j < 0 || j >= ls.length) return none;
+  const begin = (i: number) => (i === 0 ? 0 : ls[i].start);
+  const end = (i: number) => (i + 1 < ls.length ? ls[i + 1].start : ops.length);
+  const [a, b] = k < j ? [k, j] : [j, k];
+  const blockA = ops.slice(begin(a), end(a)), blockB = ops.slice(begin(b), end(b));
+  // An empty first layer: there is nothing to go behind of.
+  if (a === 0 && !blockA.some(draws)) return none;
+  const behind = a === 0 ? [{ op: "statico" }, ...blockA] : blockA;
+  const out = [...ops.slice(0, begin(a)), ...blockB, ...behind, ...ops.slice(end(b))];
+  const nd = withOps(d, out);
+  const nls = layers(nd);
+  const renamed = new Map<string, string>();
+  let at: number[] = [];
+  for (const l of ls) {
+    // A layer is the operation that opens it, or (the first) its first shape.
+    const ref = l.start >= 0 ? ops[l.start] : ops[l.ops[0]];
+    if (!ref) continue;
+    const idx = out.indexOf(ref);
+    const nl = nls.find((x) => x.start === idx || (l.start < 0 && x.ops.includes(idx)));
+    if (!nl) continue;
+    if (nl.id !== l.id) renamed.set(l.id, nl.id);
+    if (l.id === layerId) at = nl.ops;
+  }
+  return { d: nd, at, renamed };
+}
+
+/** The layer id that means «a new static layer on top» in «Move to layer». */
+export const NEW_LAYER = "__new__";
+
+/** The shapes moved into a new static layer on top of the others (collaudo of
+ *  20-11-2026: an imported drawing could not be split into layers of its own). */
+export function moveToNewLayer(d: DescrizioneSimbolo, which: number[]): { d: DescrizioneSimbolo; at: number[] } {
+  const set = new Set(which);
+  const moving = (d.ops as Op[]).filter((_, i) => set.has(i));
+  const rest = (d.ops as Op[]).filter((_, i) => !set.has(i));
+  const start = rest.length + 1;
+  return { d: withOps(d, [...rest, { op: "statico" }, ...moving]), at: moving.map((_, k) => start + k) };
+}
+
 // ── pipe ports (`bocca`) ───────────────────────────────────────────────────
 //
 // Symbol editor phase 2 (19-11-2026): the ports are `bocca` operations with an

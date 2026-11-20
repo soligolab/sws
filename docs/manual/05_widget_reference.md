@@ -821,7 +821,10 @@ come…» ne fa un simbolo nuovo.
 - **Ruota di 90° e specchia**, **allinea e distribuisci**: sulla selezione, scritti nella geometria.
 - **Vista esplosa**: le forme si allontanano dal centro (il cursore dice quanto) per vederle e sceglierle una per una;
   le modifiche valgono per il simbolo vero.
-- **Strati**: nascondi (◉/○) e blocca (□/■) solo nell'editor; «Sposta nello strato» nel pannello «Pezzo».
+- **Strati**: l'ordine dell'elenco è l'ordine del disegno, quelli in alto stanno dietro. ▲ e ▼ spostano uno strato
+  intero più dietro o più avanti, con le sue forme e la sua animazione; dentro uno strato «Su» e «Giù» spostano una
+  forma. Nascondi (◉/○) e blocca (□/■) valgono solo nell'editor; «Sposta nello strato» nel pannello «Pezzo», anche in
+  uno strato fisso nuovo in cima («+ Nuovo strato fisso»).
 - **Raggruppa** (⧉ accanto allo strato): le forme dello strato diventano un oggetto solo. Un clic sul disegno le sceglie
   tutte, il riquadro le prende insieme, e nella vista esplosa restano unite. Dall'elenco degli strati si sceglie ancora
   una forma sola. Il raggruppamento vale finché l'IDE resta aperto: non è salvato nel simbolo.
@@ -868,7 +871,8 @@ come…» ne fa un simbolo nuovo.
   nell'IDE, e non salva niente finché non si salva il simbolo.
 - **Importa SVG…** (barra degli strumenti; oppure si trascina il file `.svg` sul disegno, o si incolla il codice SVG
   con Ctrl+V): ogni forma del disegno diventa una forma del simbolo, coi suoi colori, e si modifica come le altre. Le
-  forme importate restano scelte, così si spostano e si scalano insieme. Vanno in uno strato fermo in cima; in un
+  forme importate restano scelte, così si spostano e si scalano insieme. I cerchi, le ellissi e i rettangoli scritti
+  come tracciati (lo fanno molti siti di icone) tornano cerchi, ellissi e rettangoli, coi loro campi. Vanno in uno strato fermo in cima; in un
   simbolo nuovo prendono il posto del riquadro di partenza, nel corpo, e il simbolo prende le proporzioni del disegno.
   Hanno colori propri: non seguono lo stato né lo stile del progetto finché non si sceglie per loro un materiale o il
   colore dello stato. Quello che un simbolo non sa disegnare si approssima o si lascia fuori, e una finestra lo dice:
