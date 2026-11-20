@@ -1,5 +1,5 @@
 // The keyframes of the animated pieces (plan
-// docs/plans/2026-11-19-animazioni-dei-simboli.md): one named rule per
+// docs/archive/2026-11-19-animazioni-dei-simboli.md): one named rule per
 // parameter, written once in a `<style>` of the document head.
 //
 // Named rules and not `var()` inside `@keyframes`: the browsers of the panels

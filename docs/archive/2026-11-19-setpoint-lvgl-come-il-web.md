@@ -1,5 +1,7 @@
 # Il setpoint sul pannello LVGL come sul web: la scheda del tastierino, la conferma, il colore del ✓
 
+> **Stato: archiviato il 20-11-2026** — **FATTO**, in `main` (squash `563e9a911`); il collaudo sul TY570 in `docs/COLLAUDI_IN_SOSPESO.md`.
+
 > Piano del 19-11-2026, anomalia che pesa sull'uso (regola del 09-11: si chiude quello che è in corso e si corregge
 > subito). Ramo `fix/setpoint-lvgl`, **annidato** su `feat/nav-links` (a sua volta su `feat/symbol-def`). Codice nuovo
 > in inglese.

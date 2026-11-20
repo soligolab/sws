@@ -1,4 +1,4 @@
-/** The animated pieces drawn on the web (plan docs/plans/2026-11-19-animazioni-dei-simboli.md,
+/** The animated pieces drawn on the web (plan docs/archive/2026-11-19-animazioni-dei-simboli.md,
  *  session 2b): what follows a value is always shown, what moves in time only with `animate`. */
 import { render, cleanup } from "@testing-library/react";
 import { describe, it, expect, afterEach } from "vitest";

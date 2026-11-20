@@ -1,4 +1,4 @@
-// The image library (plan docs/plans/2026-11-19-libreria-immagini.md): the
+// The image library (plan docs/archive/2026-11-19-libreria-immagini.md): the
 // images of the project first — with «+ Carica immagine…» as the first tile —
 // then the icons that come with SWS. Until 19-11-2026 it showed the icons
 // only, and an image of one's own could be uploaded only as a background.

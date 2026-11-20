@@ -1,5 +1,7 @@
 # La tastiera a 5 righe sul pannello LVGL
 
+> **Stato: archiviato il 20-11-2026** — **FATTO**, in `main` il 20-11-2026 (squash `656897b8d`); confermata dal maintainer sul TY570 («ora si vede bene»), le altre voci in `docs/COLLAUDI_IN_SOSPESO.md`.
+
 > Piano del 19-11-2026. Il maintainer, sul TY570 in verticale: «la tastiera diventa con i tasti alti e strettissimi,
 > sono difficilissimi da usare, servirebbe un layout alternativo a 5 righe da poter scegliere». Anomalia che pesa
 > sull'uso: passa davanti (regola di `CLAUDE.md` del 09-11-2026). Ramo `fix/lvgl-keyboard-5-rows`, annidato su

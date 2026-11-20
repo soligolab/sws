@@ -1,5 +1,7 @@
 # Le immagini del progetto: caricare, scegliere, piazzare, gestire
 
+> **Stato: archiviato il 20-11-2026** — **FATTO**, in `main` il 20-11-2026 (squash `1555c4117`); voci 1 e 3 confermate il 20-11, le altre in `docs/COLLAUDI_IN_SOSPESO.md`.
+
 > Piano del 19-11-2026 (notte), sessione di plan col maintainer. Ramo `feat/image-library`, **annidato su
 > `feat/symbol-anim`** (regola «un ramo alla volta», opzione 2: i tre rami aperti aspettano il collaudo). Codice nuovo
 > in inglese, documenti in italiano.

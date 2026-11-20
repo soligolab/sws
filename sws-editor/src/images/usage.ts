@@ -1,5 +1,5 @@
 // Where the images of the project are used, and how a rename follows them
-// (plan docs/plans/2026-11-19-libreria-immagini.md, session B). A generic
+// (plan docs/archive/2026-11-19-libreria-immagini.md, session B). A generic
 // search of the strings equal to the image's URL — `src`, `bg_image`,
 // `sfondo_immagine`, the cells of a grid, a static binding — with or without
 // the `?v=` that a re-upload adds: a new field that holds an image is covered

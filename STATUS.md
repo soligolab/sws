@@ -50,7 +50,7 @@ nell'import) → `00f6c4cb1` l'intervista prima di lavorare (scheda IA e chat) e
 
 - **Il maintainer, partendo**: «fin che non torno puoi proseguire annidando il resto dello sviluppo?». Fatta la
   sessione 3 della fase 2 dell'editor dei simboli, sul ramo **`feat/symbol-import`** (`72f9662ce`), annidato su
-  `feat/symbol-ai`. Piano: `docs/plans/2026-11-20-importa-svg-e-file-del-simbolo.md`, con in fondo **le sei decisioni
+  `feat/symbol-ai`. Piano: `docs/archive/2026-11-20-importa-svg-e-file-del-simbolo.md`, con in fondo **le sei decisioni
   prese senza il maintainer, da rivedere** (file JSON e non zip, mai variante, strato fermo o corpo, Ctrl+V,
   `evenodd` solo avviso, proporzioni dell'SVG).
   - «Importa SVG…» (anche trascinando il file o con Ctrl+V del codice): ogni forma diventa un'operazione del simbolo,
@@ -70,7 +70,7 @@ nell'import) → `00f6c4cb1` l'intervista prima di lavorare (scheda IA e chat) e
 
 ### L'assistente IA nell'editor dei simboli (ramo `feat/symbol-ai`)
 
-- **L'assistente IA nell'editor dei simboli** (piano `docs/plans/2026-11-19-assistente-ia-simboli.md`, fase 6 del piano
+- **L'assistente IA nell'editor dei simboli** (piano `docs/archive/2026-11-19-assistente-ia-simboli.md`, fase 6 del piano
   di fondo anticipata): la scheda «IA» con «Modifica questo», «Disegna nuovo», «Aggiungi una foto»; la proposta accanto
   al disegno, «Accetta» (Ctrl+Z la toglie), «Scarta», il ritocco che parte dalla proposta; la rotta
   `POST /api/symbols/ai`; il cuore di `disegna_simbolo` comune alla chat (`ai/symbol_draw.rs`). Definition of done
@@ -98,7 +98,7 @@ nell'import) → `00f6c4cb1` l'intervista prima di lavorare (scheda IA e chat) e
   - `fix/lvgl-keyboard-5-rows` (`83f5c0c8b`): la tastiera a 5 righe. **Installata sul TY570**
     (`ty570-1ad-p1-06e990.local`, pacchetto di prova `tmp/wt-ty/dist/sws-2.26.0-rc.21-prova-tastiera-tiny-ty-armv7.tar.gz`,
     il pannello dice `2.26.0-rc.21 (83f5c0c8b)`): il maintainer non l'ha ancora provata;
-  - `feat/symbol-anim`: le animazioni dei simboli, piano `docs/plans/2026-11-19-animazioni-dei-simboli.md`, **tutte e
+  - `feat/symbol-anim`: le animazioni dei simboli, piano `docs/archive/2026-11-19-animazioni-dei-simboli.md`, **tutte e
     quattro le sessioni**: 2a formato e valutatore condiviso (`2ae3c17fa`), 2b web e «Collegamenti» con Tag | Valore
     fisso (`1818a63ec`), 2c pannello LVGL con l'opacità composta, il budget di pagina e la guardia
     `check_pezzi_lvgl.sh` (`e817a1eb4`), 2d editor con «Anima…», i parametri, la maniglia del movimento, «Prova» con
@@ -256,7 +256,7 @@ validate alla fine. Piano e registro delle decisioni: `docs/plans/2026-11-17-cra
   cloud si riabbinano (D10), con la procedura nel piano della sessione 2, «Il rilascio». Prima: il backup del database
   del TC620 di casa. Espressioni e script dei progetti del cloud misurati sul VPS: tutti a posto.
 - **Sessione 3 fatta**, ramo `fix/cra-3-control-panel-access`, **annidato** sul secondo (piano
-  `docs/plans/2026-11-18-cra-3-accesso-pannello-di-controllo.md`). Il maintainer ha rivisto le decisioni prima del
+  `docs/archive/2026-11-18-cra-3-accesso-pannello-di-controllo.md`). Il maintainer ha rivisto le decisioni prima del
   codice: il PIN del MAC vale solo dallo schermo (D13); dallo schermo remoto il reset tiene il cloud (D14); il blocco
   dei PIN per origine, temporaneo, e nell'audit (D15); il codice di abbinamento solo a questa macchina (D16); il
   cambio password anche sul viewer, con la pagina nel viewer LVGL (D17); niente `admin`/`admin` nelle native (D18);

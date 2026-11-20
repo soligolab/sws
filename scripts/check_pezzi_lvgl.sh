@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # The animated pieces of a project symbol on the LVGL viewer (plan
-# docs/plans/2026-11-19-animazioni-dei-simboli.md, session 2c).
+# docs/archive/2026-11-19-animazioni-dei-simboli.md, session 2c).
 #
 # WHY IT EXISTS
 #

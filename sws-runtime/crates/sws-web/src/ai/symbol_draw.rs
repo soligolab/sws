@@ -4,7 +4,7 @@
 //!
 //! Two callers: the chat's `disegna_simbolo` (`strumenti_scopi::disegna`) and
 //! the AI tab of the symbol editor, `POST /api/symbols/ai` ([`editor`]; plan
-//! `docs/plans/2026-11-19-assistente-ia-simboli.md`). They differ in what they
+//! `docs/archive/2026-11-19-assistente-ia-simboli.md`). They differ in what they
 //! ask and in what they count; the drawing itself is this.
 
 use serde::Deserialize;

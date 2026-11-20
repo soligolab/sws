@@ -1,4 +1,4 @@
-// The «IA» tab of the symbol editor (plan docs/plans/2026-11-19-assistente-ia-simboli.md):
+// The «IA» tab of the symbol editor (plan docs/archive/2026-11-19-assistente-ia-simboli.md):
 // an instruction, «Modifica questo» or «Disegna nuovo», a photo if there is one.
 // The model of the «Simboli» purpose answers with a proposal, shown here next to
 // the symbol as it is; «Accetta» makes it a step of the editor's history (Ctrl+Z

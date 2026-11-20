@@ -1,5 +1,5 @@
 /** The symbol gallery of the properties panel offers only the symbols of the same kind (plan
- *  docs/plans/2026-11-19-galleria-simboli-stesso-tipo.md): a pump offers pumps, the project's own
+ *  docs/archive/2026-11-19-galleria-simboli-stesso-tipo.md): a pump offers pumps, the project's own
  *  first; a library symbol with a project variant is drawn as the variant. */
 import { render, screen, fireEvent, act, cleanup } from "@testing-library/react";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";

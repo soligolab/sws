@@ -1,5 +1,5 @@
 // The file of a symbol, `.swsym` (plan
-// docs/plans/2026-11-20-importa-svg-e-file-del-simbolo.md): the description as
+// docs/archive/2026-11-20-importa-svg-e-file-del-simbolo.md): the description as
 // JSON, to take a symbol from one project to another. The photos of phase 3
 // will make it a zip; the reader tells one from the other by the first bytes,
 // so the JSON files written today stay readable.

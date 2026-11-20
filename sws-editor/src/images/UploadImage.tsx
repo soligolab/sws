@@ -1,5 +1,5 @@
 // The card that uploads images into the project (plan
-// docs/plans/2026-11-19-libreria-immagini.md): one file at a time, with its
+// docs/archive/2026-11-19-libreria-immagini.md): one file at a time, with its
 // preview, its name, «Ottimizza per il pannello» ticked when it is worth it,
 // and the three ways out when the name is taken. Used by the image library,
 // by a file dropped on the canvas and by a picture pasted from the clipboard.

@@ -1,6 +1,6 @@
 /** The live parts of a symbol and the timed pieces: **the cases are not here**,
  *  they are in `tests/fixtures/symbol-pieces.json`, and the panel checks them too
- *  (`sws-core/src/symbol_behaviour.rs`). Plan docs/plans/2026-11-19-animazioni-dei-simboli.md. */
+ *  (`sws-core/src/symbol_behaviour.rs`). Plan docs/archive/2026-11-19-animazioni-dei-simboli.md. */
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";

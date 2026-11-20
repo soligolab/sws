@@ -15,7 +15,7 @@ type Pairs = [string, number | string][];
 /** The behaviours a symbol can have today, one per input (phase 1: the live
  *  parts the two engines already draw). */
 export type InputKind = "state" | "level" | "rotor" | "needle" | "lever" | "lamp"
-  // The animated pieces (plan docs/plans/2026-11-19-animazioni-dei-simboli.md).
+  // The animated pieces (plan docs/archive/2026-11-19-animazioni-dei-simboli.md).
   | "slide" | "vibrate" | "pulse" | "signal";
 export const INPUT_KINDS: InputKind[] = ["state", "level", "rotor", "needle", "lever", "lamp", "slide", "vibrate", "pulse", "signal"];
 

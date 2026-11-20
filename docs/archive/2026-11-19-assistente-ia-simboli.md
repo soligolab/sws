@@ -1,8 +1,10 @@
 # L'assistente IA nell'editor dei simboli
 
+> **Stato: archiviato il 20-11-2026** — **FATTO**, in `main` il 20-11-2026 (squash `dcc2f0cad`, poi lo schema JSON `f91f492be` e l'intervista `00f6c4cb1`); la scheda IA confermata dal maintainer con Opus, il resto in `docs/COLLAUDI_IN_SOSPESO.md`.
+
 > Piano del 19-11-2026 (notte), sessione di plan col maintainer: «implementa il prossimo step dell'editor dei
 > simboli, dovrebbe essere l'assistente IA». È la fase 6 del piano di fondo
-> ([editor dei simboli](2026-11-18-editor-dei-simboli.md)), anticipata sulla sessione 3 della fase 2 (importa SVG,
+> ([editor dei simboli](../plans/2026-11-18-editor-dei-simboli.md)), anticipata sulla sessione 3 della fase 2 (importa SVG,
 > esporta/importa), che viene dopo. Ramo `feat/symbol-ai`, **annidato su `feat/image-library`** (i rami aperti
 > aspettano il collaudo). Codice nuovo in inglese.
 

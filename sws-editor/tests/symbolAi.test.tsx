@@ -1,4 +1,4 @@
-/** The «IA» tab of the symbol editor (plan docs/plans/2026-11-19-assistente-ia-simboli.md):
+/** The «IA» tab of the symbol editor (plan docs/archive/2026-11-19-assistente-ia-simboli.md):
  *  what it sends, the proposal next to the symbol, «Accetta» as a step Ctrl+Z
  *  takes back, «Scarta», the retouch that starts from the proposal, the errors. */
 import { render, act, fireEvent, waitFor, screen } from "@testing-library/react";

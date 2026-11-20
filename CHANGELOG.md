@@ -41,7 +41,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Aggiunto
 - **Importa SVG ed esporta/importa il simbolo, nell'editor dei simboli** (piano
-  `docs/plans/2026-11-20-importa-svg-e-file-del-simbolo.md`, ramo `feat/symbol-import`). **«Importa SVG…»** (anche
+  `docs/archive/2026-11-20-importa-svg-e-file-del-simbolo.md`, ramo `feat/symbol-import`). **«Importa SVG…»** (anche
   trascinando il file sul disegno o con Ctrl+V del codice SVG) esplode il disegno in forme del simbolo: gruppi,
   trasformazioni e stili ereditati appiattiti, colori in `#rrggbb` con l'opacità, regole semplici di `<style>`,
   `<use>`; rect/cerchi/ellissi restano tali se non ruotati, il resto diventa `path` assoluto (archi in curve sotto una
@@ -61,7 +61,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   della pagina sotto. Nella scheda «IA» torna così **Ctrl+Invio**, che chiede quello che chiede il pulsante evidenziato.
 
 ### Aggiunto
-- **L'assistente IA nell'editor dei simboli** (piano `docs/plans/2026-11-19-assistente-ia-simboli.md`, ramo
+- **L'assistente IA nell'editor dei simboli** (piano `docs/archive/2026-11-19-assistente-ia-simboli.md`, ramo
   `feat/symbol-ai`). Una quarta scheda **«IA»** accanto a Pezzo, Struttura e Prova: si scrive cosa disegnare o cosa
   cambiare e si sceglie **«Modifica questo»** o **«Disegna nuovo»**; **«Aggiungi una foto»** manda anche la foto di una
   macchina, ridotta nel browser a 1024 px JPEG. La proposta compare accanto al simbolo di adesso, con modello,
@@ -76,7 +76,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   traduzione; una descrizione avvolta in `{"descrizione": …}` si legge; l'errore di lettura dice quale operazione
   (`ops[5]: missing field h`); il modello vede il simbolo aperto con `geo` come oggetto, come nel formato, e non a
   coppie come lo scrive la libreria.
-- **La libreria immagini, sessione A: caricare e piazzare** (piano `docs/plans/2026-11-19-libreria-immagini.md`, ramo
+- **La libreria immagini, sessione A: caricare e piazzare** (piano `docs/archive/2026-11-19-libreria-immagini.md`, ramo
   `feat/image-library`). Strumenti ▸ Immagine apre la libreria sulla scheda **«Del progetto»**, con **«+ Carica
   immagine…»** come prima casella (clic, più file insieme, o file trascinati sulla finestra); poi le icone incluse.
   Caricando, una scheda con anteprima, nome, misura e **«Ottimizza per il pannello»** spuntato quando conviene (lato
@@ -98,7 +98,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   programma). I due campi di sfondo (dell'oggetto e dell'area) caricano con la stessa scheda: niente più
   sovrascritture in silenzio. Configurazione ▸ Risorse apre la libreria per gestirle.
 - **Le animazioni dei simboli, sessione 2a: il formato e il valutatore condiviso** (piano
-  `docs/plans/2026-11-19-animazioni-dei-simboli.md`, ramo `feat/symbol-anim`). Ancora niente di visibile: i motori
+  `docs/archive/2026-11-19-animazioni-dei-simboli.md`, ramo `feat/symbol-anim`). Ancora niente di visibile: i motori
   disegnano i pezzi nuovi fermi. Quattro tipi di parte nuovi (`slide`, `vibrate`, `pulse`, `signal`), `dir` sul livello
   e `ccw` sulla girante, tutto dentro `geo`; `ParteLib` ha un ripiego `Unknown`, così un tipo che il pannello non
   conosce diventa uno strato fermo invece di rendere illeggibile il manifesto. Il legame in pagina
@@ -139,7 +139,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   «Prova» ha i controlli dei pezzi nuovi e «Anima» per gli effetti a tempo. Salvando, un pezzo rinominato o tolto che
   gli oggetti in pagina collegano chiede conferma, e gli oggetti della pagina seguono la rinomina. I piccoli pezzi
   dell'interfaccia dell'editor stanno in `symbols/editor/ui.tsx`.
-- **La tastiera a 5 righe sul pannello LVGL** (piano `docs/plans/2026-11-19-tastiera-a-5-righe.md`). Sul TY570 in
+- **La tastiera a 5 righe sul pannello LVGL** (piano `docs/archive/2026-11-19-tastiera-a-5-righe.md`). Sul TY570 in
   verticale la tastiera di LVGL aveva tasti larghi circa 45 px e alti oltre 120, «difficilissimi da usare» (il
   maintainer, 19-11-2026). Ora ogni tastiera di testo (accesso, celle delle tabelle, motivo di un comando critico) ha
   nell'ultima riga il tasto **«A-Z»**: passa a una tastiera alfabetica di cinque righe da sette (lettere, `. -`,
@@ -147,7 +147,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   (`lvgl_keyboard` nella cartella di stato, come la lingua). Nuovo `keyboard_layout.rs`: le mappe come dati, provate
   dai test (al massimo 7 tasti per riga, ogni lettera una volta, i tasti di cambio presenti); un gestore nostro
   intercetta «A-Z» e «QWE» e per il resto chiama quello di LVGL. Il tastierino numerico non cambia.
-- **L'editor dei simboli, fase 2, sessione 1** (piano `docs/plans/2026-11-19-editor-dei-simboli-fase-2.md`, ramo
+- **L'editor dei simboli, fase 2, sessione 1** (piano `docs/archive/2026-11-19-editor-dei-simboli-fase-2.md`, ramo
   `feat/symbol-editor-tools`).
   - **Le bocche dei tubi**: `simboli_prj::explicit_ports` e `POST /api/symbols/explicit-ports` rendono esplicite le bocche
     che il compilatore ricavava dalle flange (stesso id, stesso disegno: provato su tutta la libreria); l'editor apre
@@ -164,7 +164,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
     (le forme di uno strato sono un oggetto solo: un clic le sceglie tutte, la vista esplosa le tiene unite).
   - **Vista esplosa** radiale, **scheda «Prova»** coi valori degli ingressi, **«scala il disegno»** cambiando la misura,
     **«+ Nuovo simbolo» in cima** a Strumenti ▸ Simboli.
-- **La galleria dei simboli offre solo lo stesso tipo** (piano `docs/plans/2026-11-19-galleria-simboli-stesso-tipo.md`,
+- **La galleria dei simboli offre solo lo stesso tipo** (piano `docs/archive/2026-11-19-galleria-simboli-stesso-tipo.md`,
   ramo `feat/symbol-gallery-kind`, richiesta del maintainer del 19-11-2026). Nel pannello proprietà di un simbolo il
   cambio mostra solo i simboli della stessa tipologia (`kind` del manifest: pompe, valvole, serbatoi…): prima i simboli
   del progetto di quella tipologia, poi quelli della libreria; una pompa di libreria con una variante nel progetto si
@@ -172,7 +172,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   dell'originale, una copia «Salva come…» o un simbolo nuovo la sua, gli SVG importati stanno fra loro. Il selettore
   all'inserimento resta completo. Nell'editor dei simboli la «Categoria» è un elenco delle tipologie della libreria per
   famiglia, più «Del progetto» e «Altro…» col testo libero di prima.
-- **Il navigatore di pagine ha i «Pulsanti in più»** (piano `docs/plans/2026-11-19-navigatore-pulsanti-in-piu.md`, ramo
+- **Il navigatore di pagine ha i «Pulsanti in più»** (piano `docs/archive/2026-11-19-navigatore-pulsanti-in-piu.md`, ramo
   `feat/nav-links`): un elenco di pulsanti che non vengono dall'albero delle pagine e aprono la pagina scelta, per
   **entrare in un sotto-menù** (si sceglie da quale pagina si parte e il nome del pulsante) o per **uscirne**. Campo
   `nav_links: [{page_id, label?, order?}]`: etichetta vuota = nome della pagina, `{{token}}` ammessi; posizione fra le voci
@@ -453,7 +453,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   paragrafo lungo, che lo schiacciava) e il codice andava su due righe (visto sul WP630 appena installato, 19-11-2026).
   Ora il QR sta sopra la sua spiegazione, centrato, a 200 px e mai ristretto (`QrCode` con `flexShrink: 0`, vale anche
   nel pannello di controllo); il codice sta su una riga, con un corpo che non supera la larghezza dello schermo.
-- **Il setpoint sul pannello LVGL come sul web** (piano `docs/plans/2026-11-19-setpoint-lvgl-come-il-web.md`, ramo
+- **Il setpoint sul pannello LVGL come sul web** (piano `docs/archive/2026-11-19-setpoint-lvgl-come-il-web.md`, ramo
   `fix/setpoint-lvgl`, visto dal maintainer sul TY570 il 19-11-2026). Il **tastierino** era un figlio della pagina
   creato nascosto: gli oggetti disegnati dopo gli stavano sopra e prendevano i tocchi (mezza tastiera coperta). Ora è
   una scheda al centro dello schermo sul layer superiore, come quella del web (`numeric_keypad.rs`), con etichetta, unità,
@@ -475,7 +475,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   STARTTLS e l'indirizzo sbagliato per un mittente con la parte locale fra virgolette (RUSTSEC-2026-0560…0565).
   Aggiornamento compatibile, `cargo audit` di nuovo verde.
 - **Accesso al pannello di controllo, credenziali di fabbrica, OpenPLC** (sessione 3 del CRA, piano
-  `docs/plans/2026-11-18-cra-3-accesso-pannello-di-controllo.md`, decisioni D13-D21).
+  `docs/archive/2026-11-18-cra-3-accesso-pannello-di-controllo.md`, decisioni D13-D21).
   - Il PIN del dispositivo (le ultime sei cifre del MAC) apre il pannello di controllo solo dallo schermo del pannello:
     porta del viewer, loopback, nessuna intestazione `x-sws-remote-screen` (che `schermo::dal_gateway` mette su quello
     che inoltra). Dalla rete e dallo schermo remoto solo il PIN del progetto; `GET /api/control-panel` dice l'origine
@@ -514,7 +514,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
     gli installer nativi non escono più prima del codice; `dialout` per l'utente `sws`; OpenPLC segnala un utente
     estraneo su un container nuovo e il runtime riprova per dieci minuti; «Aggiorna ora» sul web aspetta il cambio
     password.
-- **Sicurezza del cloud e della sandbox** (sessione 2 del CRA, piano `docs/plans/2026-11-18-cra-2-isolamento-cloud-e-sandbox.md`).
+- **Sicurezza del cloud e della sandbox** (sessione 2 del CRA, piano `docs/archive/2026-11-18-cra-2-isolamento-cloud-e-sandbox.md`).
   - Ogni container di progetto riceve un segreto suo (`gateway::ritorno::container_secret`), non più quello del
     gateway: chi leggeva l'ambiente di un container poteva fare da Admin negli altri e calcolare i token dei pannelli.
     Segreti dei container e chiavi di ritorno si ricavano da una chiave nuova del gateway (file `container_key` della

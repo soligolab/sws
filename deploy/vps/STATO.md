@@ -180,7 +180,7 @@ scelta del cliente. Tre cambi insieme, con un solo riavvio (fermo di un secondo)
   chi lo leggeva da dentro un progetto poteva farsi passare per il gateway. Il vecchio è in
   `gateway-config/segreto_gateway.vecchio-2026-11-18`; all'avvio il gateway ha creato il nuovo e `container_key`, da cui
   ricava il segreto di ogni container. I token dei pannelli abbinati sono un HMAC di quel segreto: **i tre pannelli
-  vanno riabbinati** (procedura in `docs/plans/2026-11-18-cra-2-isolamento-cloud-e-sandbox.md`, «Il rilascio»). Il
+  vanno riabbinati** (procedura in `docs/archive/2026-11-18-cra-2-isolamento-cloud-e-sandbox.md`, «Il rilascio»). Il
   file vecchio si cancella a riabbinamento finito; rimetterlo al suo posto e riavviare riporta tutto com'era;
 - **il tetto di CPU dei progetti** (CRA, D21): `~/.config/systemd/user/user.slice.d/50-sws-projects.conf`
   (`CPUQuota=150%`, copia maestra in `deploy/vps/user-systemd/`), poi `systemctl --user daemon-reload`. I container

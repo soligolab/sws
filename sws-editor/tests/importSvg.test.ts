@@ -1,5 +1,5 @@
 /** Importing an SVG into a project symbol (plan
- *  docs/plans/2026-11-20-importa-svg-e-file-del-simbolo.md): every shape becomes
+ *  docs/archive/2026-11-20-importa-svg-e-file-del-simbolo.md): every shape becomes
  *  an operation the compiler accepts, with its colours, in the symbol's units. */
 import { describe, it, expect } from "vitest";
 import {

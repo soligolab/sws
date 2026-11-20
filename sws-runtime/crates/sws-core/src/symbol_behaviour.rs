@@ -1,6 +1,6 @@
 //! What the live parts of a symbol do with their input, and how the timed
 //! ones move: one rule for the two engines (plan
-//! `docs/plans/2026-11-19-animazioni-dei-simboli.md`).
+//! `docs/archive/2026-11-19-animazioni-dei-simboli.md`).
 //!
 //! The TypeScript twin is `valoriParti` in
 //! `sws-editor/src/symbols/lib/libreria.ts` and

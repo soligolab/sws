@@ -1,8 +1,10 @@
 # L'editor dei simboli, fase 2 — tre sessioni, la prima nel dettaglio
 
+> **Stato: archiviato il 20-11-2026** — **FATTO** il 20-11-2026: le tre sessioni sono in `main` (`b99855ddf`, le animazioni, importa SVG); il collaudo in `docs/COLLAUDI_IN_SOSPESO.md`; le fasi dopo stanno nel piano di fondo [editor dei simboli](../plans/2026-11-18-editor-dei-simboli.md).
+
 > Piano del 19-11-2026, sessione di plan col maintainer dopo il collaudo della fase 1 («l'editor è estremamente
 > scarno: non so come definire i punti di aggancio per i pipe»). Primo passo dell'esecuzione: copiarlo in
-> `docs/plans/2026-11-19-editor-dei-simboli-fase-2.md`, riga in `docs/plans/README.md`, e aggiornare la tabella delle
+> `docs/archive/2026-11-19-editor-dei-simboli-fase-2.md`, riga in `docs/plans/README.md`, e aggiornare la tabella delle
 > fasi di `docs/plans/2026-11-18-editor-dei-simboli.md` (che resta il piano di fondo). Codice nuovo in inglese.
 
 ## Prima, a parte: la schermata d'abbinamento del pannello (segnalata durante il piano)

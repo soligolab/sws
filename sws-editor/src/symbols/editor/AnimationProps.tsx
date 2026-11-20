@@ -1,5 +1,5 @@
 // The parameters of a live part, one editor per kind (plan
-// docs/plans/2026-11-19-animazioni-dei-simboli.md, session 2d): the pivot of a
+// docs/archive/2026-11-19-animazioni-dei-simboli.md, session 2d): the pivot of a
 // rotation, the window and the side of a level, the way of a slide, the step
 // of a vibration, the breath of a pulse, the entries of a signal. Used by the
 // «Pezzo» tab and by the inputs of «Struttura».

@@ -1,6 +1,8 @@
 # CRA, sessione 3: accesso al pannello di controllo, credenziali di fabbrica, OpenPLC
 
-> Piano della sessione 3 delle [sessioni CRA](2026-11-17-cra-sessioni-e-decisioni.md). Ramo
+> **Stato: archiviato il 20-11-2026** — **FATTO**, nella rc.21 (squash `5bdaba816`); il collaudo in `docs/COLLAUDI_IN_SOSPESO.md`.
+
+> Piano della sessione 3 delle [sessioni CRA](../plans/2026-11-17-cra-sessioni-e-decisioni.md). Ramo
 > `fix/cra-3-control-panel-access`, **annidato** su `fix/cra-2-cloud-isolation-sandbox`. Misurato sul codice del ramo
 > il 18-11-2026. Le decisioni D13-D18 e D20 le ha rivista il maintainer prima del codice (18-11, «rivediamo assieme le
 > decisioni della sessione 3»); D19 e D21 sono prese in autonomia, da validare a fine sessione.

@@ -1,4 +1,4 @@
-/** The image library (plan docs/plans/2026-11-19-libreria-immagini.md, session A): the images of
+/** The image library (plan docs/archive/2026-11-19-libreria-immagini.md, session A): the images of
  *  the project first with «+ Carica immagine…», the upload card with the name taken, the size of a
  *  new image object. */
 import { render, screen, fireEvent, waitFor, cleanup, act } from "@testing-library/react";

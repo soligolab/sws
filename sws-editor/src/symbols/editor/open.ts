@@ -93,7 +93,7 @@ export function svgWarningLines(w: Partial<Record<SvgWarning, number>>): string 
   return SVG_WARNINGS.filter((k) => w[k]).map((k) => `• ${i18n.t(`symbolEditor.svg.warn.${k}`, { n: w[k] })}`).join("\n");
 }
 
-/** «Import a symbol…» (plan docs/plans/2026-11-20-importa-svg-e-file-del-simbolo.md):
+/** «Import a symbol…» (plan docs/archive/2026-11-20-importa-svg-e-file-del-simbolo.md):
  *  a `.swsym` opens the editor on the symbol it carries, an `.svg` on a new
  *  symbol named after the file with the drawing in it. Both are new symbols of
  *  the project until «Save». */
@@ -201,7 +201,7 @@ export function pipesOnPorts(d: DescrizioneSimbolo): Map<string, { total: number
 
 /** The objects that bind the parts of `d` (`symbol_parts`), on every page: for
  *  each part id, how many, and those on the current page (the ones a rename can
- *  follow). Plan docs/plans/2026-11-19-animazioni-dei-simboli.md, session 2d. */
+ *  follow). Plan docs/archive/2026-11-19-animazioni-dei-simboli.md, session 2d. */
 export function bindingsOnParts(d: DescrizioneSimbolo): Map<string, { total: number; here: string[] }> {
   const ids = new Set(idsDrawing(d));
   const st = useAppStore.getState();

@@ -1,5 +1,5 @@
 //! The numeric keypad of the setpoint on the LVGL panel (19-11-2026, plan
-//! `docs/plans/2026-11-19-setpoint-lvgl-come-il-web.md`).
+//! `docs/archive/2026-11-19-setpoint-lvgl-come-il-web.md`).
 //!
 //! It is the web's `NumericKeypad.tsx` drawn with LVGL: a 280 px card in the
 //! middle of the screen, over a dark veil, with the label, the number and its

@@ -1643,7 +1643,7 @@ export const api = {
 
   /** POST /api/symbols/ai — the model of the «Simboli» purpose draws the symbol, new or changed
    *  from `description`, also from a photo. Nothing is saved; every outcome is a 200 with `ok`
-   *  (plan docs/plans/2026-11-19-assistente-ia-simboli.md). IDE instance only. */
+   *  (plan docs/archive/2026-11-19-assistente-ia-simboli.md). IDE instance only. */
   symbolAi: (req: SymbolAiRequest, signal?: AbortSignal) =>
     request<SymbolAiResult>("/api/symbols/ai", { method: "POST", body: JSON.stringify(req), signal }),
 

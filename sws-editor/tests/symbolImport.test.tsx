@@ -1,5 +1,5 @@
 /** Importing into the symbol editor (plan
- *  docs/plans/2026-11-20-importa-svg-e-file-del-simbolo.md): an SVG from a file
+ *  docs/archive/2026-11-20-importa-svg-e-file-del-simbolo.md): an SVG from a file
  *  or from the clipboard, the symbol's own file out and back in. */
 import { render, act, fireEvent, waitFor, screen } from "@testing-library/react";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";

@@ -1,6 +1,8 @@
 # CRA, sessione 2: isolamento nel cloud e sandbox delle espressioni
 
-> Piano della sessione 2 delle [sessioni CRA](2026-11-17-cra-sessioni-e-decisioni.md), approvato dal maintainer il
+> **Stato: archiviato il 20-11-2026** — **FATTO**, nella rc.21 (squash `ae47dd371`); il collaudo in `docs/COLLAUDI_IN_SOSPESO.md`.
+
+> Piano della sessione 2 delle [sessioni CRA](../plans/2026-11-17-cra-sessioni-e-decisioni.md), approvato dal maintainer il
 > 18-11-2026 («ok» alla proposta). Ramo `fix/cra-2-cloud-isolation-sandbox`, **annidato** su
 > `docs/cra-1-true-statements`. Misurato sul codice del ramo.
 >

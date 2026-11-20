@@ -1,5 +1,5 @@
 // The images of the project made fit for a panel before they are uploaded
-// (plan docs/plans/2026-11-19-libreria-immagini.md, decision 1). A photo from a
+// (plan docs/archive/2026-11-19-libreria-immagini.md, decision 1). A photo from a
 // phone is 4000 px and 5 MB: two of them stop a deploy (8 MB in all), and on
 // the TY570 one takes almost 2 s to decode at every visit of its page. The
 // long side goes to 1920 px at most, photos become JPEG, a picture with
@@ -102,7 +102,7 @@ export async function optimizeImage(file: Blob, name: string): Promise<Optimized
 
 /** A picture as a model reads it: JPEG on white, the long side at most `max`,
  *  in base64 without the `data:` prefix (the AI tab of the symbol editor, plan
- *  docs/plans/2026-11-19-assistente-ia-simboli.md). A phone photo of 5 MB
+ *  docs/archive/2026-11-19-assistente-ia-simboli.md). A phone photo of 5 MB
  *  becomes 100–200 KB; `null` when the browser can't read it. */
 export async function pictureForModel(file: Blob, max = 1024): Promise<{ media_type: "image/jpeg"; data: string } | null> {
   if (typeof createImageBitmap !== "function" || typeof document === "undefined" || !optimizable(file.type)) return null;

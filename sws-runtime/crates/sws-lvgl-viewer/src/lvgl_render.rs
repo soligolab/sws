@@ -11627,7 +11627,7 @@ fn setpoint_current_text(word: &str, v: Option<f64>, decimali: usize, unit: &str
 }
 
 /// `setpoint`: the web's three rows (19-11-2026, plan
-/// `docs/plans/2026-11-19-setpoint-lvgl-come-il-web.md`) — the label, «Attuale:
+/// `docs/archive/2026-11-19-setpoint-lvgl-come-il-web.md`) — the label, «Attuale:
 /// …», and a row with the field that fills the width, the ✓ and the ⌨. A touch
 /// on the field or on the ⌨ opens the keypad card (`numeric_keypad.rs`) on the
 /// top layer, and its ✓ writes through the object's confirmation rule.

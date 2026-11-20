@@ -299,7 +299,7 @@ describe("drawing tools (phase 2)", () => {
   });
 });
 
-/** «Anima…» (plan docs/plans/2026-11-19-animazioni-dei-simboli.md, session 2d):
+/** «Anima…» (plan docs/archive/2026-11-19-animazioni-dei-simboli.md, session 2d):
  *  the chosen shapes become a part layer, every other shape stays in its layer. */
 describe("animating a selection", () => {
   const sym = (ops: Op[]): DescrizioneSimbolo => ({ slug: "s", w: 100, h: 100, body: "body-pump", it: "S", en: "S", ops });

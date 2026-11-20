@@ -1,4 +1,4 @@
-// How a new image object is sized (plan docs/plans/2026-11-19-libreria-immagini.md):
+// How a new image object is sized (plan docs/archive/2026-11-19-libreria-immagini.md):
 // with the proportions of its picture, the long side at most 240 px, never
 // enlarged. Until 19-11-2026 every image was born 120×80 and stretched, so a
 // square icon came out squashed.

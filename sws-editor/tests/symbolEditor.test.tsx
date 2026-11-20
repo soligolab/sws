@@ -258,7 +258,7 @@ ${(d.ops as Op[]).map((op, i) => (op.op === "forma"
 });
 
 /** «Anima…», the parameters, «Prova» with «Anima», and the parts bound in the
- *  page (plan docs/plans/2026-11-19-animazioni-dei-simboli.md, session 2d). */
+ *  page (plan docs/archive/2026-11-19-animazioni-dei-simboli.md, session 2d). */
 describe("animating a symbol in the editor", () => {
   beforeEach(() => {
     impostaLibreriaPerTest(manifest, {});

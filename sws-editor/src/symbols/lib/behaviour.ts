@@ -1,5 +1,5 @@
 // How the live parts of a symbol match their input and how the timed ones
-// move (plan docs/plans/2026-11-19-animazioni-dei-simboli.md). Pure: twin of
+// move (plan docs/archive/2026-11-19-animazioni-dei-simboli.md). Pure: twin of
 // `sws-core/src/symbol_behaviour.rs`, with the cases in
 // `tests/fixtures/symbol-pieces.json` — if the two engines diverged, the same
 // tag would draw two different symbols.

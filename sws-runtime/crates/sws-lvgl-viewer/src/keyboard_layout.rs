@@ -1,5 +1,5 @@
 //! The two layouts of the text keyboard (plan
-//! `docs/plans/2026-11-19-tastiera-a-5-righe.md`).
+//! `docs/archive/2026-11-19-tastiera-a-5-righe.md`).
 //!
 //! LVGL's keyboard puts 12 keys in its first row. On the TY570 turned to
 //! portrait (600 px wide) a key came out about 45 px wide and over 120 px tall:

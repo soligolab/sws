@@ -1,5 +1,7 @@
 # L'editor dei simboli, fase 2 sessione 2 — le animazioni agganciate ai tag
 
+> **Stato: archiviato il 20-11-2026** — **FATTO**, in `main` il 20-11-2026 (squash `ad07364ae`); «Anima…» e «Collegamenti ▸ Parti» confermati il 20-11, le prove sul pannello e le misure sul TY570 in `docs/COLLAUDI_IN_SOSPESO.md`.
+
 > Piano del 19-11-2026, sessione di plan col maintainer dopo la chiusura della sessione 1 (`b99855ddf`). È la sessione 2
 > del piano [fase 2](2026-11-19-editor-dei-simboli-fase-2.md), divisa in quattro (2a–2d) su un ramo solo,
 > `feat/symbol-anim`. Codice nuovo in inglese, documenti in italiano.

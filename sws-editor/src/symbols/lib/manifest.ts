@@ -29,7 +29,7 @@ export type ParteLib =
   | { id: string; kind: "lever"; cx: number; cy: number; open: number; closed: number; angoli?: number[] }
   /** Accesa = visibile; spenta, sotto c'è la lente spenta disegnata nello strato statico. */
   | { id: string; kind: "lamp" }
-  // The animated pieces (plan docs/plans/2026-11-19-animazioni-dei-simboli.md);
+  // The animated pieces (plan docs/archive/2026-11-19-animazioni-dei-simboli.md);
   // twins of `ParteLib` in `sws-core/src/simboli_lib.rs`, with the same defaults.
   /** Moves by (dx, dy) times the fraction of its input. */
   | { id: string; kind: "slide"; dx: number; dy: number; transition_ms?: number }

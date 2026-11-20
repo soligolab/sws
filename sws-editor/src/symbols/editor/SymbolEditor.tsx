@@ -632,7 +632,7 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
     commit(out);
     setSel(at);
   }, [commit, d, sel, layerOf, ls]);
-  // An SVG drawing (plan docs/plans/2026-11-20-importa-svg-e-file-del-simbolo.md):
+  // An SVG drawing (plan docs/archive/2026-11-20-importa-svg-e-file-del-simbolo.md):
   // its shapes become operations of the symbol, selected so they move and
   // scale together; what was approximated or left out is said after.
   const importSvgText = useCallback((text: string) => {

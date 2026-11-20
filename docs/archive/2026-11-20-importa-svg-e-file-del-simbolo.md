@@ -1,9 +1,11 @@
 # Importa SVG e il file del simbolo — la sessione 3 della fase 2
 
+> **Stato: archiviato il 20-11-2026** — **FATTO**, in `main` il 20-11-2026 (squash `7b8e7acc0`); collaudo del 20-11 sull'IDE 8462: voci 1, 4, 6 e 7 passate, le altre in `docs/COLLAUDI_IN_SOSPESO.md`.
+
 > Piano del 20-11-2026 (theobroma). Il maintainer: «fin che non torno puoi proseguire annidando il resto dello
 > sviluppo?». È la **sessione 3** del [piano della fase 2](2026-11-19-editor-dei-simboli-fase-2.md): importa SVG
 > esploso, esporta e importa il simbolo come file. Il maintainer non c'è: **le decisioni qui sotto le ho prese io**, e
-> sono elencate in fondo per la revisione, come nelle [sessioni CRA](2026-11-17-cra-sessioni-e-decisioni.md).
+> sono elencate in fondo per la revisione, come nelle [sessioni CRA](../plans/2026-11-17-cra-sessioni-e-decisioni.md).
 > Ramo `feat/symbol-import`, **annidato su `feat/symbol-ai`** (i cinque rami sotto aspettano il collaudo). Codice
 > nuovo in inglese.
 

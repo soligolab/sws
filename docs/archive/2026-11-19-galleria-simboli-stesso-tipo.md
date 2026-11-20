@@ -1,7 +1,9 @@
 # La galleria dei simboli mostra solo i simboli dello stesso tipo
 
+> **Stato: archiviato il 20-11-2026** — **FATTO**, in `main` (squash `b13802d96`); il collaudo in `docs/COLLAUDI_IN_SOSPESO.md`.
+
 > Piano del 19-11-2026, una sessione breve. Primo passo dell'esecuzione: copiarlo in
-> `docs/plans/2026-11-19-galleria-simboli-stesso-tipo.md`, con la riga in `docs/plans/README.md`. Ramo
+> `docs/archive/2026-11-19-galleria-simboli-stesso-tipo.md`, con la riga in `docs/plans/README.md`. Ramo
 > **`feat/symbol-gallery-kind`, annidato su `fix/setpoint-lvgl`** (che contiene `feat/symbol-def`, di cui questo lavoro
 > tocca il codice), nel worktree `/home/ut1/sws-nav-links`. Codice nuovo in inglese, testi it/en.
 

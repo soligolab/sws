@@ -57,7 +57,7 @@ describe("le parti in Collegamenti", () => {
 });
 
 /** The animated pieces of a project symbol (19-11-2026, plan
- *  docs/plans/2026-11-19-animazioni-dei-simboli.md): a row each, a tag or a
+ *  docs/archive/2026-11-19-animazioni-dei-simboli.md): a row each, a tag or a
  *  fixed value. A single rotor or level stays with the symbol's own slots. */
 describe("the animated pieces in Collegamenti", () => {
   const pieces = {

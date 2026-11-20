@@ -1,5 +1,5 @@
 // Importing an SVG drawing into a project symbol (plan
-// docs/plans/2026-11-20-importa-svg-e-file-del-simbolo.md).
+// docs/archive/2026-11-20-importa-svg-e-file-del-simbolo.md).
 //
 // The drawing is exploded into operations of the description: one per shape,
 // with groups, transforms and inherited styles flattened, and colours written

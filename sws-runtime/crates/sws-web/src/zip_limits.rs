@@ -1,5 +1,5 @@
 //! Reading a zip archive that comes from outside, with a ceiling
-//! (18-11-2026, CRA session 2, plan `docs/plans/2026-11-18-cra-2-isolamento-cloud-e-sandbox.md`).
+//! (18-11-2026, CRA session 2, plan `docs/archive/2026-11-18-cra-2-isolamento-cloud-e-sandbox.md`).
 //!
 //! The bodies of the uploads are bounded (8 MiB, 32 MiB for the PLC logic), but
 //! deflate expands about a thousand times: a project bundle of a few megabytes

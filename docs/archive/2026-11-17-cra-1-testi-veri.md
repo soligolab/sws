@@ -1,10 +1,12 @@
 # CRA, sessione 1: testi veri e scheletro della valutazione del rischio
 
+> **Stato: archiviato il 20-11-2026** — **FATTO**, nella rc.21 (squash `78ab8543a`); il resto delle sessioni CRA nel piano [sessioni CRA](../plans/2026-11-17-cra-sessioni-e-decisioni.md).
+
 > **Fatto il 18-11-2026, da validare col maintainer.** Passi 1 e 2, due revisioni indipendenti (verità e coerenza),
 > le loro correzioni. In più del previsto: README, quickstart e capitoli 03, 09, 10, 18 (altre frasi false trovate
 > dalle revisioni), `docs/CONTEXT.md` (una nota datata), D2, D3 e D5 riscritte.
 >
-> Piano della sessione 1 delle [sessioni CRA del 17-11-2026](2026-11-17-cra-sessioni-e-decisioni.md).
+> Piano della sessione 1 delle [sessioni CRA del 17-11-2026](../plans/2026-11-17-cra-sessioni-e-decisioni.md).
 > Ramo `docs/cra-1-true-statements`. Scritto il 17-11-2026, misurato sul codice del ramo (`4770ea36`, che per il
 > codice è `main` a `4db7e228`, 2.26.0-rc.20).
 >
@@ -57,7 +59,7 @@ Percorsi senza prefisso: `sws-runtime/crates/`.
 
 ## Le decisioni che valgono
 
-D1, D2, D3, D4 e D5 sono nel [registro](2026-11-17-cra-sessioni-e-decisioni.md). **D2, D3 e D5 sono state riscritte il
+D1, D2, D3, D4 e D5 sono nel [registro](../plans/2026-11-17-cra-sessioni-e-decisioni.md). **D2, D3 e D5 sono state riscritte il
 18-11-2026** dopo le due revisioni: D2 dice che ribalta la decisione 3 del 05-10; da D3 sono usciti 2FA e LDAP (voce
 P6, che il maintainer aveva detto necessaria); D5 parte dal fatto che PIN e segreto del gateway erano già pubblici, e
 nel capitolo 17 aggiunge la difesa di oggi (il PIN del progetto).

@@ -29,7 +29,7 @@
 
 ## L'editor dei simboli, fase 2, sessione 1 (19-11-2026)
 
-Dal piano [fase 2](plans/2026-11-19-editor-dei-simboli-fase-2.md), su `main` (`b99855ddf`), sui pannelli dalla rc.22.
+Dal piano [fase 2](archive/2026-11-19-editor-dei-simboli-fase-2.md), su `main` (`b99855ddf`), sui pannelli dalla rc.22.
 IDE 8460. Già provati dal maintainer nell'IDE il 19-11, dopo due giri di correzioni: vista esplosa, calamita, strati
 raggruppati, trascinamento con l'aggancio («ora funziona come mi aspettavo»). Restano soprattutto le bocche coi tubi.
 
@@ -52,7 +52,7 @@ raggruppati, trascinamento con l'aggancio («ora funziona come mi aspettavo»). 
 
 ## Importa SVG e il file del simbolo (20-11-2026)
 
-Dal piano [importa SVG e il file del simbolo](plans/2026-11-20-importa-svg-e-file-del-simbolo.md), ramo
+Dal piano [importa SVG e il file del simbolo](archive/2026-11-20-importa-svg-e-file-del-simbolo.md), ramo
 `feat/symbol-import` (annidato sull'assistente IA). IDE di prova dal worktree. Le decisioni prese senza il maintainer
 sono in fondo al piano: si confermano qui.
 
@@ -73,7 +73,7 @@ sono in fondo al piano: si confermano qui.
 
 ## L'assistente IA nell'editor dei simboli (20-11-2026)
 
-Dal piano [assistente IA dei simboli](plans/2026-11-19-assistente-ia-simboli.md), ramo `feat/symbol-ai` (annidato
+Dal piano [assistente IA dei simboli](archive/2026-11-19-assistente-ia-simboli.md), ramo `feat/symbol-ai` (annidato
 sulla libreria immagini). IDE di prova dal worktree; lo scopo «Disegno dei simboli» su un modello che sappia
 disegnare (vedi le misure nel piano: qwen3.5:9b locale non ci riesce quasi mai).
 
@@ -102,7 +102,7 @@ Dal collaudo del 20-11-2026, ramo `feat/symbol-ai-interview` (in `main` dal 20-1
 
 ## La libreria immagini (19-11-2026)
 
-Dal piano [libreria immagini](plans/2026-11-19-libreria-immagini.md), ramo `feat/image-library` (annidato sulle
+Dal piano [libreria immagini](archive/2026-11-19-libreria-immagini.md), ramo `feat/image-library` (annidato sulle
 animazioni). IDE 8462 dal worktree.
 
 1. [x] **Carica e piazza**: Strumenti ▸ Immagine apre «Del progetto» con «+ Carica immagine…» per primo; una foto del
@@ -118,7 +118,7 @@ animazioni). IDE 8462 dal worktree.
 
 ## Le animazioni dei simboli (19-11-2026)
 
-Dal piano [animazioni dei simboli](plans/2026-11-19-animazioni-dei-simboli.md), ramo `feat/symbol-anim` (annidato sulle
+Dal piano [animazioni dei simboli](archive/2026-11-19-animazioni-dei-simboli.md), ramo `feat/symbol-anim` (annidato sulle
 due correzioni LVGL). IDE 8462 dal worktree; pannello con un pacchetto di prova o con la rc che le porta.
 
 1. [x] **«Anima…»**: nell'editor dei simboli, su una pompa: la girante «gira mentre l'ingresso è vero»; un tondo
@@ -151,7 +151,7 @@ Su `main` (`e068ebd23`), sui pannelli dalla rc.22. Segnalato dal maintainer sul 
 
 ## La galleria dei simboli solo dello stesso tipo (19-11-2026)
 
-Dal piano [galleria dei simboli](plans/2026-11-19-galleria-simboli-stesso-tipo.md), ramo `feat/symbol-gallery-kind`.
+Dal piano [galleria dei simboli](archive/2026-11-19-galleria-simboli-stesso-tipo.md), ramo `feat/symbol-gallery-kind`.
 
 1. [ ] Selezionata una pompa, «Parametri → Simbolo» mostra solo le pompe; un serbatoio solo i serbatoi; un pulsante solo i
        pulsanti.
@@ -163,7 +163,7 @@ Dal piano [galleria dei simboli](plans/2026-11-19-galleria-simboli-stesso-tipo.m
 
 ## Il setpoint sul pannello LVGL come sul web (19-11-2026)
 
-Dal piano [setpoint LVGL come il web](plans/2026-11-19-setpoint-lvgl-come-il-web.md), ramo `fix/setpoint-lvgl`. Sul TY570,
+Dal piano [setpoint LVGL come il web](archive/2026-11-19-setpoint-lvgl-come-il-web.md), ramo `fix/setpoint-lvgl`. Sul TY570,
 pagina «Idrico - Parametri» di `DemoTY570_fiera`.
 
 1. [ ] **La riga**: etichetta, «Attuale: … bar», il campo largo fino ai pulsanti, ✓ arancio attenuato e ⌨ grigio, come nel
@@ -178,7 +178,7 @@ pagina «Idrico - Parametri» di `DemoTY570_fiera`.
 
 ## Il navigatore di pagine: i pulsanti in più (19-11-2026)
 
-Dal piano [navigatore, pulsanti in più](plans/2026-11-19-navigatore-pulsanti-in-piu.md), ramo `feat/nav-links`. Si prova
+Dal piano [navigatore, pulsanti in più](archive/2026-11-19-navigatore-pulsanti-in-piu.md), ramo `feat/nav-links`. Si prova
 sul progetto della fiera (`DemoTY570_fiera`), dopo averlo aggiornato come dice il piano.
 
 1. [ ] **L'ingresso**: nella cornice, «Idro» in seconda posizione apre «Idrico - Sinottico»; se le pagine Idro hanno la
@@ -264,7 +264,7 @@ l'immagine della rc.20 e il gateway aggiornato, con chiavi vere.
 
 ## CRA, sessione 3: accesso al pannello di controllo, credenziali di fabbrica, OpenPLC (18-11-2026)
 
-Dalla [sessione 3](plans/2026-11-18-cra-3-accesso-pannello-di-controllo.md), ramo `fix/cra-3-control-panel-access`,
+Dalla [sessione 3](archive/2026-11-18-cra-3-accesso-pannello-di-controllo.md), ramo `fix/cra-3-control-panel-access`,
 annidato sulla 2. Tutte dopo il rilascio delle tre sessioni.
 
 1. [ ] **Dal PC, su un pannello senza PIN del progetto** (per esempio il TY570): `curl -k -X POST
@@ -314,7 +314,7 @@ annidato sulla 2. Tutte dopo il rilascio delle tre sessioni.
 
 ## CRA, sessione 2: isolamento nel cloud e sandbox delle espressioni (18-11-2026)
 
-Dalla [sessione 2](plans/2026-11-18-cra-2-isolamento-cloud-e-sandbox.md), ramo `fix/cra-2-cloud-isolation-sandbox`.
+Dalla [sessione 2](archive/2026-11-18-cra-2-isolamento-cloud-e-sandbox.md), ramo `fix/cra-2-cloud-isolation-sandbox`.
 
 1. [x] **Prima del rilascio**: le espressioni dei tag e gli script dei progetti del cloud passano le regole nuove.
        Misurato sul VPS il 18-11: 37 espressioni e 13 script e funzioni in 16 progetti, nessun problema.
@@ -344,7 +344,7 @@ Dalla [sessione 2](plans/2026-11-18-cra-2-isolamento-cloud-e-sandbox.md), ramo `
 
 ## CRA, sessione 1: testi veri e bozza della valutazione del rischio (17/18-11-2026)
 
-Dalla [sessione 1](plans/2026-11-17-cra-1-testi-veri.md) delle sessioni CRA, ramo `docs/cra-1-true-statements`. Solo
+Dalla [sessione 1](archive/2026-11-17-cra-1-testi-veri.md) delle sessioni CRA, ramo `docs/cra-1-true-statements`. Solo
 documenti e commenti: qui si verifica che le frasi nuove siano vere sui dispositivi.
 
 1. [ ] **WP630 o TC620 appena installato**: parte in HTTPS da sé, e `http://<pannello>:8080` non risponde.

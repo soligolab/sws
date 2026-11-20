@@ -1,7 +1,7 @@
 # La cartella `docs/sicurezza/`: cosa c'è e in che stato
 
 > Indice dei documenti di sicurezza di SWS, quelli che servono al Cyber Resilience Act (regolamento (UE) 2024/2847).
-> Nasce il 17-11-2026 con la [sessione 1 del lavoro sul CRA](../plans/2026-11-17-cra-1-testi-veri.md). Il piano di
+> Nasce il 17-11-2026 con la [sessione 1 del lavoro sul CRA](../archive/2026-11-17-cra-1-testi-veri.md). Il piano di
 > tutte le sessioni e il registro delle decisioni sono in
 > [`2026-11-17-cra-sessioni-e-decisioni.md`](../plans/2026-11-17-cra-sessioni-e-decisioni.md).
 >

@@ -1,5 +1,5 @@
 {
-  "_comment": "What the live parts of a symbol do with their input, and how the timed ones move: read by sws-core/src/symbol_behaviour.rs and sws-editor/tests/symbolBehaviour.test.ts. Plan docs/plans/2026-11-19-animazioni-dei-simboli.md. In `values`, `expected` lists only the parts to check; null = left out (a rotor or a level not bound follows the whole symbol).",
+  "_comment": "What the live parts of a symbol do with their input, and how the timed ones move: read by sws-core/src/symbol_behaviour.rs and sws-editor/tests/symbolBehaviour.test.ts. Plan docs/archive/2026-11-19-animazioni-dei-simboli.md. In `values`, `expected` lists only the parts to check; null = left out (a rotor or a level not bound follows the whole symbol).",
   "parts": [
     {
       "id": "needle",

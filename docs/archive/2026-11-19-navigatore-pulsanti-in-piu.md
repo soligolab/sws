@@ -1,7 +1,9 @@
 # Il navigatore di pagine con i pulsanti in più: ingresso a un sotto-menù e uscita
 
+> **Stato: archiviato il 20-11-2026** — **FATTO**, in `main` (squash `442261d72`); il collaudo in `docs/COLLAUDI_IN_SOSPESO.md`.
+
 > Piano del 19-11-2026, da chiudere in **una sessione** (lavoro urgente, chiesto dal maintainer per la demo della
-> fiera). Primo passo dell'esecuzione: copiarlo in `docs/plans/2026-11-19-navigatore-pulsanti-in-piu.md`, con la riga
+> fiera). Primo passo dell'esecuzione: copiarlo in `docs/archive/2026-11-19-navigatore-pulsanti-in-piu.md`, con la riga
 > in `docs/plans/README.md`. Codice nuovo in inglese, testi in it/en.
 
 ## Contesto
