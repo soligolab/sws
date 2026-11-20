@@ -1,5 +1,8 @@
 # CRA: le sessioni del 17-11-2026 e le decisioni prese in autonomia
 
+> **Parcheggiato il 20-11-2026.** Il maintainer: «CRA e Manuale li possiamo parcheggiare come plan, direi che prima di
+> questi è il caso di completare le funzioni». Resta piano: si riprende dopo le funzioni.
+
 > Richiesta del maintainer, 17-11-2026: «Prova a procedere una sessione alla volta su tutta la parte CRA. Prova a
 > prendere tu le decisioni migliori in termini di qualità del prodotto, alla fine delle sessioni mi fai un report delle
 > decisioni importanti che hai preso in autonomia e le valideremo assieme.»

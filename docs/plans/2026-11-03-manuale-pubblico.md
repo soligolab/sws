@@ -1,5 +1,8 @@
 # Il manuale su `sws.soligo.net/manuale/`, con le letture contate e un menù Aiuto nell'IDE
 
+> **Parcheggiato il 20-11-2026.** Il maintainer: «CRA e Manuale li possiamo parcheggiare come plan, direi che prima di
+> questi è il caso di completare le funzioni». Resta piano: si riprende dopo le funzioni.
+
 > Richiesta del maintainer, 03-11-2026: «integrare il manuale direttamente su sws.soligo.net sia come link nella
 > pagina principale, credo possa essere utile vederla anche prima del login, sarebbe interessante però raccogliere
 > statistiche di quanti la leggono e proteggerla dai BOT. Poi la stessa documentazione dovrebbe essere sempre
