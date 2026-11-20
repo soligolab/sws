@@ -278,6 +278,21 @@ export type SymbolAiResult = { attempts: number; cost_usd: number; model?: strin
   | { ok: false; code: "no_model" | "blind_model" | "bad_request" | "cap_reached" | "provider" | "invalid"; message?: string; errors?: string[] }
 );
 
+/** The interview before a drawing (`POST /api/symbols/ai/interview`): the
+ *  rounds already answered go back each time. */
+export interface SymbolAiInterviewRequest extends SymbolAiRequest {
+  rounds: { questions: string[]; answers: string[] }[];
+}
+
+export interface SymbolAiQuestion { text: string; choices: string[] }
+
+/** Questions, or the brief the drawing starts from; or why not. */
+export type SymbolAiInterviewResult = { cost_usd: number; model?: string } & (
+  | { ok: true; questions: SymbolAiQuestion[]; brief?: undefined }
+  | { ok: true; brief: string; questions?: undefined }
+  | { ok: false; code: "no_model" | "blind_model" | "bad_request" | "cap_reached" | "provider" | "invalid"; message?: string }
+);
+
 /** An image of the project (`GET /api/project/images`). The size in pixels
  *  when the server can read it (PNG, JPEG, SVG). */
 export interface ProjectImage {
@@ -1631,6 +1646,9 @@ export const api = {
    *  (plan docs/plans/2026-11-19-assistente-ia-simboli.md). IDE instance only. */
   symbolAi: (req: SymbolAiRequest, signal?: AbortSignal) =>
     request<SymbolAiResult>("/api/symbols/ai", { method: "POST", body: JSON.stringify(req), signal }),
+
+  symbolAiInterview: (req: SymbolAiInterviewRequest, signal?: AbortSignal) =>
+    request<SymbolAiInterviewResult>("/api/symbols/ai/interview", { method: "POST", body: JSON.stringify(req), signal }),
 
   symbolCatalog: () =>
     request<{ materials: { name: string; color: string }[]; veils: { name: string; type: string }[] }>("/api/symbols/catalog"),

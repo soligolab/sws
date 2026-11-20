@@ -488,7 +488,19 @@
     "sfondoVariante": "Variante «{{luce}}» · {{id}}",
     "sfondoApprovato": "base scelta",
     "sfondoInCoda": "scelta: parte appena l'assistente finisce questo turno",
-    "usaComeBase": "Usa come base"
+    "usaComeBase": "Usa come base",
+    "domande": {
+      "titolo": "Prima di cominciare",
+      "piano": "Lo spezzerei così, una proposta per passo:",
+      "comeProcedo": "Come procedo?",
+      "tutto": "Tutto insieme",
+      "unPasso": "Un passo alla volta, dal primo",
+      "risposta": "La tua risposta (vuota: decide l'assistente)",
+      "rispondi": "Rispondi",
+      "risposte": "Le risposte:",
+      "decidiTu": "decidi tu",
+      "inviate": "Risposte inviate"
+    }
   },
   "viewer": {
     "maintenance": "Manutenzione",
@@ -5657,7 +5669,7 @@
       "boundText": "Salvando, gli oggetti di questa pagina seguono i nomi nuovi; quelli delle altre pagine vanno ricollegati."
     },
     "ai": {
-      "note": "Descrivi cosa disegnare o cosa cambiare: risponde il modello dello scopo «Disegno dei simboli». La proposta compare qui sotto; con «Accetta» entra nel simbolo, e Ctrl+Z la toglie.",
+      "note": "Descrivi cosa disegnare o cosa cambiare: risponde il modello dello scopo «Disegno dei simboli». La proposta compare qui sotto; con «Accetta» entra nel simbolo, e Ctrl+Z la toglie. Prima di disegnare l'IA ti fa qualche domanda e ti mostra la richiesta come la disegnerà.",
       "placeholder": "Es. «aggiungi un agitatore sopra», «un serbatoio con due bocche laterali»",
       "placeholderRetouch": "Un altro ritocco, partendo dalla proposta",
       "addPhoto": "Aggiungi una foto",
@@ -5683,6 +5695,17 @@
         "invalid": "Dopo {{n}} tentativi il disegno non è ancora valido. Prova a chiederlo in un altro modo. Gli ultimi errori:",
         "bad_request": "Richiesta non valida: {{detail}}",
         "error": "Errore: {{detail}}"
+      },
+      "interview": {
+        "title": "Prima di disegnare, qualche domanda",
+        "thinking": "L'IA prepara le domande… {{s}} s",
+        "yourAnswer": "La tua risposta (vuota: decide l'IA)",
+        "continue": "Continua",
+        "skip": "Salta, disegna subito",
+        "cancel": "Annulla",
+        "brief": "La richiesta come la disegnerà l'IA: correggila se serve",
+        "draw": "Disegna",
+        "unreadable": "Il modello non ha risposto con domande leggibili: riprova, o scrivi una richiesta più precisa."
       }
     },
     "svg": {

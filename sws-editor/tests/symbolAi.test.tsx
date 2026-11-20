@@ -6,7 +6,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import "../src/i18n/index";
-import { api, type SymbolAiRequest, type SymbolAiResult } from "../src/api/client";
+import { api, type SymbolAiInterviewRequest, type SymbolAiInterviewResult, type SymbolAiRequest, type SymbolAiResult } from "../src/api/client";
 import { useAppStore } from "../src/store";
 import { impostaLibreriaPerTest } from "../src/symbols/lib/libreria";
 import type { ManifestLib } from "../src/symbols/lib/manifest";
@@ -51,8 +51,10 @@ function editorNow(): DescrizioneSimbolo {
 
 describe("the AI tab of the symbol editor", () => {
   let asked: SymbolAiRequest[] = [];
+  let interviewed: SymbolAiInterviewRequest[] = [];
   beforeEach(() => {
     asked = [];
+    interviewed = [];
     impostaLibreriaPerTest(manifest, {});
     vi.spyOn(api, "compilaSimboli").mockImplementation(async (ds) => ds.map((d) => ({ slug: d.slug, ok: true, errori: [], svg: SVG, voce: voce(d) })));
     vi.spyOn(api, "symbolCatalog").mockResolvedValue({ materials: [], veils: [] });
@@ -63,12 +65,24 @@ describe("the AI tab of the symbol editor", () => {
   });
   afterEach(() => { vi.restoreAllMocks(); act(() => useAppStore.getState().closeSymbolEditor()); });
 
-  async function openTab(answers: SymbolAiResult[]) {
+  /** `interviews`: what the interview answers, in order; then a brief that
+   *  repeats the request, as a model with nothing to ask would. */
+  async function openTab(answers: SymbolAiResult[], interviews: SymbolAiInterviewResult[] = []) {
     vi.spyOn(api, "symbolAi").mockImplementation(async (req) => { asked.push(req); return answers.shift()!; });
+    vi.spyOn(api, "symbolAiInterview").mockImplementation(async (req) => {
+      interviewed.push(req);
+      return interviews.shift() ?? { ok: true, brief: req.instruction, cost_usd: 0, model: "qwen3.5:9b" };
+    });
     act(() => openNewSymbol());
     render(<SymbolEditorHost />);
     await waitFor(() => expect(api.compilaSimboli).toHaveBeenCalled());
     fireEvent.click(screen.getByTestId("symbol-tab-ai"));
+  }
+
+  /** The brief, confirmed: the drawing is asked. */
+  async function drawBrief() {
+    const go = await screen.findByTestId("symbol-ai-draw-brief");
+    await act(async () => { fireEvent.click(go); });
   }
 
   it("draws a new symbol, shows it next to the open one, and «Accetta» is a step Ctrl+Z takes back", async () => {
@@ -76,6 +90,8 @@ describe("the AI tab of the symbol editor", () => {
     const before = editorNow();
     fireEvent.change(screen.getByTestId("symbol-ai-instruction"), { target: { value: "un serbatoio" } });
     await act(async () => { fireEvent.click(screen.getByTestId("symbol-ai-new")); });
+    expect(interviewed[0]).toMatchObject({ mode: "new", instruction: "un serbatoio", rounds: [] });
+    await drawBrief();
     expect(asked[0]).toMatchObject({ mode: "new", instruction: "un serbatoio", description: { slug: "new-symbol" } });
     expect(asked[0].photo).toBeUndefined();
     expect(screen.getByTestId("symbol-ai-now")).toBeTruthy();
@@ -97,10 +113,13 @@ describe("the AI tab of the symbol editor", () => {
     const before = editorNow();
     fireEvent.change(screen.getByTestId("symbol-ai-instruction"), { target: { value: "una pompa" } });
     await act(async () => { fireEvent.click(screen.getByTestId("symbol-ai-new")); });
+    await drawBrief();
     fireEvent.change(screen.getByTestId("symbol-ai-instruction"), { target: { value: "più larga" } });
     // Ctrl+Enter asks what the highlighted button asks: with a proposal open, a retouch.
     await act(async () => { fireEvent.keyDown(screen.getByTestId("symbol-ai-instruction"), { key: "Enter", ctrlKey: true }); });
     expect(asked[1].mode).toBe("edit");
+    // A retouch goes straight: no interview.
+    expect(interviewed).toHaveLength(1);
     // From the proposal, under the editor's name.
     expect(asked[1].description.ops).toHaveLength(3);
     expect(asked[1].description.slug).toBe("new-symbol");
@@ -112,21 +131,59 @@ describe("the AI tab of the symbol editor", () => {
 
   it("says why not: no model, a drawing still invalid with its errors", async () => {
     await openTab([
-      { ok: false, code: "no_model", message: "x", attempts: 0, cost_usd: 0 },
       { ok: false, code: "invalid", errors: ["ops[2]: rect senza width"], attempts: 3, cost_usd: 0, model: "m" },
-    ]);
+    ], [{ ok: false, code: "no_model", message: "x", cost_usd: 0 }]);
     fireEvent.change(screen.getByTestId("symbol-ai-instruction"), { target: { value: "x" } });
     await act(async () => { fireEvent.click(screen.getByTestId("symbol-ai-new")); });
     const e1 = screen.getByTestId("symbol-ai-error");
     expect(e1.getAttribute("data-code")).toBe("no_model");
     expect(e1.textContent).toMatch(/Un modello per scopo|A model per purpose/);
 
+    // Back to the request, which is still there.
     await act(async () => { fireEvent.click(screen.getByTestId("symbol-ai-new")); });
+    await drawBrief();
     const e2 = screen.getByTestId("symbol-ai-error");
     expect(e2.getAttribute("data-code")).toBe("invalid");
     expect(e2.textContent).toMatch(/3/);
     expect(e2.textContent).toMatch(/rect senza width/);
     expect(screen.queryByTestId("symbol-ai-proposal")).toBeNull();
+  });
+
+  it("a vague request gets questions; the answers give the brief, drawn as corrected", async () => {
+    await openTab([proposal(2)], [
+      { ok: true, questions: [{ text: "Gli ingressi dove?", choices: ["sopra", "a sinistra"] }, { text: "Che tag?", choices: [] }], cost_usd: 0 },
+      { ok: true, brief: "Un collettore 160×100, ingressi sopra.", cost_usd: 0 },
+    ]);
+    fireEvent.change(screen.getByTestId("symbol-ai-instruction"), { target: { value: "un collettore a 5 ingressi" } });
+    await act(async () => { fireEvent.keyDown(screen.getByTestId("symbol-ai-instruction"), { key: "Enter", ctrlKey: true }); });
+    expect(screen.getByTestId("symbol-ai-question-0").textContent).toMatch(/Gli ingressi dove\?/);
+    // The request box gives way to the questions.
+    expect(screen.queryByTestId("symbol-ai-instruction")).toBeNull();
+    fireEvent.click(screen.getByText("sopra"));
+    fireEvent.change(screen.getByTestId("symbol-ai-answer-1"), { target: { value: "collettore.ingresso" } });
+    await act(async () => { fireEvent.click(screen.getByTestId("symbol-ai-continue")); });
+    expect(interviewed[1].rounds).toEqual([{ questions: ["Gli ingressi dove?", "Che tag?"], answers: ["sopra", "collettore.ingresso"] }]);
+    fireEvent.change(screen.getByTestId("symbol-ai-brief"), { target: { value: "Un collettore 160×100, ingressi sopra, 5 LED." } });
+    await drawBrief();
+    expect(asked[0]).toMatchObject({ mode: "edit", instruction: "Un collettore 160×100, ingressi sopra, 5 LED." });
+    expect(screen.getByTestId("symbol-ai-proposal")).toBeTruthy();
+    expect(screen.queryByTestId("symbol-ai-interview")).toBeNull();
+  });
+
+  it("«Salta» draws from the request with what was answered; «Annulla» gives the request back", async () => {
+    await openTab([proposal(1)], [
+      { ok: true, questions: [{ text: "Gli ingressi dove?", choices: ["sopra"] }, { text: "Quanti LED?", choices: [] }], cost_usd: 0 },
+      { ok: true, questions: [{ text: "Di che colore?", choices: [] }], cost_usd: 0 },
+    ]);
+    fireEvent.change(screen.getByTestId("symbol-ai-instruction"), { target: { value: "un collettore" } });
+    await act(async () => { fireEvent.click(screen.getByTestId("symbol-ai-new")); });
+    fireEvent.click(screen.getByTestId("symbol-ai-interview-cancel"));
+    expect((screen.getByTestId("symbol-ai-instruction") as HTMLTextAreaElement).value).toBe("un collettore");
+    await act(async () => { fireEvent.click(screen.getByTestId("symbol-ai-new")); });
+    fireEvent.click(screen.getByText("Di che colore?").parentElement!.querySelector("input")!);
+    fireEvent.change(screen.getByTestId("symbol-ai-answer-0"), { target: { value: "verde" } });
+    await act(async () => { fireEvent.click(screen.getByTestId("symbol-ai-skip")); });
+    expect(asked[0].instruction).toBe("un collettore\n\n- Di che colore? verde");
   });
 
   it("nothing to ask, nothing sent", async () => {

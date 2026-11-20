@@ -869,6 +869,11 @@ async fn vero_giro(
             // Le bozze di simbolo vivono qui, nel banco della conversazione:
             // `bozza_simbolo` ci scrive, e `valida` le deve vedere.
             let esito = match nome {
+                "fai_domande" => tools::domande(input).map(|frame| {
+                    invia(tx, frame);
+                    json!({ "mostrate": true, "nota": "Le domande sono sullo schermo. FERMATI qui, \
+                            senza altri strumenti: le risposte arrivano nel prossimo messaggio." })
+                }),
                 "bozza_simbolo" => {
                     let e = bozza(tx, banco, input);
                     bozze_in_questo_turno |= e.is_ok();
@@ -1468,6 +1473,10 @@ async fn finto_giro(
             );
             let esito =
                 match nome {
+                    "fai_domande" => tools::domande(&input).map(|frame| {
+                        invia(tx, frame);
+                        Value::Null
+                    }),
                     "bozza_simbolo" => bozza(tx, banco, &input),
                     // La foto, come nel giro vero: serve all'e2e della chat e a
                     // provare dal vivo la foto dal browser (10-11-2026).

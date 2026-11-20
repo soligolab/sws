@@ -860,7 +860,11 @@ come…» ne fa un simbolo nuovo.
 - **Prova**: la scheda mostra il simbolo coi valori dei suoi ingressi (stato, livello, girante, lancetta, leva, spia, e
   i pezzi animati), come in pagina; «Anima» accende gli effetti a tempo. Non salva niente.
 - **IA**: si scrive cosa disegnare o cosa cambiare, e si sceglie **«Modifica questo»** (il modello vede il simbolo
-  aperto e lo cambia) o **«Disegna nuovo»** (un disegno da zero); Ctrl+Invio vale il pulsante evidenziato. **«Aggiungi una foto»** manda anche la foto di una
+  aperto e lo cambia) o **«Disegna nuovo»** (un disegno da zero); Ctrl+Invio vale il pulsante evidenziato. **Prima di
+  disegnare l'IA fa un'intervista**: chiede quello che la richiesta lascia aperto (al più quattro domande per giro, con
+  le risposte probabili da cliccare, al più due giri; una risposta vuota vuol dire «decidi tu»), poi scrive la
+  richiesta come la disegnerà, e la si corregge prima di premere «Disegna». «Salta, disegna subito» disegna dalla
+  richiesta e dalle risposte date fin lì; un ritocco della proposta parte subito, senza domande. **«Aggiungi una foto»** manda anche la foto di una
   macchina: il modello la disegna vista di fronte, nello stile della libreria. La foto si riduce nel browser a 1024 px
   prima di partire. Risponde il modello dello scopo «Disegno dei simboli» (Configurazione → IA → Un modello per scopo),
   o quello dell'assistente se lo scopo non ne ha uno; per una foto serve un modello che veda le immagini.

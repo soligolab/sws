@@ -8,6 +8,7 @@ import { blobInBase64 } from "@/ai/fotoDalBrowser";
 import { aiErrorText } from "@/ai/errorCodes";
 import type { MsgIn, Riga } from "@/types/ai";
 import { Icona } from "@/components/Icona";
+import { Markdown } from "@/ai/Markdown";
 
 /**
  * La chat dell'assistente di progettazione (T-50).
@@ -231,6 +232,11 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
         case "errore":
           setRighe((r) => [...r, { tipo: "errore", testo: aiErrorText(m.codice, m.messaggio) }]);
           break;
+        case "domande":
+          // One answer per question, and one for «how do I go on» with a plan.
+          setRighe((r) => [...r, { tipo: "domande", domande: m.domande, piano: m.piano,
+            risposte: Array.from({ length: m.domande.length + (m.piano.length ? 1 : 0) }, () => ""), inviate: false }]);
+          break;
         case "simbolo":
           // Ridisegnato con lo stesso slug: la miniatura nuova prende il posto
           // della vecchia, così la chat non diventa un album di prove.
@@ -288,18 +294,29 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
 
   if (!open) return null;
 
-  const invia = () => {
-    const testo = bozza.trim();
-    if (!testo || attesa) return;
+  /** Sends a message as the person's: what they typed, or their answers. */
+  const manda = (testo: string): boolean => {
+    if (!testo || attesa) return false;
     if (!chiedi(testo)) {
       setRighe((r) => [...r, { tipo: "errore", testo: t("chat.noConnection") }]);
-      return;
+      return false;
     }
     setRighe((r) => [...r, { tipo: "utente", testo }]);
-    setBozza("");
     setToccaATe(false);
     setAttesa(true);
+    return true;
   };
+  const invia = () => { if (manda(bozza.trim())) setBozza(""); };
+  const rispondi = (indice: number) => {
+    const riga = righe[indice];
+    if (riga?.tipo !== "domande" || riga.inviate) return;
+    if (manda(testoRisposte(riga, t))) {
+      setRighe((r) => r.map((x, k) => (k === indice && x.tipo === "domande" ? { ...x, inviate: true } : x)));
+    }
+  };
+  const scriviRisposta = (indice: number, n: number, valore: string) =>
+    setRighe((r) => r.map((x, k) => (k === indice && x.tipo === "domande"
+      ? { ...x, risposte: x.risposte.map((v, j) => (j === n ? valore : v)) } : x)));
 
   /** `comunque`: senza il controllo dell'impronta, dopo un «il progetto è
    *  cambiato». Rifare la domanda costa minuti e denaro, e a volte il cambio su
@@ -425,7 +442,10 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
             return <div key={i} style={BOLLA_UTENTE}>{r.testo}</div>;
           }
           if (r.tipo === "assistente") {
-            return <div key={i} style={BOLLA_ASSISTENTE}>{r.testo}</div>;
+            return <div key={i} style={BOLLA_ASSISTENTE} data-testid="chat-assistente"><Markdown text={r.testo} /></div>;
+          }
+          if (r.tipo === "domande") {
+            return <Domande key={i} riga={r} bloccate={attesa} onRisposta={(n, v) => scriviRisposta(i, n, v)} onInvia={() => rispondi(i)} />;
           }
           if (r.tipo === "errore") {
             return <div key={i} style={BOLLA_ERRORE}>{r.testo}</div>;
@@ -803,15 +823,21 @@ const BTN: React.CSSProperties = {
 const BTN_PRIMARIO: React.CSSProperties = { ...BTN, background: "var(--sws-accent, #1d4ed8)", color: "var(--sws-on-accent, #fff)" };
 const BOTTONE_PICCOLO: React.CSSProperties = { ...BTN_PRIMARIO, padding: "2px 8px", fontSize: 11, marginLeft: "auto" };
 
+/** The person on the right, in a bubble of the brand's colour; the assistant
+ *  on the left, full text with a bar (20-11-2026, the maintainer: «c'è poca
+ *  distinzione tra il testo dell'assistente e quello dell'utente»). */
 const BOLLA_UTENTE: React.CSSProperties = {
-  alignSelf: "flex-end", maxWidth: "88%", background: "var(--brand-surface, #1e293b)",
-  borderRadius: 8, padding: "6px 10px", fontSize: 12, lineHeight: 1.5,
-  color: "var(--brand-text, #e2e8f0)", whiteSpace: "pre-wrap",
+  alignSelf: "flex-end", maxWidth: "85%",
+  background: "color-mix(in srgb, var(--sws-accent, #1d4ed8) 28%, var(--brand-surface, #1e293b))",
+  border: "1px solid color-mix(in srgb, var(--sws-accent, #1d4ed8) 55%, transparent)",
+  borderRadius: "12px 12px 3px 12px", padding: "7px 11px", fontSize: 12.5, lineHeight: 1.5,
+  color: "var(--brand-text, #e2e8f0)", whiteSpace: "pre-wrap", wordBreak: "break-word",
 };
 
 const BOLLA_ASSISTENTE: React.CSSProperties = {
-  maxWidth: "95%", fontSize: 12, lineHeight: 1.6,
-  color: "var(--brand-text-muted, #94a3b8)", whiteSpace: "pre-wrap",
+  alignSelf: "stretch", fontSize: 12.5, lineHeight: 1.6, wordBreak: "break-word",
+  color: "var(--brand-text, #e2e8f0)",
+  borderLeft: "2px solid var(--brand-accent, #38bdf8)", padding: "2px 0 0 10px",
 };
 
 const BOLLA_ERRORE: React.CSSProperties = {
@@ -881,3 +907,64 @@ const CODICE: React.CSSProperties = {
   border: "1px solid var(--brand-surface-2, #334155)",
   borderRadius: 4,
 };
+
+/** The answers to `fai_domande`, as the message the assistant reads next. */
+function testoRisposte(r: Extract<Riga, { tipo: "domande" }>, t: (k: string) => string): string {
+  const voce = (domanda: string, i: number) => `- ${domanda} → ${r.risposte[i]?.trim() || t("chat.domande.decidiTu")}`;
+  const righe = r.domande.map((d, i) => voce(d.testo, i));
+  if (r.piano.length) righe.push(voce(t("chat.domande.comeProcedo"), r.domande.length));
+  return `${t("chat.domande.risposte")}\n${righe.join("\n")}`;
+}
+
+/** The questions of the assistant before it works (20-11-2026): likely answers
+ *  to click, a field for one's own, and, for a big job, the steps it would
+ *  split it into and how to go on. */
+function Domande({ riga, bloccate, onRisposta, onInvia }: {
+  riga: Extract<Riga, { tipo: "domande" }>; bloccate: boolean;
+  onRisposta: (n: number, valore: string) => void; onInvia: () => void;
+}) {
+  const { t } = useTranslation();
+  const spento = riga.inviate || bloccate;
+  const voci = [
+    ...riga.domande,
+    ...(riga.piano.length ? [{ testo: t("chat.domande.comeProcedo"), scelte: [t("chat.domande.tutto"), t("chat.domande.unPasso")] }] : []),
+  ];
+  return (
+    <div style={{ ...CARTA, display: "flex", flexDirection: "column", gap: 8, opacity: riga.inviate ? 0.75 : 1 }} data-testid="chat-domande">
+      <div style={{ fontWeight: 700, fontSize: 12 }}>{t("chat.domande.titolo")}</div>
+      {riga.piano.length > 0 && (
+        <div style={{ fontSize: 12 }}>
+          <div style={{ color: "var(--brand-text-muted, #94a3b8)", marginBottom: 2 }}>{t("chat.domande.piano")}</div>
+          <ol style={{ margin: 0, paddingLeft: 18 }}>{riga.piano.map((p, i) => <li key={i}>{p}</li>)}</ol>
+        </div>
+      )}
+      {voci.map((d, n) => (
+        <div key={n} style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12 }} data-testid={`chat-domanda-${n}`}>
+          <span>{d.testo}</span>
+          {d.scelte.length > 0 && (
+            <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+              {d.scelte.map((c) => {
+                const scelta = riga.risposte[n] === c;
+                return (
+                  <button key={c} type="button" disabled={spento} aria-pressed={scelta}
+                    style={{ ...BTN, padding: "2px 8px", fontSize: 11, borderRadius: 10,
+                      ...(scelta ? { background: "var(--sws-accent, #1d4ed8)", color: "var(--sws-on-accent, #fff)" } : {}) }}
+                    onClick={() => onRisposta(n, c)}>{c}</button>
+                );
+              })}
+            </div>
+          )}
+          <input style={{ ...TESTO_INPUT, resize: undefined }} value={riga.risposte[n] ?? ""} disabled={spento}
+            data-testid={`chat-risposta-${n}`} placeholder={t("chat.domande.risposta")}
+            onChange={(e) => onRisposta(n, e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && !spento) { e.preventDefault(); onInvia(); } }} />
+        </div>
+      ))}
+      <div style={{ display: "flex", justifyContent: "flex-end" }}>
+        {riga.inviate
+          ? <span style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>{t("chat.domande.inviate")}</span>
+          : <button type="button" style={BTN_PRIMARIO} disabled={spento} data-testid="chat-rispondi" onClick={onInvia}>{t("chat.domande.rispondi")}</button>}
+      </div>
+    </div>
+  );
+}

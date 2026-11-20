@@ -315,6 +315,27 @@ pub fn definizioni() -> Vec<Value> {
                 "wall_color": { "type": "string",
                     "description": "#rrggbb of walls and doors. Default #475569." } } }),
         ),
+        // Asking before working (20-11-2026, the maintainer: «prima di iniziare a fare il
+        // prompt cerca di assicurarti che sia chiaro»): the chat shows the questions as a card.
+        strumento(
+            "fai_domande",
+            "Fa delle domande alla persona, PRIMA di lavorare, quando la richiesta lascia aperto \
+             qualcosa che cambia il risultato. La chat le mostra con le risposte probabili da \
+             cliccare. Al più 4 domande, brevi, ognuna con 2–4 `scelte`. Non chiedere quello che \
+             scopri da solo con gli strumenti di lettura, né quello che puoi decidere bene tu. Se \
+             il lavoro è grande, `piano` dice i passi in cui lo spezzeresti, ognuno una proposta a \
+             sé: la persona sceglie se tutto insieme o un passo alla volta. Dopo questo strumento \
+             FERMATI: le risposte arrivano nel messaggio seguente.",
+            json!({ "type": "object", "additionalProperties": false,
+                    "properties": {
+                        "domande": { "type": "array", "maxItems": 4, "items": {
+                            "type": "object", "required": ["testo"], "additionalProperties": false,
+                            "properties": {
+                                "testo": { "type": "string" },
+                                "scelte": { "type": "array", "items": { "type": "string" }, "maxItems": 4 } } } },
+                        "piano": { "type": "array", "maxItems": 8, "items": { "type": "string" },
+                            "description": "I passi, in ordine, se il lavoro va spezzato." } } }),
+        ),
         strumento(
             "bozza_simbolo",
             "Compila la descrizione di un simbolo nuovo e la tiene come BOZZA di questa \
@@ -373,6 +394,49 @@ pub struct Opzioni {
     /// The model does not read images (a local one, unless told otherwise):
     /// no `istantanea_pagina`. Negative, so that the default is today's list.
     pub no_snapshot: bool,
+}
+
+/// The questions of `fai_domande`, cleaned, as the chat frame that shows
+/// them: at most four, with four choices each, and a plan of at most eight
+/// steps. Something to ask, or an error for the model.
+pub fn domande(input: &Value) -> Result<Value, String> {
+    let testo = |v: &Value| {
+        v.as_str()
+            .map(str::trim)
+            .filter(|t| !t.is_empty())
+            .map(str::to_string)
+    };
+    let domande: Vec<Value> = input["domande"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|d| {
+            let t = testo(&d["testo"])?;
+            let scelte: Vec<String> = d["scelte"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(testo)
+                .take(4)
+                .collect();
+            Some(json!({ "testo": t, "scelte": scelte }))
+        })
+        .take(4)
+        .collect();
+    let piano: Vec<String> = input["piano"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(testo)
+        .take(8)
+        .collect();
+    if domande.is_empty() && piano.is_empty() {
+        return Err(
+            "nessuna domanda e nessun piano: se la richiesta è chiara, lavora senza chiedere"
+                .into(),
+        );
+    }
+    Ok(json!({ "t": "domande", "domande": domande, "piano": piano }))
 }
 
 /// Gli strumenti di questa conversazione: quelli di sempre, più quelli degli
@@ -482,8 +546,10 @@ pub const SOLA_LETTURA: [&str; 14] = [
 ///
 /// `bozza_simbolo` scrive nel **banco della conversazione**, che vive nel ciclo
 /// della chat e non altrove: fuori da lì una bozza non avrebbe dove stare.
-pub const FUORI_DA_ESEGUI: [&str; 7] = [
+pub const FUORI_DA_ESEGUI: [&str; 8] = [
     "proponi_modifica",
+    // Asks the person in the chat (20-11-2026): an MCP client has no card to show it.
+    "fai_domande",
     "istantanea_pagina",
     "bozza_simbolo",
     // Writes on the bench of the conversation, like bozza_simbolo (G2).
@@ -1755,6 +1821,24 @@ mod tests {
     }
 
     use super::*;
+
+    /// `fai_domande`: at most four questions with four choices, a plan of at
+    /// most eight steps, blanks dropped; nothing to ask is an error for the model.
+    #[test]
+    fn le_domande_si_puliscono() {
+        let qs: Vec<Value> = (1..=6)
+            .map(|n| json!({ "testo": format!(" domanda {n}? "), "scelte": ["a", "", "b", "c", "d", "e"] }))
+            .collect();
+        let f = domande(&json!({ "domande": qs, "piano": ["uno", " ", "due"] })).unwrap();
+        assert_eq!(f["t"], "domande");
+        assert_eq!(f["domande"].as_array().unwrap().len(), 4);
+        assert_eq!(f["domande"][0]["testo"], "domanda 1?");
+        assert_eq!(f["domande"][0]["scelte"], json!(["a", "b", "c", "d"]));
+        assert_eq!(f["piano"], json!(["uno", "due"]));
+        assert!(domande(&json!({ "domande": [{ "testo": " " }] })).is_err());
+        // A plan alone is something to ask: how to go on.
+        assert!(domande(&json!({ "piano": ["uno"] })).is_ok());
+    }
 
     /// Il difetto che ha fatto proporre un checkbox invece di un bottone.
     ///

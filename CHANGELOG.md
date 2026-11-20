@@ -11,6 +11,22 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Aggiunto
+- **La chat dell'assistente chiede prima di lavorare, e si legge meglio** (stesso ramo, richieste del maintainer al
+  collaudo del 20-11-2026). Uno strumento nuovo, `fai_domande`: quando la richiesta lascia aperto qualcosa che cambia
+  il risultato l'assistente chiede (al più quattro domande con le risposte probabili) e si ferma; per un lavoro grande
+  propone in `piano` i passi in cui lo spezzerebbe, ognuno una proposta a sé, e chiede se tutto insieme o un passo
+  alla volta. La chat mostra le domande in una scheda con le risposte da cliccare, e «Rispondi» le manda come
+  messaggio. Le istruzioni hanno una sezione «Prima di cominciare: la richiesta è chiara?». Il testo dell'assistente
+  ora è formattato (titoli, grassetto, codice, elenchi, tabelle, link: `ai/Markdown.tsx`, elementi React e niente
+  HTML del modello), con la barra a sinistra; quello della persona è in una bolla del colore del marchio, a destra.
+- **L'intervista prima del disegno, nella scheda «IA» dell'editor dei simboli** (ramo `feat/symbol-ai-interview`,
+  richiesta del maintainer al collaudo del 20-11-2026: «l'equivalente della modalità plan»). Dopo una richiesta il
+  modello chiede quello che resta aperto (al più quattro domande per giro con le risposte probabili, due giri), poi
+  scrive la richiesta come la disegnerà; la si corregge e si preme «Disegna». «Salta, disegna subito» e i ritocchi di
+  una proposta vanno diretti. Rotta nuova `POST /api/symbols/ai/interview` (`symbol_draw::interview`), stesso modello
+  e stesso tetto dello scopo «Simboli», risposta tenuta a uno schema JSON sui server locali.
+
 ### Cambiato
 - **L'assistente IA dei simboli, col modello locale: la risposta è tenuta a uno schema JSON** (ramo
   `feat/symbol-ai-schema`). Al modello di un server locale (Ollama, llama.cpp, vLLM) la domanda arriva con

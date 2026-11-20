@@ -60,6 +60,9 @@ export type MsgIn =
       faceplates?: FaceplateDef[] | null }
   /** Una bozza di simbolo appena disegnata dall'assistente. */
   | { t: "simbolo"; slug: string; it: string; en: string; svg: string }
+  /** Questions before working (`fai_domande`, 20-11-2026), and the steps the
+   *  work would be split into. */
+  | { t: "domande"; domande: { testo: string; scelte: string[] }[]; piano: string[] }
   /** A floor plan the assistant has just drawn (G2): the flat drawing. */
   | { t: "floor_plan"; id: string; name: string; svg: string }
   /** Un'istantanea del pannello che l'assistente ha scattato: la vede anche chi chatta. */
@@ -109,6 +112,9 @@ export interface RigaDiff { verso: "+" | "-" | " "; testo: string }
 /** Una riga della conversazione, come la mostra il pannello. */
 export type Riga =
   | { tipo: "utente"; testo: string }
+  /** The questions of the assistant, with the answers being written; `inviate`
+   *  once sent, and then read only. */
+  | { tipo: "domande"; domande: { testo: string; scelte: string[] }[]; piano: string[]; risposte: string[]; inviate: boolean }
   | { tipo: "assistente"; testo: string }
   | { tipo: "strumento"; nome: string; stato: string; messaggio?: string; byte?: number; secondi?: number }
   | { tipo: "sfondo"; id: string; base: boolean; luce?: string | null; approvata: boolean; jpg: string }

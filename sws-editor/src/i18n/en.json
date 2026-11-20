@@ -488,7 +488,19 @@
     "sfondoVariante": "«{{luce}}» variant · {{id}}",
     "sfondoApprovato": "base chosen",
     "sfondoInCoda": "chosen: it goes as soon as the assistant finishes this turn",
-    "usaComeBase": "Use as base"
+    "usaComeBase": "Use as base",
+    "domande": {
+      "titolo": "Before starting",
+      "piano": "I would split it like this, one proposal per step:",
+      "comeProcedo": "How do I go on?",
+      "tutto": "All at once",
+      "unPasso": "One step at a time, from the first",
+      "risposta": "Your answer (empty: the assistant decides)",
+      "rispondi": "Answer",
+      "risposte": "The answers:",
+      "decidiTu": "you decide",
+      "inviate": "Answers sent"
+    }
   },
   "viewer": {
     "maintenance": "Maintenance",
@@ -5657,7 +5669,7 @@
       "boundText": "When saved, the objects of this page follow the new names; those of other pages need binding again."
     },
     "ai": {
-      "note": "Describe what to draw or what to change: the model of the «Symbol drawing» purpose answers. The proposal appears below; «Accept» puts it in the symbol, and Ctrl+Z takes it back.",
+      "note": "Describe what to draw or what to change: the model of the «Symbol drawing» purpose answers. The proposal appears below; «Accept» puts it in the symbol, and Ctrl+Z takes it back. Before drawing, the AI asks you a few questions and shows you the request as it will draw it.",
       "placeholder": "E.g. «add a stirrer on top», «a tank with two side ports»",
       "placeholderRetouch": "Another retouch, starting from the proposal",
       "addPhoto": "Add a photo",
@@ -5683,6 +5695,17 @@
         "invalid": "After {{n}} attempts the drawing is still not valid. Try asking in another way. The last errors:",
         "bad_request": "Invalid request: {{detail}}",
         "error": "Error: {{detail}}"
+      },
+      "interview": {
+        "title": "A few questions before drawing",
+        "thinking": "The AI is preparing its questions… {{s}} s",
+        "yourAnswer": "Your answer (empty: the AI decides)",
+        "continue": "Continue",
+        "skip": "Skip, draw now",
+        "cancel": "Cancel",
+        "brief": "The request as the AI will draw it: correct it if needed",
+        "draw": "Draw",
+        "unreadable": "The model did not answer with readable questions: try again, or write a more precise request."
       }
     },
     "svg": {
