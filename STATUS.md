@@ -12,7 +12,27 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — importa SVG, file del simbolo e schema JSON per il modello locale fatti sul ramo; sette rami annidati da collaudare (2026-11-20, theobroma)
+## ▶ Riprendere da qui — i nove rami annidati in `main`; la rc.22 da costruire (2026-11-20, theobroma)
+
+Su richiesta del maintainer («intanto fai lo squash di tutto su main») la catena è in `main`, un commit per ramo, in
+ordine: `88a8eea6e` grigio e fade sugli strati dei simboli (LVGL) → `656897b8d` tastiera a 5 righe → `ad07364ae`
+animazioni dei simboli 2a-2d → `1555c4117` libreria immagini → `dcc2f0cad` assistente IA nell'editor dei simboli →
+`7b8e7acc0` importa SVG e file `.swsym` → `f91f492be` schema JSON per il modello locale → `aaae3d8cf` anomalie del
+collaudo del 20-11 (valore fisso, libreria che si chiudeva, «Nuovo strato fisso», ▲▼ sugli strati, cerchi
+nell'import) → `00f6c4cb1` l'intervista prima di lavorare (scheda IA e chat) e la chat formattata.
+- Applicati come differenza dal genitore: per ognuno `git diff <ramo> <squash>` mostra solo i 12 file meta che `main`
+  aveva già. Unico conflitto: una riga di `docs/plans/README.md`, tenute entrambe. I nove rami eliminati; nessuno era
+  su origin. Il worktree `/home/ut1/sws-nav-links` è staccato su `77757d919` (lo usano ancora gli IDE 8462 e 8464).
+- `check_static` 58/58 su `main`; il codice è lo stesso della punta della catena (vitest 2831, cargo test 2092,
+  clippy, fmt, tsc, build verdi lì). IDE 8460 ricostruito da `main`.
+- **Collaudo del 20-11 sull'IDE 8462**: 8 test su 8 passati, più le correzioni sopra. Da registrare in
+  `COLLAUDI_IN_SOSPESO.md` (aspetta il sì del maintainer); la chat con l'intervista era ancora in prova.
+- **Prossimo**: la rc.22 (`NOVITA.yaml` it/en, build, tag quando si costruisce). Annotato per dopo: «Salva e chiudi /
+  Esci senza salvare / Annulla» alla chiusura dell'editor dei simboli. Poi CasaDomotica con le funzioni nuove.
+- **Seme nuovo**: [sfondi con le proporzioni della pagina](docs/plans/semi/2026-11-20-sfondi-con-le-proporzioni-della-pagina.md)
+  — gli sfondi generati sono sempre 1536×1024, e su una pagina verticale se ne vede circa il 40 %.
+
+## Sessione precedente — importa SVG, file del simbolo e schema JSON per il modello locale fatti sul ramo; sette rami annidati da collaudare (2026-11-20, theobroma)
 
 - **Settimo ramo, `feat/symbol-ai-schema`** (`101fef69f`, annidato su `feat/symbol-import`): il modello locale dei
   simboli risponde dentro uno schema JSON (`response_format: json_schema`), e Ollama non gli lascia scrivere JSON che
