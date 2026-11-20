@@ -309,6 +309,11 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   Le istruzioni del pacchetto usano `scp -O` e `/var/tmp` (SFTP spento, `/tmp` di 32 MB).
 
 ### Corretto
+- **Sul pannello LVGL il grigio dei dati vecchi e il lampeggio sfumato arrivano sui simboli `lib:` e `prj:`**. Il
+  recolor dei pixel (`img_recolor`) in LVGL 8.3 non si eredita, e un simbolo è un contenitore con un `lv_canvas` per
+  strato: si fermava al contenitore. Un simbolo col dato vecchio restava a colori pieni (solo un po' trasparente), uno
+  col lampeggio sfumato restava acceso fisso. Ora il recolor va a tutti i widget sotto l'oggetto (`immagini` in
+  `LiveKind::Effects`). `check_fade_raster.sh` ha un caso su un simbolo `lib:` (escursione 0 prima, 66 dopo).
 - **La schermata d'abbinamento del pannello**: il QR era di pochi millimetri (stava in una riga flessibile accanto a un
   paragrafo lungo, che lo schiacciava) e il codice andava su due righe (visto sul WP630 appena installato, 19-11-2026).
   Ora il QR sta sopra la sua spiegazione, centrato, a 200 px e mai ristretto (`QrCode` con `flexShrink: 0`, vale anche

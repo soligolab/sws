@@ -28,26 +28,34 @@
 # l'escursione del colore. Un oggetto che respira la mostra, uno fermo no —
 # e nessuna delle due cose dipende dal momento in cui parte la prova.
 #
+# Il 19-11-2026 un quarto caso: un simbolo `lib:`. È un contenitore con un
+# `lv_canvas` per strato, e in LVGL 8.3 `img_recolor` non si eredita: il
+# recolor si fermava al contenitore, e il simbolo restava acceso fisso — col
+# fade, e anche col grigio dei dati vecchi, che passa dalla stessa strada.
+#
 # Uso:
 #   cargo build -p sws-runtime -p sws-lvgl-viewer
+#   (cd sws-editor && pnpm build)   # la libreria dei simboli
 #   ./scripts/check_fade_raster.sh
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
 BIN="sws-runtime/target/debug/sws-runtime"
 LVGL="sws-runtime/target/debug/sws-lvgl-viewer"
+DIST="sws-editor/dist"
 WORK="${TMPDIR:-/tmp}/sws-fade-raster.$$"
 AP="${APORT:-8688}"
 VP="${VPORT:-8689}"
 
 [ -x "$BIN" ]  || { echo "manca $BIN — esegui: cargo build -p sws-runtime" >&2; exit 1; }
 [ -x "$LVGL" ] || { echo "manca $LVGL — esegui: cargo build -p sws-lvgl-viewer" >&2; exit 1; }
+[ -d "$DIST" ] || { echo "manca $DIST — esegui: cd sws-editor && pnpm build" >&2; exit 1; }
 
 mkdir -p "$WORK"/{config,projects}
 trap '[ -f "$WORK/rt.pid" ] && kill "$(cat "$WORK/rt.pid")" 2>/dev/null; rm -rf "$WORK"' EXIT
 
 "$BIN" --config "$WORK/config" --projects-root "$WORK/projects" \
-  --templates-root "examples/templates" --viewer-port "$VP" --senza-autenticazione --admin-port "$AP" \
+  --templates-root "examples/templates" --www "$DIST" --viewer-port "$VP" --senza-autenticazione --admin-port "$AP" \
   > "$WORK/rt.log" 2>&1 &
 echo $! > "$WORK/rt.pid"
 su=0
@@ -69,7 +77,9 @@ curl -sf -X PUT "$API/synoptics/Pagina%201" -H 'Content-Type: application/json' 
      "points":[{"x":40,"y":60},{"x":260,"y":60}]},
     {"id":"nativo","type":"rect","x":40,"y":140,"width":220,"height":60,"fill":"#ff0000",
      "blink_mode":"always","blink_rate_ms":1000,"blink_style":"fade"},
-    {"id":"fermo","type":"rect","x":40,"y":260,"width":220,"height":60,"fill":"#ff0000"}
+    {"id":"fermo","type":"rect","x":40,"y":260,"width":220,"height":60,"fill":"#ff0000"},
+    {"id":"simbolo","type":"symbol","symbol_id":"lib:process/centrifugal-pump","x":400,"y":130,"width":120,"height":120,
+     "symbol_body_color":"#ff0000","blink_mode":"always","blink_rate_ms":1000,"blink_style":"fade"}
   ]}' > /dev/null
 
 echo "== cinque istantanee lungo un periodo di respiro =="
@@ -108,6 +118,8 @@ aree = {
     "raster": (60, 45, 250, 75),
     "nativo": (50, 150, 250, 190),
     "fermo":  (50, 270, 250, 310),
+    # Il corpo rosso della pompa, al centro del simbolo.
+    "simbolo": (430, 160, 490, 220),
 }
 serie = {k: [] for k in aree}
 for i in range(1, 6):
@@ -115,7 +127,7 @@ for i in range(1, 6):
     for k, (x0, y0, x1, y1) in aree.items():
         serie[k].append(rosso_medio(px, w, x0, y0, x1, y1))
 
-for k in ("raster", "nativo", "fermo"):
+for k in ("raster", "nativo", "fermo", "simbolo"):
     v = serie[k]
     print(f"    {k:8} {' '.join(f'{x:6.1f}' for x in v)}   escursione {max(v)-min(v):5.1f}")
 
@@ -125,6 +137,7 @@ esc = {k: max(v) - min(v) for k, v in serie.items()}
 ok(esc["raster"] > 12, f"la polilinea col fade respira (escursione {esc['raster']:.1f})")
 ok(esc["nativo"] > 12, f"il rect col fade respira (escursione {esc['nativo']:.1f})")
 ok(esc["fermo"] < 6, f"l'oggetto senza effetti resta fermo (escursione {esc['fermo']:.1f})")
+ok(esc["simbolo"] > 12, f"il simbolo lib: col fade respira, strati compresi (escursione {esc['simbolo']:.1f})")
 print()
 print("\033[32mfade: si vede anche sugli oggetti raster.\033[0m" if not male
       else "\033[31mfade: qualcosa non si muove come dovrebbe.\033[0m")

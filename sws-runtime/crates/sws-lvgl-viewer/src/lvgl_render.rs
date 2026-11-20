@@ -197,6 +197,13 @@ pub enum LiveKind {
         /// di qualità compresi, come sul web, dove stanno nello stesso `<g>` e
         /// quindi si attenuano e lampeggiano insieme all'oggetto.
         figli: Vec<*mut lvgl_sys::lv_obj_t>,
+        /// The widgets that take the pixel recolor (grey of stale data,
+        /// brightness, fade): `figli` and all their descendants. In LVGL 8.3
+        /// `img_recolor` is not inherited, and a `lib:`/`prj:` symbol is a
+        /// container with one `lv_canvas` per layer: until 19-11-2026 the
+        /// recolor stopped at the container, so a symbol with stale data kept
+        /// its full colours and a fading symbol stayed lit.
+        immagini: Vec<*mut lvgl_sys::lv_obj_t>,
         /// L'opacità dichiarata dall'oggetto (0..1) e il suo legame a un tag,
         /// se c'è: da questi due, a ogni frame, nasce il punto di partenza su
         /// cui lampeggio e attenuazione scrivono sopra (26-09-2026: prima era
@@ -3566,6 +3573,11 @@ fn crea_effetti(
 
     let _ = tags; // lo stato iniziale lo mette il primo `update_bindings`
 
+    let mut immagini = Vec::new();
+    for f in &figli {
+        with_descendants(*f, &mut immagini);
+    }
+
     // Il filtro si attacca una volta, spento (opa 0): lo accende il primo
     // `update_effects` se serve. Il puntatore resta valido quanto il `Box`.
     let filtro = FiltroLuce::nuovo();
@@ -3579,6 +3591,7 @@ fn crea_effetti(
     Some(LiveBinding {
         kind: LiveKind::Effects {
             figli,
+            immagini,
             opacita: obj.opacity,
             legame_opacita,
             luminosita: obj.brightness,
@@ -3605,6 +3618,18 @@ fn crea_effetti(
             ultimo: AppliedFx::default(),
         },
     })
+}
+
+/// `obj` and every widget below it, depth first.
+fn with_descendants(obj: *mut lvgl_sys::lv_obj_t, out: &mut Vec<*mut lvgl_sys::lv_obj_t>) {
+    out.push(obj);
+    let n = unsafe { lvgl_sys::lv_obj_get_child_cnt(obj) };
+    for i in 0..n {
+        let c = unsafe { lvgl_sys::lv_obj_get_child(obj, i as i32) };
+        if !c.is_null() {
+            with_descendants(c, out);
+        }
+    }
 }
 
 /// Prepara il movimento su percorso di un oggetto, se ne dichiara uno.
@@ -17398,6 +17423,7 @@ struct LuceViva<'a> {
 #[allow(clippy::too_many_arguments)]
 fn update_effects(
     figli: &[*mut lvgl_sys::lv_obj_t],
+    immagini: &[*mut lvgl_sys::lv_obj_t],
     luce: LuceViva<'_>,
     lampeggio: &effects::Lampeggio,
     rate_ms: u32,
@@ -17494,6 +17520,12 @@ fn update_effects(
                         0,
                     );
                 }
+            }
+        }
+        // The recolor goes to every widget below the object too: it is not
+        // inherited, and the layers of a symbol are canvases inside a container.
+        for f in immagini {
+            unsafe {
                 match recolor {
                     Some((rgb, opa)) => {
                         lvgl_sys::lv_obj_set_style_img_recolor(*f, Color::from_rgb(rgb).into(), 0);
@@ -17501,10 +17533,12 @@ fn update_effects(
                     }
                     None => lvgl_sys::lv_obj_set_style_img_recolor_opa(*f, 0, 0),
                 }
-                // Il descrittore non è cambiato, i suoi numeri sì: va solo
-                // ridisegnato.
-                lvgl_sys::lv_obj_invalidate(*f);
             }
+        }
+        for f in figli {
+            // Il descrittore non è cambiato, i suoi numeri sì: va solo
+            // ridisegnato.
+            unsafe { lvgl_sys::lv_obj_invalidate(*f) };
         }
         ultimo.filtro = Some(stato);
     }
@@ -17639,6 +17673,7 @@ pub fn update_bindings(
     for b in bindings {
         if let LiveKind::Effects {
             figli,
+            immagini,
             opacita,
             legame_opacita,
             luminosita,
@@ -17663,6 +17698,7 @@ pub fn update_bindings(
         {
             update_effects(
                 figli,
+                immagini,
                 LuceViva {
                     opacita: *opacita,
                     legame_opacita,
