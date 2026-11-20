@@ -12,7 +12,38 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — i nove rami annidati in `main`; la rc.22 da costruire (2026-11-20, theobroma)
+## ▶ Riprendere da qui — la rc.22 costruita e nel cloud: editor dei simboli, libreria immagini, l'assistente che chiede, sfondi alla misura (2026-11-20 sera, theobroma)
+
+Il maintainer: «facciamo una nuova RC di tutto», poi «sì» a registrare il collaudo, archiviare i piani, le due
+correzioni piccole e la rc.22.
+- **Su `main`** (nessun ramo aperto):
+  - `d6645b0c5` il collaudo del 20-11 registrato (8 su 8); `1db1ca3e7` **dodici piani archiviati** (i rami del 19-20-11,
+    galleria, setpoint, navigatore, CRA 1-3); `533027045` **CRA e manuale parcheggiati**: «prima di questi è il caso
+    di completare le funzioni» (stato nuovo «parcheggiato» nell'indice dei piani);
+  - `5d363c43a` gli **sfondi alla misura della pagina** (intervista, gemella per il progetto girato) e **«Assistente
+    IA» nella barra**; `666402fbc` la **selezione sul bordo vero** e lo **schermo LVGL che non scorre** (la riga grigia
+    in fondo alla pagina del TY570: l'orologio della cornice usciva di 2 px). Squash come differenza dal ramo, ognuno
+    uguale al suo ramo più i commit di documenti di `main`; rami eliminati;
+  - `1d4d5e380` `chore(rc): 2.26.0-rc.22`, col **tag annotato** `2.26.0-rc.22`. NOVITA 2.26.0 piena a 15: tre voci
+    nuove (editor dei simboli, libreria immagini, assistente), alcune di prima unite e accorciate: **da rivedere al
+    collaudo**;
+  - `5bdff8ebb` due semi: la **3D viva nel viewer web** per i dispositivi grossi, e l'elenco di cosa manca all'editor
+    di planimetrie (nel seme del 12-11);
+  - `824a8bad5` il gateway sull'immagine nuova.
+- **Immagini** arm64 e amd64 su ghcr: `2.26.0-rc.22-*`, `1d4d5e380-*`, `rc-*` (digest controllati), archivi in
+  `/home/ut1/sws-build-rc16/dist/`. Costruite dal worktree pulito `sws-build-rc16` sul commit della rc.
+- **Gateway del VPS** su `1d4d5e380-amd64`: healthy, `/health` ok, `check_gateway_immagine` verde; ripiego la rc.21.
+- **Pacchetto del Tiny TY** pubblicato: `latest.txt` = rc.22, sha256 `8c3d0813…` uguale a quello costruito (33 MB).
+- **IDE 8460** ricompilato da `main`. Gli IDE 8462 e 8464 girano dal worktree `sws-nav-links` (staccato), col codice
+  degli sfondi ma senza le due correzioni.
+- Il riepilogo finale di `build_containers_all.sh` dice «Nessun archivio della  in dist/»: la variabile della
+  versione è vuota in quel passo, gli archivi ci sono. Solo estetico.
+- **Prossimo**: il collaudo della rc.22 (sul pannello: animazioni, tastiera, setpoint, riga grigia sparita; nel cloud:
+  sfondi con l'intervista, la chat che chiede, l'editor dei simboli), poi CasaDomotica con le funzioni nuove.
+  Annotato: «Salva e chiudi / Esci senza salvare / Annulla» alla chiusura dell'editor dei simboli. Le funzioni prima
+  di CRA e manuale.
+
+## Sessione precedente — i nove rami annidati in `main` (2026-11-20, theobroma)
 
 Su richiesta del maintainer («intanto fai lo squash di tutto su main») la catena è in `main`, un commit per ramo, in
 ordine: `88a8eea6e` grigio e fade sugli strati dei simboli (LVGL) → `656897b8d` tastiera a 5 righe → `ad07364ae`
