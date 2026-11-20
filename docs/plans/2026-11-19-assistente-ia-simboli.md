@@ -90,3 +90,56 @@ Manuale (capitolo dei simboli: la scheda IA), CHANGELOG, voci di collaudo, la ta
    `check_static.sh`).
 2. Le prove a mano col modello locale, annotate (quanto tempo, quanti tentativi, cosa disegna bene e cosa no).
 3. Collaudo del maintainer con `/test-changes`; CasaDomotica con un simbolo disegnato dall'IA (regola di `CLAUDE.md`).
+
+## Esecuzione (20-11-2026, theobroma)
+
+Fatta in una sessione sul ramo `feat/symbol-ai`, annidato su `feat/image-library`. Tutto come sopra, con queste
+differenze:
+
+- **La rotta è `POST /api/symbols/ai`**, in inglese come il codice nuovo, non `/api/simboli/ia`. Risponde sempre 200
+  con `ok` e, quando non va, un `code` (`no_model`, `blind_model`, `bad_request`, `cap_reached`, `provider`,
+  `invalid`): l'editor lo dice nella sua lingua. Anche `blind_model` è un 200, non un 400: il client dell'IDE tratta
+  ogni 4xx come un'eccezione e il messaggio si perdeva.
+- **Il tetto dello scopo vale per una richiesta**, come per una conversazione nella chat. Con un modello locale il
+  costo è zero.
+- **Niente Ctrl+Invio** nel campo: l'editor ferma tutti i tasti sulla finestra (`stopPropagation` in cattura), e
+  un `onKeyDown` dentro l'editor non arriva mai. Lo stesso vale per l'Invio che dovrebbe confermare il nome di una
+  bocca (`SymbolEditor.tsx`, campo `symbol-port-id`): non funziona da prima, non è stato toccato.
+- **Accettando**, nome, etichette, categoria e variante restano quelli che l'editor ha in quel momento, anche se
+  sono cambiati mentre il modello disegnava.
+
+### Le prove col modello locale
+
+`qwen3.5:9b` su Ollama (`http://192.168.0.225:11434/v1`, vede le immagini), IDE di prova 8464.
+
+1. **Con il ragionamento acceso** (come risponde Ollama di suo) il modello pensa per tutti gli 8192 token del
+   dialetto locale, tre minuti, e la risposta arriva vuota: «no text in the answer». Lo stesso valeva già per la
+   traduzione con un modello locale che ragiona. Da qui la correzione in `client.rs`: alle domande secche di un modello
+   locale si chiede `reasoning_effort: "none"`, e se il server lo rifiuta (vLLM accetta solo low, medium, high) la
+   domanda riparte senza. Con 24000 token e il ragionamento acceso, due prove dirette: 4 minuti l'una, ancora non
+   valide.
+2. **Senza ragionamento** una risposta arriva in 15–50 s. Ma il 9b sbaglia il formato quasi sempre: `geo` e `tag`
+   dentro `corpo`, `op` dentro `geo`, tipi che non esistono (`tronchetto_v`), materiali e veli inventati
+   (`gray`, `dark-r`), JSON con chiavi senza virgolette. Su nove richieste alla rotta: **due proposte valide** (una modifica
+   al secondo tentativo, un disegno da una foto al primo), sette respinte dopo tre tentativi (da 30 s a 3 minuti e
+   mezzo l'una). Le due
+   valide sono brutte: la modifica ha rimpicciolito e ingrigito il corpo invece di aggiungere la targa; dalla foto di
+   un serbatoio sono uscite solo tre flange sparse.
+3. **Quattro aiuti** messi lungo la strada, che servono a ogni modello: la descrizione avvolta come nel formato
+   (`{"descrizione": …}`) si legge; l'errore di lettura dice l'operazione (`ops[5]: missing field h`, prima diceva
+   solo `missing field h` e il modello rimandava la stessa risposta tre volte); il simbolo aperto si mostra con `geo`
+   come oggetto, come nello schema, e non a coppie come lo scrive la libreria; il log dell'IDE scrive cosa ha risposto
+   il modello quando il disegno è respinto (`symbol drawing rejected`).
+4. **La modalità JSON** di Ollama (`response_format: json_object`), provata a parte: toglie gli errori di sintassi
+   ma non quelli di formato. Non è stata messa.
+
+**Conclusione per il collaudo**: il flusso funziona (proposta, accetta, Ctrl+Z, scarta, ritocco, foto, errori), ma
+per disegnare davvero serve un modello più grande di un 9b: in locale almeno un 27–32b, oppure un modello in cloud
+sullo scopo «Disegno dei simboli». Con il 9b la scheda serve a provare i percorsi, non i disegni.
+
+### Rimasto aperto
+
+- Un modello locale piccolo disegnerebbe meglio con l'uscita **vincolata a uno schema JSON** (Ollama e vLLM lo
+  sanno fare, `response_format: json_schema`): lo schema della descrizione andrebbe generato dai tipi di `sws-core`.
+  È lavoro, non un punto breve: se serve, diventa un seme.
+- CasaDomotica con un simbolo disegnato dall'IA, al merge, con un modello che sappia disegnare.

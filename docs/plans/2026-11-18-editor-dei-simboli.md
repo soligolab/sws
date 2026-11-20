@@ -159,6 +159,10 @@ riverificano col maintainer prima di aprirle.
 fase 2 diventa tre sessioni: bocche dei tubi e strumenti (con la vista esplosa e l'anteprima degli ingressi), poi le
 animazioni agganciate ai tag (che anticipano le fasi 4 e 5), poi l'import SVG e il file del simbolo.
 
+**Fase 6 anticipata (19/20-11-2026)**, piano [assistente IA dei simboli](2026-11-19-assistente-ia-simboli.md): la
+scheda «IA» (disegna nuovo, modifica quello aperto, da una foto) sulle descrizioni `prj:`, prima della sessione 3 della
+fase 2. «Genera foto» resta alla fase 3, che le foto ancora non le ha.
+
 ## Verifica (ogni fase)
 - `cargo check`, `cargo test` (compilatore `symbol_def`, sicurezza dell'import, fixture `symbol-pieces.json`,
   `compila_come_genera_py` invariato), `pnpm build`, `pnpm exec vitest run` (riduttore dell'editor, valutatore, import

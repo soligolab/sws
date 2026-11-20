@@ -12,7 +12,33 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — le animazioni dei simboli finite sul ramo (2a–2d); da collaudare, e le misure sul TY570 (2026-11-19 notte, theobroma)
+## ▶ Riprendere da qui — l'assistente IA nell'editor dei simboli fatto sul ramo; cinque rami annidati da collaudare (2026-11-20, theobroma)
+
+- **Cinque rami annidati nel worktree `/home/ut1/sws-nav-links`**, uno dentro l'altro, in quest'ordine:
+  `fix/lvgl-stale-lib-layers` (`a73c76257`) → `fix/lvgl-keyboard-5-rows` (`83f5c0c8b`) → `feat/symbol-anim`
+  (`e0efb9f4c`) → `feat/image-library` (`925e343f3`) → **`feat/symbol-ai`** (nuovo, vedi sotto).
+- **L'assistente IA nell'editor dei simboli** (piano `docs/plans/2026-11-19-assistente-ia-simboli.md`, fase 6 del piano
+  di fondo anticipata): la scheda «IA» con «Modifica questo», «Disegna nuovo», «Aggiungi una foto»; la proposta accanto
+  al disegno, «Accetta» (Ctrl+Z la toglie), «Scarta», il ritocco che parte dalla proposta; la rotta
+  `POST /api/symbols/ai`; il cuore di `disegna_simbolo` comune alla chat (`ai/symbol_draw.rs`). Definition of done
+  verde sul ramo (cargo test, vitest 2795, check_static 58/58, clippy, eslint, tsc, build).
+- **Le prove col modello locale `qwen3.5:9b`**: il flusso va, i disegni quasi mai (2 proposte valide su 9, e brutte).
+  Il 9b ragionando non rispondeva affatto: ora le domande secche ai modelli locali chiedono di non ragionare
+  (`reasoning_effort: "none"`), e questo aggiusta anche la traduzione con un modello locale. Per disegnare davvero serve
+  un modello più grande (27–32b in locale) o uno in cloud. Le misure stanno nel piano.
+- **IDE di prova 8462 (del maintainer) e 8464 riavviati dal ramo `feat/symbol-ai`**: contengono anche la libreria
+  immagini e le animazioni. Sull'8464 lo scopo «Disegno dei simboli» è sul modello locale; sull'8462 va impostato
+  (Configurazione → IA → Fornitori e chiavi, modello locale `http://192.168.0.225:11434/v1`; poi Un modello per scopo).
+- **Collaudo**: le sezioni «L'assistente IA nell'editor dei simboli», «La libreria immagini», «Le animazioni dei
+  simboli» e «La tastiera a 5 righe e il grigio sui simboli» in `docs/COLLAUDI_IN_SOSPESO.md`. Le misure sul TY570
+  delle animazioni chiedono SSH.
+- **Dopo il collaudo**: squash dei cinque rami su `main`, in ordine; poi la rc.22. CasaDomotica: un pezzo animato e
+  un simbolo disegnato dall'IA (con un modello che sappia disegnare). Poi la sessione 3 della fase 2 (importa SVG,
+  esporta/importa il simbolo).
+- **Notato e non toccato**: nell'editor dei simboli l'Invio nel nome di una bocca non conferma, perché l'editor ferma
+  tutti i tasti sulla finestra prima che arrivino ai campi.
+
+## le animazioni dei simboli finite sul ramo (2a–2d); da collaudare, e le misure sul TY570 (2026-11-19 notte, theobroma)
 
 - **Tre rami annidati nel worktree `/home/ut1/sws-nav-links`** (uno dentro l'altro):
   - `fix/lvgl-stale-lib-layers` (`a73c76257`): il grigio dei dati vecchi e il lampeggio sfumato sugli strati dei simboli
