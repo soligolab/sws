@@ -17594,6 +17594,11 @@ pub fn render_page_objects(
         let ptr = lvgl_sys::lv_obj_create(core::ptr::null_mut());
         let nn = core::ptr::NonNull::new(ptr)
             .ok_or_else(|| anyhow::anyhow!("lv_obj_create(NULL) ha restituito null"))?;
+        // The page never scrolls: it is as large as the display, and an object
+        // past its border is cut, as on the web. An object 2 px out made the
+        // screen scrollable, with LVGL's grey bar at the bottom and the page
+        // moving under a swipe (the clock of the fair's frame, 20-11-2026).
+        lvgl_sys::lv_obj_clear_flag(ptr, lvgl_sys::LV_OBJ_FLAG_SCROLLABLE);
         <lvgl::Obj as Widget>::from_raw(nn)
     };
 

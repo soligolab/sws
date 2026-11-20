@@ -2341,6 +2341,10 @@ export function SvgCanvas({
               // In una fascia della cornice (10-11-2026) il contorno d'editor
               // diventa arancio e pieno: il validatore lo segnalerebbe.
               const fuoriPosto = inFascia?.has(obj.id) ?? false;
+              // Selected, the yellow outline sits on the same edge: one
+              // perimeter, not two 3 px apart (maintainer, 20-11-2026: a clock
+              // 2 px off the page went unnoticed between the two).
+              if (selSet.has(obj.id) && !fuoriPosto) return null;
               return (
                 <rect
                   x={bb.x1} y={bb.y1}
@@ -4132,10 +4136,12 @@ function SvgObjectCorpo(p: ObjProps) {
 
   const editCursor = selected ? "grab" : "pointer";
 
-  /** Selection bounding rect for edit mode */
+  /** Selection bounding rect for edit mode: on the object's true edge (it
+   *  was 3 px outside until 20-11-2026, and an object past the page border
+   *  looked like the others), in place of the grey edit outline. */
   const selRect = (x: number, y: number, w: number, h: number) =>
     selected
-      ? <rect x={x - 3} y={y - 3} width={w + 6} height={h + 6}
+      ? <rect x={x} y={y} width={w} height={h} data-selection-outline=""
           fill="none" stroke="#facc15" strokeWidth={1} strokeDasharray="4 2"
           style={{ pointerEvents: "none" }} />
       : null;

@@ -113,6 +113,12 @@ ok(verde > 20000, "l'oggetto dentro la pagina è disegnato (atteso ~24000 px, an
 ok(4000 < arancio < verde, "quello a cavallo è disegnato e RITAGLIATO dal bordo (circa metà)")
 ok(rosso == 0, "nessun pixel dei tre oggetti fuori pagina "
                "(vero anche col gate spento: qui si prova che non è stato spento nulla di troppo)")
+# 20-11-2026: an object across the border made the screen scrollable, and LVGL
+# drew its grey bar along the bottom (the clock of the fair's frame, 2 px out).
+# The last rows of the page are background only.
+sotto = sum(1 for y in range(h - 10, h) for x in range(w)
+            if not vicino(px[(y*w + x)*3:(y*w + x)*3 + 3], 0x10, 0x18, 0x20))
+ok(sotto == 0, f"nessuna barra di scorrimento in fondo alla pagina ({sotto} pixel diversi dallo sfondo)")
 sys.exit(male)
 PY
 esito=$?

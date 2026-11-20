@@ -69,6 +69,14 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   reso unico, mai variante). Nuovi `symbols/editor/importSvg.ts` e `symbolFile.ts`.
 
 ### Corretto
+- **Pannello LVGL: la riga grigia in fondo alla pagina.** Un oggetto che usciva dalla pagina anche di 2 pixel (l'orologio
+  della cornice della fiera, x 402 + 200 su 600) rendeva lo schermo scorrevole: LVGL disegnava la sua barra grigia in
+  basso, sul pannello e nell'anteprima della chat, e la pagina si spostava trascinando. Ora lo schermo della pagina non
+  scorre mai, e quello che esce si taglia come sul web; l'avevano già corretto, un tipo alla volta, testi, rettangoli e
+  tubi. `check_fuori_pagina_lvgl.sh` guarda anche il fondo della pagina.
+- **IDE: un perimetro solo per l'oggetto selezionato.** La selezione gialla stava 3 pixel fuori dall'oggetto, e il
+  contorno grigio d'editor restava sul bordo vero: due tratteggi vicini, fra cui un oggetto oltre il bordo della
+  pagina non si notava. Ora il giallo sta sul bordo vero e prende il posto del grigio.
 - **Editor dei simboli: Ctrl+Z dopo «Duplica» o un import bloccava l'editor.** La selezione è per indice e restava
   sulle forme annullate, oltre la fine dell'elenco; ora annulla e ripristina la tolgono.
 - **Editor dei simboli: Invio nel nome di una bocca non confermava.** L'editor fermava tutti i tasti sulla finestra,
