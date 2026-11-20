@@ -1,0 +1,911 @@
+{
+  "_comment": "What the live parts of a symbol do with their input, and how the timed ones move: read by sws-core/src/symbol_behaviour.rs and sws-editor/tests/symbolBehaviour.test.ts. Plan docs/plans/2026-11-19-animazioni-dei-simboli.md. In `values`, `expected` lists only the parts to check; null = left out (a rotor or a level not bound follows the whole symbol).",
+  "parts": [
+    {
+      "id": "needle",
+      "kind": "needle",
+      "cx": 30,
+      "cy": 26,
+      "a0": -135,
+      "a1": 135
+    },
+    {
+      "id": "lever",
+      "kind": "lever",
+      "cx": 30,
+      "cy": 24,
+      "open": 0,
+      "closed": -90
+    },
+    {
+      "id": "lamp",
+      "kind": "lamp"
+    },
+    {
+      "id": "fan",
+      "kind": "rotor",
+      "cx": 50,
+      "cy": 50,
+      "symmetry": 60
+    },
+    {
+      "id": "fan2",
+      "kind": "rotor",
+      "cx": 20,
+      "cy": 20,
+      "symmetry": 90,
+      "ccw": true
+    },
+    {
+      "id": "tank",
+      "kind": "level",
+      "x": 10,
+      "y": 10,
+      "w": 20,
+      "h": 80
+    },
+    {
+      "id": "tank2",
+      "kind": "level",
+      "x": 40,
+      "y": 10,
+      "w": 20,
+      "h": 80,
+      "dir": "right"
+    },
+    {
+      "id": "gate",
+      "kind": "slide",
+      "dx": 0,
+      "dy": -40
+    },
+    {
+      "id": "motor",
+      "kind": "vibrate",
+      "amplitude": 2,
+      "axis": "y"
+    },
+    {
+      "id": "glow",
+      "kind": "pulse",
+      "depth": 0.5,
+      "period_ms": 1200
+    },
+    {
+      "id": "beacon",
+      "kind": "signal",
+      "color": "#64748b",
+      "entries": [
+        {
+          "value": 1,
+          "color": "#22c55e"
+        },
+        {
+          "value_min": 2,
+          "value_max": 9,
+          "color": "#ef4444",
+          "blink": true
+        },
+        {
+          "value": 0,
+          "hidden": true
+        }
+      ]
+    }
+  ],
+  "values": [
+    {
+      "name": "nothing bound: as drawn; rotor and level follow the symbol",
+      "bindings": {},
+      "tags": {},
+      "expected": {
+        "needle": {
+          "frazione": null
+        },
+        "lever": {
+          "aperta": null
+        },
+        "lamp": {
+          "accesa": null
+        },
+        "fan": null,
+        "fan2": null,
+        "tank": null,
+        "tank2": null,
+        "gate": {
+          "frazione": null
+        },
+        "motor": {
+          "active": null
+        },
+        "glow": {
+          "active": null
+        },
+        "beacon": {
+          "entry": null
+        }
+      }
+    },
+    {
+      "name": "a rotor bound to a true tag turns; the other follows the symbol",
+      "bindings": {
+        "fan": {
+          "tag": "run"
+        }
+      },
+      "tags": {
+        "run": true
+      },
+      "expected": {
+        "fan": {
+          "active": true
+        },
+        "fan2": null
+      }
+    },
+    {
+      "name": "a rotor bound to a tag with no value yet: as drawn",
+      "bindings": {
+        "fan": {
+          "tag": "missing"
+        }
+      },
+      "tags": {},
+      "expected": {
+        "fan": {
+          "active": null
+        }
+      }
+    },
+    {
+      "name": "fixed values",
+      "bindings": {
+        "fan": {
+          "value": true
+        },
+        "motor": {
+          "value": 1
+        },
+        "glow": {
+          "value": false
+        }
+      },
+      "tags": {},
+      "expected": {
+        "fan": {
+          "active": true
+        },
+        "motor": {
+          "active": true
+        },
+        "glow": {
+          "active": false
+        }
+      }
+    },
+    {
+      "name": "the tag wins over the fixed value",
+      "bindings": {
+        "motor": {
+          "tag": "m",
+          "value": true
+        }
+      },
+      "tags": {
+        "m": false
+      },
+      "expected": {
+        "motor": {
+          "active": false
+        }
+      }
+    },
+    {
+      "name": "an empty tag is no tag: the fixed value",
+      "bindings": {
+        "motor": {
+          "tag": "",
+          "value": true
+        }
+      },
+      "tags": {},
+      "expected": {
+        "motor": {
+          "active": true
+        }
+      }
+    },
+    {
+      "name": "a slide on a true tag goes to the end",
+      "bindings": {
+        "gate": {
+          "tag": "open"
+        }
+      },
+      "tags": {
+        "open": true
+      },
+      "expected": {
+        "gate": {
+          "frazione": 1
+        }
+      }
+    },
+    {
+      "name": "a slide on a false tag stays at the start",
+      "bindings": {
+        "gate": {
+          "tag": "open"
+        }
+      },
+      "tags": {
+        "open": false
+      },
+      "expected": {
+        "gate": {
+          "frazione": 0
+        }
+      }
+    },
+    {
+      "name": "a slide at 40 of 0..100",
+      "bindings": {
+        "gate": {
+          "tag": "pos",
+          "min": 0,
+          "max": 100
+        }
+      },
+      "tags": {
+        "pos": 40
+      },
+      "expected": {
+        "gate": {
+          "frazione": 0.4
+        }
+      }
+    },
+    {
+      "name": "a level bound per part, 0..100 by default; the other follows the symbol",
+      "bindings": {
+        "tank": {
+          "tag": "lvl"
+        }
+      },
+      "tags": {
+        "lvl": 25
+      },
+      "expected": {
+        "tank": {
+          "frazione": 0.25
+        },
+        "tank2": null
+      }
+    },
+    {
+      "name": "a level with its own scale and a fixed value",
+      "bindings": {
+        "tank2": {
+          "value": 7.5,
+          "min": 0,
+          "max": 10
+        }
+      },
+      "tags": {},
+      "expected": {
+        "tank2": {
+          "frazione": 0.75
+        }
+      }
+    },
+    {
+      "name": "a signal in a range",
+      "bindings": {
+        "beacon": {
+          "tag": "s"
+        }
+      },
+      "tags": {
+        "s": 5
+      },
+      "expected": {
+        "beacon": {
+          "entry": 1
+        }
+      }
+    },
+    {
+      "name": "a signal with no entry that matches: as drawn",
+      "bindings": {
+        "beacon": {
+          "tag": "s"
+        }
+      },
+      "tags": {
+        "s": 42
+      },
+      "expected": {
+        "beacon": {
+          "entry": null
+        }
+      }
+    },
+    {
+      "name": "a signal on a fixed text that equals a number",
+      "bindings": {
+        "beacon": {
+          "value": "1"
+        }
+      },
+      "tags": {},
+      "expected": {
+        "beacon": {
+          "entry": 0
+        }
+      }
+    },
+    {
+      "name": "a signal on zero: the hidden entry",
+      "bindings": {
+        "beacon": {
+          "tag": "s"
+        }
+      },
+      "tags": {
+        "s": 0
+      },
+      "expected": {
+        "beacon": {
+          "entry": 2
+        }
+      }
+    },
+    {
+      "name": "the old kinds with a fixed value",
+      "bindings": {
+        "needle": {
+          "value": 50
+        },
+        "lamp": {
+          "value": true
+        }
+      },
+      "tags": {},
+      "expected": {
+        "needle": {
+          "frazione": 0.5
+        },
+        "lamp": {
+          "accesa": true
+        }
+      }
+    }
+  ],
+  "signal": [
+    {
+      "name": "text",
+      "entries": [
+        {
+          "value": "on"
+        },
+        {
+          "value": 1
+        },
+        {
+          "value_min": 10,
+          "value_max": 20
+        },
+        {
+          "value": true
+        }
+      ],
+      "value": "on",
+      "expected": 0
+    },
+    {
+      "name": "number",
+      "entries": [
+        {
+          "value": "on"
+        },
+        {
+          "value": 1
+        },
+        {
+          "value_min": 10,
+          "value_max": 20
+        },
+        {
+          "value": true
+        }
+      ],
+      "value": 1,
+      "expected": 1
+    },
+    {
+      "name": "a text that reads as the number",
+      "entries": [
+        {
+          "value": "on"
+        },
+        {
+          "value": 1
+        },
+        {
+          "value_min": 10,
+          "value_max": 20
+        },
+        {
+          "value": true
+        }
+      ],
+      "value": "1",
+      "expected": 1
+    },
+    {
+      "name": "a float that is a whole number",
+      "entries": [
+        {
+          "value": "on"
+        },
+        {
+          "value": 1
+        },
+        {
+          "value_min": 10,
+          "value_max": 20
+        },
+        {
+          "value": true
+        }
+      ],
+      "value": 1.0,
+      "expected": 1
+    },
+    {
+      "name": "inside the range",
+      "entries": [
+        {
+          "value": "on"
+        },
+        {
+          "value": 1
+        },
+        {
+          "value_min": 10,
+          "value_max": 20
+        },
+        {
+          "value": true
+        }
+      ],
+      "value": 15,
+      "expected": 2
+    },
+    {
+      "name": "the start of the range is in",
+      "entries": [
+        {
+          "value": "on"
+        },
+        {
+          "value": 1
+        },
+        {
+          "value_min": 10,
+          "value_max": 20
+        },
+        {
+          "value": true
+        }
+      ],
+      "value": 10,
+      "expected": 2
+    },
+    {
+      "name": "the end of the range is out",
+      "entries": [
+        {
+          "value": "on"
+        },
+        {
+          "value": 1
+        },
+        {
+          "value_min": 10,
+          "value_max": 20
+        },
+        {
+          "value": true
+        }
+      ],
+      "value": 20,
+      "expected": null
+    },
+    {
+      "name": "true matches the entry true, not 1",
+      "entries": [
+        {
+          "value": "on"
+        },
+        {
+          "value": 1
+        },
+        {
+          "value_min": 10,
+          "value_max": 20
+        },
+        {
+          "value": true
+        }
+      ],
+      "value": true,
+      "expected": 3
+    },
+    {
+      "name": "an empty text matches nothing",
+      "entries": [
+        {
+          "value": "on"
+        },
+        {
+          "value": 1
+        },
+        {
+          "value_min": 10,
+          "value_max": 20
+        },
+        {
+          "value": true
+        }
+      ],
+      "value": "",
+      "expected": null
+    },
+    {
+      "name": "a text that is not a number is outside every range",
+      "entries": [
+        {
+          "value": "on"
+        },
+        {
+          "value": 1
+        },
+        {
+          "value_min": 10,
+          "value_max": 20
+        },
+        {
+          "value": true
+        }
+      ],
+      "value": "abc",
+      "expected": null
+    },
+    {
+      "name": "a range with only the minimum",
+      "entries": [
+        {
+          "value_min": 0
+        }
+      ],
+      "value": 0,
+      "expected": 0
+    },
+    {
+      "name": "below the minimum",
+      "entries": [
+        {
+          "value_min": 0
+        }
+      ],
+      "value": -1,
+      "expected": null
+    },
+    {
+      "name": "an empty text is zero for a range",
+      "entries": [
+        {
+          "value_min": 0,
+          "value_max": 1
+        }
+      ],
+      "value": "",
+      "expected": 0
+    }
+  ],
+  "time": {
+    "_comment": "vibrate: [ms, period_ms, step]; pulse: [ms, period_ms, depth, opacity]; blink: [ms, period_ms, dim]; level_window: [dir, [x,y,w,h], f, window]; rotor_period: [period_s, symmetry, fps, period_s on the panel]; transition: [from, to, t0, ms, now, value]",
+    "vibrate": [
+      [
+        0,
+        200,
+        0
+      ],
+      [
+        50,
+        200,
+        1
+      ],
+      [
+        100,
+        200,
+        0
+      ],
+      [
+        150,
+        200,
+        -1
+      ],
+      [
+        199,
+        200,
+        -1
+      ],
+      [
+        200,
+        200,
+        0
+      ],
+      [
+        260,
+        200,
+        1
+      ],
+      [
+        50,
+        100,
+        1
+      ]
+    ],
+    "pulse": [
+      [
+        0,
+        1000,
+        0.6,
+        1.0
+      ],
+      [
+        250,
+        1000,
+        0.6,
+        0.7
+      ],
+      [
+        500,
+        1000,
+        0.6,
+        0.4
+      ],
+      [
+        750,
+        1000,
+        0.6,
+        0.7
+      ],
+      [
+        1000,
+        1000,
+        0.6,
+        1.0
+      ],
+      [
+        100,
+        100,
+        1.0,
+        0.0
+      ]
+    ],
+    "blink": [
+      [
+        0,
+        800,
+        true
+      ],
+      [
+        399,
+        800,
+        true
+      ],
+      [
+        400,
+        800,
+        false
+      ],
+      [
+        799,
+        800,
+        false
+      ],
+      [
+        800,
+        800,
+        true
+      ],
+      [
+        10,
+        20,
+        true
+      ],
+      [
+        30,
+        20,
+        false
+      ]
+    ],
+    "level_window": [
+      [
+        "up",
+        [
+          10,
+          10,
+          20,
+          80
+        ],
+        0.25,
+        [
+          10,
+          70,
+          20,
+          20
+        ]
+      ],
+      [
+        "down",
+        [
+          10,
+          10,
+          20,
+          80
+        ],
+        0.25,
+        [
+          10,
+          10,
+          20,
+          20
+        ]
+      ],
+      [
+        "right",
+        [
+          10,
+          10,
+          20,
+          80
+        ],
+        0.25,
+        [
+          10,
+          10,
+          5,
+          80
+        ]
+      ],
+      [
+        "left",
+        [
+          10,
+          10,
+          20,
+          80
+        ],
+        0.25,
+        [
+          25,
+          10,
+          5,
+          80
+        ]
+      ],
+      [
+        "up",
+        [
+          10,
+          10,
+          20,
+          80
+        ],
+        1.5,
+        [
+          10,
+          10,
+          20,
+          80
+        ]
+      ],
+      [
+        "up",
+        [
+          10,
+          10,
+          20,
+          80
+        ],
+        0,
+        [
+          10,
+          90,
+          20,
+          0
+        ]
+      ]
+    ],
+    "rotor_period": [
+      [
+        2,
+        60,
+        20,
+        2
+      ],
+      [
+        0.3,
+        60,
+        20,
+        0.6667
+      ],
+      [
+        0.3,
+        360,
+        20,
+        0.3
+      ],
+      [
+        1,
+        0,
+        20,
+        1
+      ]
+    ],
+    "transition": [
+      [
+        0,
+        10,
+        1000,
+        300,
+        1000,
+        0
+      ],
+      [
+        0,
+        10,
+        1000,
+        300,
+        1150,
+        5
+      ],
+      [
+        0,
+        10,
+        1000,
+        300,
+        1300,
+        10
+      ],
+      [
+        0,
+        10,
+        1000,
+        300,
+        2000,
+        10
+      ],
+      [
+        5,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        10,
+        1000,
+        300,
+        900,
+        0
+      ]
+    ]
+  }
+}

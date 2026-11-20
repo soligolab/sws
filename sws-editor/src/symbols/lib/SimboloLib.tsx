@@ -8,6 +8,8 @@
 import { useId, useMemo, type CSSProperties } from "react";
 import type React from "react";
 import type { SimboloLib } from "./manifest";
+import { blinkKeyframes, pulseKeyframes, spinKeyframes, vibrateKeyframes } from "./keyframes";
+import { levelWindow, slideOffset } from "./behaviour";
 import { angoliLeva, preparaSimbolo, prefissoIstanza, stileDelDisegno, useSimboloLib, valoriParti, type SimboloPreparato, type ValoreParte } from "./libreria";
 import type { ParteLegata } from "@/types";
 import { stileEffettivo, useStileProgetto, type SovrascrittureSimbolo, type StileSimboliProgetto } from "@/symbols/stileProgetto";
@@ -25,6 +27,22 @@ export interface ValoriParti {
   parti?: Record<string, ValoreParte>;
   /** Transizione del livello, in ms (0 = a scatto). */
   livelloMs?: number;
+  /** The timed pieces move: rotors bound per part, vibration, pulse, the
+   *  blink of a signal (plan 2026-11-19-animazioni-dei-simboli). Off by
+   *  default, so thumbnails stay still; the canvas turns it on outside the
+   *  editor or with «Anteprima effetti». What follows a value (a slide, a
+   *  level, the colour of a signal) is always shown. */
+  animate?: boolean;
+  /** The blink period of a signal entry, in ms (the symbol's blink). */
+  blinkMs?: number;
+}
+
+/** The markup of a layer with another colour on its first line (the layer's
+ *  own `fill`, which the shapes without a material take). */
+function withLayerFill(markup: string, colour: string): string {
+  const nl = markup.indexOf("\n");
+  const head = nl < 0 ? markup : markup.slice(0, nl);
+  return head.replace(/ fill="[^"]*"/, ` fill="${colour}"`) + (nl < 0 ? "" : markup.slice(nl));
 }
 
 export function SimboloLibSvg({ sim, svg, manifesto, prefisso, x, y, w, h, valori, dataAnim, progetto, sovrascritture }: {
@@ -58,6 +76,20 @@ export function SimboloLibSvg({ sim, svg, manifesto, prefisso, x, y, w, h, valor
     () => ({ defs: { __html: prep.defs }, strati: prep.strati.map((s) => ({ __html: s.markup })) }),
     [prep],
   );
+  // A signal in another colour than drawn: its layer's markup rewritten, once
+  // per colour (a new `{ __html }` at every render would rewrite the DOM).
+  const signalColours = sim.parts.map((p) => {
+    if (p.kind !== "signal") return "";
+    const v = valori.parti?.[p.id];
+    const e = v && "entry" in v && v.entry !== null ? p.entries?.[v.entry] : undefined;
+    return e?.color ?? "";
+  }).join("|");
+  const strati = useMemo(() => prep.strati.map((s, i) => {
+    const p = sim.parts.find((x) => x.id === s.id);
+    if (p?.kind !== "signal") return html.strati[i];
+    const c = signalColours.split("|")[sim.parts.indexOf(p)];
+    return c ? { __html: withLayerFill(s.markup, c) } : html.strati[i];
+  }), [prep, html, sim.parts, signalColours]);
   const livello = valori.livello === undefined ? 1 : Math.max(0, Math.min(1, valori.livello));
   const idClip = (pid: string) => `${prefisso}-clip-${pid}`;
   return (
@@ -65,22 +97,53 @@ export function SimboloLibSvg({ sim, svg, manifesto, prefisso, x, y, w, h, valor
       style={{ pointerEvents: "none" }} data-anim={dataAnim ? "1" : undefined} data-simbolo-lib={sim.id}>
       <defs dangerouslySetInnerHTML={html.defs} />
       <defs>
-        {sim.parts.map((p) => p.kind === "level" && (
-          <clipPath key={p.id} id={idClip(p.id)}>
-            <rect x={p.x} y={p.y + p.h * (1 - livello)} width={p.w} height={p.h * livello}
-              style={valori.livelloMs ? { transition: `y ${valori.livelloMs}ms ease-out, height ${valori.livelloMs}ms ease-out` } : undefined} />
-          </clipPath>
-        ))}
+        {sim.parts.map((p) => {
+          if (p.kind !== "level") return null;
+          // A level bound per part has its own fraction (`null` = as drawn,
+          // full); otherwise the symbol's.
+          const v = valori.parti?.[p.id];
+          const f = v && "frazione" in v ? v.frazione ?? 1 : livello;
+          const [wx, wy, ww, wh] = levelWindow(p.dir, [p.x, p.y, p.w, p.h], f);
+          const ms = valori.livelloMs;
+          return (
+            <clipPath key={p.id} id={idClip(p.id)}>
+              <rect x={wx} y={wy} width={ww} height={wh}
+                style={ms ? { transition: `x ${ms}ms ease-out, y ${ms}ms ease-out, width ${ms}ms ease-out, height ${ms}ms ease-out` } : undefined} />
+            </clipPath>
+          );
+        })}
       </defs>
       {prep.strati.map((s, i) => {
         const parte = sim.parts.find((p) => p.id === s.id);
-        const gira = parte?.kind === "rotor" && valori.gira;
         const v = valori.parti?.[s.id];
+        const active = v && "active" in v ? v.active === true : undefined;
+        // A rotor bound per part turns with its input (and only with the
+        // timed effects on); otherwise with the symbol's Rotazione.
+        const gira = parte?.kind === "rotor" && (active === undefined ? valori.gira : active && !!valori.animate);
         let style: CSSProperties | undefined;
         let opacita: number | undefined;
+        let visibility: "hidden" | undefined;
+        let anim = gira;
         if (parte?.kind === "rotor" && gira) {
           style = { transformOrigin: `${parte.cx}px ${parte.cy}px`, transformBox: "view-box",
-            animation: `sws-spin ${valori.periodoS}s linear infinite` };
+            animation: `${spinKeyframes()} ${valori.periodoS}s linear infinite${parte.ccw ? " reverse" : ""}` };
+        } else if (parte?.kind === "slide") {
+          const f = v && "frazione" in v ? v.frazione ?? 0 : 0;
+          const [dx, dy] = slideOffset(f, parte.dx, parte.dy);
+          style = { transform: `translate(${dx}px, ${dy}px)`, transition: `transform ${parte.transition_ms ?? 300}ms linear` };
+        } else if (parte?.kind === "vibrate" && active && valori.animate) {
+          anim = true;
+          style = { animation: `${vibrateKeyframes(parte.axis ?? "x", parte.amplitude ?? 1)} ${Math.max(200, parte.period_ms ?? 200)}ms step-end infinite` };
+        } else if (parte?.kind === "pulse" && active && valori.animate) {
+          anim = true;
+          style = { animation: `${pulseKeyframes(parte.depth ?? 0.6)} ${Math.max(200, parte.period_ms ?? 1000)}ms linear infinite` };
+        } else if (parte?.kind === "signal") {
+          const e = v && "entry" in v && v.entry !== null ? parte.entries?.[v.entry] : undefined;
+          if (e?.hidden) visibility = "hidden";
+          else if (e?.blink && valori.animate) {
+            anim = true;
+            style = { animation: `${blinkKeyframes()} ${valori.blinkMs ?? 800}ms step-start infinite` };
+          }
         } else if (parte?.kind === "needle" || parte?.kind === "lever") {
           let gradi = 0;
           if (parte.kind === "needle" && v && "frazione" in v && v.frazione !== null) {
@@ -98,9 +161,10 @@ export function SimboloLibSvg({ sim, svg, manifesto, prefisso, x, y, w, h, valor
           opacita = 0;
         }
         return (
-          <g key={s.id} data-strato={s.id} style={style} data-anim={gira ? "1" : undefined} opacity={opacita}
+          <g key={s.id} data-strato={s.id} style={style} data-anim={anim ? "1" : undefined} opacity={opacita}
+            visibility={visibility}
             clipPath={parte?.kind === "level" ? `url(#${idClip(parte.id)})` : undefined}
-            dangerouslySetInnerHTML={html.strati[i]} />
+            dangerouslySetInnerHTML={strati[i]} />
         );
       })}
     </svg>

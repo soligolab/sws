@@ -10,6 +10,7 @@ import { applicaStile, type StileSimbolo } from "./applicaStile";
 import type { ManifestLib, PortaLib, SimboloLib } from "./manifest";
 import type { CustomSymbol, ParteLegata } from "@/types";
 import { veroSimbolo } from "@/symbols/statoSimbolo";
+import { signalEntry } from "./behaviour";
 import { percorsoPubblico } from "@/api/prefisso";
 
 // `percorsoPubblico`: sullo schermo di un pannello aperto dal cloud la
@@ -351,7 +352,11 @@ export type ValoreParte =
    *  loro vorrebbe dire cambiare che cosa significa un tag numerico su una
    *  valvola già installata — oggi `1` la apre, con l'indice la chiuderebbe. */
   | { posizione: number | null }
-  | { accesa: boolean | null };
+  | { accesa: boolean | null }
+  /** Rotor, vibrate, pulse: whether it moves. */
+  | { active: boolean | null }
+  /** Signal: the index of the entry that matches. */
+  | { entry: number | null };
 
 /** Gli angoli di una leva, col ripiego sulla coppia `open`/`closed` quando il
  *  manifesto non li dichiara. Gemella di `ParteLib::angoli_leva` in
@@ -370,6 +375,12 @@ function numeroParte(v: unknown): number | null {
   return null;
 }
 
+/** The values of the live parts from the bindings of the object. A tag wins; a
+ *  tag with no value yet is "as drawn"; without a tag, the fixed `value`. A
+ *  rotor or a level that is not bound is **left out**: it follows the settings
+ *  of the whole symbol (Rotazione, Livello). Twin of `valori_parti` in
+ *  `sws-core/src/symbol_behaviour.rs`; cases in `tests/fixtures/parti-simbolo.json`
+ *  and `tests/fixtures/symbol-pieces.json`. */
 export function valoriParti(
   parti: SimboloLib["parts"],
   legami: Record<string, ParteLegata> | undefined,
@@ -378,12 +389,15 @@ export function valoriParti(
   const out: Record<string, ValoreParte> = {};
   for (const p of parti) {
     const l = legami?.[p.id];
-    const v = l?.tag ? valore(l.tag) : undefined;
-    if (p.kind === "needle") {
+    const fixed = l?.value ?? undefined;
+    const bound = !!l?.tag || fixed !== undefined;
+    const v = l?.tag ? valore(l.tag) : fixed;
+    const fraction = (min: number, max: number) => {
       const n = numeroParte(v);
-      const min = l?.min ?? 0;
-      const max = l?.max ?? 100;
-      out[p.id] = { frazione: n === null || max === min ? null : Math.min(1, Math.max(0, (n - min) / (max - min))) };
+      return n === null || max === min ? null : Math.min(1, Math.max(0, (n - min) / (max - min)));
+    };
+    if (p.kind === "needle") {
+      out[p.id] = { frazione: fraction(l?.min ?? 0, l?.max ?? 100) };
     } else if (p.kind === "lever") {
       // Due posizioni: la regola booleana di sempre, intatta. Più di due: il
       // valore **è** l'indice della posizione (un selettore a tre si lega a un
@@ -399,6 +413,16 @@ export function valoriParti(
       }
     } else if (p.kind === "lamp") {
       out[p.id] = { accesa: v === undefined ? null : veroSimbolo(v) };
+    } else if (p.kind === "rotor") {
+      if (bound) out[p.id] = { active: v === undefined ? null : veroSimbolo(v) };
+    } else if (p.kind === "level") {
+      if (bound) out[p.id] = { frazione: fraction(l?.min ?? 0, l?.max ?? 100) };
+    } else if (p.kind === "slide") {
+      out[p.id] = { frazione: fraction(l?.min ?? 0, l?.max ?? 1) };
+    } else if (p.kind === "vibrate" || p.kind === "pulse") {
+      out[p.id] = { active: v === undefined ? null : veroSimbolo(v) };
+    } else if (p.kind === "signal") {
+      out[p.id] = { entry: v === undefined ? null : signalEntry(p.entries ?? [], v) };
     }
   }
   return out;

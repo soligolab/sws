@@ -50,6 +50,21 @@ raggruppati, trascinamento con l'aggancio («ora funziona come mi aspettavo»). 
 8. [ ] **Prova**: stato acceso/allarme, livello, girante che gira, leva, spia.
 9. [ ] **«+ Nuovo simbolo»** in cima a Strumenti ▸ Simboli, senza aprire famiglie.
 
+## Le animazioni dei simboli (19-11-2026)
+
+Dal piano [animazioni dei simboli](plans/2026-11-19-animazioni-dei-simboli.md), ramo `feat/symbol-anim` (annidato sulle
+due correzioni LVGL). IDE 8462 dal worktree; pannello con un pacchetto di prova o con la rc che le porta.
+
+1. [ ] **«Anima…»**: nell'editor dei simboli, su una pompa: la girante «gira mentre l'ingresso è vero»; un tondo
+       diventa un segnale (verde a 1, rosso che lampeggia da 2 a 9, nascosto a 0); un rettangolo «si sposta» verso
+       l'alto, con la sagoma tratteggiata trascinata dove deve arrivare. «Prova» con «Anima» li mostra tutti.
+2. [ ] **In pagina**: «Collegamenti ▸ Parti» ha una riga per pezzo, con Tag | Valore fisso; legati al simulatore si
+       muovono, a canvas fermo con «Anteprima effetti» spento movimento e colore si vedono, rotazione e lampeggio no.
+3. [ ] **Rinomina**: rinominare nell'editor un pezzo collegato chiede conferma, e l'oggetto della pagina segue.
+4. [ ] **Pannello (WP630 o TY570)**: gli stessi pezzi, uguali al web; la riga `animations: … KB of … KB` nel log.
+5. [ ] **Misure sul TY570** (con SSH chiesto): i quattro scenari del piano, i numeri annotati nel piano, il budget
+       fissato da quei numeri.
+
 ## La tastiera a 5 righe e il grigio sui simboli, sul pannello LVGL (19-11-2026)
 
 Rami `fix/lvgl-stale-lib-layers` e, annidato, `fix/lvgl-keyboard-5-rows`; sui pannelli con la rc che li porta.

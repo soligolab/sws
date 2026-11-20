@@ -197,7 +197,11 @@ pub const VELI: &[Velo] = &[
 ];
 
 /// I tipi di parte viva che i motori sanno muovere.
-pub const TIPI_PARTE: &[&str] = &["level", "rotor", "needle", "lever", "lamp"];
+pub const TIPI_PARTE: &[&str] = &[
+    "level", "rotor", "needle", "lever", "lamp",
+    // The animated pieces (plan 2026-11-19-animazioni-dei-simboli).
+    "slide", "vibrate", "pulse", "signal",
+];
 
 /// Le forme ammesse. Sono le sole che la libreria usa, e le sole che LVGL
 /// disegna senza sorprese.
@@ -673,9 +677,22 @@ impl<'a> Costruzione<'a> {
                     p.insert(k.clone(), v.clone());
                 }
                 self.parti.push(Value::Object(p));
+                let mut attributi = vec![testo("data-layer", "part")];
+                // A signal's colour as drawn: the shapes without a material
+                // take it from the layer, as the body's take the state colour.
+                if kind == "signal" {
+                    if let Some(c) = geo.get("color").and_then(Value::as_str) {
+                        if !colore_esadecimale(c) {
+                            return Err(format!(
+                                "part «{id}»: colour «{c}» is not #rgb or #rrggbb"
+                            ));
+                        }
+                        attributi.push(testo("fill", c));
+                    }
+                }
                 self.strati.push(Strato {
                     nome: id.clone(),
-                    attributi: vec![testo("data-layer", "part")],
+                    attributi,
                     corpo: vec![],
                 });
             }
@@ -1074,6 +1091,80 @@ fn extra_ammesso(k: &str, v: &Valore) -> Result<(), String> {
     }
 }
 
+/// The limits of the animated pieces: what the two engines draw the same
+/// way, and what a panel can afford.
+fn piece_rules(p: &crate::simboli_lib::ParteLib, w: f64, h: f64) -> Result<(), String> {
+    use crate::simboli_lib::ParteLib as P;
+    use crate::symbol_behaviour::{MIN_PERIOD_MS, MIN_VIBRATE_MS};
+    let between = |what: &str, v: f64, lo: f64, hi: f64| {
+        if v.is_finite() && v >= lo && v <= hi {
+            Ok(())
+        } else {
+            Err(format!("{what} must be between {lo} and {hi}"))
+        }
+    };
+    match p {
+        P::Slide {
+            dx,
+            dy,
+            transition_ms,
+            ..
+        } => {
+            between("dx", *dx, -w, w)?;
+            between("dy", *dy, -h, h)?;
+            between("transition_ms", *transition_ms, 0.0, 10_000.0)
+        }
+        P::Vibrate {
+            amplitude,
+            period_ms,
+            ..
+        } => {
+            between("amplitude", *amplitude, 0.1, 20.0)?;
+            between("period_ms", *period_ms, MIN_VIBRATE_MS, 10_000.0)
+        }
+        P::Pulse {
+            depth, period_ms, ..
+        } => {
+            between("depth", *depth, 0.05, 1.0)?;
+            between("period_ms", *period_ms, MIN_PERIOD_MS, 10_000.0)
+        }
+        P::Signal { color, entries, .. } => {
+            if color.as_deref().is_some_and(|c| !colore_esadecimale(c)) {
+                return Err("the colour must be #rgb or #rrggbb".into());
+            }
+            if entries.len() > 8 {
+                return Err(format!("{} entries, at most 8", entries.len()));
+            }
+            for (i, e) in entries.iter().enumerate() {
+                let n = i + 1;
+                if e.color.as_deref().is_some_and(|c| !colore_esadecimale(c)) {
+                    return Err(format!("entry {n}: the colour must be #rgb or #rrggbb"));
+                }
+                let range = e.value_min.is_some() || e.value_max.is_some();
+                match &e.value {
+                    Some(Value::Bool(_) | Value::Number(_) | Value::String(_)) if !range => {}
+                    None if range => {}
+                    Some(_) if range => {
+                        return Err(format!("entry {n}: a value or a range, not both"))
+                    }
+                    _ => {
+                        return Err(format!(
+                            "entry {n}: needs a value (yes/no, number, text) or a range"
+                        ))
+                    }
+                }
+                if let (Some(lo), Some(hi)) = (e.value_min, e.value_max) {
+                    if lo >= hi {
+                        return Err(format!("entry {n}: the range is empty"));
+                    }
+                }
+            }
+            Ok(())
+        }
+        _ => Ok(()),
+    }
+}
+
 /// `#rgb` or `#rrggbb`.
 pub fn colore_esadecimale(t: &str) -> bool {
     t.strip_prefix('#')
@@ -1363,11 +1454,17 @@ pub fn regole(d: &Descrizione, c: &Compilato) -> Vec<String> {
                 "la parte {id} non ha forme: lo strato resterebbe vuoto"
             ));
         }
-        if let Err(e) = serde_json::from_value::<crate::simboli_lib::ParteLib>(p.clone()) {
-            male.push(format!(
-                "la parte {id} non ha la geometria del suo tipo: {e}"
-            ));
-            continue;
+        let parte = match serde_json::from_value::<crate::simboli_lib::ParteLib>(p.clone()) {
+            Ok(parte) => parte,
+            Err(e) => {
+                male.push(format!(
+                    "la parte {id} non ha la geometria del suo tipo: {e}"
+                ));
+                continue;
+            }
+        };
+        if let Err(e) = piece_rules(&parte, d.w as f64, d.h as f64) {
+            male.push(format!("part {id}: {e}"));
         }
         // La geometria delle parti sta nel disegno.
         let n = |k: &str| p.get(k).and_then(Value::as_f64);
@@ -1659,6 +1756,83 @@ mod tests {
             ]
         }))
         .unwrap()
+    }
+
+    fn animated() -> Descrizione {
+        serde_json::from_str(include_str!(
+            "../../../../tests/fixtures/simboli-prj/animated-pieces.json"
+        ))
+        .unwrap()
+    }
+
+    /// The animated pieces (plan 2026-11-19-animazioni-dei-simboli): every
+    /// kind compiles, its geometry goes to the manifest as written, and a
+    /// signal's colour sits on its layer for the shapes without a material.
+    #[test]
+    fn every_animated_piece_compiles_with_its_layer_and_its_entry() {
+        let d = animated();
+        let c = compila_e_controlla(&d).unwrap_or_else(|e| panic!("{e:?}"));
+        let parts = c.voce["parts"].as_array().unwrap();
+        let kinds: Vec<&str> = parts.iter().map(|p| p["kind"].as_str().unwrap()).collect();
+        assert_eq!(
+            kinds,
+            ["rotor", "level", "slide", "vibrate", "pulse", "signal"]
+        );
+        for p in parts {
+            let id = p["id"].as_str().unwrap();
+            assert!(
+                c.svg
+                    .contains(&format!("<g id=\"{id}\" data-layer=\"part\"")),
+                "{id}"
+            );
+        }
+        assert!(c
+            .svg
+            .contains("<g id=\"beacon\" data-layer=\"part\" fill=\"#64748b\""));
+        assert_eq!(parts[5]["entries"].as_array().unwrap().len(), 3);
+        assert_eq!(parts[1]["dir"], "right");
+        // The manifest reads back with the kinds of the engines.
+        let m: Vec<crate::simboli_lib::ParteLib> =
+            serde_json::from_value(c.voce["parts"].clone()).unwrap();
+        assert!(matches!(
+            m[0],
+            crate::simboli_lib::ParteLib::Rotor { ccw: true, .. }
+        ));
+        assert!(matches!(m[5], crate::simboli_lib::ParteLib::Signal { .. }));
+    }
+
+    #[test]
+    fn the_rules_stop_a_piece_the_engines_cannot_draw() {
+        let with = |i: usize, geo: Value| {
+            let mut d = animated();
+            if let Op::Parte { geo: g, .. } = &mut d.ops[i] {
+                *g = geo.as_object().unwrap().clone();
+            }
+            compila_e_controlla(&d)
+                .err()
+                .unwrap_or_default()
+                .join(" | ")
+        };
+        // ops: 6 gate, 8 motor, 10 glow, 12 beacon
+        assert!(with(6, json!({ "dx": 0, "dy": -500 })).contains("dy must be between"));
+        assert!(with(8, json!({ "amplitude": 2, "period_ms": 50 })).contains("period_ms"));
+        assert!(with(10, json!({ "depth": 3 })).contains("depth"));
+        let e = with(12, json!({ "entries": [{ "color": "#22c55e" }] }));
+        assert!(e.contains("needs a value"), "{e}");
+        let e = with(12, json!({ "entries": [{ "value": 1, "value_min": 0 }] }));
+        assert!(e.contains("not both"), "{e}");
+        let e = with(
+            12,
+            json!({ "entries": [{ "value_min": 5, "value_max": 5 }] }),
+        );
+        assert!(e.contains("empty"), "{e}");
+        let e = with(12, json!({ "entries": [{ "value": 1, "color": "green" }] }));
+        assert!(e.contains("#rgb"), "{e}");
+        let many: Vec<Value> = (0..9).map(|i| json!({ "value": i })).collect();
+        assert!(with(12, json!({ "entries": many })).contains("at most 8"));
+        // A colour that isn't hex doesn't even compile: it would go into the SVG.
+        assert!(with(12, json!({ "color": "red" })).contains("not #rgb"));
+        assert!(with(6, json!({ "dx": 0, "dy": -16 })).is_empty());
     }
 
     #[test]

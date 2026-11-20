@@ -20,6 +20,12 @@ pub fn imposta(fps: u32) {
     FPS.store(fps.max(1), Ordering::Relaxed);
 }
 
+/// The frames per second of the loop: a rotor turns slower when its step per
+/// frame would make it look still (`rotor_period_for_fps`).
+pub fn fps() -> u32 {
+    FPS.load(Ordering::Relaxed)
+}
+
 /// La durata di un giro del ciclo.
 pub fn periodo() -> Duration {
     periodo_per(FPS.load(Ordering::Relaxed))

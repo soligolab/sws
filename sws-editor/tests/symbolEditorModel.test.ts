@@ -10,6 +10,7 @@ import {
   addPort, movePort, needsExplicitPorts, ports, resizeSymbol, setPort, validPortId,
   absolutePath, align, distribute, explodedOffsets, mapBox, matrixOp, matrixPath, moveToLayer, newCircle, newPath,
   setExtra, turnMatrix, validPathD, type Box,
+  animateSelection, partDefaults, setPartKind, setPartParam, freePartId,
 } from "../src/symbols/editor/model";
 
 const gabbia: DescrizioneSimbolo = JSON.parse(
@@ -266,5 +267,63 @@ describe("drawing tools (phase 2)", () => {
     const r = moveToLayer(d, [0, 1], "layer-1");
     expect(r.d.ops.map((o) => o.op === "forma" ? (o.geo as [string, number][])[0][1] : o.op)).toEqual(["statico", 2, 0, 1]);
     expect(r.at).toEqual([2, 3]);
+  });
+});
+
+/** «Anima…» (plan docs/plans/2026-11-19-animazioni-dei-simboli.md, session 2d):
+ *  the chosen shapes become a part layer, every other shape stays in its layer. */
+describe("animating a selection", () => {
+  const sym = (ops: Op[]): DescrizioneSimbolo => ({ slug: "s", w: 100, h: 100, body: "body-pump", it: "S", en: "S", ops });
+  const rect = (x: number, y: number, w: number, h: number, mat: string | null = "steel"): Op =>
+    ({ op: "forma", tag: "rect", geo: [["x", x], ["y", y], ["width", w], ["height", h]], mat, extra: [] });
+  const boxes = (d: DescrizioneSimbolo) => new Map((d.ops as Op[]).flatMap((op, i) => {
+    if (op.op !== "forma") return [];
+    const g = Object.fromEntries(op.geo as [string, number][]);
+    return [[i, { x: g.x, y: g.y, w: g.width, h: g.height }] as [number, Box]];
+  }));
+  const kinds = (d: DescrizioneSimbolo) => (d.ops as Op[]).map((o) => (o.op === "parte" ? `parte:${o.kind}:${o.id}` : o.op));
+
+  it("a shape of the body becomes a slide; the shapes around stay where they were", () => {
+    const d = sym([{ op: "corpo" }, rect(0, 0, 10, 10), rect(20, 20, 10, 40), { op: "statico" }, rect(50, 50, 10, 10)]);
+    const r = animateSelection(d, [2], "slide", boxes(d))!;
+    expect(kinds(r.d)).toEqual(["corpo", "forma", "parte:slide:slide", "forma", "statico", "forma"]);
+    expect(r.part).toBe(2);
+    expect(r.shapes).toEqual([3]);
+    expect(r.d.ops[2].geo).toEqual({ dx: 0, dy: -20, transition_ms: 300 });
+  });
+
+  it("shapes of two layers go together, at the end of the layer of the topmost", () => {
+    const d = sym([{ op: "corpo" }, rect(0, 0, 10, 10), rect(20, 20, 10, 10), { op: "statico" }, rect(50, 50, 10, 10)]);
+    const r = animateSelection(d, [1, 4], "pulse", boxes(d))!;
+    expect(kinds(r.d)).toEqual(["corpo", "forma", "statico", "parte:pulse:pulse", "forma", "forma"]);
+    expect(r.shapes).toEqual([4, 5]);
+  });
+
+  it("all the shapes of a part: the part changes kind, same id; a signal's shapes lose their material", () => {
+    const d = sym([{ op: "corpo" }, rect(0, 0, 10, 10), { op: "parte", id: "fan", kind: "rotor", geo: { cx: 5, cy: 5, symmetry: 60 } },
+      rect(40, 40, 20, 20), rect(45, 45, 10, 10)]);
+    const r = animateSelection(d, [3, 4], "signal", boxes(d), "#ff0000")!;
+    expect(kinds(r.d)).toEqual(["corpo", "forma", "parte:signal:fan", "forma", "forma"]);
+    expect(r.d.ops[2].geo).toMatchObject({ color: "#ff0000" });
+    expect(r.d.ops[3].mat).toBeNull();
+    expect(r.d.ops[4].mat).toBeNull();
+  });
+
+  it("a part left without shapes goes, or the symbol would not compile", () => {
+    const d = sym([{ op: "corpo" }, rect(0, 0, 10, 10), { op: "parte", id: "fan", kind: "rotor", geo: { cx: 5, cy: 5, symmetry: 60 } },
+      rect(40, 40, 20, 20)]);
+    const r = animateSelection(d, [1, 3], "vibrate", boxes(d))!;
+    expect(kinds(r.d)).toEqual(["corpo", "parte:vibrate:vibrate", "forma", "forma"]);
+  });
+
+  it("defaults from the box; ids that don't clash; parameters set and removed", () => {
+    expect(partDefaults("needle", { x: 10, y: 10, w: 20, h: 40 })).toEqual({ cx: 20, cy: 30, a0: -120, a1: 120 });
+    expect(partDefaults("level", { x: 1, y: 2, w: 3, h: 4 })).toEqual({ x: 1, y: 2, w: 3, h: 4, dir: "up" });
+    const d = sym([{ op: "parte", id: "slide", kind: "slide", geo: { dx: 0, dy: -5 } }, rect(0, 0, 10, 10)]);
+    expect(freePartId(d, "slide")).toBe("slide-2");
+    const e = setPartParam(d, 0, "transition_ms", 500);
+    expect(e.ops[0].geo).toEqual({ dx: 0, dy: -5, transition_ms: 500 });
+    expect(setPartParam(e, 0, "transition_ms", undefined).ops[0].geo).toEqual({ dx: 0, dy: -5 });
+    expect(setPartKind(d, 0, "pulse", { x: 0, y: 0, w: 10, h: 10 }).ops[0]).toMatchObject({ id: "slide", kind: "pulse", geo: { depth: 0.6 } });
   });
 });

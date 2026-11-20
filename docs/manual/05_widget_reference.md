@@ -809,8 +809,29 @@ come…» ne fa un simbolo nuovo.
   scorre lungo il suo lato), si rinominano, si cambia lato e diametro. L'elenco dice quanti tubi ha ognuna; salvando,
   una bocca tolta o rinominata con tubi agganciati chiede conferma, e i tubi della pagina seguono la rinomina.
 - **Misura**: con «scala il disegno» acceso, cambiare larghezza o altezza scala forme, pezzi e bocche.
-- **Prova**: la scheda mostra il simbolo coi valori dei suoi ingressi (stato, livello, girante, lancetta, leva, spia),
-  come in pagina; non salva niente.
+- **Anima…** (scheda «Pezzo», con delle forme scelte): le forme diventano un **pezzo animato**, cioè uno strato col suo
+  ingresso. Le famiglie:
+  - *rotazione*: gira mentre l'ingresso è vero (anche antioraria), ruota fino a un valore (come una lancetta), ruota fra
+    posizioni (come una leva);
+  - *colore e visibilità*: il **segnale**. Le sue voci, come gli «Stati», dicono per un valore o un intervallo il colore,
+    se lampeggia, se è nascosto; vale la prima. Le forme del segnale non hanno materiale: prendono il colore della voce,
+    o quello disegnato se nessuna vale;
+  - *movimento e riempimento*: si sposta fra due posizioni (la sagoma tratteggiata è l'arrivo, si trascina dalla
+    maniglia al centro; con un tag vero/falso va da un capo all'altro, con un numero si ferma a metà strada), si riempie
+    da un lato (sotto, sopra, destra, sinistra);
+  - *vibrazione e pulsazione*: vibra a scatti, o respira (la trasparenza scende e torna), mentre l'ingresso è vero.
+
+  Sulle forme di un pezzo la stessa scheda mostra il tipo, i parametri e «Togli animazione». I parametri si cambiano
+  anche in «Struttura ▸ Ingressi». Salvando, un pezzo rinominato o tolto che gli oggetti in pagina collegano chiede
+  conferma; gli oggetti della pagina seguono la rinomina.
+- **In pagina** ogni pezzo si collega in «Collegamenti ▸ Parti» a un **tag** o a un **valore fisso** (sì/no, numero,
+  testo). Una girante o un livello compaiono lì solo se il simbolo ne ha più di uno: con uno solo valgono «Rotazione» e
+  «Livello» del simbolo. Gli effetti a tempo (rotazione, vibrazione, pulsazione, lampeggio) nell'editor si vedono con
+  «Anteprima effetti»; movimento, livello e colore si vedono sempre. Sul pannello ogni pagina ha un budget di memoria
+  per le animazioni: oltre, una girante gira a scatti più larghi o resta ferma, e un colore del segnale resta quello
+  disegnato.
+- **Prova**: la scheda mostra il simbolo coi valori dei suoi ingressi (stato, livello, girante, lancetta, leva, spia, e
+  i pezzi animati), come in pagina; «Anima» accende gli effetti a tempo. Non salva niente.
 
 | Proprietà | Descrizione |
 |-----------|-------------|

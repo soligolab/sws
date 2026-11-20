@@ -160,6 +160,12 @@ animazioni.
   vibrazione e pulsazione che cambiano nel tempo); `check_i18n_parita`, `check_tag_refs`, `check_synoptic_schema`.
 
 ## Le sessioni (un ramo, `feat/symbol-anim`, uno squash alla fine)
+
+> **Avanzamento**: 2a, 2b, la parte da desktop della 2c e la 2d fatte il 19-11-2026 sera e notte. Nella 2d la finestra
+> del livello si cambia coi numeri (niente maniglie). CasaDomotica col primo pezzo animato al merge, col maintainer. Della 2c restano **le misure
+> sul TY570** (col maintainer, SSH da chiedere) e il budget da fissare con quei numeri. 2a e 2b fatte il 19-11-2026 sera. In 2b non c'è l'avviso «un id che non è un pezzo del simbolo»
+> (servirebbe la mappa delle parti accanto a quella delle bocche: rimandato, l'IDE scrive solo id veri). 2a fatta il 19-11-2026 sera (ramo annidato su `fix/lvgl-keyboard-5-rows`, che aspetta la prova
+> sul TY570). Messaggi nuovi del compilatore in inglese, come vuole la regola del codice.
 Il pannello viene prima dell'editor: è la parte più rischiosa, e la fixture fa da simbolo di prova senza editor.
 
 | | ore | cosa | dove ci si ferma |

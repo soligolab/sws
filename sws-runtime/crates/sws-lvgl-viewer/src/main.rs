@@ -751,6 +751,16 @@ fn main() -> anyhow::Result<()> {
     if svg_bytes > 0 {
         eprintln!("bitmap SVG di questa pagina: {} KB", svg_bytes / 1024);
     }
+    // The animated pieces of the symbols (19-11-2026): what they took of
+    // their budget, the number to fix with the measures on the TY570.
+    let anim = simbolo_lib::anim_budget_used();
+    if anim > 0 {
+        eprintln!(
+            "animations: {} KB of {} KB",
+            anim / 1024,
+            simbolo_lib::anim_budget() / 1024
+        );
+    }
 
     // Deve seguire interpret_page (che chiama lvgl_display::init_display):
     // lv_indev_drv_register si aggancia da solo al display di default, che

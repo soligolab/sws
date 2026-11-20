@@ -55,3 +55,65 @@ describe("le parti in Collegamenti", () => {
     expect(ultimo.symbol_parts?.lever?.tag).toBe("luce.cucina");
   });
 });
+
+/** The animated pieces of a project symbol (19-11-2026, plan
+ *  docs/plans/2026-11-19-animazioni-dei-simboli.md): a row each, a tag or a
+ *  fixed value. A single rotor or level stays with the symbol's own slots. */
+describe("the animated pieces in Collegamenti", () => {
+  const pieces = {
+    // A library id: the test library is the simplest place for a symbol with every piece.
+    id: "lib:test/pezzi", file: "test/pezzi.svg", family: "project", kind: "project", label: "Pezzi",
+    viewBox: [120, 100], body: "body-pump", materials: [],
+    parts: [
+      { id: "fan", kind: "rotor", cx: 24, cy: 24, symmetry: 90 },
+      { id: "tank", kind: "level", x: 44, y: 8, w: 32, h: 12 },
+      { id: "gate", kind: "slide", dx: 0, dy: -16 },
+      { id: "motor", kind: "vibrate" },
+      { id: "glow", kind: "pulse" },
+      { id: "beacon", kind: "signal", color: "#64748b", entries: [{ value: 1, color: "#22c55e" }, { value_min: 2, value_max: 9, blink: true }] },
+    ],
+  };
+  const withPieces = (extra: object[] = []) => impostaLibreriaPerTest({
+    ...(manifesto as unknown as ManifestLib),
+    symbols: [...(manifesto as unknown as ManifestLib).symbols, { ...pieces, parts: [...pieces.parts, ...extra] } as never],
+  });
+  const obj = (o: Partial<SynopticObject> = {}) => levetta({ symbol_id: "lib:test/pezzi", ...o });
+  const rows = () => [...document.querySelectorAll("[data-parte]")].map((e) => e.getAttribute("data-parte"));
+
+  it("a row for every piece; a single rotor and a single level follow the symbol's slots", () => {
+    withPieces();
+    render(<Collegamenti obj={obj()} onChange={() => {}} stileCampo={{}} />);
+    expect(rows()).toEqual(["gate", "motor", "glow", "beacon"]);
+  });
+
+  it("with two rotors, each has its row, and says it follows the symbol when empty", () => {
+    withPieces([{ id: "fan2", kind: "rotor", cx: 80, cy: 24, symmetry: 60 }]);
+    render(<Collegamenti obj={obj()} onChange={() => {}} stileCampo={{}} />);
+    expect(rows()).toEqual(["fan", "gate", "motor", "glow", "beacon", "fan2"]);
+    expect(screen.getAllByText(i18n.t("props.parteSegueSimbolo"))).toHaveLength(2);
+  });
+
+  it("Tag or fixed value: switching writes the value and drops the tag", () => {
+    withPieces();
+    let last: Partial<SynopticObject> = {};
+    const { rerender } = render(<Collegamenti obj={obj({ symbol_parts: { motor: { tag: "m" } } })}
+      onChange={(p) => { last = p; }} stileCampo={{}} />);
+    fireEvent.click(screen.getByTestId("parte-motor-value"));
+    expect(last.symbol_parts?.motor).toEqual({ value: true });
+    rerender(<Collegamenti obj={obj({ symbol_parts: { motor: { value: true } } })} onChange={(p) => { last = p; }} stileCampo={{}} />);
+    fireEvent.click(screen.getByTestId("parte-motor-fisso"));
+    expect(last.symbol_parts?.motor).toEqual({ value: false });
+    fireEvent.click(screen.getByTestId("parte-motor-tag"));
+    expect(last.symbol_parts).toBeUndefined();
+  });
+
+  it("a signal's fixed value: a number when it reads as one", () => {
+    withPieces();
+    let last: Partial<SynopticObject> = {};
+    render(<Collegamenti obj={obj({ symbol_parts: { beacon: { value: "" } } })} onChange={(p) => { last = p; }} stileCampo={{}} />);
+    fireEvent.change(screen.getByTestId("parte-beacon-fisso"), { target: { value: "5" } });
+    expect(last.symbol_parts?.beacon).toEqual({ value: 5 });
+    fireEvent.change(screen.getByTestId("parte-beacon-fisso"), { target: { value: "on" } });
+    expect(last.symbol_parts?.beacon).toEqual({ value: "on" });
+  });
+});

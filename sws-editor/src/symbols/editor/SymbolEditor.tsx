@@ -12,24 +12,26 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import type React from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
-import { CampoNumero } from "@/components/CampoNumero";
+import { C, Field, Num, input } from "./ui";
 import { useAppStore } from "@/store";
 import type { DescrizioneSimbolo } from "@/types";
 import { avviso, chiedi, conferma } from "@/finestraAvviso/finestraAvviso";
 import { SimboloLibSvg } from "@/symbols/lib/SimboloLib";
 import { trovaSimboloOriginale, useManifestoLib } from "@/symbols/lib/libreria";
-import type { SimboloLib } from "@/symbols/lib/manifest";
+import type { SignalEntry, SimboloLib } from "@/symbols/lib/manifest";
 import { useStileProgetto } from "@/symbols/stileProgetto";
 import {
   addInput, addPort, align, boxToBox, deleteOps, distribute, duplicateOps, explodedOffsets, extraOf, fillOf, inputs,
   insertInLayer, layers, mapBox, matrixOps, movePort, moveToLayer, newCircle, newEllipse, newLine, newPath, newRect, ports, r2,
   removeInput, renamePart, reorderOp, resizeSymbol, saveAsCopy, setExtra, setFill, setGeo, setPartGeo, setPathD,
   setPort, setVeil, transformOps, turnMatrix, union, validPathD, validPortId, validSize, INPUT_KINDS, SIDES,
+  animateSelection, setPartParam,
   type Affine, type AlignMode, type Box, type InputKind, type Layer, type Op, type Port, type Side,
 } from "./model";
 import { predefinito } from "@/coloriPredefiniti";
 import type { ValoreParte } from "@/symbols/lib/libreria";
-import { pipesOnPorts, takenSlugs, usage, withSymbol, withoutSymbol, writeSymbols, type SymbolEditorTarget } from "./open";
+import { AnimateBlock, AnimationProps } from "./AnimationProps";
+import { bindingsOnParts, pipesOnPorts, takenSlugs, usage, withSymbol, withoutSymbol, writeSymbols, type SymbolEditorTarget } from "./open";
 
 interface Catalog {
   materials: { name: string; color: string }[];
@@ -55,6 +57,8 @@ interface Preview {
   level: number;
   spin: boolean;
   parts: Record<string, number | boolean>;
+  /** The timed effects on (rotation, vibration, pulse, blink), like «Anteprima effetti». */
+  animate: boolean;
 }
 
 type Drag =
@@ -62,21 +66,12 @@ type Drag =
   | { kind: "resize"; box: Box; corner: [0 | 1, 0 | 1]; ids: number[]; cur: Box }
   | { kind: "draw"; start: [number, number]; cur: [number, number] }
   | { kind: "anchor"; op: number; cur: [number, number] }
+  /** Where a slide goes: its (dx, dy), dragged by the dashed outline. */
+  | { kind: "slide"; op: number; start: [number, number]; from: [number, number]; cur: [number, number] }
   | { kind: "port"; op: number; cur: [number, number] }
   | { kind: "marquee"; start: [number, number]; cur: [number, number]; add: boolean }
   | { kind: "pan"; client: [number, number]; centre: [number, number]; scale: number };
 
-const C = {
-  bg: "var(--brand-bg, #0f172a)",
-  surface: "var(--brand-surface, #1e293b)",
-  border: "var(--brand-border, #334155)",
-  text: "var(--brand-text, #e2e8f0)",
-  muted: "var(--brand-text-muted, #94a3b8)",
-  subtle: "var(--brand-text-subtle, #64748b)",
-  accent: "var(--brand-primary, #3b82f6)",
-  danger: "var(--brand-danger, #ef4444)",
-  port: "#22d3ee", /* fixed-colour */
-};
 
 /** Where a port's pipe leaves, as a unit vector. */
 const OUT: Record<Side, [number, number]> = { left: [-1, 0], right: [1, 0], top: [0, -1], bottom: [0, 1] };
@@ -152,7 +147,7 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
   const [grouped, setGrouped] = useState<Set<string>>(() => groupedLayers.get(target.draft.slug) ?? new Set());
   const [poly, setPoly] = useState<[number, number][]>([]);
   const [hover, setHover] = useState<[number, number] | null>(null);
-  const [preview, setPreview] = useState<Preview>({ state: "drawn", level: 0.6, spin: false, parts: {} });
+  const [preview, setPreview] = useState<Preview>({ state: "drawn", level: 0.6, spin: false, parts: {}, animate: false });
   const pastes = useRef(0);
   const space = useRef(false);
   // The ports as they were when the editor opened (or last saved), and what
@@ -160,6 +155,10 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
   // attached is said before saving, and the pipes of this page follow a rename.
   const basePorts = useRef<string[]>(ports(target.draft).map((p) => p.id));
   const origin = useRef<Map<string, string>>(new Map(ports(target.draft).map((p) => [p.id, p.id])));
+  // The same for the parts, which objects bind by id (`symbol_parts`, 19-11-2026).
+  const partIds = (x: DescrizioneSimbolo) => inputs(x).filter((i) => i.kind !== "state").map((i) => i.id);
+  const baseParts = useRef<string[]>(partIds(target.draft));
+  const partOrigin = useRef<Map<string, string>>(new Map(partIds(target.draft).map((id) => [id, id])));
   const svgRef = useRef<SVGSVGElement>(null);
   const drawRef = useRef<SVGGElement>(null);
   const sn = useCallback((v: number) => snapTo(v, grid.snap ? grid.step : null), [grid.snap, grid.step]);
@@ -287,6 +286,11 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
   const pipes = useMemo(() => pipesOnPorts({ ...d, slug: savedSlug }), [d, savedSlug]);
   const renamePort = useCallback((from: string, to: string) => {
     const o = origin.current;
+    o.set(to, o.get(from) ?? from);
+    o.delete(from);
+  }, []);
+  const renamePartTracked = useCallback((from: string, to: string) => {
+    const o = partOrigin.current;
     o.set(to, o.get(from) ?? from);
     o.delete(from);
   }, []);
@@ -493,6 +497,8 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
       if (q) setDrag({ ...drag, cur: [q.x, q.y] });
     } else if (drag.kind === "marquee") {
       setDrag({ ...drag, cur: p });
+    } else if (drag.kind === "slide") {
+      setDrag({ ...drag, cur: [sn(drag.from[0] + p[0] - drag.start[0]), sn(drag.from[1] + p[1] - drag.start[1])] });
     } else {
       setDrag({ ...drag, cur: magnetPoint([sn(p[0]), sn(p[1])]) });
     }
@@ -547,6 +553,10 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
       const ports_ = portList.filter((q) => q.x >= r.x && q.x <= r.x + r.w && q.y >= r.y && q.y <= r.y + r.h).map((q) => q.op);
       const ids = [...new Set(inside.flatMap(unitOf)), ...ports_];
       setSel(drag.add ? [...new Set([...sel, ...ids])] : ids);
+    } else if (drag.kind === "slide") {
+      if (drag.cur[0] !== drag.from[0] || drag.cur[1] !== drag.from[1]) {
+        commit(setPartParam(setPartParam(d, drag.op, "dx", drag.cur[0]), drag.op, "dy", drag.cur[1]));
+      }
     } else {
       commit(setPartGeo(setPartGeo(d, drag.op, "cx", drag.cur[0]), drag.op, "cy", drag.cur[1]));
     }
@@ -561,6 +571,11 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
     e.stopPropagation();
     svgRef.current?.setPointerCapture?.(e.pointerId);
     setDrag({ kind: "resize", box: selBox, corner, ids: sel, cur: selBox });
+  };
+  const startSlide = (op: number, from: [number, number]) => (e: React.PointerEvent) => {
+    e.stopPropagation();
+    svgRef.current?.setPointerCapture?.(e.pointerId);
+    setDrag({ kind: "slide", op, start: toUnits(e), from, cur: from });
   };
   const startAnchor = (op: number) => (e: React.PointerEvent) => {
     e.stopPropagation();
@@ -682,6 +697,43 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
     }
     return true;
   };
+  // A part bound in the pages that changes name or goes (19-11-2026): said
+  // before saving, and the objects of this page follow a rename.
+  const partsChecked = async (): Promise<boolean> => {
+    const bound = bindingsOnParts({ ...d, slug: savedSlug });
+    const now = partIds(d);
+    const renamed: { from: string; to: string; n: number }[] = [];
+    const removed: { id: string; n: number }[] = [];
+    for (const id of baseParts.current) {
+      const n = bound.get(id)?.total ?? 0;
+      if (!n) continue;
+      const cur = now.find((p) => (partOrigin.current.get(p) ?? p) === id);
+      if (!cur) removed.push({ id, n });
+      else if (cur !== id) renamed.push({ from: id, to: cur, n });
+    }
+    if (!renamed.length && !removed.length) return true;
+    const righe = [
+      ...renamed.map((r) => t("symbolEditor.anim.boundRenamed", { from: r.from, to: r.to, n: r.n })),
+      ...removed.map((r) => t("symbolEditor.anim.boundRemoved", { id: r.id, n: r.n })),
+    ].join("\n");
+    if (!(await conferma({ titolo: t("symbolEditor.anim.boundTitle"), testo: `${righe}\n\n${t("symbolEditor.anim.boundText")}` }))) return false;
+    const objects = useAppStore.getState().pages.find((p) => p.id === useAppStore.getState().currentPageId)?.objects ?? [];
+    for (const r of renamed) {
+      for (const objId of bound.get(r.from)?.here ?? []) {
+        const o = objects.find((x) => x.id === objId);
+        const parts = { ...(o?.symbol_parts ?? {}) };
+        if (!(r.from in parts)) continue;
+        parts[r.to] = parts[r.from];
+        delete parts[r.from];
+        updateObject(objId, { symbol_parts: parts });
+      }
+    }
+    return true;
+  };
+  const partsSaved = (x: DescrizioneSimbolo) => {
+    baseParts.current = partIds(x);
+    partOrigin.current = new Map(partIds(x).map((id) => [id, id]));
+  };
   const portsSaved = (x: DescrizioneSimbolo) => {
     basePorts.current = ports(x).map((p) => p.id);
     origin.current = new Map(ports(x).map((p) => [p.id, p.id]));
@@ -690,6 +742,7 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
   const save = async () => {
     if (compiled.errors.length) return;
     if (!(await portsChecked())) return;
+    if (!(await partsChecked())) return;
     setBusy(true);
     const err = await writeSymbols(withSymbol(d, savedSlug));
     setBusy(false);
@@ -697,6 +750,7 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
     setSaved(d);
     setSavedSlug(d.slug);
     portsSaved(d);
+    partsSaved(d);
   };
 
   const saveAs = async () => {
@@ -747,6 +801,19 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
   const small: React.CSSProperties = { ...btn(false), padding: "2px 6px", fontSize: 11 };
   const tiny = (enabled: boolean): React.CSSProperties => ({ ...small, minWidth: 24, opacity: enabled ? 1 : 0.4 });
   const parts = ins.filter((i) => i.kind !== "state");
+  // The piece the selected shapes are all in, if they are in one (19-11-2026).
+  const selLayers = [...new Set(drawing(sel).map((i) => layerOf(i)))];
+  const selPart = selLayers.length === 1 && selLayers[0] && selLayers[0].start >= 0
+    && (d.ops[selLayers[0].start] as Op).op === "parte" ? selLayers[0] : undefined;
+  /** The colour of the first chosen shape: a signal starts from it. */
+  const firstColour = (): string | undefined => {
+    const first = drawing(sel)[0];
+    const f = first === undefined ? undefined : fillOf(d.ops[first] as Op);
+    if (!f) return undefined;
+    if ("color" in f) return f.color;
+    if ("mat" in f) return catalog?.materials.find((m) => m.name === f.mat)?.color;
+    return undefined;
+  };
   const one = sel.length === 1 ? (d.ops[sel[0]] as Op) : undefined;
   const oneLayer = sel.length === 1 ? layerOf(sel[0]) : undefined;
   const lang = i18n.language.startsWith("it") ? "it" : "en";
@@ -764,6 +831,9 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
       if (p.kind === "needle") partValues[p.id] = { frazione: typeof v === "number" ? v : 0.5 };
       else if (p.kind === "lever") partValues[p.id] = { aperta: v === undefined ? null : !!v };
       else if (p.kind === "lamp") partValues[p.id] = { accesa: !!v };
+      else if (p.kind === "slide") partValues[p.id] = { frazione: typeof v === "number" ? v : 0 };
+      else if (p.kind === "vibrate" || p.kind === "pulse") partValues[p.id] = { active: !!v };
+      else if (p.kind === "signal") partValues[p.id] = { entry: typeof v === "number" && v >= 0 ? v : null };
     }
   }
 
@@ -904,7 +974,8 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
                   <SimboloLibSvg sim={compiled.voce} svg={compiled.svg} manifesto={manifesto} prefisso="sym-edit"
                     x={0} y={0} w={w} h={h}
                     valori={trying
-                      ? { corpo: stateColour, livello: preview.level, gira: preview.spin, periodoS: 2, parti: partValues }
+                      ? { corpo: stateColour, livello: preview.level, gira: preview.spin, periodoS: 2, parti: partValues,
+          animate: preview.animate, blinkMs: 800 }
                       : { corpo: null, gira: false, periodoS: 2 }}
                     progetto={projectStyle} />
                 </g>
@@ -916,6 +987,27 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
                   <rect key={p.id} x={g.x} y={g.y} width={g.w} height={g.h} fill="none" stroke={C.accent}
                     strokeWidth={0.4 * u} strokeDasharray={`${1.5 * u} ${u}`} pointerEvents="none" />
                 );
+                if (p.kind === "slide") {
+                  // Where the slide goes: its shapes' outline moved by (dx, dy),
+                  // dashed, with a handle in the middle to drag it.
+                  const layer = ls.find((l) => l.start === p.op);
+                  const b = union((layer?.ops ?? []).map((i) => realBox(i)).filter((x): x is Box => !!x));
+                  if (!b) return null;
+                  const dd: [number, number] = drag?.kind === "slide" && drag.op === p.op
+                    ? drag.cur : [Number(g.dx) || 0, Number(g.dy) || 0];
+                  const cx = b.x + b.w / 2 + dd[0], cy = b.y + b.h / 2 + dd[1];
+                  return (
+                    <g key={p.id} data-testid={`symbol-slide-${p.id}`}>
+                      <rect x={b.x + dd[0]} y={b.y + dd[1]} width={b.w} height={b.h} fill="none" stroke={C.accent}
+                        strokeWidth={0.4 * u} strokeDasharray={`${1.5 * u} ${u}`} pointerEvents="none" />
+                      <line x1={b.x + b.w / 2} y1={b.y + b.h / 2} x2={cx} y2={cy} stroke={C.accent} strokeWidth={0.3 * u}
+                        strokeDasharray={`${u} ${u}`} pointerEvents="none" />
+                      <circle cx={cx} cy={cy} r={2.2 * u} fill={C.bg} stroke={C.accent} strokeWidth={0.5 * u} style={{ cursor: "move" }}
+                        data-testid={`symbol-slide-handle-${p.id}`}
+                        onPointerDown={startSlide(p.op, [Number(g.dx) || 0, Number(g.dy) || 0])} />
+                    </g>
+                  );
+                }
                 if (typeof g.cx !== "number") return null;
                 const live = drag?.kind === "anchor" && drag.op === p.op ? drag.cur : [g.cx, g.cy];
                 const active = oneLayer?.id === p.id;
@@ -1013,15 +1105,26 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
                 <PortProps d={d} port={portList.find((q) => q.op === sel[0])!} pipes={pipes.get(String(one.id))?.total ?? 0}
                   commit={commit} onRename={renamePort} onDel={del} />
               ) : (
-                <PieceProps d={d} sel={sel} one={one} layer={oneLayer} layers={ls} catalog={catalog} commit={commit}
-                  onDup={dup} onDel={del} onReorder={(dir) => { const r = reorderOp(d, sel[0], dir); commit(r.d); setSel([r.at]); }}
-                  onMoveToLayer={(id) => { const r = moveToLayer(d, drawing(sel), id); commit(r.d); setSel(r.at); }} />
+                <>
+                  {nDrawing > 0 && (
+                    <AnimateBlock d={d} partOp={selPart?.start} commit={commit}
+                      onAnimate={(k) => {
+                        const r = animateSelection(d, selPart ? selPart.ops : drawing(sel), k, boxes, firstColour());
+                        if (r) { commit(r.d); setSel(r.shapes); }
+                      }}
+                      onRemove={() => { if (selPart) commit(removeInput(d, selPart.start)); }} />
+                  )}
+                  <PieceProps d={d} sel={sel} one={one} layer={oneLayer} layers={ls} catalog={catalog} commit={commit}
+                    onDup={dup} onDel={del} onReorder={(dir) => { const r = reorderOp(d, sel[0], dir); commit(r.d); setSel([r.at]); }}
+                    onMoveToLayer={(id) => { const r = moveToLayer(d, drawing(sel), id); commit(r.d); setSel(r.at); }} />
+                </>
               )
             ) : tab === "structure" ? (
               <StructureProps d={d} catalog={catalog} commit={commit} isVariant={!!d.overrides}
-                ports={portList} pipes={pipes} onSelectPort={(op) => { setSel([op]); setTab("piece"); }} />
+                ports={portList} pipes={pipes} onSelectPort={(op) => { setSel([op]); setTab("piece"); }}
+                onRenamePart={renamePartTracked} />
             ) : (
-              <TryProps parts={parts} hasState={ins.some((i) => i.kind === "state")} preview={preview} setPreview={setPreview} />
+              <TryProps d={d} parts={parts} hasState={ins.some((i) => i.kind === "state")} preview={preview} setPreview={setPreview} />
             )}
           </div>
         </div>
@@ -1032,24 +1135,8 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
 
 // ── the side panels ────────────────────────────────────────────────────────
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-      <span style={{ width: 90, color: C.muted, flexShrink: 0 }}>{label}</span>
-      <span style={{ flex: 1, minWidth: 0, display: "flex", gap: 4 }}>{children}</span>
-    </label>
-  );
-}
 
-const input: React.CSSProperties = {
-  width: "100%", minWidth: 0, padding: "3px 5px", fontSize: 12, borderRadius: 3,
-  border: `1px solid ${C.border}`, background: C.surface, color: C.text,
-};
 
-function Num({ value, onChange, step = 0.5 }: { value: number; onChange: (v: number) => void; step?: number }) {
-  return <CampoNumero step={step} style={input} value={Number.isFinite(value) ? value : 0}
-    onTesto={(s) => { const v = Number(s); if (s.trim() !== "" && Number.isFinite(v)) onChange(v); }} />;
-}
 
 function MaterialSelect({ value, catalog, onChange }: { value: string; catalog: Catalog | null; onChange: (m: string) => void }) {
   const colour = catalog?.materials.find((m) => m.name === value)?.color;
@@ -1204,14 +1291,24 @@ function PathField({ value, onChange }: { value: string; onChange: (v: string) =
 }
 
 /** «Try»: the symbol as a page would show it, with the values of its inputs. */
-function TryProps({ parts, hasState, preview, setPreview }: {
-  parts: { id: string; kind: InputKind }[]; hasState: boolean; preview: Preview; setPreview: (p: Preview) => void;
+function TryProps({ d, parts, hasState, preview, setPreview }: {
+  d: DescrizioneSimbolo; parts: { id: string; kind: InputKind; op: number }[]; hasState: boolean; preview: Preview;
+  setPreview: (p: Preview) => void;
 }) {
   const { t } = useTranslation();
   const part = (id: string, v: number | boolean) => setPreview({ ...preview, parts: { ...preview.parts, [id]: v } });
+  const entriesOf = (op: number): SignalEntry[] => {
+    const g = (d.ops[op] as Op).geo as Record<string, unknown> | undefined;
+    return Array.isArray(g?.entries) ? (g.entries as SignalEntry[]) : [];
+  };
   return (
     <>
       <p style={{ margin: 0, color: C.subtle, fontSize: 11 }}>{t("symbolEditor.tryNote")}</p>
+      <label style={{ display: "flex", gap: 4, alignItems: "center" }} title={t("symbolEditor.try.playNote")}>
+        <input type="checkbox" checked={preview.animate} data-testid="symbol-try-play"
+          onChange={(e) => setPreview({ ...preview, animate: e.target.checked })} />
+        {t("symbolEditor.try.play")}
+      </label>
       {hasState && (
         <Field label={t("symbolEditor.input.state")}>
           <select style={input} value={preview.state} data-testid="symbol-try-state"
@@ -1241,6 +1338,29 @@ function TryProps({ parts, hasState, preview, setPreview }: {
               <input type="checkbox" checked={!!preview.parts[p.id]} onChange={(e) => part(p.id, e.target.checked)} />
               {t(p.kind === "lever" ? "symbolEditor.try.open" : "symbolEditor.try.lit")}
             </label>
+          )}
+          {p.kind === "slide" && (
+            <input type="range" min={0} max={1} step={0.01} data-testid={`symbol-try-${p.id}`} aria-label={t("symbolEditor.try.position")}
+              value={typeof preview.parts[p.id] === "number" ? (preview.parts[p.id] as number) : 0}
+              onChange={(e) => part(p.id, Number(e.target.value))} style={{ width: "100%" }} />
+          )}
+          {(p.kind === "vibrate" || p.kind === "pulse") && (
+            <label style={{ display: "flex", gap: 4, alignItems: "center" }}>
+              <input type="checkbox" data-testid={`symbol-try-${p.id}`} checked={!!preview.parts[p.id]}
+                onChange={(e) => part(p.id, e.target.checked)} />
+              {t("symbolEditor.try.moves")}
+            </label>
+          )}
+          {p.kind === "signal" && (
+            <select style={input} data-testid={`symbol-try-${p.id}`} aria-label={t("symbolEditor.try.entry")}
+              value={typeof preview.parts[p.id] === "number" ? String(preview.parts[p.id]) : "-1"}
+              onChange={(e) => part(p.id, Number(e.target.value))}>
+              <option value="-1">{t("symbolEditor.try.drawn")}</option>
+              {(entriesOf(p.op)).map((e, i) => (
+                <option key={i} value={i}>{e.value_min !== undefined || e.value_max !== undefined
+                  ? `${e.value_min ?? "…"}–${e.value_max ?? "…"}` : String(e.value ?? "")}{e.hidden ? ` · ${t("symbolEditor.anim.hidden")}` : ""}</option>
+              ))}
+            </select>
           )}
         </Field>
       ))}
@@ -1288,9 +1408,10 @@ export function CategorySelect({ value, onChange }: { value: string; onChange: (
   );
 }
 
-function StructureProps({ d, catalog, commit, isVariant, ports: portList, pipes, onSelectPort }: {
+function StructureProps({ d, catalog, commit, isVariant, ports: portList, pipes, onSelectPort, onRenamePart }: {
   d: DescrizioneSimbolo; catalog: Catalog | null; commit: (d: DescrizioneSimbolo) => void; isVariant: boolean;
   ports: Port[]; pipes: Map<string, { total: number }>; onSelectPort: (op: number) => void;
+  onRenamePart: (from: string, to: string) => void;
 }) {
   const { t } = useTranslation();
   const ins = inputs(d);
@@ -1319,8 +1440,6 @@ function StructureProps({ d, catalog, commit, isVariant, ports: portList, pipes,
       <div style={{ fontWeight: 700, marginTop: 6 }}>{t("symbolEditor.inputs")}</div>
       <p style={{ margin: 0, color: C.subtle, fontSize: 11 }}>{t("symbolEditor.inputsNote")}</p>
       {ins.map((inp) => {
-        const op = d.ops[inp.op] as Op;
-        const g = (op.geo as Record<string, number> | undefined) ?? {};
         return (
           <div key={`${inp.id}-${inp.op}`} style={{ border: `1px solid ${C.border}`, borderRadius: 4, padding: 6, display: "flex", flexDirection: "column", gap: 4 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -1332,14 +1451,14 @@ function StructureProps({ d, catalog, commit, isVariant, ports: portList, pipes,
             {inp.kind !== "state" && (
               <Field label={t("symbolEditor.inputId")}>
                 <input style={input} value={inp.id} maxLength={30}
-                  onChange={(e) => commit(renamePart(d, inp.op, e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-")))} />
+                  onChange={(e) => {
+                    const to = e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-");
+                    onRenamePart(inp.id, to);
+                    commit(renamePart(d, inp.op, to));
+                  }} />
               </Field>
             )}
-            {Object.entries(g).filter(([, v]) => typeof v === "number").map(([k, v]) => (
-              <Field key={k} label={t(`symbolEditor.geo.${k}`, { defaultValue: k })}>
-                <Num value={v} onChange={(n) => commit(setPartGeo(d, inp.op, k, n))} />
-              </Field>
-            ))}
+            <AnimationProps d={d} op={inp.op} commit={commit} />
           </div>
         );
       })}

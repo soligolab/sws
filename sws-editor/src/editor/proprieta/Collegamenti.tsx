@@ -28,10 +28,25 @@ import { Icona } from "@/components/Icona";
  *  e le righe non sono cliccabili. */
 export const VaiACampo = createContext<((campo: string) => void) | null>(null);
 
-/** Le parti vive di un simbolo che si legano a un tag: lancette, leve, spie.
- *  Livello e rotazione hanno già i loro slot (`fill_level_tag`, `symbol_spin_tag`). */
-function partiLegabili(sim: SimboloLib | undefined) {
-  return (sim?.parts ?? []).filter((p) => p.kind === "needle" || p.kind === "lever" || p.kind === "lamp");
+/** Le parti vive di un simbolo che si legano a un tag: lancette, leve, spie, e
+ *  dal 19-11-2026 i pezzi animati. Livello e rotazione hanno già i loro slot
+ *  (`fill_level_tag`, `symbol_spin_tag`): una riga qui solo quando il simbolo
+ *  ne ha più di uno, perché due punti del pannello per lo stesso dato
+ *  violerebbero la regola «una sezione per dato». */
+export function partiLegabili(sim: SimboloLib | undefined) {
+  const parts = sim?.parts ?? [];
+  const many = (k: string) => parts.filter((p) => p.kind === k).length > 1;
+  return parts.filter((p) => (p.kind === "rotor" || p.kind === "level") ? many(p.kind) : true);
+}
+
+type Parte = SimboloLib["parts"][number];
+
+/** What a fixed value of the part is: yes/no, a number, or a text. */
+function valueKind(p: Parte): "bool" | "number" | "text" {
+  if (p.kind === "needle" || p.kind === "level" || p.kind === "slide") return "number";
+  if (p.kind === "lever") return angoliLeva(p).length >= 3 ? "number" : "bool";
+  if (p.kind === "signal") return "text";
+  return "bool";
 }
 
 /** Il tag di stato fa da predefinito alla leva a due posizioni (02-11-2026, il
@@ -79,7 +94,9 @@ function PartiDelSimbolo({ obj, onChange, stileCampo }: {
     onChange({ symbol_parts: Object.keys(tutti).length > 0 ? tutti : undefined });
   };
   const numero = (v: string) => (v.trim() === "" || !Number.isFinite(Number(v)) ? undefined : Number(v));
-  const senzaTag = parti.filter((p) => !legami[p.id]?.tag).length;
+  // Rotor and level rows with nothing follow the symbol: they don't stay still.
+  const senzaTag = parti.filter((p) => p.kind !== "rotor" && p.kind !== "level"
+    && !legami[p.id]?.tag && legami[p.id]?.value === undefined).length;
   const piccola: React.CSSProperties = { fontSize: TESTO.nota, color: "var(--brand-text-subtle, #94a3b8)" };
   return (
     <div data-field="symbol_parts" data-testid="parti-del-simbolo">
@@ -100,7 +117,13 @@ function PartiDelSimbolo({ obj, onChange, stileCampo }: {
         const etichetta = p.kind === "needle" ? t("props.parteLancetta")
           : p.kind === "lever"
             ? (posizioni >= 3 ? t("props.parteLevaPosizioni", { ultima: posizioni - 1 }) : t("props.parteLeva"))
-          : t("props.parteSpia", { id: p.id });
+          : p.kind === "lamp" ? t("props.parteSpia", { id: p.id })
+          : t(`props.parte.${p.kind}`, { id: p.id });
+        // A tag, or a fixed value (19-11-2026): the tag wins, so one at a time.
+        const fixed = !l.tag && l.value !== undefined;
+        const kind = valueKind(p);
+        const scala = p.kind === "needle" || p.kind === "level" || p.kind === "slide";
+        const fine = p.kind === "slide" ? "1" : "100";
         return (
           <div key={p.id} data-row={etichetta} data-parte={p.id} style={{ display: "flex", gap: SPAZIO.xs, marginBottom: SPAZIO.s }}>
             <span aria-hidden="true" style={{ width: 12, flexShrink: 0, fontSize: 12, lineHeight: "16px", color: "var(--brand-text-muted, #94a3b8)" }}>
@@ -111,15 +134,67 @@ function PartiDelSimbolo({ obj, onChange, stileCampo }: {
                 <div style={{ flex: 1, minWidth: 0, fontSize: TESTO.etichetta, color: "var(--brand-text-muted, #94a3b8)" }}>{etichetta}</div>
                 <ValoreLive tag={l.tag ?? ""} />
               </div>
-              <TagInput style={stileCampo} placeholder={t("props.slot.scegli")} value={l.tag ?? ""}
-                onChange={(v) => metti(p.id, { tag: v || undefined })} />
-              {p.kind === "needle" && (
+              <div role="group" style={{ display: "flex", gap: 2, marginBottom: 2 }}>
+                {(["tag", "value"] as const).map((m) => {
+                  const on = (m === "value") === fixed;
+                  return (
+                    <button key={m} type="button" data-testid={`parte-${p.id}-${m}`} aria-pressed={on}
+                      style={{ ...piccola, padding: "0 6px", borderRadius: 3, cursor: "pointer",
+                        border: `1px solid ${on ? "var(--brand-primary, #3b82f6)" : "var(--brand-border, #334155)"}`,
+                        background: on ? "var(--brand-primary, #3b82f6)" : "transparent",
+                        color: on ? "var(--brand-on-primary, #fff)" : undefined }}
+                      onClick={() => {
+                        if (on) return;
+                        if (m === "tag") metti(p.id, { value: undefined });
+                        else metti(p.id, { tag: undefined, value: kind === "bool" ? true : kind === "number" ? 0 : "" });
+                      }}>
+                      {t(m === "tag" ? "props.parteTag" : "props.parteValore")}
+                    </button>
+                  );
+                })}
+              </div>
+              {!fixed ? (
+                <TagInput style={stileCampo} placeholder={t("props.slot.scegli")} value={l.tag ?? ""}
+                  onChange={(v) => metti(p.id, { tag: v || undefined })} />
+              ) : kind === "bool" ? (
+                <label style={{ ...piccola, display: "flex", gap: 4, alignItems: "center" }}>
+                  <input type="checkbox" data-testid={`parte-${p.id}-fisso`} checked={!!l.value}
+                    onChange={(e) => metti(p.id, { value: e.target.checked })} />
+                  {t("props.parteSi")}
+                </label>
+              ) : kind === "number" ? (
+                <CampoNumero style={stileCampo} value={typeof l.value === "number" ? l.value : ""}
+                  onTesto={(e) => metti(p.id, { value: numero(e) ?? 0 })} />
+              ) : (
+                <input style={stileCampo} data-testid={`parte-${p.id}-fisso`} value={String(l.value ?? "")}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    metti(p.id, { value: v.trim() !== "" && Number.isFinite(Number(v)) ? Number(v) : v });
+                  }} />
+              )}
+              {(p.kind === "rotor" || p.kind === "level") && !l.tag && l.value === undefined && (
+                <div style={{ ...piccola, marginTop: 2 }}>{t("props.parteSegueSimbolo")}</div>
+              )}
+              {p.kind === "signal" && (p.entries ?? []).length > 0 && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
+                  {(p.entries ?? []).map((e, i) => (
+                    <span key={i} style={{ ...piccola, display: "inline-flex", alignItems: "center", gap: 3 }}>
+                      <span style={{ width: 10, height: 10, borderRadius: 2, border: "1px solid var(--brand-border, #334155)",
+                        background: e.hidden ? "transparent" : (e.color ?? p.color ?? "transparent") }} />
+                      {e.value_min !== undefined || e.value_max !== undefined
+                        ? `${e.value_min ?? "…"}–${e.value_max ?? "…"}` : String(e.value ?? "")}
+                      {e.blink ? " ✱" : ""}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {scala && (
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, marginTop: 4 }}>
                   <div><div style={piccola}>{t("props.parteMin")}</div>
                     <CampoNumero style={stileCampo} placeholder="0" value={l.min ?? ""}
                       onTesto={(e) => metti(p.id, { min: numero(e) })} /></div>
                   <div><div style={piccola}>{t("props.parteMax")}</div>
-                    <CampoNumero style={stileCampo} placeholder="100" value={l.max ?? ""}
+                    <CampoNumero style={stileCampo} placeholder={fine} value={l.max ?? ""}
                       onTesto={(e) => metti(p.id, { max: numero(e) })} /></div>
                 </div>
               )}

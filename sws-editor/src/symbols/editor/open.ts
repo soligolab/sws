@@ -161,3 +161,25 @@ export function pipesOnPorts(d: DescrizioneSimbolo): Map<string, { total: number
   }
   return out;
 }
+
+/** The objects that bind the parts of `d` (`symbol_parts`), on every page: for
+ *  each part id, how many, and those on the current page (the ones a rename can
+ *  follow). Plan docs/plans/2026-11-19-animazioni-dei-simboli.md, session 2d. */
+export function bindingsOnParts(d: DescrizioneSimbolo): Map<string, { total: number; here: string[] }> {
+  const ids = new Set(idsDrawing(d));
+  const st = useAppStore.getState();
+  const out = new Map<string, { total: number; here: string[] }>();
+  for (const p of st.pages) {
+    for (const o of p.objects) {
+      if (o.type !== "symbol" || !o.symbol_id || !ids.has(o.symbol_id)) continue;
+      for (const [part, l] of Object.entries(o.symbol_parts ?? {})) {
+        if (!l || (!l.tag && l.value === undefined)) continue;
+        const e = out.get(part) ?? { total: 0, here: [] };
+        e.total += 1;
+        if (p.id === st.currentPageId) e.here.push(o.id);
+        out.set(part, e);
+      }
+    }
+  }
+  return out;
+}

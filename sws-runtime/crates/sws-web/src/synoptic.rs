@@ -385,10 +385,13 @@ pub struct SynopticObject {
     pub symbol_spin_tag: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub symbol_spin_s: Option<f64>,
-    /// Le parti vive di un simbolo di libreria legate a un tag: id della parte
-    /// del manifesto → `{tag, min?, max?}` (min/max solo per la lancetta,
-    /// predefiniti 0 e 100). Lancetta proporzionale al valore, leva aperta se il
-    /// tag è vero, spia accesa se il tag è vero.
+    /// The live parts of a symbol bound to a tag or to a fixed value: part id
+    /// of the manifest → `{tag?, value?, min?, max?}`. The tag wins; without
+    /// it, the fixed value. min/max scale a number to the fraction (needle and
+    /// level 0..100 by default, slide 0..1). Needle proportional to the value,
+    /// lever open and lamp lit if true; rotor, vibrate and pulse move while
+    /// true; signal takes the entry the value matches. A rotor or a level
+    /// left out follows the symbol's own setting (symbol_spin, fill_level_tag).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub symbol_parts: Option<Value>,
     /// Fase 4 (M7): sovrascritture dello stile del progetto per questo simbolo

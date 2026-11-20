@@ -1284,6 +1284,18 @@
     "parteSpia": "Spia {{id}} accesa (tag)",
     "parteMin": "Inizio scala",
     "parteMax": "Fondo scala",
+    "parteTag": "Tag",
+    "parteValore": "Valore fisso",
+    "parteSi": "Sì",
+    "parteSegueSimbolo": "Senza tag né valore segue il simbolo (Rotazione, Livello).",
+    "parte": {
+      "rotor": "Girante {{id}} gira (tag)",
+      "level": "Livello {{id}} (tag)",
+      "slide": "Movimento {{id}} (tag)",
+      "vibrate": "Vibrazione {{id}} (tag)",
+      "pulse": "Pulsazione {{id}} (tag)",
+      "signal": "Segnale {{id}} (tag)"
+    },
     "colorDaProgetto": "da progetto",
     "colorDaProgettoHint": "Questo colore viene dallo stile del progetto (Configurazione → Progetto → Stile). Sceglierne uno qui vale solo per questo oggetto.",
     "colorDaProgettoReset": "Torna allo stile del progetto",
@@ -5411,7 +5423,11 @@
       "rotor": "Rotazione",
       "needle": "Lancetta",
       "lever": "Leva",
-      "lamp": "Spia"
+      "lamp": "Spia",
+      "slide": "Movimento",
+      "vibrate": "Vibrazione",
+      "pulse": "Pulsazione",
+      "signal": "Segnale"
     },
     "shape": {
       "rect": "Rettangolo",
@@ -5487,7 +5503,13 @@
       "a0": "angolo minimo",
       "a1": "angolo massimo",
       "open": "angolo aperta",
-      "closed": "angolo chiusa"
+      "closed": "angolo chiusa",
+      "dx": "spostamento x",
+      "dy": "spostamento y",
+      "transition_ms": "durata (ms)",
+      "amplitude": "ampiezza",
+      "period_ms": "periodo (ms)",
+      "depth": "profondità (0–1)"
     },
     "polyHint": "Un clic per punto; doppio clic o Invio per finire una linea; un clic sul primo punto chiude la forma.",
     "zoomIn": "Ingrandisci",
@@ -5545,8 +5567,60 @@
       "alarm": "Allarme",
       "spin": "Gira",
       "open": "Aperta",
-      "lit": "Accesa"
+      "lit": "Accesa",
+      "position": "Posizione",
+      "moves": "Si muove",
+      "entry": "Voce",
+      "play": "Anima",
+      "playNote": "Accende gli effetti a tempo (rotazione, vibrazione, pulsazione, lampeggio), come «Anteprima effetti» sul canvas."
     },
-    "magnetHint": "Calamita: spostando, disegnando o ridimensionando, i bordi e il centro della forma (o il punto: una bocca, un perno, un vertice) si agganciano ai bordi e ai centri delle altre forme e al bordo e al centro del simbolo, se sono vicini. Una linea rossa mostra l'aggancio."
+    "magnetHint": "Calamita: spostando, disegnando o ridimensionando, i bordi e il centro della forma (o il punto: una bocca, un perno, un vertice) si agganciano ai bordi e ai centri delle altre forme e al bordo e al centro del simbolo, se sono vicini. Una linea rossa mostra l'aggancio.",
+    "anim": {
+      "animate": "Anima…",
+      "animation": "Animazione",
+      "remove": "Togli animazione",
+      "family": {
+        "rotation": "Rotazione",
+        "colour": "Colore e visibilità",
+        "movement": "Movimento e riempimento",
+        "vibration": "Vibrazione e pulsazione"
+      },
+      "kind": {
+        "rotor": "Gira mentre l'ingresso è vero",
+        "needle": "Ruota fino a un valore",
+        "lever": "Ruota fra posizioni",
+        "signal": "Segnale: colore, lampeggio, nascosto",
+        "slide": "Si sposta fra due posizioni",
+        "level": "Si riempie da un lato",
+        "vibrate": "Vibra mentre l'ingresso è vero",
+        "pulse": "Pulsa mentre l'ingresso è vero"
+      },
+      "note": "Le forme scelte diventano un pezzo animato: uno strato col suo ingresso, che in pagina si collega a un tag o a un valore.",
+      "ccw": "Antioraria",
+      "dir": "Cresce da",
+      "dirs": {
+        "up": "sotto",
+        "down": "sopra",
+        "left": "destra",
+        "right": "sinistra"
+      },
+      "axis": "Direzione",
+      "axes": {
+        "x": "orizzontale",
+        "y": "verticale"
+      },
+      "drawnColour": "Colore disegnato",
+      "entries": "Voci (la prima che vale)",
+      "exact": "valore",
+      "range": "intervallo",
+      "blink": "lampeggia",
+      "hidden": "nascosto",
+      "addEntry": "Voce",
+      "slideNote": "Con l'ingresso vero (o al massimo della scala) il pezzo arriva alla sagoma tratteggiata: trascinala per cambiare dove arriva.",
+      "boundTitle": "Pezzi collegati in pagina",
+      "boundRenamed": "«{{from}}» diventa «{{to}}»: {{n}} oggetti lo collegano.",
+      "boundRemoved": "«{{id}}» sparisce: {{n}} oggetti lo collegano e resteranno senza.",
+      "boundText": "Salvando, gli oggetti di questa pagina seguono i nomi nuovi; quelli delle altre pagine vanno ricollegati."
+    }
   }
 }

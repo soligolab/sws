@@ -6703,6 +6703,10 @@ function SvgObjectCorpo(p: ObjProps) {
             gira: spinActive,
             periodoS: anim.spinS,
             livelloMs: anim.livelloMs,
+            // The animated pieces (19-11-2026): the timed ones like the other
+            // runtime effects, previewed in the editor with «Anteprima effetti».
+            animate: !isEditMode || fxPreview,
+            blinkMs: anim.blinkMs,
           }}
           sovrascritture={obj} />
       </g>

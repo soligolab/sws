@@ -14792,6 +14792,8 @@ pub struct CorpoLib {
 /// Lo strato `level`: il liquido pieno in un canvas, dentro un contenitore che
 /// ne mostra solo la parte bassa.
 pub struct LivelloLib {
+    /// The part id: a level bound per part (19-11-2026) has its own value.
+    id: String,
     /// Transizione (Fase 4): da `da_px` a `a_px` in `ms`, partita a `t0`.
     ms: f64,
     da_px: f64,
@@ -14801,12 +14803,18 @@ pub struct LivelloLib {
     canvas: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
     finestra: crate::svg_raster::Ritaglio,
     dove: crate::svg_raster::Ritaglio,
-    dal_basso: bool,
+    /// The side the content grows from on the screen (19-11-2026: up, down,
+    /// left, right; it was only up, or down with the vertical mirror).
+    dir: sws_core::simboli_lib::FillDir,
     _buf: Vec<u8>,
     ultimo_px: i32,
 }
 
 pub struct RotoreLib {
+    /// The part id: a rotor bound per part turns with its own input.
+    id: String,
+    /// Counter-clockwise: the frames in reverse.
+    ccw: bool,
     canvas: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
     fotogrammi: Vec<Vec<u8>>,
     dove: crate::svg_raster::Ritaglio,
@@ -14838,12 +14846,66 @@ pub struct SpiaLib {
     accesa: bool,
 }
 
+/// A slide or a vibration (19-11-2026, plan 2026-11-19-animazioni-dei-simboli):
+/// the picture moved with `set_pos`, only when its place changes.
+pub struct MobileLib {
+    canvas: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    id: String,
+    _buf: Vec<u8>,
+    /// Where the picture is as drawn, in the box of the symbol.
+    base: (i32, i32),
+    /// The whole way of a slide, or one step of a vibration, in pixels.
+    passo: (f32, f32),
+    kind: MobileKind,
+    ultimo: (i32, i32),
+}
+
+pub enum MobileKind {
+    Slide {
+        transition_ms: f64,
+        tr: Option<sws_core::symbol_behaviour::Transition>,
+    },
+    Vibrate {
+        period_ms: f64,
+    },
+}
+
+/// A pulse: the opacity of the picture breathes while its input is true.
+pub struct PulseLib {
+    canvas: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    id: String,
+    _buf: Vec<u8>,
+    depth: f64,
+    period_ms: f64,
+    /// The `img_opa` on the canvas now: the piece's own times the state blink.
+    scritto: u8,
+}
+
+/// A signal: one picture per colour, swapped when the matching entry changes.
+pub struct SignalLib {
+    canvas: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    id: String,
+    dove: crate::svg_raster::Ritaglio,
+    materiale: Vec<u8>,
+    variants: Vec<Vec<u8>>,
+    entry_variant: Vec<Option<usize>>,
+    /// Per entry: blinks, hidden.
+    entries: Vec<(bool, bool)>,
+    /// The picture shown: `None` = as drawn.
+    mostrato: Option<usize>,
+    nascosto: bool,
+    scritto: u8,
+}
+
 pub struct VivoLib {
     /// Il contenitore dell'oggetto: i canvas degli strati sono i suoi figli.
     scatola: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
     corpo: Option<CorpoLib>,
     perni: Vec<PernoLib>,
     spie: Vec<SpiaLib>,
+    mobili: Vec<MobileLib>,
+    pulse: Vec<PulseLib>,
+    segnali: Vec<SignalLib>,
     /// Le parti del manifesto e i legami dell'oggetto (`symbol_parts`).
     parti: Vec<sws_core::simboli_lib::ParteLib>,
     legami: Option<serde_json::Value>,
@@ -14856,7 +14918,7 @@ pub struct VivoLib {
     /// Ultima opacità del lampeggio per voce di `symbol_states` (img_opa, che
     /// non è la proprietà usata dagli effetti).
     ultimo_lampo: u8,
-    livello: Option<LivelloLib>,
+    livelli: Vec<LivelloLib>,
     rotori: Vec<RotoreLib>,
     /// I buffer degli strati fermi: LVGL legge da lì a ogni ridisegno.
     fermi: Vec<Vec<u8>>,
@@ -14895,7 +14957,7 @@ impl VivoLib {
     fn byte(&self) -> usize {
         self.fermi.iter().map(Vec::len).sum::<usize>()
             + self.corpo.as_ref().map_or(0, |c| c.materiale.len())
-            + self.livello.as_ref().map_or(0, |l| l._buf.len())
+            + self.livelli.iter().map(|l| l._buf.len()).sum::<usize>()
             + self
                 .rotori
                 .iter()
@@ -14903,6 +14965,13 @@ impl VivoLib {
                 .sum::<usize>()
             + self.perni.iter().map(|p| p._buf.len()).sum::<usize>()
             + self.spie.iter().map(|p| p._buf.len()).sum::<usize>()
+            + self.mobili.iter().map(|p| p._buf.len()).sum::<usize>()
+            + self.pulse.iter().map(|p| p._buf.len()).sum::<usize>()
+            + self
+                .segnali
+                .iter()
+                .map(|p| p.materiale.len() + p.variants.iter().map(Vec::len).sum::<usize>())
+                .sum::<usize>()
     }
 }
 
@@ -15031,6 +15100,7 @@ fn render_simbolo_lib(
     rt_handle: &tokio::runtime::Handle,
 ) -> anyhow::Result<LiveBinding> {
     use crate::simbolo_lib::{self as lib, PezzoStrato, Quadro};
+    use sws_core::simboli_lib::ParteLib;
     let id = obj.symbol_id.as_deref().unwrap_or_default();
     let manifesto = lib::manifesto(base_url, rt_handle)
         .ok_or_else(|| anyhow::anyhow!("manifesto della libreria non disponibile"))?;
@@ -15123,6 +15193,9 @@ fn render_simbolo_lib(
         corpo: None,
         perni: Vec::new(),
         spie: Vec::new(),
+        mobili: Vec::new(),
+        pulse: Vec::new(),
+        segnali: Vec::new(),
         parti: sim.parts.clone(),
         legami: obj.symbol_parts.clone(),
         verso: if (obj.flip_h == Some(true)) != (obj.flip_v == Some(true)) {
@@ -15136,7 +15209,7 @@ fn render_simbolo_lib(
             .and_then(|b| b.get("symbol_spin_s"))
             .cloned(),
         ultimo_lampo: 255,
-        livello: None,
+        livelli: Vec::new(),
         rotori: Vec::new(),
         fermi: Vec::new(),
         svg,
@@ -15209,9 +15282,10 @@ fn render_simbolo_lib(
                     });
                 }
                 PezzoStrato::Livello {
+                    id,
                     mut bitmap,
                     finestra,
-                    dal_basso,
+                    dir,
                 } => {
                     let sc = contenitore_lib(
                         scatola.as_ptr(),
@@ -15227,7 +15301,8 @@ fn render_simbolo_lib(
                         bitmap.dove,
                         &mut bitmap.buf,
                     )?;
-                    vivo.livello = Some(LivelloLib {
+                    vivo.livelli.push(LivelloLib {
+                        id,
                         ms: obj
                             .symbol_level_transition_ms
                             .or(progetto.as_deref().and_then(|p| p.level_transition_ms))
@@ -15240,7 +15315,7 @@ fn render_simbolo_lib(
                         canvas,
                         finestra,
                         dove: bitmap.dove,
-                        dal_basso,
+                        dir,
                         _buf: bitmap.buf,
                         ultimo_px: -1,
                     });
@@ -15282,9 +15357,11 @@ fn render_simbolo_lib(
                     });
                 }
                 PezzoStrato::Rotore {
+                    id,
                     mut fotogrammi,
                     dove,
                     symmetry,
+                    ccw,
                 } => {
                     let angolo = rotore_ad_angolo();
                     if angolo {
@@ -15310,12 +15387,105 @@ fn render_simbolo_lib(
                         );
                     }
                     vivo.rotori.push(RotoreLib {
+                        id,
+                        ccw,
                         canvas,
                         fotogrammi,
                         dove,
                         symmetry,
                         ultimo: 0,
                         angolo,
+                    });
+                }
+                PezzoStrato::Mobile {
+                    id,
+                    mut bitmap,
+                    passo,
+                } => {
+                    let canvas = tela_lib(
+                        scatola.as_ptr(),
+                        bitmap.dove.x as i32,
+                        bitmap.dove.y as i32,
+                        bitmap.dove,
+                        &mut bitmap.buf,
+                    )?;
+                    let kind = match sim.parts.iter().find(|p| p.id() == id) {
+                        Some(ParteLib::Vibrate { period_ms, .. }) => MobileKind::Vibrate {
+                            period_ms: *period_ms,
+                        },
+                        Some(ParteLib::Slide { transition_ms, .. }) => MobileKind::Slide {
+                            transition_ms: *transition_ms,
+                            tr: None,
+                        },
+                        _ => MobileKind::Slide {
+                            transition_ms: 0.0,
+                            tr: None,
+                        },
+                    };
+                    let base = (bitmap.dove.x as i32, bitmap.dove.y as i32);
+                    vivo.mobili.push(MobileLib {
+                        canvas,
+                        id,
+                        _buf: bitmap.buf,
+                        base,
+                        passo,
+                        kind,
+                        ultimo: base,
+                    });
+                }
+                PezzoStrato::Pulse { id, mut bitmap } => {
+                    let canvas = tela_lib(
+                        scatola.as_ptr(),
+                        bitmap.dove.x as i32,
+                        bitmap.dove.y as i32,
+                        bitmap.dove,
+                        &mut bitmap.buf,
+                    )?;
+                    let (depth, period_ms) = match sim.parts.iter().find(|p| p.id() == id) {
+                        Some(ParteLib::Pulse {
+                            depth, period_ms, ..
+                        }) => (*depth, *period_ms),
+                        _ => (0.6, 1000.0),
+                    };
+                    vivo.pulse.push(PulseLib {
+                        canvas,
+                        id,
+                        _buf: bitmap.buf,
+                        depth,
+                        period_ms,
+                        scritto: 255,
+                    });
+                }
+                PezzoStrato::Signal {
+                    id,
+                    mut bitmap,
+                    variants,
+                    entry_variant,
+                } => {
+                    let canvas = tela_lib(
+                        scatola.as_ptr(),
+                        bitmap.dove.x as i32,
+                        bitmap.dove.y as i32,
+                        bitmap.dove,
+                        &mut bitmap.buf,
+                    )?;
+                    let entries = match sim.parts.iter().find(|p| p.id() == id) {
+                        Some(ParteLib::Signal { entries, .. }) => {
+                            entries.iter().map(|e| (e.blink, e.hidden)).collect()
+                        }
+                        _ => Vec::new(),
+                    };
+                    vivo.segnali.push(SignalLib {
+                        canvas,
+                        id,
+                        dove: bitmap.dove,
+                        materiale: bitmap.buf,
+                        variants,
+                        entry_variant,
+                        entries,
+                        mostrato: None,
+                        nascosto: false,
+                        scritto: 255,
                     });
                 }
             }
@@ -15430,15 +15600,33 @@ fn aggiorna_simbolo_lib(v: &mut VivoLib, tags: &TagSnapshot) {
             }
         }
     }
+    // The values of the live parts (Fase 3, and the animated pieces of
+    // 19-11-2026): the rule of `sws_core::symbol_behaviour::valori_parti`.
+    use crate::simbolo_lib::ValoreParte;
+    // Without bindings every part is as drawn, or follows the symbol: nothing
+    // to compute, and nothing allocated at every frame for most symbols.
+    let senza_legami = v
+        .legami
+        .as_ref()
+        .is_none_or(|l| l.as_object().is_none_or(|m| m.is_empty()));
+    let valori = if v.parti.is_empty() || senza_legami {
+        Vec::new()
+    } else {
+        crate::simbolo_lib::valori_parti(&v.parti, v.legami.as_ref(), |t| {
+            tags.get(t).map(|tv| &tv.value)
+        })
+    };
+    let val = |id: &str| valori.iter().find(|(i, _)| i == id).map(|(_, x)| *x);
+    let ora = unsafe { lvgl_sys::lv_tick_get() } as u64;
     // Livello: come il web, dal tag o dal valore fisso; senza nessuno dei due
-    // il disegno com'è (pieno).
-    if let Some(l) = v.livello.as_mut() {
+    // il disegno com'è (pieno). A level bound per part has its own value.
+    if !v.livelli.is_empty() {
         let dal_tag = v.fill_level_tag.as_deref().filter(|t| !t.is_empty());
         let grezzo = match dal_tag {
             Some(t) => tags.get(t).map(|tv| tag_value_as_f64(&tv.value)),
             None => v.fill_level,
         };
-        let frazione = grezzo
+        let del_simbolo = grezzo
             .filter(|x| x.is_finite())
             .map(|x| match (dal_tag, v.intervallo) {
                 (Some(_), Some(i)) => frazione_su(x, i),
@@ -15447,103 +15635,60 @@ fn aggiorna_simbolo_lib(v: &mut VivoLib, tags: &TagSnapshot) {
             })
             .unwrap_or(1.0)
             .clamp(0.0, 1.0);
-        let bersaglio = (l.finestra.h as f64 * frazione).round() as i32;
-        let ora = unsafe { lvgl_sys::lv_tick_get() } as u64;
-        if bersaglio != l.a_px {
-            // Riparte dal punto in cui è adesso, non da dove era diretto.
-            l.da_px = if l.ultimo_px < 0 {
-                bersaglio as f64
-            } else {
-                l.ultimo_px as f64
+        for l in &mut v.livelli {
+            let frazione = match val(&l.id) {
+                Some(ValoreParte::Frazione(f)) => f.unwrap_or(1.0),
+                _ => del_simbolo,
             };
-            l.a_px = bersaglio;
-            l.t0 = ora;
-        }
-        let px = if l.ms > 0.0 {
-            let p = ((ora.saturating_sub(l.t0)) as f64 / l.ms).clamp(0.0, 1.0);
-            (l.da_px + (l.a_px as f64 - l.da_px) * p).round() as i32
-        } else {
-            l.a_px
-        };
-        if px != l.ultimo_px {
-            let y_box = if l.dal_basso {
-                l.finestra.y as i32 + l.finestra.h as i32 - px
-            } else {
-                l.finestra.y as i32
-            };
-            unsafe {
-                lvgl_sys::lv_obj_set_y(l.scatola.as_ptr(), y_box as lvgl_sys::lv_coord_t);
-                lvgl_sys::lv_obj_set_height(l.scatola.as_ptr(), px.max(0) as lvgl_sys::lv_coord_t);
-                lvgl_sys::lv_obj_set_pos(
-                    l.canvas.as_ptr(),
-                    (l.dove.x as i32 - l.finestra.x as i32) as lvgl_sys::lv_coord_t,
-                    (l.dove.y as i32 - y_box) as lvgl_sys::lv_coord_t,
-                );
-            }
-            l.ultimo_px = px;
+            aggiorna_livello(l, frazione, ora);
         }
     }
-    // Lancetta, leva, spie (Fase 3): la regola di `simbolo_lib::valori_parti`.
-    if !v.perni.is_empty() || !v.spie.is_empty() {
-        use crate::simbolo_lib::ValoreParte;
-        let valori = crate::simbolo_lib::valori_parti(&v.parti, v.legami.as_ref(), |t| {
-            tags.get(t).map(|tv| &tv.value)
-        });
-        for p in &mut v.perni {
-            let gradi = match (
-                v.parti.iter().find(|x| x.id() == p.id),
-                valori.iter().find(|(i, _)| *i == p.id).map(|(_, x)| *x),
-            ) {
-                (
-                    Some(sws_core::simboli_lib::ParteLib::Needle { a0, a1, .. }),
-                    Some(ValoreParte::Frazione(Some(f))),
-                ) => a0 + (a1 - a0) * f,
-                (
-                    Some(sws_core::simboli_lib::ParteLib::Lever { open, closed, .. }),
-                    Some(ValoreParte::Aperta(Some(a))),
-                ) => {
-                    if a {
-                        *open
-                    } else {
-                        *closed
-                    }
+    // Lancetta, leva, spie (Fase 3).
+    for p in &mut v.perni {
+        let gradi = match (v.parti.iter().find(|x| x.id() == p.id), val(&p.id)) {
+            (
+                Some(sws_core::simboli_lib::ParteLib::Needle { a0, a1, .. }),
+                Some(ValoreParte::Frazione(Some(f))),
+            ) => a0 + (a1 - a0) * f,
+            (
+                Some(sws_core::simboli_lib::ParteLib::Lever { open, closed, .. }),
+                Some(ValoreParte::Aperta(Some(a))),
+            ) => {
+                if a {
+                    *open
+                } else {
+                    *closed
                 }
-                (
-                    Some(parte @ sws_core::simboli_lib::ParteLib::Lever { .. }),
-                    Some(ValoreParte::Posizione(Some(i))),
-                ) => parte.angoli_leva().get(i).copied().unwrap_or(0.0),
-                _ => 0.0,
-            };
-            let decimi = ((gradi * v.verso * 10.0).round() as i64).rem_euclid(3600) as i16;
-            if decimi != p.ultimo {
-                unsafe { lvgl_sys::lv_obj_set_style_transform_angle(p.canvas.as_ptr(), decimi, 0) };
-                p.ultimo = decimi;
             }
+            (
+                Some(parte @ sws_core::simboli_lib::ParteLib::Lever { .. }),
+                Some(ValoreParte::Posizione(Some(i))),
+            ) => parte.angoli_leva().get(i).copied().unwrap_or(0.0),
+            _ => 0.0,
+        };
+        let decimi = ((gradi * v.verso * 10.0).round() as i64).rem_euclid(3600) as i16;
+        if decimi != p.ultimo {
+            unsafe { lvgl_sys::lv_obj_set_style_transform_angle(p.canvas.as_ptr(), decimi, 0) };
+            p.ultimo = decimi;
         }
-        for sp in &mut v.spie {
-            let accesa = !matches!(
-                valori.iter().find(|(i, _)| *i == sp.id).map(|(_, x)| *x),
-                Some(ValoreParte::Accesa(Some(false)))
-            );
-            if accesa != sp.accesa {
-                unsafe {
-                    if accesa {
-                        lvgl_sys::lv_obj_clear_flag(
-                            sp.canvas.as_ptr(),
-                            lvgl_sys::LV_OBJ_FLAG_HIDDEN,
-                        );
-                    } else {
-                        lvgl_sys::lv_obj_add_flag(sp.canvas.as_ptr(), lvgl_sys::LV_OBJ_FLAG_HIDDEN);
-                    }
+    }
+    for sp in &mut v.spie {
+        let accesa = !matches!(val(&sp.id), Some(ValoreParte::Accesa(Some(false))));
+        if accesa != sp.accesa {
+            unsafe {
+                if accesa {
+                    lvgl_sys::lv_obj_clear_flag(sp.canvas.as_ptr(), lvgl_sys::LV_OBJ_FLAG_HIDDEN);
+                } else {
+                    lvgl_sys::lv_obj_add_flag(sp.canvas.as_ptr(), lvgl_sys::LV_OBJ_FLAG_HIDDEN);
                 }
-                sp.accesa = accesa;
             }
+            sp.accesa = accesa;
         }
     }
     // Rotori: il fotogramma dal tempo delle tick LVGL (non dall'orologio): due
     // rotori con lo stesso periodo restano in fase, e l'istantanea è ripetibile.
     let gira = deve_girare(v.spin.as_deref(), &v.spin_tag, stato, tags);
-    let ms = unsafe { lvgl_sys::lv_tick_get() } as u64;
+    let ms = ora;
     let spin_s = periodo_legato(v.spin_s_legame.as_ref(), tags).unwrap_or(v.spin_s);
     // Lampeggio della voce di `symbol_states` (M10): 800 ms, metà al 15 %.
     let lampo = lampeggio_voce(&v.stati, voce, ms, v.lampo_ms);
@@ -15564,10 +15709,23 @@ fn aggiorna_simbolo_lib(v: &mut VivoLib, tags: &TagSnapshot) {
             }
         }
         v.ultimo_lampo = lampo;
+        // What the loop just wrote on the pieces with an opacity of their own.
+        for p in &mut v.pulse {
+            p.scritto = lampo;
+        }
+        for p in &mut v.segnali {
+            p.scritto = lampo;
+        }
     }
+    let fps = crate::ritmo::fps() as f64;
     for r in &mut v.rotori {
+        // Bound per part: its own input; otherwise the symbol's Rotazione.
+        let gira_r = match val(&r.id) {
+            Some(ValoreParte::Active(a)) => a == Some(true),
+            _ => gira,
+        };
         if r.angolo {
-            let a = if gira {
+            let a = if gira_r {
                 angolo_rotazione(ms, spin_s) as usize
             } else {
                 0
@@ -15580,8 +15738,16 @@ fn aggiorna_simbolo_lib(v: &mut VivoLib, tags: &TagSnapshot) {
             }
             continue;
         }
-        let k = if gira {
-            crate::simbolo_lib::fotogramma(ms, spin_s, r.symmetry, r.fotogrammi.len())
+        let n = r.fotogrammi.len();
+        let k = if gira_r && n > 1 {
+            // A step per frame under half the symmetry, or it looks still.
+            let periodo = sws_core::symbol_behaviour::rotor_period_for_fps(spin_s, r.symmetry, fps);
+            let k = crate::simbolo_lib::fotogramma(ms, periodo, r.symmetry, n);
+            if r.ccw {
+                (n - k) % n
+            } else {
+                k
+            }
         } else {
             0
         };
@@ -15591,6 +15757,175 @@ fn aggiorna_simbolo_lib(v: &mut VivoLib, tags: &TagSnapshot) {
             r.ultimo = k;
         }
     }
+    // The animated pieces (19-11-2026).
+    for m in &mut v.mobili {
+        let k = match &mut m.kind {
+            MobileKind::Slide { transition_ms, tr } => {
+                let f = match val(&m.id) {
+                    Some(ValoreParte::Frazione(Some(f))) => f,
+                    _ => 0.0,
+                };
+                let t = tr.get_or_insert(sws_core::symbol_behaviour::Transition {
+                    from: f,
+                    to: f,
+                    t0: ms,
+                    ms: 0.0,
+                });
+                if t.to != f {
+                    // From where it is now, not from where it was going.
+                    *t = sws_core::symbol_behaviour::Transition {
+                        from: t.at(ms),
+                        to: f,
+                        t0: ms,
+                        ms: *transition_ms,
+                    };
+                }
+                t.at(ms)
+            }
+            MobileKind::Vibrate { period_ms } => {
+                if matches!(val(&m.id), Some(ValoreParte::Active(Some(true)))) {
+                    sws_core::symbol_behaviour::vibrate_step(ms, *period_ms) as f64
+                } else {
+                    0.0
+                }
+            }
+        };
+        let dove = (
+            m.base.0 + (m.passo.0 as f64 * k).round() as i32,
+            m.base.1 + (m.passo.1 as f64 * k).round() as i32,
+        );
+        if dove != m.ultimo {
+            unsafe {
+                lvgl_sys::lv_obj_set_pos(
+                    m.canvas.as_ptr(),
+                    dove.0 as lvgl_sys::lv_coord_t,
+                    dove.1 as lvgl_sys::lv_coord_t,
+                )
+            };
+            m.ultimo = dove;
+        }
+    }
+    for p in &mut v.pulse {
+        let opa = if matches!(val(&p.id), Some(ValoreParte::Active(Some(true)))) {
+            let o = sws_core::symbol_behaviour::pulse_opacity(ms, p.period_ms, p.depth);
+            // In steps of 4: a redraw for a change nobody sees costs the same.
+            ((o * 255.0).round() as u8 / 4) * 4
+        } else {
+            255
+        };
+        let finale = composta(lampo, opa);
+        if finale != p.scritto {
+            unsafe { lvgl_sys::lv_obj_set_style_img_opa(p.canvas.as_ptr(), finale, 0) };
+            p.scritto = finale;
+        }
+    }
+    for g in &mut v.segnali {
+        let voce = match val(&g.id) {
+            Some(ValoreParte::Entry(Some(i))) => Some(i),
+            _ => None,
+        };
+        let mostrare = voce.and_then(|i| g.entry_variant.get(i).copied().flatten());
+        if mostrare != g.mostrato {
+            let dove = g.dove;
+            let buf = match mostrare {
+                Some(i) => &mut g.variants[i],
+                None => &mut g.materiale,
+            };
+            unsafe { cambia_buffer(g.canvas, dove, buf) };
+            g.mostrato = mostrare;
+        }
+        let (lampeggia, nascosto) = voce
+            .and_then(|i| g.entries.get(i).copied())
+            .unwrap_or((false, false));
+        if nascosto != g.nascosto {
+            unsafe {
+                if nascosto {
+                    lvgl_sys::lv_obj_add_flag(g.canvas.as_ptr(), lvgl_sys::LV_OBJ_FLAG_HIDDEN);
+                } else {
+                    lvgl_sys::lv_obj_clear_flag(g.canvas.as_ptr(), lvgl_sys::LV_OBJ_FLAG_HIDDEN);
+                }
+            }
+            g.nascosto = nascosto;
+        }
+        let opa = if lampeggia && sws_core::symbol_behaviour::blink_dim(ms, v.lampo_ms) {
+            effects::OPA_LAMPEGGIO_SPENTO
+        } else {
+            255
+        };
+        let finale = composta(lampo, opa);
+        if finale != g.scritto {
+            unsafe { lvgl_sys::lv_obj_set_style_img_opa(g.canvas.as_ptr(), finale, 0) };
+            g.scritto = finale;
+        }
+    }
+}
+
+/// The opacity of a piece with one of its own, under the blink of the
+/// symbol's state: one does not erase the other.
+fn composta(lampo: u8, propria: u8) -> u8 {
+    ((lampo as u16 * propria as u16 + 127) / 255) as u8
+}
+
+/// A level at `frazione`: the window of its box grows from its side, with the
+/// transition of the symbol (Fase 4).
+fn aggiorna_livello(l: &mut LivelloLib, frazione: f64, ora: u64) {
+    use sws_core::simboli_lib::FillDir;
+    let verticale = matches!(l.dir, FillDir::Up | FillDir::Down);
+    let lato = if verticale {
+        l.finestra.h
+    } else {
+        l.finestra.w
+    } as f64;
+    let bersaglio = (lato * frazione.clamp(0.0, 1.0)).round() as i32;
+    if bersaglio != l.a_px {
+        // Riparte dal punto in cui è adesso, non da dove era diretto.
+        l.da_px = if l.ultimo_px < 0 {
+            bersaglio as f64
+        } else {
+            l.ultimo_px as f64
+        };
+        l.a_px = bersaglio;
+        l.t0 = ora;
+    }
+    let px = if l.ms > 0.0 {
+        let p = ((ora.saturating_sub(l.t0)) as f64 / l.ms).clamp(0.0, 1.0);
+        (l.da_px + (l.a_px as f64 - l.da_px) * p).round() as i32
+    } else {
+        l.a_px
+    };
+    if px == l.ultimo_px {
+        return;
+    }
+    let (fx, fy, fw, fh) = (
+        l.finestra.x as i32,
+        l.finestra.y as i32,
+        l.finestra.w as i32,
+        l.finestra.h as i32,
+    );
+    let (bx, by, bw, bh) = match l.dir {
+        FillDir::Up => (fx, fy + fh - px, fw, px),
+        FillDir::Down => (fx, fy, fw, px),
+        FillDir::Left => (fx + fw - px, fy, px, fh),
+        FillDir::Right => (fx, fy, px, fh),
+    };
+    unsafe {
+        lvgl_sys::lv_obj_set_pos(
+            l.scatola.as_ptr(),
+            bx as lvgl_sys::lv_coord_t,
+            by as lvgl_sys::lv_coord_t,
+        );
+        lvgl_sys::lv_obj_set_size(
+            l.scatola.as_ptr(),
+            bw.max(0) as lvgl_sys::lv_coord_t,
+            bh.max(0) as lvgl_sys::lv_coord_t,
+        );
+        lvgl_sys::lv_obj_set_pos(
+            l.canvas.as_ptr(),
+            (l.dove.x as i32 - bx) as lvgl_sys::lv_coord_t,
+            (l.dove.y as i32 - by) as lvgl_sys::lv_coord_t,
+        );
+    }
+    l.ultimo_px = px;
 }
 
 /// Sostituisce le occorrenze `{{token}}` in `s` con la traduzione per `lang`
@@ -17231,6 +17566,8 @@ pub fn render_page_objects(
     let mut summary = RenderSummary::default();
     let mut styles: Vec<Style> = Vec::new();
     let mut live: Vec<LiveBinding> = Vec::new();
+    // Every page has its own animation budget (19-11-2026).
+    crate::simbolo_lib::anim_budget_reset();
 
     // Il display alla misura di questa pagina, prima di creare lo schermo nuovo
     // (che nasce alla misura del display). Alla prima pagina è già giusto.
@@ -19220,6 +19557,17 @@ mod binding_tests {
             super::azione_del_bottone(&b(r#"{"type":"open_control_panel"}"#)),
             Some(Navigazione::ControlPanel)
         );
+    }
+
+    /// A pulse or a blinking signal under the blink of the symbol's state: the
+    /// two opacities multiply, neither erases the other (19-11-2026).
+    #[test]
+    fn the_opacity_of_a_piece_and_of_the_state_blink_multiply() {
+        assert_eq!(super::composta(255, 255), 255);
+        assert_eq!(super::composta(255, 100), 100);
+        assert_eq!(super::composta(38, 255), 38);
+        assert_eq!(super::composta(38, 38), 6);
+        assert_eq!(super::composta(0, 200), 0);
     }
 
     /// La schermata d'accesso entra sopra la tastiera (29-10-2026): sulle

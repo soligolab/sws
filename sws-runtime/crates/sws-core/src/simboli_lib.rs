@@ -14,19 +14,27 @@ use serde::Deserialize;
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum ParteLib {
     /// Finestra del contenuto: il disegno è pieno, si mostra la parte bassa.
+    ///
+    /// `dir` (19-11-2026, plan `2026-11-19-animazioni-dei-simboli`): the side
+    /// the content grows from, `up` (from the bottom, as always) by default.
     Level {
         id: String,
         x: f64,
         y: f64,
         w: f64,
         h: f64,
+        #[serde(default)]
+        dir: FillDir,
     },
     /// Gira attorno a (cx, cy); `symmetry` = gradi dopo cui il disegno si ripete.
+    /// `ccw`: counter-clockwise (19-11-2026).
     Rotor {
         id: String,
         cx: f64,
         cy: f64,
         symmetry: f64,
+        #[serde(default)]
+        ccw: bool,
     },
     /// Disegnata a metà scala; ruota da `a0` (minimo) a `a1` (massimo), in gradi orari.
     Needle {
@@ -54,6 +62,103 @@ pub enum ParteLib {
     },
     /// Accesa = visibile.
     Lamp { id: String },
+    /// Moves by `(dx, dy)` times the fraction of its input (19-11-2026): a
+    /// true/false input goes from one end to the other.
+    Slide {
+        id: String,
+        dx: f64,
+        dy: f64,
+        #[serde(default = "transition_ms_default")]
+        transition_ms: f64,
+    },
+    /// Shakes along `axis` while its input is true: four steps per period,
+    /// 0, +amplitude, 0, −amplitude.
+    Vibrate {
+        id: String,
+        #[serde(default = "amplitude_default")]
+        amplitude: f64,
+        #[serde(default)]
+        axis: Axis,
+        #[serde(default = "vibrate_period_default")]
+        period_ms: f64,
+    },
+    /// Breathes (its opacity goes down by `depth` and back) while its input is
+    /// true.
+    Pulse {
+        id: String,
+        #[serde(default = "depth_default")]
+        depth: f64,
+        #[serde(default = "pulse_period_default")]
+        period_ms: f64,
+    },
+    /// Takes the colour, the blink and the visibility of the first entry its
+    /// input matches, like the states of a symbol; `color` is the colour as
+    /// drawn.
+    Signal {
+        id: String,
+        #[serde(default)]
+        color: Option<String>,
+        #[serde(default)]
+        entries: Vec<SignalEntry>,
+    },
+    /// A kind this binary doesn't know: a manifest written by a newer runtime.
+    /// The layer is drawn still, instead of the whole manifest becoming
+    /// unreadable (which turned every project symbol into a placeholder).
+    #[serde(other)]
+    Unknown,
+}
+
+/// Where the content of a level comes from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum FillDir {
+    #[default]
+    Up,
+    Down,
+    Left,
+    Right,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Axis {
+    #[default]
+    X,
+    Y,
+}
+
+/// An entry of a signal: an exact `value`, or a half-open range
+/// `value_min <= v < value_max`, as the states of a symbol.
+#[derive(Debug, Clone, PartialEq, Default, Deserialize, serde::Serialize)]
+pub struct SignalEntry {
+    #[serde(default)]
+    pub value: Option<serde_json::Value>,
+    #[serde(default)]
+    pub value_min: Option<f64>,
+    #[serde(default)]
+    pub value_max: Option<f64>,
+    #[serde(default)]
+    pub color: Option<String>,
+    #[serde(default)]
+    pub blink: bool,
+    #[serde(default)]
+    pub hidden: bool,
+}
+
+fn transition_ms_default() -> f64 {
+    300.0
+}
+fn amplitude_default() -> f64 {
+    1.0
+}
+fn vibrate_period_default() -> f64 {
+    200.0
+}
+fn depth_default() -> f64 {
+    0.6
+}
+fn pulse_period_default() -> f64 {
+    1000.0
 }
 
 impl ParteLib {
@@ -84,7 +189,12 @@ impl ParteLib {
             | ParteLib::Rotor { id, .. }
             | ParteLib::Needle { id, .. }
             | ParteLib::Lever { id, .. }
-            | ParteLib::Lamp { id } => id,
+            | ParteLib::Lamp { id }
+            | ParteLib::Slide { id, .. }
+            | ParteLib::Vibrate { id, .. }
+            | ParteLib::Pulse { id, .. }
+            | ParteLib::Signal { id, .. } => id,
+            ParteLib::Unknown => "",
         }
     }
 }
@@ -194,6 +304,82 @@ pub(crate) fn manifesto_incluso() -> ManifestLib {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A kind this binary doesn't know, with keys of its own, is a still
+    /// layer, and the rest of the manifest stays readable.
+    #[test]
+    fn an_unknown_part_kind_does_not_break_the_manifest() {
+        let p: ParteLib =
+            serde_json::from_str(r#"{"id":"x","kind":"wobble","foo":1,"bar":[1,2]}"#).unwrap();
+        assert_eq!(p, ParteLib::Unknown);
+        assert_eq!(p.id(), "");
+        let s: SimboloLib = serde_json::from_str(
+            r#"{"id":"prj:a","file":"prj/a.svg","family":"project","kind":"project","label":"a",
+                "viewBox":[100,100],"body":"steel",
+                "parts":[{"id":"x","kind":"wobble"},{"id":"r","kind":"rotor","cx":5,"cy":5,"symmetry":60}]}"#,
+        )
+        .unwrap();
+        assert_eq!(s.parts.len(), 2);
+        assert!(matches!(s.parts[1], ParteLib::Rotor { ccw: false, .. }));
+    }
+
+    #[test]
+    fn the_new_kinds_read_with_their_defaults() {
+        let p = |j: &str| serde_json::from_str::<ParteLib>(j).unwrap();
+        assert_eq!(
+            p(r#"{"id":"l","kind":"level","x":0,"y":0,"w":10,"h":10}"#),
+            ParteLib::Level {
+                id: "l".into(),
+                x: 0.0,
+                y: 0.0,
+                w: 10.0,
+                h: 10.0,
+                dir: FillDir::Up
+            }
+        );
+        assert!(matches!(
+            p(r#"{"id":"l","kind":"level","x":0,"y":0,"w":10,"h":10,"dir":"left"}"#),
+            ParteLib::Level {
+                dir: FillDir::Left,
+                ..
+            }
+        ));
+        assert_eq!(
+            p(r#"{"id":"s","kind":"slide","dx":0,"dy":-20}"#),
+            ParteLib::Slide {
+                id: "s".into(),
+                dx: 0.0,
+                dy: -20.0,
+                transition_ms: 300.0
+            }
+        );
+        assert_eq!(
+            p(r#"{"id":"v","kind":"vibrate"}"#),
+            ParteLib::Vibrate {
+                id: "v".into(),
+                amplitude: 1.0,
+                axis: Axis::X,
+                period_ms: 200.0
+            }
+        );
+        assert_eq!(
+            p(r#"{"id":"u","kind":"pulse"}"#),
+            ParteLib::Pulse {
+                id: "u".into(),
+                depth: 0.6,
+                period_ms: 1000.0
+            }
+        );
+        let ParteLib::Signal { color, entries, .. } = p(
+            r##"{"id":"g","kind":"signal","color":"#64748b","entries":[{"value":1,"color":"#22c55e"},{"value_min":2,"value_max":9,"blink":true},{"value":0,"hidden":true}]}"##,
+        ) else {
+            panic!("a signal");
+        };
+        assert_eq!(color.as_deref(), Some("#64748b"));
+        assert_eq!(entries.len(), 3);
+        assert!(entries[1].blink && entries[2].hidden);
+        assert_eq!(entries[1].value_min, Some(2.0));
+    }
 
     #[test]
     fn il_manifesto_generato_si_legge_e_dichiara_le_parti() {

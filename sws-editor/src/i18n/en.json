@@ -1284,6 +1284,18 @@
     "parteSpia": "Lamp {{id}} on (tag)",
     "parteMin": "Scale start",
     "parteMax": "Scale end",
+    "parteTag": "Tag",
+    "parteValore": "Fixed value",
+    "parteSi": "Yes",
+    "parteSegueSimbolo": "With neither tag nor value it follows the symbol (Rotation, Level).",
+    "parte": {
+      "rotor": "Rotor {{id}} turns (tag)",
+      "level": "Level {{id}} (tag)",
+      "slide": "Slide {{id}} (tag)",
+      "vibrate": "Vibration {{id}} (tag)",
+      "pulse": "Pulse {{id}} (tag)",
+      "signal": "Signal {{id}} (tag)"
+    },
     "colorDaProgetto": "from project",
     "colorDaProgettoHint": "This colour comes from the project style (Configuration → Project → Style). Choosing one here applies only to this object.",
     "colorDaProgettoReset": "Back to the project style",
@@ -5411,7 +5423,11 @@
       "rotor": "Rotation",
       "needle": "Needle",
       "lever": "Lever",
-      "lamp": "Lamp"
+      "lamp": "Lamp",
+      "slide": "Slide",
+      "vibrate": "Vibration",
+      "pulse": "Pulse",
+      "signal": "Signal"
     },
     "shape": {
       "rect": "Rectangle",
@@ -5487,7 +5503,13 @@
       "a0": "minimum angle",
       "a1": "maximum angle",
       "open": "open angle",
-      "closed": "closed angle"
+      "closed": "closed angle",
+      "dx": "move x",
+      "dy": "move y",
+      "transition_ms": "duration (ms)",
+      "amplitude": "amplitude",
+      "period_ms": "period (ms)",
+      "depth": "depth (0–1)"
     },
     "polyHint": "One click per point; double click or Enter ends a line; a click on the first point closes the shape.",
     "zoomIn": "Zoom in",
@@ -5545,8 +5567,60 @@
       "alarm": "Alarm",
       "spin": "Spinning",
       "open": "Open",
-      "lit": "Lit"
+      "lit": "Lit",
+      "position": "Position",
+      "moves": "Moves",
+      "entry": "Entry",
+      "play": "Animate",
+      "playNote": "Turns on the timed effects (rotation, vibration, pulse, blink), like «Effects preview» on the canvas."
     },
-    "magnetHint": "Magnet: while moving, drawing or resizing, the edges and the centre of the shape (or the point: a port, a pivot, a vertex) snap to the edges and centres of the other shapes and to the border and centre of the symbol, when they are close. A red line shows the snap."
+    "magnetHint": "Magnet: while moving, drawing or resizing, the edges and the centre of the shape (or the point: a port, a pivot, a vertex) snap to the edges and centres of the other shapes and to the border and centre of the symbol, when they are close. A red line shows the snap.",
+    "anim": {
+      "animate": "Animate…",
+      "animation": "Animation",
+      "remove": "Remove animation",
+      "family": {
+        "rotation": "Rotation",
+        "colour": "Colour and visibility",
+        "movement": "Movement and fill",
+        "vibration": "Vibration and pulse"
+      },
+      "kind": {
+        "rotor": "Turns while the input is true",
+        "needle": "Turns to a value",
+        "lever": "Turns between positions",
+        "signal": "Signal: colour, blink, hidden",
+        "slide": "Moves between two positions",
+        "level": "Fills from one side",
+        "vibrate": "Shakes while the input is true",
+        "pulse": "Breathes while the input is true"
+      },
+      "note": "The chosen shapes become an animated piece: a layer with its input, bound in the page to a tag or a value.",
+      "ccw": "Counter-clockwise",
+      "dir": "Grows from",
+      "dirs": {
+        "up": "the bottom",
+        "down": "the top",
+        "left": "the right",
+        "right": "the left"
+      },
+      "axis": "Direction",
+      "axes": {
+        "x": "horizontal",
+        "y": "vertical"
+      },
+      "drawnColour": "Colour as drawn",
+      "entries": "Entries (the first that matches)",
+      "exact": "value",
+      "range": "range",
+      "blink": "blinks",
+      "hidden": "hidden",
+      "addEntry": "Entry",
+      "slideNote": "With the input true (or at the end of the scale) the piece reaches the dashed outline: drag it to change where it goes.",
+      "boundTitle": "Pieces bound in the page",
+      "boundRenamed": "«{{from}}» becomes «{{to}}»: {{n}} objects bind it.",
+      "boundRemoved": "«{{id}}» goes away: {{n}} objects bind it and will be left without.",
+      "boundText": "When saved, the objects of this page follow the new names; those of other pages need binding again."
+    }
   }
 }

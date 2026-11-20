@@ -2019,6 +2019,55 @@ fn controlla_oggetto(
             }
         }
 
+        // The live parts bound in the page (`symbol_parts`, 19-11-2026, plan
+        // 2026-11-19-animazioni-dei-simboli): `{tag?, value?, min?, max?}` per
+        // part. Until today neither their tags nor anything else was checked.
+        if let Some(parts) = map.get("symbol_parts").and_then(Value::as_object) {
+            for (id, l) in parts {
+                let at = format!("{base}.symbol_parts.{id}");
+                let tag = l
+                    .get("tag")
+                    .and_then(Value::as_str)
+                    .filter(|t| !t.is_empty());
+                if let Some(t) = tag {
+                    if !tag_riferimento_valido(t, tags) {
+                        out.push(Finding::err(
+                            format!("{at}.tag"),
+                            format!("il tag `{t}` non è dichiarato nel progetto"),
+                            "declare it in project.tags or use an existing tag: a part bound to a \
+                             missing tag stays as drawn and doesn't say why",
+                        ));
+                    }
+                }
+                match l.get("value") {
+                    None
+                    | Some(Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_)) => {}
+                    Some(_) => out.push(Finding::err(
+                        format!("{at}.value"),
+                        "the fixed value of a part is yes/no, a number or a text",
+                        "a list or an object never matches: the part would stay as drawn",
+                    )),
+                }
+                if tag.is_some() && l.get("value").is_some_and(|v| !v.is_null()) {
+                    out.push(Finding::warn(
+                        format!("{at}.value"),
+                        "the part has both a tag and a fixed value: the tag wins",
+                        "keep one: the fixed value is never used while the tag is there",
+                    ));
+                }
+                let n = |k: &str| l.get(k).and_then(Value::as_f64);
+                if let (Some(lo), Some(hi)) = (n("min"), n("max")) {
+                    if lo == hi {
+                        out.push(Finding::warn(
+                            format!("{at}.max"),
+                            "the scale of the part starts and ends at the same value",
+                            "with min equal to max the part stays as drawn",
+                        ));
+                    }
+                }
+            }
+        }
+
         // `bindings`: `{campo: "tag_id"}` (forma storica) oppure
         // `{campo: {tag: "tag_id", ...}}` (BindingSpec). `{expr: "..."}` non è
         // controllato: le dipendenze sono dentro una stringa di espressione,
@@ -3973,6 +4022,42 @@ alarms: []
             .expect("avviso");
         assert!(matches!(f.severity, Severity::Warning));
         assert!(f.hint.as_deref().unwrap().contains("n-left"), "{f:?}");
+    }
+
+    /// The parts bound in the page (19-11-2026): a missing tag and a value
+    /// that isn't simple are errors; a tag with a value, or an empty scale,
+    /// are warnings.
+    #[test]
+    fn the_bound_parts_of_a_symbol_are_checked() {
+        let with = |parts: &str| {
+            rilievi(PROGETTO, &pagina(&format!(
+                "- {{ id: s, type: symbol, x: 0, y: 0, width: 80, height: 80, symbol_id: \"lib:process/centrifugal-pump\", symbol_parts: {parts} }}"
+            )))
+            .into_iter()
+            .filter(|f| f.path.contains("symbol_parts"))
+            .map(|f| (f.path.rsplit('.').next().unwrap().to_string(), matches!(f.severity, Severity::Error)))
+            .collect::<Vec<_>>()
+        };
+        assert!(with(
+            "{ rotor: { tag: luce.salotto }, gate: { value: true }, glow: { value: 0.5 } }"
+        )
+        .is_empty());
+        assert_eq!(
+            with("{ rotor: { tag: non.esiste } }"),
+            [("tag".to_string(), true)]
+        );
+        assert_eq!(
+            with("{ gate: { value: [1, 2] } }"),
+            [("value".to_string(), true)]
+        );
+        assert_eq!(
+            with("{ gate: { tag: pos, value: 1 } }"),
+            [("value".to_string(), false)]
+        );
+        assert_eq!(
+            with("{ gate: { tag: pos, min: 5, max: 5 } }"),
+            [("max".to_string(), false)]
+        );
     }
 
     /// A pump with a variant in the project: a pipe on `lib:…/centrifugal-pump`

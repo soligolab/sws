@@ -8,10 +8,12 @@ export type FamigliaLib = "controls" | "process" | "electrical" | "machines" | "
 
 /** Una parte viva: la geometria è in unità del viewBox del simbolo. */
 export type ParteLib =
-  /** Finestra del contenuto: il disegno è pieno, il motore ne mostra la parte bassa. */
-  | { id: string; kind: "level"; x: number; y: number; w: number; h: number }
-  /** Gira attorno a (cx, cy); `symmetry` = gradi dopo cui il disegno si ripete. */
-  | { id: string; kind: "rotor"; cx: number; cy: number; symmetry: number }
+  /** Finestra del contenuto: il disegno è pieno, il motore ne mostra la parte bassa.
+   *  `dir` (19-11-2026): the side the content grows from, `up` by default. */
+  | { id: string; kind: "level"; x: number; y: number; w: number; h: number; dir?: FillDir }
+  /** Gira attorno a (cx, cy); `symmetry` = gradi dopo cui il disegno si ripete.
+   *  `ccw`: counter-clockwise (19-11-2026). */
+  | { id: string; kind: "rotor"; cx: number; cy: number; symmetry: number; ccw?: boolean }
   /** Disegnata a metà scala; ruota da a0 (minimo) a a1 (massimo), in gradi orari. */
   | { id: string; kind: "needle"; cx: number; cy: number; a0: number; a1: number }
   /** Disegnata nella posizione `open`; `closed` è la rotazione della posizione chiusa.
@@ -26,7 +28,29 @@ export type ParteLib =
    *  tutti i simboli `lib:` spariti, bocche delle tubazioni comprese. */
   | { id: string; kind: "lever"; cx: number; cy: number; open: number; closed: number; angoli?: number[] }
   /** Accesa = visibile; spenta, sotto c'è la lente spenta disegnata nello strato statico. */
-  | { id: string; kind: "lamp" };
+  | { id: string; kind: "lamp" }
+  // The animated pieces (plan docs/plans/2026-11-19-animazioni-dei-simboli.md);
+  // twins of `ParteLib` in `sws-core/src/simboli_lib.rs`, with the same defaults.
+  /** Moves by (dx, dy) times the fraction of its input. */
+  | { id: string; kind: "slide"; dx: number; dy: number; transition_ms?: number }
+  /** Shakes along `axis` while its input is true: 0, +a, 0, −a. */
+  | { id: string; kind: "vibrate"; amplitude?: number; axis?: "x" | "y"; period_ms?: number }
+  /** Breathes (opacity down by `depth` and back) while its input is true. */
+  | { id: string; kind: "pulse"; depth?: number; period_ms?: number }
+  /** The colour, blink and visibility of the first entry its input matches. */
+  | { id: string; kind: "signal"; color?: string; entries?: SignalEntry[] };
+
+export type FillDir = "up" | "down" | "left" | "right";
+
+/** An entry of a signal: an exact `value`, or a half-open range. */
+export interface SignalEntry {
+  value?: boolean | number | string;
+  value_min?: number;
+  value_max?: number;
+  color?: string;
+  blink?: boolean;
+  hidden?: boolean;
+}
 
 /** Una bocca del disegno, dove si aggancia una tubazione (15-10-2026): in unità
  *  del viewBox, `(x, y)` è la faccia esterna della flangia, `side` il lato da cui

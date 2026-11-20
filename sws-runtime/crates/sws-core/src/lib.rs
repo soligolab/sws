@@ -17,6 +17,7 @@ pub mod simboli_prj;
 pub mod stato_sorgenti;
 pub mod stile_simboli;
 pub mod stili_tubo;
+pub mod symbol_behaviour;
 pub mod tag;
 pub mod testi_sistema;
 pub mod tipo;

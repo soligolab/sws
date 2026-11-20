@@ -13,7 +13,7 @@ import { impostaLibreriaPerTest } from "../src/symbols/lib/libreria";
 import type { ManifestLib } from "../src/symbols/lib/manifest";
 import { SymbolEditorHost } from "../src/symbols/editor/SymbolEditor";
 import { openNewSymbol, openSymbolEditorFor } from "../src/symbols/editor/open";
-import { newRect, type Op } from "../src/symbols/editor/model";
+import { newEllipse, newRect, type Op } from "../src/symbols/editor/model";
 import type { DescrizioneSimbolo, SynopticObject } from "../src/types";
 
 const manifest = JSON.parse(
@@ -247,5 +247,76 @@ ${(d.ops as Op[]).map((op, i) => (op.op === "forma"
       proto.getScreenCTM = real.getScreenCTM;
       vi.unstubAllGlobals();
     }
+  });
+});
+
+/** «Anima…», the parameters, «Prova» with «Anima», and the parts bound in the
+ *  page (plan docs/plans/2026-11-19-animazioni-dei-simboli.md, session 2d). */
+describe("animating a symbol in the editor", () => {
+  beforeEach(() => {
+    impostaLibreriaPerTest(manifest, {});
+    vi.spyOn(api, "compilaSimboli").mockImplementation(async (ds) => ds.map(compiled));
+    vi.spyOn(api, "symbolCatalog").mockResolvedValue({ materials: [{ name: "steel", color: "#9aa5af" }], veils: [] });
+    vi.spyOn(api, "updateSimboli").mockResolvedValue(undefined);
+  });
+  afterEach(() => { vi.restoreAllMocks(); act(() => useAppStore.getState().closeSymbolEditor()); });
+
+  const open = (ops: Record<string, unknown>[], slug = "anima") => act(() => useAppStore.getState().openSymbolEditor({
+    draft: { slug, w: 100, h: 100, body: "body-pump", it: "A", en: "A", ops: ops as never }, isNew: false,
+  }));
+
+  it("«Anima…» makes a piece of the chosen shape; its parameters show; «Togli animazione» undoes it", async () => {
+    open([{ op: "corpo" }, newRect({ x: 0, y: 0, w: 10, h: 10 }), newRect({ x: 50, y: 50, w: 20, h: 20 })]);
+    render(<SymbolEditorHost />);
+    fireEvent.click(screen.getByTestId("symbol-op-row-2"));
+    fireEvent.change(screen.getByTestId("symbol-animate"), { target: { value: "slide" } });
+    // The shape is now in a slide layer, which the layer list shows, with its parameters.
+    await waitFor(() => expect(screen.getByTestId("symbol-op-row-3")).toBeTruthy());
+    expect((screen.getByTestId("symbol-animate") as HTMLSelectElement).value).toBe("slide");
+    expect(screen.getByText(/spostamento y|move y/)).toBeTruthy();
+    fireEvent.click(screen.getByTestId("symbol-animate-remove"));
+    expect((screen.getByTestId("symbol-animate") as HTMLSelectElement).value).toBe("");
+  });
+
+  it("a signal's entries: added, and «Prova» shows them; «Anima» turns the timed effects on", async () => {
+    open([{ op: "corpo" }, newRect({ x: 0, y: 0, w: 10, h: 10 }),
+      { op: "parte", id: "beacon", kind: "signal", geo: { color: "#64748b", entries: [{ value: 1, color: "#22c55e" }] } },
+      { ...newEllipse({ x: 40, y: 40, w: 20, h: 20 }), mat: null }]);
+    render(<SymbolEditorHost />);
+    fireEvent.click(screen.getByTestId("symbol-tab-structure"));
+    fireEvent.click(screen.getByTestId("symbol-signal-add"));
+    expect(screen.getByTestId("symbol-signal-entry-1")).toBeTruthy();
+    fireEvent.click(screen.getByTestId("symbol-tab-try"));
+    const sel = screen.getByTestId("symbol-try-beacon") as HTMLSelectElement;
+    expect([...sel.options].map((o) => o.value)).toEqual(["-1", "0", "1"]);
+    const play = screen.getByTestId("symbol-try-play") as HTMLInputElement;
+    expect(play.checked).toBe(false);
+    fireEvent.click(play);
+    expect(play.checked).toBe(true);
+  });
+
+  it("renaming a part bound in the page asks first, and the objects of the page follow", async () => {
+    act(() => useAppStore.getState().setPages([{ id: "p1", name: "P", objects: [
+      { id: "s1", type: "symbol", x: 0, y: 0, width: 50, height: 50, symbol_id: "prj:legata", symbol_parts: { gate: { tag: "porta" } } },
+    ] }] as never, "p1"));
+    open([{ op: "corpo" }, newRect({ x: 0, y: 0, w: 10, h: 10 }),
+      { op: "parte", id: "gate", kind: "slide", geo: { dx: 0, dy: -10 } }, newRect({ x: 50, y: 50, w: 20, h: 20 })], "legata");
+    render(<SymbolEditorHost />);
+    fireEvent.click(screen.getByTestId("symbol-tab-structure"));
+    const id = screen.getAllByRole("textbox").find((e) => (e as HTMLInputElement).value === "gate") as HTMLInputElement;
+    fireEvent.change(id, { target: { value: "door" } });
+    await waitFor(() => expect(screen.getByTestId("symbol-editor-save").hasAttribute("disabled")).toBe(false));
+    // The question about the bound part is answered «yes».
+    const auto = rispondi(true);
+    try {
+      await act(async () => { fireEvent.click(screen.getByTestId("symbol-editor-save")); });
+    } finally { auto.ferma(); }
+    expect(auto.chiamate).toHaveLength(1);
+    await waitFor(() => {
+      const o = useAppStore.getState().pages[0].objects[0] as SynopticObject;
+      expect(o.symbol_parts).toEqual({ door: { tag: "porta" } });
+    });
+    const written = vi.mocked(api.updateSimboli).mock.calls.at(-1)![0];
+    expect(written.find((x) => x.slug === "legata")!.ops.some((o) => o.op === "parte" && o.id === "door")).toBe(true);
   });
 });

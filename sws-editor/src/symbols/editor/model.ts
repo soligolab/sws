@@ -14,8 +14,19 @@ type Pairs = [string, number | string][];
 
 /** The behaviours a symbol can have today, one per input (phase 1: the live
  *  parts the two engines already draw). */
-export type InputKind = "state" | "level" | "rotor" | "needle" | "lever" | "lamp";
-export const INPUT_KINDS: InputKind[] = ["state", "level", "rotor", "needle", "lever", "lamp"];
+export type InputKind = "state" | "level" | "rotor" | "needle" | "lever" | "lamp"
+  // The animated pieces (plan docs/plans/2026-11-19-animazioni-dei-simboli.md).
+  | "slide" | "vibrate" | "pulse" | "signal";
+export const INPUT_KINDS: InputKind[] = ["state", "level", "rotor", "needle", "lever", "lamp", "slide", "vibrate", "pulse", "signal"];
+
+/** What «Anima…» offers, by family (the lamp is a signal now: not offered,
+ *  but the symbols that have one keep it). */
+export const ANIMATE_FAMILIES: { family: string; kinds: InputKind[] }[] = [
+  { family: "rotation", kinds: ["rotor", "needle", "lever"] },
+  { family: "colour", kinds: ["signal"] },
+  { family: "movement", kinds: ["slide", "level"] },
+  { family: "vibration", kinds: ["vibrate", "pulse"] },
+];
 
 export interface Layer {
   /** `layer-N`, `body` or the part id. */
@@ -382,20 +393,20 @@ export function addInput(d: DescrizioneSimbolo, kind: InputKind): { d: Descrizio
     ops.push({ op: "corpo" }, { ...newRect({ x: w * 0.2, y: h * 0.2, w: w * 0.6, h: h * 0.6 }), mat: null, velo: "paint-h" });
     return { d: withOps(d, ops), at };
   }
-  const used = new Set(ops.filter((o) => o.op === "parte").map((o) => String(o.id)));
-  let id: string = kind;
-  for (let n = 2; used.has(id); n++) id = `${kind}-${n}`;
-  const geo: Record<string, number> =
-    kind === "level" ? { x: r2(w * 0.3), y: r2(h * 0.2), w: r2(w * 0.4), h: r2(h * 0.6) }
-    : kind === "rotor" ? { cx, cy, symmetry: 120 }
-    : kind === "needle" ? { cx, cy, a0: -120, a1: 120 }
-    : kind === "lever" ? { cx, cy, open: 0, closed: 90 }
-    : {};
+  const id = freePartId(d, kind);
+  const geo: Record<string, unknown> =
+    kind === "rotor" ? { cx, cy, symmetry: 120 }
+    : partDefaults(kind, { x: r2(w * 0.3), y: r2(h * 0.2), w: r2(w * 0.4), h: r2(h * 0.6) });
+  const g = geo as Record<string, number>;
   const shape: Op =
-    kind === "level" ? { ...newRect({ x: geo.x, y: geo.y, w: geo.w, h: geo.h }, "liquid") }
+    kind === "level" ? { ...newRect({ x: g.x, y: g.y, w: g.w, h: g.h }, "liquid") }
     : kind === "rotor" ? newEllipse({ x: cx - m * 0.2, y: cy - m * 0.05, w: m * 0.4, h: m * 0.1 }, "impeller-vane")
     : kind === "needle" ? newRect({ x: cx - 1, y: cy - m * 0.35, w: 2, h: m * 0.35 }, "signal-red")
     : kind === "lever" ? newRect({ x: cx - m * 0.3, y: cy - 2, w: m * 0.6, h: 4 }, "steel-dark")
+    : kind === "slide" || kind === "vibrate" ? newRect({ x: w * 0.3, y: h * 0.4, w: w * 0.4, h: h * 0.2 }, "steel")
+    : kind === "pulse" ? newEllipse({ x: cx - m * 0.1, y: cy - m * 0.1, w: m * 0.2, h: m * 0.2 }, "steel")
+    // A signal's shapes take the colour of the layer: no material.
+    : kind === "signal" ? { ...newEllipse({ x: cx - m * 0.1, y: cy - m * 0.1, w: m * 0.2, h: m * 0.2 }), mat: null }
     : newEllipse({ x: cx - m * 0.1, y: cy - m * 0.1, w: m * 0.2, h: m * 0.2 }, "lamp-green");
   const at = ops.length;
   ops.push({ op: "parte", id, kind, geo }, shape);
@@ -419,6 +430,99 @@ export function setPartGeo(d: DescrizioneSimbolo, opIndex: number, key: string, 
   if (op?.op !== "parte") return d;
   ops[opIndex] = { ...op, geo: { ...(op.geo as Record<string, number>), [key]: r2(value) } };
   return withOps(d, ops);
+}
+
+/** A part id not used yet: the kind, then `kind-2`, `kind-3`… */
+export function freePartId(d: DescrizioneSimbolo, kind: string): string {
+  const used = new Set((d.ops as Op[]).filter((o) => o.op === "parte").map((o) => String(o.id)));
+  let id = kind;
+  for (let n = 2; used.has(id); n++) id = `${kind}-${n}`;
+  return id;
+}
+
+/** The parameters a new piece of `kind` starts with, from the box of its
+ *  shapes: the pivot in the middle, the window on the box, a slide going up by
+ *  half its height. The engines have the same defaults for what is left out. */
+export function partDefaults(kind: InputKind, b: Box, colour?: string): Record<string, unknown> {
+  const cx = r2(b.x + b.w / 2), cy = r2(b.y + b.h / 2);
+  switch (kind) {
+    case "rotor": return { cx, cy, symmetry: 360 };
+    case "needle": return { cx, cy, a0: -120, a1: 120 };
+    case "lever": return { cx, cy, open: 0, closed: 90 };
+    case "level": return { x: r2(b.x), y: r2(b.y), w: r2(b.w), h: r2(b.h), dir: "up" };
+    case "slide": return { dx: 0, dy: -r2(Math.max(1, b.h / 2)), transition_ms: 300 };
+    case "vibrate": return { amplitude: 1, axis: "x", period_ms: 200 };
+    case "pulse": return { depth: 0.6, period_ms: 1000 };
+    case "signal": return {
+      color: colour ?? "#64748b",
+      entries: [{ value: 1, color: "#22c55e" }, { value: 2, color: "#ef4444", blink: true }],
+    };
+    default: return {};
+  }
+}
+
+/** Sets (or, with `undefined`, removes) a parameter of a part: a number, a
+ *  text, a yes/no, the entries of a signal. */
+export function setPartParam(d: DescrizioneSimbolo, opIndex: number, key: string, value: unknown): DescrizioneSimbolo {
+  const ops = [...(d.ops as Op[])];
+  const op = ops[opIndex];
+  if (op?.op !== "parte") return d;
+  const geo = { ...(op.geo as Record<string, unknown>) };
+  if (value === undefined) delete geo[key];
+  else geo[key] = typeof value === "number" ? r2(value) : value;
+  ops[opIndex] = { ...op, geo };
+  return withOps(d, ops);
+}
+
+/** Another kind for a part: the same id and shapes, the parameters of the new
+ *  kind from the box of its shapes. */
+export function setPartKind(d: DescrizioneSimbolo, opIndex: number, kind: InputKind, box: Box, colour?: string): DescrizioneSimbolo {
+  const ops = [...(d.ops as Op[])];
+  const op = ops[opIndex];
+  if (op?.op !== "parte" || kind === "state") return d;
+  ops[opIndex] = { ...op, kind, geo: partDefaults(kind, box, colour) };
+  let out = withOps(d, ops);
+  if (kind === "signal") out = shapesTakeLayerColour(out, layers(out).find((l) => l.start === opIndex)?.ops ?? []);
+  return out;
+}
+
+/** The shapes of a signal take the colour of the layer: their material goes. */
+function shapesTakeLayerColour(d: DescrizioneSimbolo, which: number[]): DescrizioneSimbolo {
+  const ops = [...(d.ops as Op[])];
+  for (const i of which) if (ops[i]?.op === "forma") ops[i] = { ...ops[i], mat: null };
+  return withOps(d, ops);
+}
+
+/** «Anima…»: the shapes `which` become a piece of `kind` (plan
+ *  2026-11-19-animazioni-dei-simboli, decision 1: a piece is a layer). The new
+ *  layer goes at the end of the layer holding the topmost of them, so every
+ *  other shape stays in its layer; a part layer left empty goes. When `which`
+ *  is exactly the shapes of one part, that part changes kind instead. */
+export function animateSelection(
+  d: DescrizioneSimbolo, which: number[], kind: InputKind, boxes: Map<number, Box>, colour?: string,
+): { d: DescrizioneSimbolo; part: number; shapes: number[] } | null {
+  const shapes = [...new Set(which)].filter((i) => draws(d.ops[i] as Op)).sort((a, b) => a - b);
+  if (!shapes.length || kind === "state") return null;
+  const box = union(shapes.map((i) => boxes.get(i)).filter((b): b is Box => !!b)) ?? { x: 0, y: 0, w: d.w, h: d.h };
+  const ls = layers(d);
+  const whole = ls.find((l) => l.start >= 0 && (d.ops[l.start] as Op).op === "parte"
+    && l.ops.length === shapes.length && l.ops.every((i) => shapes.includes(i)));
+  if (whole) {
+    const out = setPartKind(d, whole.start, kind, box, colour);
+    return { d: out, part: whole.start, shapes: layers(out).find((l) => l.start === whole.start)?.ops ?? shapes };
+  }
+  const top = shapes[shapes.length - 1];
+  const host = ls.find((l) => l.ops.includes(top)) ?? ls[ls.length - 1];
+  const id = freePartId(d, kind);
+  const r = insertInLayer(d, host.id, { op: "parte", id, kind, geo: partDefaults(kind, box, colour) });
+  // The shapes are all before the new opener: their indexes stay.
+  let out = moveToLayer(r.d, shapes, id).d;
+  // A part layer left with no shape would not compile: it goes.
+  const empty = layers(out).filter((l) => l.start >= 0 && (out.ops[l.start] as Op).op === "parte" && l.ops.length === 0 && l.id !== id);
+  if (empty.length) out = withOps(out, (out.ops as Op[]).filter((_, i) => !empty.some((l) => l.start === i)));
+  const mine = layers(out).find((l) => l.id === id)!;
+  if (kind === "signal") out = shapesTakeLayerColour(out, mine.ops);
+  return { d: out, part: mine.start, shapes: mine.ops };
 }
 
 /** Renames a part (its layer id). Objects bind tags by this id. */

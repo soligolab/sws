@@ -128,7 +128,8 @@ describe("sul canvas", () => {
   it("il rotore gira attorno al centro del manifesto, il resto sta fermo", () => {
     const { container } = disegna(simbolo("lib:process/centrifugal-pump", { symbol_spin: "always", symbol_spin_s: 3 }));
     const rotore = container.querySelector('[data-strato="rotor"]') as SVGGElement;
-    expect(rotore.style.animation).toContain("sws-spin 3s");
+    // Its own keyframe since 19-11-2026: the symbol editor draws without the canvas.
+    expect(rotore.style.animation).toContain("sws-piece-spin 3s");
     expect(rotore.style.transformOrigin).toBe("40px 50px");
     expect((container.querySelector('[data-strato="body"]') as SVGGElement).style.animation).toBe("");
   });

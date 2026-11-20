@@ -2576,9 +2576,12 @@ export interface ContainerPackage {
   mtime_ms: number;
 }
 
-/** Il legame di una parte viva di un simbolo di libreria (lancetta, leva, spia). */
+/** Il legame di una parte viva di un simbolo di libreria (lancetta, leva, spia).
+ *  Since 19-11-2026 every live part, and a fixed `value` when there is no tag:
+ *  the tag wins (plan docs/plans/2026-11-19-animazioni-dei-simboli.md). */
 export interface ParteLegata {
   tag?: string;
+  value?: boolean | number | string;
   min?: number;
   max?: number;
 }

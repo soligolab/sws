@@ -1,0 +1,31 @@
+{
+  "slug": "animated-pieces",
+  "w": 120,
+  "h": 100,
+  "tipo": "project",
+  "body": "body-pump",
+  "it": "Pezzi animati",
+  "en": "Animated pieces",
+  "ops": [
+    { "op": "corpo" },
+    { "op": "forma", "tag": "rect", "geo": { "x": 4, "y": 60, "width": 112, "height": 36, "rx": 3 }, "velo": "paint-h" },
+    { "op": "parte", "id": "fan", "kind": "rotor", "geo": { "cx": 24, "cy": 24, "symmetry": 90, "ccw": true } },
+    { "op": "forma", "tag": "path", "geo": { "d": "M24 10 L28 24 L24 38 L20 24 Z M10 24 L24 20 L38 24 L24 28 Z" }, "mat": "steel" },
+    { "op": "parte", "id": "tank", "kind": "level", "geo": { "x": 44, "y": 8, "w": 32, "h": 12, "dir": "right" } },
+    { "op": "forma", "tag": "rect", "geo": { "x": 44, "y": 8, "width": 32, "height": 12 }, "mat": "liquid" },
+    { "op": "parte", "id": "gate", "kind": "slide", "geo": { "dx": 0, "dy": -16, "transition_ms": 400 } },
+    { "op": "forma", "tag": "rect", "geo": { "x": 84, "y": 30, "width": 28, "height": 26, "rx": 2 }, "mat": "steel-dark" },
+    { "op": "parte", "id": "motor", "kind": "vibrate", "geo": { "amplitude": 2, "axis": "x", "period_ms": 200 } },
+    { "op": "forma", "tag": "rect", "geo": { "x": 10, "y": 66, "width": 30, "height": 24, "rx": 2 }, "mat": "steel" },
+    { "op": "parte", "id": "glow", "kind": "pulse", "geo": { "depth": 0.6, "period_ms": 1000 } },
+    { "op": "forma", "tag": "circle", "geo": { "cx": 60, "cy": 78, "r": 10 }, "mat": "steel" },
+    { "op": "parte", "id": "beacon", "kind": "signal", "geo": {
+        "color": "#64748b",
+        "entries": [
+          { "value": 1, "color": "#22c55e" },
+          { "value_min": 2, "value_max": 9, "color": "#ef4444", "blink": true },
+          { "value": 0, "hidden": true }
+        ] } },
+    { "op": "forma", "tag": "circle", "geo": { "cx": 98, "cy": 78, "r": 10 } }
+  ]
+}

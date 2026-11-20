@@ -12,6 +12,48 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Aggiunto
+- **Le animazioni dei simboli, sessione 2a: il formato e il valutatore condiviso** (piano
+  `docs/plans/2026-11-19-animazioni-dei-simboli.md`, ramo `feat/symbol-anim`). Ancora niente di visibile: i motori
+  disegnano i pezzi nuovi fermi. Quattro tipi di parte nuovi (`slide`, `vibrate`, `pulse`, `signal`), `dir` sul livello
+  e `ccw` sulla girante, tutto dentro `geo`; `ParteLib` ha un ripiego `Unknown`, così un tipo che il pannello non
+  conosce diventa uno strato fermo invece di rendere illeggibile il manifesto. Il legame in pagina
+  (`symbol_parts[id]`) prende anche un **valore fisso** (`value`), e vale per ogni parte: una girante o un livello non
+  legati seguono il simbolo come prima. Il valutatore sta in `sws-core/src/symbol_behaviour.rs` (il viewer lo usa al
+  posto del suo) con il gemello `symbols/lib/behaviour.ts`, e la fixture `tests/fixtures/symbol-pieces.json` (valori,
+  voci del segnale, tabelle a tempo: vibrazione a scatti, respiro, lampeggio, finestra del livello, girante sul
+  pannello, transizione). Il compilatore scrive il colore del segnale sullo strato e controlla i limiti dei pezzi;
+  l'assistente conosce i tipi nuovi e i colori liberi. Fixture `simboli-prj/animated-pieces.json`, disegnata dal
+  viewer LVGL (`check_simboli_lvgl.sh --simboli`).
+- **Le animazioni dei simboli, sessione 2b: il web e la pagina.** `SimboloLibSvg` disegna ogni pezzo: il movimento
+  (`translate` con la sua transizione), il livello che cresce da ogni lato, il colore e il «nascosto» del segnale
+  (lo strato riscritto una volta per colore) si vedono sempre, perché seguono un valore; girante per parte (anche
+  antioraria), vibrazione a scatti, respiro e lampeggio del segnale solo con `animate`, che il canvas accende fuori
+  dall'editor o con «Anteprima effetti». Keyframe propri (`symbols/lib/keyframes.ts`, uno per parametro, i passi del
+  respiro presi dalla curva condivisa): l'editor dei simboli non dipende più da quelli del canvas. In «Collegamenti»
+  una riga per ogni pezzo legabile, con la scelta **Tag | Valore fisso** (sì/no, numero o testo secondo il pezzo),
+  inizio e fondo scala per lancetta, livello e movimento, le voci del segnale come campioni di colore; girante e
+  livello hanno una riga solo se il simbolo ne ha più di uno. Il validatore controlla i legami delle parti: tag che
+  esistono e valori semplici (errori), tag e valore insieme o scala vuota (avvisi).
+- **Le animazioni dei simboli, sessione 2c: il pannello LVGL.** Il viewer prepara ogni pezzo con la pagina e lo muove
+  senza resvg nel fotogramma: il movimento e la vibrazione con `set_pos` (il passo in pixel, specchi compresi), il
+  respiro con `img_opa` a passi di 4, il segnale con un'immagine per ogni colore delle sue voci (scambiata quando cambia
+  la voce, `HIDDEN` per «nascosto», lampeggio col periodo del simbolo), il livello che cresce da ogni lato (la finestra
+  si sposta e si allarga anche in orizzontale; più livelli per simbolo, ognuno col suo valore), la girante per parte e
+  antioraria. L'opacità di un pezzo si moltiplica con il lampeggio degli Stati invece di esserne cancellata. Una girante
+  veloce sul pannello gira più lenta del web quanto basta a non sembrare ferma (`rotor_period_for_fps`). **Budget di
+  memoria per pagina** (6 MB di partenza, `SWS_ANIM_BUDGET_KB` per le prove): fotogrammi delle giranti oltre il primo e
+  colori dei segnali; oltre, meno fotogrammi e colori come disegnati, con una riga di log; all'apertura della pagina
+  `animations: X KB of Y KB`. I simboli senza legami non calcolano i valori delle parti a ogni fotogramma. Guardia nuova
+  `check_pezzi_lvgl.sh` (cinque istantanee di tre copie della fixture); la libreria intera (`check_simboli_lvgl.sh`) e
+  il lampeggio sfumato restano verdi.
+- **Le animazioni dei simboli, sessione 2d: l'editor.** «Anima…» nella scheda «Pezzo»: le forme scelte diventano un
+  pezzo animato (uno strato col suo ingresso, alla fine dello strato della forma più in alto, così le altre forme
+  restano dove sono; un pezzo rimasto vuoto si toglie; scegliendo tutte le forme di un pezzo cambia il suo tipo). I
+  tipi per famiglia, i parametri di ognuno (`AnimationProps.tsx`, anche in «Struttura ▸ Ingressi»), le voci del
+  segnale come gli Stati, «Togli animazione». La sagoma tratteggiata del movimento si trascina dalla sua maniglia.
+  «Prova» ha i controlli dei pezzi nuovi e «Anima» per gli effetti a tempo. Salvando, un pezzo rinominato o tolto che
+  gli oggetti in pagina collegano chiede conferma, e gli oggetti della pagina seguono la rinomina. I piccoli pezzi
+  dell'interfaccia dell'editor stanno in `symbols/editor/ui.tsx`.
 - **La tastiera a 5 righe sul pannello LVGL** (piano `docs/plans/2026-11-19-tastiera-a-5-righe.md`). Sul TY570 in
   verticale la tastiera di LVGL aveva tasti larghi circa 45 px e alti oltre 120, «difficilissimi da usare» (il
   maintainer, 19-11-2026). Ora ogni tastiera di testo (accesso, celle delle tabelle, motivo di un comando critico) ha

@@ -20,7 +20,7 @@
 
 use std::sync::{Arc, Mutex, OnceLock};
 
-use sws_core::simboli_lib::{ManifestLib, ParteLib, SimboloLib};
+use sws_core::simboli_lib::{FillDir, ManifestLib, ParteLib, SimboloLib};
 #[cfg(test)]
 use sws_core::stile_simboli::Contorno;
 use sws_core::stile_simboli::{applica_stile, StileSimbolo};
@@ -440,93 +440,10 @@ pub fn fotogramma(ms: u64, periodo_s: f64, symmetry: f64, n: usize) -> usize {
 
 // ── i valori delle parti vive ──────────────────────────────────────────────
 
-/// Il valore di una parte; `None` dentro = come nel disegno. Stessa regola di
-/// `valoriParti` in `sws-editor/src/symbols/lib/libreria.ts`, con gli stessi
-/// casi (`tests/fixtures/parti-simbolo.json`).
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum ValoreParte {
-    Frazione(Option<f64>),
-    Aperta(Option<bool>),
-    /// L'indice nella lista degli angoli, per una leva a più di due posizioni
-    /// (21-10-2026). Le leve booleane continuano a dare `Aperta`: vedi il
-    /// commento gemello in `libreria.ts`.
-    Posizione(Option<usize>),
-    Accesa(Option<bool>),
-}
-
-use sws_core::tag::TagValue;
-
-fn vero(v: &TagValue) -> bool {
-    match v {
-        TagValue::Bool(b) => *b,
-        TagValue::Int(i) => *i != 0,
-        TagValue::Float(f) => *f != 0.0,
-        TagValue::Str(s) => !s.trim().is_empty(),
-        TagValue::Array(_) | TagValue::Struct(_) => false,
-    }
-}
-
-fn numero(v: &TagValue) -> Option<f64> {
-    match v {
-        TagValue::Bool(b) => Some(if *b { 1.0 } else { 0.0 }),
-        TagValue::Int(i) => Some(*i as f64),
-        TagValue::Float(f) => f.is_finite().then_some(*f),
-        TagValue::Str(s) if !s.trim().is_empty() => {
-            s.trim().parse::<f64>().ok().filter(|f| f.is_finite())
-        }
-        _ => None,
-    }
-}
-
-pub fn valori_parti<'a>(
-    parti: &[ParteLib],
-    legami: Option<&serde_json::Value>,
-    valore: impl Fn(&str) -> Option<&'a TagValue>,
-) -> Vec<(String, ValoreParte)> {
-    let mut out = Vec::new();
-    for p in parti {
-        let l = legami.and_then(|m| m.get(p.id()));
-        let tag = l
-            .and_then(|l| l.get("tag"))
-            .and_then(|t| t.as_str())
-            .filter(|t| !t.is_empty());
-        let v = tag.and_then(&valore);
-        let valore = match p {
-            ParteLib::Needle { .. } => {
-                let min = l
-                    .and_then(|l| l.get("min"))
-                    .and_then(|x| x.as_f64())
-                    .unwrap_or(0.0);
-                let max = l
-                    .and_then(|l| l.get("max"))
-                    .and_then(|x| x.as_f64())
-                    .unwrap_or(100.0);
-                let f = v
-                    .and_then(numero)
-                    .filter(|_| max != min)
-                    .map(|n| ((n - min) / (max - min)).clamp(0.0, 1.0));
-                ValoreParte::Frazione(f)
-            }
-            ParteLib::Lever { .. } => {
-                // Due posizioni: la regola booleana di sempre. Più di due: il
-                // valore **è** l'indice, arrotondato e tenuto dentro l'elenco.
-                let angoli = p.angoli_leva();
-                if angoli.len() >= 3 {
-                    let i = v
-                        .and_then(numero)
-                        .map(|n| n.round().clamp(0.0, (angoli.len() - 1) as f64) as usize);
-                    ValoreParte::Posizione(i)
-                } else {
-                    ValoreParte::Aperta(v.map(vero))
-                }
-            }
-            ParteLib::Lamp { .. } => ValoreParte::Accesa(v.map(vero)),
-            _ => continue,
-        };
-        out.push((p.id().to_string(), valore));
-    }
-    out
-}
+// The rule moved to `sws-core` on 19-11-2026 (plan
+// `2026-11-19-animazioni-dei-simboli`), with the new kinds: the same one the
+// web follows, with the cases in `tests/fixtures/symbol-pieces.json`.
+pub use sws_core::symbol_behaviour::{valori_parti, ValoreParte};
 
 // ── la cache dei colori del corpo ──────────────────────────────────────────
 
@@ -589,15 +506,132 @@ pub enum PezzoStrato {
         bitmap: BitmapStrato,
     },
     Livello {
+        id: String,
         bitmap: BitmapStrato,
         finestra: Ritaglio,
-        dal_basso: bool,
+        /// The side the content grows from, on the screen (mirrors included).
+        dir: FillDir,
     },
     Rotore {
+        id: String,
         fotogrammi: Vec<Vec<u8>>,
         dove: Ritaglio,
         symmetry: f64,
+        ccw: bool,
     },
+    /// A slide or a vibration (19-11-2026): a picture moved with `set_pos`.
+    /// `passo` is the whole way of a slide, or one step of a vibration, in
+    /// pixels on the screen (mirrors included).
+    Mobile {
+        id: String,
+        bitmap: BitmapStrato,
+        passo: (f32, f32),
+    },
+    /// A pulse: a picture whose opacity breathes.
+    Pulse {
+        id: String,
+        bitmap: BitmapStrato,
+    },
+    /// A signal: the picture as drawn, and one more for every colour of its
+    /// entries, all in the same box. `entry_variant[i]`: the picture of entry
+    /// `i` (`None` = as drawn: no colour of its own, or no room in the budget).
+    Signal {
+        id: String,
+        bitmap: BitmapStrato,
+        variants: Vec<Vec<u8>>,
+        entry_variant: Vec<Option<usize>>,
+    },
+}
+
+// ── the animation budget of a page ─────────────────────────────────────────
+
+/// What the animated pieces of a page may take beyond their first picture:
+/// the frames of the rotors and the colours of the signals (plan
+/// 2026-11-19-animazioni-dei-simboli). A starting value, to fix with the
+/// measures on the TY570 (viewer `MemoryHigh=40M`, ~21 MB at rest);
+/// `SWS_ANIM_BUDGET_KB` changes it for the measures.
+pub const ANIM_BUDGET_DEFAULT: usize = 6 * 1024 * 1024;
+
+// Per thread: LVGL lives on one, and the tests, each on its own, don't take
+// from each other's budget.
+thread_local! {
+    static ANIM_USED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+pub fn anim_budget() -> usize {
+    std::env::var("SWS_ANIM_BUDGET_KB")
+        .ok()
+        .and_then(|v| v.trim().parse::<usize>().ok())
+        .map(|kb| kb * 1024)
+        .unwrap_or(ANIM_BUDGET_DEFAULT)
+}
+
+/// A new page: the budget starts again.
+pub fn anim_budget_reset() {
+    ANIM_USED.with(|u| u.set(0));
+}
+
+pub fn anim_budget_used() -> usize {
+    ANIM_USED.with(|u| u.get())
+}
+
+/// Takes `bytes` from the budget, if there is room.
+fn anim_take(bytes: usize) -> bool {
+    let used = anim_budget_used();
+    if used + bytes > anim_budget() {
+        return false;
+    }
+    ANIM_USED.with(|u| u.set(used + bytes));
+    true
+}
+
+/// How many frames of `per_frame` bytes the budget leaves to a rotor that
+/// wants `n`: the first is always there (it is the drawing).
+fn frames_in_budget(n: usize, per_frame: usize) -> usize {
+    let left = anim_budget().saturating_sub(anim_budget_used());
+    let extra = (n.saturating_sub(1)).min(left / per_frame.max(1));
+    1 + extra
+}
+
+/// The side a level grows from on the screen: a mirror swaps it.
+pub fn dir_on_screen(dir: FillDir, q: Quadro) -> FillDir {
+    match dir {
+        FillDir::Up if q.flip_v => FillDir::Down,
+        FillDir::Down if q.flip_v => FillDir::Up,
+        FillDir::Left if q.flip_h => FillDir::Right,
+        FillDir::Right if q.flip_h => FillDir::Left,
+        d => d,
+    }
+}
+
+/// A move of the drawing, `(dx, dy)` in its units, in pixels on the screen.
+pub fn move_in_pixel(view_box: [f64; 2], q: Quadro, dx: f64, dy: f64) -> (f32, f32) {
+    let o = in_pixel(view_box, q, 0.0, 0.0);
+    let p = in_pixel(view_box, q, dx, dy);
+    (p.0 - o.0, p.1 - o.1)
+}
+
+/// The markup of a layer with another colour on its first line: the layer's
+/// own `fill`, which the shapes without a material take. Twin of
+/// `withLayerFill` in `SimboloLib.tsx`.
+pub fn with_layer_fill(markup: &str, colour: &str) -> String {
+    let (head, rest) = markup
+        .split_once('\n')
+        .map_or((markup, ""), |(h, r)| (h, r));
+    let head = match head.find(" fill=\"") {
+        Some(i) => {
+            let j = head[i + 7..]
+                .find('"')
+                .map_or(head.len(), |k| i + 7 + k + 1);
+            format!("{} fill=\"{colour}\"{}", &head[..i], &head[j..])
+        }
+        None => head.to_string(),
+    };
+    if markup.contains('\n') {
+        format!("{head}\n{rest}")
+    } else {
+        head
+    }
 }
 
 /// Prepara tutti gli strati di `s` a `q`, con lo stile dato (vedi `stile_effettivo`).
@@ -610,7 +644,11 @@ pub fn prepara(s: &SimboloLib, svg: &str, q: Quadro, stile: &StileSimbolo) -> Pr
         let svg1 = svg_di_strato(&d.testa, markup, None);
         match parte {
             Some(ParteLib::Rotor {
-                cx, cy, symmetry, ..
+                cx,
+                cy,
+                symmetry,
+                ccw,
+                ..
             }) => {
                 let Some(fermo) =
                     svg_raster::ingombro(svg1.as_bytes(), q.w, q.h, q.flip_h, q.flip_v)
@@ -618,7 +656,17 @@ pub fn prepara(s: &SimboloLib, svg: &str, q: Quadro, stile: &StileSimbolo) -> Pr
                     continue;
                 };
                 let dove = riquadro_rotore(fermo, in_pixel(s.view_box, q, *cx, *cy), q);
-                let n = fotogrammi_entro(*symmetry, dove);
+                let voluti = fotogrammi_entro(*symmetry, dove);
+                // The page budget: the frames beyond the first.
+                let per_frame = crate::pixel::alpha_buffer_len(dove.w as usize, dove.h as usize);
+                let n = frames_in_budget(voluti, per_frame);
+                anim_take((n - 1) * per_frame);
+                if n < voluti {
+                    eprintln!(
+                        "[simboli-lib] {}/{id}: {n} frames of {voluti}, the animation budget of the page is full",
+                        s.id
+                    );
+                }
                 let fotogrammi: Vec<Vec<u8>> = (0..n)
                     .filter_map(|k| {
                         let a = *symmetry * k as f64 / n as f64;
@@ -628,21 +676,107 @@ pub fn prepara(s: &SimboloLib, svg: &str, q: Quadro, stile: &StileSimbolo) -> Pr
                     .collect();
                 if fotogrammi.len() == n {
                     out.push(PezzoStrato::Rotore {
+                        id: id.clone(),
                         fotogrammi,
                         dove,
                         symmetry: *symmetry,
+                        ccw: *ccw,
                     });
                 }
             }
-            Some(ParteLib::Level { x, y, w, h, .. }) => {
+            Some(ParteLib::Level {
+                x, y, w, h, dir, ..
+            }) => {
                 let Some(bitmap) = rasterizza(&svg1, q, None) else {
                     continue;
                 };
-                let (finestra, dal_basso) = finestra_livello(s.view_box, q, *x, *y, *w, *h);
+                let (finestra, _) = finestra_livello(s.view_box, q, *x, *y, *w, *h);
                 out.push(PezzoStrato::Livello {
+                    id: id.clone(),
                     bitmap,
                     finestra,
-                    dal_basso,
+                    dir: dir_on_screen(*dir, q),
+                });
+            }
+            Some(ParteLib::Slide { dx, dy, .. }) => {
+                if let Some(bitmap) = rasterizza(&svg1, q, None) {
+                    let passo = move_in_pixel(s.view_box, q, *dx, *dy);
+                    out.push(PezzoStrato::Mobile {
+                        id: id.clone(),
+                        bitmap,
+                        passo,
+                    });
+                }
+            }
+            Some(ParteLib::Vibrate {
+                amplitude, axis, ..
+            }) => {
+                if let Some(bitmap) = rasterizza(&svg1, q, None) {
+                    let (dx, dy) = match axis {
+                        sws_core::simboli_lib::Axis::X => (*amplitude, 0.0),
+                        sws_core::simboli_lib::Axis::Y => (0.0, *amplitude),
+                    };
+                    let passo = move_in_pixel(s.view_box, q, dx, dy);
+                    out.push(PezzoStrato::Mobile {
+                        id: id.clone(),
+                        bitmap,
+                        passo,
+                    });
+                }
+            }
+            Some(ParteLib::Pulse { .. }) => {
+                if let Some(bitmap) = rasterizza(&svg1, q, None) {
+                    out.push(PezzoStrato::Pulse {
+                        id: id.clone(),
+                        bitmap,
+                    });
+                }
+            }
+            Some(ParteLib::Signal { color, entries, .. }) => {
+                let Some(bitmap) = rasterizza(&svg1, q, None) else {
+                    continue;
+                };
+                // One picture per colour, never one per entry: two entries in
+                // red share it. All rasterised now, with the page: never resvg
+                // in the frame loop.
+                let mut colours: Vec<String> = Vec::new();
+                let mut variants: Vec<Vec<u8>> = Vec::new();
+                let mut entry_variant = Vec::with_capacity(entries.len());
+                for e in entries {
+                    let c = e
+                        .color
+                        .as_deref()
+                        .filter(|c| Some(*c) != color.as_deref() && !e.hidden);
+                    let Some(c) = c else {
+                        entry_variant.push(None);
+                        continue;
+                    };
+                    if let Some(i) = colours.iter().position(|x| x == c) {
+                        entry_variant.push(Some(i));
+                        continue;
+                    }
+                    let svgc = svg_di_strato(&d.testa, &with_layer_fill(markup, c), None);
+                    let Some(b) = rasterizza(&svgc, q, Some(bitmap.dove)) else {
+                        entry_variant.push(None);
+                        continue;
+                    };
+                    if !anim_take(b.buf.len()) {
+                        eprintln!(
+                            "[simboli-lib] {}/{id}: the colour {c} stays as drawn, the animation budget of the page is full",
+                            s.id
+                        );
+                        entry_variant.push(None);
+                        continue;
+                    }
+                    colours.push(c.to_string());
+                    variants.push(b.buf);
+                    entry_variant.push(Some(variants.len() - 1));
+                }
+                out.push(PezzoStrato::Signal {
+                    id: id.clone(),
+                    bitmap,
+                    variants,
+                    entry_variant,
                 });
             }
             _ if id == "body" => {
@@ -847,6 +981,7 @@ mod tests {
             fotogrammi,
             dove,
             symmetry,
+            ..
         } = &p.strati[3]
         else {
             panic!("il quarto strato è il rotore")
@@ -1007,9 +1142,158 @@ mod tests {
         assert_ne!(verde, bitmap.buf);
     }
 
+    fn animated() -> (SimboloLib, String) {
+        let d: sws_core::simboli_prj::Descrizione = serde_json::from_str(include_str!(
+            "../../../../tests/fixtures/simboli-prj/animated-pieces.json"
+        ))
+        .unwrap();
+        let c = sws_core::simboli_prj::compila_e_controlla(&d).unwrap();
+        (serde_json::from_value(c.voce.clone()).unwrap(), c.svg)
+    }
+
+    fn quadro(w: u32, h: u32, flip_h: bool, flip_v: bool) -> Quadro {
+        Quadro {
+            w,
+            h,
+            flip_h,
+            flip_v,
+        }
+    }
+
+    /// The animated pieces (19-11-2026): every kind becomes its piece, and a
+    /// signal has one picture per colour of its entries, never one per entry.
+    #[test]
+    fn the_animated_pieces_prepare_into_their_pieces() {
+        let (sim, svg) = animated();
+        let m = manifesto_incluso();
+        anim_budget_reset();
+        let p = prepara(
+            &sim,
+            &svg,
+            quadro(240, 200, false, false),
+            &stile_del_disegno(&m, None),
+        );
+        let mut kinds = Vec::new();
+        for x in &p.strati {
+            match x {
+                PezzoStrato::Rotore {
+                    id,
+                    ccw,
+                    fotogrammi,
+                    ..
+                } => {
+                    assert!(*ccw && fotogrammi.len() > 1);
+                    kinds.push(format!("rotor:{id}"));
+                }
+                PezzoStrato::Livello { id, dir, .. } => {
+                    assert_eq!(*dir, FillDir::Right);
+                    kinds.push(format!("level:{id}"));
+                }
+                PezzoStrato::Mobile { id, passo, .. } => {
+                    kinds.push(format!("mobile:{id}"));
+                    // Twice the size: the gate goes 32 px up, the motor 4 px right.
+                    let want = if id == "gate" {
+                        (0.0, -32.0)
+                    } else {
+                        (4.0, 0.0)
+                    };
+                    assert!(
+                        (passo.0 - want.0).abs() < 0.01 && (passo.1 - want.1).abs() < 0.01,
+                        "{id} {passo:?}"
+                    );
+                }
+                PezzoStrato::Pulse { id, .. } => kinds.push(format!("pulse:{id}")),
+                PezzoStrato::Signal {
+                    id,
+                    bitmap,
+                    variants,
+                    entry_variant,
+                } => {
+                    kinds.push(format!("signal:{id}"));
+                    assert_eq!(variants.len(), 2);
+                    assert_eq!(entry_variant, &[Some(0), Some(1), None]);
+                    assert!(variants.iter().all(|v| v.len() == bitmap.buf.len()));
+                    assert_ne!(variants[0], bitmap.buf);
+                }
+                _ => {}
+            }
+        }
+        assert_eq!(
+            kinds,
+            [
+                "rotor:fan",
+                "level:tank",
+                "mobile:gate",
+                "mobile:motor",
+                "pulse:glow",
+                "signal:beacon"
+            ]
+        );
+        assert!(anim_budget_used() > 0);
+    }
+
+    #[test]
+    fn a_full_budget_leaves_the_rotor_still_and_the_signal_as_drawn() {
+        let (sim, svg) = animated();
+        let m = manifesto_incluso();
+        anim_budget_reset();
+        // Fill the budget first.
+        assert!(anim_take(anim_budget()));
+        let p = prepara(
+            &sim,
+            &svg,
+            quadro(240, 200, false, false),
+            &stile_del_disegno(&m, None),
+        );
+        for x in &p.strati {
+            match x {
+                PezzoStrato::Rotore { fotogrammi, .. } => assert_eq!(fotogrammi.len(), 1),
+                PezzoStrato::Signal {
+                    variants,
+                    entry_variant,
+                    ..
+                } => {
+                    assert!(variants.is_empty());
+                    assert_eq!(entry_variant, &[None, None, None]);
+                }
+                _ => {}
+            }
+        }
+        anim_budget_reset();
+    }
+
+    #[test]
+    fn mirrors_turn_the_directions_and_the_moves() {
+        let q = quadro(120, 100, true, false);
+        assert_eq!(dir_on_screen(FillDir::Right, q), FillDir::Left);
+        assert_eq!(dir_on_screen(FillDir::Up, q), FillDir::Up);
+        assert_eq!(
+            dir_on_screen(FillDir::Up, quadro(120, 100, false, true)),
+            FillDir::Down
+        );
+        let (dx, dy) = move_in_pixel([120.0, 100.0], q, 10.0, -5.0);
+        assert!(
+            (dx + 10.0).abs() < 0.01 && (dy + 5.0).abs() < 0.01,
+            "{dx} {dy}"
+        );
+    }
+
+    #[test]
+    fn the_layer_fill_is_rewritten_on_the_first_line_only() {
+        let m = "  <g id=\"b\" data-layer=\"part\" fill=\"#64748b\" stroke=\"#1c2329\">\n    <circle fill=\"#000\"/>\n  </g>\n";
+        let r = with_layer_fill(m, "#22c55e");
+        assert!(r.starts_with("  <g id=\"b\" data-layer=\"part\" fill=\"#22c55e\" stroke="));
+        assert!(r.contains("<circle fill=\"#000\"/>"));
+        assert_eq!(
+            with_layer_fill("  <g id=\"x\">\n  </g>\n", "#fff"),
+            "  <g id=\"x\">\n  </g>\n"
+        );
+    }
+
     /// I casi del web (`sws-editor/tests/partiSimbolo.test.ts`).
     #[test]
     fn i_valori_delle_parti_sono_quelli_del_web() {
+        use sws_core::tag::TagValue;
         #[derive(serde::Deserialize)]
         struct Caso {
             nome: String,
@@ -1048,6 +1332,12 @@ mod tests {
                     }
                     (Some(ValoreParte::Accesa(x)), a) => {
                         a.get("accesa").map(|v| v.as_bool()) == Some(x)
+                    }
+                    (Some(ValoreParte::Active(x)), a) => {
+                        a.get("active").map(|v| v.as_bool()) == Some(x)
+                    }
+                    (Some(ValoreParte::Entry(x)), a) => {
+                        a.get("entry").map(|v| v.as_u64().map(|n| n as usize)) == Some(x)
                     }
                     (None, _) => false,
                 };
