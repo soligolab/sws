@@ -98,7 +98,8 @@ describe("the AI tab of the symbol editor", () => {
     fireEvent.change(screen.getByTestId("symbol-ai-instruction"), { target: { value: "una pompa" } });
     await act(async () => { fireEvent.click(screen.getByTestId("symbol-ai-new")); });
     fireEvent.change(screen.getByTestId("symbol-ai-instruction"), { target: { value: "più larga" } });
-    await act(async () => { fireEvent.click(screen.getByTestId("symbol-ai-edit")); });
+    // Ctrl+Enter asks what the highlighted button asks: with a proposal open, a retouch.
+    await act(async () => { fireEvent.keyDown(screen.getByTestId("symbol-ai-instruction"), { key: "Enter", ctrlKey: true }); });
     expect(asked[1].mode).toBe("edit");
     // From the proposal, under the editor's name.
     expect(asked[1].description.ops).toHaveLength(3);

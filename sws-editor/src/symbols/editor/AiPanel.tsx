@@ -90,6 +90,8 @@ export function AiPanel({ d, commit, current, manifesto, projectStyle }: {
 
   const busy = since !== null;
   const canAsk = !busy && (instruction.trim() !== "" || !!photo);
+  /** The highlighted button, and what Ctrl+Enter asks. */
+  const primary: "edit" | "new" = hasDrawing || proposal ? "edit" : "new";
   const preview = (svg: string | undefined, voce: SimboloLib | undefined, w: number, h: number, prefix: string, testId: string) => (
     <div data-testid={testId} style={{ flex: 1, minWidth: 0, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 3, aspectRatio: "1" }}>
       {svg && voce && manifesto && (
@@ -107,7 +109,8 @@ export function AiPanel({ d, commit, current, manifesto, projectStyle }: {
       <textarea style={{ ...input, minHeight: 70, resize: "vertical", fontFamily: "inherit", boxSizing: "border-box" }} value={instruction}
         data-testid="symbol-ai-instruction" disabled={busy}
         placeholder={t(proposal ? "symbolEditor.ai.placeholderRetouch" : "symbolEditor.ai.placeholder")}
-        onChange={(e) => setInstruction(e.target.value)} />
+        onChange={(e) => setInstruction(e.target.value)}
+        onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && canAsk) { e.preventDefault(); void ask(primary); } }} />
       {photo ? (
         <div style={{ display: "flex", gap: 6, alignItems: "center" }} data-testid="symbol-ai-photo">
           <img src={`data:${photo.media_type};base64,${photo.data}`} alt="" style={{ width: 56, height: 56, objectFit: "cover", borderRadius: 3 }} />
@@ -124,9 +127,9 @@ export function AiPanel({ d, commit, current, manifesto, projectStyle }: {
       <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" style={{ display: "none" }}
         onChange={(e) => { void addPhoto(e.target.files?.[0]); e.target.value = ""; }} />
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-        <button type="button" style={button(hasDrawing || !!proposal, canAsk)} disabled={!canAsk} data-testid="symbol-ai-edit"
+        <button type="button" style={button(primary === "edit", canAsk)} disabled={!canAsk} data-testid="symbol-ai-edit"
           onClick={() => void ask("edit")}>{t(proposal ? "symbolEditor.ai.editProposal" : "symbolEditor.ai.edit")}</button>
-        <button type="button" style={button(!hasDrawing && !proposal, canAsk)} disabled={!canAsk} data-testid="symbol-ai-new"
+        <button type="button" style={button(primary === "new", canAsk)} disabled={!canAsk} data-testid="symbol-ai-new"
           onClick={() => void ask("new")}>{t("symbolEditor.ai.new")}</button>
       </div>
 

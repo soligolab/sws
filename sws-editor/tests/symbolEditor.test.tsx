@@ -114,7 +114,14 @@ describe("symbol editor", () => {
     expect(screen.getByTestId("symbol-port-p1")).toBeTruthy();
     const id = screen.getByTestId("symbol-port-id") as HTMLInputElement;
     fireEvent.change(id, { target: { value: "Inlet" } });
-    fireEvent.blur(id);
+    // Enter confirms the name (20-11-2026: the editor stopped the key before
+    // the field saw it), and the page under the editor does not get it.
+    const page = vi.fn();
+    window.addEventListener("keydown", page);
+    id.focus();
+    fireEvent.keyDown(id, { key: "Enter" });
+    window.removeEventListener("keydown", page);
+    expect(page).not.toHaveBeenCalled();
     expect(screen.getByTestId("symbol-port-inlet")).toBeTruthy();
     fireEvent.click(screen.getByTestId("symbol-tab-structure"));
     expect(screen.getByTestId("symbol-port-row-n-left")).toBeTruthy();

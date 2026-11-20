@@ -5681,6 +5681,49 @@
         "bad_request": "Invalid request: {{detail}}",
         "error": "Error: {{detail}}"
       }
+    },
+    "svg": {
+      "import": "Import SVG…",
+      "importTitle": "Adds an SVG drawing to the symbol, one shape at a time, with its colours. You can also drop the file here, or paste the SVG code with Ctrl+V",
+      "failed": "SVG not imported",
+      "done": "SVG imported: {{n}} shapes",
+      "err": {
+        "notSvg": "The file is not an SVG drawing.",
+        "tooBig": "The file is too big: 2 MB at most.",
+        "tooManyElements": "The drawing has more than 5000 elements: too many for a symbol.",
+        "empty": "There is nothing to import in the drawing: only text, pictures or invisible shapes.",
+        "full": "The symbol already has 300 operations, the most it can: there is no room for more."
+      },
+      "warn": {
+        "text": "{{n}} texts left out: the panel has no fonts to draw them.",
+        "image": "{{n}} pictures left out: photos in symbols come later.",
+        "evenodd": "{{n}} shapes with holes («evenodd» fill): the holes may come out filled.",
+        "clip": "{{n}} clip paths ignored: the shapes show whole.",
+        "mask": "{{n}} masks ignored: the shapes show whole.",
+        "filter": "{{n}} filters (shadows, blurs) ignored.",
+        "pattern": "{{n}} patterns turned into plain grey.",
+        "gradient": "{{n}} gradients turned into a plain colour, with the closest «Volume» effect.",
+        "marker": "{{n}} arrow heads (markers) ignored.",
+        "colour": "{{n}} colours not recognised, turned black.",
+        "strokeWide": "{{n}} outlines thicker than 20, reduced to 20.",
+        "split": "{{n}} paths too long, split into several shapes: holes may come out filled.",
+        "tooLong": "{{n}} pieces of path too long, left out.",
+        "tooMany": "{{n}} shapes left out: a symbol has 300 operations at most.",
+        "css": "{{n}} style rules too complex, ignored: some colours may differ.",
+        "use": "{{n}} references (<use>) to elements that are not there, ignored."
+      }
+    },
+    "file": {
+      "export": "Export",
+      "exportTitle": "Downloads the symbol as a .swsym file, to import into another project (Tools ▸ Symbols ▸ Import a symbol…)",
+      "import": "Import a symbol…",
+      "importTitle": "Opens as a new symbol a .swsym file exported from another project, or an SVG drawing",
+      "failed": "«{{name}}» not imported",
+      "err": {
+        "notSymbol": "The file is not a symbol exported from SWS.",
+        "newer": "The file comes from a newer version of the IDE: update the IDE to open it.",
+        "tooBig": "The file is too big: 1 MB at most."
+      }
     }
   },
   "images": {

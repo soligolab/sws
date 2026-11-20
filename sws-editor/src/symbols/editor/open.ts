@@ -11,7 +11,10 @@ import { api } from "@/api/client";
 import { useAppStore } from "@/store";
 import type { DescrizioneSimbolo, SynopticObject } from "@/types";
 import { trovaSimboloOriginale } from "@/symbols/lib/libreria";
+import { avviso } from "@/finestraAvviso/finestraAvviso";
 import { emptySymbol, needsExplicitPorts } from "./model";
+import { importSvg, placeImport, roomFor, MAX_SVG_BYTES, SVG_WARNINGS, type SvgWarning } from "./importSvg";
+import { readSymbolFile, MAX_SYMBOL_FILE_BYTES } from "./symbolFile";
 
 export interface SymbolEditorTarget {
   draft: DescrizioneSimbolo;
@@ -83,6 +86,40 @@ export function openNewSymbol(): void {
     draft: emptySymbol({ it: t("symbolEditor.newName", { lng: "it" }), en: t("symbolEditor.newName", { lng: "en" }) }, takenSlugs()),
     isNew: true,
   });
+}
+
+/** What an SVG import approximated or left out, one line each. */
+export function svgWarningLines(w: Partial<Record<SvgWarning, number>>): string {
+  return SVG_WARNINGS.filter((k) => w[k]).map((k) => `• ${i18n.t(`symbolEditor.svg.warn.${k}`, { n: w[k] })}`).join("\n");
+}
+
+/** «Import a symbol…» (plan docs/plans/2026-11-20-importa-svg-e-file-del-simbolo.md):
+ *  a `.swsym` opens the editor on the symbol it carries, an `.svg` on a new
+ *  symbol named after the file with the drawing in it. Both are new symbols of
+ *  the project until «Save». */
+export async function openSymbolFile(file: File): Promise<void> {
+  const t = i18n.t.bind(i18n);
+  const svg = /\.svg$/i.test(file.name) || file.type === "image/svg+xml";
+  const failed = (testo: string) => avviso({ livello: "errore", titolo: t("symbolEditor.file.failed", { name: file.name }), testo });
+  if (file.size > (svg ? MAX_SVG_BYTES : MAX_SYMBOL_FILE_BYTES)) {
+    await failed(t(svg ? "symbolEditor.svg.err.tooBig" : "symbolEditor.file.err.tooBig"));
+    return;
+  }
+  const text = await file.text();
+  const open = useAppStore.getState().openSymbolEditor;
+  if (!svg) {
+    const r = readSymbolFile(text, takenSlugs());
+    if (!r.ok) { await failed(t(`symbolEditor.file.err.${r.error}`)); return; }
+    open({ draft: r.d, isNew: true });
+    return;
+  }
+  const name = file.name.replace(/\.svg$/i, "").replace(/[<>"&]/g, "").trim().slice(0, 60) || t("symbolEditor.newName");
+  const blank = emptySymbol({ it: name, en: name }, takenSlugs());
+  const r = importSvg(text, { w: blank.w, h: blank.h, adapt: true, room: roomFor(blank) });
+  if (!r.ok) { await failed(t(`symbolEditor.svg.err.${r.error}`)); return; }
+  open({ draft: placeImport(blank, r).d, isNew: true });
+  const notes = svgWarningLines(r.warnings);
+  if (notes) await avviso({ titolo: t("symbolEditor.svg.done", { n: r.ops.length }), testo: notes });
 }
 
 /** Writes the project symbols, in memory and on the runtime. The errors of the

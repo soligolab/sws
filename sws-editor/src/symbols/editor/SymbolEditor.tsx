@@ -32,7 +32,9 @@ import { predefinito } from "@/coloriPredefiniti";
 import type { ValoreParte } from "@/symbols/lib/libreria";
 import { AnimateBlock, AnimationProps } from "./AnimationProps";
 import { AiPanel } from "./AiPanel";
-import { bindingsOnParts, pipesOnPorts, takenSlugs, usage, withSymbol, withoutSymbol, writeSymbols, type SymbolEditorTarget } from "./open";
+import { bindingsOnParts, pipesOnPorts, svgWarningLines, takenSlugs, usage, withSymbol, withoutSymbol, writeSymbols, type SymbolEditorTarget } from "./open";
+import { importSvg, isBlank, looksLikeSvg, placeImport, roomFor, MAX_SVG_BYTES } from "./importSvg";
+import { symbolFileName, symbolFileText } from "./symbolFile";
 
 interface Catalog {
   materials: { name: string; color: string }[];
@@ -161,16 +163,25 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
   const baseParts = useRef<string[]>(partIds(target.draft));
   const partOrigin = useRef<Map<string, string>>(new Map(partIds(target.draft).map((id) => [id, id])));
   const svgRef = useRef<SVGSVGElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
   const drawRef = useRef<SVGGElement>(null);
   const sn = useCallback((v: number) => snapTo(v, grid.snap ? grid.step : null), [grid.snap, grid.step]);
 
   const commit = useCallback((next: DescrizioneSimbolo) => {
     setHist((h) => (next === h.present ? h : { past: [...h.past.slice(-99), h.present], present: next, future: [] }));
   }, []);
-  const undo = useCallback(() => setHist((h) => h.past.length
-    ? { past: h.past.slice(0, -1), present: h.past[h.past.length - 1], future: [h.present, ...h.future] } : h), []);
-  const redo = useCallback(() => setHist((h) => h.future.length
-    ? { past: [...h.past, h.present], present: h.future[0], future: h.future.slice(1) } : h), []);
+  // The selection is by index: after an undo it may point past the end, or at
+  // other shapes (an undone import or duplicate crashed the editor, 20-11-2026).
+  const undo = useCallback(() => {
+    setSel([]);
+    setHist((h) => h.past.length
+      ? { past: h.past.slice(0, -1), present: h.past[h.past.length - 1], future: [h.present, ...h.future] } : h);
+  }, []);
+  const redo = useCallback(() => {
+    setSel([]);
+    setHist((h) => h.future.length
+      ? { past: [...h.past, h.present], present: h.future[0], future: h.future.slice(1) } : h);
+  }, []);
 
   useEffect(() => { void api.symbolCatalog().then(setCatalog).catch(() => {}); }, []);
 
@@ -621,6 +632,60 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
     commit(out);
     setSel(at);
   }, [commit, d, sel, layerOf, ls]);
+  // An SVG drawing (plan docs/plans/2026-11-20-importa-svg-e-file-del-simbolo.md):
+  // its shapes become operations of the symbol, selected so they move and
+  // scale together; what was approximated or left out is said after.
+  const importSvgText = useCallback((text: string) => {
+    const r = importSvg(text, { w: d.w, h: d.h, adapt: isBlank(d), room: roomFor(d) });
+    if (!r.ok) {
+      void avviso({ livello: "errore", titolo: t("symbolEditor.svg.failed"), testo: t(`symbolEditor.svg.err.${r.error}`) });
+      return;
+    }
+    const placed = placeImport(d, r);
+    commit(placed.d);
+    setSel(placed.at);
+    setTool("select");
+    setPoly([]);
+    if (r.size) setView({ z: 1, cx: r.size.w / 2, cy: r.size.h / 2 });
+    const notes = svgWarningLines(r.warnings);
+    if (notes) void avviso({ titolo: t("symbolEditor.svg.done", { n: r.ops.length }), testo: notes });
+  }, [commit, d, t]);
+  const importSvgFile = useCallback(async (f: File | undefined) => {
+    if (!f) return;
+    if (f.size > MAX_SVG_BYTES) {
+      void avviso({ livello: "errore", titolo: t("symbolEditor.svg.failed"), testo: t("symbolEditor.svg.err.tooBig") });
+      return;
+    }
+    importSvgText(await f.text());
+  }, [importSvgText, t]);
+  const svgInput = useRef<HTMLInputElement>(null);
+  // Ctrl+V waits a moment: if the clipboard holds SVG code the paste event
+  // imports it, otherwise the shapes copied in the editor are pasted.
+  const pendingPaste = useRef<number | null>(null);
+  useEffect(() => {
+    const h = (e: ClipboardEvent) => {
+      e.stopPropagation();
+      const el = e.target as HTMLElement | null;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
+      const file = [...(e.clipboardData?.files ?? [])].find((f) => f.type === "image/svg+xml" || /\.svg$/i.test(f.name));
+      const text = e.clipboardData?.getData("text/plain") ?? "";
+      if (!file && !looksLikeSvg(text)) return;
+      e.preventDefault();
+      if (pendingPaste.current !== null) { window.clearTimeout(pendingPaste.current); pendingPaste.current = null; }
+      if (file) void importSvgFile(file);
+      else importSvgText(text);
+    };
+    window.addEventListener("paste", h, true);
+    return () => window.removeEventListener("paste", h, true);
+  }, [importSvgFile, importSvgText]);
+  const exportFile = () => {
+    const url = URL.createObjectURL(new Blob([symbolFileText(d)], { type: "application/json" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = symbolFileName(d);
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
   const selectAll = useCallback(() => {
     setSel([...boxes.keys()].filter(pickable));
   }, [boxes, pickable]);
@@ -641,9 +706,14 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
   // Keys stay inside the editor: Delete must not delete an object of the page.
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
-      e.stopPropagation();
       const el = e.target as HTMLElement | null;
-      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable)) return;
+      const field = !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable);
+      // A field of the editor gets its keys (Enter in a port's name, Ctrl+Enter
+      // in the AI tab): stopped here, they never reached React. The editor's
+      // root stops them instead, before the page's listeners (20-11-2026).
+      if (field && rootRef.current?.contains(el)) return;
+      e.stopPropagation();
+      if (field) return;
       const mod = e.ctrlKey || e.metaKey;
       const k = e.key.toLowerCase();
       if (e.key === " ") { space.current = true; return; }
@@ -653,7 +723,11 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
       else if (mod && k === "a") { e.preventDefault(); selectAll(); }
       else if (mod && k === "c") { e.preventDefault(); copy(false); }
       else if (mod && k === "x") { e.preventDefault(); copy(true); }
-      else if (mod && k === "v") { e.preventDefault(); paste(); }
+      else if (mod && k === "v") {
+        // No preventDefault: the browser's paste event may bring SVG code.
+        if (pendingPaste.current !== null) window.clearTimeout(pendingPaste.current);
+        pendingPaste.current = window.setTimeout(() => { pendingPaste.current = null; paste(); }, 0);
+      }
       else if (e.key === "Enter" && tool === "poly") { e.preventDefault(); finishPoly(false); }
       else if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); del(); }
       else if (e.key === "Escape") {
@@ -839,7 +913,7 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
   }
 
   return (
-    <div data-testid="symbol-editor" style={{
+    <div data-testid="symbol-editor" ref={rootRef} onKeyDown={(e) => e.stopPropagation()} style={{
       position: "fixed", inset: 0, zIndex: 9000, background: C.bg, color: C.text,
       display: "flex", flexDirection: "column", fontSize: 12,
     }}>
@@ -852,6 +926,8 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
         <button type="button" style={small} disabled={!hist.past.length} onClick={undo} title="Ctrl+Z">{t("symbolEditor.undo")}</button>
         <button type="button" style={small} disabled={!hist.future.length} onClick={redo} title="Ctrl+Y">{t("symbolEditor.redo")}</button>
         {original && saved && <button type="button" style={small} onClick={() => void revert()}>{t("symbolEditor.revert")}</button>}
+        <button type="button" style={btn(false)} disabled={!!compiled.errors.length} onClick={exportFile}
+          data-testid="symbol-editor-export" title={t("symbolEditor.file.exportTitle")}>{t("symbolEditor.file.export")}</button>
         <button type="button" style={btn(false)} disabled={busy || !!compiled.errors.length} onClick={() => void saveAs()}>{t("symbolEditor.saveAs")}</button>
         <button type="button" data-testid="symbol-editor-save" style={btn(dirty)} disabled={busy || !!compiled.errors.length || !dirty}
           onClick={() => void save()}>{t("symbolEditor.save")}</button>
@@ -912,6 +988,10 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
                 {t(`symbolEditor.tool.${k}`)}
               </button>
             ))}
+            <button type="button" style={btn(false)} data-testid="symbol-import-svg" title={t("symbolEditor.svg.importTitle")}
+              onClick={() => svgInput.current?.click()}>{t("symbolEditor.svg.import")}</button>
+            <input ref={svgInput} type="file" accept=".svg,image/svg+xml" style={{ display: "none" }} data-testid="symbol-import-svg-file"
+              onChange={(e) => { void importSvgFile(e.target.files?.[0]); e.target.value = ""; }} />
             <span style={{ flex: 1 }} />
             <span style={{ color: C.subtle }}>{w} × {h}</span>
           </div>
@@ -956,7 +1036,16 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
                 onChange={(e) => setExplode({ ...explode, k: Number(e.target.value) })} style={{ width: 90 }} />
             )}
           </div>
-          <div style={{ flex: 1, minHeight: 0, padding: 16, display: "flex" }}>
+          <div style={{ flex: 1, minHeight: 0, padding: 16, display: "flex" }}
+            onDragOver={(e) => { if (e.dataTransfer.types.includes("Files")) { e.preventDefault(); e.stopPropagation(); } }}
+            onDrop={(e) => {
+              if (!e.dataTransfer.files.length) return;
+              // Any file: the browser would otherwise open it in place of the IDE.
+              e.preventDefault();
+              e.stopPropagation();
+              const f = [...e.dataTransfer.files].find((x) => x.type === "image/svg+xml" || /\.svg$/i.test(x.name));
+              if (f) void importSvgFile(f);
+            }}>
             <svg ref={svgRef} data-testid="symbol-editor-canvas"
               viewBox={viewBox} preserveAspectRatio="xMidYMid meet"
               style={{ flex: 1, minWidth: 0, cursor: drag?.kind === "pan" ? "grabbing" : tool === "select" ? "default" : "crosshair", touchAction: "none" }}

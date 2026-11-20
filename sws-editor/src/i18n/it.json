@@ -5681,6 +5681,49 @@
         "bad_request": "Richiesta non valida: {{detail}}",
         "error": "Errore: {{detail}}"
       }
+    },
+    "svg": {
+      "import": "Importa SVG…",
+      "importTitle": "Aggiunge al simbolo un disegno SVG, una forma per volta, con i suoi colori. Si può anche trascinare il file qui, o incollare il codice SVG con Ctrl+V",
+      "failed": "SVG non importato",
+      "done": "SVG importato: {{n}} forme",
+      "err": {
+        "notSvg": "Il file non è un disegno SVG.",
+        "tooBig": "Il file è troppo grande: al più 2 MB.",
+        "tooManyElements": "Il disegno ha più di 5000 elementi: troppi per un simbolo.",
+        "empty": "Nel disegno non c'è niente da importare: solo testo, immagini o forme invisibili.",
+        "full": "Il simbolo ha già 300 operazioni, il massimo: non c'è posto per altro."
+      },
+      "warn": {
+        "text": "{{n}} testi lasciati fuori: il pannello non ha i caratteri per disegnarli.",
+        "image": "{{n}} immagini lasciate fuori: le foto nei simboli arriveranno più avanti.",
+        "evenodd": "{{n}} forme con dei buchi (riempimento «evenodd»): i buchi potrebbero risultare pieni.",
+        "clip": "{{n}} ritagli (clip-path) ignorati: le forme si vedono intere.",
+        "mask": "{{n}} maschere ignorate: le forme si vedono intere.",
+        "filter": "{{n}} filtri (ombre, sfocature) ignorati.",
+        "pattern": "{{n}} motivi (pattern) diventati grigio pieno.",
+        "gradient": "{{n}} sfumature diventate un colore pieno, con l'effetto «Volume» più simile.",
+        "marker": "{{n}} punte di freccia (marker) ignorate.",
+        "colour": "{{n}} colori non riconosciuti, diventati nero.",
+        "strokeWide": "{{n}} contorni più spessi di 20, ridotti a 20.",
+        "split": "{{n}} tracciati troppo lunghi divisi in più forme: i buchi potrebbero risultare pieni.",
+        "tooLong": "{{n}} pezzi di tracciato troppo lunghi lasciati fuori.",
+        "tooMany": "{{n}} forme lasciate fuori: un simbolo ha al più 300 operazioni.",
+        "css": "{{n}} regole di stile troppo complesse ignorate: qualche colore potrebbe essere diverso.",
+        "use": "{{n}} riferimenti (<use>) a elementi che non ci sono, ignorati."
+      }
+    },
+    "file": {
+      "export": "Esporta",
+      "exportTitle": "Scarica il simbolo come file .swsym, da importare in un altro progetto (Strumenti ▸ Simboli ▸ Importa un simbolo…)",
+      "import": "Importa un simbolo…",
+      "importTitle": "Apre come simbolo nuovo un file .swsym esportato da un altro progetto, o un disegno SVG",
+      "failed": "«{{name}}» non importato",
+      "err": {
+        "notSymbol": "Il file non è un simbolo esportato da SWS.",
+        "newer": "Il file viene da una versione più nuova dell'IDE: aggiorna l'IDE per aprirlo.",
+        "tooBig": "Il file è troppo grande: al più 1 MB."
+      }
     }
   },
   "images": {

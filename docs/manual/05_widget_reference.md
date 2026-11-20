@@ -857,7 +857,7 @@ come…» ne fa un simbolo nuovo.
 - **Prova**: la scheda mostra il simbolo coi valori dei suoi ingressi (stato, livello, girante, lancetta, leva, spia, e
   i pezzi animati), come in pagina; «Anima» accende gli effetti a tempo. Non salva niente.
 - **IA**: si scrive cosa disegnare o cosa cambiare, e si sceglie **«Modifica questo»** (il modello vede il simbolo
-  aperto e lo cambia) o **«Disegna nuovo»** (un disegno da zero). **«Aggiungi una foto»** manda anche la foto di una
+  aperto e lo cambia) o **«Disegna nuovo»** (un disegno da zero); Ctrl+Invio vale il pulsante evidenziato. **«Aggiungi una foto»** manda anche la foto di una
   macchina: il modello la disegna vista di fronte, nello stile della libreria. La foto si riduce nel browser a 1024 px
   prima di partire. Risponde il modello dello scopo «Disegno dei simboli» (Configurazione → IA → Un modello per scopo),
   o quello dell'assistente se lo scopo non ne ha uno; per una foto serve un modello che veda le immagini.
@@ -866,6 +866,17 @@ come…» ne fa un simbolo nuovo.
   proposta: un ritocco dopo l'altro. Nome, etichette, categoria e variante restano quelli dell'editor. Se il disegno
   non è valido, SWS rimanda gli errori al modello fino a tre volte; dopo il terzo la scheda li mostra. Funziona solo
   nell'IDE, e non salva niente finché non si salva il simbolo.
+- **Importa SVG…** (barra degli strumenti; oppure si trascina il file `.svg` sul disegno, o si incolla il codice SVG
+  con Ctrl+V): ogni forma del disegno diventa una forma del simbolo, coi suoi colori, e si modifica come le altre. Le
+  forme importate restano scelte, così si spostano e si scalano insieme. Vanno in uno strato fermo in cima; in un
+  simbolo nuovo prendono il posto del riquadro di partenza, nel corpo, e il simbolo prende le proporzioni del disegno.
+  Hanno colori propri: non seguono lo stato né lo stile del progetto finché non si sceglie per loro un materiale o il
+  colore dello stato. Quello che un simbolo non sa disegnare si approssima o si lascia fuori, e una finestra lo dice:
+  le sfumature diventano un colore pieno con l'effetto «Volume» più simile; testi, immagini, ritagli, maschere e filtri non
+  ci sono. Al più 300 operazioni per simbolo e 2 MB di file.
+- **Esporta** (in alto) scarica il simbolo come file `.swsym`. In un altro progetto, Strumenti ▸ Simboli →
+  **«Importa un simbolo…»** lo apre nell'editor come simbolo nuovo (mai come variante di un simbolo della libreria);
+  lo stesso comando apre anche un file `.svg`, come simbolo nuovo col nome del file. Si salva con «Salva».
 
 | Proprietà | Descrizione |
 |-----------|-------------|

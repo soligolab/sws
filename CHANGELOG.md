@@ -12,6 +12,27 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Aggiunto
+- **Importa SVG ed esporta/importa il simbolo, nell'editor dei simboli** (piano
+  `docs/plans/2026-11-20-importa-svg-e-file-del-simbolo.md`, ramo `feat/symbol-import`). **«Importa SVG…»** (anche
+  trascinando il file sul disegno o con Ctrl+V del codice SVG) esplode il disegno in forme del simbolo: gruppi,
+  trasformazioni e stili ereditati appiattiti, colori in `#rrggbb` con l'opacità, regole semplici di `<style>`,
+  `<use>`; rect/cerchi/ellissi restano tali se non ruotati, il resto diventa `path` assoluto (archi in curve sotto una
+  rotazione, flag degli archi attaccati letti come fa il browser). Sfumature → colore medio col velo più simile;
+  testo, immagini, clip, maschere, filtri lasciati fuori e detti in una finestra. Le forme vanno in uno strato fermo
+  in cima, scelte; un simbolo nuovo le prende nel corpo al posto del riquadro, con le proporzioni dell'SVG. Nessun SVG
+  arriva al runtime: escono solo operazioni, che il compilatore controlla (provato su 30 SVG veri, 20 della libreria e
+  10 icone di sistema: tutti compilati, uguali a vista). **«Esporta»** scarica `<slug>.swsym` (JSON con formato e
+  versione); **Strumenti ▸ Simboli ▸ «Importa un simbolo…»** apre un `.swsym` o un `.svg` come simbolo nuovo (slug
+  reso unico, mai variante). Nuovi `symbols/editor/importSvg.ts` e `symbolFile.ts`.
+
+### Corretto
+- **Editor dei simboli: Ctrl+Z dopo «Duplica» o un import bloccava l'editor.** La selezione è per indice e restava
+  sulle forme annullate, oltre la fine dell'elenco; ora annulla e ripristina la tolgono.
+- **Editor dei simboli: Invio nel nome di una bocca non confermava.** L'editor fermava tutti i tasti sulla finestra,
+  prima che arrivassero ai suoi campi. Ora i campi dell'editor ricevono i tasti, e la radice dell'editor li ferma prima
+  della pagina sotto. Nella scheda «IA» torna così **Ctrl+Invio**, che chiede quello che chiede il pulsante evidenziato.
+
+### Aggiunto
 - **L'assistente IA nell'editor dei simboli** (piano `docs/plans/2026-11-19-assistente-ia-simboli.md`, ramo
   `feat/symbol-ai`). Una quarta scheda **«IA»** accanto a Pezzo, Struttura e Prova: si scrive cosa disegnare o cosa
   cambiare e si sceglie **«Modifica questo»** o **«Disegna nuovo»**; **«Aggiungi una foto»** manda anche la foto di una

@@ -50,6 +50,25 @@ raggruppati, trascinamento con l'aggancio («ora funziona come mi aspettavo»). 
 8. [ ] **Prova**: stato acceso/allarme, livello, girante che gira, leva, spia.
 9. [ ] **«+ Nuovo simbolo»** in cima a Strumenti ▸ Simboli, senza aprire famiglie.
 
+## Importa SVG e il file del simbolo (20-11-2026)
+
+Dal piano [importa SVG e il file del simbolo](plans/2026-11-20-importa-svg-e-file-del-simbolo.md), ramo
+`feat/symbol-import` (annidato sull'assistente IA). IDE di prova dal worktree. Le decisioni prese senza il maintainer
+sono in fondo al piano: si confermano qui.
+
+1. [ ] **Importa SVG… in un simbolo nuovo**: «+ Nuovo simbolo», «Importa SVG…», un disegno vero (un'icona, un
+       disegno fatto con Inkscape o Illustrator) → al posto del riquadro, con le proporzioni del disegno, forme scelte;
+       la finestra dice cosa è stato lasciato fuori. Ctrl+Z torna al riquadro.
+2. [ ] **In un simbolo che ha già un disegno**: trascinare un `.svg` sul disegno → uno strato fermo nuovo in cima, le
+       forme scelte si spostano e si scalano insieme; ogni forma si modifica da sola.
+3. [ ] **Ctrl+V**: copiare il codice di un SVG da un editor di testo e incollarlo nell'editor → importato; Ctrl+C e
+       Ctrl+V di forme dell'editor funzionano come prima.
+4. [ ] **Esporta / Importa un simbolo…**: «Esporta» scarica `<slug>.swsym`; in un altro progetto, Strumenti ▸ Simboli
+       ▸ «Importa un simbolo…» lo apre come simbolo nuovo; «Salva», poi in pagina e sul pannello come gli altri.
+5. [ ] **Sul pannello**: un simbolo importato da SVG messo in una pagina e mandato al TY570 si vede come nell'IDE.
+6. [ ] **Invio nei campi dell'editor**: il nome di una bocca si conferma con Invio; nella scheda «IA» Ctrl+Invio
+       manda la richiesta. Canc e Backspace in un campo non tolgono né forme né oggetti della pagina.
+
 ## L'assistente IA nell'editor dei simboli (20-11-2026)
 
 Dal piano [assistente IA dei simboli](plans/2026-11-19-assistente-ia-simboli.md), ramo `feat/symbol-ai` (annidato

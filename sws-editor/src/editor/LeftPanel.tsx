@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
-import { openNewSymbol, openSymbolEditorFor } from "@/symbols/editor/open";
+import { openNewSymbol, openSymbolEditorFor, openSymbolFile } from "@/symbols/editor/open";
 import { ImgProgetto } from "@/canvas/ImmagineSvg";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
@@ -1048,6 +1048,7 @@ function RamoSimboli({ ultimoGruppo }: { ultimoGruppo: boolean }) {
   const voci = [...famiglie.map((f) => f.famiglia), "__progetto"];
   const px = useAppStore((s) => s.misuraIcone);
   const esterne = ultimoGruppo ? [] : [13];
+  const fileRef = useRef<HTMLInputElement>(null);
   return (
     <>
       {/* «+ New symbol» at the top of the branch, always in sight (symbol editor
@@ -1057,6 +1058,14 @@ function RamoSimboli({ ultimoGruppo }: { ultimoGruppo: boolean }) {
         icona={<span style={{ width: px, textAlign: "center", flexShrink: 0 }}>+</span>}
         nome={t("symbolEditor.newSymbol")} onClick={() => openNewSymbol()}
         guide={guideAlbero(esterne, { x: 27, finoA: 34, ultimo: false })} />
+      {/* A symbol from another project (`.swsym`) or a drawing (`.svg`), 20-11-2026. */}
+      <RigaStrumento testid="simbolo-importa" rientro={36} titolo={t("symbolEditor.file.importTitle")}
+        icona={<span style={{ width: px, textAlign: "center", flexShrink: 0 }}>↥</span>}
+        nome={t("symbolEditor.file.import")} onClick={() => fileRef.current?.click()}
+        guide={guideAlbero(esterne, { x: 27, finoA: 34, ultimo: false })} />
+      <input ref={fileRef} type="file" accept=".swsym,.svg,image/svg+xml,application/json" style={{ display: "none" }}
+        data-testid="simbolo-importa-file"
+        onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void openSymbolFile(f); }} />
       {voci.map((f, i) => (
         <FamigliaSimboli key={f} famiglia={f} tipologie={famiglie.find((x) => x.famiglia === f)?.tipologie ?? []}
           ultima={i === voci.length - 1} ultimoGruppo={ultimoGruppo}
