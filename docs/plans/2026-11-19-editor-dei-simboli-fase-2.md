@@ -46,6 +46,8 @@ La fase 1 (squash `8b7bb6a30`) ha esteso le descrizioni dei simboli del progetto
      approssimati coi veli, `evenodd`/`clipPath`/`mask` lasciati con un avviso) ed **esporta/importa il simbolo** come
      file; allineare lo schema dell'assistente (`schema_simbolo`, `ai/tools.rs:1306`, dice ancora «niente colori
      liberi») al compilatore.
+     Piano dettagliato: [importa SVG e il file del simbolo](2026-11-20-importa-svg-e-file-del-simbolo.md)
+     (20-11-2026; lo schema dell'assistente era già allineato).
 4. **Vista esplosa radiale**: ogni forma si allontana dal centro nella sua direzione, un cursore regola quanto; si
    seleziona e si modifica una per volta; le modifiche valgono per il simbolo vero, uscendo tutto torna al suo posto.
 5. «+ Nuovo simbolo» **in testa al ramo Simboli**.
