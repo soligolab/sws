@@ -11,6 +11,18 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Cambiato
+- **L'assistente IA dei simboli, col modello locale: la risposta è tenuta a uno schema JSON** (ramo
+  `feat/symbol-ai-schema`). Al modello di un server locale (Ollama, llama.cpp, vLLM) la domanda arriva con
+  `response_format: json_schema` (`answer_schema` in `ai/symbol_draw.rs`, `client::ask_shaped`): il server ne fa una
+  grammatica e il modello non può scrivere un JSON che non si legge. Lo schema dice la forma di ogni operazione, la
+  geometria di ogni tipo di parte, i materiali e i veli; prende tutti i 195 simboli della libreria e gli esempi del
+  formato (un test lo controlla). Un server che non lo conosce viene interrogato di nuovo senza; i fornitori nel
+  cloud non lo ricevono. Misurato con qwen3.5:9b: risposte leggibili da 0 su 8 a 8 su 8, simboli validi dalla
+  scheda «IA» 5 su 14 (prima 2 su 9), e risposte più brevi; i disegni restano poveri, per quelli serve un modello
+  più grande. Insieme: l'errore «la forma esce dal disegno» dice dove va la forma (`va da x … a …, y … a …`), e la
+  richiesta di modifica chiede di tenere `w` e `h`.
+
 ### Aggiunto
 - **Importa SVG ed esporta/importa il simbolo, nell'editor dei simboli** (piano
   `docs/plans/2026-11-20-importa-svg-e-file-del-simbolo.md`, ramo `feat/symbol-import`). **«Importa SVG…»** (anche

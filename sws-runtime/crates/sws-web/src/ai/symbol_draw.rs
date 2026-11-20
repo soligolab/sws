@@ -62,6 +62,154 @@ pub(crate) async fn system(s: &AppState) -> Result<String, String> {
     Ok(istruzioni)
 }
 
+/// What a model may answer, as JSON Schema: the shape of a description. A
+/// local server turns it into a grammar (see [`client::ask_shaped`]), and a
+/// small model stops writing JSON that does not read (20-11-2026: qwen3.5:9b,
+/// 0 readable answers in 8 without it, 8 in 8 with it). Only the shape: the
+/// compiler still checks the rest — sizes, shapes inside the drawing, a body
+/// with a shape — and its errors go back to the model.
+pub(crate) fn answer_schema() -> Value {
+    use sws_core::simboli_prj::{FORME, MATERIALI, TIPI_PARTE, VELI};
+    let num = json!({ "type": "number" });
+    let materials: Vec<&str> = MATERIALI.iter().map(|(n, _)| *n).collect();
+    let veils: Vec<&str> = VELI.iter().map(|v| v.nome).collect();
+    let mat = json!({ "anyOf": [{ "enum": materials }, { "type": "null" }] });
+    let veil = json!({ "anyOf": [{ "enum": veils }, { "type": "null" }] });
+    let colour = json!({ "type": "string", "pattern": "^(none|#[0-9a-fA-F]{3}|#[0-9a-fA-F]{6})$" });
+    let path = json!({ "type": "string", "pattern": "^[MmLlHhVvCcSsQqTtAaZz0-9.,+eE -]+$" });
+    let id = json!({ "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{1,29}$" });
+    // The extras as an object, or as the pairs the library writes.
+    let extra = json!({ "anyOf": [
+        { "type": "object", "additionalProperties": false, "properties": {
+            "stroke_width": num, "stroke_opacity": num, "fill_opacity": num,
+            "fill": colour, "stroke": colour,
+            "stroke_linecap": { "enum": ["butt", "round", "square"] },
+            "stroke_linejoin": { "enum": ["round", "miter", "bevel"] },
+            "stroke_dasharray": { "type": "string" } } },
+        { "type": "array", "items": { "type": "array",
+            "items": { "anyOf": [{ "type": "string" }, { "type": "number" }] } } },
+    ] });
+    let object = |props: Value, required: &[&str]| json!({ "type": "object", "additionalProperties": false, "required": required, "properties": props });
+    let geo = |tag: &str| match tag {
+        "rect" => object(
+            json!({ "x": num, "y": num, "width": num, "height": num, "rx": num, "ry": num }),
+            &["x", "y", "width", "height"],
+        ),
+        "circle" => object(
+            json!({ "cx": num, "cy": num, "r": num }),
+            &["cx", "cy", "r"],
+        ),
+        "ellipse" => object(
+            json!({ "cx": num, "cy": num, "rx": num, "ry": num }),
+            &["cx", "cy", "rx", "ry"],
+        ),
+        _ => object(json!({ "d": path }), &["d"]),
+    };
+    let op = |name: &str, props: Value, required: &[&str]| {
+        let mut p = props.as_object().cloned().unwrap_or_default();
+        p.insert("op".into(), json!({ "const": name }));
+        let mut r = vec!["op"];
+        r.extend_from_slice(required);
+        object(Value::Object(p), &r)
+    };
+    let xywh = json!({ "x": num, "y": num, "w": num, "h": num });
+    let mut ops = vec![
+        op("statico", json!({}), &[]),
+        op("corpo", json!({}), &[]),
+        op(
+            "tratto",
+            json!({ "d": path, "mat": mat, "extra": extra }),
+            &["d"],
+        ),
+        op(
+            "bocca",
+            json!({ "x": num, "y": num, "side": { "enum": ["left", "top", "right", "bottom"] },
+                    "d": num, "id": { "anyOf": [id, { "type": "null" }] } }),
+            &["x", "y", "side", "d"],
+        ),
+        op("flangia_v", xywh.clone(), &["x", "y"]),
+        op("flangia_o", xywh.clone(), &["x", "y"]),
+        op("tubo_o", xywh.clone(), &["x", "y", "w"]),
+        op("tubo_v", xywh, &["x", "y", "h"]),
+    ];
+    // A part with the geometry of its kind (`ParteLib`): without it the
+    // compiler says «missing field cx», and a small model said it five times.
+    for kind in TIPI_PARTE {
+        let (props, required): (Value, &[&str]) = match *kind {
+            "level" => (
+                json!({ "x": num, "y": num, "w": num, "h": num,
+                        "dir": { "enum": ["up", "down", "left", "right"] } }),
+                &["x", "y", "w", "h"],
+            ),
+            "rotor" => (
+                json!({ "cx": num, "cy": num, "symmetry": num, "ccw": { "type": "boolean" } }),
+                &["cx", "cy", "symmetry"],
+            ),
+            "needle" => (
+                json!({ "cx": num, "cy": num, "a0": num, "a1": num }),
+                &["cx", "cy", "a0", "a1"],
+            ),
+            "lever" => (
+                json!({ "cx": num, "cy": num, "open": num, "closed": num,
+                        "angoli": { "type": "array", "items": num } }),
+                &["cx", "cy", "open", "closed"],
+            ),
+            "slide" => (
+                json!({ "dx": num, "dy": num, "transition_ms": num }),
+                &["dx", "dy"],
+            ),
+            "vibrate" => (
+                json!({ "amplitude": num, "axis": { "enum": ["x", "y"] }, "period_ms": num }),
+                &[],
+            ),
+            "pulse" => (json!({ "depth": num, "period_ms": num }), &[]),
+            "signal" => (
+                json!({ "color": colour, "entries": { "type": "array", "items": { "type": "object" } } }),
+                &[],
+            ),
+            _ => (json!({}), &[]),
+        };
+        let geo = json!({ "type": "object", "required": required, "properties": props });
+        ops.push(op(
+            "parte",
+            json!({ "id": id, "kind": { "const": kind }, "geo": geo }),
+            &["id", "kind", "geo"],
+        ));
+    }
+    let rect4 = json!({ "type": "array", "items": num, "minItems": 4, "maxItems": 4 });
+    for name in ["flangia", "tronchetto"] {
+        ops.push(op(name, json!({ "rect": rect4 }), &["rect"]));
+    }
+    for tag in FORME {
+        let t = json!({ "const": tag });
+        ops.push(op(
+            "forma",
+            json!({ "tag": t, "geo": geo(tag), "mat": mat, "velo": veil, "extra": extra }),
+            &["tag", "geo"],
+        ));
+        ops.push(op(
+            "luce",
+            json!({ "tag": t, "geo": geo(tag), "velo": { "enum": veils }, "opacita": num }),
+            &["tag", "geo"],
+        ));
+        ops.push(op(
+            "riflesso",
+            json!({ "tag": t, "geo": geo(tag), "opacita": num }),
+            &["tag", "geo"],
+        ));
+    }
+    let sizes: Vec<u32> = (1..=51).map(|k| k * 10).collect();
+    let text = json!({ "type": "string" });
+    object(
+        json!({
+            "slug": text, "it": text, "en": text, "tipo": text,
+            "w": { "enum": sizes }, "h": { "enum": sizes }, "body": { "enum": materials },
+            "ops": { "type": "array", "items": { "anyOf": ops } },
+        }),
+        &["w", "h", "body", "ops"],
+    )
+}
+
 /// Asks, compiles, and sends the errors back, up to [`ATTEMPTS`] times.
 /// `fixed` = the fields the model may not change, written over its answer
 /// (a null removes the field): whoever asks names the symbol, the model draws
@@ -76,12 +224,14 @@ pub(crate) async fn draw(
     meter: &mut (dyn Meter + Send),
 ) -> Result<Drawn, DrawError> {
     let mut last: Vec<String> = Vec::new();
+    let shape = answer_schema();
     for attempt in 1..=ATTEMPTS {
         meter.may_call().map_err(DrawError::Stopped)?;
         let t0 = std::time::Instant::now();
-        let (answer, usage) = client::chiedi_con_uso(http, choice, system, &messages, MAX_TOKENS)
-            .await
-            .map_err(|e| DrawError::Provider(format!("{e:#}")))?;
+        let (answer, usage) =
+            client::ask_shaped(http, choice, system, &messages, MAX_TOKENS, Some(&shape))
+                .await
+                .map_err(|e| DrawError::Provider(format!("{e:#}")))?;
         let cost = price_list::cost_usd(
             &s.config_dir,
             choice.fornitore,
@@ -228,9 +378,10 @@ fn editor_messages(req: &EditorRequest, d: &Descrizione) -> Value {
         Mode::Edit => format!(
             "This is the symbol as it is now:\n{}\n\nChange it as asked below. Answer with the \
              whole description, not only what changes. Keep the ids of the ports and of the parts \
-             unless the request asks to change them: the pages bind them by id. The operations \
-             `flangia` and `tronchetto` record a flange or a stub already drawn by the shapes \
-             before them: keep them as they are, next to their shapes.\n",
+             unless the request asks to change them: the pages bind them by id. Keep `w` and \
+             `h` too, unless the request asks for another size: every shape stays inside them. \
+             The operations `flangia` and `tronchetto` record a flange or a stub already drawn \
+             by the shapes before them: keep them as they are, next to their shapes.\n",
             serde_json::to_string_pretty(&readable(d)).unwrap_or_default()
         ),
     };
@@ -262,8 +413,12 @@ fn editor_messages(req: &EditorRequest, d: &Descrizione) -> Value {
 /// since an object would sort its keys and change the drawing's text.
 fn readable(d: &Descrizione) -> Value {
     let mut v = serde_json::to_value(d).unwrap_or_default();
+    // Not the model's to write: a library field, and the variant the caller
+    // keeps (`fixed`). The answer schema has no place for them.
     if let Some(o) = v.as_object_mut() {
-        o.remove("family");
+        for k in ["family", "replaces", "overrides"] {
+            o.remove(k);
+        }
     }
     for op in v
         .get_mut("ops")
@@ -566,6 +721,120 @@ mod tests {
         let a = sws_core::simboli_prj::compila_e_controlla(&lib).unwrap();
         let b = sws_core::simboli_prj::compila_e_controlla(&back).unwrap();
         assert_eq!(a.svg, b.svg);
+    }
+
+    /// Does `v` fit `s`? The JSON Schema [`answer_schema`] writes, no more:
+    /// objects, arrays, anyOf, const, enum, types. Patterns are the compiler's
+    /// business. A numeric string fits a number: the library writes some
+    /// (`"cx": "56.5"`), the compiler reads both, a model held to the schema
+    /// writes the number.
+    fn fits(v: &Value, s: &Value) -> bool {
+        if let Some(any) = s.get("anyOf").and_then(Value::as_array) {
+            return any.iter().any(|x| fits(v, x));
+        }
+        if let Some(c) = s.get("const") {
+            return v == c;
+        }
+        if let Some(e) = s.get("enum").and_then(Value::as_array) {
+            return e.contains(v);
+        }
+        let count = |k: &str| s.get(k).and_then(Value::as_u64);
+        match s.get("type").and_then(Value::as_str) {
+            Some("null") => v.is_null(),
+            Some("number") => {
+                v.is_number() || v.as_str().is_some_and(|t| t.trim().parse::<f64>().is_ok())
+            }
+            Some("string") => v.is_string(),
+            Some("array") => v.as_array().is_some_and(|a| {
+                count("minItems").is_none_or(|n| a.len() as u64 >= n)
+                    && count("maxItems").is_none_or(|n| a.len() as u64 <= n)
+                    && s.get("items")
+                        .is_none_or(|it| a.iter().all(|x| fits(x, it)))
+            }),
+            Some("object") => v.as_object().is_some_and(|o| {
+                let props = s.get("properties").and_then(Value::as_object);
+                let required = s.get("required").and_then(Value::as_array);
+                required.is_none_or(|r| {
+                    r.iter()
+                        .all(|k| k.as_str().is_some_and(|k| o.contains_key(k)))
+                }) && (s.get("additionalProperties") != Some(&json!(false))
+                    || o.keys().all(|k| props.is_some_and(|p| p.contains_key(k))))
+                    && o.iter()
+                        .all(|(k, x)| props.and_then(|p| p.get(k)).is_none_or(|ps| fits(x, ps)))
+            }),
+            _ => true,
+        }
+    }
+
+    /// The schema a local model is held to takes every symbol of the library,
+    /// as an edit shows it, and the examples of the format: a model can write
+    /// whatever the library draws.
+    #[test]
+    fn the_answer_schema_takes_the_library_and_the_examples() {
+        let schema = answer_schema();
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../../../../../tests/fixtures/simboli-descrizioni.json"
+        ))
+        .unwrap();
+        let mut n = 0;
+        for v in fixture["simboli"].as_array().unwrap() {
+            let d: Descrizione = serde_json::from_value(v.clone()).unwrap();
+            let shown = readable(&d);
+            for op in shown["ops"].as_array().unwrap() {
+                assert!(
+                    fits(op, &schema["properties"]["ops"]["items"]),
+                    "{}: {op}",
+                    d.slug
+                );
+            }
+            assert!(fits(&shown, &schema), "{}", d.slug);
+            n += 1;
+        }
+        assert!(n > 150, "{n}");
+        let examples: Value =
+            serde_json::from_str(crate::synoptic_schema::SYMBOL_EXAMPLES_JSON).unwrap();
+        for e in examples.as_array().unwrap() {
+            assert!(fits(e, &schema), "{}", e["slug"]);
+        }
+        // Every kind of part has its branch, with its geometry.
+        let items = &schema["properties"]["ops"]["items"];
+        for kind in sws_core::simboli_prj::TIPI_PARTE {
+            let part = json!({ "op": "parte", "id": "p1", "kind": kind, "geo": {} });
+            let needs_geo = !matches!(*kind, "lamp" | "vibrate" | "pulse" | "signal");
+            assert_eq!(fits(&part, items), !needs_geo, "{kind}");
+        }
+        // And what it is for: a description that does not read does not fit.
+        assert!(!fits(
+            &json!({ "w": 100, "h": 100, "body": "steel" }),
+            &schema
+        ));
+        assert!(!fits(
+            &json!({ "w": 100, "h": 100, "body": "steel", "ops": [{ "op": "tubo_diagn" }] }),
+            &schema
+        ));
+        assert!(!fits(
+            &json!({ "w": 85, "h": 100, "body": "steel", "ops": [] }),
+            &schema
+        ));
+    }
+
+    /// A local model is held to the schema; the request says it.
+    #[tokio::test]
+    async fn a_local_model_is_held_to_the_schema() {
+        let (out, seen, _dir) = ask(
+            vec![gabbia().to_string()],
+            false,
+            json!({ "mode": "new", "instruction": "x", "description": open_symbol() }),
+        )
+        .await;
+        assert_eq!(out["ok"], true, "{out}");
+        let seen = seen.lock().unwrap();
+        let f = &seen[0]["response_format"];
+        assert_eq!(f["type"], "json_schema");
+        assert_eq!(
+            f["json_schema"]["schema"]["required"],
+            json!(["w", "h", "body", "ops"])
+        );
     }
 
     /// A model that adds a variant on its own does not make one.

@@ -485,8 +485,24 @@ pub async fn chiedi_con_uso(
     messaggi: &[serde_json::Value],
     max_tokens: u32,
 ) -> anyhow::Result<(String, serde_json::Value)> {
+    ask_shaped(client, scelta, istruzioni, messaggi, max_tokens, None).await
+}
+
+/// [`chiedi_con_uso`] with the answer held to a JSON schema where that holds:
+/// a local server (Ollama, llama.cpp, vLLM) turns the schema into a grammar,
+/// and the model cannot write anything else. On 20-11-2026 qwen3.5:9b wrote a
+/// readable symbol 0 times in 8 without it, 8 in 8 with it. A cloud model is
+/// not sent the schema: the instructions say the format, and it follows them.
+pub async fn ask_shaped(
+    client: &reqwest::Client,
+    scelta: &Scelta,
+    istruzioni: &str,
+    messaggi: &[serde_json::Value],
+    max_tokens: u32,
+    shape: Option<&Value>,
+) -> anyhow::Result<(String, serde_json::Value)> {
     if let Protocol::ChatCompletions(d) = scelta.fornitore.protocol() {
-        return ask_chat_once(client, scelta, d, istruzioni, messaggi, max_tokens).await;
+        return ask_chat_once(client, scelta, d, istruzioni, messaggi, max_tokens, shape).await;
     }
     let corpo = serde_json::json!({
         "model": scelta.modello,
@@ -542,6 +558,7 @@ async fn ask_chat_once(
     instructions: &str,
     messages: &[Value],
     max_tokens: u32,
+    shape: Option<&Value>,
 ) -> Result<(String, Value)> {
     use crate::ai::chat_completions as cc;
     let system = [json!({ "type": "text", "text": instructions })];
@@ -564,6 +581,12 @@ async fn ask_chat_once(
     let mut no_reasoning = scelta.fornitore == Fornitore::Local;
     if no_reasoning {
         body["reasoning_effort"] = json!("none");
+    }
+    let mut shaped = false;
+    if let (Fornitore::Local, Some(schema)) = (scelta.fornitore, shape) {
+        shaped = true;
+        body["response_format"] = json!({ "type": "json_schema", "json_schema": {
+            "name": "answer", "strict": true, "schema": schema } });
     }
     let name = scelta.fornitore.nome();
     let url = chat_url(scelta, d);
@@ -600,6 +623,20 @@ async fn ask_chat_once(
             no_reasoning = false;
             if let Some(o) = body.as_object_mut() {
                 o.remove("reasoning_effort");
+            }
+            continue;
+        }
+        // A server without structured answers: the question again, held by
+        // the instructions only.
+        if shaped
+            && status == reqwest::StatusCode::BAD_REQUEST
+            && ["response_format", "json_schema", "grammar"]
+                .iter()
+                .any(|w| msg.contains(w))
+        {
+            shaped = false;
+            if let Some(o) = body.as_object_mut() {
+                o.remove("response_format");
             }
             continue;
         }
@@ -2194,9 +2231,17 @@ mod tests {
         );
         assert!(!e.contains("request_id"), "{e}");
         // The single question (translator, symbol model) says it the same way.
-        let e = ask_chat_once(&reqwest::Client::new(), &sc, d, "istruzioni", &[], 100)
-            .await
-            .unwrap_err();
+        let e = ask_chat_once(
+            &reqwest::Client::new(),
+            &sc,
+            d,
+            "istruzioni",
+            &[],
+            100,
+            None,
+        )
+        .await
+        .unwrap_err();
         assert!(format!("{e:#}").contains("Unauthorized"), "{e:#}");
     }
 
@@ -2218,6 +2263,7 @@ mod tests {
             "Traduci in inglese",
             &messages,
             100,
+            None,
         )
         .await
         .unwrap();
@@ -2545,6 +2591,74 @@ mod tests {
         let seen = seen.lock().unwrap();
         assert_eq!(seen.len(), 2);
         assert!(seen[1].get("reasoning_effort").is_none());
+    }
+
+    /// A schema holds the answer of a local model (a grammar on the server),
+    /// and a server that does not know `response_format` is asked again
+    /// without; a cloud provider never gets it.
+    #[tokio::test]
+    async fn a_shape_goes_to_a_local_server_only_and_is_dropped_if_refused() {
+        use axum::http::StatusCode;
+        use axum::response::IntoResponse;
+        let seen: std::sync::Arc<std::sync::Mutex<Vec<Value>>> = Default::default();
+        let seen2 = seen.clone();
+        let app = axum::Router::new().route(
+            "/v1/chat/completions",
+            axum::routing::post(move |axum::Json(body): axum::Json<Value>| {
+                let seen = seen2.clone();
+                async move {
+                    seen.lock().unwrap().push(body.clone());
+                    if seen.lock().unwrap().len() == 2 && body.get("response_format").is_some() {
+                        return (
+                            StatusCode::BAD_REQUEST,
+                            axum::Json(
+                                json!({ "error": { "message": "unknown field response_format" } }),
+                            ),
+                        )
+                            .into_response();
+                    }
+                    axum::Json(json!({ "choices": [{ "index": 0, "finish_reason": "stop",
+                        "message": { "role": "assistant", "content": "{}" } }] }))
+                    .into_response()
+                }
+            }),
+        );
+        let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = l.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(l, app).await.unwrap() });
+        let sc = local_at(&format!("http://{addr}/v1/chat/completions"));
+        let messages = [json!({ "role": "user", "content": "x" })];
+        let schema = json!({ "type": "object" });
+        let http = reqwest::Client::new();
+        ask_shaped(&http, &sc, "s", &messages, 100, Some(&schema))
+            .await
+            .unwrap();
+        ask_shaped(&http, &sc, "s", &messages, 100, Some(&schema))
+            .await
+            .unwrap();
+        {
+            let seen = seen.lock().unwrap();
+            assert_eq!(seen[0]["response_format"]["type"], "json_schema");
+            assert_eq!(seen[0]["response_format"]["json_schema"]["schema"], schema);
+            // The second question was refused with it, and went again without.
+            assert_eq!(seen.len(), 3);
+            assert!(seen[2].get("response_format").is_none());
+        }
+        // Without a shape, nothing.
+        chiedi_con_uso(&http, &sc, "s", &messages, 100)
+            .await
+            .unwrap();
+        assert!(seen.lock().unwrap()[3].get("response_format").is_none());
+        // A cloud provider: never.
+        let (d, seen_cloud) = fake_provider(Fake::Single(
+            r#"{"choices":[{"index":0,"finish_reason":"stop","message":{"role":"assistant","content":"ok"}}]}"#,
+        ))
+        .await;
+        let cloud = scelta(Fornitore::Mistral);
+        let _ = ask_chat_once(&http, &cloud, d, "s", &messages, 100, Some(&schema)).await;
+        let cloud_seen = seen_cloud.lock().unwrap();
+        assert_eq!(cloud_seen.len(), 1);
+        assert!(cloud_seen[0].1.get("response_format").is_none());
     }
 
     // ── The context the local server loaded (F3) ───────────────────────────

@@ -1357,7 +1357,17 @@ pub fn regole(d: &Descrizione, c: &Compilato) -> Vec<String> {
             }
             if let Some((x, y, ww, hh)) = riquadro(tag, geo) {
                 if ww < 0.0 || hh < 0.0 || (del_progetto && fuori(x, y, ww, hh)) {
-                    male.push(format!("{dove}: la forma esce dal disegno {}×{}", d.w, d.h));
+                    // Where it goes, so whoever fixes it (a person, a model)
+                    // knows what to move or how much to widen.
+                    male.push(format!(
+                        "{dove}: la forma esce dal disegno {}×{} (va da x {} a {}, y {} a {})",
+                        d.w,
+                        d.h,
+                        fmt(x),
+                        fmt(x + ww),
+                        fmt(y),
+                        fmt(y + hh)
+                    ));
                 }
             } else if tag != "path" {
                 male.push(format!("{dove}: «{tag}» senza la sua geometria"));
