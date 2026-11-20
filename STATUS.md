@@ -12,7 +12,16 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — importa SVG e il file del simbolo fatti sul ramo; sei rami annidati da collaudare (2026-11-20, theobroma)
+## ▶ Riprendere da qui — importa SVG, file del simbolo e schema JSON per il modello locale fatti sul ramo; sette rami annidati da collaudare (2026-11-20, theobroma)
+
+- **Settimo ramo, `feat/symbol-ai-schema`** (`101fef69f`, annidato su `feat/symbol-import`): il modello locale dei
+  simboli risponde dentro uno schema JSON (`response_format: json_schema`), e Ollama non gli lascia scrivere JSON che
+  non si legge. Con qwen3.5:9b le risposte leggibili passano da 0 su 8 a 8 su 8; dalla scheda IA i simboli validi da
+  2 su 9 a 5 su 14. I disegni restano poveri: serve un modello più grande. Misure nel piano dell'assistente IA. Gli
+  IDE 8462 e 8464 girano su questo ramo. Definition of done verde (cargo test 2088, clippy, fmt, check_static 58/58).
+- **Seme nuovo dal maintainer**: [il dispositivo ricordato per progetto](docs/plans/semi/2026-11-20-dispositivo-ricordato-per-progetto.md)
+  — cambiando progetto nell'IDE locale il collegamento resta sul pannello di prima (rischio di deploy sbagliato).
+  Chiesto come seme; per la regola del 09-11 è del tipo che passa davanti, decide il maintainer quando.
 
 - **Il maintainer, partendo**: «fin che non torno puoi proseguire annidando il resto dello sviluppo?». Fatta la
   sessione 3 della fase 2 dell'editor dei simboli, sul ramo **`feat/symbol-import`** (`72f9662ce`), annidato su
@@ -29,7 +38,7 @@
     (`bcbc2df29`), Invio nel nome di una bocca ora conferma: i campi dell'editor ricevono i tasti, la radice
     dell'editor li ferma prima della pagina. Nella scheda «IA» torna Ctrl+Invio.
   - Definition of done verde sul ramo: vitest 2820, cargo test, check_static 58/58, eslint, tsc, build.
-- **Sei rami annidati nel worktree `/home/ut1/sws-nav-links`**, uno dentro l'altro, in quest'ordine:
+- **Sette rami annidati nel worktree `/home/ut1/sws-nav-links`** (il settimo sopra), uno dentro l'altro, in quest'ordine:
   `fix/lvgl-stale-lib-layers` (`a73c76257`) → `fix/lvgl-keyboard-5-rows` (`83f5c0c8b`) → `feat/symbol-anim`
   (`e0efb9f4c`) → `feat/image-library` (`925e343f3`) → `feat/symbol-ai` (`924d04a39`) → **`feat/symbol-import`**
   (`72f9662ce`, poi `bcbc2df29`). Gli IDE 8462 e 8464 servono già l'editor di quest'ultimo (solo l'editor è cambiato).
@@ -51,7 +60,7 @@
 - **Collaudo**: le sezioni «Importa SVG e il file del simbolo», «L'assistente IA nell'editor dei simboli», «La
   libreria immagini», «Le animazioni dei simboli» e «La tastiera a 5 righe e il grigio sui simboli» in
   `docs/COLLAUDI_IN_SOSPESO.md`. Le misure sul TY570 delle animazioni chiedono SSH.
-- **Dopo il collaudo**: squash dei sei rami su `main`, in ordine; poi la rc.22. CasaDomotica: un pezzo animato, un
+- **Dopo il collaudo**: squash dei sette rami su `main`, in ordine; poi la rc.22. CasaDomotica: un pezzo animato, un
   simbolo importato da SVG e uno disegnato dall'IA (con un modello che sappia disegnare). Della fase 2 non resta
   niente: le fasi dopo (3 le foto, che decidono il formato `sym:`; 7 la libreria personale, con le domande sul cloud)
   vogliono prima una sessione di plan col maintainer.

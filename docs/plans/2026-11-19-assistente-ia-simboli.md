@@ -141,7 +141,33 @@ sullo scopo «Disegno dei simboli». Con il 9b la scheda serve a provare i perco
 
 ### Rimasto aperto
 
-- Un modello locale piccolo disegnerebbe meglio con l'uscita **vincolata a uno schema JSON** (Ollama e vLLM lo
-  sanno fare, `response_format: json_schema`): lo schema della descrizione andrebbe generato dai tipi di `sws-core`.
-  È lavoro, non un punto breve: se serve, diventa un seme.
+- ~~Un modello locale piccolo disegnerebbe meglio con l'uscita **vincolata a uno schema JSON**~~ — **fatto il
+  20-11-2026** sul ramo annidato `feat/symbol-ai-schema` (`101fef69f`), vedi sotto.
 - CasaDomotica con un simbolo disegnato dall'IA, al merge, con un modello che sappia disegnare.
+
+### Lo schema JSON per il modello locale (20-11-2026, ramo `feat/symbol-ai-schema`)
+Fatto mentre il maintainer era via («fin che non torno puoi proseguire annidando il resto dello sviluppo»), annidato
+su `feat/symbol-import`. Commit `101fef69f`.
+
+- **Cosa**: al modello di un server locale la domanda arriva con `response_format: json_schema`. Lo schema è
+  `answer_schema` in `ai/symbol_draw.rs`: ogni operazione coi suoi campi, la geometria di ogni tipo di parte, materiali,
+  veli, misure multiple di 10. Ollama ne fa una grammatica, e il modello non può scrivere altro. Un server che non lo
+  conosce viene interrogato di nuovo senza; il cloud non lo riceve. Un test controlla che lo schema prenda tutti i 195
+  simboli della libreria (come li vede una modifica) e gli esempi del formato.
+- **Le prove dirette** (Ollama 0.40.16, qwen3.5:9b, senza ragionamento), una risposta sola, compilata dal runtime:
+
+  | | si legge | compila | tempo |
+  |---|---|---|---|
+  | nuovo, senza schema | 0 su 5 | 0 su 5 | 10–83 s |
+  | nuovo, con schema | 5 su 5 | 0 su 5 | 6–33 s |
+  | modifica, senza schema | 0 su 3 | 0 su 3 | 23–52 s |
+  | modifica, con schema | 3 su 3 | 2 su 3 | 11–36 s |
+
+- **Dalla rotta della scheda IA**, coi tre tentativi e gli errori rimandati: primo giro 2 su 7 (nuovo 0 su 4,
+  modifica 2 su 3); poi, con la geometria delle parti nello schema, l'errore che dice dove va la forma e la modifica
+  che tiene `w` e `h`, 3 su 7 (nuovo 2 su 4, modifica 1 su 3). Prima dello schema erano 2 su 9. Gli errori rimasti
+  sono forme che escono di pochi punti dal disegno.
+- **La qualità non cambia**: i disegni validi del 9b sono poveri (il serbatoio con l'agitatore confuso; nelle
+  modifiche la pompa perde pezzi o la targa non c'è). Lo schema toglie i problemi di formato, non insegna a disegnare.
+  Resta vero quello che dice la conclusione: per disegnare serve un 27–32b in locale o un modello in cloud. Lo schema
+  serve anche a quelli, perché un modello locale grande sbaglia il formato meno ma non mai.
