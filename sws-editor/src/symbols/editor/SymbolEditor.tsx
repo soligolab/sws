@@ -31,6 +31,7 @@ import {
 import { predefinito } from "@/coloriPredefiniti";
 import type { ValoreParte } from "@/symbols/lib/libreria";
 import { AnimateBlock, AnimationProps } from "./AnimationProps";
+import { AiPanel } from "./AiPanel";
 import { bindingsOnParts, pipesOnPorts, takenSlugs, usage, withSymbol, withoutSymbol, writeSymbols, type SymbolEditorTarget } from "./open";
 
 interface Catalog {
@@ -122,7 +123,7 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
   const [fromObject, setFromObject] = useState(target.fromObjectId);
   const [sel, setSel] = useState<number[]>([]);
   const [tool, setTool] = useState<Tool>("select");
-  const [tab, setTab] = useState<"piece" | "structure" | "try">("piece");
+  const [tab, setTab] = useState<"piece" | "structure" | "try" | "ai">("piece");
   const [compiled, setCompiled] = useState<{ svg?: string; voce?: SimboloLib; errors: string[] }>({ errors: [] });
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [boxes, setBoxes] = useState<Map<number, Box>>(new Map());
@@ -1092,7 +1093,7 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
         {/* properties */}
         <div style={{ width: 290, borderLeft: `1px solid ${C.border}`, overflow: "auto", display: "flex", flexDirection: "column" }}>
           <div style={{ display: "flex", borderBottom: `1px solid ${C.border}` }}>
-            {(["piece", "structure", "try"] as const).map((k) => (
+            {(["piece", "structure", "try", "ai"] as const).map((k) => (
               <button key={k} type="button" onClick={() => setTab(k)} data-testid={`symbol-tab-${k}`} style={{
                 flex: 1, padding: 8, border: "none", cursor: "pointer", fontSize: 12,
                 background: tab === k ? C.surface : "transparent", color: tab === k ? C.text : C.muted,
@@ -1123,6 +1124,8 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
               <StructureProps d={d} catalog={catalog} commit={commit} isVariant={!!d.overrides}
                 ports={portList} pipes={pipes} onSelectPort={(op) => { setSel([op]); setTab("piece"); }}
                 onRenamePart={renamePartTracked} />
+            ) : tab === "ai" ? (
+              <AiPanel d={d} commit={commit} current={compiled} manifesto={manifesto} projectStyle={projectStyle} />
             ) : (
               <TryProps d={d} parts={parts} hasState={ins.some((i) => i.kind === "state")} preview={preview} setPreview={setPreview} />
             )}

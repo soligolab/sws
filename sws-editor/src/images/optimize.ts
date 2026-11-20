@@ -99,3 +99,28 @@ export async function optimizeImage(file: Blob, name: string): Promise<Optimized
     return null;
   }
 }
+
+/** A picture as a model reads it: JPEG on white, the long side at most `max`,
+ *  in base64 without the `data:` prefix (the AI tab of the symbol editor, plan
+ *  docs/plans/2026-11-19-assistente-ia-simboli.md). A phone photo of 5 MB
+ *  becomes 100–200 KB; `null` when the browser can't read it. */
+export async function pictureForModel(file: Blob, max = 1024): Promise<{ media_type: "image/jpeg"; data: string } | null> {
+  if (typeof createImageBitmap !== "function" || typeof document === "undefined" || !optimizable(file.type)) return null;
+  try {
+    const bmp = await createImageBitmap(file);
+    const [w, h] = optimizedSize(bmp.width, bmp.height, max);
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+    ctx.fillStyle = "#fff"; // fixed-colour: what the model sees under a transparent picture
+    ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(bmp, 0, 0, w, h);
+    bmp.close();
+    const url = canvas.toDataURL("image/jpeg", JPEG_QUALITY);
+    return { media_type: "image/jpeg", data: url.slice(url.indexOf(",") + 1) };
+  } catch {
+    return null;
+  }
+}

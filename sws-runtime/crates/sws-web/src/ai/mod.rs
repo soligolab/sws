@@ -41,6 +41,7 @@ pub mod prompt;
 pub mod scopi;
 pub mod spending;
 mod strumenti_scopi;
+pub(crate) mod symbol_draw;
 pub mod tools;
 pub mod user_keys;
 

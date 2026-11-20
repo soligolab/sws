@@ -264,6 +264,20 @@ export class ImageExistsError extends Error {
   constructor(readonly imageName: string) { super(`image ${imageName} exists`); this.name = "ImageExistsError"; }
 }
 
+/** What the symbol editor asks the AI (`POST /api/symbols/ai`). */
+export interface SymbolAiRequest {
+  mode: "new" | "edit";
+  instruction: string;
+  description: DescrizioneSimbolo;
+  photo?: { media_type: string; data: string };
+}
+
+/** The AI's answer: a proposal, or why not (`code`, said by the editor in its language). */
+export type SymbolAiResult = { attempts: number; cost_usd: number; model?: string } & (
+  | { ok: true; description: DescrizioneSimbolo; svg: string; voce: import("@/symbols/lib/manifest").SimboloLib }
+  | { ok: false; code: "no_model" | "blind_model" | "bad_request" | "cap_reached" | "provider" | "invalid"; message?: string; errors?: string[] }
+);
+
 /** An image of the project (`GET /api/project/images`). The size in pixels
  *  when the server can read it (PNG, JPEG, SVG). */
 export interface ProjectImage {
@@ -1611,6 +1625,12 @@ export const api = {
    *  operations with the ids the compiler gave them (symbol editor phase 2). */
   symbolExplicitPorts: (d: DescrizioneSimbolo) =>
     request<DescrizioneSimbolo>("/api/symbols/explicit-ports", { method: "POST", body: JSON.stringify(d) }),
+
+  /** POST /api/symbols/ai — the model of the «Simboli» purpose draws the symbol, new or changed
+   *  from `description`, also from a photo. Nothing is saved; every outcome is a 200 with `ok`
+   *  (plan docs/plans/2026-11-19-assistente-ia-simboli.md). IDE instance only. */
+  symbolAi: (req: SymbolAiRequest, signal?: AbortSignal) =>
+    request<SymbolAiResult>("/api/symbols/ai", { method: "POST", body: JSON.stringify(req), signal }),
 
   symbolCatalog: () =>
     request<{ materials: { name: string; color: string }[]; veils: { name: string; type: string }[] }>("/api/symbols/catalog"),

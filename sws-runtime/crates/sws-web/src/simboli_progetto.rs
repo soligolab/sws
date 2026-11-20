@@ -283,6 +283,48 @@ pub async fn explicit_ports(Json(v): Json<Value>) -> Response {
     }
 }
 
+/// `POST /api/symbols/ai` — the AI tab of the symbol editor: the model of the
+/// «Simboli» purpose draws a symbol, new or changed from the open one, also
+/// from a photo (`ai::symbol_draw::editor`). Nothing is saved: the editor
+/// shows the proposal, and «Accetta» makes it a step of its history. IDE only,
+/// like the translation: drawing is design, and a panel in the field is often
+/// without Internet.
+pub async fn ai(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Json(req): Json<crate::ai::symbol_draw::EditorRequest>,
+) -> Response {
+    use crate::ai::{local_http, scopi, symbol_draw, user_keys};
+    if !s.ide_only {
+        return (
+            StatusCode::NOT_FOUND,
+            "the AI draws symbols on the IDE instance only",
+        )
+            .into_response();
+    }
+    let keys = user_keys::fetch_all(&s, &user.username).await;
+    let choice = scopi::carica_per_con(&s.config_dir, scopi::Scopo::Simboli, &keys);
+    let base = || {
+        reqwest::Client::builder()
+            .connect_timeout(std::time::Duration::from_secs(10))
+            .timeout(local_http::REQUEST_TIMEOUT)
+    };
+    // An address the customer chose gets its own, guarded client.
+    let http = match &choice {
+        Some(sc) if sc.endpoint.is_some() => {
+            match local_http::client_for(sc, s.in_cloud(), base()) {
+                Ok(c) => c,
+                Err(e) => {
+                    return Json(json!({ "ok": false, "code": "provider", "message": e }))
+                        .into_response()
+                }
+            }
+        }
+        _ => base().build().unwrap_or_default(),
+    };
+    Json(symbol_draw::editor(&s, choice, &http, req).await).into_response()
+}
+
 /// `GET /api/symbols/catalog` — what a description may use, for the symbol
 /// editor: materials with their colours, veils, shapes, part kinds, limits.
 /// The tables are the compiler's own (`simboli_prj`), so they cannot drift.

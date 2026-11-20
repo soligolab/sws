@@ -4832,7 +4832,7 @@
         "sfondi": "Sfondi"
       },
       "spiega_assistente": "La chat: legge il progetto, compone le pagine e propone le modifiche.",
-      "spiega_simboli": "Disegna i simboli nuovi del progetto quando l'assistente gliene chiede uno.",
+      "spiega_simboli": "Disegna i simboli nuovi del progetto quando l'assistente gliene chiede uno, e nella scheda «IA» dell'editor dei simboli.",
       "spiega_traduzione": "L'opzione «IA» della traduzione automatica, in Lingue.",
       "spiega_sfondi": "Le foto di sfondo delle pagine: prima una base da approvare, poi le varianti di luce come sue modifiche.",
       "comeAssistente": "come l'assistente",
@@ -5482,7 +5482,8 @@
     "tab": {
       "piece": "Pezzo",
       "structure": "Struttura",
-      "try": "Prova"
+      "try": "Prova",
+      "ai": "IA"
     },
     "closeTitle": "Chiudere l'editor?",
     "closeUnsaved": "Ci sono modifiche non salvate: andranno perse.",
@@ -5651,6 +5652,35 @@
       "boundRenamed": "«{{from}}» diventa «{{to}}»: {{n}} oggetti lo collegano.",
       "boundRemoved": "«{{id}}» sparisce: {{n}} oggetti lo collegano e resteranno senza.",
       "boundText": "Salvando, gli oggetti di questa pagina seguono i nomi nuovi; quelli delle altre pagine vanno ricollegati."
+    },
+    "ai": {
+      "note": "Descrivi cosa disegnare o cosa cambiare: risponde il modello dello scopo «Disegno dei simboli». La proposta compare qui sotto; con «Accetta» entra nel simbolo, e Ctrl+Z la toglie.",
+      "placeholder": "Es. «aggiungi un agitatore sopra», «un serbatoio con due bocche laterali»",
+      "placeholderRetouch": "Un altro ritocco, partendo dalla proposta",
+      "addPhoto": "Aggiungi una foto",
+      "photoAdded": "La foto va al modello insieme alla richiesta",
+      "removePhoto": "Togli la foto",
+      "photoUnreadable": "Questa immagine non si legge: usa un PNG, un JPEG o un WebP.",
+      "edit": "Modifica questo",
+      "editProposal": "Ritocca la proposta",
+      "new": "Disegna nuovo",
+      "drawing": "L'IA sta disegnando… {{s}} s",
+      "stop": "Interrompi",
+      "now": "Adesso",
+      "proposal": "Proposta",
+      "figures": "{{model}} · tentativi: {{n}} · {{cost}}",
+      "free": "nessun costo",
+      "accept": "Accetta",
+      "discard": "Scarta",
+      "err": {
+        "no_model": "Nessun modello IA configurato. Sceglilo in Configurazione → IA → Un modello per scopo, alla voce «Disegno dei simboli».",
+        "blind_model": "Il modello {{model}} non vede le immagini. Per disegnare da una foto scegline uno che le veda, in Configurazione → IA → Un modello per scopo.",
+        "cap_reached": "Tetto di spesa del disegno dei simboli raggiunto ({{detail}}). Si alza in Configurazione → IA → Un modello per scopo.",
+        "provider": "Il modello non ha risposto: {{detail}}",
+        "invalid": "Dopo {{n}} tentativi il disegno non è ancora valido. Prova a chiederlo in un altro modo. Gli ultimi errori:",
+        "bad_request": "Richiesta non valida: {{detail}}",
+        "error": "Errore: {{detail}}"
+      }
     }
   },
   "images": {

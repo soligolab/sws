@@ -4832,7 +4832,7 @@
         "sfondi": "Backgrounds"
       },
       "spiega_assistente": "The chat: reads the project, composes pages and proposes changes.",
-      "spiega_simboli": "Draws the project's new symbols when the assistant asks for one.",
+      "spiega_simboli": "Draws the project's new symbols when the assistant asks for one, and in the «AI» tab of the symbol editor.",
       "spiega_traduzione": "The «AI» option of automatic translation, in Languages.",
       "spiega_sfondi": "Page background photos: first a base to approve, then the light variants as edits of it.",
       "comeAssistente": "same as the assistant",
@@ -5482,7 +5482,8 @@
     "tab": {
       "piece": "Piece",
       "structure": "Structure",
-      "try": "Try"
+      "try": "Try",
+      "ai": "AI"
     },
     "closeTitle": "Close the editor?",
     "closeUnsaved": "There are unsaved changes: they will be lost.",
@@ -5651,6 +5652,35 @@
       "boundRenamed": "«{{from}}» becomes «{{to}}»: {{n}} objects bind it.",
       "boundRemoved": "«{{id}}» goes away: {{n}} objects bind it and will be left without.",
       "boundText": "When saved, the objects of this page follow the new names; those of other pages need binding again."
+    },
+    "ai": {
+      "note": "Describe what to draw or what to change: the model of the «Symbol drawing» purpose answers. The proposal appears below; «Accept» puts it in the symbol, and Ctrl+Z takes it back.",
+      "placeholder": "E.g. «add a stirrer on top», «a tank with two side ports»",
+      "placeholderRetouch": "Another retouch, starting from the proposal",
+      "addPhoto": "Add a photo",
+      "photoAdded": "The photo goes to the model with the request",
+      "removePhoto": "Remove the photo",
+      "photoUnreadable": "This image can't be read: use a PNG, a JPEG or a WebP.",
+      "edit": "Change this",
+      "editProposal": "Retouch the proposal",
+      "new": "Draw new",
+      "drawing": "The AI is drawing… {{s}} s",
+      "stop": "Stop",
+      "now": "Now",
+      "proposal": "Proposal",
+      "figures": "{{model}} · attempts: {{n}} · {{cost}}",
+      "free": "no cost",
+      "accept": "Accept",
+      "discard": "Discard",
+      "err": {
+        "no_model": "No AI model is configured. Choose one in Configuration → AI → A model per purpose, under «Symbol drawing».",
+        "blind_model": "The model {{model}} does not see images. To draw from a photo choose one that does, in Configuration → AI → A model per purpose.",
+        "cap_reached": "Spending cap of symbol drawing reached ({{detail}}). Raise it in Configuration → AI → A model per purpose.",
+        "provider": "The model did not answer: {{detail}}",
+        "invalid": "After {{n}} attempts the drawing is still not valid. Try asking in another way. The last errors:",
+        "bad_request": "Invalid request: {{detail}}",
+        "error": "Error: {{detail}}"
+      }
     }
   },
   "images": {

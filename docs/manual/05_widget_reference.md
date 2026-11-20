@@ -856,6 +856,16 @@ come…» ne fa un simbolo nuovo.
   disegnato.
 - **Prova**: la scheda mostra il simbolo coi valori dei suoi ingressi (stato, livello, girante, lancetta, leva, spia, e
   i pezzi animati), come in pagina; «Anima» accende gli effetti a tempo. Non salva niente.
+- **IA**: si scrive cosa disegnare o cosa cambiare, e si sceglie **«Modifica questo»** (il modello vede il simbolo
+  aperto e lo cambia) o **«Disegna nuovo»** (un disegno da zero). **«Aggiungi una foto»** manda anche la foto di una
+  macchina: il modello la disegna vista di fronte, nello stile della libreria. La foto si riduce nel browser a 1024 px
+  prima di partire. Risponde il modello dello scopo «Disegno dei simboli» (Configurazione → IA → Un modello per scopo),
+  o quello dell'assistente se lo scopo non ne ha uno; per una foto serve un modello che veda le immagini.
+  Il disegno proposto compare accanto a quello di adesso, con il modello, i tentativi e il costo; **«Accetta»** lo
+  mette nel simbolo (Ctrl+Z lo toglie), **«Scarta»** lo butta. Con una proposta aperta, la richiesta dopo parte dalla
+  proposta: un ritocco dopo l'altro. Nome, etichette, categoria e variante restano quelli dell'editor. Se il disegno
+  non è valido, SWS rimanda gli errori al modello fino a tre volte; dopo il terzo la scheda li mostra. Funziona solo
+  nell'IDE, e non salva niente finché non si salva il simbolo.
 
 | Proprietà | Descrizione |
 |-----------|-------------|

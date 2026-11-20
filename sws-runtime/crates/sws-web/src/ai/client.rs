@@ -546,7 +546,7 @@ async fn ask_chat_once(
     use crate::ai::chat_completions as cc;
     let system = [json!({ "type": "text", "text": instructions })];
     let messages = cc::images_for(scelta.sees_images, messages);
-    let body = cc::request_body(
+    let mut body = cc::request_body(
         d,
         &scelta.modello,
         &system,
@@ -555,6 +555,16 @@ async fn ask_chat_once(
         false,
         max_tokens,
     );
+    // A local model that reasons (qwen3, deepseek-r1…) spends the budget of a
+    // single answer thinking, and the answer comes back empty: on 20-11-2026
+    // qwen3.5:9b asked for a symbol thought for 8192 tokens, three minutes,
+    // and wrote nothing. Here nobody sees the reasoning, so it is not asked
+    // for; a server that does not know the value refuses it (vLLM), and the
+    // question leaves again without it.
+    let mut no_reasoning = scelta.fornitore == Fornitore::Local;
+    if no_reasoning {
+        body["reasoning_effort"] = json!("none");
+    }
     let name = scelta.fornitore.nome();
     let url = chat_url(scelta, d);
     // The local model only: a cloud provider says when a request is too long.
@@ -569,22 +579,32 @@ async fn ask_chat_once(
         }
         _ => (0, false),
     };
-    let resp = client
-        .post(url)
-        .header("Authorization", format!("Bearer {}", scelta.chiave))
-        .json(&body)
-        .send()
-        .await
-        .map_err(|e| anyhow::anyhow!("{name} unreachable: {e}"))?;
-    let status = resp.status();
-    let v: Value = resp
-        .json()
-        .await
-        .map_err(|e| anyhow::anyhow!("answer {status} in an unknown format: {e}"))?;
-    if !status.is_success() {
+    let v = loop {
+        let resp = client
+            .post(url)
+            .header("Authorization", format!("Bearer {}", scelta.chiave))
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| anyhow::anyhow!("{name} unreachable: {e}"))?;
+        let status = resp.status();
+        let v: Value = resp
+            .json()
+            .await
+            .map_err(|e| anyhow::anyhow!("answer {status} in an unknown format: {e}"))?;
+        if status.is_success() {
+            break v;
+        }
         let msg = cc::error_message(&v).unwrap_or_default();
+        if no_reasoning && status == reqwest::StatusCode::BAD_REQUEST && msg.contains("reasoning") {
+            no_reasoning = false;
+            if let Some(o) = body.as_object_mut() {
+                o.remove("reasoning_effort");
+            }
+            continue;
+        }
         bail!("{name} refused ({status}): {msg}");
-    }
+    };
     if check_after {
         local_http::context_after(client, url, &scelta.modello, needed).await?;
     }
@@ -2208,6 +2228,10 @@ mod tests {
         assert_eq!(seen[0].0, "Bearer k");
         assert_eq!(seen[0].1["stream"], false);
         assert_eq!(seen[0].1["max_tokens"], 100);
+        assert!(
+            seen[0].1.get("reasoning_effort").is_none(),
+            "only a local model"
+        );
         assert_eq!(
             seen[0].1["messages"][0],
             json!({ "role": "system", "content": "Traduci in inglese" })
@@ -2477,6 +2501,50 @@ mod tests {
         assert_eq!(text, "Pump running");
         assert_eq!(costo_usd(sc.fornitore, &sc.modello, &usage), 0.0);
         assert_eq!(seen.lock().unwrap()[0].1["model"], "llama3.3");
+        // Nobody sees the reasoning of a single answer: it is not asked for.
+        assert_eq!(seen.lock().unwrap()[0].1["reasoning_effort"], "none");
+    }
+
+    /// A server that does not know `reasoning_effort: "none"` (vLLM accepts
+    /// only low, medium, high) gets the question again without it.
+    #[tokio::test]
+    async fn a_local_server_that_refuses_no_reasoning_is_asked_again() {
+        use axum::http::StatusCode;
+        use axum::response::IntoResponse;
+        let seen: std::sync::Arc<std::sync::Mutex<Vec<Value>>> = Default::default();
+        let seen2 = seen.clone();
+        let app = axum::Router::new().route(
+            "/v1/chat/completions",
+            axum::routing::post(move |axum::Json(body): axum::Json<Value>| {
+                let seen = seen2.clone();
+                async move {
+                    seen.lock().unwrap().push(body.clone());
+                    if body.get("reasoning_effort").is_some() {
+                        return (
+                            StatusCode::BAD_REQUEST,
+                            axum::Json(json!({ "error": { "message":
+                                "reasoning_effort: Input should be 'low', 'medium' or 'high'" } })),
+                        )
+                            .into_response();
+                    }
+                    axum::Json(json!({ "choices": [{ "index": 0, "finish_reason": "stop",
+                        "message": { "role": "assistant", "content": "ok" } }] }))
+                    .into_response()
+                }
+            }),
+        );
+        let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = l.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(l, app).await.unwrap() });
+        let sc = local_at(&format!("http://{addr}/v1/chat/completions"));
+        let messages = [json!({ "role": "user", "content": "x" })];
+        let (text, _) = chiedi_con_uso(&reqwest::Client::new(), &sc, "s", &messages, 100)
+            .await
+            .unwrap();
+        assert_eq!(text, "ok");
+        let seen = seen.lock().unwrap();
+        assert_eq!(seen.len(), 2);
+        assert!(seen[1].get("reasoning_effort").is_none());
     }
 
     // ── The context the local server loaded (F3) ───────────────────────────

@@ -1379,10 +1379,20 @@ pub fn compila_bozza(
             "descrizione oltre i 32 KB: semplifica il disegno".into()
         ]);
     }
-    let mut d: sws_core::simboli_prj::Descrizione =
-        serde_json::from_value(v.clone()).map_err(|e| {
+    // With the path of the field (`ops[5]: missing field h`): without it a
+    // model sends back the same answer, not knowing which of thirty
+    // operations is wrong (qwen3.5:9b, 20-11-2026, three times the same).
+    let mut d: sws_core::simboli_prj::Descrizione = serde_path_to_error::deserialize(v.clone())
+        .map_err(|e| {
+            let at = e.path().to_string();
+            let what = e.into_inner();
+            let at = if at == "." {
+                String::new()
+            } else {
+                format!(" in {at}")
+            };
             vec![format!(
-                "la descrizione non si legge: {e}. Vedi schema_simbolo"
+                "la descrizione non si legge{at}: {what}. Vedi schema_simbolo"
             )]
         })?;
     // Un simbolo del progetto non ha famiglia: quella la dà solo la libreria.

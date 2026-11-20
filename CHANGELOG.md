@@ -12,6 +12,21 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Aggiunto
+- **L'assistente IA nell'editor dei simboli** (piano `docs/plans/2026-11-19-assistente-ia-simboli.md`, ramo
+  `feat/symbol-ai`). Una quarta scheda **«IA»** accanto a Pezzo, Struttura e Prova: si scrive cosa disegnare o cosa
+  cambiare e si sceglie **«Modifica questo»** o **«Disegna nuovo»**; **«Aggiungi una foto»** manda anche la foto di una
+  macchina, ridotta nel browser a 1024 px JPEG. La proposta compare accanto al simbolo di adesso, con modello,
+  tentativi e costo; **«Accetta»** è un passo della cronologia (Ctrl+Z la toglie), **«Scarta»** la butta, e la
+  richiesta dopo ritocca la proposta. Nome, etichette, categoria e variante restano quelli dell'editor. Gli errori
+  sono detti in chiaro: nessun modello, tetto raggiunto, modello che non vede le immagini (rifiutato prima di
+  pagare), disegno ancora non valido dopo tre tentativi con gli errori. Rotta nuova `POST /api/symbols/ai` (solo IDE,
+  admin): usa il modello dello scopo «Simboli», con ripiego su quello dell'assistente. Il cuore di `disegna_simbolo`
+  della chat è diventato `ai/symbol_draw.rs`, comune alle due strade. Lungo la strada: un modello locale che ragiona
+  (qwen3.5:9b) non riceve più la richiesta di ragionare nelle domande secche (`reasoning_effort: "none"`, con un
+  secondo invio senza se il server lo rifiuta): spendeva tutti i token a pensare e rispondeva vuoto, anche nella
+  traduzione; una descrizione avvolta in `{"descrizione": …}` si legge; l'errore di lettura dice quale operazione
+  (`ops[5]: missing field h`); il modello vede il simbolo aperto con `geo` come oggetto, come nel formato, e non a
+  coppie come lo scrive la libreria.
 - **La libreria immagini, sessione A: caricare e piazzare** (piano `docs/plans/2026-11-19-libreria-immagini.md`, ramo
   `feat/image-library`). Strumenti ▸ Immagine apre la libreria sulla scheda **«Del progetto»**, con **«+ Carica
   immagine…»** come prima casella (clic, più file insieme, o file trascinati sulla finestra); poi le icone incluse.

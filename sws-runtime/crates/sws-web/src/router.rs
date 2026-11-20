@@ -521,6 +521,8 @@ pub fn build(
             "/api/symbols/explicit-ports",
             post(crate::simboli_progetto::explicit_ports),
         )
+        // The AI tab of the symbol editor (plan 2026-11-19-assistente-ia-simboli).
+        .route("/api/symbols/ai", post(crate::simboli_progetto::ai))
         .route("/api/project/datastores", put(update_project_datastores))
         .route(
             "/api/project/global-scripts",

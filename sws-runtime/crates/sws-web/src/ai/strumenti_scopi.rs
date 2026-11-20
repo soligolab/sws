@@ -8,7 +8,9 @@ use base64::Engine as _;
 use serde_json::{json, Value};
 use tokio::sync::mpsc;
 
-use super::{bfl, client, immagini, local_http, prompt, scopi, spending, tools, Banco, Misure};
+use super::{
+    bfl, client, immagini, local_http, scopi, spending, symbol_draw, tools, Banco, Misure,
+};
 use crate::router::AppState;
 
 /// Cosa la conversazione sa fare in più, deciso all'apertura del socket.
@@ -92,8 +94,6 @@ pub(crate) fn estrai_json(s: &str) -> &str {
     }
 }
 
-const TENTATIVI_SIMBOLO: usize = 3;
-
 /// `disegna_simbolo`: il modello dei simboli scrive la descrizione, SWS la
 /// compila; gli errori tornano a lui, fino a tre volte.
 pub(crate) async fn disegna(
@@ -143,98 +143,98 @@ pub(crate) async fn disegna(
             ));
         }
     }
-    let schema = tools::schema_simbolo()?;
-    let mut istruzioni = format!(
-        "Disegni i simboli di SWS, uno SCADA: macchine viste di fronte, per i sinottici di un \
-         pannello industriale. Rispondi SOLO con un oggetto JSON: la descrizione del simbolo, \
-         nel formato qui sotto. Niente testo prima o dopo.\n\nFormato, regole ed esempi:\n{schema}"
-    );
-    if let Some(r) = super::regole_del_progetto(s, "simboli").await {
-        istruzioni.push_str("\n\n");
-        istruzioni.push_str(&prompt::blocco_regole(&r));
-    }
-    let mut messaggi = vec![json!({ "role": "user", "content": format!(
+    let istruzioni = symbol_draw::system(s).await?;
+    let messaggi = vec![json!({ "role": "user", "content": format!(
         "Disegna questo simbolo.\nslug: {slug}\nit: {it}\nen: {en}\n{misure_dette}\n{cosa}") })];
+    // Slug ed etichette sono quelli chiesti dall'assistente: il modello dei
+    // simboli disegna, non rinomina.
+    let mut fissi = serde_json::Map::new();
+    fissi.insert("slug".into(), json!(slug));
+    fissi.insert("it".into(), json!(it));
+    fissi.insert("en".into(), json!(en));
+    let mut conto = ContoChat {
+        tx,
+        spesa_simboli: &mut banco.spesa_simboli,
+        misure,
+        tetto_usd,
+        tetto_simboli: sc.tetto_usd,
+        modello: &sc.modello,
+    };
+    match symbol_draw::draw(
+        s,
+        &ctx.symbols_http,
+        sc,
+        &istruzioni,
+        messaggi,
+        &fissi,
+        &mut conto,
+    )
+    .await
+    {
+        Ok(fatto) => {
+            let (d, c) = (fatto.description, fatto.compiled);
+            invia(
+                tx,
+                json!({ "t": "simbolo", "slug": d.slug, "it": d.it,
+                              "en": d.en, "svg": c.svg }),
+            );
+            let mut esito = tools::esito_bozza(&c);
+            esito["disegnato_da"] = json!(sc.modello);
+            esito["tentativi"] = json!(fatto.attempts);
+            banco.metti(d);
+            Ok(esito)
+        }
+        Err(symbol_draw::DrawError::Stopped(m)) => Err(m),
+        Err(symbol_draw::DrawError::Provider(e)) => {
+            Err(format!("il modello dei simboli non risponde: {e}"))
+        }
+        Err(symbol_draw::DrawError::Invalid(ultimi)) => Err(format!(
+            "il modello dei simboli non ci è riuscito in {} tentativi. Ultimi errori: {}",
+            symbol_draw::ATTEMPTS,
+            ultimi.join("; ")
+        )),
+    }
+}
 
-    let mut ultimi: Vec<String> = Vec::new();
-    for tentativo in 1..=TENTATIVI_SIMBOLO {
-        if misure.costo_usd >= tetto_usd {
+/// I conti di `disegna_simbolo` nella chat: il tetto della conversazione,
+/// quello dello scopo «simboli», e il frame `risorse_extra` a ogni chiamata.
+struct ContoChat<'a> {
+    tx: &'a mpsc::UnboundedSender<String>,
+    spesa_simboli: &'a mut f64,
+    misure: &'a mut Misure,
+    tetto_usd: f64,
+    tetto_simboli: f64,
+    modello: &'a str,
+}
+
+impl symbol_draw::Meter for ContoChat<'_> {
+    fn may_call(&self) -> Result<(), String> {
+        if self.misure.costo_usd >= self.tetto_usd {
             return Err(format!(
                 "tetto di spesa raggiunto ({:.2} $ su {:.2} $): il simbolo non si disegna",
-                misure.costo_usd, tetto_usd
+                self.misure.costo_usd, self.tetto_usd
             ));
         }
         // Il tetto dello scopo «simboli», se ne ha uno suo: era salvato e
         // mostrato nel menù, e nessuno lo guardava.
-        if banco.spesa_simboli >= sc.tetto_usd {
+        if *self.spesa_simboli >= self.tetto_simboli {
             return Err(format!(
                 "tetto del disegno dei simboli raggiunto ({:.2} $ su {:.2} $). Alzalo in IA → Un modello per scopo",
-                banco.spesa_simboli, sc.tetto_usd
+                self.spesa_simboli, self.tetto_simboli
             ));
         }
-        let t0 = std::time::Instant::now();
-        let (risposta, uso) =
-            client::chiedi_con_uso(&ctx.symbols_http, sc, &istruzioni, &messaggi, 16000)
-                .await
-                .map_err(|e| format!("il modello dei simboli non risponde: {e:#}"))?;
-        let costo = crate::ai::price_list::cost_usd(
-            &s.config_dir,
-            sc.fornitore,
-            &sc.modello,
-            &uso,
-            s.in_cloud(),
-        );
-        misure.giro(&uso, costo, t0.elapsed().as_secs_f64());
-        banco.spesa_simboli += costo;
-        spending::add(
-            &s.config_dir,
-            scopi::Scopo::Simboli.nome(),
-            sc.fornitore.nome(),
-            costo,
-        );
-        invia(
-            tx,
-            json!({ "t": "risorse_extra", "costo": costo, "speso": misure.costo_usd,
-                          "chi": sc.modello }),
-        );
-
-        let errori = match serde_json::from_str::<Value>(estrai_json(&risposta)) {
-            Err(e) => vec![format!("la risposta non è un JSON valido: {e}")],
-            Ok(mut d) => {
-                // Slug ed etichette sono quelli chiesti dall'assistente: il
-                // modello dei simboli disegna, non rinomina.
-                if let Some(o) = d.as_object_mut() {
-                    o.insert("slug".into(), json!(slug));
-                    o.insert("it".into(), json!(it));
-                    o.insert("en".into(), json!(en));
-                }
-                match tools::compila_bozza(&json!({ "descrizione": d })) {
-                    Ok((d, c)) => {
-                        invia(
-                            tx,
-                            json!({ "t": "simbolo", "slug": d.slug, "it": d.it,
-                                          "en": d.en, "svg": c.svg }),
-                        );
-                        let mut esito = tools::esito_bozza(&c);
-                        esito["disegnato_da"] = json!(sc.modello);
-                        esito["tentativi"] = json!(tentativo);
-                        banco.metti(d);
-                        return Ok(esito);
-                    }
-                    Err(e) => e,
-                }
-            }
-        };
-        messaggi.push(json!({ "role": "assistant", "content": risposta }));
-        messaggi.push(json!({ "role": "user", "content": format!(
-            "La descrizione ha questi errori:\n- {}\nCorreggili e rimanda la descrizione intera, \
-             solo il JSON.", errori.join("\n- ")) }));
-        ultimi = errori;
+        Ok(())
     }
-    Err(format!(
-        "il modello dei simboli non ci è riuscito in {TENTATIVI_SIMBOLO} tentativi. Ultimi errori: {}",
-        ultimi.join("; ")
-    ))
+
+    fn paid(&mut self, costo: f64, uso: &Value, secondi: f64) {
+        self.misure.giro(uso, costo, secondi);
+        *self.spesa_simboli += costo;
+        invia(
+            self.tx,
+            json!({ "t": "risorse_extra", "costo": costo, "speso": self.misure.costo_usd,
+                          "chi": self.modello }),
+        );
+    }
 }
 
 /// Il tetto degli sfondi: la loro stima di spesa, e anche quello della

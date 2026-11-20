@@ -208,7 +208,8 @@ describe("managing the images in the library", () => {
     try {
       await act(async () => { fireEvent.click(screen.getByTestId("image-delete")); });
     } finally { auto.ferma(); }
-    expect(auto.chiamate[0]?.testo).toMatch(/2/);
+    const asked = auto.chiamate[0];
+    expect(asked && "testo" in asked ? asked.testo : "").toMatch(/2/);
     expect(del).toHaveBeenCalledWith("forno.jpg");
   });
 });

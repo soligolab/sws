@@ -50,6 +50,22 @@ raggruppati, trascinamento con l'aggancio («ora funziona come mi aspettavo»). 
 8. [ ] **Prova**: stato acceso/allarme, livello, girante che gira, leva, spia.
 9. [ ] **«+ Nuovo simbolo»** in cima a Strumenti ▸ Simboli, senza aprire famiglie.
 
+## L'assistente IA nell'editor dei simboli (20-11-2026)
+
+Dal piano [assistente IA dei simboli](plans/2026-11-19-assistente-ia-simboli.md), ramo `feat/symbol-ai` (annidato
+sulla libreria immagini). IDE di prova dal worktree; lo scopo «Disegno dei simboli» su un modello che sappia
+disegnare (vedi le misure nel piano: qwen3.5:9b locale non ci riesce quasi mai).
+
+1. [ ] **Disegna nuovo**: un simbolo nuovo, scheda «IA», una frase → la proposta accanto al disegno di adesso, con
+       modello, tentativi e costo; «Accetta» la mette nell'editor, Ctrl+Z la toglie.
+2. [ ] **Modifica questo**: una pompa della libreria aperta come variante, «aggiungi una targa sopra» → la proposta
+       tiene le bocche; «Accetta», poi un ritocco che parte dalla proposta; «Scarta».
+3. [ ] **Da una foto**: «Aggiungi una foto» di una macchina vera → il disegno nello stile della libreria. Con un
+       modello che non vede le immagini, il messaggio che lo dice, senza attese.
+4. [ ] **Errori**: senza nessun modello configurato, il rimando a Configurazione → IA; un disegno non valido dopo tre
+       tentativi mostra gli errori.
+5. [ ] **Il resto dell'editor non si blocca** mentre l'IA disegna; «Interrompi» ferma l'attesa.
+
 ## La libreria immagini (19-11-2026)
 
 Dal piano [libreria immagini](plans/2026-11-19-libreria-immagini.md), ramo `feat/image-library` (annidato sulle
