@@ -12,10 +12,16 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — la rc.22 costruita e nel cloud: editor dei simboli, libreria immagini, l'assistente che chiede, sfondi alla misura (2026-11-20 sera, theobroma)
+## ▶ Riprendere da qui — la rc.22 costruita e nel cloud; elitedesk pronta come seconda macchina di lavoro (2026-11-20 sera, theobroma)
 
 Il maintainer: «facciamo una nuova RC di tutto», poi «sì» a registrare il collaudo, archiviare i piani, le due
 correzioni piccole e la rc.22.
+- **elitedesk** (`ut1@192.168.0.202`), la macchina parallela a theobroma sulla stessa rete: più disco, processore
+  libero dalla build Yocto. Clonata da GitHub in `~/sws`, con la sola chiave `id_ed25519_soligonet_sws` (GitHub e
+  VPS; `85a4e507a` la riga in `docs/TEST_SETUPS.md`, `865eed64f` la chiave nel README del VPS). `tmp/` copiata dal
+  maintainer (28 158 file, come qui). Verificata per intero: `cargo check`, `pnpm build`, `check_static` 58/58,
+  `cargo test` 2102 passati, `vitest` 2838 passati. **Al primo avvio lì, `./scripts/session_start.sh`**: il clone è
+  di prima di questi ultimi commit. Non ancora provato un `git push` da elitedesk con quella chiave.
 - **Su `main`** (nessun ramo aperto):
   - `d6645b0c5` il collaudo del 20-11 registrato (8 su 8); `1db1ca3e7` **dodici piani archiviati** (i rami del 19-20-11,
     galleria, setpoint, navigatore, CRA 1-3); `533027045` **CRA e manuale parcheggiati**: «prima di questi è il caso
