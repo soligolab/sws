@@ -40,7 +40,8 @@ browser con `DOMParser`; nessun SVG arriva al runtime: escono solo operazioni, c
   divide nei suoi sotto-tracciati, poi si salta; oltre le 300 operazioni del simbolo il resto si salta. Tutto detto
   negli avvisi.
 - **Dove finisce**: in uno strato fermo in cima (quello in cima se è già fermo, altrimenti uno nuovo); in un simbolo
-  vuoto nel primo strato. Le forme importate restano selezionate: si spostano e si scalano insieme.
+  ancora vuoto nel **corpo**, al posto del riquadro con cui nasce un simbolo nuovo (il compilatore vuole almeno una
+  forma nel corpo). Le forme importate restano selezionate: si spostano e si scalano insieme.
 
 **Nell'editor**: «Importa SVG…» nella barra degli strumenti (file `.svg`), il trascinamento di un `.svg` sul disegno,
 e **Ctrl+V di un testo SVG** (se negli appunti c'è codice SVG si importa, altrimenti Ctrl+V incolla le forme copiate
@@ -76,8 +77,44 @@ con un simbolo importato da SVG (regola di `CLAUDE.md`).
 1. Il file è **JSON**, non zip, finché non ci sono le foto.
 2. Un simbolo importato da file **non è mai una variante**: `overrides` si toglie.
 3. L'SVG importato va **in uno strato fermo**, con i suoi colori: non segue lo stato. Per farlo seguire, si sposta
-   nel corpo e si sceglie «colore dello stato».
+   nel corpo e si sceglie «colore dello stato». In un simbolo ancora vuoto va **nel corpo** (vedi l'esecuzione), coi
+   suoi colori lo stesso.
 4. **Ctrl+V** importa un SVG se negli appunti c'è codice SVG; altrimenti incolla le forme copiate nell'editor.
 5. `evenodd` resta **un avviso**, non un attributo nuovo del compilatore (`fill_rule` sarebbe facile da aggiungere: si
    decide al collaudo, se gli SVG veri ne hanno bisogno).
 6. Un simbolo vuoto **prende le proporzioni** dell'SVG importato.
+
+## Esecuzione (20-11-2026, theobroma)
+Ramo `feat/symbol-import`, commit `4ba23a6e2`. Definition of done verde sul ramo (vitest 2820, cargo test,
+`check_static` 58/58, eslint, tsc, build); collaudo del maintainer da fare.
+
+**Differenze dal piano**
+- **Un simbolo «vuoto» nel corpo, non nel primo strato.** Il compilatore rifiuta un simbolo senza forme nel corpo
+  («manca lo strato body»). E un simbolo nuovo non è vuoto: nasce con un riquadro nel corpo. Quindi «vuoto» vuol dire
+  «nessuna forma, o solo quel riquadro» (`isBlank`); in quel caso il riquadro se ne va, il disegno entra nel corpo e il
+  simbolo prende le proporzioni dell'SVG.
+- **Le forme fuori dal disegno diventano path.** Il compilatore rifiuta un rect, un cerchio o un'ellisse che escono
+  dal simbolo di più di un'unità; un path no. Un SVG con forme oltre il `viewBox` (capita) le ha come path, tagliate
+  dal disegno come nel browser.
+- **Contorno e spigoli sempre scritti.** Gli strati del simbolo compilato danno a tutte le forme un contorno
+  (`stroke`, spessore 1, spigoli arrotondati): una forma importata scrive sempre `stroke` (anche «none») e gli spigoli
+  quando non sono arrotondati, altrimenti erediterebbe il contorno dello strato.
+- **Una `<line>` non si riempie mai** (in SVG non ha un dentro); una linea aperta solo contorno è un `tratto`.
+- **«Volume», non «velo»**: nell'editor i veli si chiamano «Volume», e così le finestre dell'import.
+- **Ctrl+V**: il tasto non ferma più l'evento del browser; l'incolla delle forme copiate parte un attimo dopo, e
+  l'evento `paste` lo annulla se negli appunti c'è codice SVG. L'editor ferma anche l'evento `paste`, perché la pagina
+  sotto non incolli immagini mentre l'editor è aperto.
+
+**Le prove**
+- 30 SVG veri (i primi quattro di ogni famiglia della libreria, e dieci icone di sistema: Inkscape con sfumature e
+  filtri, Breeze con le classi CSS e `currentColor`, un'icona di Firefox) importati e compilati dal runtime dell'IDE
+  8464: **30 su 30 senza errori**, e a vista uguali agli originali, salvo i filtri (sfocature) che mancano. Le tavole
+  di confronto erano in `sws/tmp/svg-import/`.
+- Nell'IDE 8464: «Importa SVG…» su un simbolo nuovo (44 forme dall'icona di GParted, 32 sfumature dette), Ctrl+V di
+  codice SVG (uno strato fermo nuovo), «Esporta» e «Importa un simbolo…» (46 forme, compilato senza errori), Ctrl+C e
+  Ctrl+V di una forma coi tasti veri.
+
+**Trovato lungo la strada**: Ctrl+Z dopo «Duplica» (e dopo un import) bloccava l'editor: la selezione è per indice e
+restava su forme che non c'erano più. Annulla e ripristina ora tolgono la selezione.
+
+**Resta aperto**: le sei decisioni qui sopra, da confermare al collaudo; CasaDomotica dopo il merge.

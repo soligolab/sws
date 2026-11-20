@@ -12,11 +12,28 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — l'assistente IA nell'editor dei simboli fatto sul ramo; cinque rami annidati da collaudare (2026-11-20, theobroma)
+## ▶ Riprendere da qui — importa SVG e il file del simbolo fatti sul ramo; sei rami annidati da collaudare (2026-11-20, theobroma)
 
-- **Cinque rami annidati nel worktree `/home/ut1/sws-nav-links`**, uno dentro l'altro, in quest'ordine:
+- **Il maintainer, partendo**: «fin che non torno puoi proseguire annidando il resto dello sviluppo?». Fatta la
+  sessione 3 della fase 2 dell'editor dei simboli, sul ramo **`feat/symbol-import`** (`4ba23a6e2`), annidato su
+  `feat/symbol-ai`. Piano: `docs/plans/2026-11-20-importa-svg-e-file-del-simbolo.md`, con in fondo **le sei decisioni
+  prese senza il maintainer, da rivedere** (file JSON e non zip, mai variante, strato fermo o corpo, Ctrl+V,
+  `evenodd` solo avviso, proporzioni dell'SVG).
+  - «Importa SVG…» (anche trascinando il file o con Ctrl+V del codice): ogni forma diventa un'operazione del simbolo,
+    coi suoi colori. Provato su 30 SVG veri (20 della libreria, 10 icone di sistema con sfumature, classi CSS,
+    `<use>`): tutti compilati dal runtime, uguali a vista. Le tavole di confronto sono in `sws/tmp/svg-import/`
+    (`grid.html`).
+  - «Esporta» scarica `<slug>.swsym`; Strumenti ▸ Simboli ▸ «Importa un simbolo…» apre un `.swsym` o un `.svg` come
+    simbolo nuovo. Provati nell'IDE 8464: import, Ctrl+V, esportazione e ritorno, copia/incolla con i tasti veri.
+  - Corretto lungo la strada: Ctrl+Z dopo «Duplica» o un import bloccava l'editor.
+  - Definition of done verde sul ramo: vitest 2820, cargo test, check_static 58/58, eslint, tsc, build.
+- **Sei rami annidati nel worktree `/home/ut1/sws-nav-links`**, uno dentro l'altro, in quest'ordine:
   `fix/lvgl-stale-lib-layers` (`a73c76257`) → `fix/lvgl-keyboard-5-rows` (`83f5c0c8b`) → `feat/symbol-anim`
-  (`e0efb9f4c`) → `feat/image-library` (`925e343f3`) → **`feat/symbol-ai`** (nuovo, vedi sotto).
+  (`e0efb9f4c`) → `feat/image-library` (`925e343f3`) → `feat/symbol-ai` (`924d04a39`) → **`feat/symbol-import`**
+  (`4ba23a6e2`). Gli IDE 8462 e 8464 servono già l'editor di quest'ultimo (solo l'editor è cambiato).
+
+### L'assistente IA nell'editor dei simboli (ramo `feat/symbol-ai`)
+
 - **L'assistente IA nell'editor dei simboli** (piano `docs/plans/2026-11-19-assistente-ia-simboli.md`, fase 6 del piano
   di fondo anticipata): la scheda «IA» con «Modifica questo», «Disegna nuovo», «Aggiungi una foto»; la proposta accanto
   al disegno, «Accetta» (Ctrl+Z la toglie), «Scarta», il ritocco che parte dalla proposta; la rotta
@@ -29,12 +46,13 @@
 - **IDE di prova 8462 (del maintainer) e 8464 riavviati dal ramo `feat/symbol-ai`**: contengono anche la libreria
   immagini e le animazioni. Sull'8464 lo scopo «Disegno dei simboli» è sul modello locale; sull'8462 va impostato
   (Configurazione → IA → Fornitori e chiavi, modello locale `http://192.168.0.225:11434/v1`; poi Un modello per scopo).
-- **Collaudo**: le sezioni «L'assistente IA nell'editor dei simboli», «La libreria immagini», «Le animazioni dei
-  simboli» e «La tastiera a 5 righe e il grigio sui simboli» in `docs/COLLAUDI_IN_SOSPESO.md`. Le misure sul TY570
-  delle animazioni chiedono SSH.
-- **Dopo il collaudo**: squash dei cinque rami su `main`, in ordine; poi la rc.22. CasaDomotica: un pezzo animato e
-  un simbolo disegnato dall'IA (con un modello che sappia disegnare). Poi la sessione 3 della fase 2 (importa SVG,
-  esporta/importa il simbolo).
+- **Collaudo**: le sezioni «Importa SVG e il file del simbolo», «L'assistente IA nell'editor dei simboli», «La
+  libreria immagini», «Le animazioni dei simboli» e «La tastiera a 5 righe e il grigio sui simboli» in
+  `docs/COLLAUDI_IN_SOSPESO.md`. Le misure sul TY570 delle animazioni chiedono SSH.
+- **Dopo il collaudo**: squash dei sei rami su `main`, in ordine; poi la rc.22. CasaDomotica: un pezzo animato, un
+  simbolo importato da SVG e uno disegnato dall'IA (con un modello che sappia disegnare). Della fase 2 non resta
+  niente: le fasi dopo (3 le foto, che decidono il formato `sym:`; 7 la libreria personale, con le domande sul cloud)
+  vogliono prima una sessione di plan col maintainer.
 - **Notato e non toccato**: nell'editor dei simboli l'Invio nel nome di una bocca non conferma, perché l'editor ferma
   tutti i tasti sulla finestra prima che arrivino ai campi.
 
