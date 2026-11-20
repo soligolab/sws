@@ -29,6 +29,7 @@
 <!-- RIGHE-NUOVI-SEMI -->
 | Seme | Origine | Cosa resta |
 |---|---|---|
+| [2026-11-20-dispositivo-ricordato-per-progetto.md](2026-11-20-dispositivo-ricordato-per-progetto.md) | il maintainer, 20-11-2026: cambiando progetto il collegamento resta sul pannello di prima, col rischio di un deploy sul pannello sbagliato | **seme — decisione** — ogni progetto ricorda il suo pannello e all'apertura chiede se ricollegarsi; il collegamento oggi è uno per tutto l'IDE locale (nel cloud è già per progetto) |
 | [2026-11-18-smtp-nostro-per-le-notifiche.md](2026-11-18-smtp-nostro-per-le-notifiche.md) | appunti di una riunione del maintainer, 18-11-2026 | **seme — decisione** — servizio SMTP nostro (tipo smtp2go) per le notifiche e-mail quando il cliente non ha accesso al suo |
 | [2026-11-18-store-and-forward-database-esterno.md](2026-11-18-store-and-forward-database-esterno.md) | appunti di una riunione del maintainer, 18-11-2026 | **seme — decisione** — store and forward per il database esterno, in caso di perdita di connessione |
 | [2026-11-18-movimento-su-percorso-con-trigger.md](2026-11-18-movimento-su-percorso-con-trigger.md) | appunti di una riunione del maintainer, 18-11-2026 | **seme — decisione** — movimento su percorso: trigger per spostarsi da uno step all'altro |
