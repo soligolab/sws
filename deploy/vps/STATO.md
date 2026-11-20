@@ -173,7 +173,14 @@ resta 404: così un bundle che manca non torna come HTML con stato 200.
 (`10.89.0.x`): il limite di 20 richieste/s vale per tutti insieme finché non c'è l'indirizzo vero (seme «indirizzo vero
 dietro Traefik»). Si aggiorna con `scripts/manuale/pubblica.sh`.
 
-**Versione in esecuzione: `fe8c71338-amd64` (2.26.0-rc.21)** dal 18-11-2026, 19:52: le sessioni 1-3 del CRA e l'IA a
+**Versione in esecuzione: `1d4d5e380-amd64` (2.26.0-rc.22)** dal 20-11-2026, 17:45: l'editor dei simboli (fasi 1 e
+2), la libreria immagini, l'assistente che chiede prima di lavorare, gli sfondi alla misura della pagina. Sequenza
+solita, nessun cambio di configurazione: `diff` fra la copia maestra e la macchina (uguali), `podman pull` dell'immagine
+nuova, copia `sws-gateway.container.prima-rc22-2026-11-20`, `sed` del commit in `Image=` e `--gateway-immagine`, `scp`,
+`daemon-reload`, `restart sws-gateway`. Verificato: gateway `healthy`, radice 200, `/health` «ok»,
+`check_gateway_immagine` verde. Tolta l'immagine della rc.20 (`83ea9555-amd64`); resta la rc.21 come ripiego.
+
+Prima: **Versione in esecuzione: `fe8c71338-amd64` (2.26.0-rc.21)** dal 18-11-2026, 19:52: le sessioni 1-3 del CRA e l'IA a
 scelta del cliente. Tre cambi insieme, con un solo riavvio (fermo di un secondo):
 - **l'immagine**, nella copia maestra del quadlet e poi sulla macchina (`Image=` e `--gateway-immagine`);
 - **il segreto del gateway cambiato** (CRA, D10): fino alla rc.20 stava nell'ambiente di ogni container di progetto, e
