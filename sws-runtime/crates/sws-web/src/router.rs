@@ -1146,6 +1146,10 @@ pub fn build(
                 .layer(DefaultBodyLimit::max(LIMITE_CORPO_UPLOAD))
                 .delete(delete_project_image),
         )
+        .route(
+            "/api/project/images/:name/rename",
+            post(rename_project_image),
+        )
         // Git commit: stage all changes and create a commit.
         .route("/api/project/git/commit", post(git_commit))
         // Crea un tag — stessa classe di rischio del commit (scrittura locale).
@@ -8592,6 +8596,59 @@ const MAX_IMAGE_BYTES: usize = 5 * 1024 * 1024;
 struct ProjectImageInfo {
     name: String,
     size_bytes: u64,
+    /// The size in pixels, when it can be read (19-11-2026: the image library
+    /// places a picture with its own proportions). PNG and JPEG from the
+    /// header, SVG from `width`/`height` or the `viewBox`; GIF and WebP none.
+    width: Option<u32>,
+    height: Option<u32>,
+}
+
+/// The pixel size of an image file of the project, if it can be read cheaply.
+fn image_dimensions(path: &std::path::Path, name: &str) -> Option<(u32, u32)> {
+    let ext = name.rsplit('.').next().unwrap_or("").to_ascii_lowercase();
+    if ext == "svg" {
+        let text = std::fs::read_to_string(path).ok()?;
+        return svg_dimensions(&text);
+    }
+    if !matches!(ext.as_str(), "png" | "jpg" | "jpeg") {
+        return None;
+    }
+    image::ImageReader::open(path)
+        .ok()?
+        .with_guessed_format()
+        .ok()?
+        .into_dimensions()
+        .ok()
+}
+
+/// `width`/`height` of the root `<svg>` (plain numbers or px), otherwise the
+/// last two numbers of its `viewBox`.
+fn svg_dimensions(text: &str) -> Option<(u32, u32)> {
+    let start = text.find("<svg")?;
+    let tag = &text[start..start + text[start..].find('>')?];
+    let attr = |k: &str| {
+        let i = tag.find(&format!(" {k}=\""))? + k.len() + 3;
+        let j = tag[i..].find('"')? + i;
+        Some(&tag[i..j])
+    };
+    let px = |v: &str| {
+        v.trim()
+            .trim_end_matches("px")
+            .parse::<f64>()
+            .ok()
+            .filter(|n| *n > 0.0)
+    };
+    if let (Some(w), Some(h)) = (attr("width").and_then(px), attr("height").and_then(px)) {
+        return Some((w.round() as u32, h.round() as u32));
+    }
+    let vb: Vec<f64> = attr("viewBox")?
+        .split([' ', ','])
+        .filter_map(|n| n.trim().parse::<f64>().ok())
+        .collect();
+    match vb.as_slice() {
+        [_, _, w, h] if *w > 0.0 && *h > 0.0 => Some((w.round() as u32, h.round() as u32)),
+        _ => None,
+    }
 }
 
 /// `GET /api/project/images` — elenco delle immagini del progetto attivo.
@@ -8608,9 +8665,17 @@ async fn list_project_images(State(s): State<AppState>) -> Response {
                 continue;
             }
             let size = entry.metadata().await.map(|m| m.len()).unwrap_or(0);
+            let path = entry.path();
+            let n = name.clone();
+            let dims = tokio::task::spawn_blocking(move || image_dimensions(&path, &n))
+                .await
+                .ok()
+                .flatten();
             out.push(ProjectImageInfo {
                 name,
                 size_bytes: size,
+                width: dims.map(|d| d.0),
+                height: dims.map(|d| d.1),
             });
         }
     }
@@ -8678,11 +8743,20 @@ async fn get_project_image(
     }
 }
 
+#[derive(Deserialize)]
+struct UploadOptions {
+    /// `1` or `true`: an image with the same name is replaced. Without it the
+    /// upload answers 409 (19-11-2026: a file with the same name was
+    /// overwritten without a word, and every object using it changed).
+    replace: Option<String>,
+}
+
 /// `POST /api/project/images/:name` — upload (corpo raw). Supervisor+.
 async fn upload_project_image(
     State(s): State<AppState>,
     Extension(user): Extension<AuthUser>,
     Path(name): Path<String>,
+    Query(opts): Query<UploadOptions>,
     body: Bytes,
 ) -> Response {
     if image_content_type(&name).is_none() {
@@ -8718,6 +8792,18 @@ async fn upload_project_image(
         )
             .into_response();
     }
+    let replace = matches!(opts.replace.as_deref(), Some("1" | "true"));
+    if !replace
+        && tokio::fs::try_exists(images.join(&name))
+            .await
+            .unwrap_or(false)
+    {
+        return (
+            StatusCode::CONFLICT,
+            Json(serde_json::json!({ "exists": true, "name": name })),
+        )
+            .into_response();
+    }
     if let Err(e) = tokio::fs::write(images.join(&name), &body).await {
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -8733,6 +8819,61 @@ async fn upload_project_image(
         }),
     );
     Json(serde_json::json!({ "name": name, "url": format!("/api/project/images/{name}") }))
+        .into_response()
+}
+
+#[derive(Deserialize)]
+struct RenameImage {
+    to: String,
+}
+
+/// `POST /api/project/images/:name/rename` `{ "to": … }` — the file only; the
+/// IDE rewrites the objects that use it (19-11-2026, the image library).
+/// Supervisor+. 404 if it doesn't exist, 409 if `to` does.
+async fn rename_project_image(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Path(name): Path<String>,
+    Json(body): Json<RenameImage>,
+) -> Response {
+    if image_content_type(&name).is_none() || image_content_type(&body.to).is_none() {
+        return (
+            StatusCode::BAD_REQUEST,
+            "nome non valido: solo lettere/numeri/._- ed estensioni png, jpg, jpeg, gif, svg, webp",
+        )
+            .into_response();
+    }
+    let dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
+    let images = images_dir_at(&dir);
+    if !tokio::fs::try_exists(images.join(&name))
+        .await
+        .unwrap_or(false)
+    {
+        return (StatusCode::NOT_FOUND, "immagine non trovata").into_response();
+    }
+    if name != body.to
+        && tokio::fs::try_exists(images.join(&body.to))
+            .await
+            .unwrap_or(false)
+    {
+        return (
+            StatusCode::CONFLICT,
+            Json(serde_json::json!({ "exists": true, "name": body.to })),
+        )
+            .into_response();
+    }
+    if let Err(e) = tokio::fs::rename(images.join(&name), images.join(&body.to)).await {
+        return (StatusCode::INTERNAL_SERVER_ERROR, format!("rename: {e}")).into_response();
+    }
+    s.audit.log(
+        "project.image_rename",
+        Some(user.username),
+        serde_json::json!({ "from": name, "to": body.to }),
+    );
+    Json(serde_json::json!({ "name": body.to, "url": format!("/api/project/images/{}", body.to) }))
         .into_response()
 }
 
@@ -15548,5 +15689,137 @@ mod prove_file_della_pagina {
         assert_eq!(file_della_pagina(d.path(), "p1", "Quadro").await, None);
         // Una pagina nuova: nessun file suo.
         assert_eq!(file_della_pagina(d.path(), "p2", "{{t0001}}").await, None);
+    }
+}
+
+/// The images of the project (19-11-2026, plan 2026-11-19-libreria-immagini):
+/// no silent overwrite, the rename, the sizes in the list.
+#[cfg(test)]
+mod prove_immagini_progetto {
+    use super::*;
+
+    async fn with_project() -> (tempfile::TempDir, AppState) {
+        let dir = tempfile::tempdir().unwrap();
+        let s = stato_di_prova(dir.path()).await;
+        let proj = dir.path().join("progetto");
+        std::fs::create_dir_all(&proj).unwrap();
+        *s.project_dir.write().await = Some(proj);
+        (dir, s)
+    }
+
+    fn png(w: u32, h: u32) -> Bytes {
+        let img = image::RgbaImage::new(w, h);
+        let mut out = std::io::Cursor::new(Vec::new());
+        image::DynamicImage::ImageRgba8(img)
+            .write_to(&mut out, image::ImageFormat::Png)
+            .unwrap();
+        Bytes::from(out.into_inner())
+    }
+
+    async fn upload(s: &AppState, name: &str, replace: Option<&str>, body: Bytes) -> StatusCode {
+        upload_project_image(
+            State(s.clone()),
+            Extension(admin_sintetico()),
+            Path(name.to_string()),
+            Query(UploadOptions {
+                replace: replace.map(str::to_string),
+            }),
+            body,
+        )
+        .await
+        .status()
+    }
+
+    #[test]
+    fn the_names_and_extensions_an_image_may_have() {
+        assert_eq!(image_content_type("foto-1.jpg"), Some("image/jpeg"));
+        assert_eq!(image_content_type("logo.SVG"), Some("image/svg+xml"));
+        assert_eq!(image_content_type("a.webp"), Some("image/webp"));
+        for bad in [
+            "",
+            ".png",
+            "a..png",
+            "a b.png",
+            "pagina.html",
+            "x/y.png",
+            &"a".repeat(130),
+        ] {
+            assert_eq!(image_content_type(bad), None, "{bad}");
+        }
+    }
+
+    #[test]
+    fn the_size_of_an_svg_from_its_attributes_or_its_view_box() {
+        assert_eq!(
+            svg_dimensions(r#"<svg xmlns="x" width="64" height="32px">"#),
+            Some((64, 32))
+        );
+        assert_eq!(
+            svg_dimensions(r#"<?xml?><svg viewBox="0 0 24 12">"#),
+            Some((24, 12))
+        );
+        assert_eq!(
+            svg_dimensions(r#"<svg width="100%" viewBox="0,0,10,20">"#),
+            Some((10, 20))
+        );
+        assert_eq!(svg_dimensions("<svg>"), None);
+    }
+
+    #[tokio::test]
+    async fn an_image_with_the_same_name_is_replaced_only_when_asked() {
+        let (_dir, s) = with_project().await;
+        assert_eq!(
+            upload(&s, "foto.png", None, png(4, 2)).await,
+            StatusCode::OK
+        );
+        assert_eq!(
+            upload(&s, "foto.png", None, png(8, 8)).await,
+            StatusCode::CONFLICT
+        );
+        assert_eq!(
+            upload(&s, "foto.png", Some("1"), png(8, 8)).await,
+            StatusCode::OK
+        );
+        let list = list_project_images(State(s.clone())).await;
+        let body = axum::body::to_bytes(list.into_body(), 1 << 20)
+            .await
+            .unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(v[0]["name"], "foto.png");
+        assert_eq!(
+            (v[0]["width"].as_u64(), v[0]["height"].as_u64()),
+            (Some(8), Some(8))
+        );
+    }
+
+    #[tokio::test]
+    async fn the_rename_moves_the_file_and_refuses_a_name_taken() {
+        let (_dir, s) = with_project().await;
+        upload(&s, "a.png", None, png(2, 2)).await;
+        upload(&s, "b.png", None, png(2, 2)).await;
+        let rename = |from: &str, to: &str| {
+            rename_project_image(
+                State(s.clone()),
+                Extension(admin_sintetico()),
+                Path(from.to_string()),
+                Json(RenameImage { to: to.to_string() }),
+            )
+        };
+        assert_eq!(
+            rename("a.png", "b.png").await.status(),
+            StatusCode::CONFLICT
+        );
+        assert_eq!(
+            rename("a.png", "c.html").await.status(),
+            StatusCode::BAD_REQUEST
+        );
+        assert_eq!(
+            rename("nope.png", "d.png").await.status(),
+            StatusCode::NOT_FOUND
+        );
+        assert_eq!(rename("a.png", "c.png").await.status(), StatusCode::OK);
+        let dir = s.project_dir.read().await.clone().unwrap();
+        assert!(!images_dir_at(&dir).join("a.png").exists());
+        assert!(images_dir_at(&dir).join("c.png").exists());
     }
 }

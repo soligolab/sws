@@ -5,6 +5,7 @@ import { applyStateColor, listSvgIds, parseSvg, sanitizeSvg } from "@/symbols/cu
 import { useAppStore } from "@/store";
 import { TRANS_COMP } from "@/config/comuni";
 import { Icona } from "@/components/Icona";
+import { ImageBrowser } from "@/components/ImageBrowser";
 
 // ── ResourcesTab ─────────────────────────────────────────────────────────────
 
@@ -19,6 +20,7 @@ export function ResourcesTab() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState<string | null>(null);
+  const [images, setImages] = useState(false);
   // F6.9: editor multi-stato — id del simbolo in modifica.
   const [svgEditId, setSvgEditId] = useState<string | null>(null);
   const svgFileRef = useRef<HTMLInputElement>(null);
@@ -61,6 +63,21 @@ export function ResourcesTab() {
 
   return (
     <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 24, maxWidth: 700 }}>
+
+      {/* The images of the project (19-11-2026): the library, to manage them
+          without placing one. */}
+      <section>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 8 }}>
+          {t("imageBrowser.manageTitle")}
+        </div>
+        <div style={{ color: "var(--brand-text-subtle, #94a3b8)", fontSize: 13, marginBottom: 8 }}>{t("imageBrowser.manageText")}</div>
+        <button type="button" data-testid="resources-images" onClick={() => setImages(true)}
+          style={{ padding: "5px 12px", fontSize: 12, borderRadius: 4, cursor: "pointer", background: "transparent",
+            border: "1px solid var(--brand-border, #475569)", color: "var(--brand-text, #e2e8f0)" }}>
+          {t("imageBrowser.manageOpen")}
+        </button>
+        {images && <ImageBrowser mode="manage" onClose={() => setImages(false)} />}
+      </section>
 
       {/* Simboli già aggiunti */}
       <section>

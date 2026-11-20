@@ -12,6 +12,27 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Aggiunto
+- **La libreria immagini, sessione A: caricare e piazzare** (piano `docs/plans/2026-11-19-libreria-immagini.md`, ramo
+  `feat/image-library`). Strumenti ▸ Immagine apre la libreria sulla scheda **«Del progetto»**, con **«+ Carica
+  immagine…»** come prima casella (clic, più file insieme, o file trascinati sulla finestra); poi le icone incluse.
+  Caricando, una scheda con anteprima, nome, misura e **«Ottimizza per il pannello»** spuntato quando conviene (lato
+  lungo al più 1920 px, le foto in JPEG, i PNG con trasparenza restano PNG, SVG e GIF intatti, la misura prima e
+  dopo). Un nome già usato non si sovrascrive più in silenzio: **sostituisci ovunque**, **tieni tutte e due**
+  (`foto-2.png`) o annulla; il server risponde 409 senza `?replace=1`. L'immagine caricata è già scelta;
+  «Inserisci» (o doppio clic) la mette in pagina **con le sue proporzioni** (lato lungo 240 px, le icone 64×64),
+  **centrata** nella vista, `contain`, coi predefiniti: prima nasceva 120×80 schiacciata, con l'angolo sul centro. Nel
+  pannello proprietà la miniatura con il nome e **«Cambia…»**; l'URL resta sotto, legabile a un tag. Sull'oggetto
+  Immagine non c'è più l'immagine di sfondo (finiva dietro a un'immagine vuota): chi l'aveva la vede in sola lettura
+  con «Togli». Il server dà le misure in pixel delle immagini e sa rinominarle.
+- **La libreria immagini, sessione B: gestire, trascinare, incollare.** Nella scheda «Del progetto» un'immagine scelta
+  mostra **dove si usa** (pagina e oggetto, cliccabili) e ha **Rinomina…** (le pagine, i popup e i faceplate che la
+  usano seguono il nome nuovo e si scrivono: `rinominaImmagine` nello store, la ricerca generica degli URL in
+  `images/usage.ts`), **Sostituisci…** (un file dello stesso tipo, stesso nome) ed **Elimina** (dice prima quanti
+  punti la usano). Le immagini non usate sono segnate; in fondo le non usate e i riferimenti a immagini mancanti. Un
+  **file trascinato sul canvas** si carica e diventa un'immagine dove cade; **Ctrl+V con un'immagine negli appunti**
+  fa lo stesso al centro della vista (gli oggetti copiati nell'editor restano a Ctrl+V finché non si passa da un altro
+  programma). I due campi di sfondo (dell'oggetto e dell'area) caricano con la stessa scheda: niente più
+  sovrascritture in silenzio. Configurazione ▸ Risorse apre la libreria per gestirle.
 - **Le animazioni dei simboli, sessione 2a: il formato e il valutatore condiviso** (piano
   `docs/plans/2026-11-19-animazioni-dei-simboli.md`, ramo `feat/symbol-anim`). Ancora niente di visibile: i motori
   disegnano i pezzi nuovi fermi. Quattro tipi di parte nuovi (`slide`, `vibrate`, `pulse`, `signal`), `dir` sul livello

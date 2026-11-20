@@ -138,11 +138,35 @@ Sei famiglie, **uguali nel browser e sul pannello LVGL**, con grassetto vero:
 
 ### Immagine (`image`)
 
-Immagine statica (PNG, JPG, SVG) caricata come risorsa del progetto.
+Un'immagine del progetto (PNG, JPG, WebP, GIF, SVG), un'icona inclusa in SWS, o un indirizzo esterno.
+
+**Mettere un'immagine in pagina.** Strumenti ▸ Immagine apre la **libreria immagini** sulla scheda «Del progetto».
+La prima casella è **«+ Carica immagine…»**: si scelgono uno o più file, o li si trascina sulla finestra. Per ogni
+file una scheda mostra anteprima, nome e misura, con **«Ottimizza per il pannello»** già spuntato quando l'immagine è
+grande: il lato lungo scende a 1920 px, le foto diventano JPEG, un PNG con trasparenza resta PNG, SVG e GIF non si
+toccano. Serve al deploy, che porta tutto il progetto in un pacchetto da al più 8 MB, e ai pannelli piccoli, che
+decodificano l'immagine a ogni visita della pagina. Se il nome c'è già: **sostituisci ovunque**, **tieni tutte e
+due** (`foto-2.png`) o annulla. L'immagine caricata è già scelta: **«Inserisci»** (o doppio clic) la mette al centro
+della vista **con le sue proporzioni**, lato lungo 240 px, adattata «contieni». Le icone incluse entrano 64×64.
+
+**Scorciatoie.** Un file trascinato sul canvas apre la stessa scheda e mette l'immagine dove è caduto. Ctrl+V con
+un'immagine negli appunti (una schermata, un'immagine copiata da un altro programma) fa lo stesso al centro della
+vista; se negli appunti dell'editor ci sono oggetti copiati e non si è passati da un altro programma, Ctrl+V incolla
+quelli, come sempre.
+
+**Gestire le immagini del progetto.** Nella libreria, un'immagine scelta mostra dove si usa (pagina e oggetto,
+cliccabili) e ha **Rinomina…** (le pagine che la usano seguono il nome nuovo; il progetto deve essere salvato),
+**Sostituisci…** (un file dello stesso tipo prende il suo posto in ogni pagina) ed **Elimina** (dice prima quante
+pagine la usano). Le immagini **non usate** sono segnate; in fondo il totale rispetto agli 8 MB del deploy e gli
+eventuali **riferimenti a immagini mancanti**. La libreria si apre anche da Configurazione ▸ Risorse.
 
 | Proprietà | Descrizione |
 |-----------|-------------|
-| `src` | URL dell'immagine (relativo alle risorse del progetto) |
+| `src` | L'immagine: nel pannello proprietà la miniatura con il nome e «Cambia…»; sotto, l'indirizzo, legabile a un tag |
+| `image_fit` | Come riempie il riquadro: «contieni» (predefinito per le immagini nuove), «copri», «stira» |
+
+L'oggetto Immagine non ha l'immagine di sfondo (finiva **dietro** all'immagine): chi l'aveva la vede in sola lettura,
+con «Togli». Il colore di sfondo resta.
 
 ---
 

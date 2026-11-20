@@ -1480,7 +1480,10 @@
     "targetRiskyTitolo": "Switch to LVGL?",
     "targetRiskyTesto": "The LVGL engine draws fewer things than the browser: some objects in this project may not appear on the panel, or may look different.\n\nThe other way round, from LVGL to web, loses nothing.",
     "targetRiskySi": "Switch to LVGL",
-    "openControlPanel": "Open the device control panel"
+    "openControlPanel": "Open the device control panel",
+    "imageNone": "No image",
+    "imageChange": "Change…",
+    "bgImageOnImage": "An image behind the image: the Image object doesn't use it any more. Remove it and, if needed, choose the picture with «Change…»."
   },
   "shortcut": {
     "navCanvas": "Canvas navigation",
@@ -2636,7 +2639,34 @@
   "imageBrowser": {
     "loadingCatalog": "Loading catalog…",
     "noResults": "No results for \"{{filter}}\"",
-    "libreria": "Image library"
+    "libreria": "Image library",
+    "insertTitle": "Insert image",
+    "project": "Project",
+    "upload": "Upload image…",
+    "uploadHint": "Choose one or more files, or drop them here: PNG, JPG, WebP, GIF, SVG",
+    "noProjectImages": "The project has no images of its own yet: upload one with «+».",
+    "projectInfo": "{{n}} images · {{size}} of the {{limit}} of a deploy",
+    "catalogInfo": "{{n}} of {{of}} · licence {{license}}",
+    "insert": "Insert",
+    "use": "Use this",
+    "rename": "Rename…",
+    "replace": "Replace…",
+    "unused": "unused",
+    "notUsed": "Not used in any page.",
+    "usedIn": "Used in {{n}} places:",
+    "unusedCount": "{{n}} unused",
+    "missing": "{{n}} missing images",
+    "renameTitle": "Rename the image",
+    "renameText": "The pages that use it ({{n}}) follow the new name.",
+    "badName": "Only letters, digits, «.», «-», «_», with the extension (.png, .jpg, .gif, .svg, .webp).",
+    "nameTaken": "The project already has an image «{{name}}».",
+    "deleteTitle": "Delete the image",
+    "deleteUsed": "«{{name}}» is used in {{n}} places: an empty box will be left there. Delete it anyway?",
+    "deleteUnused": "Delete «{{name}}»? It is not used in any page.",
+    "replaceKind": "To replace it choose a file of the same kind (.{{ext}}): the name stays, and every page that uses it shows the new one.",
+    "manageTitle": "PROJECT IMAGES",
+    "manageText": "Upload, rename, replace them, see where they are used and remove the ones not needed.",
+    "manageOpen": "Open the image library"
   },
   "tagInputMsg": {
     "variableInferredFromThisSource": "Variable inferred from this source's mappings, not declared in Configuration → Project → Tags"
@@ -5621,6 +5651,21 @@
       "boundRenamed": "«{{from}}» becomes «{{to}}»: {{n}} objects bind it.",
       "boundRemoved": "«{{id}}» goes away: {{n}} objects bind it and will be left without.",
       "boundText": "When saved, the objects of this page follow the new names; those of other pages need binding again."
+    }
+  },
+  "images": {
+    "upload": {
+      "title": "Upload an image",
+      "name": "Name",
+      "optimize": "Optimise for the panel",
+      "optimizedTo": "After: {{w}}×{{h}} px, {{size}}",
+      "optimizing": "After: {{w}}×{{h}} px…",
+      "exists": "The project already has an image «{{name}}».",
+      "replace": "Replace everywhere",
+      "keepBoth": "Keep both",
+      "skip": "Skip",
+      "go": "Upload",
+      "failed": "Upload failed: {{err}}"
     }
   }
 }

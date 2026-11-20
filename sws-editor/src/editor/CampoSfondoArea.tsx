@@ -3,11 +3,10 @@
  *  «impostare una immagine di sfondo nella parte attiva della finestra, senza
  *  coprire la cornice». Caricare e scegliere funzionano come per lo sfondo di un
  *  oggetto: l'immagine va in `images/` del progetto e viaggia con lui. */
-import { dimenticaImmagine } from "@/canvas/ImmagineSvg";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
-import { avviso } from "@/finestraAvviso/finestraAvviso";
+import { UploadImage } from "@/images/UploadImage";
 
 const INPUT: React.CSSProperties = {
   width: "100%", background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-border, #475569)",
@@ -26,7 +25,7 @@ export function CampoSfondoArea({ value, disabled, onChange, boot }: {
 }) {
   const { t } = useTranslation();
   const file = useRef<HTMLInputElement>(null);
-  const [carica, setCarica] = useState(false);
+  const [carica, setCarica] = useState<{ files: File[]; taken: string[] } | null>(null);
   const [immagini, setImmagini] = useState<{ name: string; size_bytes: number }[] | null>(null);
   return (
     <div>
@@ -34,7 +33,7 @@ export function CampoSfondoArea({ value, disabled, onChange, boot }: {
       <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
         <input type="text" style={INPUT} disabled={disabled} placeholder="/api/project/images/…"
           value={value ?? ""} onChange={(e) => onChange(e.target.value.trim() || undefined)} />
-        <button type="button" disabled={disabled || carica} title={t("props.bgUploadHint")}
+        <button type="button" disabled={disabled || !!carica} title={t("props.bgUploadHint")}
           style={{ ...INPUT, width: "auto", flex: "none", cursor: "pointer", whiteSpace: "nowrap", opacity: carica ? 0.6 : 1 }}
           onClick={() => file.current?.click()}>{carica ? "…" : t("props.bgUpload")}</button>
         {value && (
@@ -48,20 +47,15 @@ export function CampoSfondoArea({ value, disabled, onChange, boot }: {
           const f = e.target.files?.[0];
           e.target.value = "";
           if (!f) return;
-          // La whitelist del server accetta solo [A-Za-z0-9._-].
-          const sicuro = f.name.replace(/[^A-Za-z0-9._-]+/g, "_");
-          setCarica(true);
-          try {
-            const res = await api.uploadProjectImage(sicuro, f);
-            dimenticaImmagine(res.url);
-            onChange(res.url);
-            setImmagini(null);
-          } catch (err: unknown) {
-            void avviso({ testo: t("editor.uploadImageFailed", { err: err instanceof Error ? err.message : String(err) }), livello: "errore" });
-          } finally {
-            setCarica(false);
-          }
+          // The card of the image library (19-11-2026): the name taken is
+          // asked, not overwritten, and a big photo is optimised.
+          const taken = await api.listProjectImages().then((l) => l.map((im) => im.name)).catch(() => []);
+          setCarica({ files: [f], taken });
         }} />
+      {carica && (
+        <UploadImage files={carica.files} taken={carica.taken} onCancel={() => setCarica(null)}
+          onDone={(up) => { setCarica(null); setImmagini(null); if (up[0]) onChange(up[0].url); }} />
+      )}
       <select style={{ ...INPUT, marginTop: 4, cursor: "pointer" }} value="" disabled={disabled}
         onFocus={() => { if (immagini === null) api.listProjectImages().then(setImmagini).catch(() => setImmagini([])); }}
         onChange={(e) => { if (e.target.value) onChange(`/api/project/images/${e.target.value}`); e.target.value = ""; }}>

@@ -20,6 +20,7 @@ import { imageBlob, imageDataUri, type ProposalImage } from "@/ai/proposalImages
 import { normalizzaOggetti } from "@/store/normalizzaOggetti";
 import { pianoCreazione } from "@/tag/riconciliaTag";
 import { motivoIdNonValido, rinomina, type EsitoRinomina } from "@/tag/rinominaTag";
+import { renameImageRefs } from "@/images/usage";
 import type { SegmentoScelto, WaypointScelto } from "@/canvas/percorsoMovimento";
 import { effectiveSizeMode, referenceResolutionFor } from "@/pageLayout";
 import { uguale } from "@/ai/confronto";
@@ -511,6 +512,10 @@ interface AppState {
    *  un progetto senza modifiche non salvate. `recipes` le passa chi ha già
    *  fatto l'anteprima, così non si ricaricano. Ritorna l'esito del walker. */
   rinominaTag: (vecchio: string, nuovo: string, recipes: RecipeDef[]) => Promise<EsitoRinomina>;
+  /** Renames a project image and every page, popup and faceplate that uses
+   *  it, and writes them (19-11-2026, the image library). Like `rinominaTag`,
+   *  it wants a project with nothing unsaved. Returns how many places changed. */
+  rinominaImmagine: (vecchio: string, nuovo: string) => Promise<number>;
   /** Register (or, with `save === null`, deregister) a section holding a draft. */
   registerPendingSection: (key: string, save: (() => Promise<void>) | null) => void;
   /** Mark the current page revision as persisted. Only after a *complete* save. */
@@ -3252,6 +3257,43 @@ export const useAppStore = create<AppState>((set, get) => {
       }));
       get().markSaveOk();
       return e;
+    },
+
+    rinominaImmagine: async (vecchio, nuovo) => {
+      const s = get();
+      if (!s.project) throw new Error("nessun progetto");
+      if (selectIsDirty(s)) throw new Error(i18n.t("rinomina.salvaPrima"));
+      await api.renameProjectImage(vecchio, nuovo);
+      // The popups are written as faceplates, not as pages (as for the tags).
+      const pages = s.pages.filter((p) => !eFaceplateDef(p)).map((p) => renameImageRefs(p, vecchio, nuovo));
+      const faceplates = s.faceplates.map((f) => renameImageRefs(f, vecchio, nuovo));
+      const pagineCambiate = pages.filter((p, i) => p !== s.pages.filter((q) => !eFaceplateDef(q))[i]);
+      const faceplateCambiati = faceplates.filter((f, i) => f !== s.faceplates[i]);
+      set({ saveStatus: "saving", saveError: null });
+      try {
+        for (const pg of pagineCambiate) {
+          if (eBoot(pg)) await api.saveBootPage(pg);
+          else if (eCornice(pg)) await api.saveCornice(paginaACornice(pg));
+          else await api.saveSynoptic(pg);
+        }
+        for (const fp of faceplateCambiati) await api.saveFaceplate(fp);
+      } catch (err) {
+        set({ saveStatus: "error", saveError: errText(err) });
+        throw err;
+      }
+      const perId = new Map(faceplates.map((f) => [f.id, f]));
+      const pagineFp = pagineFaceplate(s.pages).map((pg) => {
+        const f = perId.get(idFaceplate(pg));
+        return f && faceplateCambiati.includes(f) ? { ...pg, objects: f.objects } : pg;
+      });
+      set((st) => ({
+        pages: [...pages, ...pagineFp],
+        faceplates,
+        faceplateFirme: { ...st.faceplateFirme, ...Object.fromEntries(pagineFp.map((p) => [p.id, firmaFaceplate(p)])) },
+        savedPagesRev: st.pagesRev,
+      }));
+      get().markSaveOk();
+      return pagineCambiate.length + faceplateCambiati.length;
     },
 
     registerPendingSection: (key, save) =>

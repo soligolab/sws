@@ -2004,17 +2004,26 @@ export function SvgCanvas({
       // Un faceplate trascinato dal suo ramo (29-10-2026): l'istanza nasce
       // dove lo si lascia, già con la sua definizione.
       onDragOver={onMove && accettaFaceplate ? (e) => {
-        if (!e.dataTransfer.types.includes(TRASCINA_FACEPLATE)) return;
+        // A faceplate from its branch, or image files from the desktop (19-11-2026).
+        if (!e.dataTransfer.types.includes(TRASCINA_FACEPLATE) && !e.dataTransfer.types.includes("Files")) return;
         e.preventDefault();
         e.dataTransfer.dropEffect = "copy";
       } : undefined}
       onDrop={onMove && accettaFaceplate ? (e) => {
-        const id = e.dataTransfer.getData(TRASCINA_FACEPLATE);
         const r = svgRef.current?.getBoundingClientRect();
-        if (!id || !r) return;
-        e.preventDefault();
+        if (!r) return;
         const p = toSvg(e.clientX - r.left, e.clientY - r.top);
-        aggiungiOggetto("faceplate", { faceplate_id: id, punto: { x: Math.round(snap(p.x)), y: Math.round(snap(p.y)) } });
+        const punto = { x: Math.round(snap(p.x)), y: Math.round(snap(p.y)) };
+        const files = [...e.dataTransfer.files].filter((f) => /^image\/(png|jpeg|gif|svg\+xml|webp)$/.test(f.type));
+        if (files.length) {
+          e.preventDefault();
+          aggiungiOggetto("image", { files, punto });
+          return;
+        }
+        const id = e.dataTransfer.getData(TRASCINA_FACEPLATE);
+        if (!id) return;
+        e.preventDefault();
+        aggiungiOggetto("faceplate", { faceplate_id: id, punto });
       } : undefined}
       onClick={() => {
         if (suppressClick.current) { suppressClick.current = false; return; }

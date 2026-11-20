@@ -50,6 +50,22 @@ raggruppati, trascinamento con l'aggancio («ora funziona come mi aspettavo»). 
 8. [ ] **Prova**: stato acceso/allarme, livello, girante che gira, leva, spia.
 9. [ ] **«+ Nuovo simbolo»** in cima a Strumenti ▸ Simboli, senza aprire famiglie.
 
+## La libreria immagini (19-11-2026)
+
+Dal piano [libreria immagini](plans/2026-11-19-libreria-immagini.md), ramo `feat/image-library` (annidato sulle
+animazioni). IDE 8462 dal worktree.
+
+1. [ ] **Carica e piazza**: Strumenti ▸ Immagine apre «Del progetto» con «+ Carica immagine…» per primo; una foto del
+       telefono (4000 px, qualche MB) → la scheda propone l'ottimizzazione già spuntata, con la misura dopo; caricata è
+       già scelta, «Inserisci» la mette al centro con le sue proporzioni.
+2. [ ] **Nome già usato**: ricaricare lo stesso file → sostituisci ovunque / tieni tutte e due / annulla.
+3. [ ] **Scorciatoie**: un file trascinato sul canvas finisce dove cade; una schermata incollata con Ctrl+V finisce al
+       centro; con oggetti copiati nell'editor (senza passare da un altro programma) Ctrl+V incolla gli oggetti.
+4. [ ] **Gestione**: rinomina (la pagina la mostra ancora), sostituisci, elimina con il conteggio, «non usata», il
+       totale contro gli 8 MB; Configurazione ▸ Risorse ▸ «Apri la libreria immagini».
+5. [ ] **Proprietà**: miniatura, nome, «Cambia…»; sull'oggetto Immagine niente immagine di sfondo.
+6. [ ] **Pannello**: deploy con una foto ottimizzata che passa, e l'immagine sul WP630/TY570.
+
 ## Le animazioni dei simboli (19-11-2026)
 
 Dal piano [animazioni dei simboli](plans/2026-11-19-animazioni-dei-simboli.md), ramo `feat/symbol-anim` (annidato sulle

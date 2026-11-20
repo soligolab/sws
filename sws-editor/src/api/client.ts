@@ -258,6 +258,21 @@ export class NoProjectError extends Error {
   constructor() { super("no active project"); this.name = "NoProjectError"; }
 }
 
+/** An image of the project with this name exists already (409): the caller
+ *  asks whether to replace it or keep both (19-11-2026, the image library). */
+export class ImageExistsError extends Error {
+  constructor(readonly imageName: string) { super(`image ${imageName} exists`); this.name = "ImageExistsError"; }
+}
+
+/** An image of the project (`GET /api/project/images`). The size in pixels
+ *  when the server can read it (PNG, JPEG, SVG). */
+export interface ProjectImage {
+  name: string;
+  size_bytes: number;
+  width?: number | null;
+  height?: number | null;
+}
+
 /** Login returned 429 Too Many Requests. `retryAfterSecs` is the value of
  *  the Retry-After header (defaults to 60 if the header is absent). */
 /** La password è giusta, ma l'indirizzo non è ancora confermato: chi si è
@@ -1936,16 +1951,21 @@ export const api = {
    *  export/deploy e nei backup; i widget le referenziano con l'URL relativo
    *  restituito dall'upload. */
   listProjectImages: () =>
-    request<{ name: string; size_bytes: number }[]>("/api/project/images"),
+    request<ProjectImage[]>("/api/project/images"),
 
-  uploadProjectImage: async (name: string, file: Blob): Promise<{ name: string; url: string }> => {
-    const path = `/api/project/images/${encodeURIComponent(name)}`;
+  /** `replace: false` (the image library, 19-11-2026): an image with the same
+   *  name is not overwritten, the call throws `ImageExistsError`. The callers
+   *  that write their own unique names (AI pictures, floor plans) replace. */
+  uploadProjectImage: async (name: string, file: Blob, opts: { replace?: boolean } = {}): Promise<{ name: string; url: string }> => {
+    const replace = opts.replace ?? true;
+    const path = `/api/project/images/${encodeURIComponent(name)}${replace ? "?replace=1" : ""}`;
     const res = await fetch(`${getBaseUrl()}${path}`, {
       method: "POST",
       headers: authHeaders(),
       body: file,
     });
     if (res.status === 401) throw new AuthError();
+    if (res.status === 409) throw new ImageExistsError(name);
     if (!res.ok) {
       let body = "";
       try { body = await res.text(); } catch { /* ignore */ }
@@ -1956,6 +1976,21 @@ export const api = {
 
   deleteProjectImage: (name: string) =>
     request<void>(`/api/project/images/${encodeURIComponent(name)}`, { method: "DELETE" }),
+
+  /** Renames the file only: the IDE rewrites the objects that use it. A name
+   *  taken answers 409 (`ImageExistsError`). */
+  renameProjectImage: async (name: string, to: string): Promise<{ name: string; url: string }> => {
+    try {
+      return await request<{ name: string; url: string }>(`/api/project/images/${encodeURIComponent(name)}/rename`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to }),
+      });
+    } catch (e) {
+      if (e instanceof Error && / 409 /.test(e.message)) throw new ImageExistsError(to);
+      throw e;
+    }
+  },
 
   downloadBackup: async (name: string): Promise<Response> => {
     const path = `/api/backups/${encodeURIComponent(name)}/download`;

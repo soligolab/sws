@@ -1480,7 +1480,10 @@
     "targetRiskyTitolo": "Passare a LVGL?",
     "targetRiskyTesto": "Il motore LVGL disegna meno cose del browser: alcuni oggetti di questo progetto potrebbero non comparire sul pannello, o comparire diversi.\n\nIl verso contrario, da LVGL al web, non perde niente.",
     "targetRiskySi": "Passa a LVGL",
-    "openControlPanel": "Apri il pannello di controllo del dispositivo"
+    "openControlPanel": "Apri il pannello di controllo del dispositivo",
+    "imageNone": "Nessuna immagine",
+    "imageChange": "Cambia…",
+    "bgImageOnImage": "Un'immagine dietro all'immagine: l'oggetto Immagine non la usa più. Togli e, se serve, scegli l'immagine con «Cambia…»."
   },
   "shortcut": {
     "navCanvas": "Navigazione canvas",
@@ -2636,7 +2639,34 @@
   "imageBrowser": {
     "loadingCatalog": "Caricamento catalogo…",
     "noResults": "Nessun risultato per \"{{filter}}\"",
-    "libreria": "Libreria immagini"
+    "libreria": "Libreria immagini",
+    "insertTitle": "Inserisci immagine",
+    "project": "Del progetto",
+    "upload": "Carica immagine…",
+    "uploadHint": "Scegli uno o più file, o trascinali qui: PNG, JPG, WebP, GIF, SVG",
+    "noProjectImages": "Il progetto non ha ancora immagini sue: caricane una con «+».",
+    "projectInfo": "{{n}} immagini · {{size}} dei {{limit}} del deploy",
+    "catalogInfo": "{{n}} di {{of}} · licenza {{license}}",
+    "insert": "Inserisci",
+    "use": "Usa questa",
+    "rename": "Rinomina…",
+    "replace": "Sostituisci…",
+    "unused": "non usata",
+    "notUsed": "Non è usata in nessuna pagina.",
+    "usedIn": "Usata in {{n}} punti:",
+    "unusedCount": "{{n}} non usate",
+    "missing": "{{n}} immagini mancanti",
+    "renameTitle": "Rinomina l'immagine",
+    "renameText": "Le pagine che la usano ({{n}}) seguono il nome nuovo.",
+    "badName": "Solo lettere, numeri, «.», «-», «_», con l'estensione (.png, .jpg, .gif, .svg, .webp).",
+    "nameTaken": "Il progetto ha già un'immagine «{{name}}».",
+    "deleteTitle": "Elimina l'immagine",
+    "deleteUsed": "«{{name}}» è usata in {{n}} punti: lì resterà il riquadro vuoto. Eliminarla lo stesso?",
+    "deleteUnused": "Eliminare «{{name}}»? Non è usata in nessuna pagina.",
+    "replaceKind": "Per sostituirla scegli un file dello stesso tipo (.{{ext}}): il nome resta, e ogni pagina che la usa mostra quella nuova.",
+    "manageTitle": "IMMAGINI DEL PROGETTO",
+    "manageText": "Caricarle, rinominarle, sostituirle, vedere dove si usano e togliere quelle che non servono.",
+    "manageOpen": "Apri la libreria immagini"
   },
   "tagInputMsg": {
     "variableInferredFromThisSource": "Variabile dedotta dalle mappature di questa sorgente, non dichiarata in Configurazione → Progetto → Variabili"
@@ -5621,6 +5651,21 @@
       "boundRenamed": "«{{from}}» diventa «{{to}}»: {{n}} oggetti lo collegano.",
       "boundRemoved": "«{{id}}» sparisce: {{n}} oggetti lo collegano e resteranno senza.",
       "boundText": "Salvando, gli oggetti di questa pagina seguono i nomi nuovi; quelli delle altre pagine vanno ricollegati."
+    }
+  },
+  "images": {
+    "upload": {
+      "title": "Carica un'immagine",
+      "name": "Nome",
+      "optimize": "Ottimizza per il pannello",
+      "optimizedTo": "Dopo: {{w}}×{{h}} px, {{size}}",
+      "optimizing": "Dopo: {{w}}×{{h}} px…",
+      "exists": "Il progetto ha già un'immagine «{{name}}».",
+      "replace": "Sostituisci ovunque",
+      "keepBoth": "Tieni tutte e due",
+      "skip": "Salta",
+      "go": "Carica",
+      "failed": "Caricamento non riuscito: {{err}}"
     }
   }
 }

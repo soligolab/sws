@@ -3,7 +3,6 @@ import { SymbolEditorHost } from "@/symbols/editor/SymbolEditor";
 import { openSymbolEditorFor } from "@/symbols/editor/open";
 import { createContext, Fragment, lazy, Suspense, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AnteprimaImmagine, ImgProgetto } from "@/canvas/ImmagineSvg";
-import { dimenticaImmagine } from "@/canvas/ImmagineSvg";
 import { ProprietaFinestra } from "@/finestre/ProprietaFinestra";
 import { azioneDi, righeDalRegistro } from "@/scorciatoie/registro";
 import { FAMIGLIE, cssFamiglia, famigliaDi } from "@/font/famiglie";
@@ -18,7 +17,7 @@ import { QDOT_BUILTIN_TYPES, SvgCanvas, faceplateDefBBox, normalizeFaceplatePara
 import { PALETTE } from "@/canvas/TrendCanvas";
 import { resolvePageBackground, sfondoPagina } from "@/theme";
 import { EditorToolbar } from "@/editor/EditorToolbar";
-import { centroVista, registraAggiunta, type Preimpostato } from "@/editor/azioniEditor";
+import { aggiungiOggetto, centroVista, registraAggiunta, type Preimpostato } from "@/editor/azioniEditor";
 import { PageTabs } from "@/editor/PageTabs";
 /** L'editor Python si carica **quando si apre una funzione**, non prima.
  *
@@ -63,7 +62,9 @@ import { oggettoNuovo } from "./oggettiNuovi";
 import { CampoColore, SelettoreColore } from "./CampoColore";
 import { trascinaBordo } from "./bordoPannello";
 import { BarraAttivita, type VoceAttivita } from "./BarraAttivita";
-import { regolaCampo, valorePredefinito, type MotivoVuoto } from "@/predefinitiCampi";
+import { regolaCampo, riempiPredefiniti, valorePredefinito, type MotivoVuoto } from "@/predefinitiCampi";
+import { placedSize } from "@/images/place";
+import { UploadImage } from "@/images/UploadImage";
 import { IntestazioneSezione, PREFISSO_MEMORIA, RigaProprieta, SPAZIO, TESTO, TitoloVista, migraMemorieVecchie, useSezioneAperta } from "./stilePannelli";
 import { cosaCancella, eliminaWaypoint, percorsoDaSalvare, puntiMovimento } from "@/canvas/percorsoMovimento";
 import { targetDaSalvare, versoRischioso } from "./targetProgetto";
@@ -985,6 +986,40 @@ export function EditorShell() {
   const [helpOpen, setHelpOpen] = useState(false);
   const [symbolPickPos, setSymbolPickPos] = useState<{ x: number; y: number } | null>(null);
   const [pendingImagePos, setPendingImagePos] = useState<{ x: number; y: number } | null>(null);
+  // Image files dropped on the canvas or pasted (19-11-2026): uploaded with
+  // the card of the library, then placed where they were dropped.
+  const [droppedImages, setDroppedImages] = useState<{ files: File[]; point: { x: number; y: number }; taken: string[] | null } | null>(null);
+  // The clipboard of the system may be newer than the one of the editor: the
+  // window lost the focus (something was copied elsewhere) after the last copy.
+  const appuntiEsterni = useRef(false);
+  const incollaInAttesa = useRef<number | null>(null);
+  useEffect(() => {
+    const lasciata = () => { appuntiEsterni.current = true; };
+    const incolla = (e: ClipboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
+      const files = [...(e.clipboardData?.files ?? [])].filter((f) => /^image\/(png|jpeg|gif|svg\+xml|webp)$/.test(f.type));
+      if (!files.length) {
+        // No image: the objects of the editor, now instead of a moment later.
+        if (incollaInAttesa.current !== null) {
+          window.clearTimeout(incollaInAttesa.current);
+          incollaInAttesa.current = null;
+          if (useAppStore.getState().clipboard.length > 0) useAppStore.getState().pasteClipboard();
+        }
+        return;
+      }
+      e.preventDefault();
+      if (incollaInAttesa.current !== null) { window.clearTimeout(incollaInAttesa.current); incollaInAttesa.current = null; }
+      appuntiEsterni.current = false;
+      // A pasted picture is called «image.png» by the browser: a name of its own.
+      const stamp = new Date().toISOString().replace(/[-:]/g, "").replace("T", "-").slice(0, 15);
+      const named = files.map((f, i) => new File([f], `pasted-${stamp}${i ? `-${i + 1}` : ""}.${f.type === "image/jpeg" ? "jpg" : f.type.split("/")[1].replace("svg+xml", "svg")}`, { type: f.type }));
+      aggiungiOggetto("image", { files: named });
+    };
+    window.addEventListener("blur", lasciata);
+    document.addEventListener("paste", incolla);
+    return () => { window.removeEventListener("blur", lasciata); document.removeEventListener("paste", incolla); };
+  }, []);
 
   // Right (properties) panel resizable width, persisted like the left panel's.
   // The <aside> sits at the far right of the layout, so its resize handle is
@@ -1060,7 +1095,7 @@ export function EditorShell() {
       } else if (az === "ripeti" || az === "ripetiAlt") {
         e.preventDefault(); redo();
       } else if (az === "copia" && ids.length > 0) {
-        e.preventDefault(); copySelection();
+        e.preventDefault(); copySelection(); appuntiEsterni.current = false;
       } else if (az === "taglia") {
         e.preventDefault();
         const cell = useAppStore.getState().selectedCell;
@@ -1101,8 +1136,22 @@ export function EditorShell() {
         // Fall back to cutting the page-level selection.
         if (ids.length > 0) { copySelection(); deleteSelection(); }
       } else if (az === "incolla") {
-        e.preventDefault();
         const cell = useAppStore.getState().selectedCell;
+        const subCell = useAppStore.getState().selectedSubCell;
+        // The system clipboard may hold an image (19-11-2026): when the editor's
+        // clipboard is empty, or the window was left after the last copy, the
+        // browser's `paste` event decides (an image is uploaded and placed;
+        // otherwise the objects of the editor are pasted). preventDefault here
+        // would cancel that event; without it (a browser that doesn't send it
+        // here) the objects are pasted anyway, a moment later.
+        if (!cell && !subCell && (useAppStore.getState().clipboard.length === 0 || appuntiEsterni.current)) {
+          incollaInAttesa.current = window.setTimeout(() => {
+            incollaInAttesa.current = null;
+            if (useAppStore.getState().clipboard.length > 0) pasteClipboard();
+          }, 80);
+          return;
+        }
+        e.preventDefault();
         if (cell) {
           // Paste first clipboard item as a child of the selected cell.
           const state = useAppStore.getState();
@@ -1117,7 +1166,6 @@ export function EditorShell() {
               { ...cellDef, child: { ...clipboard[0] } });
           }
         } else {
-          const subCell = useAppStore.getState().selectedSubCell;
           if (subCell) {
             const state = useAppStore.getState();
             if (state.clipboard.length > 0) {
@@ -1233,6 +1281,13 @@ export function EditorShell() {
     // Un simbolo già scelto (ramo «Simboli» di Strumenti) nasce subito.
     if (type === "symbol" && pre?.symbol_id) { addObject(oggettoSimbolo(pre.symbol_id, x, y)); return; }
     // Due tipi chiedono prima qualcosa all'utente e si creano dopo la scelta.
+    if (type === "image" && pre?.files?.length) {
+      setDroppedImages({ files: pre.files, point: { x, y }, taken: null });
+      api.listProjectImages()
+        .then((l) => setDroppedImages((d) => (d ? { ...d, taken: l.map((im) => im.name) } : d)))
+        .catch(() => setDroppedImages((d) => (d ? { ...d, taken: [] } : d)));
+      return;
+    }
     if (type === "image") { setPendingImagePos({ x, y }); return; }
     if (type === "symbol") { setSymbolPickPos({ x, y }); return; }
     // La polilinea si disegna a clic (26-09-2026, scelta del maintainer): la
@@ -1298,11 +1353,28 @@ export function EditorShell() {
       <EditorToolbar viewApi={viewApi} zoom={zoom} canFitPage={fitPageSize !== null} />
       <PageTabs />
       <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+      {droppedImages?.taken && (
+        <UploadImage files={droppedImages.files} taken={droppedImages.taken}
+          onCancel={() => setDroppedImages(null)}
+          onDone={(up) => {
+            const { point } = droppedImages;
+            up.forEach((u, i) => addObject(centraSulPunto(riempiPredefiniti({
+              type: "image", x: point.x + i * 16, y: point.y + i * 16,
+              ...placedSize(u.width && u.height ? { width: u.width, height: u.height } : undefined),
+              src: u.url, image_fit: "contain",
+            } as SynopticObject) as Omit<SynopticObject, "id">)));
+            setDroppedImages(null);
+          }} />
+      )}
       {pendingImagePos && (
         <ImageBrowser
-          onSelect={(path) => {
-            addObject({ type: "image", x: pendingImagePos.x, y: pendingImagePos.y,
-                        width: 120, height: 80, src: path });
+          mode="place"
+          onSelect={(path, size) => {
+            // With the proportions of the picture, centred where it was asked,
+            // `contain`, and the defaults of every new object (19-11-2026).
+            addObject(centraSulPunto(riempiPredefiniti({
+              type: "image", x: pendingImagePos.x, y: pendingImagePos.y, ...placedSize(size), src: path, image_fit: "contain",
+            } as SynopticObject) as Omit<SynopticObject, "id">));
             setPendingImagePos(null);
           }}
           onClose={() => setPendingImagePos(null)}
@@ -3631,6 +3703,7 @@ export function ObjectProps({
   // sezione esiste per il tipo selezionato) + input file per l'upload.
   const [projectImages, setProjectImages] = useState<{ name: string; size_bytes: number }[] | null>(null);
   const [bgUploading, setBgUploading] = useState(false);
+  const [bgUploadFiles, setBgUploadFiles] = useState<{ files: File[]; taken: string[] } | null>(null);
   const bgFileRef = useRef<HTMLInputElement | null>(null);
   const projLangs = useAppStore((s) => s.project?.languages?.langs) ?? [];
   const faceplates = useAppStore((s) => s.faceplates);
@@ -5193,46 +5266,52 @@ export function ObjectProps({
       </>);
     }
 
-    /* Image (external URL) */
+    /* Image: the picture first, with «Cambia…» (the library); the URL under
+       it, bindable to a tag as before (19-11-2026). */
     if (obj.type === "image") {
       metti("parametri", <>
-        {field(t("props.imageUrl"),
-          <div style={{ display: "flex", gap: 4 }}>
-            <BindableInput obj={obj} propName="src" onChange={onChange}>
-              <input
-                style={{ ...INPUT, flex: 1, minWidth: 0 }}
-                placeholder="https://… o /images/…"
-                value={obj.src ?? ""}
-                onChange={(e) => onChange({ src: e.target.value || undefined })}
-              />
-            </BindableInput>
-            <button
-              style={{
-                flexShrink: 0, background: "var(--sws-select-bg, #1e3a5f)", border: "1px solid var(--sws-select-border, #1e40af)",
-                borderRadius: 4, color: "var(--sws-select-text, #93c5fd)", cursor: "pointer",
-                padding: "0 8px", fontSize: 12,
-              }}
-              onClick={() => setImgBrowserOpen(true)}
-              title={t("props.browseImages")}
-            >
-              ⋯
-            </button>
-          </div>
-        )}
-        {obj.src && (
-          <div style={{ marginTop: 4, textAlign: "center" }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 4 }}>
+          {obj.src ? (
             <AnteprimaImmagine
               src={obj.src}
               titolo={t("props.apriImmagine")}
               style={{
-                maxWidth: "100%", maxHeight: 80, objectFit: "contain", borderRadius: 4,
+                width: 72, height: 54, objectFit: "contain", borderRadius: 4, flexShrink: 0,
                 border: "1px solid var(--brand-surface, #1e293b)",
               }}
             />
+          ) : (
+            <div style={{ width: 72, height: 54, borderRadius: 4, border: "1px dashed var(--brand-border, #475569)", flexShrink: 0 }} />
+          )}
+          <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 4 }}>
+            <span style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+              title={obj.src}>{obj.src ? decodeURIComponent(obj.src.split("/").pop() ?? obj.src) : t("props.imageNone")}</span>
+            <button
+              data-testid="image-change"
+              style={{
+                alignSelf: "flex-start", background: "var(--sws-select-bg, #1e3a5f)", border: "1px solid var(--sws-select-border, #1e40af)",
+                borderRadius: 4, color: "var(--sws-select-text, #93c5fd)", cursor: "pointer", padding: "3px 10px", fontSize: 12,
+              }}
+              onClick={() => setImgBrowserOpen(true)}
+              title={t("props.browseImages")}
+            >
+              {t("props.imageChange")}
+            </button>
           </div>
+        </div>
+        {field(t("props.imageUrl"),
+          <BindableInput obj={obj} propName="src" onChange={onChange}>
+            <input
+              style={{ ...INPUT, flex: 1, minWidth: 0 }}
+              placeholder="https://… o /images/…"
+              value={obj.src ?? ""}
+              onChange={(e) => onChange({ src: e.target.value || undefined })}
+            />
+          </BindableInput>
         )}
         {imgBrowserOpen && (
           <ImageBrowser
+            mode="choose"
             onSelect={(path) => { onChange({ src: path }); }}
             onClose={() => setImgBrowserOpen(false)}
           />
@@ -6313,7 +6392,18 @@ export function ObjectProps({
                 scorciatoia che c'era su un campo su venti. */}
             {!["rect", "button", "navbutton", "lang_button"].includes(obj.type)
               && field(t("props.bgColor"), colorInput("bg_color"))}
-            {field(t("props.bgImage"),
+            {/* The image object has no background image any more (19-11-2026):
+                a picture uploaded here went BEHIND an empty image. One that
+                has it keeps it, read-only, with «Togli». */}
+            {obj.type === "image" && obj.bg_image && field(t("props.bgImage"),
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <span style={{ flex: 1, minWidth: 0, fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", overflow: "hidden", textOverflow: "ellipsis" }}
+                  title={t("props.bgImageOnImage")}>{obj.bg_image}</span>
+                <button style={{ ...INPUT, width: "auto", flex: "none", cursor: "pointer" }} data-testid="bg-image-remove"
+                  onClick={() => onChange({ bg_image: undefined, bg_image_opacity: undefined })}>{t("props.sfondoAreaTogli")}</button>
+              </div>
+            )}
+            {obj.type !== "image" && field(t("props.bgImage"),
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                 <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                   <input
@@ -6337,21 +6427,23 @@ export function ObjectProps({
                     const f = e.target.files?.[0];
                     e.target.value = "";
                     if (!f) return;
-                    // Nome sanificato: la whitelist server accetta solo [A-Za-z0-9._-].
-                    const safe = f.name.replace(/[^A-Za-z0-9._-]+/g, "_");
+                    // The card of the image library (19-11-2026): the name
+                    // taken is asked, not overwritten, and a big photo is optimised.
                     setBgUploading(true);
-                    try {
-                      const res = await api.uploadProjectImage(safe, f);
-                      dimenticaImmagine(res.url);
-                      onChange({ bg_image: res.url });
-                      setProjectImages(null); // ricarica la lista al prossimo focus
-                    } catch (err: any) {
-                      void avviso({ testo: t("editor.uploadImageFailed", { err: err?.message ?? err }), livello: "errore" });
-                    } finally {
-                      setBgUploading(false);
-                    }
+                    const taken = await api.listProjectImages().then((l) => l.map((im) => im.name)).catch(() => []);
+                    setBgUploadFiles({ files: [f], taken });
                   }}
                 />
+                {bgUploadFiles && (
+                  <UploadImage files={bgUploadFiles.files} taken={bgUploadFiles.taken}
+                    onCancel={() => { setBgUploadFiles(null); setBgUploading(false); }}
+                    onDone={(up) => {
+                      setBgUploadFiles(null);
+                      setBgUploading(false);
+                      setProjectImages(null); // ricarica la lista al prossimo focus
+                      if (up[0]) onChange({ bg_image: up[0].url });
+                    }} />
+                )}
                 <select
                   style={{ ...INPUT, cursor: "pointer" }}
                   value=""
