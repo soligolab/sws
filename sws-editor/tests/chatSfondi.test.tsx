@@ -53,3 +53,24 @@ describe("Usa come base", () => {
     expect(inviati[0]).toEqual({ t: "approva_sfondo", id: "b2" });
   });
 });
+
+describe("the twin of a background (20-11-2026)", () => {
+  it("shows size and orientation, and the twin is chosen with its base", async () => {
+    render(<ChatPanel open onClose={() => {}} />);
+    await arriva({ t: "pronto", attivo: true, modello: "finto" });
+    await arriva({ t: "sfondo", id: "s-portrait", base: true, approvata: false, jpg: "",
+                   w: 600, h: 930, facing: "portrait", twin_of: null });
+    await arriva({ t: "sfondo", id: "s-landscape", base: true, approvata: false, jpg: "",
+                   w: 1024, h: 506, facing: "landscape", twin_of: "s-portrait" });
+    expect(screen.getByTestId("sfondo-misura-s-portrait").textContent).toMatch(/^600×930 · (verticale|portrait)$/);
+    expect(screen.getByTestId("sfondo-misura-s-landscape").textContent).toMatch(/^1024×506 · (orizzontale|landscape)$/);
+    expect(screen.getByTestId("sfondo-s-landscape").textContent).toMatch(/progetto girato|turned project/);
+    // One button, on the base.
+    expect(screen.queryByTestId("usa-base-s-landscape")).toBeNull();
+    fireEvent.click(screen.getByTestId("usa-base-s-portrait"));
+    expect(inviati[0]).toEqual({ t: "approva_sfondo", id: "s-portrait" });
+    await arriva({ t: "sfondo_approvato", id: "s-portrait", ok: true });
+    expect(screen.getByTestId("sfondo-s-portrait").textContent).toMatch(/base scelta|base chosen/);
+    expect(screen.getByTestId("sfondo-s-landscape").textContent).not.toMatch(/si sceglie con la sua base|chosen with its base/);
+  });
+});

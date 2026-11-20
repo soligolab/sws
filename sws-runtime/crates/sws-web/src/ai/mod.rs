@@ -23,6 +23,7 @@
 //! e il browser rifiuta di applicarla se non corrisponde più. Controllo di
 //! concorrenza ottimistico, con il pezzo che già esisteva (`calcola_impronta`).
 
+mod background_size;
 mod banco_tubi;
 mod bench_house;
 pub mod bfl;

@@ -3,6 +3,7 @@ import { inCodaLayout } from "@/layoutInCoda";
 import { cambioOrientamento, patchDaPredefinito, patchSovrascrittura, primaImpostazione, type FormatoPagina, type GenerePagina } from "@/formatoProgetto";
 import { eBoot } from "@/boot/tipi";
 import { eCornice } from "@/cornici/modello";
+import { hrefImmagineProgetto, immagineInSospeso } from "@/canvas/immaginiInSospeso";
 import { eFaceplateDef } from "@/faceplate/modello";
 import { useAppStore } from "@/store";
 import type { PageLayoutConfig, SynopticPage } from "@/types";
@@ -84,7 +85,13 @@ export function applicaATutte(ids: readonly string[], scelta: { misura: boolean;
 export async function cambiaOrientamento(orientation: "landscape" | "portrait"): Promise<number> {
   const st = useAppStore.getState();
   const pagine = st.pages.map((pagina) => ({ pagina, genere: generePagina(pagina) }));
-  const { patches } = cambioOrientamento(pagine, st.project?.page_layout, orientation);
+  // The generated backgrounds pass to their twin for the other orientation
+  // when the project has it: on the server, or applied and not saved yet.
+  const onServer = new Set(await api.listProjectImages()
+    .then((list) => list.map((i) => hrefImmagineProgetto(i.name)))
+    .catch(() => [] as string[]));
+  const hasImage = (src: string) => onServer.has(src) || immagineInSospeso(src) !== undefined;
+  const { patches } = cambioOrientamento(pagine, st.project?.page_layout, orientation, hasImage);
   // The layout is computed again when its turn comes, from what the write
   // before it left: the server replaces it whole.
   await salvaLayout((attuale) => cambioOrientamento([], attuale, orientation).layout);

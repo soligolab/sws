@@ -8,8 +8,10 @@ use base64::Engine as _;
 use serde_json::{json, Value};
 use tokio::sync::mpsc;
 
+use super::background_size::{self, Facing, Scale};
 use super::{
-    bfl, client, immagini, local_http, scopi, spending, symbol_draw, tools, Banco, Misure,
+    bfl, client, floor_plan_tool, immagini, local_http, scopi, spending, symbol_draw, tools, Banco,
+    Misure,
 };
 use crate::router::AppState;
 
@@ -246,8 +248,9 @@ fn controlla_tetto_sfondi(
     sc: &scopi::SceltaImmagini,
     tetto_usd: f64,
     edit: bool,
+    size: (u32, u32),
 ) -> Result<f64, String> {
-    let costo = immagini::estimated_usd(config_dir, sc, edit);
+    let costo = immagini::estimated_usd(config_dir, sc, edit, size);
     if banco.spesa_sfondi + costo > sc.tetto_usd {
         return Err(format!(
             "tetto degli sfondi raggiunto: {:.2} $ su {:.2} $ (stima). Alzalo in IA → Un modello per scopo",
@@ -335,16 +338,76 @@ fn failed_background(
     )
 }
 
-fn mostra(tx: &mpsc::UnboundedSender<String>, f: &immagini::Sfondo) {
+/// The frame of one image in the chat. `twin_of`: this one is the other
+/// orientation of that base or variant, shown next to it without its own
+/// «Usa come base».
+fn mostra(tx: &mpsc::UnboundedSender<String>, f: &immagini::Sfondo, twin_of: Option<&str>) {
     invia(
         tx,
         json!({ "t": "sfondo", "id": f.id, "base": f.da.is_none(), "luce": f.luce,
-                "approvata": f.approvata,
+                "approvata": f.approvata, "w": f.w, "h": f.h, "facing": f.facing(),
+                "twin_of": twin_of,
                 "jpg": base64::engine::general_purpose::STANDARD.encode(&f.jpg) }),
     );
 }
 
-/// `genera_sfondo`: solo basi candidate. La persona ne approva una in chat.
+/// What the model is told when it calls `genera_sfondo` without the two
+/// choices of the person.
+const ASK_THE_CHOICES: &str = "mancano `size` e `both_orientations`: li sceglie la persona. Se \
+    non li ha già detti, chiediglieli con fai_domande (misura esatta dell'area o una volta e mezza; \
+    anche col progetto girato, cioè due immagini) e chiama genera_sfondo dopo la risposta.";
+
+/// The image from the provider at its final size (`background_size::fit`),
+/// off the async threads.
+async fn to_final(jpg: Vec<u8>, (w, h): (u32, u32)) -> Result<(Vec<u8>, u32, u32), String> {
+    tokio::task::spawn_blocking(move || background_size::fit(&jpg, w, h))
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e| format!("the image that arrived does not read ({e}); it is paid all the same"))
+}
+
+/// What the model receives of one image.
+fn described(f: &immagini::Sfondo) -> Value {
+    json!({ "id": f.id, "src": f.src(), "w": f.w, "h": f.h, "facing": f.facing() })
+}
+
+/// One image asked to the provider and brought to its final size: the cap
+/// checked before, the cost counted after (also for a FLUX task that failed
+/// once accepted). Returns the provider's image, the final one and its size;
+/// `Err` is what the model is told.
+#[allow(clippy::too_many_arguments)]
+async fn one_image<F, Fut>(
+    s: &AppState,
+    banco: &mut Banco,
+    misure: &mut Misure,
+    sc: &scopi::SceltaImmagini,
+    tetto_usd: f64,
+    edit: bool,
+    final_size: (u32, u32),
+    call: F,
+) -> Result<(Vec<u8>, Vec<u8>, u32, u32), String>
+where
+    F: FnOnce(f64, (u32, u32)) -> Fut,
+    Fut: std::future::Future<Output = Result<immagini::Generated, immagini::Failed>>,
+{
+    let request =
+        background_size::request_size(sc.fornitore, &sc.modello, final_size.0, final_size.1);
+    let estimate =
+        controlla_tetto_sfondi(&s.config_dir, banco, misure, sc, tetto_usd, edit, request)?;
+    let t0 = std::time::Instant::now();
+    let img = match call(estimate, request).await {
+        Ok(img) => img,
+        Err(failed) => return Err(failed_background(s, banco, misure, sc, failed, t0)),
+    };
+    pay_background(s, banco, misure, sc, &img, estimate, t0);
+    let raw = img.jpg.clone();
+    let (jpg, w, h) = to_final(img.jpg, final_size).await?;
+    Ok((raw, jpg, w, h))
+}
+
+/// `genera_sfondo`: solo basi candidate, alla misura dell'area della pagina
+/// (plan of 20-11-2026); con `both_orientations` ogni base ha la sua gemella
+/// per il progetto girato. La persona ne approva una in chat.
 pub(crate) async fn genera_sfondi(
     s: &AppState,
     tx: &mpsc::UnboundedSender<String>,
@@ -359,58 +422,136 @@ pub(crate) async fn genera_sfondi(
         .as_ref()
         .ok_or("nessun modello di immagini configurato")?;
     let descrizione = testo(input, "descrizione")?;
+    let scale = input
+        .get("size")
+        .and_then(Value::as_str)
+        .and_then(Scale::parse)
+        .ok_or(ASK_THE_CHOICES)?;
+    let both = input
+        .get("both_orientations")
+        .and_then(Value::as_bool)
+        .ok_or(ASK_THE_CHOICES)?;
     let quante = input
         .get("quante")
         .and_then(Value::as_u64)
         .unwrap_or(1)
         .clamp(1, 3);
+    let page = floor_plan_tool::page_box(s, input.get("page").and_then(Value::as_str)).await?;
+    let main_size = background_size::final_size(page.area(), scale);
+    let twin_size = background_size::final_size(page.turned(), scale);
+    let main_facing = Facing::of(main_size.0, main_size.1);
+    let twin_facing = Facing::of(twin_size.0, twin_size.1);
     let regole = super::regole_del_progetto(s, "sfondi").await;
     let mut fatte = Vec::new();
     let mut interrotto = None;
     for _ in 0..quante {
-        let estimate =
-            match controlla_tetto_sfondi(&s.config_dir, banco, misure, sc, tetto_usd, false) {
-                Ok(c) => c,
-                Err(e) if fatte.is_empty() => return Err(e),
-                Err(e) => {
-                    interrotto = Some(e);
-                    break;
-                }
-            };
-        let t0 = std::time::Instant::now();
         // Un errore dopo la prima immagine non butta quelle già pagate: il
         // modello le riceve, e il turno si ferma lo stesso (sono in chat).
-        let made = immagini::genera(
-            &ctx.http,
-            &ctx.bfl,
+        let made = one_image(
+            s,
+            banco,
+            misure,
             sc,
-            descrizione,
-            regole.as_deref(),
-            estimate,
+            tetto_usd,
+            false,
+            main_size,
+            |estimate, request| {
+                immagini::genera(
+                    &ctx.http,
+                    &ctx.bfl,
+                    sc,
+                    descrizione,
+                    regole.as_deref(),
+                    estimate,
+                    request,
+                )
+            },
         )
         .await;
-        let img = match made {
-            Ok(j) => j,
-            Err(failed) => {
-                let e = failed_background(s, banco, misure, sc, failed, t0);
-                if fatte.is_empty() {
-                    return Err(e);
-                }
+        let (raw, jpg, w, h) = match made {
+            Ok(m) => m,
+            Err(e) if fatte.is_empty() => return Err(e),
+            Err(e) => {
                 interrotto = Some(e);
                 break;
             }
         };
-        pay_background(s, banco, misure, sc, &img, estimate, t0);
+        let base = id_nuova_base(banco);
+        let (id, twin_id) = if both {
+            (
+                format!("{base}-{}", main_facing.name()),
+                Some(format!("{base}-{}", twin_facing.name())),
+            )
+        } else {
+            (base, None)
+        };
         let f = immagini::Sfondo {
-            id: id_nuova_base(banco),
-            jpg: img.jpg,
+            id,
+            jpg,
             da: None,
             luce: None,
             approvata: false,
+            w,
+            h,
+            twin: None,
         };
-        mostra(tx, &f);
-        fatte.push(json!({ "id": f.id, "src": f.src() }));
+        mostra(tx, &f, None);
+        let mut entry = described(&f);
         banco.sfondi.push(f);
+        if let Some(twin_id) = twin_id {
+            let main_id = banco
+                .sfondi
+                .last()
+                .map(|f| f.id.clone())
+                .unwrap_or_default();
+            let made = one_image(
+                s,
+                banco,
+                misure,
+                sc,
+                tetto_usd,
+                true,
+                twin_size,
+                |estimate, request| {
+                    immagini::ricomponi(
+                        &ctx.http,
+                        &ctx.bfl,
+                        sc,
+                        &raw,
+                        twin_facing,
+                        estimate,
+                        request,
+                    )
+                },
+            )
+            .await;
+            match made {
+                Ok((_, jpg, w, h)) => {
+                    let t = immagini::Sfondo {
+                        id: twin_id.clone(),
+                        jpg,
+                        da: None,
+                        luce: None,
+                        approvata: false,
+                        w,
+                        h,
+                        twin: Some(main_id.clone()),
+                    };
+                    mostra(tx, &t, Some(&main_id));
+                    entry["twin"] = described(&t);
+                    banco.sfondi.push(t);
+                    if let Some(m) = banco.sfondi.iter_mut().find(|f| f.id == main_id) {
+                        m.twin = Some(twin_id);
+                    }
+                }
+                Err(e) => {
+                    fatte.push(entry);
+                    interrotto = Some(format!("the other orientation is missing: {e}"));
+                    break;
+                }
+            }
+        }
+        fatte.push(entry);
     }
     Ok(json!({
         "basi": fatte,
@@ -418,11 +559,14 @@ pub(crate) async fn genera_sfondi(
         "spesa_sfondi_usd": banco.spesa_sfondi,
         "nota": "FERMATI ORA. Scrivi in chat che le candidate sono pronte e chiedi alla persona di \
                  sceglierne una col bottone «Usa come base» sotto la miniatura. Non chiamare \
-                 varia_sfondo e non proporre la pagina finché non ha risposto.",
+                 varia_sfondo e non proporre la pagina finché non ha risposto. Una base con `twin` \
+                 è la stessa scena per il progetto girato: si approva con lei, e la pagina usa \
+                 quella del suo verso.",
     }))
 }
 
-/// `varia_sfondo`: le varianti di luce di una base **approvata dalla persona**.
+/// `varia_sfondo`: le varianti di luce di una base **approvata dalla persona**,
+/// e della sua gemella se c'è, ognuna alla misura della sua base.
 pub(crate) async fn varia_sfondi(
     s: &AppState,
     tx: &mpsc::UnboundedSender<String>,
@@ -449,6 +593,11 @@ pub(crate) async fn varia_sfondi(
              sotto la miniatura. Chiediglielo e aspetta."
         ));
     }
+    let twin = base
+        .twin
+        .as_ref()
+        .and_then(|t| banco.sfondi.iter().find(|f| &f.id == t && f.da.is_none()))
+        .cloned();
     let luci: Vec<String> = input
         .get("luci")
         .and_then(Value::as_array)
@@ -464,52 +613,80 @@ pub(crate) async fn varia_sfondi(
     }
     let mut fatte = Vec::new();
     let mut interrotto = None;
-    for l in luci.iter().take(5) {
-        // Come in genera_sfondi: quello che è già fatto (e pagato) resta, e il
-        // modello lo riceve insieme al motivo per cui ci si è fermati.
-        let estimate =
-            match controlla_tetto_sfondi(&s.config_dir, banco, misure, sc, tetto_usd, true) {
-                Ok(c) => c,
-                Err(e) if fatte.is_empty() => return Err(e),
+    'luci: for l in luci.iter().take(5) {
+        let suffix = suffisso_luce(l);
+        let ids: Vec<String> = std::iter::once(&base)
+            .chain(twin.as_ref())
+            .map(|b| format!("{}-{suffix}", b.id))
+            .collect();
+        let mut entry: Option<Value> = None;
+        for (i, from) in std::iter::once(&base).chain(twin.as_ref()).enumerate() {
+            // Come in genera_sfondi: quello che è già fatto (e pagato) resta, e
+            // il modello lo riceve insieme al motivo per cui ci si è fermati.
+            let made = one_image(
+                s,
+                banco,
+                misure,
+                sc,
+                tetto_usd,
+                true,
+                (from.w, from.h),
+                |estimate, request| {
+                    immagini::varia(&ctx.http, &ctx.bfl, sc, &from.jpg, l, estimate, request)
+                },
+            )
+            .await;
+            let (_, jpg, w, h) = match made {
+                Ok(m) => m,
+                Err(e) if fatte.is_empty() && entry.is_none() => return Err(e),
                 Err(e) => {
+                    if let Some(e) = entry.take() {
+                        fatte.push(e);
+                    }
                     interrotto = Some(e);
-                    break;
+                    break 'luci;
                 }
             };
-        let t0 = std::time::Instant::now();
-        let img = match immagini::varia(&ctx.http, &ctx.bfl, sc, &base.jpg, l, estimate).await {
-            Ok(j) => j,
-            Err(failed) => {
-                let e = failed_background(s, banco, misure, sc, failed, t0);
-                if fatte.is_empty() {
-                    return Err(e);
-                }
-                interrotto = Some(e);
-                break;
+            let other = ids.iter().find(|x| **x != ids[i]).cloned();
+            let f = immagini::Sfondo {
+                id: ids[i].clone(),
+                jpg,
+                da: Some(from.id.clone()),
+                luce: Some(l.clone()),
+                approvata: false,
+                w,
+                h,
+                twin: other.clone(),
+            };
+            mostra(tx, &f, if i == 0 { None } else { Some(&ids[0]) });
+            let mut d = described(&f);
+            d["luce"] = json!(l);
+            match entry.as_mut() {
+                None => entry = Some(d),
+                Some(e) => e["twin"] = d,
             }
-        };
-        pay_background(s, banco, misure, sc, &img, estimate, t0);
-        let f = immagini::Sfondo {
-            id: format!("{id_base}-{}", suffisso_luce(l)),
-            jpg: img.jpg,
-            da: Some(id_base.clone()),
-            luce: Some(l.clone()),
-            approvata: false,
-        };
-        mostra(tx, &f);
-        fatte.push(json!({ "id": f.id, "luce": l, "src": f.src() }));
-        banco.sfondi.retain(|x| x.id != f.id);
-        banco.sfondi.push(f);
+            banco.sfondi.retain(|x| x.id != f.id);
+            banco.sfondi.push(f);
+        }
+        // A variant whose twin did not arrive has no twin.
+        if twin.is_some() && entry.as_ref().is_some_and(|e| e.get("twin").is_none()) {
+            if let Some(f) = banco.sfondi.iter_mut().find(|f| f.id == ids[0]) {
+                f.twin = None;
+            }
+        }
+        fatte.extend(entry);
     }
     Ok(json!({
-        "base": { "id": base.id, "src": base.src() },
+        "base": described(&base),
         "varianti": fatte,
         "interrotto": interrotto,
         "spesa_sfondi_usd": banco.spesa_sfondi,
         "nota": "Gli oggetti stanno negli stessi punti della base in tutte le varianti. In pagina: \
-                 un oggetto image per ognuna a tutta pagina (image_fit cover), il più scuro per \
-                 primo e sempre pieno, gli altri sopra con bindings.opacity scalato su un tag di \
-                 luce. Le immagini entrano nel progetto con proponi_modifica.",
+                 un oggetto image per ognuna grande come l'area libera della pagina (image_fit \
+                 cover), il più scuro per primo e sempre pieno, gli altri sopra con \
+                 bindings.opacity scalato su un tag di luce. Usa le immagini del verso della \
+                 pagina: le gemelle (`twin`) entrano nel progetto da sole. Le immagini entrano nel \
+                 progetto con proponi_modifica.",
     }))
 }
 
@@ -563,18 +740,29 @@ pub(crate) fn suffisso_luce(l: &str) -> String {
 }
 
 /// La persona ha cliccato «Usa come base» in chat.
+/// A base with a twin (the other orientation) approves it too.
 pub(crate) fn approva(banco: &mut Banco, id: &str) -> bool {
-    match banco
+    let twin = match banco
         .sfondi
         .iter_mut()
         .find(|f| f.id == id && f.da.is_none())
     {
         Some(f) => {
             f.approvata = true;
-            true
+            f.twin.clone()
         }
-        None => false,
+        None => return false,
+    };
+    if let Some(t) = twin {
+        if let Some(f) = banco
+            .sfondi
+            .iter_mut()
+            .find(|f| f.id == t && f.da.is_none())
+        {
+            f.approvata = true;
+        }
     }
+    true
 }
 
 /// Gli sfondi che una proposta usa davvero: quelli il cui `src` compare nelle
@@ -582,14 +770,26 @@ pub(crate) fn approva(banco: &mut Banco, id: &str) -> bool {
 /// all'applicazione.
 pub(crate) fn sfondi_della_proposta(input: &Value, banco: &[immagini::Sfondo]) -> Value {
     let pagine = input.get("pages").map(Value::to_string).unwrap_or_default();
+    // Solo quello che la persona ha scelto: una base approvata, o una variante
+    // (che nasce solo da una base approvata). Una candidata che il modello
+    // mette in pagina senza il «Usa come base» non entra.
+    let chosen = |f: &&immagini::Sfondo| f.approvata || f.da.is_some();
+    let used: Vec<&immagini::Sfondo> = banco
+        .iter()
+        .filter(chosen)
+        .filter(|f| pagine.contains(&f.src()))
+        .collect();
+    // The twin of an image the pages use comes along: it is what the page
+    // shows once the project is turned (plan of 20-11-2026).
+    let wanted = |f: &&immagini::Sfondo| {
+        used.iter()
+            .any(|u| u.id == f.id || u.twin.as_deref() == Some(f.id.as_str()))
+    };
     Value::Array(
         banco
             .iter()
-            // Solo quello che la persona ha scelto: una base approvata, o una
-            // variante (che nasce solo da una base approvata). Una candidata
-            // che il modello mette in pagina senza il «Usa come base» non entra.
-            .filter(|f| f.approvata || f.da.is_some())
-            .filter(|f| pagine.contains(&f.src()))
+            .filter(chosen)
+            .filter(wanted)
             .map(|f| {
                 json!({ "file": f.file(),
                              "jpg": base64::engine::general_purpose::STANDARD.encode(&f.jpg) })
@@ -609,6 +809,9 @@ mod tests {
             da: da.map(str::to_string),
             luce: None,
             approvata: false,
+            w: 600,
+            h: 930,
+            twin: None,
         }
     }
 
@@ -673,6 +876,39 @@ mod tests {
         assert!(spending::Record::load(&s.config_dir).months.is_empty());
     }
 
+    /// The size of every background until 20-11-2026: 2 MP for FLUX.
+    const WIDE: (u32, u32) = (1536, 1024);
+
+    /// A project with the TY570 page of the fair: 600×1024 in portrait, a
+    /// frame with bands of 30 and 64.
+    async fn open_ty_project(s: &AppState, dir: &std::path::Path) {
+        let p = dir.join("ty");
+        std::fs::create_dir_all(p.join("synoptics")).unwrap();
+        std::fs::create_dir_all(p.join("cornici")).unwrap();
+        std::fs::write(
+            p.join("project.yaml"),
+            "meta:\n  name: ty\n  version: \"1\"\ntags: []\n",
+        )
+        .unwrap();
+        std::fs::write(
+            p.join("synoptics/Energia.yaml"),
+            "id: energia\nname: Energia\nwidth: 600\nheight: 1024\ncornice: frame\nobjects: []\n",
+        )
+        .unwrap();
+        std::fs::write(
+            p.join("cornici/frame.yaml"),
+            "id: frame\nnome: Frame\nlarghezza: 600\naltezza: 1024\n\
+             testata: { altezza: 30, sfondo: '#1e293b' }\npiede: { altezza: 64, sfondo: '#1e293b' }\n",
+        )
+        .unwrap();
+        *s.project_dir.write().await = Some(p);
+    }
+
+    fn size_of(jpg: &[u8]) -> (u32, u32) {
+        let i = image::load_from_memory(jpg).unwrap();
+        (i.width(), i.height())
+    }
+
     fn openai_choice() -> scopi::SceltaImmagini {
         scopi::SceltaImmagini {
             fornitore: scopi::ImageProvider::OpenAi,
@@ -699,7 +935,8 @@ mod tests {
             modello: "flux-2-pro".into(),
             ..openai_choice()
         };
-        let estimate = controlla_tetto_sfondi(&s.config_dir, &b, &m, &flux, 10.0, true).unwrap();
+        let estimate =
+            controlla_tetto_sfondi(&s.config_dir, &b, &m, &flux, 10.0, true, WIDE).unwrap();
         assert!((estimate - 0.075).abs() < 1e-9, "an edit pays the base too");
         let settled = immagini::Generated {
             jpg: vec![],
@@ -712,7 +949,8 @@ mod tests {
         );
 
         let openai = openai_choice();
-        let estimate = controlla_tetto_sfondi(&s.config_dir, &b, &m, &openai, 10.0, false).unwrap();
+        let estimate =
+            controlla_tetto_sfondi(&s.config_dir, &b, &m, &openai, 10.0, false, WIDE).unwrap();
         let unsettled = immagini::Generated {
             jpg: vec![],
             settled_usd: None,
@@ -729,9 +967,9 @@ mod tests {
 
         // The cap of the purpose counts FLUX's estimate before the call.
         b.spesa_sfondi = 0.95;
-        let e = controlla_tetto_sfondi(&s.config_dir, &b, &m, &flux, 10.0, true).unwrap_err();
+        let e = controlla_tetto_sfondi(&s.config_dir, &b, &m, &flux, 10.0, true, WIDE).unwrap_err();
         assert!(e.contains("tetto degli sfondi"), "{e}");
-        assert!(controlla_tetto_sfondi(&s.config_dir, &b, &m, &flux, 10.0, false).is_ok());
+        assert!(controlla_tetto_sfondi(&s.config_dir, &b, &m, &flux, 10.0, false, WIDE).is_ok());
     }
 
     fn flux_context(at: bfl::Endpoint, cap_usd: f64) -> Contesto {
@@ -764,10 +1002,12 @@ mod tests {
         let ctx = flux_context(at, 0.10);
         let d = tempfile::tempdir().unwrap();
         let s = crate::router::stato_di_prova(d.path()).await;
+        open_ty_project(&s, d.path()).await;
         let (tx, _rx) = mpsc::unbounded_channel();
         let mut b = Banco::default();
         let mut m = Misure::nuove();
-        let input = json!({ "descrizione": "a lake" });
+        let input = json!({ "descrizione": "a lake", "page": "Energia", "size": "exact",
+                            "both_orientations": false });
 
         for attempt in 1..=2u32 {
             let e = genera_sfondi(&s, &tx, &mut b, &mut m, &ctx, 10.0, &input)
@@ -800,10 +1040,12 @@ mod tests {
         let ctx = flux_context(at, 1.0);
         let d = tempfile::tempdir().unwrap();
         let s = crate::router::stato_di_prova(d.path()).await;
+        open_ty_project(&s, d.path()).await;
         let (tx, _rx) = mpsc::unbounded_channel();
         let mut b = Banco::default();
         let mut m = Misure::nuove();
-        let input = json!({ "descrizione": "a lake" });
+        let input = json!({ "descrizione": "a lake", "page": "Energia", "size": "exact",
+                            "both_orientations": false });
         let e = genera_sfondi(&s, &tx, &mut b, &mut m, &ctx, 10.0, &input)
             .await
             .unwrap_err();
@@ -836,6 +1078,180 @@ mod tests {
             .collect();
         // sfondo-1 è una candidata mai approvata: non entra anche se è in pagina.
         assert_eq!(file, ["ai-sfondo-2.jpg", "ai-sfondo-2-sera.jpg"]);
+    }
+
+    /// The model cannot skip the interview: without the two choices of the
+    /// person nothing is asked and nothing is paid.
+    #[tokio::test]
+    async fn without_the_two_choices_nothing_is_generated() {
+        let (at, fake) = bfl::fake::start(bfl::fake::Script::ReadySized).await;
+        let ctx = flux_context(at, 1.0);
+        let d = tempfile::tempdir().unwrap();
+        let s = crate::router::stato_di_prova(d.path()).await;
+        open_ty_project(&s, d.path()).await;
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let mut b = Banco::default();
+        let mut m = Misure::nuove();
+        for input in [
+            json!({ "descrizione": "a lake" }),
+            json!({ "descrizione": "a lake", "size": "exact" }),
+            json!({ "descrizione": "a lake", "size": "huge", "both_orientations": true }),
+        ] {
+            let e = genera_sfondi(&s, &tx, &mut b, &mut m, &ctx, 10.0, &input)
+                .await
+                .unwrap_err();
+            assert!(e.contains("fai_domande"), "{e}");
+        }
+        assert_eq!(fake.submits.load(std::sync::atomic::Ordering::SeqCst), 0);
+        assert_eq!(b.spesa_sfondi, 0.0);
+    }
+
+    /// The TY570 in portrait: the base has the size of the area between the
+    /// bands, its twin the size the area has once the project is turned, and
+    /// the twin is an edit of the base.
+    #[tokio::test]
+    async fn a_background_has_the_size_of_the_page_and_its_twin_the_turned_one() {
+        let (at, fake) = bfl::fake::start(bfl::fake::Script::ReadySized).await;
+        let ctx = flux_context(at, 1.0);
+        let d = tempfile::tempdir().unwrap();
+        let s = crate::router::stato_di_prova(d.path()).await;
+        open_ty_project(&s, d.path()).await;
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        let mut b = Banco::default();
+        let mut m = Misure::nuove();
+        let input = json!({ "descrizione": "a lake", "page": "Energia", "size": "exact",
+                            "both_orientations": true });
+        let out = genera_sfondi(&s, &tx, &mut b, &mut m, &ctx, 10.0, &input)
+            .await
+            .unwrap();
+        assert_eq!(b.sfondi.len(), 2);
+        let (main, twin) = (&b.sfondi[0], &b.sfondi[1]);
+        assert!(
+            main.id.ends_with("-portrait") && twin.id.ends_with("-landscape"),
+            "{}",
+            main.id
+        );
+        assert_eq!(
+            main.id.trim_end_matches("-portrait"),
+            twin.id.trim_end_matches("-landscape")
+        );
+        assert_eq!((main.w, main.h), (600, 930));
+        assert_eq!(size_of(&main.jpg), (600, 930));
+        assert_eq!((twin.w, twin.h), (1024, 506));
+        assert_eq!(size_of(&twin.jpg), (1024, 506));
+        assert_eq!(main.twin.as_deref(), Some(twin.id.as_str()));
+        assert_eq!(twin.twin.as_deref(), Some(main.id.as_str()));
+        // The twin was asked as an edit of the base, at the turned proportions.
+        let last = fake.submitted.lock().unwrap().clone().unwrap();
+        assert!(last["body"]["input_image"].is_string());
+        assert_eq!(
+            (
+                last["body"]["width"].as_u64(),
+                last["body"]["height"].as_u64()
+            ),
+            (Some(1424), Some(704))
+        );
+        assert_eq!(fake.submits.load(std::sync::atomic::Ordering::SeqCst), 2);
+        // The model is told both; the chat shows the twin next to its base.
+        assert_eq!(out["basi"][0]["facing"], "portrait");
+        assert_eq!(out["basi"][0]["twin"]["facing"], "landscape");
+        let frames: Vec<Value> = std::iter::from_fn(|| rx.try_recv().ok())
+            .map(|m| serde_json::from_str(&m).unwrap())
+            .filter(|v: &Value| v["t"] == "sfondo")
+            .collect();
+        assert_eq!(frames.len(), 2);
+        assert!(frames[0]["twin_of"].is_null());
+        assert_eq!(frames[1]["twin_of"], json!(main.id));
+        assert_eq!(
+            (frames[1]["w"].as_u64(), frames[1]["h"].as_u64()),
+            (Some(1024), Some(506))
+        );
+
+        // «Usa come base» on one approves both; a light is made for both.
+        let main_id = main.id.clone();
+        assert!(approva(&mut b, &main_id));
+        assert!(b.sfondi.iter().all(|f| f.approvata));
+        let out = varia_sfondi(
+            &s,
+            &tx,
+            &mut b,
+            &mut m,
+            &ctx,
+            10.0,
+            &json!({ "base": main_id, "luci": ["sera"] }),
+        )
+        .await
+        .unwrap();
+        let sera: Vec<_> = b
+            .sfondi
+            .iter()
+            .filter(|f| f.luce.as_deref() == Some("sera"))
+            .collect();
+        assert_eq!(sera.len(), 2);
+        assert_eq!(sera[0].id, format!("{main_id}-sera"));
+        assert_eq!((sera[0].w, sera[0].h), (600, 930));
+        assert_eq!((sera[1].w, sera[1].h), (1024, 506));
+        assert_eq!(sera[0].twin.as_deref(), Some(sera[1].id.as_str()));
+        assert_eq!(out["varianti"][0]["twin"]["facing"], "landscape");
+    }
+
+    #[tokio::test]
+    async fn larger_is_one_and_a_half_times_the_area() {
+        let (at, _fake) = bfl::fake::start(bfl::fake::Script::ReadySized).await;
+        let ctx = flux_context(at, 1.0);
+        let d = tempfile::tempdir().unwrap();
+        let s = crate::router::stato_di_prova(d.path()).await;
+        open_ty_project(&s, d.path()).await;
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let mut b = Banco::default();
+        let mut m = Misure::nuove();
+        let input = json!({ "descrizione": "a lake", "page": "Energia", "size": "larger",
+                            "both_orientations": false });
+        genera_sfondi(&s, &tx, &mut b, &mut m, &ctx, 10.0, &input)
+            .await
+            .unwrap();
+        assert_eq!(b.sfondi.len(), 1);
+        assert!(
+            !b.sfondi[0].id.ends_with("-portrait"),
+            "one orientation: no suffix"
+        );
+        assert_eq!(size_of(&b.sfondi[0].jpg), (900, 1395));
+    }
+
+    #[test]
+    fn the_proposal_brings_the_twin_of_what_it_uses() {
+        let mut base = sfondo("sfondo-abc123-portrait", None);
+        base.twin = Some("sfondo-abc123-landscape".into());
+        let mut twin = sfondo("sfondo-abc123-landscape", None);
+        twin.twin = Some("sfondo-abc123-portrait".into());
+        let mut b = vec![base, twin, sfondo("sfondo-ffffff", None)];
+        assert!(approva_in(&mut b, "sfondo-abc123-landscape"));
+        assert!(b[0].approvata && b[1].approvata && !b[2].approvata);
+        let input = json!({ "pages": [{ "sfondo_immagine": "/api/project/images/ai-sfondo-abc123-portrait.jpg" }] });
+        let v = sfondi_della_proposta(&input, &b);
+        let file: Vec<_> = v
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|f| f["file"].as_str().unwrap())
+            .collect();
+        assert_eq!(
+            file,
+            [
+                "ai-sfondo-abc123-portrait.jpg",
+                "ai-sfondo-abc123-landscape.jpg"
+            ]
+        );
+    }
+
+    fn approva_in(sfondi: &mut Vec<immagini::Sfondo>, id: &str) -> bool {
+        let mut b = Banco {
+            sfondi: std::mem::take(sfondi),
+            ..Banco::default()
+        };
+        let ok = approva(&mut b, id);
+        *sfondi = b.sfondi;
+        ok
     }
 
     #[test]

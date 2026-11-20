@@ -12,6 +12,21 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Aggiunto
+- **Gli sfondi generati hanno la misura della pagina, con l'intervista e la gemella per il progetto girato** (ramo
+  `feat/backgrounds-page-size`, piano `docs/plans/2026-11-20-sfondi-alla-misura-della-pagina.md`). Erano sempre
+  1536×1024, e su una pagina verticale (TY570, 600×1024) se ne vedeva il 40 %. Ora il server calcola la misura
+  dall'area fra testata e piede della cornice (`ai/background_size.rs`): esatta, o una volta e mezza. Al fornitore
+  chiede le stesse proporzioni in multipli di 16, almeno un megapixel ed entro i suoi limiti (FLUX 4 MP e 2048 di
+  lato; gpt-image-2 2560×1440; i tre formati fissi per `gpt-image-1`, e per OpenAI un ripiego su quelli se rifiuta
+  la misura). Poi taglia l'immagine alla misura finale (`sized_image::make`), senza mai ingrandirla. `genera_sfondo`
+  vuole `size` e `both_orientations`, che sceglie la persona: le istruzioni dicono di chiederli con `fai_domande`.
+  Con i due versi ogni base ha una gemella ricomposta per l'altro verso (una modifica della base, `-landscape` /
+  `-portrait` nel nome), approvata con lei, con le sue luci, e portata nel progetto dalla proposta. «Orientamento»
+  in Impostazioni progetto passa le pagine alla gemella, e le foto a tutta area prendono l'area nuova. La stima
+  del costo di OpenAI cresce con i pixel. Nella chat la miniatura dice misura e verso, e la gemella sta sotto la
+  sua base.
+- **«Assistente IA» nella barra dell'editor** (stesso ramo, richiesta del maintainer del 20-11-2026: «ora è scomodo
+  navigare i menù per aprirla»): in fondo a destra apre la chat staccata, o la porta davanti. Solo per l'Admin.
 - **La chat dell'assistente chiede prima di lavorare, e si legge meglio** (stesso ramo, richieste del maintainer al
   collaudo del 20-11-2026). Uno strumento nuovo, `fai_domande`: quando la richiesta lascia aperto qualcosa che cambia
   il risultato l'assistente chiede (al più quattro domande con le risposte probabili) e si ferma; per un lavoro grande

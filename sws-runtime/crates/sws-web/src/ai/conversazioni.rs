@@ -248,6 +248,9 @@ mod tests {
             da: None,
             luce: None,
             approvata: true,
+            w: 1536,
+            h: 1024,
+            twin: None,
         }
     }
 

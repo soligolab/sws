@@ -15,6 +15,7 @@
 // Funzioni pure: niente store, niente rete.
 
 import { BOOT_ALTEZZA, BOOT_LARGHEZZA, BOOT_SFONDO, eBoot } from "@/boot/tipi";
+import { corniceDellaPagina, eCornice, idCornice } from "@/cornici/modello";
 import { effectiveSizeMode } from "@/pageLayout";
 import type { PageLayoutConfig, SynopticPage } from "@/types";
 
@@ -160,14 +161,60 @@ export function seguePredefinito(page: Pick<SynopticPage, "width" | "height">, l
  *  Windows and faceplates are pieces inside a page, and keep their shape. */
 const SCREEN_SIZED: readonly GenerePagina[] = ["pagina", "boot", "cornice"];
 
+/** The other orientation of a background the assistant generated for both
+ *  (plan of 20-11-2026): `…/ai-sfondo-<6 hex>-landscape[-light].jpg` ↔
+ *  `…-portrait[-light].jpg`. `null` for any other image. */
+export function backgroundTwin(src: string | undefined): string | null {
+  const m = /^(.*ai-sfondo-[0-9a-f]{6}-)(landscape|portrait)((?:-[a-z0-9-]+)?\.jpg)$/.exec(src?.trim() ?? "");
+  if (!m) return null;
+  return `${m[1]}${m[2] === "landscape" ? "portrait" : "landscape"}${m[3]}`;
+}
+
+/** A page's backgrounds once the project is turned: the generated ones that
+ *  have a twin in the project pass to it, and an `image` that covered the
+ *  whole area takes the turned area (the light variants in crossfade). The
+ *  area is the one between the bands of the page's frame, or the page. */
+function turnedBackgrounds(
+  pagina: SynopticPage,
+  bands: { top: number; bottom: number },
+  hasImage: (src: string) => boolean,
+): Partial<SynopticPage> {
+  const patch: Partial<SynopticPage> = {};
+  const twinOf = (src: string | undefined) => {
+    const t = backgroundTwin(src);
+    return t && hasImage(t) ? t : null;
+  };
+  const bg = twinOf(pagina.sfondo_immagine);
+  if (bg) patch.sfondo_immagine = bg;
+  const w = pagina.width ?? 0;
+  const h = pagina.height ?? 0;
+  const close = (a: number | undefined, b: number) => Math.abs((a ?? NaN) - b) < 0.5;
+  let changed = false;
+  const objects = (pagina.objects ?? []).map((o) => {
+    const twin = o.type === "image" ? twinOf(o.src) : null;
+    if (!twin) return o;
+    changed = true;
+    const covered = close(o.x, 0) && close(o.y, bands.top) && close(o.width, w)
+      && close(o.height, h - bands.top - bands.bottom);
+    return covered
+      ? { ...o, src: twin, x: 0, y: bands.top, width: h, height: w - bands.top - bands.bottom }
+      : { ...o, src: twin };
+  });
+  if (changed) patch.objects = objects;
+  return patch;
+}
+
 /** A project that changes orientation (decision of 15-11-2026: «scambiando
  *  anche le pagine»): the default format and every screen-sized page trade
- *  width and height. The objects stay where they are. Pure: the same call
- *  twice gives back what there was. */
+ *  width and height. The objects stay where they are, except the generated
+ *  backgrounds that have a twin for the other orientation (`hasImage` says
+ *  whether the project has that file; 20-11-2026). Pure: the same call twice
+ *  gives back what there was. */
 export function cambioOrientamento(
   pagine: readonly { pagina: SynopticPage; genere: GenerePagina }[],
   layout: PageLayoutConfig | undefined | null,
   orientation: "landscape" | "portrait",
+  hasImage: (src: string) => boolean = () => false,
 ): { layout: PageLayoutConfig; patches: { id: string; patch: Partial<SynopticPage> }[] } {
   const base: PageLayoutConfig = layout ?? { size_mode: "fixed" };
   const prima = base.orientation ?? "landscape";
@@ -175,8 +222,18 @@ export function cambioOrientamento(
   if (prima === orientation) return { layout: nuovo, patches: [] };
   nuovo.default_width = base.default_height;
   nuovo.default_height = base.default_width;
+  const frames = new Map(pagine.filter(({ pagina }) => eCornice(pagina))
+    .map(({ pagina }) => [idCornice(pagina), {
+      top: Math.max(0, pagina.cornice_testata?.altezza ?? 0),
+      bottom: Math.max(0, pagina.cornice_piede?.altezza ?? 0),
+    }]));
   const patches = pagine
     .filter(({ pagina, genere }) => SCREEN_SIZED.includes(genere) && pieno(pagina.width) && pieno(pagina.height))
-    .map(({ pagina }) => ({ id: pagina.id, patch: { width: pagina.height, height: pagina.width } }));
+    .map(({ pagina, genere }) => {
+      const frame = genere === "pagina" ? corniceDellaPagina(pagina, base.cornice_predefinita) : null;
+      const bands = (frame && frames.get(frame)) || { top: 0, bottom: 0 };
+      const backgrounds = genere === "pagina" ? turnedBackgrounds(pagina, bands, hasImage) : {};
+      return { id: pagina.id, patch: { width: pagina.height, height: pagina.width, ...backgrounds } };
+    });
   return { layout: nuovo, patches };
 }

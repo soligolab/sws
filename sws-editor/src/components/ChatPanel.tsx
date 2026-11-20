@@ -262,11 +262,14 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
         case "sfondo":
           // Una variante rifatta con la stessa luce prende il posto della vecchia.
           setRighe((r) => [...r.filter((x) => !(x.tipo === "sfondo" && x.id === m.id)),
-            { tipo: "sfondo", id: m.id, base: m.base, luce: m.luce, approvata: m.approvata, jpg: m.jpg }]);
+            { tipo: "sfondo", id: m.id, base: m.base, luce: m.luce, approvata: m.approvata, jpg: m.jpg,
+              w: m.w, h: m.h, facing: m.facing, twin_of: m.twin_of }]);
           break;
         case "sfondo_approvato":
           traccia("sfondo_approvato", m.id, m.ok);
-          if (m.ok) setRighe((r) => r.map((x) => x.tipo === "sfondo" && x.id === m.id ? { ...x, approvata: true } : x));
+          // The twin (the other orientation) is chosen with its base.
+          if (m.ok) setRighe((r) => r.map((x) => x.tipo === "sfondo" && (x.id === m.id || x.twin_of === m.id)
+            ? { ...x, approvata: true } : x));
           break;
         case "risorse_extra":
           setSpesa((s) => s ? { ...s, speso: m.speso } : s);
@@ -491,16 +494,24 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
               }
               mandaBase(r.id);
             };
+            const gemella = !!r.twin_of;
+            const misura = r.w && r.h
+              ? t("chat.sfondoMisura", { w: r.w, h: r.h,
+                  verso: t(r.facing === "portrait" ? "chat.versoPortrait" : "chat.versoLandscape") })
+              : null;
             return (
-              <div key={i} style={{ margin: "4px 10px" }} data-testid={`sfondo-${r.id}`}>
+              <div key={i} style={{ margin: gemella ? "2px 10px 4px 28px" : "4px 10px" }} data-testid={`sfondo-${r.id}`}>
                 <a href={src} target="_blank" rel="noreferrer">
                   <img src={src} alt={r.id}
                        style={{ width: "100%", borderRadius: 4, border: "1px solid var(--brand-surface-2, #1e293b)" }} />
                 </a>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11,
+                <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, flexWrap: "wrap",
                               color: "var(--brand-text-subtle, #64748b)" }}>
-                  <span>{r.base ? t("chat.sfondoBase", { id: r.id }) : t("chat.sfondoVariante", { id: r.id, luce: r.luce ?? "" })}</span>
-                  {r.base && (r.approvata
+                  <span>{gemella ? t("chat.sfondoGemella", { id: r.id })
+                    : r.base ? t("chat.sfondoBase", { id: r.id }) : t("chat.sfondoVariante", { id: r.id, luce: r.luce ?? "" })}</span>
+                  {misura && <span data-testid={`sfondo-misura-${r.id}`}>{misura}</span>}
+                  {gemella && r.base && !r.approvata && <span>{t("chat.sfondoGemellaNota")}</span>}
+                  {r.base && !gemella && (r.approvata
                     ? <span style={{ color: "var(--brand-success, #22c55e)" }}>✓ {t("chat.sfondoApprovato")}</span>
                     : baseInCoda === r.id
                       ? <span data-testid={`base-in-coda-${r.id}`}><Icona emoji="⏳" /> {t("chat.sfondoInCoda")}</span>

@@ -74,7 +74,9 @@ canvas.
 **Barra dell'editor** (`editor/EditorToolbar.tsx`): annulla e ripristina con la **cronologia** a tendina, zoom
 (100 % con `Ctrl+0`, **Adatta pagina** con `Ctrl+Shift+0`, adatta agli oggetti), **Griglia** (dimensione, colore,
 snap), **Copia stile** / **Applica stile**, **Effetti** (l'anteprima di lampeggi, rotazioni, flusso delle pipe e
-bordi d'allarme, spenta di default) e la lingua in cui il canvas mostra i testi tradotti.
+bordi d'allarme, spenta di default) e la lingua in cui il canvas mostra i testi tradotti. In fondo a destra,
+**Assistente IA** (solo per l'Admin) apre la chat dell'assistente in una finestra a parte; se è già aperta, la porta
+davanti.
 
 ### RUN e STOP: fermare l'acquisizione
 

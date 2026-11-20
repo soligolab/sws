@@ -14,26 +14,28 @@
 //!
 //! # Il formato
 //!
-//! JPEG a 1536×1024, che è il formato di gpt-image-2 più vicino al 16:10 dei
-//! pannelli. Non si ritaglia: l'oggetto `image` lo copre con `image_fit: cover`
-//! sul web, e il viewer LVGL avvolge i raster con `preserveAspectRatio="xMidYMid
-//! slice"`, che è la stessa cosa (`sws-lvgl-viewer/src/svg_assets.rs`).
+//! Fino al 20-11-2026 sempre 1536×1024; da allora la misura dell'area della
+//! pagina, o una volta e mezza, nei due versi se serve (`ai/background_size.rs`,
+//! piano `docs/plans/2026-11-20-sfondi-alla-misura-della-pagina.md`). Le
+//! funzioni qui ricevono la misura da chiedere al fornitore; il taglio alla
+//! misura finale lo fa chi le chiama. In pagina l'immagine copre l'area con
+//! `cover` sul web e su LVGL (`sws-lvgl-viewer/src/svg_assets.rs`).
 //!
 //! # Two providers (G5, 16-11-2026)
 //!
 //! Black Forest Labs (FLUX.2, `ai/bfl.rs`) next to OpenAI: same two steps, same
-//! fixed prompts, same 1536×1024 JPEG (FLUX takes any size that is a multiple
-//! of 16), so a page does not change when the provider does.
+//! fixed prompts, so a page does not change when the provider does.
 
 use base64::Engine as _;
 use serde_json::{json, Value};
 
+use crate::ai::background_size::{nearest_fixed, Facing};
 use crate::ai::bfl;
 use crate::ai::scopi::{ImageProvider, SceltaImmagini};
 
-pub const DIMENSIONE: &str = "1536x1024";
-const WIDTH: u32 = 1536;
-const HEIGHT: u32 = 1024;
+/// The size the OpenAI prices of the list are for: 1536×1024, the one size of
+/// the backgrounds until 20-11-2026.
+const OPENAI_PRICED_PIXELS: f64 = 1536.0 * 1024.0;
 
 /// Quanto costa un'immagine, in dollari: una **stima** per qualità, che serve
 /// al tetto e non a una fattura. Per eccesso, come la tabella dei modelli di
@@ -46,16 +48,26 @@ pub fn costo_stimato(qualita: &str) -> f64 {
     }
 }
 
-/// The estimate of one image with the chosen provider; `edit` = a variant of a
-/// base (FLUX bills the input image too). The price list file first
-/// (`price_list`), then the tables of this module and of `bfl`.
-pub fn estimated_usd(config_dir: &std::path::Path, s: &SceltaImmagini, edit: bool) -> f64 {
+/// The estimate of one image of `w × h` (the size asked to the provider) with
+/// the chosen provider; `edit` = an edit of a base (FLUX bills the input image
+/// too). The price list file first (`price_list`), then the tables of this
+/// module and of `bfl`. OpenAI prices by quality for 1536×1024: a larger image
+/// is counted in proportion, a smaller one at that price, by excess.
+pub fn estimated_usd(
+    config_dir: &std::path::Path,
+    s: &SceltaImmagini,
+    edit: bool,
+    (w, h): (u32, u32),
+) -> f64 {
     match s.fornitore {
-        ImageProvider::OpenAi => crate::ai::price_list::openai_image_usd(config_dir, &s.qualita),
+        ImageProvider::OpenAi => {
+            crate::ai::price_list::openai_image_usd(config_dir, &s.qualita)
+                * (w as f64 * h as f64 / OPENAI_PRICED_PIXELS).max(1.0)
+        }
         ImageProvider::Bfl => bfl::estimate_with(
             crate::ai::price_list::bfl_prices(config_dir, &s.modello),
-            WIDTH,
-            HEIGHT,
+            w,
+            h,
             edit,
         ),
     }
@@ -163,7 +175,8 @@ const DA_SFONDO: &str = " It is the background of an industrial supervision scre
     clearly separated and fully visible, generous calm areas for overlays, soft diffuse light, \
     muted desaturated colors, low contrast. No text, no signs, no logos, no people, no watermark.";
 
-/// Una base nuova: `descrizione` (più le regole `sfondi` del progetto) → JPEG.
+/// Una base nuova: `descrizione` (più le regole `sfondi` del progetto) → JPEG
+/// di circa `size` (the size asked to the provider, `background_size`).
 /// `estimate` is what the cap counted: a FLUX failure that does not say what
 /// it charged is charged that.
 pub async fn genera(
@@ -173,32 +186,41 @@ pub async fn genera(
     descrizione: &str,
     regole: Option<&str>,
     estimate: f64,
+    size: (u32, u32),
 ) -> Result<Generated, Failed> {
     let mut prompt = format!("{}{DA_SFONDO}", descrizione.trim());
     if let Some(r) = regole {
         prompt.push_str(&format!(" Project rules: {r}"));
     }
     if s.fornitore == ImageProvider::Bfl {
-        return bfl::generate(bfl_at, &s.chiave, &s.modello, &prompt, None, WIDTH, HEIGHT)
+        return bfl::generate(bfl_at, &s.chiave, &s.modello, &prompt, None, size.0, size.1)
             .await
             .map(Generated::from)
             .map_err(|f| Failed::from_bfl(f, estimate));
     }
-    let corpo = json!({
-        "model": s.modello, "prompt": prompt, "size": DIMENSIONE, "quality": s.qualita,
-        "n": 1, "output_format": "jpeg", "output_compression": 85,
-    });
-    let r = http
-        .post("https://api.openai.com/v1/images/generations")
-        .bearer_auth(&s.chiave)
-        .json(&corpo)
-        .send()
-        .await
-        .map_err(|e| Failed::free(format!("OpenAI non raggiungibile: {e}")))?;
-    immagine_da(r).await.map(openai).map_err(Failed::free)
+    with_fixed_size_fallback(size, |(w, h)| {
+        let corpo = json!({
+            "model": s.modello, "prompt": prompt, "size": format!("{w}x{h}"),
+            "quality": s.qualita, "n": 1, "output_format": "jpeg", "output_compression": 85,
+        });
+        async move {
+            let r = http
+                .post("https://api.openai.com/v1/images/generations")
+                .bearer_auth(&s.chiave)
+                .json(&corpo)
+                .send()
+                .await
+                .map_err(|e| format!("OpenAI non raggiungibile: {e}"))?;
+            immagine_da(r).await
+        }
+    })
+    .await
+    .map(openai)
+    .map_err(Failed::free)
 }
 
-/// Una variante di luce di una base: la base va come immagine da modificare.
+/// Una variante di luce di una base: la base va come immagine da modificare,
+/// alla sua stessa misura.
 pub async fn varia(
     http: &reqwest::Client,
     bfl_at: &bfl::Endpoint,
@@ -206,59 +228,137 @@ pub async fn varia(
     base_jpg: &[u8],
     nome_luce: &str,
     estimate: f64,
+    size: (u32, u32),
 ) -> Result<Generated, Failed> {
     let prompt = format!("{STESSA_SCENA} {}", luce(nome_luce));
+    edit(http, bfl_at, s, base_jpg, &prompt, estimate, size).await
+}
+
+/// The fixed prompt of the twin: the same scene for the other orientation
+/// (plan of 20-11-2026, «due immagini, una per verso»).
+fn same_scene_turned(facing: Facing) -> String {
+    let frame = match facing {
+        Facing::Landscape => "a landscape (wider than tall)",
+        Facing::Portrait => "a portrait (taller than wide)",
+    };
+    format!(
+        "Recompose exactly this scene for {frame} frame: the same place, the same objects with the \
+         same look, the same style, light and colors. Show more of the scene where the new frame \
+         needs it; never stretch, squash or crop the main elements. No text, no signs, no logos, \
+         no people, no watermark."
+    )
+}
+
+/// The twin of a base: the same scene, recomposed for the other orientation
+/// at `size` (an edit of the base, so the place and the objects stay).
+pub async fn ricomponi(
+    http: &reqwest::Client,
+    bfl_at: &bfl::Endpoint,
+    s: &SceltaImmagini,
+    base_jpg: &[u8],
+    facing: Facing,
+    estimate: f64,
+    size: (u32, u32),
+) -> Result<Generated, Failed> {
+    let prompt = same_scene_turned(facing);
+    edit(http, bfl_at, s, base_jpg, &prompt, estimate, size).await
+}
+
+/// An edit of `base_jpg` with `prompt`, at `size`.
+async fn edit(
+    http: &reqwest::Client,
+    bfl_at: &bfl::Endpoint,
+    s: &SceltaImmagini,
+    base_jpg: &[u8],
+    prompt: &str,
+    estimate: f64,
+    size: (u32, u32),
+) -> Result<Generated, Failed> {
     if s.fornitore == ImageProvider::Bfl {
         return bfl::generate(
             bfl_at,
             &s.chiave,
             &s.modello,
-            &prompt,
+            prompt,
             Some(base_jpg),
-            WIDTH,
-            HEIGHT,
+            size.0,
+            size.1,
         )
         .await
         .map(Generated::from)
         .map_err(|f| Failed::from_bfl(f, estimate));
     }
-    let confine = format!("sws{}", crate::ai::uuid_breve());
-    let mut corpo: Vec<u8> = Vec::new();
-    for (k, v) in [
-        ("model", s.modello.as_str()),
-        ("prompt", prompt.as_str()),
-        ("size", DIMENSIONE),
-        ("quality", s.qualita.as_str()),
-        ("n", "1"),
-        ("output_format", "jpeg"),
-        ("output_compression", "85"),
-    ] {
+    with_fixed_size_fallback(size, |(w, h)| {
+        let confine = format!("sws{}", crate::ai::uuid_breve());
+        let size_field = format!("{w}x{h}");
+        let mut corpo: Vec<u8> = Vec::new();
+        for (k, v) in [
+            ("model", s.modello.as_str()),
+            ("prompt", prompt),
+            ("size", size_field.as_str()),
+            ("quality", s.qualita.as_str()),
+            ("n", "1"),
+            ("output_format", "jpeg"),
+            ("output_compression", "85"),
+        ] {
+            corpo.extend_from_slice(
+                format!("--{confine}\r\nContent-Disposition: form-data; name=\"{k}\"\r\n\r\n{v}\r\n")
+                    .as_bytes(),
+            );
+        }
         corpo.extend_from_slice(
-            format!("--{confine}\r\nContent-Disposition: form-data; name=\"{k}\"\r\n\r\n{v}\r\n")
-                .as_bytes(),
+            format!(
+                "--{confine}\r\nContent-Disposition: form-data; name=\"image[]\"; filename=\"base.jpg\"\r\n\
+                 Content-Type: image/jpeg\r\n\r\n"
+            )
+            .as_bytes(),
         );
+        corpo.extend_from_slice(base_jpg);
+        corpo.extend_from_slice(format!("\r\n--{confine}--\r\n").as_bytes());
+        async move {
+            let r = http
+                .post("https://api.openai.com/v1/images/edits")
+                .bearer_auth(&s.chiave)
+                .header(
+                    "Content-Type",
+                    format!("multipart/form-data; boundary={confine}"),
+                )
+                .body(corpo)
+                .send()
+                .await
+                .map_err(|e| format!("OpenAI non raggiungibile: {e}"))?;
+            immagine_da(r).await
+        }
+    })
+    .await
+    .map(openai)
+    .map_err(Failed::free)
+}
+
+/// OpenAI's answer to a size it does not take: a 400 that names it.
+fn refuses_size(e: &str) -> bool {
+    e.contains("(400)") && e.to_lowercase().contains("size")
+}
+
+/// One OpenAI request at `size`, and once more at its closest fixed size if
+/// OpenAI refuses the size: a model or an account that takes only the three
+/// fixed sizes. A 400 costs nothing.
+async fn with_fixed_size_fallback<F, Fut>(size: (u32, u32), call: F) -> Result<Vec<u8>, String>
+where
+    F: Fn((u32, u32)) -> Fut,
+    Fut: std::future::Future<Output = Result<Vec<u8>, String>>,
+{
+    match call(size).await {
+        Err(e) if refuses_size(&e) && nearest_fixed(size.0, size.1) != size => {
+            tracing::info!(
+                "OpenAI refused {}x{}, asking a fixed size: {e}",
+                size.0,
+                size.1
+            );
+            call(nearest_fixed(size.0, size.1)).await
+        }
+        r => r,
     }
-    corpo.extend_from_slice(
-        format!(
-            "--{confine}\r\nContent-Disposition: form-data; name=\"image[]\"; filename=\"base.jpg\"\r\n\
-             Content-Type: image/jpeg\r\n\r\n"
-        )
-        .as_bytes(),
-    );
-    corpo.extend_from_slice(base_jpg);
-    corpo.extend_from_slice(format!("\r\n--{confine}--\r\n").as_bytes());
-    let r = http
-        .post("https://api.openai.com/v1/images/edits")
-        .bearer_auth(&s.chiave)
-        .header(
-            "Content-Type",
-            format!("multipart/form-data; boundary={confine}"),
-        )
-        .body(corpo)
-        .send()
-        .await
-        .map_err(|e| Failed::free(format!("OpenAI non raggiungibile: {e}")))?;
-    immagine_da(r).await.map(openai).map_err(Failed::free)
 }
 
 async fn immagine_da(r: reqwest::Response) -> Result<Vec<u8>, String> {
@@ -295,6 +395,12 @@ pub struct Sfondo {
     pub luce: Option<String>,
     /// Solo le basi: l'ha approvata la persona, col bottone in chat.
     pub approvata: bool,
+    /// The size of the file (`background_size::fit`).
+    pub w: u32,
+    pub h: u32,
+    /// The same base or variant in the other orientation, when the person
+    /// asked for both: ids end in `-landscape` and `-portrait`.
+    pub twin: Option<String>,
 }
 
 impl Sfondo {
@@ -305,11 +411,28 @@ impl Sfondo {
     pub fn src(&self) -> String {
         format!("/api/project/images/{}", self.file())
     }
+    pub fn facing(&self) -> Facing {
+        Facing::of(self.w, self.h)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_twin_keeps_the_scene_and_names_the_frame() {
+        let p = same_scene_turned(Facing::Portrait);
+        assert!(
+            p.starts_with("Recompose exactly this scene for a portrait"),
+            "{p}"
+        );
+        assert!(same_scene_turned(Facing::Landscape).contains("landscape"));
+        assert!(refuses_size(
+            "OpenAI ha rifiutato (400): Invalid size '816x1248'"
+        ));
+        assert!(!refuses_size("OpenAI ha rifiutato (401): bad key"));
+    }
 
     #[test]
     fn le_varianti_cambiano_solo_la_luce() {
@@ -335,8 +458,12 @@ mod tests {
             da: Some("sfondo-2".into()),
             luce: Some("sera".into()),
             approvata: false,
+            w: 600,
+            h: 930,
+            twin: None,
         };
         assert_eq!(s.src(), "/api/project/images/ai-sfondo-2-sera.jpg");
+        assert_eq!(s.facing(), Facing::Portrait);
     }
 
     #[test]
@@ -350,13 +477,23 @@ mod tests {
         };
         let dir = tempfile::tempdir().unwrap();
         let d = dir.path();
-        assert_eq!(estimated_usd(d, &s, false), costo_stimato("high"));
-        assert_eq!(estimated_usd(d, &s, true), costo_stimato("high"));
+        let wide = (1536, 1024);
+        assert_eq!(estimated_usd(d, &s, false, wide), costo_stimato("high"));
+        assert_eq!(estimated_usd(d, &s, true, wide), costo_stimato("high"));
+        // OpenAI: by excess, a smaller image at the price of 1536×1024, a
+        // larger one in proportion.
+        assert_eq!(
+            estimated_usd(d, &s, false, (816, 1248)),
+            costo_stimato("high")
+        );
+        let big = estimated_usd(d, &s, false, (2560, 1440));
+        assert!((big - costo_stimato("high") * 2560.0 * 1440.0 / (1536.0 * 1024.0)).abs() < 1e-9);
         // FLUX has no quality: megapixels, and an edit pays the base too.
         s.fornitore = ImageProvider::Bfl;
         s.modello = "flux-2-pro".into();
-        assert!((estimated_usd(d, &s, false) - 0.045).abs() < 1e-9);
-        assert!(estimated_usd(d, &s, true) > estimated_usd(d, &s, false));
+        assert!((estimated_usd(d, &s, false, wide) - 0.045).abs() < 1e-9);
+        assert!((estimated_usd(d, &s, false, (816, 1248)) - 0.03).abs() < 1e-9);
+        assert!(estimated_usd(d, &s, true, wide) > estimated_usd(d, &s, false, wide));
     }
 
     #[test]
@@ -396,15 +533,24 @@ mod prova_vera {
             "A small alpine lake with a wooden hut on the right.",
             None,
             costo_stimato("low"),
+            (1024, 1536),
         )
         .await
         .unwrap()
         .jpg;
         assert_eq!(&base[..3], &[0xFF, 0xD8, 0xFF], "dev'essere un JPEG");
-        let sera = varia(&http, &bfl_at, &s, &base, "sera", costo_stimato("low"))
-            .await
-            .unwrap()
-            .jpg;
+        let sera = varia(
+            &http,
+            &bfl_at,
+            &s,
+            &base,
+            "sera",
+            costo_stimato("low"),
+            (1024, 1536),
+        )
+        .await
+        .unwrap()
+        .jpg;
         assert_eq!(&sera[..3], &[0xFF, 0xD8, 0xFF]);
         let out = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../tmp/sfondi");
         std::fs::create_dir_all(&out).unwrap();

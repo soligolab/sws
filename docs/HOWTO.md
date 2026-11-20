@@ -701,7 +701,19 @@ pagina. La regola è del prodotto, e lo strumento la impone:
    stessa inquadratura, stessi oggetti negli stessi punti, cambia solo la luce. Generarle da capo
    sposterebbe gli oggetti, e la dissolvenza fra loro li mostrerebbe doppi.
 
-In pagina le foto sono oggetti `image` sovrapposti a tutta pagina, con `image_fit: cover`; la
+**La misura** (dal 20-11-2026) è quella dell'area della pagina, fra testata e piede della
+cornice: su un TY570 verticale con la cornice della fiera, 600×930. Prima della prima base
+l'assistente chiede due cose, con la scheda delle domande:
+
+- **la misura**: esatta (pesa meno), oppure una volta e mezza (900×1395, più nitida);
+- **se servirà anche col progetto girato**: sì vuol dire due immagini, la seconda ricomposta per
+  l'altro verso (1024×506 nell'esempio). Costa il doppio, e ogni luce si fa per tutte e due.
+
+La seconda immagine, la «gemella», si sceglie con la sua base ed entra nel progetto da sola. Quando
+si cambia **Orientamento** in Impostazioni progetto → Formato, le pagine passano alla gemella:
+`sfondo_immagine` e le foto della dissolvenza, che prendono anche la misura dell'area nuova.
+
+In pagina le foto sono oggetti `image` sovrapposti grandi come l'area, con `image_fit: cover`; la
 dissolvenza è l'opacità legata a un tag (`bindings.opacity`, con la scala `in_min`/`in_max` →
 0..1). Il template **Montagna — fotovoltaico e idroelettrico** ne ha due esempi: tre foto che
 seguono l'ora simulata, e una pagina *Lago* con un cursore giorno/notte. Le foto arrivano con la

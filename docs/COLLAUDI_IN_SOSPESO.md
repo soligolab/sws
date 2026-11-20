@@ -27,6 +27,24 @@
 
 ---
 
+## Gli sfondi alla misura della pagina e il pulsante «Assistente IA» (20-11-2026)
+
+Dal piano [sfondi alla misura della pagina](plans/2026-11-20-sfondi-alla-misura-della-pagina.md), ramo
+`feat/backgrounds-page-size`. Gli sfondi costano: le prove con il fornitore vero le fa il maintainer, sull'IDE 8462 e
+sul progetto TY570 verticale.
+
+1. [ ] **Il pulsante**: barra dell'editor, in fondo a destra, «Assistente IA» → la chat si apre in una finestra a
+       parte; un secondo clic la porta davanti. Con un utente non Admin il pulsante non c'è.
+2. [ ] **L'intervista**: in chat «fammi uno sfondo per la pagina Energia» → la scheda «Prima di cominciare» chiede la
+       misura (esatta 600×930 o una volta e mezza 900×1395) e se servirà col progetto girato. Senza risposte non
+       genera niente.
+3. [ ] **La misura**: esatta, un verso → la miniatura dice «600×930 · verticale», e in pagina lo sfondo si vede per
+       intero, senza le parti tagliate di prima.
+4. [ ] **I due versi**: «sì» → sotto la base la gemella «La stessa, per il progetto girato», 1024×506 orizzontale, con
+       la stessa scena; «Usa come base» approva tutte e due; una luce (sera) arriva per tutte e due.
+5. [ ] **Il progetto girato**: Applica, Salva; poi Impostazioni progetto → Formato → Orientamento orizzontale → la
+       pagina usa la gemella, e le foto della dissolvenza coprono l'area nuova. Tornando verticale si torna a prima.
+
 ## L'editor dei simboli, fase 2, sessione 1 (19-11-2026)
 
 Dal piano [fase 2](archive/2026-11-19-editor-dei-simboli-fase-2.md), su `main` (`b99855ddf`), sui pannelli dalla rc.22.

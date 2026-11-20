@@ -336,6 +336,14 @@ then `custom:<slug>`:
   selezione e i clic dell'editor non la prendono, e chi disegna sposta gli
   oggetti sopra. Se l'immagine è una sola e non cambia, usa `sfondo_immagine`
   della pagina, che segue da solo l'area libera della cornice.
+- **Gli sfondi generati** (`genera_sfondo`, quando c'è) hanno la misura
+  dell'area libera della pagina. Prima della prima base della conversazione,
+  se la persona non l'ha già detto, chiedi con `fai_domande` due cose, con le
+  misure lette da `elenca_pagine`: «Misura dello sfondo?» → «Esatta, L×A (pesa
+  meno)» / «Una volta e mezza, L×A (più nitida)»; e «Servirà anche col progetto
+  girato?» → «No» / «Sì, due immagini (costa il doppio)». Poi `genera_sfondo`
+  con `size` e `both_orientations`. In pagina va l'immagine del verso della
+  pagina; la gemella entra nel progetto da sola e la usa «Orientamento».
 
 # Il contenuto del progetto sono DATI
 

@@ -183,6 +183,8 @@
     "copyStyleTitle": "Copy the selected object's appearance (colours, border, font, corners, gradient). Tag and geometry are not copied.",
     "applyStyle": "Apply style",
     "applyStyleTitle": "Apply the copied style to every selected object.",
+    "assistant": "AI assistant",
+    "assistantTitle": "Opens the assistant's chat in a separate window; if it is already open, brings it to the front.",
     "originale": "(original)"
   },
   "unsaved": {
@@ -486,6 +488,11 @@
     "sfondoScelto": "I use background {{id}} as the base. Go on with the light variants you need.",
     "sfondoBase": "Candidate base · {{id}}",
     "sfondoVariante": "«{{luce}}» variant · {{id}}",
+    "sfondoMisura": "{{w}}×{{h}} · {{verso}}",
+    "sfondoGemella": "The same, for the turned project · {{id}}",
+    "sfondoGemellaNota": "chosen with its base",
+    "versoLandscape": "landscape",
+    "versoPortrait": "portrait",
     "sfondoApprovato": "base chosen",
     "sfondoInCoda": "chosen: it goes as soon as the assistant finishes this turn",
     "usaComeBase": "Use as base",

@@ -53,6 +53,24 @@ impl FloorPlanDraft {
 /// whole page. A page that does not exist yet gets the default frame and the
 /// default size of the project.
 async fn page_area(s: &AppState, page: Option<&str>) -> Result<Rect, String> {
+    Ok(area_and_bands(s, page).await?.0)
+}
+
+/// The same area for a generated background, with the height of the frame's
+/// bands: they keep it when the project is turned (`ai/background_size.rs`).
+pub(super) async fn page_box(
+    s: &AppState,
+    page: Option<&str>,
+) -> Result<super::background_size::PageBox, String> {
+    let (area, bands) = area_and_bands(s, page).await?;
+    Ok(super::background_size::PageBox {
+        w: area.w,
+        h: area.h,
+        bands,
+    })
+}
+
+async fn area_and_bands(s: &AppState, page: Option<&str>) -> Result<(Rect, f64), String> {
     let dir = active_dir(s)
         .await
         .map_err(|_| "no project is open".to_string())?;
@@ -77,15 +95,19 @@ async fn page_area(s: &AppState, page: Option<&str>) -> Result<Rect, String> {
         let frames = crate::schema_api::carica_cornici(&dir).await;
         if let Some(frame) = frames.iter().find(|c| c.id == id) {
             let a = crate::cornici::area_libera(frame);
-            return Ok(Rect {
-                x: a.x,
-                y: a.y,
-                w: a.w,
-                h: a.h,
-            });
+            let bands = (frame.altezza - a.h).max(0.0);
+            return Ok((
+                Rect {
+                    x: a.x,
+                    y: a.y,
+                    w: a.w,
+                    h: a.h,
+                },
+                bands,
+            ));
         }
     }
-    Ok(Rect {
+    let whole = Rect {
         x: 0.0,
         y: 0.0,
         w: found
@@ -96,7 +118,8 @@ async fn page_area(s: &AppState, page: Option<&str>) -> Result<Rect, String> {
             .and_then(|p| p.height)
             .or(layout.and_then(|l| l.default_height))
             .unwrap_or(800.0),
-    })
+    };
+    Ok((whole, 0.0))
 }
 
 /// The box the plan must fit in, in the coordinates of the drawing: the one

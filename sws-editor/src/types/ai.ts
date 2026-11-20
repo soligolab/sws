@@ -71,7 +71,10 @@ export type MsgIn =
    *  la fa questo browser, e risponde con `foto`. */
   | ({ t: "fotografa"; id: string } & RichiestaFoto)
   /** Uno sfondo generato (F6): una base candidata, o una variante di luce. */
-  | { t: "sfondo"; id: string; base: boolean; luce?: string | null; approvata: boolean; jpg: string }
+  /** Dal 20-11-2026 con la misura e il verso; `twin_of`: è la gemella (l'altro
+   *  verso) di quella base o variante, e si sceglie con lei. */
+  | { t: "sfondo"; id: string; base: boolean; luce?: string | null; approvata: boolean; jpg: string;
+      w?: number; h?: number; facing?: "landscape" | "portrait"; twin_of?: string | null }
   | { t: "sfondo_approvato"; id: string; ok: boolean }
   /** La spesa di un altro modello (quello dei simboli) dentro la conversazione. */
   | { t: "risorse_extra"; costo: number; speso: number; chi: string }
@@ -117,7 +120,8 @@ export type Riga =
   | { tipo: "domande"; domande: { testo: string; scelte: string[] }[]; piano: string[]; risposte: string[]; inviate: boolean }
   | { tipo: "assistente"; testo: string }
   | { tipo: "strumento"; nome: string; stato: string; messaggio?: string; byte?: number; secondi?: number }
-  | { tipo: "sfondo"; id: string; base: boolean; luce?: string | null; approvata: boolean; jpg: string }
+  | { tipo: "sfondo"; id: string; base: boolean; luce?: string | null; approvata: boolean; jpg: string;
+      w?: number; h?: number; facing?: "landscape" | "portrait"; twin_of?: string | null }
   | { tipo: "proposta"; msg: Extract<MsgIn, { t: "proposta" }>;
       /** Il diff calcolato quando la proposta è arrivata, e congelato lì:
        *  ricalcolarlo dopo l'applicazione lo farebbe sparire.

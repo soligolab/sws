@@ -531,6 +531,9 @@ mod tests {
             da: None,
             luce: None,
             approvata: false,
+            w: 640,
+            h: 400,
+            twin: None,
         });
         banco.sfondi.push(super::super::immagini::Sfondo {
             id: "sfondo-2".into(),
@@ -538,6 +541,9 @@ mod tests {
             da: None,
             luce: None,
             approvata: false,
+            w: 640,
+            h: 400,
+            twin: None,
         });
         let input = json!({ "pagina": { "id": "nuova", "name": "Nuova", "width": 640, "height": 400,
             "sfondo_immagine": "/api/project/images/ai-sfondo-1.jpg",

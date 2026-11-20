@@ -161,6 +161,41 @@ describe("nello store", () => {
 });
 
 describe("a project that changes orientation", () => {
+  it("passes the generated backgrounds to their twin, and the full-area images to the turned area", async () => {
+    const { backgroundTwin, cambioOrientamento } = await import("../src/formatoProgetto");
+    const img = (n: string) => `/api/project/images/${n}`;
+    expect(backgroundTwin(img("ai-sfondo-abc123-portrait.jpg"))).toBe(img("ai-sfondo-abc123-landscape.jpg"));
+    expect(backgroundTwin(img("ai-sfondo-abc123-landscape-sera.jpg"))).toBe(img("ai-sfondo-abc123-portrait-sera.jpg"));
+    expect(backgroundTwin(img("ai-sfondo-abc123.jpg"))).toBeNull();
+    expect(backgroundTwin(img("foto.jpg"))).toBeNull();
+
+    // The TY570 of the fair: 600×1024, a frame with bands of 30 and 64.
+    const frame = { id: "cornice:frame", name: "Frame", kind: "cornice", width: 600, height: 1024, objects: [],
+                    cornice_testata: { altezza: 30 }, cornice_piede: { altezza: 64 } } as never;
+    const energia = { id: "energia", name: "Energia", width: 600, height: 1024, cornice: "frame",
+      sfondo_immagine: img("ai-sfondo-abc123-portrait.jpg"),
+      objects: [
+        { id: "sera", type: "image", src: img("ai-sfondo-abc123-portrait-sera.jpg"), x: 0, y: 30, width: 600, height: 930 },
+        { id: "foto", type: "image", src: img("ai-sfondo-abc123-portrait-notte.jpg"), x: 10, y: 40, width: 100, height: 100 },
+        { id: "altra", type: "image", src: img("altra.jpg"), x: 0, y: 30, width: 600, height: 930 },
+      ] } as never;
+    const pagine = [{ pagina: frame, genere: "cornice" as const }, { pagina: energia, genere: "pagina" as const }];
+    const layout = { size_mode: "fixed" as const, default_width: 600, default_height: 1024, orientation: "portrait" as const };
+    const there = new Set([img("ai-sfondo-abc123-landscape.jpg"), img("ai-sfondo-abc123-landscape-sera.jpg")]);
+    const giro = cambioOrientamento(pagine, layout, "landscape", (src) => there.has(src));
+    const patch = giro.patches.find((p) => p.id === "energia")!.patch;
+    expect(patch).toMatchObject({ width: 1024, height: 600, sfondo_immagine: img("ai-sfondo-abc123-landscape.jpg") });
+    const [sera, foto, altra] = patch.objects!;
+    // The crossfade light covered the area: it takes the turned one.
+    expect(sera).toMatchObject({ src: img("ai-sfondo-abc123-landscape-sera.jpg"), x: 0, y: 30, width: 1024, height: 506 });
+    // No twin in the project: it stays as it was.
+    expect(foto).toMatchObject({ src: img("ai-sfondo-abc123-portrait-notte.jpg"), width: 100 });
+    expect(altra).toMatchObject({ src: img("altra.jpg"), width: 600 });
+    // Without the twins nothing but the size changes.
+    const senza = cambioOrientamento(pagine, layout, "landscape").patches.find((p) => p.id === "energia")!.patch;
+    expect(senza).toEqual({ width: 1024, height: 600 });
+  });
+
   it("turns the format and the screen-sized pages, and comes back", async () => {
     const { cambioOrientamento } = await import("../src/formatoProgetto");
     const pagina = (id: string, width: number, height: number) => ({ id, name: id, width, height, objects: [] }) as never;

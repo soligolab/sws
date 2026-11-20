@@ -183,6 +183,8 @@
     "copyStyleTitle": "Copia i campi di aspetto dell'oggetto selezionato (colori, bordo, font, angoli, sfumatura). Non copia il tag né la geometria.",
     "applyStyle": "Applica stile",
     "applyStyleTitle": "Applica lo stile copiato a tutti gli oggetti selezionati.",
+    "assistant": "Assistente IA",
+    "assistantTitle": "Apre la chat dell'assistente in una finestra a parte; se è già aperta, la porta davanti.",
     "originale": "(originale)"
   },
   "unsaved": {
@@ -486,6 +488,11 @@
     "sfondoScelto": "Uso come base lo sfondo {{id}}. Procedi con le varianti di luce che servono.",
     "sfondoBase": "Base candidata · {{id}}",
     "sfondoVariante": "Variante «{{luce}}» · {{id}}",
+    "sfondoMisura": "{{w}}×{{h}} · {{verso}}",
+    "sfondoGemella": "La stessa, per il progetto girato · {{id}}",
+    "sfondoGemellaNota": "si sceglie con la sua base",
+    "versoLandscape": "orizzontale",
+    "versoPortrait": "verticale",
     "sfondoApprovato": "base scelta",
     "sfondoInCoda": "scelta: parte appena l'assistente finisce questo turno",
     "usaComeBase": "Usa come base",

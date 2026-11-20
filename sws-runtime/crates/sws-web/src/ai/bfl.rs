@@ -529,6 +529,8 @@ pub(crate) mod fake {
     #[derive(Clone, Copy, PartialEq)]
     pub enum Script {
         ReadyAfter(usize),
+        /// Ready at once with a real JPEG of the size that was asked.
+        ReadySized,
         FailsAfter(usize),
         /// The task fails and the answer settles its cost at zero.
         FailsSettledAtZero,
@@ -606,6 +608,8 @@ pub(crate) mod fake {
         let ready = json!({ "id": "t-1", "status": "Ready",
             "result": { "sample": format!("{o}/sample.jpg") }, "cost": 4.5 });
         Json(match f.script {
+            Script::ReadySized => json!({ "id": "t-1", "status": "Ready",
+                "result": { "sample": format!("{o}/sized.jpg") }, "cost": 4.5 }),
             Script::ReadyAfter(k) if n >= k => ready,
             Script::PollMovedInside => ready,
             Script::FailsAfter(k) if n >= k => json!({ "id": "t-1", "status": "Error",
@@ -643,6 +647,19 @@ pub(crate) mod fake {
             Ok::<_, std::io::Error>(chunk)
         });
         axum::body::Body::from_stream(chunks)
+    }
+
+    /// A grey JPEG of the width and height of the last request.
+    async fn sized_image(State(f): State<Fake>) -> Vec<u8> {
+        let body = f.submitted.lock().unwrap().clone().unwrap_or_default();
+        let side = |k: &str| body["body"][k].as_u64().unwrap_or(64) as u32;
+        let img =
+            image::RgbImage::from_pixel(side("width"), side("height"), image::Rgb([90, 110, 130]));
+        let mut out = Vec::new();
+        image::codecs::jpeg::JpegEncoder::new_with_quality(&mut out, 70)
+            .encode_image(&img)
+            .unwrap();
+        out
     }
 
     async fn listen(app: Router) -> String {
@@ -705,6 +722,7 @@ pub(crate) mod fake {
                 }),
             )
             .route("/stream.jpg", get(endless_image))
+            .route("/sized.jpg", get(sized_image))
             .route("/not-a-jpeg", get(|| async { "<html>" }))
             .with_state(f.clone());
         let origin = listen(app).await;

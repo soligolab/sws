@@ -5,10 +5,14 @@ import { useAppStore } from "@/store";
 import { SPAZIO, TESTO } from "./stilePannelli";
 import { SelettoreColore } from "./CampoColore";
 import { Icona, useSoberStyle } from "@/components/Icona";
+import { apriChat, staccaChat, useComandiChat } from "@/ai/comandiChat";
+import { ICONE_ATTIVITA, varAttivita } from "./iconeAttivita";
 
 /**
  * Contextual toolbar for the editor: drawing tools only, no project-level
- * commands (those live in the app header / ☰ menu).
+ * commands (those live in the app header / ☰ menu). One exception, at the
+ * far end: «AI assistant», which opens the detached chat (maintainer,
+ * 20-11-2026: «ora è scomodo navigare i menù per aprirla»).
  *
  * Undo/redo were previously reachable only from the keyboard or the history
  * list in the left panel; the zoom controls did not exist at all.
@@ -236,7 +240,33 @@ export function EditorToolbar({
       >
         {Math.round(zoom * 100)}%
       </button>
+      <AssistantButton />
     </div>
+  );
+}
+
+/** «AI assistant»: the chat in its own window at once, or that window brought
+ *  to the front when it is already open. For the Admin only, like the
+ *  «Assistant» tab; absent without an App that owns the chat (tests). */
+function AssistantButton() {
+  const { t } = useTranslation();
+  const chat = useComandiChat();
+  const admin = useAppStore((s) => s.authRole) === "Admin";
+  if (!chat || !admin) return null;
+  return (
+    <button
+      data-testid="toolbar-assistant"
+      style={{ ...BTN, marginLeft: "auto", color: `var(${varAttivita("ia")}, var(--brand-text, #e2e8f0))` }}
+      onClick={() => (chat.staccata ? apriChat() : staccaChat())}
+      title={t("toolbar.assistantTitle")}>
+      {/* The same sparkles as the side bar. `pointerEvents: none` keeps the
+          click on the button (see BarraAttivita: the first click got lost). */}
+      <svg aria-hidden="true" width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" style={{ pointerEvents: "none" }}
+        // Our own constant content: no user data goes through here.
+        dangerouslySetInnerHTML={{ __html: ICONE_ATTIVITA.ia }} />
+      <span style={{ color: "var(--brand-text-2, #cbd5e1)" }}>{t("toolbar.assistant")}</span>
+    </button>
   );
 }
 

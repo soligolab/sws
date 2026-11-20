@@ -471,17 +471,27 @@ pub fn definizioni_per(o: Opzioni) -> Vec<Value> {
     if o.sfondi {
         v.push(strumento(
             "genera_sfondo",
-            "Genera una o più BASI candidate per lo sfondo fotografico di una pagina \
-             (1536×1024: in pagina va come oggetto image a tutta pagina con \
-             image_fit «cover»). Scrivi la descrizione della scena IN INGLESE: cosa c'è, dove sta \
-             (sinistra, centro, destra), il punto di vista. Le basi restano in questa \
-             conversazione; la persona le vede in chat. REGOLA: dopo genera_sfondo FERMATI. La \
-             base la sceglie la persona col bottone «Usa come base» sotto la miniatura, non tu. \
-             Le varianti di luce (giorno, tramonto, sera…) non si generano MAI da capo: si fanno \
-             con varia_sfondo dalla base approvata, altrimenti gli oggetti si spostano.",
-            json!({ "type": "object", "required": ["descrizione"], "additionalProperties": false,
+            "Genera una o più BASI candidate per lo sfondo fotografico di una pagina. La misura \
+             la calcola il server dall'area libera della pagina (fra testata e piede della \
+             cornice): non serve dirla. `size` e `both_orientations` li sceglie la PERSONA: se \
+             non li ha già detti in questa conversazione, chiediglieli con fai_domande prima di \
+             chiamare questo strumento. Scrivi la descrizione della scena IN INGLESE: cosa c'è, \
+             dove sta, il punto di vista, pensata per il verso della pagina (in una pagina \
+             verticale: in alto, al centro, in basso). Le basi restano in questa conversazione; \
+             la persona le vede in chat. REGOLA: dopo genera_sfondo FERMATI. La base la sceglie \
+             la persona col bottone «Usa come base» sotto la miniatura, non tu. Le varianti di \
+             luce (giorno, tramonto, sera…) non si generano MAI da capo: si fanno con \
+             varia_sfondo dalla base approvata, altrimenti gli oggetti si spostano.",
+            json!({ "type": "object", "required": ["descrizione", "size", "both_orientations"],
+                    "additionalProperties": false,
                     "properties": {
                         "descrizione": { "type": "string", "description": "la scena, in inglese" },
+                        "page": { "type": "string",
+                                  "description": "nome della pagina a cui va lo sfondo; se non esiste ancora, omettilo (vale la misura del progetto)" },
+                        "size": { "type": "string", "enum": ["exact", "larger"],
+                                  "description": "exact = la misura dell'area, pesa meno; larger = una volta e mezza, più nitida. Lo sceglie la persona" },
+                        "both_orientations": { "type": "boolean",
+                                  "description": "true = anche una gemella per il progetto girato (verticale↔orizzontale), costa il doppio. Lo sceglie la persona" },
                         "quante": { "type": "integer", "minimum": 1, "maximum": 3,
                                     "description": "quante candidate (default 1); ognuna costa" } } }),
         ));
@@ -490,10 +500,11 @@ pub fn definizioni_per(o: Opzioni) -> Vec<Value> {
             "Crea le varianti di luce di una base APPROVATA dalla persona, modificandola: stessa \
              inquadratura, stessi oggetti negli stessi punti, cambia solo la luce. Così le \
              coordinate che misuri sulla base valgono per tutte le varianti, e la dissolvenza fra \
-             loro è pulita. Rifiuta una base non approvata. Per la dissolvenza: le varianti sono \
-             oggetti image sovrapposti a tutta pagina, il primo sempre pieno, gli altri con \
-             bindings.opacity scalato su un tag di luce (in_min/in_max → 0..1, clamp). Il src di \
-             ognuno è quello che ti restituisce questo strumento.",
+             loro è pulita. Rifiuta una base non approvata. Una base con la gemella (`twin`) ha \
+             ogni luce anche per l'altro verso, da sola. Per la dissolvenza: le varianti sono \
+             oggetti image sovrapposti grandi come l'area libera della pagina, il primo sempre \
+             pieno, gli altri con bindings.opacity scalato su un tag di luce (in_min/in_max → \
+             0..1, clamp). Il src di ognuno è quello che ti restituisce questo strumento.",
             json!({ "type": "object", "required": ["base", "luci"], "additionalProperties": false,
                     "properties": {
                         "base": { "type": "string", "description": "l'id della base approvata (sfondo-N)" },
