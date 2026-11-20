@@ -12,6 +12,14 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Aggiunto
+- **La tastiera a 5 righe sul pannello LVGL** (piano `docs/plans/2026-11-19-tastiera-a-5-righe.md`). Sul TY570 in
+  verticale la tastiera di LVGL aveva tasti larghi circa 45 px e alti oltre 120, «difficilissimi da usare» (il
+  maintainer, 19-11-2026). Ora ogni tastiera di testo (accesso, celle delle tabelle, motivo di un comando critico) ha
+  nell'ultima riga il tasto **«A-Z»**: passa a una tastiera alfabetica di cinque righe da sette (lettere, `. -`,
+  comandi; simboli anch'essi su cinque righe), e **«QWE»** torna a quella di sempre. Il pannello ricorda la scelta
+  (`lvgl_keyboard` nella cartella di stato, come la lingua). Nuovo `keyboard_layout.rs`: le mappe come dati, provate
+  dai test (al massimo 7 tasti per riga, ogni lettera una volta, i tasti di cambio presenti); un gestore nostro
+  intercetta «A-Z» e «QWE» e per il resto chiama quello di LVGL. Il tastierino numerico non cambia.
 - **L'editor dei simboli, fase 2, sessione 1** (piano `docs/plans/2026-11-19-editor-dei-simboli-fase-2.md`, ramo
   `feat/symbol-editor-tools`).
   - **Le bocche dei tubi**: `simboli_prj::explicit_ports` e `POST /api/symbols/explicit-ports` rendono esplicite le bocche

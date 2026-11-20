@@ -115,6 +115,7 @@ mod control_panel;
 mod control_panel_about;
 mod drm_display;
 mod effects;
+mod keyboard_layout;
 mod lvgl_avviso;
 mod lvgl_control_panel;
 mod lvgl_display;

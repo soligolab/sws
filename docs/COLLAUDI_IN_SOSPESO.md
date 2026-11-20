@@ -50,6 +50,17 @@ raggruppati, trascinamento con l'aggancio («ora funziona come mi aspettavo»). 
 8. [ ] **Prova**: stato acceso/allarme, livello, girante che gira, leva, spia.
 9. [ ] **«+ Nuovo simbolo»** in cima a Strumenti ▸ Simboli, senza aprire famiglie.
 
+## La tastiera a 5 righe e il grigio sui simboli, sul pannello LVGL (19-11-2026)
+
+Rami `fix/lvgl-stale-lib-layers` e, annidato, `fix/lvgl-keyboard-5-rows`; sui pannelli con la rc che li porta.
+
+1. [ ] **TY570 in verticale, accesso**: la tastiera ha «A-Z» nell'ultima riga; toccato, cinque righe da sette con le
+       lettere in ordine; «ABC» maiuscole, «1#» simboli, «QWE» torna indietro. Si scrive utente e password.
+2. [ ] **La scelta ricordata**: dopo un riavvio del viewer la tastiera si riapre a 5 righe. Anche sulle celle di una
+       tabella e sul motivo di un comando critico.
+3. [ ] **Il grigio sui simboli**: una pompa `lib:` con `stale_after_s` e un tag che smette di aggiornarsi diventa
+       grigia anche negli strati (prima restava a colori pieni); col lampeggio sfumato, respira.
+
 ## Il QR della schermata d'abbinamento (19-11-2026)
 
 Su `main` (`e068ebd23`), sui pannelli dalla rc.22. Segnalato dal maintainer sul WP630 reinstallato.

@@ -1124,6 +1124,7 @@ unsafe fn apri_critico(user_data: *mut std::ffi::c_void) {
 
     let tastiera = lvgl_sys::lv_keyboard_create(radice);
     crate::lvgl_font::restore_symbols_on(tastiera);
+    crate::keyboard_layout::install(tastiera);
     lvgl_sys::lv_obj_set_size(tastiera, w, h / 2 - 20);
     lvgl_sys::lv_obj_align(
         tastiera,
@@ -9283,6 +9284,7 @@ pub(crate) fn apri_tastiera(numerica: bool, password: bool, iniziale: &str) -> O
             } as lvgl_sys::lv_keyboard_mode_t,
         );
         crate::lvgl_font::restore_symbols_on(kb.as_ptr());
+        crate::keyboard_layout::install(kb.as_ptr());
         // Senza stile la tastiera eredita il tema, che su questo fondo scuro
         // disegna tasti quasi invisibili: su un monitor si intravedono, sul
         // vetro di un pannello alla luce no (WP630, 23-10-2026 — il maintainer
@@ -9624,6 +9626,7 @@ pub(crate) fn apri_credenziali(testi: TestiAccesso<'_>) -> Option<Credenziali> {
             lvgl_sys::LV_KEYBOARD_MODE_TEXT_LOWER as lvgl_sys::lv_keyboard_mode_t,
         );
         crate::lvgl_font::restore_symbols_on(kb.as_ptr());
+        crate::keyboard_layout::install(kb.as_ptr());
         stile::sfondo(kb.as_ptr(), (30, 41, 59), stile::MAIN);
         stile::sfondo(kb.as_ptr(), (51, 65, 85), stile::CELLE);
         stile::testo(kb.as_ptr(), (226, 232, 240), stile::CELLE);
