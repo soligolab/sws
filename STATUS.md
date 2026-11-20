@@ -29,8 +29,9 @@ nell'import) → `00f6c4cb1` l'intervista prima di lavorare (scheda IA e chat) e
   `COLLAUDI_IN_SOSPESO.md` (aspetta il sì del maintainer); la chat con l'intervista era ancora in prova.
 - **Prossimo**: la rc.22 (`NOVITA.yaml` it/en, build, tag quando si costruisce). Annotato per dopo: «Salva e chiudi /
   Esci senza salvare / Annulla» alla chiusura dell'editor dei simboli. Poi CasaDomotica con le funzioni nuove.
-- **Seme nuovo**: [sfondi con le proporzioni della pagina](docs/plans/semi/2026-11-20-sfondi-con-le-proporzioni-della-pagina.md)
-  — gli sfondi generati sono sempre 1536×1024, e su una pagina verticale se ne vede circa il 40 %.
+- **Piano nuovo, in corso**: [sfondi alla misura della pagina](docs/plans/2026-11-20-sfondi-alla-misura-della-pagina.md)
+  — gli sfondi generati sono sempre 1536×1024, e su una pagina verticale se ne vede circa il 40 %. Con l'intervista
+  nella chat e il pulsante «Assistente IA» nella barra, sul ramo `feat/backgrounds-page-size`.
 
 ## Sessione precedente — importa SVG, file del simbolo e schema JSON per il modello locale fatti sul ramo; sette rami annidati da collaudare (2026-11-20, theobroma)
 
