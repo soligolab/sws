@@ -293,6 +293,16 @@ export type SymbolAiInterviewResult = { cost_usd: number; model?: string } & (
   | { ok: false; code: "no_model" | "blind_model" | "bad_request" | "cap_reached" | "provider" | "invalid"; message?: string }
 );
 
+/** An entry of the company's symbol library (`symbol_library.rs`). */
+export interface LibraryEntry {
+  slug: string;
+  version: string;
+  updated_by: string;
+  updated_ms: number;
+  images: string[];
+  symbol: DescrizioneSimbolo;
+}
+
 /** What «Genera foto» answers: the photo saved in `images/`, or why not. */
 export type SymbolAiPhotoResult =
   | { ok: true; name: string; width: number; height: number; cost_usd: number; transparent: boolean }
@@ -899,7 +909,9 @@ export const sulGateway = (path: string) =>
   // project's container knows nothing of it.
   || path === "/api/identity/ai-keys" || path.startsWith("/api/identity/ai-keys/")
   // And the providers they prefer (17-11-2026), for the same reason.
-  || path === "/api/identity/ai-preferences";
+  || path === "/api/identity/ai-preferences"
+  // The company's symbol library (21-11-2026): the company is the gateway's.
+  || path.startsWith("/api/library/");
 
 /** La base a cui mandare una richiesta: il prefisso del progetto, o la radice
  *  per le rotte del gateway quando siamo nel cloud. */
@@ -2059,6 +2071,28 @@ export const api = {
       throw new Error(`API ${path}: ${res.status} ${res.statusText}${body ? ` — ${body}` : ""}`);
     }
     return res.json();
+  },
+
+  /** The company's symbol library (plan 2026-11-21-simboli-fase-7-libreria-aziendale).
+   *  `company` is the company's folder, `-` for the implicit one. */
+  libraryList: (company: string) =>
+    request<LibraryEntry[]>(`/api/library/${encodeURIComponent(company)}/symbols`),
+  libraryEntry: (company: string, slug: string) =>
+    request<LibraryEntry>(`/api/library/${encodeURIComponent(company)}/symbols/${encodeURIComponent(slug)}`),
+  libraryPut: (company: string, slug: string, symbol: DescrizioneSimbolo, images: Record<string, string>) =>
+    request<LibraryEntry>(`/api/library/${encodeURIComponent(company)}/symbols/${encodeURIComponent(slug)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ symbol, images }),
+    }),
+  libraryDelete: (company: string, slug: string) =>
+    request<void>(`/api/library/${encodeURIComponent(company)}/symbols/${encodeURIComponent(slug)}`, { method: "DELETE" }),
+  libraryImageBytes: async (company: string, slug: string, name: string): Promise<Uint8Array> => {
+    const path = `/api/library/${encodeURIComponent(company)}/symbols/${encodeURIComponent(slug)}/images/${encodeURIComponent(name)}`;
+    const res = await fetch(`${baseDi(path)}${path}`, { headers: authHeaders() });
+    if (res.status === 401) throw new AuthError();
+    if (!res.ok) throw new Error(`API ${path}: ${res.status} ${res.statusText}`);
+    return new Uint8Array(await res.arrayBuffer());
   },
 
   /** The bytes of a project image, as stored (a symbol file carries them). */

@@ -31,3 +31,7 @@ questo seme.
 - dove il file viene scritto e letto nel cloud, dove il container del progetto e il gateway non
   condividono il filesystem se non per la cartella del progetto;
 - se il backup per azienda conta nella quota `max_byte`.
+
+> **Aggiunta del 22-11-2026.** Dalla fase 7 dell'editor dei simboli
+> ([piano](../2026-11-21-simboli-fase-7-libreria-aziendale.md)) l'azienda ha anche una **libreria dei simboli**, in
+> `<radice>/<cartella azienda>/.ambiente/symbols/`: un bene dell'azienda, non di un progetto, da mettere nel suo backup.

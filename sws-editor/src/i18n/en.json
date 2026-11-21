@@ -5858,5 +5858,22 @@
     "readOnlyBanner": "Read-only: the project is open by {{user}}. Changes are not saved.",
     "taken": "{{user}} took control of the project: this tab is now read-only, and its unsaved changes can no longer be saved.",
     "writeRefused": "The project is being edited in another tab: this one is read-only. To edit it use «Take control»."
+  },
+  "symbolLibrary": {
+    "family": "Company library",
+    "empty": "Empty: in the symbol editor, «To library» puts the open symbol here.",
+    "useTitle": "Copy the symbol into the project and place it on the page",
+    "useVariantTitle": "Copy the variant into the project: it replaces the SWS symbol on every page",
+    "delete": "Remove from the library (the copies in projects stay)",
+    "deleteConfirm": "Remove «{{name}}» from the company library? The projects that use it keep their copy.",
+    "replaceVariant": "The project already has its own variant («{{mine}}») of the same SWS symbol. Replace it with «{{theirs}}» from the library?",
+    "update": "Update from the library ({{n}})",
+    "updateTitle": "The library has newer versions of these symbols: objects and tags stay bound",
+    "save": "To library",
+    "saveTitle": "Save this symbol in the company library, for every project",
+    "saved": "«{{name}}» is in the company library.",
+    "overwrite": "The library already has a symbol with this name («{{name}}»), not copied from here. Replace it?",
+    "newer": "The library has newer versions of {{n}} symbols of this project.",
+    "newerAction": "Update"
   }
 }

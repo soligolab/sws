@@ -39,6 +39,7 @@ import { symbolFileName, symbolFileText, symbolZip } from "./symbolFile";
 import { symbolPhotos } from "@/images/usage";
 import { PhotoPickerHost, pickPhoto } from "./photoPicker";
 import { uploadEmbeddedPhotos } from "./photoUpload";
+import { saveToLibrary, useCompanyLibrary } from "@/symbols/library/companyLibrary";
 
 interface Catalog {
   materials: { name: string; color: string }[];
@@ -687,6 +688,20 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
     window.addEventListener("paste", h, true);
     return () => window.removeEventListener("paste", h, true);
   }, [importSvgFile, importSvgText]);
+  // The company's library (plan 2026-11-21-simboli-fase-7-libreria-aziendale):
+  // the drawing as it is now; the editor keeps the record of where it went,
+  // so the project's copy is not «out of date» after its own «Save».
+  const library = useCompanyLibrary();
+  const toLibrary = async () => {
+    try {
+      const out = await saveToLibrary(d);
+      if (!out) return;
+      commit(out);
+      void avviso({ testo: t("symbolLibrary.saved", { name: d[lang] }) });
+    } catch (e) {
+      void avviso({ livello: "errore", testo: e instanceof Error ? e.message : String(e) });
+    }
+  };
   const exportFile = async () => {
     // With photos, a zip that carries them (plan 2026-11-21-simboli-fase-3-foto).
     const names = symbolPhotos(d);
@@ -997,6 +1012,10 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
         {original && saved && <button type="button" style={small} onClick={() => void revert()}>{t("symbolEditor.revert")}</button>}
         <button type="button" style={btn(false)} disabled={!!compiled.errors.length} onClick={() => void exportFile()}
           data-testid="symbol-editor-export" title={t("symbolEditor.file.exportTitle")}>{t("symbolEditor.file.export")}</button>
+        {library && (
+          <button type="button" style={btn(false)} disabled={busy || !!compiled.errors.length} data-testid="symbol-editor-to-library"
+            title={t("symbolLibrary.saveTitle")} onClick={() => void toLibrary()}>{t("symbolLibrary.save")}</button>
+        )}
         <button type="button" style={btn(false)} disabled={busy || !!compiled.errors.length} onClick={() => void saveAs()}>{t("symbolEditor.saveAs")}</button>
         <button type="button" data-testid="symbol-editor-save" style={btn(dirty)} disabled={busy || !!compiled.errors.length || !dirty}
           onClick={() => void save()}>{t("symbolEditor.save")}</button>

@@ -80,6 +80,8 @@ versioni:
         en: "Project symbols can hold photos: under the drawing, inside a part that turns or blinks, or a different photo for each state. The same in the browser and on the panel."
       - it: "Editor dei simboli: «Genera foto» fotografa un oggetto con l'IA, e «Importa SVG» tiene le foto dentro il file. Un simbolo con foto si esporta in .swsym con le sue immagini."
         en: "Symbol editor: «Generate photo» photographs an object with AI, and «Import SVG» keeps the photos inside the file. A symbol with photos exports to .swsym with its images."
+      - it: "Libreria aziendale dei simboli: «In libreria» dall'editor, poi il simbolo si usa in ogni progetto dell'azienda. Se in libreria cambia, l'IDE propone di aggiornare le copie."
+        en: "Company symbol library: «To library» from the editor, then the symbol is used in every project of the company. When it changes there, the IDE offers to update the copies."
       # rc.22 (20-11-2026): editor dei simboli, libreria immagini, assistente. Per fare
       # posto, alcune voci di prima sono unite e accorciate: da rivedere al collaudo.
       - it: "Editor dei simboli: apri un simbolo della libreria e cambialo, o fanne uno nuovo; strumenti di disegno, bocche dei tubi, «Anima…» per i pezzi che si muovono, SVG e file .swsym da importare."

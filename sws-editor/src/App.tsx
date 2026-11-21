@@ -5,6 +5,7 @@ import { api, AuthError, NoProjectError, PasswordChangeRequiredError } from "@/a
 import { RIPROVA_RUNTIME_MS, RuntimeInRiavvio, runtimeSiStaRiavviando } from "@/components/RuntimeInRiavvio";
 import { percorsoFinestra, prefissoGateway } from "@/api/prefisso";
 import { BarraAvviso } from "@/components/BarraAvviso";
+import { outdated, reloadLibrary, updateFromLibrary, useCompanyLibrary } from "@/symbols/library/companyLibrary";
 import { BannerProvaGit } from "@/components/BannerProvaGit";
 import { ChangePasswordScreen } from "@/components/ChangePasswordScreen";
 import { BrandLogo } from "@/components/BrandLogo";
@@ -776,6 +777,15 @@ export function App() {
     setNoActiveProject(true);
   });
 
+  // The company's symbol library (plan 2026-11-21-simboli-fase-7-libreria-
+  // aziendale): read again at every project opened, and a bar when it has
+  // newer versions of the project's copies. «✕» hides it for this project.
+  const companyLibrary = useCompanyLibrary();
+  const projectName = project ? project.meta.name : null;
+  useEffect(() => { if (projectName) void reloadLibrary(); }, [projectName]);
+  const [libraryBarHiddenFor, setLibraryBarHiddenFor] = useState<string | null>(null);
+  const libraryNewer = project && companyLibrary ? outdated(project.simboli ?? [], companyLibrary) : [];
+
   // «Ricarica» delle barre d'avviso: con modifiche non salvate chiede prima —
   // ricaricare le butta via (20-09-2026: una pagina appena creata sparì così).
   const executeReload = () => {
@@ -1148,6 +1158,14 @@ export function App() {
           <BarraAvviso tono="attenzione" icona="🔒" stileBottone={HDR_BTN}
             ricarica={t("projectLock.takeControl")} onRicarica={() => void takeControl()}>
             {t("projectLock.readOnlyBanner", { user: lockReadOnly.user ?? t("projectLock.someone") })}
+          </BarraAvviso>
+        )}
+
+      {libraryNewer.length > 0 && !lockReadOnly && libraryBarHiddenFor !== projectName && (
+          <BarraAvviso tono="primario" icona="↑" stileBottone={HDR_BTN}
+            ricarica={t("symbolLibrary.newerAction")} onRicarica={() => void updateFromLibrary(libraryNewer)}
+            onChiudi={() => setLibraryBarHiddenFor(projectName)} titoloChiudi={t("app.dismiss")}>
+            {t("symbolLibrary.newer", { n: libraryNewer.length })}
           </BarraAvviso>
         )}
 

@@ -58,6 +58,7 @@ pub mod segreti;
 pub mod sicurezza_http;
 pub mod simboli_progetto;
 pub mod sized_image;
+pub mod symbol_library;
 pub mod sonda;
 pub mod source_supervisor;
 pub mod synoptic;

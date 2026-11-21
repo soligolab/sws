@@ -5858,5 +5858,22 @@
     "readOnlyBanner": "Sola lettura: il progetto è aperto da {{user}}. Le modifiche non si salvano.",
     "taken": "{{user}} ha preso il controllo del progetto: questa scheda ora è in sola lettura, e le modifiche non salvate non si possono più salvare.",
     "writeRefused": "Il progetto è aperto in modifica in un'altra scheda: questa è in sola lettura. Per modificarlo usa «Prendi il controllo»."
+  },
+  "symbolLibrary": {
+    "family": "Libreria aziendale",
+    "empty": "Vuota: dall'editor dei simboli, «In libreria» ci mette il simbolo aperto.",
+    "useTitle": "Copia il simbolo nel progetto e mettilo nella pagina",
+    "useVariantTitle": "Copia la variante nel progetto: sostituisce il simbolo di SWS in tutte le pagine",
+    "delete": "Togli dalla libreria (le copie nei progetti restano)",
+    "deleteConfirm": "Togliere «{{name}}» dalla libreria dell'azienda? I progetti che lo usano tengono la loro copia.",
+    "replaceVariant": "Il progetto ha già una sua variante («{{mine}}») dello stesso simbolo di SWS. Sostituirla con «{{theirs}}» della libreria?",
+    "update": "Aggiorna dalla libreria ({{n}})",
+    "updateTitle": "In libreria ci sono versioni più nuove di questi simboli: oggetti e tag restano collegati",
+    "save": "In libreria",
+    "saveTitle": "Salva questo simbolo nella libreria dell'azienda, per tutti i progetti",
+    "saved": "«{{name}}» è nella libreria dell'azienda.",
+    "overwrite": "Nella libreria c'è già un simbolo con questo nome («{{name}}»), non copiato da qui. Sostituirlo?",
+    "newer": "In libreria ci sono versioni più nuove di {{n}} simboli di questo progetto.",
+    "newerAction": "Aggiorna"
   }
 }

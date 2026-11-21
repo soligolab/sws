@@ -1375,6 +1375,23 @@ pub fn build(
         // Le proprie aziende: serve a decidere se mostrare una scelta, quindi
         // sta col gruppo self-service e non con la console.
         .route("/api/identita/mie-aziende", get(mie_aziende))
+        // The company's symbol library (plan 2026-11-21-simboli-fase-7-libreria-
+        // aziendale): any user, the membership is checked by the handlers.
+        .route(
+            "/api/library/:company/symbols",
+            get(crate::symbol_library::get_list),
+        )
+        .route(
+            "/api/library/:company/symbols/:slug",
+            get(crate::symbol_library::get_one)
+                .put(crate::symbol_library::put_one)
+                .delete(crate::symbol_library::delete_one)
+                .layer(DefaultBodyLimit::max(crate::symbol_library::MAX_BODY_BYTES)),
+        )
+        .route(
+            "/api/library/:company/symbols/:slug/images/:name",
+            get(crate::symbol_library::get_image),
+        )
         // The user's AI keys (15-11-2026): the person's, with their session.
         .route("/api/identity/ai-keys", get(crate::ai_keys::list))
         .route(

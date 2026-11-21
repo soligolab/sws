@@ -55,6 +55,8 @@ function withOwnNames(p: DescrizioneSimbolo, d: DescrizioneSimbolo): Descrizione
   const out: DescrizioneSimbolo = { ...p, slug: d.slug, it: d.it, en: d.en, tipo: d.tipo };
   if (d.overrides) out.overrides = d.overrides;
   else delete out.overrides;
+  if (d.library) out.library = d.library;
+  else delete out.library;
   return out;
 }
 

@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { copyFromLibrary, deleteFromLibrary, outdated, updateFromLibrary, useCompanyLibrary } from "@/symbols/library/companyLibrary";
 import { openNewSymbol, openSymbolEditorFor, openSymbolFile } from "@/symbols/editor/open";
 import { ImgProgetto } from "@/canvas/ImmagineSvg";
 import { useTranslation } from "react-i18next";
@@ -1045,7 +1046,10 @@ function RamoSimboli({ ultimoGruppo }: { ultimoGruppo: boolean }) {
   const famiglie = famiglieSimboli(manifesto?.symbols ?? []);
   // The project family is always there, for the project's own symbols.
   void custom; void disegnati;
-  const voci = [...famiglie.map((f) => f.famiglia), "__progetto"];
+  // The company's library (plan 2026-11-21-simboli-fase-7-libreria-aziendale),
+  // where the instance has one.
+  const libreria = useCompanyLibrary();
+  const voci = [...famiglie.map((f) => f.famiglia), "__progetto", ...(libreria ? ["__libreria"] : [])];
   const px = useAppStore((s) => s.misuraIcone);
   const esterne = ultimoGruppo ? [] : [13];
   const fileRef = useRef<HTMLInputElement>(null);
@@ -1069,7 +1073,7 @@ function RamoSimboli({ ultimoGruppo }: { ultimoGruppo: boolean }) {
       {voci.map((f, i) => (
         <FamigliaSimboli key={f} famiglia={f} tipologie={famiglie.find((x) => x.famiglia === f)?.tipologie ?? []}
           ultima={i === voci.length - 1} ultimoGruppo={ultimoGruppo}
-          titolo={f === "__progetto" ? t("symbol.gruppoProgetto") : t(`symbols.lib.famiglia.${f}`)} />
+          titolo={f === "__progetto" ? t("symbol.gruppoProgetto") : f === "__libreria" ? t("symbolLibrary.family") : t(`symbols.lib.famiglia.${f}`)} />
       ))}
     </>
   );
@@ -1100,6 +1104,10 @@ function FamigliaSimboli({ famiglia, tipologie, titolo, ultima, ultimoGruppo }: 
   const px = useAppStore((s) => s.misuraIcone);
   const esterne = ultimoGruppo ? [] : [13];
   const nProgetto = custom.length + disegnati.length;
+  const libreria = useCompanyLibrary();
+  const progetto = useAppStore((s) => s.project?.simboli);
+  const daAggiornare = libreria ? outdated(progetto ?? [], libreria) : [];
+  const nLibreria = libreria?.length ?? 0;
   return (
     <div>
       <IntestazioneGruppo testo={titolo} aperto={aperta} commuta={commuta} rientro={36}
@@ -1119,6 +1127,32 @@ function FamigliaSimboli({ famiglia, tipologie, titolo, ultima, ultimoGruppo }: 
             onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); void openSymbolEditorFor(s.id); } }}><Icona nome="pencil" emoji="✎" /></span>}
           nome={etichettaSimbolo(s, t, i18n.language)} onClick={() => aggiungiOggetto("symbol", { symbol_id: s.id })}
           guide={guideAlbero(ultima ? esterne : [...esterne, 27], { x: 43, finoA: 50, ultimo: custom.length + i === nProgetto - 1 })} />
+      ))}
+      {/* The copies the company's library has a newer version of: one click updates them all. */}
+      {aperta && famiglia === "__progetto" && daAggiornare.length > 0 && (
+        <RigaStrumento testid="simboli-aggiorna-da-libreria" rientro={52} titolo={t("symbolLibrary.updateTitle")}
+          icona={<span style={{ width: px, textAlign: "center", flexShrink: 0 }}>↑</span>}
+          nome={t("symbolLibrary.update", { n: daAggiornare.length })}
+          onClick={() => void updateFromLibrary(daAggiornare)}
+          guide={guideAlbero(ultima ? esterne : [...esterne, 27], { x: 43, finoA: 50, ultimo: true })} />
+      )}
+      {aperta && famiglia === "__libreria" && nLibreria === 0 && (
+        <div style={{ paddingLeft: 52, fontSize: 11, color: "var(--brand-text-muted, #94a3b8)" }}>{t("symbolLibrary.empty")}</div>
+      )}
+      {aperta && famiglia === "__libreria" && libreria?.map((e, i) => (
+        <RigaStrumento key={e.slug} testid={`simbolo-libreria-${e.slug}`} rientro={52}
+          titolo={t(e.symbol.overrides ? "symbolLibrary.useVariantTitle" : "symbolLibrary.useTitle")}
+          icona={<span style={{ width: px, textAlign: "center", flexShrink: 0 }}>{e.symbol.overrides ? "◇" : "◆"}</span>}
+          nota={<span role="button" tabIndex={0} data-testid={`libreria-elimina-${e.slug}`} title={t("symbolLibrary.delete")}
+            style={{ flexShrink: 0, padding: "0 4px", cursor: "pointer" }}
+            onClick={(ev) => { ev.stopPropagation(); void deleteFromLibrary(e); }}
+            onKeyDown={(ev) => { if (ev.key === "Enter") { ev.stopPropagation(); void deleteFromLibrary(e); } }}>✕</span>}
+          nome={i18n.language.startsWith("en") ? e.symbol.en : e.symbol.it}
+          onClick={() => void copyFromLibrary(e).then((id) => {
+            // A variant replaces a SWS symbol in the whole project: nothing to place.
+            if (id && !e.symbol.overrides) aggiungiOggetto("symbol", { symbol_id: id });
+          })}
+          guide={guideAlbero(ultima ? esterne : [...esterne, 27], { x: 43, finoA: 50, ultimo: i === nLibreria - 1 })} />
       ))}
       {aperta && tipologie.map((k, i) => (
         <TipologiaSimboli key={k.tipo} famiglia={famiglia} tipo={k.tipo} simboli={k.simboli}

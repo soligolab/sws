@@ -475,7 +475,20 @@ pub struct Descrizione {
     /// symbols only; the library never has it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub overrides: Option<String>,
+    /// Where this project symbol came from in the company's library (plan
+    /// `2026-11-21-simboli-fase-7-libreria-aziendale`): the entry and the
+    /// version copied, so the IDE can say when the library has a newer one.
+    /// The drawing never depends on it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub library: Option<LibraryRef>,
     pub ops: Vec<Op>,
+}
+
+/// A copy of an entry of the company's symbol library.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LibraryRef {
+    pub slug: String,
+    pub version: String,
 }
 
 fn tipo_progetto() -> String {
@@ -1320,7 +1333,7 @@ fn numero_o_testo_numerico(v: &Valore) -> bool {
     }
 }
 
-fn nome_ammesso(s: &str, min: usize, max: usize) -> bool {
+pub fn nome_ammesso(s: &str, min: usize, max: usize) -> bool {
     (min..=max).contains(&s.len())
         && s.chars()
             .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')

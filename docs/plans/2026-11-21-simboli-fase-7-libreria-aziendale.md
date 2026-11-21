@@ -47,3 +47,11 @@ Ramo: **`feat/symbol-library`**.
 `pnpm exec vitest run` (avviso di aggiornamento, copia di una variante), `pnpm build`, `./scripts/check_static.sh`;
 `/test-changes` nell'IDE locale e nel cloud (due utenti della stessa azienda). Un esempio in CasaDomotica: un simbolo
 preso dalla libreria.
+
+## Com'è andata (22-11-2026, notte)
+Fatto sul ramo `feat/symbol-library` (annidato su `feat/symbol-photo`), da collaudare. Due scostamenti:
+- **un clic, non un trascinamento**: nella galleria gli elementi si usano con un clic (come i simboli di SWS); il clic
+  copia nel progetto e mette l'oggetto in pagina. Una variante si copia e basta: sostituisce il simbolo di SWS ovunque;
+- **la galleria non mostra l'anteprima** degli elementi della libreria, solo il nome (◆ simbolo, ◇ variante): per
+  disegnarli servirebbe compilarli e scaricarne le foto prima di usarli. Da rivedere al collaudo.
+La riga nel seme del backup per azienda è scritta.

@@ -2105,6 +2105,9 @@ export interface DescrizioneSimbolo {
   /** Library symbol this one is a project variant of (`lib:<family>/<slug>`):
    *  drawn wherever that symbol is (plan 2026-11-18-editor-dei-simboli). */
   overrides?: string;
+  /** The entry of the company's library this symbol is a copy of, and the
+   *  version copied (plan 2026-11-21-simboli-fase-7-libreria-aziendale). */
+  library?: { slug: string; version: string };
   ops: Record<string, unknown>[];
 }
 

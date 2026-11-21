@@ -12,6 +12,19 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Aggiunto
+- **La libreria aziendale dei simboli** (ramo `feat/symbol-library`, piano
+  `docs/plans/2026-11-21-simboli-fase-7-libreria-aziendale.md`, fase 7 dell'editor dei simboli). La libreria è
+  dell'azienda (personale per chi è solo, l'implicita nell'IDE locale) e sta accanto ai suoi progetti:
+  `<radice>/<cartella azienda>/.ambiente/symbols/<slug>/` con `symbol.json` (la busta del `.swsym`) e le foto.
+  `symbol_library.rs`: `GET /api/library/:company/symbols`, `GET|PUT|DELETE …/:slug`, `GET …/:slug/images/:name`,
+  serviti dal gateway nel cloud (`sulGateway` nell'IDE) e dall'IDE in locale, mai dal container; entra un membro
+  dell'azienda o chi amministra la piattaforma, nell'IDE locale l'implicita è di tutti. Scrivono tutti i membri; il
+  `PUT` compila e controlla il simbolo e vuole tutte e sole le sue foto; la versione è l'impronta di simbolo e foto;
+  registro `symbol_library.saved/deleted`. Nell'IDE: famiglia «Libreria aziendale» nella galleria (un clic copia
+  nel progetto e mette l'oggetto in pagina; una variante sostituisce quella del progetto, chiedendo), «In libreria»
+  nell'editor dei simboli, e la barra «In libreria ci sono versioni più nuove di N simboli» con «Aggiorna» all'apertura
+  del progetto. La copia porta `library: {slug, version}` (campo nuovo di `Descrizione`), le foto entrano in `images/`
+  con nomi propri (`lib-…`), e l'aggiornamento tiene lo slug, quindi oggetti e tag restano collegati.
 - **Le foto nei simboli del progetto** (ramo `feat/symbol-photo`, piano `docs/plans/2026-11-21-simboli-fase-3-foto.md`,
   fase 3 dell'editor dei simboli). Le descrizioni `prj:` hanno un'operazione nuova, `image {src, geo, opacity?}`: un
   file di `images/` del progetto (nome controllato come all'upload, png/jpg/webp, al più 8 per simbolo), nello strato

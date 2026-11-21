@@ -12,7 +12,7 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — nove rami annidati da collaudare; gruppo 2 pianificato, fase 3 fatta (2026-11-22 notte, `ufficio`)
+## ▶ Riprendere da qui — dieci rami annidati da collaudare; gruppo 2 pianificato, fasi 3 e 7 fatte (2026-11-22 notte, `ufficio`)
 
 **Gruppo 2, sessione di plan fatta** (la sera del 21-11): quattro piani in `docs/plans/`, ordine deciso dal maintainer
 **3 → 7 → P6 → 8** — [fase 3, le foto](docs/plans/2026-11-21-simboli-fase-3-foto.md),
@@ -21,7 +21,19 @@
 9. `feat/symbol-photo` (annidato su `feat/project-lock`) — **le foto nei simboli**: un'operazione `image` nelle
    descrizioni `prj:` (foto di `images/`), sfondo o ritaglio dentro una parte viva, una foto per ogni voce di un
    segnale; web e pannello; «Foto…» nell'editor, «Genera foto» con l'IA, «Importa SVG» che tiene le foto, `.swsym`
-   zip; il deploy si ferma verso un pannello che non le conosce. Prossimo: fase 7 (`feat/symbol-library`).
+   zip; il deploy si ferma verso un pannello che non le conosce.
+10. `feat/symbol-library` — **la libreria aziendale dei simboli**: «In libreria» nell'editor, la famiglia «Libreria
+    aziendale» nella galleria (un clic copia nel progetto), la barra «versioni più nuove» con «Aggiorna»; servita dal
+    gateway nel cloud e dall'IDE in locale, solo ai membri dell'azienda. Prossimo: P6, 2FA (`feat/2fa`).
+
+**Il collaudo della fase 7, cosa guardare** (IDE locale su `feat/symbol-library`, poi nel cloud con due utenti):
+- editor dei simboli → «In libreria» → la famiglia «Libreria aziendale» lo mostra; in un altro progetto un clic lo
+  copia (con le foto) e lo mette in pagina;
+- modificarlo e rimetterlo in libreria dal primo progetto → aprendo il secondo, la barra «versioni più nuove di 1
+  simbolo» → «Aggiorna»: l'oggetto in pagina cambia aspetto e resta legato al suo tag;
+- una variante di una pompa di SWS in libreria → in un progetto che ne ha già un'altra, la domanda «sostituirla?»;
+- nel cloud: un membro di un'altra azienda non vede la libreria; due membri della stessa la condividono;
+- ✕ su un elemento: lo toglie dalla libreria, le copie nei progetti restano.
 
 **Il collaudo della fase 3, cosa guardare** (IDE da `start_editor_develop.sh` su `feat/symbol-photo`; TC620 di casa):
 - editor dei simboli, simbolo nuovo → «Foto…» → una foto del progetto: va sotto a tutto, alle proporzioni giuste;
