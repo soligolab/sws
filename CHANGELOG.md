@@ -11,6 +11,17 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Aggiunto
+- **Le sorgenti si spengono senza cancellarle, e Modbus tollera le risposte perse** (ramo `feat/source-enabled`,
+  piano `docs/plans/2026-11-21-lock-salva-come-sorgenti-sandbox.md`). Campo `enabled` su tutte e nove le sorgenti
+  (default vero, scritto solo quando è falso): `SourceSupervisor::reload` non avvia quelle spente, ferma quelle che lo
+  diventano, marca `Bad` i loro tag e scrive `<id>.disponibile` falso (`disponibilita_da_scrivere` con l'elenco delle
+  spente). Nell'IDE l'interruttore «Attiva» sta nella testata comune alle schede (`TestataSorgente`), e a scheda
+  chiusa si legge «spenta». Campo `tolerance_rounds` su Modbus TCP e RTU: entro quei giri una mappatura che non
+  risponde tiene l'ultimo valore come `Uncertain` (`Tolerance` in `sws-plugin-modbus`), poi `Bad`; una risposta
+  azzera il conto. 0 = come prima. Una caduta della connessione resta `Bad` subito. I tre stati «sempre / mai / solo
+  quando…» restano nel seme delle sorgenti.
+
 ### Corretto
 - **La sandbox degli script, la parte piccola** (ramo `fix/sandbox-small`, piano
   `docs/plans/2026-11-21-lock-salva-come-sorgenti-sandbox.md`, punti C1, C2, C3 e A3 del seme della sandbox).

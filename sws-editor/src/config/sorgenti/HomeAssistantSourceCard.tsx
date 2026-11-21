@@ -50,6 +50,8 @@ export function HomeAssistantSourceCard({
         tipo="HOME ASSISTANT"
         colore="var(--brand-warning, #f59e0b)"
         id={source.id}
+        enabled={source.enabled !== false}
+        onEnabled={(on) => onChange({ ...source, enabled: on ? undefined : false })}
         riepilogo={`${source.url} · ${t("sorgenti.nEntita", { count: source.entities.length })}`}
         aperta={open}
         onToggle={() => setOpen((v) => !v)}

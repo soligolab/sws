@@ -38,6 +38,8 @@ export function ModbusRtuSourceCard({
         tipo="MODBUS RTU"
         colore="var(--brand-warning, #f59e0b)"
         id={source.id}
+        enabled={source.enabled !== false}
+        onEnabled={(on) => onChange({ ...source, enabled: on ? undefined : false })}
         riepilogo={`${source.device} · ${source.baud_rate} baud · ${t("cfg.modbusNDispositivi", { count: n })}`}
         aperta={open}
         onToggle={() => setOpen((v) => !v)}
@@ -95,6 +97,12 @@ export function ModbusRtuSourceCard({
                 <input style={{ ...S.input, maxWidth: 280 }} value={source.id}
                   onChange={(e) => setField("id", e.target.value)} spellCheck={false} />
               </div>
+            </div>
+            <div style={{ maxWidth: 160, marginBottom: 8 }}>
+              <label style={etichetta}>{t("sorgenti.modbusTcp.toleranceRounds")}</label>
+              <CampoNumero style={S.input} min={0} max={50} value={source.tolerance_rounds ?? 0}
+                title={t("sorgenti.modbusTcp.toleranceRoundsHint")}
+                onTesto={(e) => setField("tolerance_rounds", Number(e) || undefined)} />
             </div>
           </SezioneSorgente>
 

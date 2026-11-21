@@ -4597,7 +4597,12 @@
       "scrivibile": "Writable",
       "scrivibileAiuto": "SWS sends the command to the node (NCMD) or device (DCMD) that announced the metric."
     },
+    "enabled": "On",
+    "enabledHint": "When off, the source stays in the project but does not start: its tags go Bad and {{id}}.disponibile is false.",
+    "switchedOff": "off",
     "modbusTcp": {
+      "toleranceRounds": "Tolerance rounds",
+      "toleranceRoundsHint": "A lost reply keeps the last value, marked uncertain, for these rounds; then the tags go Bad. 0 = Bad at once",
       "trasporto": "Transport",
       "trasportoMbap": "Modbus TCP",
       "trasportoRtu": "RTU over TCP",

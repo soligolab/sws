@@ -58,6 +58,8 @@ export function EnIpSourceCard({
         tipo="ETHERNET/IP"
         colore="var(--brand-warning, #f59e0b)"
         id={source.id}
+        enabled={source.enabled !== false}
+        onEnabled={(on) => onChange({ ...source, enabled: on ? undefined : false })}
         riepilogo={`${source.ip} · slot ${source.slot} · ${source.tags.length} tag`}
         aperta={!collapsed}
         onToggle={() => setCollapsed((c) => !c)}

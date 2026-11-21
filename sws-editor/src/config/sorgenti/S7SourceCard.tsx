@@ -56,6 +56,8 @@ export function S7SourceCard({
         tipo="S7"
         colore="var(--brand-primary-testo, #3b82f6)"
         id={source.id}
+        enabled={source.enabled !== false}
+        onEnabled={(on) => onChange({ ...source, enabled: on ? undefined : false })}
         riepilogo={`${source.ip}${source.port ? `:${source.port}` : ""} · R${source.rack}/S${source.slot} · ${source.tags.length} tag`}
         aperta={!collapsed}
         onToggle={() => setCollapsed((c) => !c)}

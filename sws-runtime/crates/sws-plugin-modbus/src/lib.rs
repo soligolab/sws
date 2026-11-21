@@ -277,6 +277,40 @@ async fn marca_bad(db: &TagDb, m: &Mappatura) {
     }
 }
 
+/// How many missed rounds a mapping may have before its tags go `Bad`
+/// (`tolerance_rounds`, 21-11-2026).
+///
+/// A Solarman stick loses one reply every 30-90 s; each lost reply used to
+/// send the tags to `Bad` for one round, leaving holes in the history and
+/// tiles that blinked. Within the tolerance the last value stays, marked
+/// `Uncertain` (not fresh); past it, `Bad` as before. Zero = as before.
+#[derive(Debug, Default, Clone)]
+pub struct Tolerance {
+    pub rounds: u32,
+    missed: HashMap<String, u32>,
+}
+
+impl Tolerance {
+    pub fn new(rounds: u32) -> Self {
+        Self { rounds, missed: HashMap::new() }
+    }
+
+    /// The mapping did not answer this round.
+    async fn missed(&mut self, db: &TagDb, m: &Mappatura) {
+        let n = self.missed.entry(m.tag.clone()).or_insert(0);
+        *n += 1;
+        let quality = if *n <= self.rounds { TagQuality::Uncertain } else { TagQuality::Bad };
+        for s in &m.slots {
+            db.marca_qualita(&s.percorso, quality.clone()).await;
+        }
+    }
+
+    /// The mapping answered: the count starts again.
+    fn answered(&mut self, tag: &str) {
+        self.missed.remove(tag);
+    }
+}
+
 /// Com'è andato un giro su un dispositivo.
 #[derive(Debug, Default)]
 pub struct EsitoGiro {
@@ -390,6 +424,7 @@ pub async fn leggi_giro<D: Dispositivo>(
     sorgente: &str,
     blocchi: &[BloccoModbus],
     giro: u64,
+    tolerance: &mut Tolerance,
 ) -> anyhow::Result<EsitoGiro> {
     let mut esito_giro = EsitoGiro::default();
     // I blocchi del giro: `None` = non tocca a questo giro, `Some(None)` =
@@ -447,13 +482,13 @@ pub async fn leggi_giro<D: Dispositivo>(
             match &letti_blocchi[i] {
                 None => continue,
                 Some(None) => {
-                    marca_bad(db, m).await;
+                    tolerance.missed(db, m).await;
                     continue;
                 }
                 Some(Some(l)) => match ritaglia(l, blocchi[i].da, m.address, n) {
                     Some(l) => l,
                     None => {
-                        marca_bad(db, m).await;
+                        tolerance.missed(db, m).await;
                         continue;
                     }
                 },
@@ -461,7 +496,7 @@ pub async fn leggi_giro<D: Dispositivo>(
         } else {
             let chiave = (m.area, m.address, n);
             if muti.contains(&chiave) {
-                marca_bad(db, m).await;
+                tolerance.missed(db, m).await;
                 continue;
             }
             let esito = match cache.get(&chiave) {
@@ -489,7 +524,7 @@ pub async fn leggi_giro<D: Dispositivo>(
                     esito_giro
                         .errore
                         .get_or_insert_with(|| format!("{} @{}: {e}", m.tag, m.address));
-                    marca_bad(db, m).await;
+                    tolerance.missed(db, m).await;
                     continue;
                 }
                 Err(_) => {
@@ -502,12 +537,13 @@ pub async fn leggi_giro<D: Dispositivo>(
                     esito_giro.errore.get_or_insert_with(|| {
                         format!("nessuna risposta in {} ms", timeout.as_millis())
                     });
-                    marca_bad(db, m).await;
+                    tolerance.missed(db, m).await;
                     continue;
                 }
             }
         };
         esito_giro.risposte += 1;
+        tolerance.answered(&m.tag);
         if let Some(d) = in_errore.risposta(&m.tag) {
             info!(source = %sorgente, tag = %m.tag, "Modbus: la mappatura risponde di nuovo, dopo {}", durata_breve(d));
         }
@@ -754,6 +790,8 @@ pub struct Unita {
     pub diagnostica: Diagnostica,
     /// La sorgente li pubblica come tag (`<id>.diagnostics.*`).
     pub pubblica_diagnostica: bool,
+    /// Missed rounds before `Bad` (`tolerance_rounds` of the source).
+    pub tolerance: Tolerance,
 }
 
 impl Unita {
@@ -775,6 +813,7 @@ impl Unita {
             giro: 0,
             diagnostica: Diagnostica::default(),
             pubblica_diagnostica: false,
+            tolerance: Tolerance::default(),
         }
     }
 
@@ -826,6 +865,7 @@ pub async fn giro_unita<D: Dispositivo>(
         sorgente,
         &u.blocchi,
         u.giro,
+        &mut u.tolerance,
     )
     .await?;
     u.giro += 1;
@@ -1068,6 +1108,7 @@ pub async fn run(
         .iter()
         .map(|d| Unita {
             pubblica_diagnostica: cfg.diagnostica,
+            tolerance: Tolerance::new(cfg.tolerance_rounds as u32),
             ..Unita::da(d, cfg.poll_interval_ms)
         })
         .collect();
@@ -1163,7 +1204,10 @@ pub async fn run_rtu(
     };
     let mut unita: Vec<Unita> = dispositivi
         .iter()
-        .map(|d| Unita::da(d, cfg.poll_interval_ms))
+        .map(|d| Unita {
+            tolerance: Tolerance::new(cfg.tolerance_rounds as u32),
+            ..Unita::da(d, cfg.poll_interval_ms)
+        })
         .collect();
     let primo = unita.first().map(|u| u.unit_id).unwrap_or(cfg.unit_id);
     let unita = Mutex::new(&mut unita);

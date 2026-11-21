@@ -1253,6 +1253,7 @@ pub const SOURCE_FIELDS: &[(&str, &[Field])] = &[
 /// Campi della sorgente `modbus_tcp` (ModbusTcpConfig).
 pub const SOURCE_MODBUS_TCP_FIELDS: &[Field] = &[
     Field { name: "id", ty: "string", required: true, group: "", doc: "" },
+    Field { name: "enabled", ty: "bool", required: false, group: "", doc: "`false` = the source is kept in the project but not started; its tags are `Bad` and `<id>.disponibile` is false (21-11-2026). Default `true`: projects written before the field do not change." },
     Field { name: "host", ty: "string", required: true, group: "", doc: "" },
     Field { name: "port", ty: "number", required: false, group: "", doc: "" },
     Field { name: "unit_id", ty: "number", required: true, group: "", doc: "Formato di prima del 04-10-2026 (un dispositivo per sorgente): vale solo se `devices` è vuoto. Vedi [`ModbusTcpConfig::dispositivi`]." },
@@ -1260,6 +1261,7 @@ pub const SOURCE_MODBUS_TCP_FIELDS: &[Field] = &[
     Field { name: "ordine", ty: "OrdineModbus", required: false, group: "", doc: "Formato di prima: l'ordine dell'unico dispositivo." },
     Field { name: "registers", ty: "RegisterMapping[]", required: false, group: "", doc: "Formato di prima: i registri dell'unico dispositivo." },
     Field { name: "devices", ty: "DispositivoModbus[]", required: false, group: "", doc: "I dispositivi sul bus (04-10-2026): per un gateway, più unit id dietro lo stesso indirizzo." },
+    Field { name: "tolerance_rounds", ty: "number", required: false, group: "", doc: "Missed rounds a mapping may have before its tags go `Bad`; within them the last value stays, marked `Uncertain` (21-11-2026). 0 = as before: one lost reply, one round of `Bad`." },
     Field { name: "trasporto", ty: "TrasportoTcp", required: false, group: "", doc: "Come viaggia il Modbus nel socket (01-11-2026, piano `docs/archive/2026-11-01-inverter-solarman.md`): MBAP, trama RTU nuda, o dentro un pacchetto Solarman V5." },
     Field { name: "seriale_logger", ty: "number", required: false, group: "", doc: "Il numero di serie della chiavetta Solarman: senza, non risponde." },
     Field { name: "pausa_ms", ty: "number", required: false, group: "", doc: "Pausa minima fra due richieste, in ms: le chiavette Wi-Fi non reggono richieste attaccate." },
@@ -1297,6 +1299,7 @@ pub const SOURCE_MODBUS_TCP_REGISTERMAPPING_FIELDS: &[Field] = &[
 /// Campi della sorgente `modbus_rtu` (ModbusRtuConfig).
 pub const SOURCE_MODBUS_RTU_FIELDS: &[Field] = &[
     Field { name: "id", ty: "string", required: true, group: "", doc: "" },
+    Field { name: "enabled", ty: "bool", required: false, group: "", doc: "`false` = the source is kept in the project but not started; its tags are `Bad` and `<id>.disponibile` is false (21-11-2026). Default `true`: projects written before the field do not change." },
     Field { name: "device", ty: "string", required: true, group: "", doc: "Serial device path, e.g. `/dev/ttyS0` or `/dev/ttyUSB0`." },
     Field { name: "baud_rate", ty: "number", required: false, group: "", doc: "Baud rate, e.g. 9600, 19200, 115200." },
     Field { name: "parity", ty: "string", required: false, group: "", doc: "Parity: \"N\" (none), \"E\" (even), \"O\" (odd). Default \"N\"." },
@@ -1307,6 +1310,7 @@ pub const SOURCE_MODBUS_RTU_FIELDS: &[Field] = &[
     Field { name: "ordine", ty: "OrdineModbus", required: false, group: "", doc: "" },
     Field { name: "registers", ty: "RegisterMapping[]", required: false, group: "", doc: "" },
     Field { name: "devices", ty: "DispositivoModbus[]", required: false, group: "", doc: "Gli slave sulla linea (04-10-2026): la porta si apre una volta sola e gli slave si interrogano a turno." },
+    Field { name: "tolerance_rounds", ty: "number", required: false, group: "", doc: "Missed rounds a mapping may have before its tags go `Bad`; within them the last value stays, marked `Uncertain` (21-11-2026). 0 = as before: one lost reply, one round of `Bad`." },
 ];
 
 /// Campi di `DispositivoModbus`, usato dentro la sorgente `modbus_rtu`.
@@ -1339,6 +1343,7 @@ pub const SOURCE_MODBUS_RTU_REGISTERMAPPING_FIELDS: &[Field] = &[
 /// Campi della sorgente `opcua_server` (OpcUaServerConfig).
 pub const SOURCE_OPCUA_SERVER_FIELDS: &[Field] = &[
     Field { name: "id", ty: "string", required: true, group: "", doc: "" },
+    Field { name: "enabled", ty: "bool", required: false, group: "", doc: "`false` = the source is kept in the project but not started; its tags are `Bad` and `<id>.disponibile` is false (21-11-2026). Default `true`: projects written before the field do not change." },
     Field { name: "port", ty: "number", required: false, group: "", doc: "TCP port to listen on. Default 4840 (OPC-UA standard)." },
     Field { name: "namespace_uri", ty: "string", required: false, group: "", doc: "Namespace URI for the SWS nodes, e.g. `urn:soligolab:sws`. Default `urn:soligolab:sws`." },
     Field { name: "nodes", ty: "OpcUaServerNodeMapping[]", required: false, group: "", doc: "Tag → OPC-UA node mappings. `node_id` is the string identifier within the SWS namespace (e.g. `\"pump1.speed\"`)." },
@@ -1353,6 +1358,7 @@ pub const SOURCE_OPCUA_SERVER_OPCUASERVERNODEMAPPING_FIELDS: &[Field] = &[
 /// Campi della sorgente `mqtt` (MqttConfig).
 pub const SOURCE_MQTT_FIELDS: &[Field] = &[
     Field { name: "id", ty: "string", required: true, group: "", doc: "" },
+    Field { name: "enabled", ty: "bool", required: false, group: "", doc: "`false` = the source is kept in the project but not started; its tags are `Bad` and `<id>.disponibile` is false (21-11-2026). Default `true`: projects written before the field do not change." },
     Field { name: "host", ty: "string", required: true, group: "", doc: "" },
     Field { name: "port", ty: "number", required: false, group: "", doc: "" },
     Field { name: "client_id", ty: "string", required: false, group: "", doc: "" },
@@ -1387,6 +1393,7 @@ pub const SOURCE_MQTT_TOPICMAPPING_FIELDS: &[Field] = &[
 /// Campi della sorgente `opcua_client` (OpcUaClientConfig).
 pub const SOURCE_OPCUA_CLIENT_FIELDS: &[Field] = &[
     Field { name: "id", ty: "string", required: true, group: "", doc: "" },
+    Field { name: "enabled", ty: "bool", required: false, group: "", doc: "`false` = the source is kept in the project but not started; its tags are `Bad` and `<id>.disponibile` is false (21-11-2026). Default `true`: projects written before the field do not change." },
     Field { name: "endpoint_url", ty: "string", required: true, group: "", doc: "e.g. `opc.tcp://192.168.1.100:4840`." },
     Field { name: "security_policy", ty: "string", required: false, group: "adesso, non la sua storia.", doc: "Tutte e sei le policy sono collegate da capo a fondo: `parse_security_policy` le legge e `sws-plugin-opcua` le applica." },
     Field { name: "auth", ty: "OpcUaAuth", required: false, group: "adesso, non la sua storia.", doc: "" },
@@ -1423,6 +1430,7 @@ pub const SOURCE_OPCUA_CLIENT_OPCUANODEMAPPING_FIELDS: &[Field] = &[
 /// Campi della sorgente `homeassistant` (HomeAssistantConfig).
 pub const SOURCE_HOMEASSISTANT_FIELDS: &[Field] = &[
     Field { name: "id", ty: "string", required: true, group: "", doc: "" },
+    Field { name: "enabled", ty: "bool", required: false, group: "", doc: "`false` = the source is kept in the project but not started; its tags are `Bad` and `<id>.disponibile` is false (21-11-2026). Default `true`: projects written before the field do not change." },
     Field { name: "url", ty: "string", required: true, group: "", doc: "Base URL of the HA instance, e.g. `http://homeassistant.local:8123`." },
     Field { name: "token", ty: "string", required: false, group: "", doc: "Long-lived access token (plain text). Use `token_env` in production." },
     Field { name: "token_env", ty: "string", required: false, group: "", doc: "Environment variable to read the access token from at runtime. Wins over `token` when both are set." },
@@ -1441,6 +1449,7 @@ pub const SOURCE_HOMEASSISTANT_ENTITYMAPPING_FIELDS: &[Field] = &[
 /// Campi della sorgente `s7` (S7Config).
 pub const SOURCE_S7_FIELDS: &[Field] = &[
     Field { name: "id", ty: "string", required: true, group: "", doc: "" },
+    Field { name: "enabled", ty: "bool", required: false, group: "", doc: "`false` = the source is kept in the project but not started; its tags are `Bad` and `<id>.disponibile` is false (21-11-2026). Default `true`: projects written before the field do not change." },
     Field { name: "ip", ty: "string", required: true, group: "", doc: "PLC IP address." },
     Field { name: "port", ty: "number", required: false, group: "", doc: "Porta ISO-on-TCP. Assente = 102, quella di ogni PLC Siemens. Serve quando il PLC si raggiunge attraverso un port forwarding: il laboratorio OpenPLC in podman rootless, che non pubblica porte sotto la 1024, o un NAT (20-10-2026)." },
     Field { name: "rack", ty: "number", required: false, group: "", doc: "CPU rack number. Usually 0." },
@@ -1504,41 +1513,12 @@ pub const SOURCE_S7_S7TAGMAPPING_FIELDS: &[Field] = &[
 
 /// Campi della sorgente `enip` (EnIpConfig).
 pub const SOURCE_ENIP_FIELDS: &[Field] = &[
-    Field {
-        name: "id",
-        ty: "string",
-        required: true,
-        group: "",
-        doc: "",
-    },
-    Field {
-        name: "ip",
-        ty: "string",
-        required: true,
-        group: "",
-        doc: "PLC IP address (port 44818 is implied).",
-    },
-    Field {
-        name: "slot",
-        ty: "number",
-        required: false,
-        group: "",
-        doc: "CIP slot number (rack/slot for ControlLogix; 0 for CompactLogix/Micro).",
-    },
-    Field {
-        name: "poll_interval_ms",
-        ty: "number",
-        required: false,
-        group: "",
-        doc: "Poll interval in milliseconds.",
-    },
-    Field {
-        name: "tags",
-        ty: "EnIpTagMapping[]",
-        required: false,
-        group: "",
-        doc: "",
-    },
+    Field { name: "id", ty: "string", required: true, group: "", doc: "" },
+    Field { name: "enabled", ty: "bool", required: false, group: "", doc: "`false` = the source is kept in the project but not started; its tags are `Bad` and `<id>.disponibile` is false (21-11-2026). Default `true`: projects written before the field do not change." },
+    Field { name: "ip", ty: "string", required: true, group: "", doc: "PLC IP address (port 44818 is implied)." },
+    Field { name: "slot", ty: "number", required: false, group: "", doc: "CIP slot number (rack/slot for ControlLogix; 0 for CompactLogix/Micro)." },
+    Field { name: "poll_interval_ms", ty: "number", required: false, group: "", doc: "Poll interval in milliseconds." },
+    Field { name: "tags", ty: "EnIpTagMapping[]", required: false, group: "", doc: "" },
 ];
 
 /// Campi di `EnIpTagMapping`, usato dentro la sorgente `enip`.
@@ -1575,27 +1555,10 @@ pub const SOURCE_ENIP_ENIPTAGMAPPING_FIELDS: &[Field] = &[
 
 /// Campi della sorgente `host` (HostConfig).
 pub const SOURCE_HOST_FIELDS: &[Field] = &[
-    Field {
-        name: "id",
-        ty: "string",
-        required: true,
-        group: "",
-        doc: "",
-    },
-    Field {
-        name: "poll_interval_ms",
-        ty: "number",
-        required: false,
-        group: "",
-        doc: "Intervallo di lettura in millisecondi.",
-    },
-    Field {
-        name: "metrics",
-        ty: "HostMetricMapping[]",
-        required: false,
-        group: "",
-        doc: "",
-    },
+    Field { name: "id", ty: "string", required: true, group: "", doc: "" },
+    Field { name: "enabled", ty: "bool", required: false, group: "", doc: "`false` = the source is kept in the project but not started; its tags are `Bad` and `<id>.disponibile` is false (21-11-2026). Default `true`: projects written before the field do not change." },
+    Field { name: "poll_interval_ms", ty: "number", required: false, group: "", doc: "Intervallo di lettura in millisecondi." },
+    Field { name: "metrics", ty: "HostMetricMapping[]", required: false, group: "", doc: "" },
 ];
 
 /// Campi effettivamente usati per tipo, misurati sui template.

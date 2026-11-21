@@ -66,6 +66,10 @@ versioni:
       - it: "Le installazioni native non hanno più admin/admin: partono col codice di abbinamento. Un admin/admin rimasto va cambiato al primo accesso."
         en: "Native installations no longer have admin/admin: they start with the pairing code. An admin/admin left over must be changed at the next login."
     voci:
+      - it: "Una sorgente si spegne senza cancellarla: interruttore «Attiva» sulla sua scheda. Spenta non parte, i suoi tag sono Bad e .disponibile è falso."
+        en: "A source can be switched off without deleting it: the «On» switch on its card. When off it does not start, its tags are Bad and .disponibile is false."
+      - it: "Modbus: «Giri di tolleranza». Una risposta persa (le chiavette Solarman) lascia l'ultimo valore, segnato incerto, invece di mandare subito i tag a Bad."
+        en: "Modbus: «Tolerance rounds». A lost reply (Solarman sticks) keeps the last value, marked uncertain, instead of sending the tags to Bad at once."
       - it: "Negli script le costanti scritte in cima si vedono dentro un def, e f(*lista) e f(**diz) funzionano anche sul pannello. Il print di un giro finito in errore arriva nel registro."
         en: "In scripts the constants written at the top are visible inside a def, and f(*list) and f(**dict) work on the panel too. The print of a run that failed reaches the log."
       # rc.22 (20-11-2026): editor dei simboli, libreria immagini, assistente. Per fare

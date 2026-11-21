@@ -53,6 +53,8 @@ export function ModbusSourceCard({
         tipo="MODBUS TCP"
         colore="var(--brand-primary-testo, #3b82f6)"
         id={source.id}
+        enabled={source.enabled !== false}
+        onEnabled={(on) => onChange({ ...source, enabled: on ? undefined : false })}
         riepilogo={`${source.host}:${source.port}${trasporto === "mbap" ? "" : ` · ${t(trasporto === "solarman_v5" ? "sorgenti.modbusTcp.trasportoSolarman" : "sorgenti.modbusTcp.trasportoRtu")}`} · ${t("cfg.modbusNDispositivi", { count: n })}`}
         aperta={open}
         onToggle={() => setOpen((v) => !v)}
@@ -145,6 +147,13 @@ export function ModbusSourceCard({
                 <label style={etichetta}>{t("sorgenti.modbusTcp.tentativi")}</label>
                 <CampoNumero style={S.input} min={0} max={10} value={source.tentativi ?? 0} title={t("sorgenti.modbusTcp.tentativiHint")}
                   onTesto={(e) => setField("tentativi", Number(e) || undefined)} />
+              </div>
+              <div>
+                <label style={etichetta}>{t("sorgenti.modbusTcp.toleranceRounds")}</label>
+                <CampoNumero style={S.input} min={0} max={50} value={source.tolerance_rounds ?? 0}
+                  data-testid={`modbus-tolerance-${source.id}`}
+                  title={t("sorgenti.modbusTcp.toleranceRoundsHint")}
+                  onTesto={(e) => setField("tolerance_rounds", Number(e) || undefined)} />
               </div>
             </div>
             <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, marginTop: 8 }}

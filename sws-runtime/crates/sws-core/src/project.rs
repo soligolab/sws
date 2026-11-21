@@ -536,6 +536,11 @@ pub enum SourceDef {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HomeAssistantConfig {
     pub id: String,
+    /// `false` = the source is kept in the project but not started; its tags
+    /// are `Bad` and `<id>.disponibile` is false (21-11-2026). Default `true`:
+    /// projects written before the field do not change.
+    #[serde(default = "bool_true", skip_serializing_if = "is_true")]
+    pub enabled: bool,
     /// Base URL of the HA instance, e.g. `http://homeassistant.local:8123`.
     pub url: String,
     /// Long-lived access token (plain text). Use `token_env` in production.
@@ -570,6 +575,11 @@ pub struct EntityMapping {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModbusTcpConfig {
     pub id: String,
+    /// `false` = the source is kept in the project but not started; its tags
+    /// are `Bad` and `<id>.disponibile` is false (21-11-2026). Default `true`:
+    /// projects written before the field do not change.
+    #[serde(default = "bool_true", skip_serializing_if = "is_true")]
+    pub enabled: bool,
     pub host: String,
     #[serde(default = "default_modbus_port")]
     pub port: u16,
@@ -593,6 +603,11 @@ pub struct ModbusTcpConfig {
     /// lo stesso indirizzo.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub devices: Vec<DispositivoModbus>,
+    /// Missed rounds a mapping may have before its tags go `Bad`; within
+    /// them the last value stays, marked `Uncertain` (21-11-2026). 0 = as
+    /// before: one lost reply, one round of `Bad`.
+    #[serde(default, skip_serializing_if = "e_zero_u8")]
+    pub tolerance_rounds: u8,
     /// Come viaggia il Modbus nel socket (01-11-2026, piano
     /// `docs/archive/2026-11-01-inverter-solarman.md`): MBAP, trama RTU nuda, o
     /// dentro un pacchetto Solarman V5.
@@ -650,6 +665,11 @@ fn e_zero_u8(v: &u8) -> bool {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModbusRtuConfig {
     pub id: String,
+    /// `false` = the source is kept in the project but not started; its tags
+    /// are `Bad` and `<id>.disponibile` is false (21-11-2026). Default `true`:
+    /// projects written before the field do not change.
+    #[serde(default = "bool_true", skip_serializing_if = "is_true")]
+    pub enabled: bool,
     /// Serial device path, e.g. `/dev/ttyS0` or `/dev/ttyUSB0`.
     pub device: String,
     /// Baud rate, e.g. 9600, 19200, 115200.
@@ -680,6 +700,11 @@ pub struct ModbusRtuConfig {
     /// gli slave si interrogano a turno.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub devices: Vec<DispositivoModbus>,
+    /// Missed rounds a mapping may have before its tags go `Bad`; within
+    /// them the last value stays, marked `Uncertain` (21-11-2026). 0 = as
+    /// before: one lost reply, one round of `Bad`.
+    #[serde(default, skip_serializing_if = "e_zero_u8")]
+    pub tolerance_rounds: u8,
 }
 
 /// Un dispositivo su un bus Modbus (04-10-2026). Autosufficiente: tutto quello
@@ -976,6 +1001,11 @@ pub struct RegisterMapping {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MqttConfig {
     pub id: String,
+    /// `false` = the source is kept in the project but not started; its tags
+    /// are `Bad` and `<id>.disponibile` is false (21-11-2026). Default `true`:
+    /// projects written before the field do not change.
+    #[serde(default = "bool_true", skip_serializing_if = "is_true")]
+    pub enabled: bool,
     pub host: String,
     #[serde(default = "default_mqtt_port")]
     pub port: u16,
@@ -1342,6 +1372,11 @@ pub struct RichiestaStato {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OpcUaClientConfig {
     pub id: String,
+    /// `false` = the source is kept in the project but not started; its tags
+    /// are `Bad` and `<id>.disponibile` is false (21-11-2026). Default `true`:
+    /// projects written before the field do not change.
+    #[serde(default = "bool_true", skip_serializing_if = "is_true")]
+    pub enabled: bool,
     /// e.g. `opc.tcp://192.168.1.100:4840`.
     pub endpoint_url: String,
     // Fino al 20-10-2026 il doc di questo campo diceva «PoC: only "None" is
@@ -1386,6 +1421,11 @@ pub struct OpcUaNodeMapping {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OpcUaServerConfig {
     pub id: String,
+    /// `false` = the source is kept in the project but not started; its tags
+    /// are `Bad` and `<id>.disponibile` is false (21-11-2026). Default `true`:
+    /// projects written before the field do not change.
+    #[serde(default = "bool_true", skip_serializing_if = "is_true")]
+    pub enabled: bool,
     /// TCP port to listen on. Default 4840 (OPC-UA standard).
     #[serde(default = "default_opcua_server_port")]
     pub port: u16,
@@ -1531,6 +1571,11 @@ pub struct S7TagMapping {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct S7Config {
     pub id: String,
+    /// `false` = the source is kept in the project but not started; its tags
+    /// are `Bad` and `<id>.disponibile` is false (21-11-2026). Default `true`:
+    /// projects written before the field do not change.
+    #[serde(default = "bool_true", skip_serializing_if = "is_true")]
+    pub enabled: bool,
     /// PLC IP address.
     pub ip: String,
     /// Porta ISO-on-TCP. Assente = 102, quella di ogni PLC Siemens. Serve quando il
@@ -1634,6 +1679,11 @@ pub struct HostMetricMapping {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HostConfig {
     pub id: String,
+    /// `false` = the source is kept in the project but not started; its tags
+    /// are `Bad` and `<id>.disponibile` is false (21-11-2026). Default `true`:
+    /// projects written before the field do not change.
+    #[serde(default = "bool_true", skip_serializing_if = "is_true")]
+    pub enabled: bool,
     /// Intervallo di lettura in millisecondi.
     #[serde(default = "default_host_poll_ms")]
     pub poll_interval_ms: u64,
@@ -1679,6 +1729,11 @@ pub struct EnIpTagMapping {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EnIpConfig {
     pub id: String,
+    /// `false` = the source is kept in the project but not started; its tags
+    /// are `Bad` and `<id>.disponibile` is false (21-11-2026). Default `true`:
+    /// projects written before the field do not change.
+    #[serde(default = "bool_true", skip_serializing_if = "is_true")]
+    pub enabled: bool,
     /// PLC IP address (port 44818 is implied).
     pub ip: String,
     /// CIP slot number (rack/slot for ControlLogix; 0 for CompactLogix/Micro).
@@ -3378,6 +3433,21 @@ impl SourceDef {
     /// propria forma di scrittura (`publish_topic`, `writable`,
     /// `write_domain`…). Otto punti sono otto occasioni di dimenticarne uno il
     /// giorno che se ne aggiunge un nono.
+    /// Whether the source is to be started (`enabled`, 21-11-2026).
+    pub fn enabled(&self) -> bool {
+        match self {
+            SourceDef::ModbusTcp(c) => c.enabled,
+            SourceDef::ModbusRtu(c) => c.enabled,
+            SourceDef::OpcUaServer(c) => c.enabled,
+            SourceDef::Mqtt(c) => c.enabled,
+            SourceDef::OpcUaClient(c) => c.enabled,
+            SourceDef::HomeAssistant(c) => c.enabled,
+            SourceDef::S7(c) => c.enabled,
+            SourceDef::EnIp(c) => c.enabled,
+            SourceDef::Host(c) => c.enabled,
+        }
+    }
+
     pub fn sola_lettura(mut self) -> Self {
         match &mut self {
             SourceDef::Mqtt(c) => {

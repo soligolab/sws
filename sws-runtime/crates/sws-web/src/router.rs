@@ -10294,6 +10294,7 @@ async fn opcua_browse_handler(
     // Build a throwaway OpcUaClientConfig for the helper. We don't touch
     // the persisted project — the browse is a one-shot lookup.
     let cfg = sws_core::OpcUaClientConfig {
+        enabled: true,
         id: "browse".into(),
         endpoint_url: req.endpoint_url,
         security_policy: req.security_policy.unwrap_or_else(|| "None".into()),
@@ -10360,6 +10361,7 @@ async fn opcua_detect_euromap_handler(
     }
 
     let cfg = sws_core::OpcUaClientConfig {
+        enabled: true,
         id: "euromap".into(),
         endpoint_url: req.endpoint_url,
         security_policy: req.security_policy.unwrap_or_else(|| "None".into()),
@@ -10430,6 +10432,7 @@ async fn opcua_history_handler(
     }
 
     let cfg = sws_core::OpcUaClientConfig {
+        enabled: true,
         id: "history".into(),
         endpoint_url: req.endpoint_url,
         security_policy: req.security_policy.unwrap_or_else(|| "None".into()),

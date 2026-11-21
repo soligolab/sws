@@ -1383,6 +1383,10 @@ export interface StatoSorgente extends StatoCollegamento {
 }
 
 export interface ModbusTcpSource {
+  /** `false` = kept in the project but not started (21-11-2026); absent = on. */
+  enabled?: boolean;
+  /** Missed rounds before the tags go Bad; within them the last value stays, Uncertain. */
+  tolerance_rounds?: number;
   kind: "modbus_tcp";
   id: string;
   host: string;
@@ -1413,6 +1417,10 @@ export interface ModbusTcpSource {
 export type TrasportoTcp = "mbap" | "rtu_su_tcp" | "solarman_v5";
 
 export interface ModbusRtuSource {
+  /** `false` = kept in the project but not started (21-11-2026); absent = on. */
+  enabled?: boolean;
+  /** Missed rounds before the tags go Bad; within them the last value stays, Uncertain. */
+  tolerance_rounds?: number;
   kind: "modbus_rtu";
   id: string;
   /** Serial device path, e.g. /dev/ttyS0 or /dev/ttyUSB0. */
@@ -1498,6 +1506,8 @@ export interface PubblicazioneMqtt {
 }
 
 export interface MqttSource {
+  /** `false` = kept in the project but not started (21-11-2026); absent = on. */
+  enabled?: boolean;
   kind: "mqtt";
   id: string;
   host: string;
@@ -1569,6 +1579,8 @@ export type OpcUaAuth =
   | { kind: "username_password"; username: string; password?: string; password_env?: string };
 
 export interface OpcUaSource {
+  /** `false` = kept in the project but not started (21-11-2026); absent = on. */
+  enabled?: boolean;
   kind: "opcua_client";
   id: string;
   endpoint_url: string;
@@ -1589,6 +1601,8 @@ export interface OpcUaServerNodeMapping {
 
 /** OPC-UA server source — exposes SWS tags to OPC-UA clients. */
 export interface OpcUaServerSource {
+  /** `false` = kept in the project but not started (21-11-2026); absent = on. */
+  enabled?: boolean;
   kind: "opcua_server";
   id: string;
   /** TCP port. Default 4840. */
@@ -1686,6 +1700,8 @@ export interface EntityMapping {
 }
 
 export interface HomeAssistantSource {
+  /** `false` = kept in the project but not started (21-11-2026); absent = on. */
+  enabled?: boolean;
   kind: 'homeassistant';
   id: string;
   url: string;
@@ -1709,6 +1725,8 @@ export interface S7TagMapping {
 }
 
 export interface S7Source {
+  /** `false` = kept in the project but not started (21-11-2026); absent = on. */
+  enabled?: boolean;
   kind: 's7';
   id: string;
   ip: string;
@@ -1730,6 +1748,8 @@ export interface EnIpTagMapping {
 }
 
 export interface EnIpSource {
+  /** `false` = kept in the project but not started (21-11-2026); absent = on. */
+  enabled?: boolean;
   kind: 'enip';
   id: string;
   ip: string;
@@ -1753,6 +1773,8 @@ export interface HostMetricMapping {
 
 /** Sorgente «host»: risorse di sistema del dispositivo come tag (sola lettura). */
 export interface HostSource {
+  /** `false` = kept in the project but not started (21-11-2026); absent = on. */
+  enabled?: boolean;
   kind: 'host';
   id: string;
   poll_interval_ms: number;

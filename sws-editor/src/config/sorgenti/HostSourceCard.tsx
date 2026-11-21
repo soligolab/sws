@@ -79,6 +79,8 @@ export function HostSourceCard({
         tipo="HOST"
         colore="var(--brand-primary-testo, #3b82f6)"
         id={source.id}
+        enabled={source.enabled !== false}
+        onEnabled={(on) => onChange({ ...source, enabled: on ? undefined : false })}
         riepilogo={t("cfgUi.hostMetricsCount", { n: source.metrics.length })}
         aperta={!collapsed}
         onToggle={() => setCollapsed((c) => !c)}

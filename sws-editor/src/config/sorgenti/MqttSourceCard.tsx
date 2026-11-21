@@ -111,6 +111,8 @@ export function MqttSourceCard({
         tipo="MQTT"
         colore="var(--sws-select-text, #a855f7)"
         id={source.id}
+        enabled={source.enabled !== false}
+        onEnabled={(on) => onChange({ ...source, enabled: on ? undefined : false })}
         riepilogo={`${source.host}:${source.port} · ${source.topics.length} topic`}
         aperta={open}
         onToggle={() => setOpen((v) => !v)}

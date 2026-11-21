@@ -4597,7 +4597,12 @@
       "scrivibile": "Scrivibile",
       "scrivibileAiuto": "SWS manda il comando al nodo (NCMD) o al dispositivo (DCMD) che ha annunciato la metrica."
     },
+    "enabled": "Attiva",
+    "enabledHint": "Spenta, la sorgente resta nel progetto ma non parte: i suoi tag diventano Bad e {{id}}.disponibile è falso.",
+    "switchedOff": "spenta",
     "modbusTcp": {
+      "toleranceRounds": "Giri di tolleranza",
+      "toleranceRoundsHint": "Una risposta persa lascia l'ultimo valore, segnato incerto, per questi giri; poi i tag diventano Bad. 0 = Bad subito",
       "trasporto": "Trasporto",
       "trasportoMbap": "Modbus TCP",
       "trasportoRtu": "RTU su TCP",

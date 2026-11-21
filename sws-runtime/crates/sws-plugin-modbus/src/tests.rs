@@ -163,6 +163,7 @@ async fn giro(
         "prova",
         &[],
         0,
+        &mut Tolerance::default(),
     )
     .await
 }
@@ -870,6 +871,7 @@ async fn giro_con_blocchi(
         "prova",
         blocchi,
         n,
+        &mut Tolerance::default(),
     )
     .await
     .unwrap()
@@ -1153,4 +1155,51 @@ fn le_durate_brevi() {
         durata_breve(Duration::from_secs(14 * 3600 + 5 * 60)),
         "14 h 5 min"
     );
+}
+
+/// `tolerance_rounds` (21-11-2026): within the tolerance a lost reply leaves
+/// the last value, `Uncertain`; past it, `Bad`; an answer starts the count
+/// again.
+#[tokio::test(start_paused = true)]
+async fn a_lost_reply_within_the_tolerance_keeps_the_last_value() {
+    let db = db_con(&[tag("a", "u16")], &[]).await;
+    let regs = vec![mappa("a", 0, AreaModbus::Holding)];
+    let mut dev = Finto::default();
+    dev.registri.insert(0, 7);
+    let mut tol = Tolerance::new(2);
+    let mut giro = async |dev: &mut Finto, tol: &mut Tolerance| {
+        let m = prepara(&db, &regs).await;
+        leggi_giro(dev, &db, &m, OrdineModbus::Abcd, T, &mut Errori::default(), "prova", &[], 0, tol)
+            .await
+            .unwrap();
+        val(&db, "a").await
+    };
+    assert_eq!(giro(&mut dev, &mut tol).await, (TagValue::Int(7), TagQuality::Good));
+    dev.mute.insert(0);
+    assert_eq!(giro(&mut dev, &mut tol).await, (TagValue::Int(7), TagQuality::Uncertain));
+    assert_eq!(giro(&mut dev, &mut tol).await, (TagValue::Int(7), TagQuality::Uncertain));
+    assert_eq!(giro(&mut dev, &mut tol).await.1, TagQuality::Bad, "past the tolerance");
+    dev.mute.clear();
+    assert_eq!(giro(&mut dev, &mut tol).await, (TagValue::Int(7), TagQuality::Good));
+    dev.mute.insert(0);
+    assert_eq!(giro(&mut dev, &mut tol).await.1, TagQuality::Uncertain, "the count starts again");
+}
+
+/// Zero tolerance is the behaviour before the field: one lost reply, `Bad`.
+#[tokio::test(start_paused = true)]
+async fn without_tolerance_a_lost_reply_is_bad_at_once() {
+    let db = db_con(&[tag("a", "u16")], &[]).await;
+    let regs = vec![mappa("a", 0, AreaModbus::Holding)];
+    let mut dev = Finto::default();
+    dev.registri.insert(0, 7);
+    let mut tol = Tolerance::default();
+    let m = prepara(&db, &regs).await;
+    leggi_giro(&mut dev, &db, &m, OrdineModbus::Abcd, T, &mut Errori::default(), "prova", &[], 0, &mut tol)
+        .await
+        .unwrap();
+    dev.mute.insert(0);
+    leggi_giro(&mut dev, &db, &m, OrdineModbus::Abcd, T, &mut Errori::default(), "prova", &[], 0, &mut tol)
+        .await
+        .unwrap();
+    assert_eq!(val(&db, "a").await.1, TagQuality::Bad);
 }

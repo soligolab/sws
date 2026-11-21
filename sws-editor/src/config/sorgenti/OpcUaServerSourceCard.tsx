@@ -48,6 +48,8 @@ export function OpcUaServerSourceCard({
         tipo="OPC-UA SERVER"
         colore="var(--sws-select-text, #8b5cf6)"
         id={source.id}
+        enabled={source.enabled !== false}
+        onEnabled={(on) => onChange({ ...source, enabled: on ? undefined : false })}
         riepilogo={`:${source.port} · ${t("sorgenti.nNodi", { count: source.nodes.length })}`}
         aperta={open}
         onToggle={() => setOpen((v) => !v)}

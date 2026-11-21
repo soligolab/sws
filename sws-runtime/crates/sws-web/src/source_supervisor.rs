@@ -91,6 +91,9 @@ pub struct SourceSupervisor {
     /// ancora — la stessa ragione per cui la guardia dei doppi supervisori sta
     /// dentro `start_project_services` e non nei suoi chiamanti.
     armed: std::sync::atomic::AtomicBool,
+    /// The ids of the sources the project keeps switched off (`enabled:
+    /// false`, 21-11-2026): not started, their `.disponibile` false.
+    disabled: std::sync::Mutex<Vec<String>>,
 }
 
 impl SourceSupervisor {
@@ -109,6 +112,7 @@ impl SourceSupervisor {
             armed: std::sync::atomic::AtomicBool::new(true),
             sola_lettura: std::sync::atomic::AtomicBool::new(false),
             nel_cloud: std::sync::atomic::AtomicBool::new(false),
+            disabled: std::sync::Mutex::new(Vec::new()),
         });
         let watchdog = this.clone();
         tokio::spawn(async move { watchdog.watchdog_loop().await });
@@ -141,7 +145,8 @@ impl SourceSupervisor {
             for tag in spariti {
                 scritti.remove(&tag);
             }
-            for (tag, vivo) in disponibilita_da_scrivere(&self.stato.istantanea(), &mut scritti) {
+            let spente = self.disabled.lock().map(|g| g.clone()).unwrap_or_default();
+            for (tag, vivo) in disponibilita_da_scrivere(&self.stato.istantanea(), &spente, &mut scritti) {
                 self.db
                     .set(
                         tag,
@@ -280,6 +285,19 @@ impl SourceSupervisor {
     /// punto solo il salvataggio delle Sorgenti, il deploy, l'import, l'upload
     /// ZIP, l'apertura progetto — e quelli che verranno.
     pub async fn reload(self: &Arc<Self>, desired: Vec<SourceDef>) -> (usize, usize, usize) {
+        // A source switched off in the project is not started, whoever calls
+        // (21-11-2026): the same single place as the guards below.
+        let (desired, spente): (Vec<SourceDef>, Vec<SourceDef>) =
+            desired.into_iter().partition(SourceDef::enabled);
+        if let Ok(mut g) = self.disabled.lock() {
+            *g = spente.iter().map(|s| source_id(s).to_string()).collect();
+        }
+        if !spente.is_empty() {
+            info!(
+                sorgenti = ?spente.iter().map(source_id).collect::<Vec<_>>(),
+                "sources switched off in the project: not started"
+            );
+        }
         let desired = if !self.is_armed() && !desired.is_empty() {
             tracing::info!(
                 sorgenti_ignorate = desired.len(),
@@ -370,6 +388,15 @@ impl SourceSupervisor {
                 replaced += 1;
             } else {
                 started += 1;
+            }
+        }
+
+        // The tags of a switched-off source keep their last value, marked
+        // `Bad`: a value nobody reads any more must not look good. After the
+        // stops above, so a source that was running does not write again.
+        for def in &spente {
+            for tag in tags_of(def) {
+                self.db.marca_qualita(&tag, sws_core::TagQuality::Bad).await;
             }
         }
 
@@ -591,10 +618,16 @@ fn default_pki_root() -> std::path::PathBuf {
 /// dispositivo si può dire vivo.
 fn disponibilita_da_scrivere(
     stato: &std::collections::BTreeMap<String, sws_core::stato_sorgenti::StatoSorgente>,
+    // Sources switched off in the project (`enabled: false`): nobody is on
+    // the other side, by choice.
+    spente: &[String],
     scritti: &mut HashMap<String, bool>,
 ) -> Vec<(String, bool)> {
     use sws_core::stato_sorgenti::Collegamento;
-    let mut adesso: Vec<(String, bool)> = Vec::new();
+    let mut adesso: Vec<(String, bool)> = spente
+        .iter()
+        .map(|id| (sws_core::tag_disponibilita(id), false))
+        .collect();
     for (id, s) in stato {
         let vivo = s.bus.stato == Collegamento::Ok;
         adesso.push((sws_core::tag_disponibilita(id), vivo));
@@ -623,6 +656,19 @@ mod prove_disponibilita {
     use super::*;
     use sws_core::stato_sorgenti::{Collegamento, StatoSorgenti};
 
+    /// A source switched off is not available, and it is said once.
+    #[test]
+    fn a_switched_off_source_is_not_available() {
+        let st = StatoSorgenti::new();
+        let mut scritti = HashMap::new();
+        let spente = vec!["inverter".to_string()];
+        assert_eq!(
+            disponibilita_da_scrivere(&st.istantanea(), &spente, &mut scritti),
+            vec![("inverter.disponibile".to_string(), false)]
+        );
+        assert!(disponibilita_da_scrivere(&st.istantanea(), &spente, &mut scritti).is_empty());
+    }
+
     #[test]
     fn si_scrive_solo_ai_cambi() {
         let st = StatoSorgenti::new();
@@ -630,16 +676,16 @@ mod prove_disponibilita {
         let mut scritti = HashMap::new();
         // Appena registrata non ha mai risposto: falso, una volta.
         assert_eq!(
-            disponibilita_da_scrivere(&st.istantanea(), &mut scritti),
+            disponibilita_da_scrivere(&st.istantanea(), &[], &mut scritti),
             vec![("mqtt-garage.disponibile".to_string(), false)]
         );
         assert!(
-            disponibilita_da_scrivere(&st.istantanea(), &mut scritti).is_empty(),
+            disponibilita_da_scrivere(&st.istantanea(), &[], &mut scritti).is_empty(),
             "niente di nuovo, niente da scrivere"
         );
         st.bus("mqtt-garage", Collegamento::Ok, None);
         assert_eq!(
-            disponibilita_da_scrivere(&st.istantanea(), &mut scritti),
+            disponibilita_da_scrivere(&st.istantanea(), &[], &mut scritti),
             vec![("mqtt-garage.disponibile".to_string(), true)]
         );
         st.caduta(
@@ -647,7 +693,7 @@ mod prove_disponibilita {
             "zigbee2mqtt/bridge/state dice offline".into(),
         );
         assert_eq!(
-            disponibilita_da_scrivere(&st.istantanea(), &mut scritti),
+            disponibilita_da_scrivere(&st.istantanea(), &[], &mut scritti),
             vec![("mqtt-garage.disponibile".to_string(), false)]
         );
     }
@@ -659,7 +705,7 @@ mod prove_disponibilita {
         st.con_tag_per_dispositivo("mqtt-casa");
         st.registra("bus", ["1".into()]);
         let mut scritti = HashMap::new();
-        let primi = disponibilita_da_scrivere(&st.istantanea(), &mut scritti);
+        let primi = disponibilita_da_scrivere(&st.istantanea(), &[], &mut scritti);
         let tag: Vec<&str> = primi.iter().map(|(t, _)| t.as_str()).collect();
         assert!(
             tag.contains(&"mqtt-casa.presa_sandokan.disponibile"),
@@ -669,7 +715,7 @@ mod prove_disponibilita {
         assert!(!tag.iter().any(|t| t.starts_with("bus.1")), "{tag:?}");
         st.bus("mqtt-casa", Collegamento::Ok, None);
         st.dispositivo("mqtt-casa", "presa.sandokan", Collegamento::Ok, None);
-        let mut cambi = disponibilita_da_scrivere(&st.istantanea(), &mut scritti);
+        let mut cambi = disponibilita_da_scrivere(&st.istantanea(), &[], &mut scritti);
         cambi.sort();
         assert_eq!(
             cambi,
@@ -681,7 +727,7 @@ mod prove_disponibilita {
         );
         // Il broker cade: la presa non si può più dire viva.
         st.caduta("mqtt-casa", "connessione chiusa".into());
-        let mut cambi = disponibilita_da_scrivere(&st.istantanea(), &mut scritti);
+        let mut cambi = disponibilita_da_scrivere(&st.istantanea(), &[], &mut scritti);
         cambi.sort();
         assert_eq!(
             cambi,
@@ -698,14 +744,14 @@ mod prove_disponibilita {
         st.registra("s7", []);
         st.bus("s7", Collegamento::Ok, None);
         let mut scritti = HashMap::new();
-        disponibilita_da_scrivere(&st.istantanea(), &mut scritti);
+        disponibilita_da_scrivere(&st.istantanea(), &[], &mut scritti);
         st.rimuovi("s7");
-        assert!(disponibilita_da_scrivere(&st.istantanea(), &mut scritti).is_empty());
+        assert!(disponibilita_da_scrivere(&st.istantanea(), &[], &mut scritti).is_empty());
         assert!(scritti.is_empty());
         st.registra("s7", []);
         st.bus("s7", Collegamento::Ok, None);
         assert_eq!(
-            disponibilita_da_scrivere(&st.istantanea(), &mut scritti).len(),
+            disponibilita_da_scrivere(&st.istantanea(), &[], &mut scritti).len(),
             1,
             "tornata, si riscrive"
         );
@@ -795,6 +841,50 @@ mod tests_q33 {
             "kind: modbus_tcp\nid: {id}\nhost: 127.0.0.1\nport: 15020\nunit_id: 1\npolling_ms: 60000\nregisters: []\n"
         ))
         .expect("la sorgente di prova deve essere valida")
+    }
+
+    /// 21-11-2026: a source switched off in the project is not started, a
+    /// running one stops when it is switched off, and switching it back on
+    /// starts it again.
+    #[tokio::test]
+    async fn a_switched_off_source_does_not_start() {
+        let s = supervisore();
+        let mut spenta = sorgente("b");
+        if let SourceDef::ModbusTcp(c) = &mut spenta {
+            c.enabled = false;
+        }
+        let (started, _, _) = s.reload(vec![sorgente("a"), spenta.clone()]).await;
+        assert_eq!(started, 1);
+        assert_eq!(s.running_count().await, 1);
+        assert_eq!(*s.disabled.lock().unwrap(), vec!["b".to_string()]);
+
+        let mut a_spenta = sorgente("a");
+        if let SourceDef::ModbusTcp(c) = &mut a_spenta {
+            c.enabled = false;
+        }
+        s.reload(vec![a_spenta, spenta]).await;
+        assert_eq!(s.running_count().await, 0, "switched off, it stops");
+
+        s.reload(vec![sorgente("a"), sorgente("b")]).await;
+        assert_eq!(s.running_count().await, 2, "switched on again, both run");
+        assert!(s.disabled.lock().unwrap().is_empty());
+        s.reload(vec![]).await;
+    }
+
+    /// The field is written only when false: a project saved again does not
+    /// grow `enabled: true` on every source.
+    #[test]
+    fn enabled_is_written_only_when_false() {
+        let on = serde_yaml::to_string(&sorgente("a")).unwrap();
+        assert!(!on.contains("enabled"), "{on}");
+        let mut off = sorgente("a");
+        if let SourceDef::ModbusTcp(c) = &mut off {
+            c.enabled = false;
+        }
+        let testo = serde_yaml::to_string(&off).unwrap();
+        assert!(testo.contains("enabled: false"), "{testo}");
+        let back: SourceDef = serde_yaml::from_str(&testo).unwrap();
+        assert!(!back.enabled());
     }
 
     #[tokio::test]
