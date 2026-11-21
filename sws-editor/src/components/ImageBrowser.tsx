@@ -75,7 +75,8 @@ export function ImageBrowser({ mode = "choose", onSelect, onClose }: Props) {
   // Where each image is used (session B): pages, popups, faceplates of the store.
   const pages = useAppStore((st) => st.pages);
   const faceplates = useAppStore((st) => st.faceplates);
-  const uses = imageUses(pages, faceplates);
+  const symbols = useAppStore((st) => st.project?.simboli);
+  const uses = imageUses(pages, faceplates, symbols ?? []);
 
   const reload = useCallback(() => api.listProjectImages().then(setImages).catch(() => setImages([])), []);
   useEffect(() => {
@@ -295,8 +296,8 @@ export function ImageBrowser({ mode = "choose", onSelect, onClose }: Props) {
               {selectedUses.length === 0 ? t("imageBrowser.notUsed") : t("imageBrowser.usedIn", { n: selectedUses.length })}
               {selectedUses.slice(0, 8).map((u, i) => (
                 <button key={i} type="button" style={{ ...SMALL, marginLeft: 4 }} onClick={() => goTo(u.pageId, u.objectId)}
-                  disabled={u.faceplate}>
-                  {u.pageName}{u.objectId ? ` · ${u.objectId}` : ""}
+                  disabled={u.faceplate || u.symbol}>
+                  {u.symbol ? t("imageBrowser.inSymbol", { name: u.pageName }) : u.pageName}{u.objectId ? ` · ${u.objectId}` : ""}
                 </button>
               ))}
               {selectedUses.length > 8 && ` …`}

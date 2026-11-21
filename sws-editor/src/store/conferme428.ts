@@ -7,7 +7,7 @@
 // `i18next` e non `@/i18n`, come lo store: questo modulo lo importa lo store, e
 // `@/i18n` caricherebbe le traduzioni in ogni test che usa lo store.
 import i18n from "i18next";
-import { conferma } from "@/finestraAvviso/finestraAvviso";
+import { avviso, conferma } from "@/finestraAvviso/finestraAvviso";
 
 /** I flag con cui una richiesta di deploy dice al server cosa è già stato
  *  confermato: gli stessi nomi di `api.deployToRuntime`. */
@@ -91,6 +91,13 @@ export async function confermaDopo428(d: Dati428, gia: ConfermeDeploy): Promise<
   if (d.conferma === "simboli-mancanti" && !gia.confirmMissingSymbols) {
     const si = await conferma({ testo: testoSimboliMancanti(d.simboli ?? [], !!d.non_verificabile, d.versione_pannello) });
     return si ? { tipo: "riprova", conferme: { ...gia, confirmMissingSymbols: true } } : { tipo: "annullato" };
+  }
+  // The panel doesn't know the photos in symbols (plan
+  // 2026-11-21-simboli-fase-3-foto): it couldn't load the project. Not a
+  // confirmation — it is said, and nothing is sent.
+  if (d.conferma === "symbol-photos-unsupported") {
+    await avviso({ livello: "errore", testo: i18n.t("cfg.deploySymbolPhotos") });
+    return { tipo: "annullato" };
   }
   // Il pannello non ha utenti e il progetto non porta un Admin (fetta E,
   // 11-10-2026): non si conferma, si corregge il progetto.

@@ -219,6 +219,56 @@ pub async fn genera(
     .map_err(Failed::free)
 }
 
+/// What a photo for a symbol is (plan `2026-11-21-simboli-fase-3-foto`): one
+/// object, whole, that the symbol draws its live parts over.
+const DA_SIMBOLO: &str = " A photograph of one single industrial object, to be used as a symbol on a \
+    supervision screen: the whole object, centred, nothing cut off, seen from the front, even soft \
+    light, no shadow on the ground. No text, no labels, no logos, no people, no watermark.";
+
+/// A photo for a project symbol: `descrizione` → a PNG with a transparent
+/// background from OpenAI (its models can), a JPEG on a plain light grey from
+/// Black Forest Labs (FLUX can't make transparency). The bytes as the
+/// provider sends them.
+pub async fn genera_foto_simbolo(
+    http: &reqwest::Client,
+    bfl_at: &bfl::Endpoint,
+    s: &SceltaImmagini,
+    descrizione: &str,
+    estimate: f64,
+    size: (u32, u32),
+) -> Result<Generated, Failed> {
+    if s.fornitore == ImageProvider::Bfl {
+        let prompt = format!(
+            "{}{DA_SIMBOLO} On a plain flat light grey background.",
+            descrizione.trim()
+        );
+        return bfl::generate(bfl_at, &s.chiave, &s.modello, &prompt, None, size.0, size.1)
+            .await
+            .map(Generated::from)
+            .map_err(|f| Failed::from_bfl(f, estimate));
+    }
+    let prompt = format!("{}{DA_SIMBOLO} Transparent background.", descrizione.trim());
+    with_fixed_size_fallback(size, |(w, h)| {
+        let corpo = json!({
+            "model": s.modello, "prompt": prompt, "size": format!("{w}x{h}"),
+            "quality": s.qualita, "n": 1, "output_format": "png", "background": "transparent",
+        });
+        async move {
+            let r = http
+                .post("https://api.openai.com/v1/images/generations")
+                .bearer_auth(&s.chiave)
+                .json(&corpo)
+                .send()
+                .await
+                .map_err(|e| format!("OpenAI non raggiungibile: {e}"))?;
+            immagine_da(r).await
+        }
+    })
+    .await
+    .map(openai)
+    .map_err(Failed::free)
+}
+
 /// Una variante di luce di una base: la base va come immagine da modificare,
 /// alla sua stessa misura.
 pub async fn varia(

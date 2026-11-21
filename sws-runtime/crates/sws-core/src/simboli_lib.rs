@@ -143,6 +143,11 @@ pub struct SignalEntry {
     pub blink: bool,
     #[serde(default)]
     pub hidden: bool,
+    /// The photo the part's images show while this entry matches, instead of
+    /// their own (plan `2026-11-21-simboli-fase-3-foto`): a file name in the
+    /// project's `images/`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub image: Option<String>,
 }
 
 fn transition_ms_default() -> f64 {
@@ -238,6 +243,10 @@ pub struct SimboloLib {
     /// (`lib:<family>/<slug>`): it is drawn in its place.
     #[serde(default)]
     pub overrides: Option<String>,
+    /// The photos of a project symbol, as names in the project's `images/`
+    /// (plan `2026-11-21-simboli-fase-3-foto`). The library has none.
+    #[serde(default)]
+    pub images: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

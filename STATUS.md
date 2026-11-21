@@ -12,7 +12,31 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — otto rami annidati da collaudare (2026-11-21 notte, `ufficio`)
+## ▶ Riprendere da qui — nove rami annidati da collaudare; gruppo 2 pianificato, fase 3 fatta (2026-11-22 notte, `ufficio`)
+
+**Gruppo 2, sessione di plan fatta** (la sera del 21-11): quattro piani in `docs/plans/`, ordine deciso dal maintainer
+**3 → 7 → P6 → 8** — [fase 3, le foto](docs/plans/2026-11-21-simboli-fase-3-foto.md),
+[fase 7, la libreria aziendale](docs/plans/2026-11-21-simboli-fase-7-libreria-aziendale.md),
+[P6, 2FA e LDAP](docs/plans/2026-11-21-p6-2fa-e-ldap.md), [fase 8, gli effetti](docs/plans/2026-11-21-simboli-fase-8-effetti.md).
+9. `feat/symbol-photo` (annidato su `feat/project-lock`) — **le foto nei simboli**: un'operazione `image` nelle
+   descrizioni `prj:` (foto di `images/`), sfondo o ritaglio dentro una parte viva, una foto per ogni voce di un
+   segnale; web e pannello; «Foto…» nell'editor, «Genera foto» con l'IA, «Importa SVG» che tiene le foto, `.swsym`
+   zip; il deploy si ferma verso un pannello che non le conosce. Prossimo: fase 7 (`feat/symbol-library`).
+
+**Il collaudo della fase 3, cosa guardare** (IDE da `start_editor_develop.sh` su `feat/symbol-photo`; TC620 di casa):
+- editor dei simboli, simbolo nuovo → «Foto…» → una foto del progetto: va sotto a tutto, alle proporzioni giuste;
+  spostarla, ridimensionarla, opacità 0,5; con una forma selezionata dentro una parte rotore, «Foto…» la mette nella
+  parte → nella scheda Prova gira con lei;
+- una parte «colore» (segnale) con due voci e una foto ciascuna (per esempio valvola aperta / chiusa): in Prova la foto
+  cambia col valore; in pagina, legata a un tag, idem; sul TC620 dopo il deploy, idem;
+- «Genera foto» nella scheda IA (serve un modello per «Sfondi»): con OpenAI sfondo trasparente, con FLUX grigio; la foto
+  compare fra le immagini del progetto;
+- «Importa SVG» di un file con un `<image href="data:…">` dentro: la foto arriva; «Esporta» di un simbolo con foto →
+  `.swsym` zip → importato in un altro progetto: le foto ci sono, con nomi `sym-…`;
+- Risorse → Immagini: una foto usata da un simbolo dice «nel simbolo «…»»; rinominarla → il simbolo la segue;
+  cancellarla → il validatore avvisa;
+- deploy verso un pannello con la rc.22 (che non conosce le foto): il deploy si ferma col messaggio, senza mandare
+  niente. Sul TC620 aggiornato, la misura di memoria con `SWS_MISURA_SIMBOLI=1` (SSH solo chiedendo).
 
 **Niente è in `main`.** Otto rami, uno sull'altro, **non pushati**: i quattro del 20-11 qui sotto, poi i quattro del
 «gruppo 1» (i difetti che possono far perdere lavoro), scelti dal maintainer la sera del 21-11 con una sessione di
@@ -27,8 +51,7 @@ collaudo. Il gruppo 1, dal basso:
    sceglie sola lettura / «Prendi il controllo» / Annulla; battito ogni 15 s, libero dopo un minuto; il server
    risponde 423 alle scritture di una scheda senza lock.
 
-Poi si passa al **gruppo 2** (deciso dal maintainer: «partiamo dal gruppo 1, poi una volta fatto passiamo al 2»):
-editor dei simboli fasi 3, 7, 8 e P6 (2FA e LDAP), ognuno con la sua sessione di plan.
+Poi il **gruppo 2** (deciso dal maintainer: «partiamo dal gruppo 1, poi una volta fatto passiamo al 2»): vedi sopra.
 
 I quattro del 20-11, dal basso:
 1. `fix/symbol-editor-close-dialog` — chiudere l'editor dei simboli con modifiche non salvate: Annulla | Esci senza
@@ -73,7 +96,8 @@ cambiare la password, cioè toccando gli utenti del pannello — non fatto di no
 
 **Dopo il merge**: CasaDomotica (regola di `CLAUDE.md`): un tag con l'espressione scritta con la scintilla; il
 `last_device` arriva da solo al primo collegamento; «Giri di tolleranza» 3 sulla sorgente Solarman dell'inverter. Il
-lock e «Salva come…» non hanno un posto nell'impianto: sono funzioni dell'IDE.
+lock e «Salva come…» non hanno un posto nell'impianto: sono funzioni dell'IDE. Fase 3: un simbolo con foto in una
+pagina (la caldaia fotografata, con la fiamma come foto per stato).
 
 ## Sessione precedente — la rc.22 costruita e nel cloud; elitedesk pronta come seconda macchina di lavoro (2026-11-20 sera, theobroma)
 

@@ -2072,7 +2072,8 @@
     "uninstallPurgeTitolo": "Uninstall and wipe data",
     "deployUtentiDaCambiare": "These arrive with a mandatory password change: {{utenti}}. At the first login on the panel a new password will be asked (it can be postponed).",
     "deployUtentiSostituiti": "This deploy replaces the panel's users ({{pannello}}) with the project's ({{progetto}}). The project's passwords will apply on the panel: a password changed on the panel will be lost.",
-    "deployUtentiTieni": "To keep the panel's users, cancel and untick «Replace users too». Continue?"
+    "deployUtentiTieni": "To keep the panel's users, cancel and untick «Replace users too». Continue?",
+    "deploySymbolPhotos": "The panel runs a version of SWS that doesn't know photos in symbols: it couldn't even open this project. Update the panel, then deploy again. Nothing was sent."
   },
   "langtab": {
     "migrate": "Migrate texts…",
@@ -2678,6 +2679,7 @@
     "unused": "unused",
     "notUsed": "Not used in any page.",
     "usedIn": "Used in {{n}} places:",
+    "inSymbol": "in the symbol «{{name}}»",
     "unusedCount": "{{n}} unused",
     "missing": "{{n}} missing images",
     "renameTitle": "Rename the image",
@@ -5531,7 +5533,8 @@
       "highlight": "Highlight",
       "line": "Line",
       "flange": "Flange",
-      "stub": "Pipe stub"
+      "stub": "Pipe stub",
+      "image": "Photo"
     },
     "tool": {
       "port": "Port",
@@ -5777,7 +5780,7 @@
       },
       "warn": {
         "text": "{{n}} texts left out: the panel has no fonts to draw them.",
-        "image": "{{n}} pictures left out: photos in symbols come later.",
+        "image": "{{n}} pictures left out or reduced to their box: only PNG, JPEG or WebP photos inside the SVG come in, at most 8, upright.",
         "evenodd": "{{n}} shapes with holes («evenodd» fill): the holes may come out filled.",
         "clip": "{{n}} clip paths ignored: the shapes show whole.",
         "mask": "{{n}} masks ignored: the shapes show whole.",
@@ -5805,6 +5808,29 @@
         "newer": "The file comes from a newer version of the IDE: update the IDE to open it.",
         "tooBig": "The file is too big: 1 MB at most."
       }
+    },
+    "photo": {
+      "add": "Photo…",
+      "addTitle": "A photo from the project's images: under everything, or in the layer of what is selected",
+      "file": "Photo",
+      "change": "Choose another photo",
+      "opacity": "Opacity",
+      "note": "The photo keeps its proportions inside its box and doesn't change colour with the state: inside a live part it turns, moves or blinks with it.",
+      "entry": "Photo",
+      "asDrawn": "as drawn",
+      "clear": "Remove this entry's photo",
+      "onlyProject": "A symbol takes only the project's photos in PNG, JPEG or WebP: not the catalogue icons, not SVGs.",
+      "exportMissing": "A photo of the symbol could not be read, the file was not written: {{error}}"
+    },
+    "aiPhoto": {
+      "title": "Generate photo",
+      "hint": "The image model (the «Sfondi» purpose) photographs an object at the symbol's proportions. The photo is saved at once among the project's images and goes under the drawing.",
+      "placeholder": "For example: white wall-hung condensing boiler, front view",
+      "go": "Generate photo",
+      "busy": "Generating…",
+      "noModel": "No image model configured: AI → One model per purpose → Sfondi.",
+      "done": "Photo {{name}} added ({{cost}} $). This model can't make a transparent background: the photo has a light grey one.",
+      "doneTransparent": "Photo {{name}} added, with a transparent background ({{cost}} $)."
     }
   },
   "images": {

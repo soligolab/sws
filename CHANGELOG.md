@@ -12,6 +12,25 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Aggiunto
+- **Le foto nei simboli del progetto** (ramo `feat/symbol-photo`, piano `docs/plans/2026-11-21-simboli-fase-3-foto.md`,
+  fase 3 dell'editor dei simboli). Le descrizioni `prj:` hanno un'operazione nuova, `image {src, geo, opacity?}`: un
+  file di `images/` del progetto (nome controllato come all'upload, png/jpg/webp, al più 8 per simbolo), nello strato
+  aperto — sotto il disegno è uno sfondo, dentro una parte viva gira, si sposta, lampeggia con lei. Il compilatore la
+  scrive come `<image data-src>` senza `href` e la elenca in `images` nel manifesto; una voce di un segnale può
+  portare `image`, la foto che le immagini della parte mostrano mentre vale (la «foto per stato» del piano: niente
+  tipo di parte nuovo, è il segnale). Web: `SimboloLibSvg` risolve le foto col token (`useHrefImmagini`). Pannello:
+  `scarica_foto` chiede ogni foto alla misura dell'oggetto con `?fit=contain` (nuovo in `sized_image`: proporzioni
+  tenute, PNG resta PNG con la trasparenza) e la mette nell'SVG come `data:`; le foto di un segnale diventano sue
+  varianti, nel budget della pagina. Editor: «Foto…» nella barra (dalla libreria immagini; senza selezione va sotto a
+  tutto), foto e opacità nelle proprietà, «Foto» per ogni voce di un segnale; «Importa SVG» tiene le foto `data:`
+  (le carica in `images/` con un nome dal contenuto); `.swsym` diventa uno zip con le immagini quando il simbolo ne
+  ha (`fflate`), e all'import le foto prendono nomi propri per non sostituire immagini diverse con lo stesso nome.
+  «Genera foto» nella scheda IA (`POST /api/symbols/ai/photo`, scopo «Sfondi»: trasparente con OpenAI, fondo grigio
+  con FLUX), salvata subito in `images/`. L'IA che modifica un simbolo tiene le sue foto e non può inventarne
+  (`keep_known_photos`). La libreria immagini conta gli usi nei simboli e la rinomina li segue; il validatore avvisa
+  di una foto che non c'è. Il deploy si ferma, senza mandare niente, verso un pannello che non dichiara
+  `symbol_photos` in `/api/system`: non riuscirebbe nemmeno a leggere `project.yaml`. Da ora un'operazione
+  sconosciuta (`Op::Unknown`) non rende illeggibile il progetto.
 - **Il lock del progetto** (ramo `feat/project-lock`, piano `docs/plans/2026-11-21-lock-salva-come-sorgenti-sandbox.md`,
   richiesta del maintainer del 21-11-2026: «proteggere l'apertura una seconda volta»). Il runtime che serve il
   progetto tiene, per progetto, quale scheda dell'IDE può scrivere (`project_lock.rs`, in memoria): la scheda lo
@@ -48,6 +67,10 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   quando…» restano nel seme delle sorgenti.
 
 ### Corretto
+- **Il riquadro di una foto sul pannello** (`svg_raster::ingombro`). usvg 0.45 trasforma due volte il riquadro di
+  un `<image>` (`rect.transform(abs_transform)` in `parser/image.rs`): una foto dentro una parte di un simbolo
+  sembrava fuori dal disegno e la parte spariva. Con delle immagini il riquadro ora si calcola qui, dalla misura vera.
+  E `ritaglio_di` sottraeva prima di controllare un riquadro vuoto (`then_some`): in debug andava in overflow.
 - **La sandbox degli script, la parte piccola** (ramo `fix/sandbox-small`, piano
   `docs/plans/2026-11-21-lock-salva-come-sorgenti-sandbox.md`, punti C1, C2, C3 e A3 del seme della sandbox).
   Lo script gira con un dizionario solo (`exec(codice, globali)`), quindi un `def` vede le costanti di primo livello e

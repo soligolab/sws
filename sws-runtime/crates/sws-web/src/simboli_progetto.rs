@@ -363,6 +363,115 @@ pub async fn ai_interview(
     }
 }
 
+/// What «Genera foto» asks (plan `2026-11-21-simboli-fase-3-foto`): what to
+/// photograph, and the size of the symbol, whose proportions the photo takes.
+#[derive(serde::Deserialize)]
+pub struct PhotoRequest {
+    pub description: String,
+    pub w: u32,
+    pub h: u32,
+}
+
+/// The long side asked to the provider: a symbol is at most 512 units, and a
+/// photo twice as large stays sharp on a panel that enlarges it.
+const PHOTO_SIDE: u32 = 1024;
+
+/// The size of the photo for a symbol `w × h`: its proportions, the long side
+/// [`PHOTO_SIDE`].
+pub fn photo_size(w: u32, h: u32) -> (u32, u32) {
+    let (w, h) = (w.max(1) as f64, h.max(1) as f64);
+    let k = PHOTO_SIDE as f64 / w.max(h);
+    (((w * k).round() as u32).max(64), ((h * k).round() as u32).max(64))
+}
+
+/// The name of a generated photo: from its content, so the same bytes are
+/// one file.
+pub fn photo_name(bytes: &[u8], ext: &str) -> String {
+    use sha2::{Digest, Sha256};
+    let hex: String = Sha256::digest(bytes)
+        .iter()
+        .take(6)
+        .map(|b| format!("{b:02x}"))
+        .collect();
+    format!("ai-photo-{hex}.{ext}")
+}
+
+/// `POST /api/symbols/ai/photo` — «Genera foto» in the symbol editor: the
+/// image model of the «Sfondi» purpose photographs one object, and the photo
+/// is saved at once in the project's `images/` (it was paid for). IDE only,
+/// like the rest of the AI on symbols.
+pub async fn ai_photo(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Json(req): Json<PhotoRequest>,
+) -> Response {
+    use crate::ai::{bfl, scopi, strumenti_scopi, user_keys};
+    if !s.ide_only {
+        return (StatusCode::NOT_FOUND, "the AI on symbols runs on the IDE instance only")
+            .into_response();
+    }
+    let description = req.description.trim();
+    if description.is_empty() || description.chars().count() > 2000 {
+        return Json(json!({ "ok": false, "code": "bad_request" })).into_response();
+    }
+    let keys = user_keys::fetch_all(&s, &user.username).await;
+    let Some(sc) = scopi::carica_sfondi_con(&s.config_dir, &keys) else {
+        return Json(json!({ "ok": false, "code": "no_model" })).into_response();
+    };
+    let http = reqwest::Client::builder()
+        .connect_timeout(std::time::Duration::from_secs(10))
+        .timeout(std::time::Duration::from_secs(240))
+        .build()
+        .unwrap_or_default();
+    let size = photo_size(req.w, req.h);
+    let (bytes, cost) = match strumenti_scopi::symbol_photo(
+        &s,
+        &sc,
+        &http,
+        &bfl::Endpoint::default(),
+        description,
+        size,
+    )
+    .await
+    {
+        Ok(x) => x,
+        Err(message) => {
+            return Json(json!({ "ok": false, "code": "provider", "message": message }))
+                .into_response()
+        }
+    };
+    let ext = match image::guess_format(&bytes) {
+        Ok(image::ImageFormat::Png) => "png",
+        Ok(image::ImageFormat::Jpeg) => "jpg",
+        Ok(image::ImageFormat::WebP) => "webp",
+        _ => {
+            return Json(json!({ "ok": false, "code": "provider", "message": "not an image" }))
+                .into_response()
+        }
+    };
+    let (width, height) = image::load_from_memory(&bytes)
+        .map(|i| (i.width(), i.height()))
+        .unwrap_or(size);
+    let dir = match active_dir(&s).await {
+        Ok(d) => crate::router::images_dir_at(&d),
+        Err(c) => return c.into_response(),
+    };
+    let name = photo_name(&bytes, ext);
+    let written = tokio::task::spawn_blocking({
+        let path = dir.join(&name);
+        move || std::fs::create_dir_all(&dir).and_then(|_| std::fs::write(path, &bytes))
+    })
+    .await;
+    if !matches!(written, Ok(Ok(()))) {
+        return (StatusCode::INTERNAL_SERVER_ERROR, "the photo could not be saved").into_response();
+    }
+    Json(json!({
+        "ok": true, "name": name, "width": width, "height": height, "cost_usd": cost,
+        "transparent": ext == "png",
+    }))
+    .into_response()
+}
+
 /// `POST /api/ai/field` — the AI on one IDE field (plan
 /// `docs/plans/2026-11-20-ia-sui-campi.md`): the model of the `fields` purpose
 /// proposes the field's value and its neighbours', or asks one question.
@@ -468,6 +577,21 @@ pub async fn salva(
         signal_project_changed(&s, "simboli");
     }
     res
+}
+
+#[cfg(test)]
+mod photo_tests {
+    use super::*;
+
+    #[test]
+    fn a_photo_takes_the_proportions_of_its_symbol() {
+        assert_eq!(photo_size(100, 120), (853, 1024));
+        assert_eq!(photo_size(200, 100), (1024, 512));
+        assert_eq!(photo_size(512, 10), (1024, 64), "never thinner than 64");
+        let n = photo_name(b"abc", "png");
+        assert!(sws_core::simboli_prj::image_name_ok(&n), "{n}");
+        assert_eq!(n, photo_name(b"abc", "png"));
+    }
 }
 
 #[cfg(test)]

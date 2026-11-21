@@ -405,6 +405,41 @@ where
     Ok((raw, jpg, w, h))
 }
 
+/// A photo for a project symbol (plan `2026-11-21-simboli-fase-3-foto`), for
+/// the symbol editor: outside a conversation, so with a cap and a bill of its
+/// own, the ones of the «Sfondi» purpose. The bytes as the provider sent them
+/// (a PNG with transparency, or a JPEG) and what it cost.
+pub(crate) async fn symbol_photo(
+    s: &AppState,
+    sc: &scopi::SceltaImmagini,
+    http: &reqwest::Client,
+    bfl_at: &bfl::Endpoint,
+    description: &str,
+    size: (u32, u32),
+) -> Result<(Vec<u8>, f64), String> {
+    let mut banco = Banco::default();
+    let mut misure = Misure::nuove();
+    let request = background_size::request_size(sc.fornitore, &sc.modello, size.0, size.1);
+    let estimate = controlla_tetto_sfondi(
+        &s.config_dir,
+        &banco,
+        &misure,
+        sc,
+        sc.tetto_usd,
+        false,
+        request,
+    )?;
+    let t0 = std::time::Instant::now();
+    let img = match immagini::genera_foto_simbolo(http, bfl_at, sc, description, estimate, request)
+        .await
+    {
+        Ok(img) => img,
+        Err(failed) => return Err(failed_background(s, &mut banco, &mut misure, sc, failed, t0)),
+    };
+    pay_background(s, &mut banco, &mut misure, sc, &img, estimate, t0);
+    Ok((img.jpg, banco.spesa_sfondi))
+}
+
 /// `genera_sfondo`: solo basi candidate, alla misura dell'area della pagina
 /// (plan of 20-11-2026); con `both_orientations` ogni base ha la sua gemella
 /// per il progetto girato. La persona ne approva una in chat.

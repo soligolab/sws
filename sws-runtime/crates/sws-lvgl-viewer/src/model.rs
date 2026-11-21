@@ -1012,6 +1012,7 @@ impl CustomSymbol {
             ports,
             replaces: None,
             overrides: None,
+            images: Vec::new(),
         })
     }
 }

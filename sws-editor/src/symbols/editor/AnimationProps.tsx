@@ -9,6 +9,7 @@ import type { DescrizioneSimbolo } from "@/types";
 import type { SignalEntry } from "@/symbols/lib/manifest";
 import { setPartParam, ANIMATE_FAMILIES, type InputKind, type Op } from "./model";
 import { C, Field, Num, input } from "./ui";
+import { pickPhoto } from "./photoPicker";
 
 /** The numbers of each kind, in the order they are shown. */
 const NUMBERS: Record<string, string[]> = {
@@ -126,6 +127,20 @@ function SignalEntries({ colour, entries, onColour, onEntries }: {
                 <input type="checkbox" checked={!!e.hidden} onChange={(ev) => put(i, { ...e, hidden: ev.target.checked || undefined })} />
                 {t("symbolEditor.anim.hidden")}
               </label>
+            </div>
+            {/* The photo of the entry (plan 2026-11-21-simboli-fase-3-foto): the
+                images of the part show it while the entry matches. */}
+            <div style={{ display: "flex", gap: 4, alignItems: "center", color: C.muted }}>
+              {t("symbolEditor.photo.entry")}
+              <button type="button" style={{ ...input, width: "auto", flex: 1 }} data-testid={`symbol-signal-photo-${i}`}
+                disabled={e.hidden}
+                onClick={() => void pickPhoto().then((p) => { if (p) put(i, { ...e, image: p.name }); })}>
+                {e.image ?? t("symbolEditor.photo.asDrawn")}
+              </button>
+              {e.image && (
+                <button type="button" style={{ ...input, width: "auto" }} title={t("symbolEditor.photo.clear")}
+                  onClick={() => put(i, { ...e, image: undefined })}>×</button>
+              )}
             </div>
           </div>
         );

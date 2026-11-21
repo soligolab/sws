@@ -635,7 +635,17 @@ interface Style {
   strokeWidth: number; cap: string; join: string; dash: number[] | null; evenodd: boolean;
 }
 
-interface Shape { geo: Geometry; m: Matrix; style: Style }
+interface Shape {
+  geo: Geometry; m: Matrix; style: Style;
+  /** An embedded photo (plan 2026-11-21-simboli-fase-3-foto): `geo` is its
+   *  box, `href` its `data:` URI, uploaded to the project before it is saved. */
+  image?: { href: string; opacity: number };
+}
+
+/** The photos an import keeps, like the compiler (`MAX_IMAGES`). */
+const MAX_PHOTOS = 8;
+/** The photos the panel decodes, embedded in the SVG. */
+const PHOTO_DATA = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=\s]+$/i;
 
 interface Walk {
   ids: Map<string, Element>;
@@ -713,7 +723,7 @@ function walk(el: Element, parent: Props, opacity: number, m: Matrix, w: Walk, d
   const warn = warnOf(w);
   if (NOT_DRAWN.has(tag) && !(tag === "symbol" && depth > 0 && root)) return;
   if (tag === "text") { warn("text"); return; }
-  if (tag === "image") { warn("image"); return; }
+  if (tag === "image") { photo(el, parent, opacity, m, w); return; }
   const own = declared(el, w.sheet);
   if (own.display === "none") return;
   const props = inherit(parent, own);
@@ -762,6 +772,27 @@ function walk(el: Element, parent: Props, opacity: number, m: Matrix, w: Walk, d
   w.shapes.push({ geo, m: cm, style });
 }
 
+/** An `<image>`: kept when it is a PNG, JPEG or WebP inside the SVG; a link
+ *  to a file elsewhere can't come along, and is said. */
+function photo(el: Element, parent: Props, opacity: number, m: Matrix, w: Walk): void {
+  const warn = warnOf(w);
+  const own = declared(el, w.sheet);
+  if (own.display === "none") return;
+  const props = inherit(parent, own);
+  if (props.visibility === "hidden" || props.visibility === "collapse") return;
+  const href = (el.getAttribute("href") ?? el.getAttribute("xlink:href") ?? "").trim();
+  const x = length(el.getAttribute("x")), y = length(el.getAttribute("y"));
+  const iw = length(el.getAttribute("width"), NaN), ih = length(el.getAttribute("height"), NaN);
+  const photos = w.shapes.filter((s) => s.image).length;
+  if (!PHOTO_DATA.test(href) || !(iw > 0 && ih > 0) || photos >= MAX_PHOTOS || w.shapes.length >= MAX_SHAPES) {
+    warn("image");
+    return;
+  }
+  const cm = mul(m, parseTransform(el.getAttribute("transform")));
+  const op = opacity * alpha(own.opacity);
+  w.shapes.push({ geo: { segs: rectSegs(x, y, iw, ih, 0, 0) }, m: cm, style: styleOf(props, op, cm, w), image: { href, opacity: op } });
+}
+
 // ── operations ─────────────────────────────────────────────────────────────
 
 type Pairs = [string, number | string][];
@@ -788,6 +819,18 @@ function pathStrings(segs: Seg[], warn: (k: SvgWarning, n?: number) => void): st
 
 function opsOf(sh: Shape, f: Matrix, bounds: { w: number; h: number }, warn: (k: SvgWarning, n?: number) => void): Op[] {
   const m = mul(f, sh.m);
+  if (sh.image) {
+    // A photo stays upright: turned or skewed, it takes its box.
+    if (Math.abs(m[1]) > 1e-6 || Math.abs(m[2]) > 1e-6) warn("image");
+    const p = pointsOf(transformSegs(sh.geo.segs, m));
+    const xs = p.filter((_, k) => k % 2 === 0), ys = p.filter((_, k) => k % 2 === 1);
+    const x0 = Math.max(0, Math.min(...xs)), y0 = Math.max(0, Math.min(...ys));
+    const x1 = Math.min(bounds.w, Math.max(...xs)), y1 = Math.min(bounds.h, Math.max(...ys));
+    if (!(x1 > x0 && y1 > y0)) return [];
+    const op: Op = { op: "image", src: sh.image.href, geo: [["x", r2(x0)], ["y", r2(y0)], ["width", r2(x1 - x0)], ["height", r2(y1 - y0)]] };
+    if (sh.image.opacity < 0.995) op.opacity = r2(sh.image.opacity);
+    return [op];
+  }
   const st = sh.style;
   const scale = Math.sqrt(Math.abs(det(m)));
   const fill = !sh.geo.line && st.fill.kind === "colour" && st.fill.alpha * st.fillAlpha > 0.004 ? st.fill : null;

@@ -20,7 +20,7 @@ import { imageBlob, imageDataUri, type ProposalImage } from "@/ai/proposalImages
 import { normalizzaOggetti } from "@/store/normalizzaOggetti";
 import { pianoCreazione } from "@/tag/riconciliaTag";
 import { motivoIdNonValido, rinomina, type EsitoRinomina } from "@/tag/rinominaTag";
-import { renameImageRefs } from "@/images/usage";
+import { renameImageRefs, renameSymbolPhoto } from "@/images/usage";
 import type { SegmentoScelto, WaypointScelto } from "@/canvas/percorsoMovimento";
 import { effectiveSizeMode, referenceResolutionFor } from "@/pageLayout";
 import { uguale } from "@/ai/confronto";
@@ -3275,6 +3275,10 @@ export const useAppStore = create<AppState>((set, get) => {
       const faceplates = s.faceplates.map((f) => renameImageRefs(f, vecchio, nuovo));
       const pagineCambiate = pages.filter((p, i) => p !== s.pages.filter((q) => !eFaceplateDef(q))[i]);
       const faceplateCambiati = faceplates.filter((f, i) => f !== s.faceplates[i]);
+      // The photos of the project symbols follow too (plan 2026-11-21-simboli-fase-3-foto).
+      const simboliPrima = s.project.simboli ?? [];
+      const simboli = simboliPrima.map((d) => renameSymbolPhoto(d, vecchio, nuovo));
+      const simboliCambiati = simboli.filter((d, i) => d !== simboliPrima[i]).length;
       set({ saveStatus: "saving", saveError: null });
       try {
         for (const pg of pagineCambiate) {
@@ -3283,6 +3287,10 @@ export const useAppStore = create<AppState>((set, get) => {
           else await api.saveSynoptic(pg);
         }
         for (const fp of faceplateCambiati) await api.saveFaceplate(fp);
+        if (simboliCambiati) {
+          await api.updateSimboli(simboli);
+          get().updateProjectSimboli(simboli);
+        }
       } catch (err) {
         set({ saveStatus: "error", saveError: errText(err) });
         throw err;
@@ -3299,7 +3307,7 @@ export const useAppStore = create<AppState>((set, get) => {
         savedPagesRev: st.pagesRev,
       }));
       get().markSaveOk();
-      return pagineCambiate.length + faceplateCambiati.length;
+      return pagineCambiate.length + faceplateCambiati.length + simboliCambiati;
     },
 
     registerPendingSection: (key, save) =>

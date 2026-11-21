@@ -1625,6 +1625,43 @@ pub fn semantic(project: &Project, pages: &[SynopticPage]) -> Vec<Finding> {
 /// da riportare.
 /// Le regole IA del progetto troppo lunghe (04-11-2026): entrano in ogni
 /// chiamata al modello, e un testo di pagine intere costa a ogni messaggio.
+/// The names of the files in the project's `images/`.
+pub fn project_image_names(project_dir: &std::path::Path) -> HashSet<String> {
+    std::fs::read_dir(crate::router::images_dir_at(project_dir))
+        .map(|d| {
+            d.flatten()
+                .filter_map(|e| e.file_name().into_string().ok())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// A project symbol that names a photo not in `images/` (plan
+/// `2026-11-21-simboli-fase-3-foto`): the symbol is drawn without it, on the
+/// web and on the panel. A warning, not an error: the rest of the symbol is
+/// there.
+pub fn symbol_photo_findings(project: &Project, images: &HashSet<String>) -> Vec<Finding> {
+    let mut out = Vec::new();
+    for d in &project.simboli {
+        let Ok(c) = sws_core::simboli_prj::compila(d) else {
+            continue;
+        };
+        for name in c.voce["images"].as_array().into_iter().flatten().filter_map(Value::as_str) {
+            if !images.contains(name) {
+                out.push(Finding::warn(
+                    format!("project.simboli[{}]", d.slug),
+                    format!(
+                        "the symbol «{}» uses the photo «{name}», which is not among the project's images: it is drawn without it",
+                        d.it
+                    ),
+                    "upload the photo with that name (Risorse → Immagini), or choose another one in the symbol editor",
+                ));
+            }
+        }
+    }
+    out
+}
+
 pub fn rilievi_regole_ia(project: &Project) -> Vec<Finding> {
     let Some(r) = project.ai.as_ref() else {
         return Vec::new();
@@ -2997,6 +3034,40 @@ pub fn blocco_salvataggio_altrove(project: &Project) -> String {
          per prima: poi anche questa sezione si salva.",
         cosa.join(", ")
     )
+}
+
+#[cfg(test)]
+mod symbol_photo_tests {
+    use super::*;
+
+    #[test]
+    fn a_symbol_photo_not_among_the_images_is_a_warning() {
+        let mut p: Project = serde_yaml::from_str("meta: { name: p, version: '1' }\ntags: []\nsources: []\nalarms: []\n").unwrap();
+        p.simboli.push(
+            serde_json::from_str(include_str!(
+                "../../../../tests/fixtures/simboli-prj/photo-boiler.json"
+            ))
+            .unwrap(),
+        );
+        let all: HashSet<String> = [
+            "boiler.jpg",
+            "fan-cutout.png",
+            "flame-off.png",
+            "flame-low.png",
+            "flame-high.png",
+        ]
+        .into_iter()
+        .map(String::from)
+        .collect();
+        assert!(symbol_photo_findings(&p, &all).is_empty());
+        let mut some = all.clone();
+        some.remove("flame-high.png");
+        let f = symbol_photo_findings(&p, &some);
+        assert_eq!(f.len(), 1);
+        assert_eq!(f[0].severity, Severity::Warning);
+        assert!(f[0].message.contains("flame-high.png"), "{}", f[0].message);
+        assert_eq!(f[0].path, "project.simboli[photo-boiler]");
+    }
 }
 
 #[cfg(test)]

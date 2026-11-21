@@ -293,6 +293,11 @@ export type SymbolAiInterviewResult = { cost_usd: number; model?: string } & (
   | { ok: false; code: "no_model" | "blind_model" | "bad_request" | "cap_reached" | "provider" | "invalid"; message?: string }
 );
 
+/** What «Genera foto» answers: the photo saved in `images/`, or why not. */
+export type SymbolAiPhotoResult =
+  | { ok: true; name: string; width: number; height: number; cost_usd: number; transparent: boolean }
+  | { ok: false; code: "no_model" | "bad_request" | "provider"; message?: string };
+
 /** An image of the project (`GET /api/project/images`). The size in pixels
  *  when the server can read it (PNG, JPEG, SVG). */
 export interface ProjectImage {
@@ -1689,6 +1694,11 @@ export const api = {
   symbolAiInterview: (req: SymbolAiInterviewRequest, signal?: AbortSignal) =>
     request<SymbolAiInterviewResult>("/api/symbols/ai/interview", { method: "POST", body: JSON.stringify(req), signal }),
 
+  /** «Genera foto» (plan 2026-11-21-simboli-fase-3-foto): the photo is
+   *  already saved in the project's images when it answers. */
+  symbolAiPhoto: (req: { description: string; w: number; h: number }, signal?: AbortSignal) =>
+    request<SymbolAiPhotoResult>("/api/symbols/ai/photo", { method: "POST", body: JSON.stringify(req), signal }),
+
   symbolCatalog: () =>
     request<{ materials: { name: string; color: string }[]; veils: { name: string; type: string }[] }>("/api/symbols/catalog"),
 
@@ -2049,6 +2059,15 @@ export const api = {
       throw new Error(`API ${path}: ${res.status} ${res.statusText}${body ? ` — ${body}` : ""}`);
     }
     return res.json();
+  },
+
+  /** The bytes of a project image, as stored (a symbol file carries them). */
+  projectImageBytes: async (name: string): Promise<Uint8Array> => {
+    const path = `/api/project/images/${encodeURIComponent(name)}`;
+    const res = await fetch(`${getBaseUrl()}${path}`, { headers: authHeaders() });
+    if (res.status === 401) throw new AuthError();
+    if (!res.ok) throw new Error(`API ${path}: ${res.status} ${res.statusText}`);
+    return new Uint8Array(await res.arrayBuffer());
   },
 
   deleteProjectImage: (name: string) =>

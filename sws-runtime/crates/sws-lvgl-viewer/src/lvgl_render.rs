@@ -15142,8 +15142,12 @@ fn render_simbolo_lib(
         &sovrascritture,
         None,
     );
+    // The photos at the object's size (plan 2026-11-21-simboli-fase-3-foto):
+    // from here on the SVG carries them, the body recoloured later too.
+    let foto = lib::scarica_foto(base_url, rt_handle, &sim, q);
+    let svg = lib::con_foto(&svg, &foto);
     let t0 = std::time::Instant::now();
-    let prep = lib::prepara(&sim, &svg, q, &stile);
+    let prep = lib::prepara_con_foto(&sim, &svg, q, &stile, &foto);
     if std::env::var("SWS_MISURA_SIMBOLI").is_ok() {
         eprintln!(
             "[simboli-lib misura] {id} {w}x{h}: strati pronti in {:.1} ms",

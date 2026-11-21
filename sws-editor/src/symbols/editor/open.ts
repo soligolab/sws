@@ -14,7 +14,10 @@ import { trovaSimboloOriginale } from "@/symbols/lib/libreria";
 import { avviso } from "@/finestraAvviso/finestraAvviso";
 import { emptySymbol, needsExplicitPorts } from "./model";
 import { importSvg, placeImport, roomFor, MAX_SVG_BYTES, SVG_WARNINGS, type SvgWarning } from "./importSvg";
-import { readSymbolFile, MAX_SYMBOL_FILE_BYTES } from "./symbolFile";
+import { isZip, readSymbolFile, readSymbolZip, MAX_SYMBOL_FILE_BYTES, MAX_SYMBOL_ZIP_BYTES } from "./symbolFile";
+import { contentName } from "./photoUpload";
+import { renameSymbolPhoto } from "@/images/usage";
+import { uploadEmbeddedPhotos } from "./photoUpload";
 
 export interface SymbolEditorTarget {
   draft: DescrizioneSimbolo;
@@ -101,12 +104,36 @@ export async function openSymbolFile(file: File): Promise<void> {
   const t = i18n.t.bind(i18n);
   const svg = /\.svg$/i.test(file.name) || file.type === "image/svg+xml";
   const failed = (testo: string) => avviso({ livello: "errore", titolo: t("symbolEditor.file.failed", { name: file.name }), testo });
+  const open = useAppStore.getState().openSymbolEditor;
+  // A symbol with its photos (plan 2026-11-21-simboli-fase-3-foto): the photos
+  // go to the project's images under names of their own, so they never
+  // replace a different image with the same name.
+  if (!svg && file.size <= MAX_SYMBOL_ZIP_BYTES && (await file.slice(0, 4).text()) === "PK\u0003\u0004") {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    if (isZip(bytes)) {
+      const r = readSymbolZip(bytes, takenSlugs());
+      if (!r.ok) { await failed(t(`symbolEditor.file.err.${r.error}`)); return; }
+      let d = r.d;
+      try {
+        for (const [name, b] of Object.entries(r.photos)) {
+          const ext = name.split(".").pop()!.toLowerCase().replace("jpeg", "jpg");
+          const own = contentName(b, ext, "sym");
+          await api.uploadProjectImage(own, new Blob([b as BlobPart]), { replace: true });
+          d = renameSymbolPhoto(d, name, own);
+        }
+      } catch (e) {
+        await failed(e instanceof Error ? e.message : String(e));
+        return;
+      }
+      open({ draft: d, isNew: true });
+      return;
+    }
+  }
   if (file.size > (svg ? MAX_SVG_BYTES : MAX_SYMBOL_FILE_BYTES)) {
     await failed(t(svg ? "symbolEditor.svg.err.tooBig" : "symbolEditor.file.err.tooBig"));
     return;
   }
   const text = await file.text();
-  const open = useAppStore.getState().openSymbolEditor;
   if (!svg) {
     const r = readSymbolFile(text, takenSlugs());
     if (!r.ok) { await failed(t(`symbolEditor.file.err.${r.error}`)); return; }
@@ -117,6 +144,9 @@ export async function openSymbolFile(file: File): Promise<void> {
   const blank = emptySymbol({ it: name, en: name }, takenSlugs());
   const r = importSvg(text, { w: blank.w, h: blank.h, adapt: true, room: roomFor(blank) });
   if (!r.ok) { await failed(t(`symbolEditor.svg.err.${r.error}`)); return; }
+  const up = await uploadEmbeddedPhotos(r.ops, "svg");
+  if (up.lost) r.warnings.image = (r.warnings.image ?? 0) + up.lost;
+  r.ops = up.ops;
   open({ draft: placeImport(blank, r).d, isNew: true });
   const notes = svgWarningLines(r.warnings);
   if (notes) await avviso({ titolo: t("symbolEditor.svg.done", { n: r.ops.length }), testo: notes });

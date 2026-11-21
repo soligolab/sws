@@ -246,7 +246,17 @@ pub fn trasformazione(
 /// compresi e arrotondato verso l'esterno di un pixel. `None` se non disegna niente.
 pub fn ingombro(svg: &[u8], w: u32, h: u32, flip_h: bool, flip_v: bool) -> Option<Ritaglio> {
     let tree = albero(svg)?;
-    let b = tree.root().abs_stroke_bounding_box();
+    // usvg 0.45 gets the box of an `<image>` wrong: it transforms the box
+    // asked for by the image's own scale a second time (`parser/image.rs`,
+    // `rect.transform(abs_transform)`), so a photo inside a symbol's part
+    // seemed to be far outside it and the part was dropped (21-11-2026). The
+    // drawing is right; only the box is wrong: with images, it is computed
+    // here.
+    let b = if svg.windows(6).any(|w| w == b"<image") {
+        riquadro_con_immagini(tree.root())?
+    } else {
+        tree.root().abs_stroke_bounding_box()
+    };
     if b.width() <= 0.0 || b.height() <= 0.0 {
         return None;
     }
@@ -265,6 +275,41 @@ pub fn ingombro(svg: &[u8], w: u32, h: u32, flip_h: bool, flip_v: bool) -> Optio
     ];
     t.map_points(&mut pts);
     ritaglio_di(&pts, w, h)
+}
+
+/// The box of what `g` draws, with each image's box taken from its real size
+/// (see [`ingombro`]).
+fn riquadro_con_immagini(g: &resvg::usvg::Group) -> Option<resvg::tiny_skia::Rect> {
+    use resvg::usvg::Node;
+    let mut acc: Option<(f32, f32, f32, f32)> = None;
+    let mut add = |r: resvg::tiny_skia::Rect| {
+        acc = Some(match acc {
+            Some((l, t, rr, b)) => (l.min(r.left()), t.min(r.top()), rr.max(r.right()), b.max(r.bottom())),
+            None => (r.left(), r.top(), r.right(), r.bottom()),
+        });
+    };
+    for node in g.children() {
+        match node {
+            Node::Group(gg) => {
+                if let Some(r) = riquadro_con_immagini(gg) {
+                    add(r);
+                }
+            }
+            Node::Image(img) => {
+                if let Some(r) = img
+                    .size()
+                    .to_non_zero_rect(0.0, 0.0)
+                    .transform(img.abs_transform())
+                {
+                    add(r.to_rect());
+                }
+            }
+            Node::Path(p) => add(p.abs_stroke_bounding_box()),
+            Node::Text(t) => add(t.abs_stroke_bounding_box()),
+        }
+    }
+    let (l, t, r, b) = acc?;
+    resvg::tiny_skia::Rect::from_ltrb(l, t, r, b)
 }
 
 /// Il riquadro, dentro `w`×`h`, che contiene i punti dati (già in pixel).
@@ -295,7 +340,10 @@ pub fn ritaglio_di(pts: &[resvg::tiny_skia::Point], w: u32, h: u32) -> Option<Ri
         + 1.0;
     let (x0, y0) = (x0.max(0.0) as u32, y0.max(0.0) as u32);
     let (x1, y1) = ((x1.max(0.0) as u32).min(w), (y1.max(0.0) as u32).min(h));
-    (x1 > x0 && y1 > y0).then_some(Ritaglio {
+    // `then`, not `then_some`: the subtraction must not run on an empty box
+    // (it overflowed in debug builds, 21-11-2026, on a layer with a photo
+    // that hadn't arrived).
+    (x1 > x0 && y1 > y0).then(|| Ritaglio {
         x: x0,
         y: y0,
         w: x1 - x0,

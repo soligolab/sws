@@ -163,13 +163,28 @@ describe("importSvg", () => {
 
   it("leaves out what a description cannot draw, and says so", () => {
     const r = ok(svg(`
-      <text x="0" y="10">Pump</text><image href="data:image/png;base64,AAAA" width="10" height="10"/>
+      <text x="0" y="10">Pump</text><image href="pump.png" width="10" height="10"/>
       <path fill-rule="evenodd" d="M0 0H50V50H0Z M10 10H40V40H10Z"/>
       <rect clip-path="url(#c)" mask="url(#m)" filter="url(#f)" x="0" y="0" width="10" height="10"/>
       <rect x="0" y="0" width="10" height="10" display="none"/>
       <rect x="0" y="0" width="10" height="10" fill="none"/>`));
     expect(r.ops).toHaveLength(2);
     expect(r.warnings).toEqual({ text: 1, image: 1, evenodd: 1, clip: 1, mask: 1, filter: 1 });
+  });
+
+  // Plan 2026-11-21-simboli-fase-3-foto: a photo inside the SVG comes along,
+  // in its box, upright; one linked from elsewhere can't.
+  it("keeps the photos inside the SVG, in their box", () => {
+    const r = ok(svg(`
+      <rect x="0" y="0" width="100" height="100" fill="#123456"/>
+      <g transform="translate(10 20)"><image href="data:image/png;base64,iVBORw0KGgo=" x="0" y="0" width="40" height="30" opacity="0.5"/></g>
+      <image xlink:href="data:image/jpeg;base64,/9j/4AAQ" x="50" y="50" width="20" height="20"/>
+      <image href="https://example.com/x.png" width="10" height="10"/>`));
+    expect(r.ops).toHaveLength(3);
+    expect(r.ops[1]).toEqual({ op: "image", src: "data:image/png;base64,iVBORw0KGgo=",
+      geo: [["x", 10], ["y", 20], ["width", 40], ["height", 30]], opacity: 0.5 });
+    expect(r.ops[2]).toMatchObject({ op: "image", src: "data:image/jpeg;base64,/9j/4AAQ" });
+    expect(r.warnings).toEqual({ image: 1 });
   });
 
   it("recognises circles, ellipses and rectangles written as paths (SVG Repo)", () => {

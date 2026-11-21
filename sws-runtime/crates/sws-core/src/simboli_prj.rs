@@ -218,6 +218,28 @@ pub const MAX_OPERAZIONI: usize = 300;
 /// Il lato massimo, come per la libreria: oltre, il pannello non lo rasterizza.
 pub const MAX_LATO: u32 = 512;
 
+/// The photos a project symbol may carry (plan `2026-11-21-simboli-fase-3-foto`).
+pub const MAX_IMAGES: usize = 8;
+
+/// The extensions of a photo in a symbol: the ones both engines decode.
+pub const IMAGE_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg", "webp"];
+
+/// A photo's name: a plain file name in the project's `images/`, with the
+/// same characters the upload route accepts — never a path, never a URL. It
+/// goes into the SVG as an attribute, so this is also what keeps it safe.
+pub fn image_name_ok(name: &str) -> bool {
+    !name.is_empty()
+        && name.len() <= 128
+        && !name.starts_with('.')
+        && !name.contains("..")
+        && name
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '.' | '-' | '_'))
+        && name
+            .rsplit_once('.')
+            .is_some_and(|(_, ext)| IMAGE_EXTENSIONS.contains(&ext.to_ascii_lowercase().as_str()))
+}
+
 pub fn colore_materiale(m: &str) -> Option<&'static str> {
     MATERIALI.iter().find(|(n, _)| *n == m).map(|(_, c)| *c)
 }
@@ -353,6 +375,18 @@ pub enum Op {
         #[serde(default = "diciotto_centesimi")]
         opacita: f64,
     },
+    /// A photo from the project's `images/` (plan
+    /// `2026-11-21-simboli-fase-3-foto`), in the box `x y width height`, kept
+    /// in proportion inside it. Like every drawing it belongs to the layer
+    /// that is open: under the static layers it is a background, inside a
+    /// live part it turns, moves or blinks with it. The body's state colour
+    /// never touches it.
+    Image {
+        src: String,
+        geo: Attributi,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        opacity: Option<f64>,
+    },
     /// Una linea senza riempimento.
     Tratto {
         d: String,
@@ -408,6 +442,12 @@ pub enum Op {
         #[serde(default = "dieci")]
         w: f64,
     },
+    /// An operation this runtime doesn't know (a project made with a newer
+    /// IDE, 21-11-2026): it draws nothing, instead of the whole `project.yaml`
+    /// becoming unreadable. Before it, a symbol with a photo sent to an older
+    /// panel would have stopped the project from loading at all.
+    #[serde(other)]
+    Unknown,
 }
 
 /// Un simbolo descritto. Per la libreria `family` è una delle cinque famiglie e
@@ -579,6 +619,9 @@ struct Costruzione<'a> {
     tronchetti: Vec<[f64; 4]>,
     flange: Vec<[f64; 4]>,
     bocche: Vec<BoccaDichiarata>,
+    /// The photos the symbol shows, in order of first use: the images it draws
+    /// and the ones its signal entries swap in.
+    immagini: Vec<String>,
     n: u32,
     /// With a trace, every drawn element carries `data-op="<n>"`, the index of
     /// the operation that drew it in `Descrizione::ops` (before the shortcuts
@@ -597,6 +640,7 @@ impl<'a> Costruzione<'a> {
             tronchetti: vec![],
             flange: vec![],
             bocche: vec![],
+            immagini: vec![],
             n: 0,
             traccia: None,
         };
@@ -632,6 +676,18 @@ impl<'a> Costruzione<'a> {
             None => e,
         };
         self.qui().push(e);
+    }
+
+    fn usa_immagine(&mut self, name: &str) -> Result<(), String> {
+        if !image_name_ok(name) {
+            return Err(format!(
+                "image «{name}»: a file name in images/ (png, jpg, webp; letters, digits, . - _)"
+            ));
+        }
+        if !self.immagini.iter().any(|n| n == name) {
+            self.immagini.push(name.to_string());
+        }
+        Ok(())
     }
 
     fn velo(&mut self, nome: &str) -> Result<String, String> {
@@ -677,6 +733,20 @@ impl<'a> Costruzione<'a> {
                     p.insert(k.clone(), v.clone());
                 }
                 self.parti.push(Value::Object(p));
+                // The photos a signal swaps in travel with the manifest, so
+                // the engines know them before the first value arrives.
+                if kind == "signal" {
+                    for e in geo
+                        .get("entries")
+                        .and_then(Value::as_array)
+                        .into_iter()
+                        .flatten()
+                    {
+                        if let Some(src) = e.get("image").and_then(Value::as_str) {
+                            self.usa_immagine(src)?;
+                        }
+                    }
+                }
                 let mut attributi = vec![testo("data-layer", "part")];
                 // A signal's colour as drawn: the shapes without a material
                 // take it from the layer, as the body's take the state colour.
@@ -755,6 +825,25 @@ impl<'a> Costruzione<'a> {
                 );
                 self.metti(e);
             }
+            Op::Image { src, geo, opacity } => {
+                self.usa_immagine(src)?;
+                let mut a: Vec<(String, Valore)> = Vec::new();
+                for k in ["x", "y", "width", "height"] {
+                    let v = geo
+                        .num(k)
+                        .filter(|v| v.is_finite())
+                        .ok_or_else(|| format!("image «{src}»: «{k}» must be a number"))?;
+                    a.push((k.to_string(), Valore::Num(v)));
+                }
+                if let Some(o) = opacity {
+                    a.push(("opacity".into(), Valore::Num(o.clamp(0.0, 1.0))));
+                }
+                // No `href`: each engine resolves `data-src` its own way (the
+                // web with the session's token, the panel with a copy at the
+                // size it draws), and a saved SVG never points anywhere.
+                let e = format!("<image data-src=\"{src}\"{}/>", attrs(&a));
+                self.metti(e);
+            }
             Op::Tratto { d, mat, extra } => {
                 let mut a = vec![testo("fill", "none")];
                 if let Some(m) = mat {
@@ -781,6 +870,7 @@ impl<'a> Costruzione<'a> {
                     d: *d,
                 });
             }
+            Op::Unknown => {}
             Op::Flangia { rect } => self.flange.push(*rect),
             Op::Tronchetto { rect } => self.tronchetti.push(*rect),
             Op::FlangiaV { .. } | Op::FlangiaO { .. } | Op::TuboO { .. } | Op::TuboV { .. } => {
@@ -1005,6 +1095,9 @@ impl<'a> Costruzione<'a> {
         }
         if let Some(o) = &d.overrides {
             v["overrides"] = json!(o);
+        }
+        if !self.immagini.is_empty() {
+            v["images"] = json!(self.immagini);
         }
         if d.family.is_none() {
             // Un simbolo del progetto non ha chiavi in it.json: le etichette
@@ -1444,6 +1537,37 @@ pub fn regole(d: &Descrizione, c: &Compilato) -> Vec<String> {
                 }
                 ids_parti.push(id);
             }
+            Op::Image { src, geo, opacity } => {
+                if !image_name_ok(src) {
+                    male.push(format!(
+                        "{dove}: image «{src}» must be a file name in images/ (png, jpg, webp)"
+                    ));
+                }
+                match riquadro("rect", geo) {
+                    Some((x, y, ww, hh)) if ww > 0.0 && hh > 0.0 => {
+                        if fuori(x, y, ww, hh) {
+                            male.push(format!(
+                                "{dove}: the image goes out of the drawing {}×{} (x {} to {}, y {} to {})",
+                                d.w,
+                                d.h,
+                                fmt(x),
+                                fmt(x + ww),
+                                fmt(y),
+                                fmt(y + hh)
+                            ));
+                        }
+                    }
+                    _ => male.push(format!(
+                        "{dove}: the image needs x, y and a positive width and height"
+                    )),
+                }
+                if opacity.is_some_and(|o| !(0.0..=1.0).contains(&o)) {
+                    male.push(format!("{dove}: opacity outside 0–1"));
+                }
+            }
+            Op::Unknown => male.push(format!(
+                "{dove}: an operation this version of SWS doesn't know: it draws nothing"
+            )),
             Op::Bocca { id: Some(id), .. } if !nome_ammesso(id, 2, 30) => {
                 male.push(format!("{dove}: id di bocca «{id}» non valido"));
             }
@@ -1453,6 +1577,10 @@ pub fn regole(d: &Descrizione, c: &Compilato) -> Vec<String> {
 
     // ── il risultato ──
     let svg = &c.svg;
+    let immagini = c.voce["images"].as_array().map_or(0, Vec::len);
+    if immagini > MAX_IMAGES {
+        male.push(format!("{immagini} photos: at most {MAX_IMAGES}"));
+    }
     if !svg.contains("<g id=\"body\"") {
         male.push("manca lo strato body (serve un «corpo» con almeno una forma)".into());
     }
@@ -1809,6 +1937,116 @@ mod tests {
             crate::simboli_lib::ParteLib::Rotor { ccw: true, .. }
         ));
         assert!(matches!(m[5], crate::simboli_lib::ParteLib::Signal { .. }));
+    }
+
+    fn photo_boiler() -> Descrizione {
+        serde_json::from_str(include_str!(
+            "../../../../tests/fixtures/simboli-prj/photo-boiler.json"
+        ))
+        .unwrap()
+    }
+
+    /// Phase 3 (plan 2026-11-21-simboli-fase-3-foto): a photo is an element of
+    /// the open layer, with no `href`; the manifest lists every photo, the
+    /// ones a signal swaps in too.
+    #[test]
+    fn photos_go_in_their_layer_and_in_the_manifest() {
+        let c = compila_e_controlla(&photo_boiler()).unwrap_or_else(|e| panic!("{e:?}"));
+        let svg = &c.svg;
+        let layer_of = |needle: &str| {
+            let at = svg.find(needle).unwrap_or_else(|| panic!("{needle} in {svg}"));
+            svg[..at].rfind("<g id=\"").map(|g| &svg[g + 7..g + 7 + svg[g + 7..].find('"').unwrap()])
+        };
+        assert_eq!(
+            layer_of("<image data-src=\"boiler.jpg\" x=\"0\" y=\"0\" width=\"100\" height=\"120\"/>"),
+            Some("layer-0")
+        );
+        assert_eq!(layer_of("data-src=\"fan-cutout.png\""), Some("fan"));
+        assert!(svg.contains("height=\"32\" opacity=\"0.9\"/>"));
+        assert_eq!(layer_of("data-src=\"flame-off.png\""), Some("flame"));
+        assert!(
+            svg.lines().filter(|l| l.contains("<image")).all(|l| !l.contains("href")),
+            "a saved symbol never points anywhere"
+        );
+        assert_eq!(
+            c.voce["images"],
+            json!(["boiler.jpg", "fan-cutout.png", "flame-off.png", "flame-low.png", "flame-high.png"])
+        );
+        let s = c.simbolo().unwrap();
+        assert_eq!(s.images.len(), 5);
+        let crate::simboli_lib::ParteLib::Signal { entries, .. } = &s.parts[1] else {
+            panic!("{:?}", s.parts)
+        };
+        assert_eq!(entries[2].image.as_deref(), Some("flame-high.png"));
+        // With the trace the editor knows which operation drew the photo.
+        let t = compila_con_traccia(&photo_boiler()).unwrap();
+        assert!(t.svg.contains("data-src=\"boiler.jpg\" x=\"0\" y=\"0\" width=\"100\" height=\"120\" data-op=\"0\"/>"));
+    }
+
+    #[test]
+    fn an_unknown_operation_does_not_make_the_symbol_unreadable() {
+        let mut v: Value = serde_json::from_str(include_str!(
+            "../../../../tests/fixtures/simboli-prj/photo-boiler.json"
+        ))
+        .unwrap();
+        v["ops"]
+            .as_array_mut()
+            .unwrap()
+            .push(json!({ "op": "hologram", "x": 1 }));
+        let d: Descrizione = serde_json::from_value(v).unwrap();
+        assert_eq!(d.ops.last(), Some(&Op::Unknown));
+        assert!(compila(&d).is_ok(), "it draws the rest");
+    }
+
+    #[test]
+    fn the_rules_stop_a_photo_that_could_point_elsewhere() {
+        let with_src = |src: &str| {
+            let mut d = photo_boiler();
+            if let Op::Image { src: s, .. } = &mut d.ops[0] {
+                *s = src.into();
+            }
+            compila_e_controlla(&d).err().unwrap_or_default().join(" | ")
+        };
+        for bad in [
+            "https://example.com/x.png",
+            "../secret.png",
+            "a/b.png",
+            "x.svg",
+            "x\" onload=\"y.png",
+            ".hidden.png",
+        ] {
+            assert!(!with_src(bad).is_empty(), "{bad}");
+        }
+        assert!(with_src("Boiler_2.WEBP").is_empty());
+        // A signal entry's photo is checked the same way: it goes to the manifest.
+        let mut d = photo_boiler();
+        if let Op::Parte { geo, .. } = &mut d.ops[5] {
+            geo.insert("entries".into(), json!([{ "value": 0, "image": "/etc/passwd" }]));
+        }
+        assert!(compila(&d).is_err());
+        // Out of the drawing, empty, too many.
+        let mut d = photo_boiler();
+        d.ops[0] = serde_json::from_value(
+            json!({ "op": "image", "src": "a.png", "geo": { "x": 50, "y": 0, "width": 100, "height": 10 } }),
+        )
+        .unwrap();
+        assert!(compila_e_controlla(&d).unwrap_err().join(" ").contains("goes out"));
+        d.ops[0] = serde_json::from_value(
+            json!({ "op": "image", "src": "a.png", "geo": { "x": 0, "y": 0, "width": 0, "height": 10 } }),
+        )
+        .unwrap();
+        assert!(compila_e_controlla(&d).unwrap_err().join(" ").contains("positive"));
+        let mut d = photo_boiler();
+        for i in 0..5 {
+            d.ops.push(
+                serde_json::from_value(json!({
+                    "op": "image", "src": format!("extra-{i}.png"),
+                    "geo": { "x": 0, "y": 0, "width": 10, "height": 10 }
+                }))
+                .unwrap(),
+            );
+        }
+        assert!(compila_e_controlla(&d).unwrap_err().join(" ").contains("at most 8"));
     }
 
     #[test]

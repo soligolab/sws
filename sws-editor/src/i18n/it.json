@@ -2072,7 +2072,8 @@
     "uninstallPurgeTitolo": "Disinstallazione e cancellazione dati",
     "deployUtentiDaCambiare": "Questi arrivano col cambio password obbligatorio: {{utenti}}. Al primo accesso sul pannello verrà chiesta una password nuova (si potrà rimandare).",
     "deployUtentiSostituiti": "Questo deploy sostituisce gli utenti del pannello ({{pannello}}) con quelli del progetto ({{progetto}}). Sul pannello varranno le password del progetto: una password cambiata sul pannello andrà persa.",
-    "deployUtentiTieni": "Se vuoi che il pannello tenga i suoi utenti, annulla e togli «Sostituisci anche gli utenti». Continuare?"
+    "deployUtentiTieni": "Se vuoi che il pannello tenga i suoi utenti, annulla e togli «Sostituisci anche gli utenti». Continuare?",
+    "deploySymbolPhotos": "Il pannello ha una versione di SWS che non conosce le foto nei simboli: con questo progetto non riuscirebbe nemmeno ad aprirlo. Aggiorna il pannello, poi rifai il deploy. Non è stato mandato niente."
   },
   "langtab": {
     "migrate": "Migra i testi…",
@@ -2678,6 +2679,7 @@
     "unused": "non usata",
     "notUsed": "Non è usata in nessuna pagina.",
     "usedIn": "Usata in {{n}} punti:",
+    "inSymbol": "nel simbolo «{{name}}»",
     "unusedCount": "{{n}} non usate",
     "missing": "{{n}} immagini mancanti",
     "renameTitle": "Rinomina l'immagine",
@@ -5531,7 +5533,8 @@
       "highlight": "Riflesso",
       "line": "Linea",
       "flange": "Flangia",
-      "stub": "Tronchetto"
+      "stub": "Tronchetto",
+      "image": "Foto"
     },
     "tool": {
       "port": "Bocca",
@@ -5777,7 +5780,7 @@
       },
       "warn": {
         "text": "{{n}} testi lasciati fuori: il pannello non ha i caratteri per disegnarli.",
-        "image": "{{n}} immagini lasciate fuori: le foto nei simboli arriveranno più avanti.",
+        "image": "{{n}} immagini lasciate fuori o ridotte al loro riquadro: entrano solo le foto PNG, JPEG o WebP dentro l'SVG, al più 8, dritte.",
         "evenodd": "{{n}} forme con dei buchi (riempimento «evenodd»): i buchi potrebbero risultare pieni.",
         "clip": "{{n}} ritagli (clip-path) ignorati: le forme si vedono intere.",
         "mask": "{{n}} maschere ignorate: le forme si vedono intere.",
@@ -5805,6 +5808,29 @@
         "newer": "Il file viene da una versione più nuova dell'IDE: aggiorna l'IDE per aprirlo.",
         "tooBig": "Il file è troppo grande: al più 1 MB."
       }
+    },
+    "photo": {
+      "add": "Foto…",
+      "addTitle": "Una foto dalle immagini del progetto: sotto a tutto, o nello strato di ciò che è selezionato",
+      "file": "Foto",
+      "change": "Scegli un'altra foto",
+      "opacity": "Opacità",
+      "note": "La foto tiene le sue proporzioni dentro il riquadro, e non cambia colore con lo stato: dentro una parte viva gira, si sposta o lampeggia con lei.",
+      "entry": "Foto",
+      "asDrawn": "come disegnata",
+      "clear": "Togli la foto di questa voce",
+      "onlyProject": "In un simbolo vanno solo le foto del progetto in PNG, JPEG o WebP: le icone del catalogo e gli SVG no.",
+      "exportMissing": "Una foto del simbolo non si è potuta leggere, il file non è stato scritto: {{error}}"
+    },
+    "aiPhoto": {
+      "title": "Genera foto",
+      "hint": "Il modello delle immagini (scopo «Sfondi») fotografa un oggetto alle proporzioni del simbolo. La foto si salva subito fra le immagini del progetto e va sotto il disegno.",
+      "placeholder": "Per esempio: caldaia murale bianca a condensazione, vista frontale",
+      "go": "Genera foto",
+      "busy": "Sto generando…",
+      "noModel": "Nessun modello di immagini configurato: IA → Un modello per scopo → Sfondi.",
+      "done": "Foto {{name}} aggiunta ({{cost}} $). Questo modello non fa lo sfondo trasparente: la foto ha un fondo grigio chiaro.",
+      "doneTransparent": "Foto {{name}} aggiunta, con lo sfondo trasparente ({{cost}} $)."
     }
   },
   "images": {

@@ -1,15 +1,22 @@
 // The file of a symbol, `.swsym` (plan
 // docs/archive/2026-11-20-importa-svg-e-file-del-simbolo.md): the description as
-// JSON, to take a symbol from one project to another. The photos of phase 3
-// will make it a zip; the reader tells one from the other by the first bytes,
-// so the JSON files written today stay readable.
+// JSON, to take a symbol from one project to another. With photos (plan
+// docs/plans/2026-11-21-simboli-fase-3-foto.md) it is a zip: `symbol.json`, the
+// same JSON, and `images/<name>` for each photo. The reader tells one from the
+// other by the first bytes, so the JSON files written before stay readable.
 
+import { strFromU8, strToU8, unzipSync, zipSync, type Zippable } from "fflate";
 import type { DescrizioneSimbolo } from "@/types";
+import { symbolPhotos } from "@/images/usage";
 import { slugFrom, type Op } from "./model";
 
 export const SYMBOL_FILE_FORMAT = "sws-symbol";
 export const SYMBOL_FILE_VERSION = 1;
 export const MAX_SYMBOL_FILE_BYTES = 1_000_000;
+/** A symbol file with its photos: eight photos of the size the IDE uploads. */
+export const MAX_SYMBOL_ZIP_BYTES = 12_000_000;
+/** One photo inside it, as the upload route takes them (`MAX_IMAGE_BYTES`). */
+const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
 
 export type SymbolFileError = "notSymbol" | "newer" | "tooBig";
 
@@ -50,4 +57,43 @@ export function readSymbolFile(text: string, taken: readonly string[]):
   const d: DescrizioneSimbolo = { slug, w: s.w, h: s.h, body: s.body, it, en, ops: s.ops as Op[] };
   if (typeof s.tipo === "string") d.tipo = s.tipo;
   return { ok: true, d };
+}
+
+/** A zip, by its first bytes. */
+export function isZip(bytes: Uint8Array): boolean {
+  return bytes.length > 3 && bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04;
+}
+
+/** The file of a symbol with its photos: a zip, the photos stored as they are
+ *  (already compressed). */
+export function symbolZip(d: DescrizioneSimbolo, photos: Record<string, Uint8Array>): Uint8Array {
+  const files: Zippable = { "symbol.json": strToU8(symbolFileText(d)) };
+  for (const [name, bytes] of Object.entries(photos)) files[`images/${name}`] = [bytes, { level: 0 }];
+  return zipSync(files);
+}
+
+/** A zipped symbol file: the symbol as [`readSymbolFile`] reads it, and the
+ *  photos it names that the file carries, by name. */
+export function readSymbolZip(bytes: Uint8Array, taken: readonly string[]):
+  { ok: true; d: DescrizioneSimbolo; photos: Record<string, Uint8Array> } | { ok: false; error: SymbolFileError } {
+  if (bytes.length > MAX_SYMBOL_ZIP_BYTES) return { ok: false, error: "tooBig" };
+  let files: Record<string, Uint8Array>;
+  try {
+    files = unzipSync(bytes, {
+      filter: (f) => (f.name === "symbol.json" && f.originalSize <= MAX_SYMBOL_FILE_BYTES)
+        || (f.name.startsWith("images/") && f.originalSize <= MAX_PHOTO_BYTES),
+    });
+  } catch {
+    return { ok: false, error: "notSymbol" };
+  }
+  const json = files["symbol.json"];
+  if (!json) return { ok: false, error: "notSymbol" };
+  const r = readSymbolFile(strFromU8(json), taken);
+  if (!r.ok) return r;
+  const photos: Record<string, Uint8Array> = {};
+  for (const name of symbolPhotos(r.d)) {
+    const b = files[`images/${name}`];
+    if (b) photos[name] = b;
+  }
+  return { ok: true, d: r.d, photos };
 }

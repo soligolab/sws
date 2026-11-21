@@ -7,6 +7,10 @@
 //! cost 1,8 s, all of it decoding, scaling and cropping on the panel's single
 //! core: here it is done once, and kept.
 //!
+//! `&fit=contain` (21-11-2026, plan `2026-11-21-simboli-fase-3-foto`): the
+//! image scaled to fit inside W × H, proportions kept, for a photo inside a
+//! symbol. A PNG stays a PNG, so a cut-out keeps its transparency.
+//!
 //! The variants live outside the project (`<config>/cache/sized-images`), so
 //! backups, exports and deploys never carry them. Their name hashes the
 //! original's path, length and modification time with the size asked: a
@@ -28,13 +32,47 @@ pub fn resizable(name: &str) -> bool {
     matches!(ext.as_str(), "jpg" | "jpeg" | "png")
 }
 
+/// How a variant fills its size.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Fit {
+    /// Exactly W × H, cropped: a page background.
+    #[default]
+    Cover,
+    /// Inside W × H, proportions kept, never cropped: a photo in a symbol.
+    Contain,
+}
+
+impl Fit {
+    pub fn parse(s: Option<&str>) -> Fit {
+        match s {
+            Some("contain") => Fit::Contain,
+            _ => Fit::Cover,
+        }
+    }
+}
+
+fn is_png(name: &Path) -> bool {
+    name.extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| e.eq_ignore_ascii_case("png"))
+}
+
+/// The media type of a variant of `original`.
+pub fn content_type(original: &Path, fit: Fit) -> &'static str {
+    if fit == Fit::Contain && is_png(original) {
+        "image/png"
+    } else {
+        "image/jpeg"
+    }
+}
+
 pub fn cache_dir(config_dir: &Path) -> PathBuf {
     config_dir.join("cache").join("sized-images")
 }
 
 /// Where the variant of `original` at `w × h` lives, given the original's
 /// metadata. `None` if the original cannot be read.
-pub fn variant_path(cache: &Path, original: &Path, w: u32, h: u32) -> Option<PathBuf> {
+pub fn variant_path(cache: &Path, original: &Path, w: u32, h: u32, fit: Fit) -> Option<PathBuf> {
     use sha2::{Digest, Sha256};
     let meta = std::fs::metadata(original).ok()?;
     let modified = meta
@@ -52,15 +90,39 @@ pub fn variant_path(cache: &Path, original: &Path, w: u32, h: u32) -> Option<Pat
         .take(12)
         .map(|b| format!("{b:02x}"))
         .collect();
-    Some(cache.join(format!("{hex}-{w}x{h}.jpg")))
+    Some(cache.join(match fit {
+        Fit::Cover => format!("{hex}-{w}x{h}.jpg"),
+        Fit::Contain if is_png(original) => format!("{hex}-{w}x{h}-contain.png"),
+        Fit::Contain => format!("{hex}-{w}x{h}-contain.jpg"),
+    }))
 }
 
-/// Decodes `bytes`, scales and crops to `w × h` like `cover`, encodes a JPEG.
-pub fn make(bytes: &[u8], w: u32, h: u32) -> Result<Vec<u8>, String> {
+/// Decodes `bytes`, scales to `w × h` as `fit` says, encodes a JPEG — or a
+/// PNG with its transparency, when `png` and `fit` is `Contain`.
+pub fn make(bytes: &[u8], w: u32, h: u32, fit: Fit, png: bool) -> Result<Vec<u8>, String> {
     let img = image::load_from_memory(bytes).map_err(|e| e.to_string())?;
-    let out = img
-        .resize_to_fill(w, h, image::imageops::FilterType::Triangle)
-        .into_rgb8();
+    let filter = image::imageops::FilterType::Triangle;
+    if fit == Fit::Contain {
+        // Never larger than the original: a small cut-out stays sharp.
+        let scaled = if img.width() > w || img.height() > h {
+            img.resize(w, h, filter)
+        } else {
+            img
+        };
+        let mut buf = Vec::new();
+        if png {
+            scaled
+                .into_rgba8()
+                .write_to(&mut std::io::Cursor::new(&mut buf), image::ImageFormat::Png)
+                .map_err(|e| e.to_string())?;
+        } else {
+            image::codecs::jpeg::JpegEncoder::new_with_quality(&mut buf, QUALITY)
+                .encode_image(&scaled.into_rgb8())
+                .map_err(|e| e.to_string())?;
+        }
+        return Ok(buf);
+    }
+    let out = img.resize_to_fill(w, h, filter).into_rgb8();
     let mut buf = Vec::new();
     image::codecs::jpeg::JpegEncoder::new_with_quality(&mut buf, QUALITY)
         .encode_image(&out)
@@ -70,13 +132,13 @@ pub fn make(bytes: &[u8], w: u32, h: u32) -> Result<Vec<u8>, String> {
 
 /// The variant of `original` at `w × h`: read from the cache, or made and
 /// written there. Blocking: call it from `spawn_blocking`.
-pub fn sized(cache: &Path, original: &Path, w: u32, h: u32) -> Result<Vec<u8>, String> {
-    let path = variant_path(cache, original, w, h).ok_or("image not found")?;
+pub fn sized(cache: &Path, original: &Path, w: u32, h: u32, fit: Fit) -> Result<Vec<u8>, String> {
+    let path = variant_path(cache, original, w, h, fit).ok_or("image not found")?;
     if let Ok(b) = std::fs::read(&path) {
         return Ok(b);
     }
     let bytes = std::fs::read(original).map_err(|e| e.to_string())?;
-    let out = make(&bytes, w, h)?;
+    let out = make(&bytes, w, h, fit, is_png(original))?;
     // Written whole and then renamed: a panel asking at the same moment never
     // reads half a file. A cache that cannot be written still answers.
     if std::fs::create_dir_all(cache).is_ok() {
@@ -139,9 +201,9 @@ pub fn prepare(project_dir: &Path, config_dir: &Path) {
             continue;
         }
         let original = images.join(name);
-        let ready = variant_path(&cache, &original, w, h).is_some_and(|p| p.exists());
+        let ready = variant_path(&cache, &original, w, h, Fit::Cover).is_some_and(|p| p.exists());
         if !ready {
-            match sized(&cache, &original, w, h) {
+            match sized(&cache, &original, w, h, Fit::Cover) {
                 Ok(_) => made += 1,
                 Err(e) => tracing::warn!("background {name} at {w}x{h}: {e}"),
             }
@@ -174,7 +236,7 @@ mod tests {
         let src = d.path().join("bg.png");
         two_halves(&src);
         let cache = d.path().join("cache");
-        let out = sized(&cache, &src, 100, 100).unwrap();
+        let out = sized(&cache, &src, 100, 100, Fit::Cover).unwrap();
         let img = image::load_from_memory(&out).unwrap().into_rgb8();
         assert_eq!(img.dimensions(), (100, 100));
         // Cover keeps the middle: both halves are there, side by side.
@@ -190,18 +252,18 @@ mod tests {
         let src = d.path().join("bg.png");
         two_halves(&src);
         let cache = d.path().join("cache");
-        let first = variant_path(&cache, &src, 60, 40).unwrap();
-        sized(&cache, &src, 60, 40).unwrap();
+        let first = variant_path(&cache, &src, 60, 40, Fit::Cover).unwrap();
+        sized(&cache, &src, 60, 40, Fit::Cover).unwrap();
         // A marker in the cached file: the second call must return it as is.
         std::fs::write(&first, b"cached").unwrap();
-        assert_eq!(sized(&cache, &src, 60, 40).unwrap(), b"cached");
+        assert_eq!(sized(&cache, &src, 60, 40, Fit::Cover).unwrap(), b"cached");
         // Another size, another variant.
-        assert_ne!(variant_path(&cache, &src, 61, 40).unwrap(), first);
+        assert_ne!(variant_path(&cache, &src, 61, 40, Fit::Cover).unwrap(), first);
         // A replaced original (another length): another variant.
         image::RgbImage::from_pixel(10, 10, image::Rgb([0, 255, 0]))
             .save(&src)
             .unwrap();
-        assert_ne!(variant_path(&cache, &src, 60, 40).unwrap(), first);
+        assert_ne!(variant_path(&cache, &src, 60, 40, Fit::Cover).unwrap(), first);
     }
 
     #[test]
@@ -228,10 +290,49 @@ mod tests {
             &project.join("images/bg.png"),
             200,
             120,
+            Fit::Cover,
         )
         .unwrap();
         assert!(expected.exists());
         assert_eq!(std::fs::read_dir(cache_dir(&config)).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn contain_keeps_the_proportions_and_the_transparency_of_a_png() {
+        let d = tempfile::tempdir().unwrap();
+        let src = d.path().join("cutout.png");
+        // 200×100, transparent on the left, opaque green on the right.
+        image::RgbaImage::from_fn(200, 100, |x, _| {
+            if x < 100 {
+                image::Rgba([0, 0, 0, 0])
+            } else {
+                image::Rgba([0, 255, 0, 255])
+            }
+        })
+        .save(&src)
+        .unwrap();
+        let cache = d.path().join("cache");
+        let out = sized(&cache, &src, 50, 50, Fit::Contain).unwrap();
+        let img = image::load_from_memory_with_format(&out, image::ImageFormat::Png)
+            .unwrap()
+            .into_rgba8();
+        assert_eq!(img.dimensions(), (50, 25), "inside 50×50, proportions kept");
+        assert_eq!(img.get_pixel(5, 12)[3], 0, "still transparent");
+        assert!(img.get_pixel(45, 12)[1] > 200);
+        assert_eq!(content_type(&src, Fit::Contain), "image/png");
+        // Never enlarged; a cover variant of the same size is another file.
+        let small = sized(&cache, &src, 400, 400, Fit::Contain).unwrap();
+        assert_eq!(image::load_from_memory(&small).unwrap().width(), 200);
+        assert_ne!(
+            variant_path(&cache, &src, 50, 50, Fit::Contain),
+            variant_path(&cache, &src, 50, 50, Fit::Cover)
+        );
+        // A JPEG stays a JPEG.
+        let jpg = d.path().join("photo.jpg");
+        image::RgbImage::from_pixel(300, 150, image::Rgb([10, 20, 30])).save(&jpg).unwrap();
+        let out = sized(&cache, &jpg, 60, 60, Fit::Contain).unwrap();
+        assert_eq!(image::guess_format(&out).unwrap(), image::ImageFormat::Jpeg);
+        assert_eq!(image::load_from_memory(&out).unwrap().height(), 30);
     }
 
     #[test]

@@ -532,6 +532,11 @@ pub fn build(
             "/api/symbols/ai/interview",
             post(crate::simboli_progetto::ai_interview),
         )
+        // «Genera foto» (plan 2026-11-21-simboli-fase-3-foto).
+        .route(
+            "/api/symbols/ai/photo",
+            post(crate::simboli_progetto::ai_photo),
+        )
         .route("/api/project/datastores", put(update_project_datastores))
         .route(
             "/api/project/global-scripts",
@@ -8754,6 +8759,8 @@ async fn list_project_images(State(s): State<AppState>) -> Response {
 struct ImageSize {
     w: Option<u32>,
     h: Option<u32>,
+    /// `contain`: inside the size, proportions kept (a photo in a symbol).
+    fit: Option<String>,
 }
 
 async fn get_project_image(
@@ -8773,14 +8780,16 @@ async fn get_project_image(
         if crate::sized_image::resizable(&name) && ok(w) && ok(h) {
             let original = images_dir_at(&dir).join(&name);
             let cache = crate::sized_image::cache_dir(&s.config_dir);
+            let fit = crate::sized_image::Fit::parse(size.fit.as_deref());
+            let ctype = crate::sized_image::content_type(&original, fit);
             let made = tokio::task::spawn_blocking(move || {
-                crate::sized_image::sized(&cache, &original, w, h)
+                crate::sized_image::sized(&cache, &original, w, h, fit)
             })
             .await;
             return match made {
                 Ok(Ok(bytes)) => Response::builder()
                     .status(StatusCode::OK)
-                    .header(header::CONTENT_TYPE, "image/jpeg")
+                    .header(header::CONTENT_TYPE, ctype)
                     .header(header::CACHE_CONTROL, "max-age=60")
                     .body(Body::from(bytes))
                     .unwrap(),

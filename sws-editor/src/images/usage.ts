@@ -5,7 +5,7 @@
 // the `?v=` that a re-upload adds: a new field that holds an image is covered
 // without touching this file.
 
-import type { FaceplateDef, SynopticPage } from "@/types";
+import type { DescrizioneSimbolo, FaceplateDef, SynopticPage } from "@/types";
 
 const PREFIX = "/api/project/images/";
 
@@ -22,7 +22,42 @@ export function imageNameOf(value: string): string | null {
 
 /** One place that uses an image: a page or a popup, and the object (none for
  *  the page itself, its background). */
-export interface ImageUse { pageId: string; pageName: string; objectId?: string; faceplate?: boolean }
+export interface ImageUse {
+  pageId: string; pageName: string; objectId?: string; faceplate?: boolean;
+  /** A photo inside a project symbol (plan 2026-11-21-simboli-fase-3-foto):
+   *  `pageName` is the symbol's label, `pageId` its slug. */
+  symbol?: boolean;
+}
+
+/** The photos a project symbol uses: its images and the ones its signal
+ *  entries swap in. They are plain names, not URLs. */
+export function symbolPhotos(d: DescrizioneSimbolo): string[] {
+  const out = new Set<string>();
+  for (const op of d.ops as Record<string, unknown>[]) {
+    if (op.op === "image" && typeof op.src === "string") out.add(op.src);
+    if (op.op === "parte") {
+      const entries = (op.geo as { entries?: { image?: unknown }[] } | undefined)?.entries ?? [];
+      for (const e of entries) if (typeof e.image === "string") out.add(e.image);
+    }
+  }
+  return [...out];
+}
+
+/** `d` with photo `from` called `to`; the same object when it doesn't use it. */
+export function renameSymbolPhoto(d: DescrizioneSimbolo, from: string, to: string): DescrizioneSimbolo {
+  if (!symbolPhotos(d).includes(from)) return d;
+  const ops = (d.ops as Record<string, unknown>[]).map((op) => {
+    if (op.op === "image" && op.src === from) return { ...op, src: to };
+    if (op.op === "parte") {
+      const geo = op.geo as { entries?: { image?: string }[] } | undefined;
+      if (geo?.entries?.some((e) => e.image === from)) {
+        return { ...op, geo: { ...geo, entries: geo.entries.map((e) => (e.image === from ? { ...e, image: to } : e)) } };
+      }
+    }
+    return op;
+  });
+  return { ...d, ops };
+}
 
 function walk(value: unknown, found: (name: string) => void): void {
   if (typeof value === "string") {
@@ -36,7 +71,11 @@ function walk(value: unknown, found: (name: string) => void): void {
 }
 
 /** Every use of every project image, by name. */
-export function imageUses(pages: readonly SynopticPage[], faceplates: readonly FaceplateDef[] = []): Map<string, ImageUse[]> {
+export function imageUses(
+  pages: readonly SynopticPage[],
+  faceplates: readonly FaceplateDef[] = [],
+  symbols: readonly DescrizioneSimbolo[] = [],
+): Map<string, ImageUse[]> {
   const out = new Map<string, ImageUse[]>();
   const add = (name: string, use: ImageUse) => {
     const l = out.get(name) ?? [];
@@ -54,6 +93,9 @@ export function imageUses(pages: readonly SynopticPage[], faceplates: readonly F
   for (const f of faceplates) {
     const { objects, ...rest } = f;
     scan(f.id, f.label || f.id, objects, rest, true);
+  }
+  for (const d of symbols) {
+    for (const n of symbolPhotos(d)) add(n, { pageId: d.slug, pageName: d.it || d.slug, symbol: true });
   }
   return out;
 }

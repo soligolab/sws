@@ -1330,6 +1330,40 @@ async fn dispositivo_legge_i_segreti(
     }
 }
 
+/// Whether the device's `/api/system` declares `capability` as `true`; a
+/// field it doesn't have, or no answer, is `false` (see `legge_i_segreti`).
+async fn device_capability(
+    client: &reqwest::Client,
+    base: &str,
+    auth_hdr: &Option<String>,
+    capability: &str,
+) -> bool {
+    let mut r = client.get(format!("{base}/api/system"));
+    if let Some(h) = auth_hdr {
+        r = r.header("Authorization", h);
+    }
+    match r.send().await {
+        Ok(resp) if resp.status().is_success() => resp
+            .json::<serde_json::Value>()
+            .await
+            .is_ok_and(|v| v[capability].as_bool() == Some(true)),
+        _ => false,
+    }
+}
+
+/// Whether a project symbol of `dir` has a photo.
+pub(crate) fn project_uses_symbol_photos(dir: &std::path::Path) -> bool {
+    sws_core::Project::load(dir).is_ok_and(|p| {
+        p.simboli.iter().any(|d| {
+            d.ops
+                .iter()
+                .any(|op| matches!(op, sws_core::simboli_prj::Op::Image { .. }))
+                || sws_core::simboli_prj::compila(d)
+                    .is_ok_and(|c| c.voce["images"].as_array().is_some_and(|a| !a.is_empty()))
+        })
+    })
+}
+
 /// La decisione, separata dalla rete perché è l'unica parte che può sbagliare
 /// in silenzio: un campo assente deve valere `false`, non «boh».
 pub(crate) fn legge_i_segreti(corpo: &serde_json::Value) -> bool {
@@ -3216,6 +3250,18 @@ pub async fn remote_deploy(
     // Come il precedente, va letta ORA: dopo `open_project` sul target ogni
     // sessione è decaduta e la GET risponderebbe 401.
     let target_legge_i_segreti = dispositivo_legge_i_segreti(&client, &base, &auth_hdr).await;
+    // A project whose symbols have photos (plan 2026-11-21-simboli-fase-3-foto)
+    // can't go to a runtime that doesn't know them: it couldn't even load
+    // `project.yaml`. Not a confirmation: the panel is updated first.
+    if project_uses_symbol_photos(&proj_dir)
+        && !device_capability(&client, &base, &auth_hdr, "symbol_photos").await
+    {
+        return (
+            StatusCode::PRECONDITION_REQUIRED,
+            Json(serde_json::json!({ "conferma": "symbol-photos-unsupported" })),
+        )
+            .into_response();
+    }
     let quanti_segreti = sws_core::segreti::leggi_segreti(&proj_dir)
         .ok()
         .flatten()

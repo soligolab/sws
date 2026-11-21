@@ -14,6 +14,7 @@ import { angoliLeva, preparaSimbolo, prefissoIstanza, stileDelDisegno, useSimbol
 import type { ParteLegata } from "@/types";
 import { stileEffettivo, useStileProgetto, type SovrascrittureSimbolo, type StileSimboliProgetto } from "@/symbols/stileProgetto";
 import type { ManifestLib } from "./manifest";
+import { useHrefImmagini } from "@/canvas/ImmagineSvg";
 
 export interface ValoriParti {
   /** Colore del corpo (di stato); `null` = colore del materiale. */
@@ -45,6 +46,38 @@ function withLayerFill(markup: string, colour: string): string {
   return head.replace(/ fill="[^"]*"/, ` fill="${colour}"`) + (nl < 0 ? "" : markup.slice(nl));
 }
 
+/** Where a photo of a symbol is (plan 2026-11-21-simboli-fase-3-foto). */
+export function photoUrl(name: string): string {
+  return `/api/project/images/${name}`;
+}
+
+/** A line with an `<image …>`, pointing at `href` (any `href` it had taken out). */
+function setHref(line: string, href: string): string {
+  const i = line.indexOf("<image");
+  if (i < 0) return line;
+  const head = line.slice(0, i + 6);
+  const rest = line.slice(i + 6).replace(/ href="[^"]*"/, "");
+  return `${head} href="${href.replace(/"/g, "%22")}"${rest}`;
+}
+
+/** The markup with every `<image data-src="N">` pointing at photo N. The
+ *  compiler writes one element per line; a photo not loaded yet stays without
+ *  `href` and draws nothing. Twin of `con_foto` in `simbolo_lib.rs`. */
+export function withPhotos(markup: string, photos: Record<string, string>): string {
+  if (!markup.includes("<image")) return markup;
+  return markup.split("\n").map((line) => {
+    const m = /<image data-src="([^"]+)"/.exec(line);
+    const href = m ? photos[m[1]] : undefined;
+    return href ? setHref(line, href) : line;
+  }).join("\n");
+}
+
+/** A layer whose photos all show `href` instead: a signal entry with a photo.
+ *  Twin of `con_foto_al_posto` in `simbolo_lib.rs`. */
+export function withPhoto(markup: string, href: string): string {
+  return markup.split("\n").map((line) => (line.includes("<image ") ? setHref(line, href) : line)).join("\n");
+}
+
 export function SimboloLibSvg({ sim, svg, manifesto, prefisso, x, y, w, h, valori, dataAnim, progetto, sovrascritture }: {
   sim: SimboloLib;
   svg: string;
@@ -72,24 +105,44 @@ export function SimboloLibSvg({ sim, svg, manifesto, prefisso, x, y, w, h, valor
   // secondo per ogni simbolo — misurato col tutorial T08, 03-11-2026: ~1100
   // nodi rimossi al secondo per un serbatoio e una pompa, e campi dell'editor
   // che si staccavano dal DOM mentre ci si scriveva.
+  // The photos (plan 2026-11-21-simboli-fase-3-foto), fetched with the
+  // session like every image of the project.
+  const photoUrls = useMemo(() => (sim.images ?? []).map(photoUrl), [sim.images]);
+  const loaded = useHrefImmagini(photoUrls);
+  const photosKey = (sim.images ?? []).map((n) => `${n}=${loaded[photoUrl(n)] ?? ""}`).join("|");
+  const photos = useMemo(() => {
+    const out: Record<string, string> = {};
+    for (const n of sim.images ?? []) {
+      const h = loaded[photoUrl(n)];
+      if (h) out[n] = h;
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [photosKey]);
   const html = useMemo(
-    () => ({ defs: { __html: prep.defs }, strati: prep.strati.map((s) => ({ __html: s.markup })) }),
-    [prep],
+    () => ({ defs: { __html: prep.defs }, strati: prep.strati.map((s) => ({ __html: withPhotos(s.markup, photos) })) }),
+    [prep, photos],
   );
-  // A signal in another colour than drawn: its layer's markup rewritten, once
-  // per colour (a new `{ __html }` at every render would rewrite the DOM).
-  const signalColours = sim.parts.map((p) => {
+  // A signal in another colour or photo than drawn: its layer's markup
+  // rewritten, once per entry (a new `{ __html }` at every render would
+  // rewrite the DOM).
+  const signalLooks = sim.parts.map((p) => {
     if (p.kind !== "signal") return "";
     const v = valori.parti?.[p.id];
     const e = v && "entry" in v && v.entry !== null ? p.entries?.[v.entry] : undefined;
-    return e?.color ?? "";
+    const photo = e?.image ? photos[e.image] ?? "" : "";
+    return `${e?.color ?? ""}\t${photo}`;
   }).join("|");
   const strati = useMemo(() => prep.strati.map((s, i) => {
     const p = sim.parts.find((x) => x.id === s.id);
     if (p?.kind !== "signal") return html.strati[i];
-    const c = signalColours.split("|")[sim.parts.indexOf(p)];
-    return c ? { __html: withLayerFill(s.markup, c) } : html.strati[i];
-  }), [prep, html, sim.parts, signalColours]);
+    const [c, photo] = signalLooks.split("|")[sim.parts.indexOf(p)].split("\t");
+    if (!c && !photo) return html.strati[i];
+    let markup = withPhotos(s.markup, photos);
+    if (c) markup = withLayerFill(markup, c);
+    if (photo) markup = withPhoto(markup, photo);
+    return { __html: markup };
+  }), [prep, html, sim.parts, signalLooks, photos]);
   const livello = valori.livello === undefined ? 1 : Math.max(0, Math.min(1, valori.livello));
   const idClip = (pid: string) => `${prefisso}-clip-${pid}`;
   return (

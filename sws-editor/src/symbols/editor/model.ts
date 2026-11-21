@@ -47,7 +47,7 @@ export interface SymbolInput {
   op: number;
 }
 
-const DRAWS = new Set(["forma", "luce", "riflesso", "tratto", "flangia_v", "flangia_o", "tubo_o", "tubo_v"]);
+const DRAWS = new Set(["forma", "luce", "riflesso", "tratto", "flangia_v", "flangia_o", "tubo_o", "tubo_v", "image"]);
 
 export function draws(op: Op): boolean {
   return DRAWS.has(op.op);
@@ -161,6 +161,9 @@ export function transformOp(op: Op, a: Affine): Op {
   switch (op.op) {
     case "forma": case "luce": case "riflesso":
       return { ...op, geo: transformGeo(String(op.tag), op.geo as Pairs, a) };
+    // A photo moves and resizes like a rectangle (plan 2026-11-21-simboli-fase-3-foto).
+    case "image":
+      return { ...op, geo: transformGeo("rect", op.geo as Pairs, a) };
     case "tratto":
       return { ...op, d: transformPath(String(op.d), a) };
     case "parte": {
@@ -254,6 +257,34 @@ export function insertInLayer(d: DescrizioneSimbolo, layerId: string, op: Op): {
   const ops = [...(d.ops as Op[])];
   ops.splice(at, 0, op);
   return { d: withOps(d, ops), at };
+}
+
+/** The extensions a photo in a symbol may have: the ones both engines decode
+ *  (`IMAGE_EXTENSIONS` in `simboli_prj.rs`). */
+export const PHOTO_EXTENSIONS = ["png", "jpg", "jpeg", "webp"];
+
+export function photoNameOk(name: string): boolean {
+  return /^[A-Za-z0-9_-][A-Za-z0-9._-]{0,127}$/.test(name) && !name.includes("..")
+    && PHOTO_EXTENSIONS.includes(name.split(".").pop()!.toLowerCase());
+}
+
+/** A photo of `size` pixels, as large as it fits in the drawing `w × h` and
+ *  centred, proportions kept (plan 2026-11-21-simboli-fase-3-foto). */
+export function newImage(src: string, w: number, h: number, size?: { width: number; height: number }): Op {
+  const ratio = size && size.width > 0 && size.height > 0 ? size.width / size.height : w / h;
+  const bw = ratio >= w / h ? w : h * ratio;
+  const bh = ratio >= w / h ? w / ratio : h;
+  return { op: "image", src, geo: [["x", r2((w - bw) / 2)], ["y", r2((h - bh) / 2)], ["width", r2(bw)], ["height", r2(bh)]] };
+}
+
+/** The opacity of a photo, 0..1 (`undefined` = opaque). */
+export function setImageOpacity(d: DescrizioneSimbolo, i: number, opacity: number | undefined): DescrizioneSimbolo {
+  const ops = [...(d.ops as Op[])];
+  const op = { ...ops[i] };
+  if (opacity === undefined || opacity >= 1) delete op.opacity;
+  else op.opacity = r2(Math.max(0, opacity));
+  ops[i] = op;
+  return withOps(d, ops);
 }
 
 export function newRect(b: Box, mat = "steel"): Op {

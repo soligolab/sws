@@ -200,6 +200,8 @@ pub async fn validate_project(
     findings.extend(crate::validate::rilievi_faceplate(&project, &faceplate));
     let trasporti = trasporti_catalogo(&s).await;
     findings.extend(crate::validate::rilievi_trasporto(&project, &trasporti));
+    let images = crate::validate::project_image_names(&dir);
+    findings.extend(crate::validate::symbol_photo_findings(&project, &images));
 
     // ── 5. Cosa c'era già ────────────────────────────────────────────────────
     // Stessa validazione sul progetto e sulle pagine **come stanno su disco**.
@@ -220,6 +222,9 @@ pub async fn validate_project(
             prima.insert(chiave(&f));
         }
         for f in crate::validate::rilievi_trasporto(&p0, &trasporti) {
+            prima.insert(chiave(&f));
+        }
+        for f in crate::validate::symbol_photo_findings(&p0, &images) {
             prima.insert(chiave(&f));
         }
     }

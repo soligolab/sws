@@ -25,16 +25,20 @@ import {
   insertInLayer, layers, mapBox, matrixOps, moveLayer, movePort, moveToLayer, moveToNewLayer, NEW_LAYER, newCircle, newEllipse, newLine, newPath, newRect, ports, r2,
   removeInput, renamePart, reorderOp, resizeSymbol, saveAsCopy, setExtra, setFill, setGeo, setPartGeo, setPathD,
   setPort, setVeil, transformOps, turnMatrix, union, validPathD, validPortId, validSize, INPUT_KINDS, SIDES,
-  animateSelection, setPartParam,
+  animateSelection, setPartParam, newImage, setImageOpacity,
   type Affine, type AlignMode, type Box, type InputKind, type Layer, type Op, type Port, type Side,
 } from "./model";
 import { predefinito } from "@/coloriPredefiniti";
 import type { ValoreParte } from "@/symbols/lib/libreria";
 import { AnimateBlock, AnimationProps } from "./AnimationProps";
 import { AiPanel } from "./AiPanel";
+import { AiPhoto } from "./AiPhoto";
 import { bindingsOnParts, pipesOnPorts, svgWarningLines, takenSlugs, usage, withSymbol, withoutSymbol, writeSymbols, type SymbolEditorTarget } from "./open";
 import { importSvg, isBlank, looksLikeSvg, placeImport, roomFor, MAX_SVG_BYTES } from "./importSvg";
-import { symbolFileName, symbolFileText } from "./symbolFile";
+import { symbolFileName, symbolFileText, symbolZip } from "./symbolFile";
+import { symbolPhotos } from "@/images/usage";
+import { PhotoPickerHost, pickPhoto } from "./photoPicker";
+import { uploadEmbeddedPhotos } from "./photoUpload";
 
 interface Catalog {
   materials: { name: string; color: string }[];
@@ -98,6 +102,7 @@ function opLabel(op: Op, t: (k: string) => string): string {
     case "forma": return t(`symbolEditor.shape.${String(op.tag)}`);
     case "luce": case "riflesso": return t("symbolEditor.shape.highlight");
     case "tratto": return t("symbolEditor.shape.line");
+    case "image": return `${t("symbolEditor.shape.image")} ${String(op.src ?? "")}`;
     case "flangia_v": case "flangia_o": return t("symbolEditor.shape.flange");
     case "tubo_o": case "tubo_v": return t("symbolEditor.shape.stub");
     case "bocca": return `${t("symbolEditor.port.one")} ${String(op.id ?? "")}`;
@@ -635,12 +640,16 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
   // An SVG drawing (plan docs/archive/2026-11-20-importa-svg-e-file-del-simbolo.md):
   // its shapes become operations of the symbol, selected so they move and
   // scale together; what was approximated or left out is said after.
-  const importSvgText = useCallback((text: string) => {
+  const importSvgText = useCallback(async (text: string) => {
     const r = importSvg(text, { w: d.w, h: d.h, adapt: isBlank(d), room: roomFor(d) });
     if (!r.ok) {
       void avviso({ livello: "errore", titolo: t("symbolEditor.svg.failed"), testo: t(`symbolEditor.svg.err.${r.error}`) });
       return;
     }
+    // The photos inside the SVG go to the project's images first.
+    const up = await uploadEmbeddedPhotos(r.ops, "svg");
+    if (up.lost) r.warnings.image = (r.warnings.image ?? 0) + up.lost;
+    r.ops = up.ops;
     const placed = placeImport(d, r);
     commit(placed.d);
     setSel(placed.at);
@@ -656,7 +665,7 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
       void avviso({ livello: "errore", titolo: t("symbolEditor.svg.failed"), testo: t("symbolEditor.svg.err.tooBig") });
       return;
     }
-    importSvgText(await f.text());
+    await importSvgText(await f.text());
   }, [importSvgText, t]);
   const svgInput = useRef<HTMLInputElement>(null);
   // Ctrl+V waits a moment: if the clipboard holds SVG code the paste event
@@ -673,13 +682,28 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
       e.preventDefault();
       if (pendingPaste.current !== null) { window.clearTimeout(pendingPaste.current); pendingPaste.current = null; }
       if (file) void importSvgFile(file);
-      else importSvgText(text);
+      else void importSvgText(text);
     };
     window.addEventListener("paste", h, true);
     return () => window.removeEventListener("paste", h, true);
   }, [importSvgFile, importSvgText]);
-  const exportFile = () => {
-    const url = URL.createObjectURL(new Blob([symbolFileText(d)], { type: "application/json" }));
+  const exportFile = async () => {
+    // With photos, a zip that carries them (plan 2026-11-21-simboli-fase-3-foto).
+    const names = symbolPhotos(d);
+    let blob: Blob;
+    if (names.length) {
+      const photos: Record<string, Uint8Array> = {};
+      try {
+        for (const n of names) photos[n] = await api.projectImageBytes(n);
+      } catch (e) {
+        void avviso({ livello: "errore", testo: t("symbolEditor.photo.exportMissing", { error: e instanceof Error ? e.message : String(e) }) });
+        return;
+      }
+      blob = new Blob([symbolZip(d, photos) as BlobPart], { type: "application/zip" });
+    } else {
+      blob = new Blob([symbolFileText(d)], { type: "application/json" });
+    }
+    const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
     a.download = symbolFileName(d);
@@ -939,11 +963,29 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
     }
   }
 
+  // A photo from the project's images (plan 2026-11-21-simboli-fase-3-foto):
+  // in the layer of the selection, or under everything as a background.
+  const addPhoto = async () => {
+    const p = await pickPhoto();
+    if (!p) return;
+    const op = newImage(p.name, w, h, p.size);
+    const layer = sel.length ? layerOf(sel[0]) : undefined;
+    if (layer) {
+      const r = insertInLayer(d, layer.id, op);
+      commit(r.d);
+      setSel([r.at]);
+    } else {
+      commit({ ...d, ops: [op, ...d.ops] });
+      setSel([0]);
+    }
+  };
+
   return (
     <div data-testid="symbol-editor" ref={rootRef} onKeyDown={(e) => e.stopPropagation()} style={{
       position: "fixed", inset: 0, zIndex: 9000, background: C.bg, color: C.text,
       display: "flex", flexDirection: "column", fontSize: 12,
     }}>
+      <PhotoPickerHost />
       {/* top bar */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderBottom: `1px solid ${C.border}` }}>
         <strong style={{ fontSize: 14 }}>{t("symbolEditor.title")}: {d[lang]}</strong>
@@ -953,7 +995,7 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
         <button type="button" style={small} disabled={!hist.past.length} onClick={undo} title="Ctrl+Z">{t("symbolEditor.undo")}</button>
         <button type="button" style={small} disabled={!hist.future.length} onClick={redo} title="Ctrl+Y">{t("symbolEditor.redo")}</button>
         {original && saved && <button type="button" style={small} onClick={() => void revert()}>{t("symbolEditor.revert")}</button>}
-        <button type="button" style={btn(false)} disabled={!!compiled.errors.length} onClick={exportFile}
+        <button type="button" style={btn(false)} disabled={!!compiled.errors.length} onClick={() => void exportFile()}
           data-testid="symbol-editor-export" title={t("symbolEditor.file.exportTitle")}>{t("symbolEditor.file.export")}</button>
         <button type="button" style={btn(false)} disabled={busy || !!compiled.errors.length} onClick={() => void saveAs()}>{t("symbolEditor.saveAs")}</button>
         <button type="button" data-testid="symbol-editor-save" style={btn(dirty)} disabled={busy || !!compiled.errors.length || !dirty}
@@ -1026,6 +1068,8 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
               onClick={() => svgInput.current?.click()}>{t("symbolEditor.svg.import")}</button>
             <input ref={svgInput} type="file" accept=".svg,image/svg+xml" style={{ display: "none" }} data-testid="symbol-import-svg-file"
               onChange={(e) => { void importSvgFile(e.target.files?.[0]); e.target.value = ""; }} />
+            <button type="button" style={btn(false)} data-testid="symbol-add-photo" title={t("symbolEditor.photo.addTitle")}
+              onClick={() => void addPhoto()}>{t("symbolEditor.photo.add")}</button>
             <span style={{ flex: 1 }} />
             <span style={{ color: C.subtle }}>{w} × {h}</span>
           </div>
@@ -1252,7 +1296,10 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
                 ports={portList} pipes={pipes} onSelectPort={(op) => { setSel([op]); setTab("piece"); }}
                 onRenamePart={renamePartTracked} />
             ) : tab === "ai" ? (
-              <AiPanel d={d} commit={commit} current={compiled} manifesto={manifesto} projectStyle={projectStyle} />
+              <>
+                <AiPanel d={d} commit={commit} current={compiled} manifesto={manifesto} projectStyle={projectStyle} />
+                <AiPhoto d={d} commit={commit} />
+              </>
             ) : (
               <TryProps d={d} parts={parts} hasState={ins.some((i) => i.kind === "state")} preview={preview} setPreview={setPreview} />
             )}
@@ -1325,6 +1372,21 @@ function PieceProps({ d, sel, one, layer, layers: ls, catalog, commit, onDup, on
         <Field key={k} label={k}><Num value={v} onChange={(n) => commit(setGeo(d, i, k, n))} /></Field>
       ))}
       {(isLine || (isShape && one.tag === "path")) && <PathField value={pathD} onChange={(v) => commit(setPathD(d, i, v))} />}
+      {one.op === "image" && (
+        <>
+          <Field label={t("symbolEditor.photo.file")}>
+            <button type="button" style={input} data-testid="symbol-photo-change" title={t("symbolEditor.photo.change")}
+              onClick={() => void pickPhoto().then((p) => {
+                if (p) commit({ ...d, ops: (d.ops as Op[]).map((o, k) => (k === i ? { ...o, src: p.name } : o)) });
+              })}>{String(one.src ?? "")}</button>
+          </Field>
+          <Field label={t("symbolEditor.photo.opacity")}>
+            <Num value={typeof one.opacity === "number" ? one.opacity : 1} step={0.05}
+              onChange={(n) => commit(setImageOpacity(d, i, n))} />
+          </Field>
+          <p style={{ margin: 0, color: C.subtle, fontSize: 11 }}>{t("symbolEditor.photo.note")}</p>
+        </>
+      )}
       {(isShape || isLine) && fill && (
         <>
           <Field label={t(isLine ? "symbolEditor.lineColour" : "symbolEditor.colour")}>

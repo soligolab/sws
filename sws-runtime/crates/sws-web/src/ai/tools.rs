@@ -1406,6 +1406,7 @@ pub fn schema_simbolo() -> Esito {
             "tubo_o": "{op:\"tubo_o\", x, y, w, h?=10}: tronchetto orizzontale, dalla flangia al corpo",
             "tubo_v": "{op:\"tubo_v\", x, y, h, w?=10}: tronchetto verticale",
             "bocca": "{op:\"bocca\", x, y, side: left|top|right|bottom, d, id?}: una bocca dichiarata a mano, dove non c'è una flangia",
+            "image": "{op:\"image\", src, geo:{x,y,width,height}, opacity?}: una FOTO del progetto (un file in images/). Non inventarne: tieni quelle del simbolo che ricevi, puoi spostarle, ridimensionarle o metterle in un'altra parte",
         },
         "parti_vive": {
             "rotor": "geo {cx, cy, symmetry, ccw?}: gira attorno a (cx,cy); symmetry = gradi dopo cui il disegno si ripete (6 pale = 60); ccw true = antiorario. Si accende con symbol_spin, o per parte in symbol_parts",

@@ -38,7 +38,7 @@ perché, non il come.
 | P3 | Report programmati (turno/giorno/mese) in PDF ed Excel, salvati o inviati per email **[plan]** | M | Riusa storico ed esportazione esistenti e l'SMTP delle notifiche |
 | P4 | Notifiche SMS e voce, turni di reperibilità, conferma dal telefono **[plan]** | M | Estende `notifications.rs` (SMTP, Telegram, escalation già presenti) |
 | P5 | Prestazioni misurate e pubblicate: tag per runtime, aggiornamenti al secondo, client contemporanei, su TC620 e x86 | S–M | Un banco di prova ripetibile, i numeri nel manuale |
-| P6 | Identità: 2FA (TOTP) e LDAP/Active Directory **[plan]** | M | La colonna `totp_segreto` c'è già; LDAP oggi è dichiarato fuori ambito |
+| P6 | Identità: 2FA (TOTP) e LDAP/Active Directory **[plan]** | M | La colonna `totp_segreto` c'è già; LDAP oggi è dichiarato fuori ambito. **21-11-2026**: piano suo, [P6 — 2FA e LDAP](2026-11-21-p6-2fa-e-ldap.md), con le risposte alle domande dell'onda 3 (2FA per gli account IDE/cloud, facoltativa e imponibile; LDAP per gli utenti del pannello). C4 resta alle sessioni CRA |
 
 **C — CRA, i punti scoperti al 12-10-2026**
 

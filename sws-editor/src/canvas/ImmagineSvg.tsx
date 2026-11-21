@@ -110,6 +110,32 @@ export function useHrefImmagine(hrefPagina: string | undefined): string | undefi
   return v;
 }
 
+/** Like [`useHrefImmagine`] for several images at once (the photos of a
+ *  symbol, plan 2026-11-21-simboli-fase-3-foto): what to draw for each, keyed
+ *  by the address asked. An image not downloaded yet is missing. */
+export function useHrefImmagini(hrefsPagina: readonly string[]): Record<string, string> {
+  useGiroImmagini();
+  const hrefs = hrefsPagina.map((h) => hrefDaDisegnare(h));
+  const chiave = hrefs.join("\n");
+  const [, ridisegna] = useState(0);
+  useEffect(() => {
+    let vivo = true;
+    for (const h of chiave ? chiave.split("\n") : []) {
+      if (serveScaricare(h) && !pronte.get(h)) {
+        void scaricaImmagine(h).then(() => { if (vivo) ridisegna((n) => n + 1); });
+      }
+    }
+    return () => { vivo = false; };
+  }, [chiave]);
+  const out: Record<string, string> = {};
+  hrefsPagina.forEach((orig, i) => {
+    const h = hrefs[i];
+    const v = serveScaricare(h) ? pronte.get(h) : h;
+    if (v) out[orig] = v;
+  });
+  return out;
+}
+
 /** `<image>` che sa disegnare anche le immagini del progetto nel cloud. */
 export function ImmagineSvg(props: SVGProps<SVGImageElement>) {
   const href = useHrefImmagine(typeof props.href === "string" ? props.href : undefined);

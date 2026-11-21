@@ -163,6 +163,13 @@ animazioni agganciate ai tag (che anticipano le fasi 4 e 5), poi l'import SVG e 
 scheda «IA» (disegna nuovo, modifica quello aperto, da una foto) sulle descrizioni `prj:`, prima della sessione 3 della
 fase 2. «Genera foto» resta alla fase 3, che le foto ancora non le ha.
 
+**Riverifica del 21-11-2026** (gruppo 2): le fasi 3, 7 e 8 hanno ciascuna il suo piano, con le decisioni del
+maintainer. Fase 3: [le foto](2026-11-21-simboli-fase-3-foto.md) — si estendono le descrizioni `prj:`, il formato
+`sym:` non si fa; foto in `images/`. Fase 7: [la libreria aziendale](2026-11-21-simboli-fase-7-libreria-aziendale.md)
+— dell'azienda, non per account. Fase 8: [gli effetti](2026-11-21-simboli-fase-8-effetti.md) — bagliore, bollicine,
+fumo, fiamma. Restano di questo piano le fasi 4-5 (pezzi generici, regole e animazioni), anticipate in parte dalla
+fase 2, e la sfocatura.
+
 ## Verifica (ogni fase)
 - `cargo check`, `cargo test` (compilatore `symbol_def`, sicurezza dell'import, fixture `symbol-pieces.json`,
   `compila_come_genera_py` invariato), `pnpm build`, `pnpm exec vitest run` (riduttore dell'editor, valutatore, import

@@ -76,6 +76,10 @@ versioni:
         en: "Modbus: «Tolerance rounds». A lost reply (Solarman sticks) keeps the last value, marked uncertain, instead of sending the tags to Bad at once."
       - it: "Negli script le costanti scritte in cima si vedono dentro un def, e f(*lista) e f(**diz) funzionano anche sul pannello. Il print di un giro finito in errore arriva nel registro."
         en: "In scripts the constants written at the top are visible inside a def, and f(*list) and f(**dict) work on the panel too. The print of a run that failed reaches the log."
+      - it: "Nei simboli del progetto ci vanno le foto: sotto il disegno, dentro una parte che gira o lampeggia, o una foto diversa per ogni stato. Uguali nel browser e sul pannello."
+        en: "Project symbols can hold photos: under the drawing, inside a part that turns or blinks, or a different photo for each state. The same in the browser and on the panel."
+      - it: "Editor dei simboli: «Genera foto» fotografa un oggetto con l'IA, e «Importa SVG» tiene le foto dentro il file. Un simbolo con foto si esporta in .swsym con le sue immagini."
+        en: "Symbol editor: «Generate photo» photographs an object with AI, and «Import SVG» keeps the photos inside the file. A symbol with photos exports to .swsym with its images."
       # rc.22 (20-11-2026): editor dei simboli, libreria immagini, assistente. Per fare
       # posto, alcune voci di prima sono unite e accorciate: da rivedere al collaudo.
       - it: "Editor dei simboli: apri un simbolo della libreria e cambialo, o fanne uno nuovo; strumenti di disegno, bocche dei tubi, «Anima…» per i pezzi che si muovono, SVG e file .swsym da importare."

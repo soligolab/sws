@@ -194,7 +194,7 @@ pub fn fit(jpg: &[u8], w: u32, h: u32) -> Result<(Vec<u8>, u32, u32), String> {
     } else {
         (w, h)
     };
-    let out = crate::sized_image::make(jpg, fw, fh)?;
+    let out = crate::sized_image::make(jpg, fw, fh, crate::sized_image::Fit::Cover, false)?;
     Ok((out, fw, fh))
 }
 

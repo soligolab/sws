@@ -176,6 +176,15 @@ pub(crate) fn answer_schema() -> Value {
             &["id", "kind", "geo"],
         ));
     }
+    // A photo of the project, kept from the symbol being changed.
+    ops.push(op(
+        "image",
+        json!({ "src": { "type": "string", "pattern": "^[A-Za-z0-9_-][A-Za-z0-9._-]{0,127}$" }, "geo": object(
+            json!({ "x": num, "y": num, "width": num, "height": num }),
+            &["x", "y", "width", "height"],
+        ), "opacity": num }),
+        &["src", "geo"],
+    ));
     let rect4 = json!({ "type": "array", "items": num, "minItems": 4, "maxItems": 4 });
     for name in ["flangia", "tronchetto"] {
         ops.push(op(name, json!({ "rect": rect4 }), &["rect"]));
@@ -381,7 +390,9 @@ fn editor_messages(req: &EditorRequest, d: &Descrizione) -> Value {
              unless the request asks to change them: the pages bind them by id. Keep `w` and \
              `h` too, unless the request asks for another size: every shape stays inside them. \
              The operations `flangia` and `tronchetto` record a flange or a stub already drawn \
-             by the shapes before them: keep them as they are, next to their shapes.\n",
+             by the shapes before them: keep them as they are, next to their shapes. The \
+             operations `image` are photos of the project: keep them with their `src`; you may \
+             move, resize or put them in another layer, never invent a new one.\n",
             serde_json::to_string_pretty(&readable(d)).unwrap_or_default()
         ),
     };
@@ -503,6 +514,13 @@ pub(crate) async fn editor(
     };
     let messages = vec![editor_messages(&req, &d)];
     let result = draw(s, http, &choice, &system, messages, &fixed, &mut meter).await;
+    // The photos are the project's (plan 2026-11-21-simboli-fase-3-foto): a
+    // model can keep and move them, never name one the symbol didn't have.
+    let photos: Vec<String> = sws_core::simboli_prj::compila(&d)
+        .ok()
+        .and_then(|c| serde_json::from_value(c.voce["images"].clone()).ok())
+        .unwrap_or_default();
+    let result = result.map(|drawn| keep_known_photos(drawn, &photos));
     let mut out = match result {
         Ok(drawn) => json!({
             "ok": true,
@@ -520,6 +538,23 @@ pub(crate) async fn editor(
     out["cost_usd"] = json!(meter.spent_usd);
     out["model"] = json!(choice.modello);
     out
+}
+
+/// `drawn` without the photos it names that are not in `known`, compiled
+/// again when something went.
+fn keep_known_photos(mut drawn: Drawn, known: &[String]) -> Drawn {
+    use sws_core::simboli_prj::Op;
+    let before = drawn.description.ops.len();
+    drawn
+        .description
+        .ops
+        .retain(|op| !matches!(op, Op::Image { src, .. } if !known.contains(src)));
+    if drawn.description.ops.len() != before {
+        if let Ok(c) = sws_core::simboli_prj::compila(&drawn.description) {
+            drawn.compiled = c;
+        }
+    }
+    drawn
 }
 
 // ── The interview before the drawing ───────────────────────────────────────
@@ -758,6 +793,30 @@ pub(crate) async fn interview(
     out["cost_usd"] = json!(meter.spent_usd);
     out["model"] = json!(choice.modello);
     out
+}
+
+#[cfg(test)]
+mod photo_tests {
+    use super::*;
+
+    #[test]
+    fn a_model_keeps_the_photos_and_cannot_invent_one() {
+        let mut d: Descrizione = serde_json::from_str(include_str!(
+            "../../../../../tests/fixtures/simboli-prj/photo-boiler.json"
+        ))
+        .unwrap();
+        d.ops.push(
+            serde_json::from_value(json!({ "op": "image", "src": "invented.png",
+                "geo": { "x": 0, "y": 0, "width": 10, "height": 10 } }))
+            .unwrap(),
+        );
+        let compiled = sws_core::simboli_prj::compila(&d).unwrap();
+        let drawn = Drawn { description: d, compiled, attempts: 1 };
+        let known = vec!["boiler.jpg".to_string(), "fan-cutout.png".to_string(), "flame-off.png".to_string()];
+        let kept = keep_known_photos(drawn, &known);
+        assert!(!kept.compiled.svg.contains("invented.png"));
+        assert!(kept.compiled.svg.contains("boiler.jpg"));
+    }
 }
 
 #[cfg(test)]

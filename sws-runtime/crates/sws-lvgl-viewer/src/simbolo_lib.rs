@@ -247,6 +247,95 @@ pub fn svg_simbolo(
         .and_then(|b| String::from_utf8(b).ok())
 }
 
+// ── photos (plan 2026-11-21-simboli-fase-3-foto) ───────────────────────────
+
+/// The photos of a symbol as `data:` URIs, by name in the project's `images/`.
+pub type Foto = std::collections::HashMap<String, String>;
+
+/// A photo at the size of the object: inside it, proportions kept, a PNG with
+/// its transparency (`sws_web::sized_image`, `fit=contain`). Every photo of a
+/// symbol is smaller than the symbol, so one size serves them all — and the
+/// photo a signal swaps in fits wherever it goes.
+pub fn url_foto(name: &str, q: Quadro) -> String {
+    format!(
+        "/api/project/images/{name}?w={}&h={}&fit=contain",
+        q.w.max(1),
+        q.h.max(1)
+    )
+}
+
+/// Downloads the photos of `s` at the size `q`. A photo that doesn't arrive
+/// is left out: its image draws nothing, the rest of the symbol is there.
+pub fn scarica_foto(
+    base_url: &str,
+    rt: &tokio::runtime::Handle,
+    s: &SimboloLib,
+    q: Quadro,
+) -> Foto {
+    use base64::Engine as _;
+    s.images
+        .iter()
+        .filter(|n| sws_core::simboli_prj::image_name_ok(n))
+        .filter_map(|n| {
+            let b = svg_assets::bytes_for(base_url, rt, &SvgSource::Url(url_foto(n, q)))?;
+            let mime = svg_assets::tipo_dai_byte(&b)?;
+            let dati = base64::engine::general_purpose::STANDARD.encode(&b);
+            Some((n.clone(), format!("data:{mime};base64,{dati}")))
+        })
+        .collect()
+}
+
+/// A line with an `<image …>`, with `href` set to `uri` (any other `href` it had
+/// taken out).
+fn metti_href(riga: &str, uri: &str) -> String {
+    let Some(i) = riga.find("<image") else {
+        return riga.to_string();
+    };
+    let (prima, resto) = riga.split_at(i + "<image".len());
+    let resto = match resto.find(" href=\"") {
+        Some(a) => {
+            let b = resto[a + 7..].find('"').map_or(resto.len(), |k| a + 7 + k + 1);
+            format!("{}{}", &resto[..a], &resto[b..])
+        }
+        None => resto.to_string(),
+    };
+    format!("{prima} href=\"{uri}\"{resto}")
+}
+
+/// The SVG with every `<image data-src="N">` pointing at the data of photo N.
+/// The compiler writes one element per line, so it goes line by line.
+pub fn con_foto(svg: &str, foto: &Foto) -> String {
+    if foto.is_empty() {
+        return svg.to_string();
+    }
+    let mut out = String::with_capacity(svg.len());
+    for riga in svg.split_inclusive('\n') {
+        let nome = riga
+            .find("<image data-src=\"")
+            .map(|i| &riga[i + 17..])
+            .and_then(|r| r.find('"').map(|j| &r[..j]));
+        match nome.and_then(|n| foto.get(n)) {
+            Some(uri) => out.push_str(&metti_href(riga, uri)),
+            None => out.push_str(riga),
+        }
+    }
+    out
+}
+
+/// A layer whose photos all show `uri` instead: a signal entry with a photo.
+pub fn con_foto_al_posto(markup: &str, uri: &str) -> String {
+    markup
+        .split_inclusive('\n')
+        .map(|riga| {
+            if riga.contains("<image ") {
+                metti_href(riga, uri)
+            } else {
+                riga.to_string()
+            }
+        })
+        .collect()
+}
+
 // ── strati ─────────────────────────────────────────────────────────────────
 
 /// Un SVG del generatore diviso nei suoi strati.
@@ -636,6 +725,18 @@ pub fn with_layer_fill(markup: &str, colour: &str) -> String {
 
 /// Prepara tutti gli strati di `s` a `q`, con lo stile dato (vedi `stile_effettivo`).
 pub fn prepara(s: &SimboloLib, svg: &str, q: Quadro, stile: &StileSimbolo) -> Preparato {
+    prepara_con_foto(s, svg, q, stile, &Foto::new())
+}
+
+/// Like [`prepara`], with the photos the signal entries swap in (`svg` already
+/// has its own, see [`con_foto`]).
+pub fn prepara_con_foto(
+    s: &SimboloLib,
+    svg: &str,
+    q: Quadro,
+    stile: &StileSimbolo,
+    foto: &Foto,
+) -> Preparato {
     let con_stile = applica_stile(svg, stile);
     let d = dividi(&con_stile);
     let mut out = Vec::new();
@@ -736,9 +837,9 @@ pub fn prepara(s: &SimboloLib, svg: &str, q: Quadro, stile: &StileSimbolo) -> Pr
                 let Some(bitmap) = rasterizza(&svg1, q, None) else {
                     continue;
                 };
-                // One picture per colour, never one per entry: two entries in
-                // red share it. All rasterised now, with the page: never resvg
-                // in the frame loop.
+                // One picture per colour and photo, never one per entry: two
+                // entries in red share it. All rasterised now, with the page:
+                // never resvg in the frame loop.
                 let mut colours: Vec<String> = Vec::new();
                 let mut variants: Vec<Vec<u8>> = Vec::new();
                 let mut entry_variant = Vec::with_capacity(entries.len());
@@ -747,15 +848,30 @@ pub fn prepara(s: &SimboloLib, svg: &str, q: Quadro, stile: &StileSimbolo) -> Pr
                         .color
                         .as_deref()
                         .filter(|c| Some(*c) != color.as_deref() && !e.hidden);
-                    let Some(c) = c else {
+                    // The photo of the entry (plan 2026-11-21-simboli-fase-3-foto).
+                    let photo = e
+                        .image
+                        .as_deref()
+                        .filter(|_| !e.hidden)
+                        .and_then(|n| foto.get(n).map(|uri| (n, uri)));
+                    if c.is_none() && photo.is_none() {
                         entry_variant.push(None);
                         continue;
-                    };
-                    if let Some(i) = colours.iter().position(|x| x == c) {
+                    }
+                    let key = format!("{}|{}", c.unwrap_or(""), photo.map_or("", |p| p.0));
+                    if let Some(i) = colours.iter().position(|x| *x == key) {
                         entry_variant.push(Some(i));
                         continue;
                     }
-                    let svgc = svg_di_strato(&d.testa, &with_layer_fill(markup, c), None);
+                    let mut layer = match c {
+                        Some(c) => with_layer_fill(markup, c),
+                        None => markup.clone(),
+                    };
+                    if let Some((_, uri)) = photo {
+                        layer = con_foto_al_posto(&layer, uri);
+                    }
+                    let c = key.as_str();
+                    let svgc = svg_di_strato(&d.testa, &layer, None);
                     let Some(b) = rasterizza(&svgc, q, Some(bitmap.dove)) else {
                         entry_variant.push(None);
                         continue;
@@ -854,6 +970,163 @@ mod tests {
     /// Un simbolo disegnato nel progetto (`prj:`) passa dalla stessa strada di
     /// uno di libreria: si divide negli strati, il rotore ha i suoi fotogrammi,
     /// e il manifesto unito lo trova per id.
+    /// A picture of the photo boiler in its three flame states, drawn by the
+    /// panel's engine with photos made up here: for looking, not for checking.
+    /// `SWS_SNAPSHOT_DIR=<dir> cargo test -p sws-lvgl-viewer photo_boiler_snapshot -- --ignored`
+    #[test]
+    #[ignore]
+    fn photo_boiler_snapshot() {
+        use base64::Engine as _;
+        use resvg::tiny_skia::{Color, FillRule, Paint, PathBuilder, Pixmap, Transform};
+        let dir = std::path::PathBuf::from(std::env::var("SWS_SNAPSHOT_DIR").expect("SWS_SNAPSHOT_DIR"));
+        let uri = |p: &Pixmap| {
+            format!(
+                "data:image/png;base64,{}",
+                base64::engine::general_purpose::STANDARD.encode(p.encode_png().unwrap())
+            )
+        };
+        let paint = |r, g, b, a| {
+            let mut p = Paint::default();
+            p.set_color(Color::from_rgba8(r, g, b, a));
+            p.anti_alias = true;
+            p
+        };
+        // The "photo" of the boiler: a white casing with a darker panel.
+        let mut bg = Pixmap::new(200, 240).unwrap();
+        bg.fill(Color::from_rgba8(0, 0, 0, 0));
+        let rect = |x, y, w, h| PathBuilder::from_rect(resvg::tiny_skia::Rect::from_xywh(x, y, w, h).unwrap());
+        bg.fill_path(&rect(10.0, 4.0, 180.0, 232.0), &paint(232, 234, 236, 255), FillRule::Winding, Transform::identity(), None);
+        bg.fill_path(&rect(20.0, 120.0, 160.0, 100.0), &paint(70, 78, 88, 255), FillRule::Winding, Transform::identity(), None);
+        // A fan with three blades, transparent around.
+        let mut fan = Pixmap::new(64, 64).unwrap();
+        for k in 0..3 {
+            let a = k as f32 * 120.0;
+            let mut pb = PathBuilder::new();
+            pb.move_to(32.0, 32.0);
+            pb.line_to(28.0, 4.0);
+            pb.line_to(38.0, 6.0);
+            pb.close();
+            fan.fill_path(&pb.finish().unwrap(), &paint(60, 200, 90, 255), FillRule::Winding,
+                Transform::from_rotate_at(a, 32.0, 32.0), None);
+        }
+        // Three flames: none, low, high.
+        let flame = |h: f32, r, g| {
+            let mut p = Pixmap::new(72, 96).unwrap();
+            if h > 0.0 {
+                let mut pb = PathBuilder::new();
+                pb.move_to(36.0, 96.0 - h);
+                pb.quad_to(64.0, 80.0, 36.0, 94.0);
+                pb.quad_to(8.0, 80.0, 36.0, 96.0 - h);
+                pb.close();
+                p.fill_path(&pb.finish().unwrap(), &paint(r, g, 20, 255), FillRule::Winding, Transform::identity(), None);
+            } else {
+                p.fill_path(&rect(30.0, 88.0, 12.0, 6.0), &paint(120, 120, 120, 255), FillRule::Winding, Transform::identity(), None);
+            }
+            p
+        };
+        let mut foto = Foto::new();
+        foto.insert("boiler.jpg".into(), uri(&bg));
+        foto.insert("fan-cutout.png".into(), uri(&fan));
+        foto.insert("flame-off.png".into(), uri(&flame(0.0, 0, 0)));
+        foto.insert("flame-low.png".into(), uri(&flame(40.0, 255, 170)));
+        foto.insert("flame-high.png".into(), uri(&flame(88.0, 255, 90)));
+        let d: sws_core::simboli_prj::Descrizione = serde_json::from_str(include_str!(
+            "../../../../tests/fixtures/simboli-prj/photo-boiler.json"
+        ))
+        .unwrap();
+        let c = sws_core::simboli_prj::compila_e_controlla(&d).unwrap();
+        let svg = con_foto(&c.svg, &foto);
+        let parts = dividi(&svg);
+        for (state, img) in [("0-off", "flame-off.png"), ("1-low", "flame-low.png"), ("2-high", "flame-high.png")] {
+            let layers: String = parts
+                .strati
+                .iter()
+                .map(|(id, _, mk)| if id == "flame" { con_foto_al_posto(mk, &foto[img]) } else { mk.clone() })
+                .collect();
+            let whole = format!("{}{layers}</svg>\n", parts.testa);
+            let (w, h) = (300, 360);
+            let r = svg_raster::rasterize(whole.as_bytes(), w, h, false, false).expect("raster");
+            let mut out = Pixmap::new(w, h).unwrap();
+            out.fill(Color::from_rgba8(30, 35, 41, 255));
+            let pm = Pixmap::from_vec(r.pixels.clone(), resvg::tiny_skia::IntSize::from_wh(w, h).unwrap()).unwrap();
+            out.draw_pixmap(0, 0, pm.as_ref(), &resvg::tiny_skia::PixmapPaint::default(), Transform::identity(), None);
+            out.save_png(dir.join(format!("photo-boiler-{state}.png"))).unwrap();
+        }
+    }
+
+    #[test]
+    fn photos_are_drawn_and_a_signal_swaps_them() {
+        use base64::Engine as _;
+        let png = |r: u8, g: u8, b: u8| {
+            let mut p = resvg::tiny_skia::Pixmap::new(8, 8).unwrap();
+            p.fill(resvg::tiny_skia::Color::from_rgba8(r, g, b, 255));
+            format!(
+                "data:image/png;base64,{}",
+                base64::engine::general_purpose::STANDARD.encode(p.encode_png().unwrap())
+            )
+        };
+        let d: sws_core::simboli_prj::Descrizione = serde_json::from_str(include_str!(
+            "../../../../tests/fixtures/simboli-prj/photo-boiler.json"
+        ))
+        .unwrap();
+        let c = sws_core::simboli_prj::compila_e_controlla(&d).unwrap();
+        let s = c.simbolo().unwrap();
+        let q = Quadro {
+            w: 100,
+            h: 120,
+            flip_h: false,
+            flip_v: false,
+        };
+        assert_eq!(
+            url_foto("boiler.jpg", q),
+            "/api/project/images/boiler.jpg?w=100&h=120&fit=contain"
+        );
+        let mut foto = Foto::new();
+        foto.insert("boiler.jpg".into(), png(255, 0, 0));
+        foto.insert("fan-cutout.png".into(), png(0, 255, 0));
+        foto.insert("flame-off.png".into(), png(80, 80, 80));
+        foto.insert("flame-low.png".into(), png(255, 160, 0));
+        // flame-high.png never arrived: that entry stays as drawn.
+        let svg = con_foto(&c.svg, &foto);
+        assert!(svg.contains("<image href=\"data:image/png;base64,"));
+        assert!(svg.contains("data-src=\"boiler.jpg\""), "the name stays");
+        let m = manifesto_incluso();
+        let p = prepara_con_foto(&s, &svg, q, &stile_del_disegno(&m, None), &foto);
+        let PezzoStrato::Fermo(sfondo) = &p.strati[0] else {
+            panic!("the first layer is the photo")
+        };
+        // A square photo in a 100×120 box: as wide as the box, proportions
+        // kept (`meet`, like the web).
+        assert_eq!(sfondo.dove.w, 100);
+        assert!((100..=112).contains(&sfondo.dove.h), "{:?}", sfondo.dove);
+        let kinds: Vec<&str> = p
+            .strati
+            .iter()
+            .map(|x| match x {
+                PezzoStrato::Fermo(_) => "fermo",
+                PezzoStrato::Corpo { .. } => "corpo",
+                PezzoStrato::Rotore { .. } => "rotore",
+                PezzoStrato::Signal { .. } => "signal",
+                _ => "altro",
+            })
+            .collect();
+        assert_eq!(kinds, ["fermo", "corpo", "rotore", "signal"]);
+        let Some(PezzoStrato::Signal {
+            variants,
+            entry_variant,
+            ..
+        }) = p.strati.iter().find(|x| matches!(x, PezzoStrato::Signal { .. }))
+        else {
+            panic!("the flame is a signal")
+        };
+        assert_eq!(variants.len(), 2);
+        assert_eq!(entry_variant, &[Some(0), Some(1), None]);
+        assert_ne!(variants[0], variants[1], "two photos, two pictures");
+        // Without photos the image draws nothing and the rest is there.
+        let p = prepara(&s, &c.svg, q, &stile_del_disegno(&m, None));
+        assert!(!p.strati.iter().any(|x| matches!(x, PezzoStrato::Fermo(_))));
+    }
+
     #[test]
     fn un_simbolo_del_progetto_si_prepara_come_uno_di_libreria() {
         let d: sws_core::simboli_prj::Descrizione = serde_json::from_str(include_str!(

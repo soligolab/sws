@@ -50,6 +50,9 @@ export interface SignalEntry {
   color?: string;
   blink?: boolean;
   hidden?: boolean;
+  /** The photo the part's images show while this entry matches (plan
+   *  2026-11-21-simboli-fase-3-foto): a name in the project's `images/`. */
+  image?: string;
 }
 
 /** Una bocca del disegno, dove si aggancia una tubazione (15-10-2026): in unità
@@ -88,6 +91,9 @@ export interface SimboloLib {
   /** A project symbol that is a variant of this library symbol: it is drawn
    *  in its place. Twin of `SimboloLib::overrides` in `sws-core`. */
   overrides?: string;
+  /** The photos of a project symbol, as names in the project's `images/`
+   *  (plan 2026-11-21-simboli-fase-3-foto). Twin of `SimboloLib::images`. */
+  images?: string[];
 }
 
 export interface ManifestLib {

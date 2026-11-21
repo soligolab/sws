@@ -72,6 +72,13 @@ pub struct SystemStatus {
     /// nemmeno il nome della capacità, non ce l'ha.
     #[serde(default)]
     pub segreti_separati: bool,
+    /// This runtime reads project symbols with photos (plan
+    /// `2026-11-21-simboli-fase-3-foto`). A capability, like
+    /// `segreti_separati`: a runtime without it cannot even load a
+    /// `project.yaml` whose symbols have an `image` operation, so the deploy
+    /// stops before sending one.
+    #[serde(default)]
+    pub symbol_photos: bool,
     pub uptime_s: u64,
     /// Quale ruolo sta servendo questa istanza: `"runtime"` se ha un viewer
     /// operatori (`--viewer-port`), `"ide"` se no.
@@ -381,6 +388,7 @@ pub async fn compute_system_status(
     SystemStatus {
         runtime_version: env!("CARGO_PKG_VERSION").to_string(),
         segreti_separati: true,
+        symbol_photos: true,
         uptime_s: started_at.elapsed().as_secs(),
         mode: mode_label(ide_only),
         runtime_git: env!("SWS_GIT_SHA"),
