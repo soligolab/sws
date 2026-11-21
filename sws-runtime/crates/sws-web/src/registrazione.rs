@@ -253,6 +253,9 @@ pub async fn accedi_con_pin(State(s): State<AppState>, Json(r): Json<AccessoPin>
     let durata = r.ricordami.then_some(sws_identita::DURATA_RICORDAMI);
     match id.accedi_con_pin(&r.email, &r.pin, durata).await {
         Ok(a) => crate::router::entra(&s, a, "pin", r.riautentica).await,
+        Err(Rifiuto::SecondFactor { challenge, kind }) => {
+            crate::two_factor_routes::challenge_response(&s, r.email.trim(), &challenge, kind)
+        }
         Err(Rifiuto::Bloccato { riprova_fra }) => bloccato(riprova_fra),
         Err(motivo) => {
             s.audit.log(

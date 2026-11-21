@@ -12,6 +12,21 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Aggiunto
+- **L'autenticazione a due fattori degli account** (ramo `feat/2fa`, piano `docs/plans/2026-11-21-p6-2fa-e-ldap.md`,
+  la P6 del piano prima fascia). `sws_identita::two_factor`: TOTP RFC 6238 (HMAC-SHA1 di `ring`, passi di 30 s, 6
+  cifre, ±1 passo, base32 scritto a mano: nessun crate nuovo; un codice già usato si rifiuta), segreto cifrato con la
+  chiave delle chiavi IA, dieci codici di recupero come impronta, schema 9 (`recovery_codes`, `platform_settings`,
+  `aziende.require_2fa`, `totp_nonce`, `totp_last_step`). Password o PIN giusti con la 2FA accesa non danno la
+  sessione ma una sfida di 5 minuti (`Rifiuto::SecondFactor`, l'unico passaggio è `complete_login`), che
+  `/api/auth/second-factor` trasforma in sessione; i codici sbagliati contano coi tentativi. Obbligo: l'azienda
+  (`PUT /api/amministrazione/aziende/:id/require-2fa`, chi la amministra) o la piattaforma
+  (`/api/amministrazione/require-2fa`); accenderlo chiude le sessioni di chi non l'ha, e al login la sfida «setup» fa
+  attivare la 2FA prima di entrare (`…/second-factor/setup[/confirm]`, che risponde anche coi codici di recupero).
+  Profilo: `/api/identity/2fa` (stato, attiva, conferma, disattiva con password e codice, nuovi codici). Console:
+  «Azzera l'autenticazione a due fattori» per una persona. Registro: `auth.second_factor_asked/failed`,
+  `auth.recovery_code_used`, `auth.2fa_on/off/reset/new_codes`, e ora anche `auth.login_blocked` (i 429). IDE: la
+  finestra del codice (`auth/secondFactor.tsx`) la apre `api.login`/`api.accediConPin`, quindi vale per ogni strada
+  d'accesso; menu 👤 → «Autenticazione a due fattori»; gli interruttori nella console (azienda, installazione).
 - **La libreria aziendale dei simboli** (ramo `feat/symbol-library`, piano
   `docs/plans/2026-11-21-simboli-fase-7-libreria-aziendale.md`, fase 7 dell'editor dei simboli). La libreria è
   dell'azienda (personale per chi è solo, l'implicita nell'IDE locale) e sta accanto ai suoi progetti:

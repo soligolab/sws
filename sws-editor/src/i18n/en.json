@@ -5875,5 +5875,43 @@
     "overwrite": "The library already has a symbol with this name («{{name}}»), not copied from here. Replace it?",
     "newer": "The library has newer versions of {{n}} symbols of this project.",
     "newerAction": "Update"
+  },
+  "twoFactor": {
+    "menu": "Two-factor authentication",
+    "title": "The app's code",
+    "setupTitle": "Turn on two-factor authentication",
+    "codeHelp": "Type the 6-digit code of your authenticator app, or one of the recovery codes.",
+    "enter": "Sign in",
+    "wrong": "The code is not right: try again.",
+    "tooMany": "Too many attempts: try again in a few minutes.",
+    "cancelled": "Sign-in cancelled: the code is missing.",
+    "required": "Two-factor authentication is required for this account: turn it on now to sign in.",
+    "setupHelp": "Scan the code with your authenticator app (Google Authenticator, Microsoft Authenticator, 2FAS…) or type the key below, then the first code.",
+    "qrLabel": "The code to scan with the authenticator app",
+    "activate": "Turn on",
+    "recoveryHelp": "These ten recovery codes let you in if you lose your phone, one at a time. They won't be shown again: copy them or write them down somewhere safe.",
+    "copy": "Copy",
+    "copied": "Copied",
+    "saved": "I saved them",
+    "help": "Besides the password, signing in needs the 6-digit code of an app on your phone.",
+    "unavailable": "This instance has no accounts: two-factor authentication is not available.",
+    "off": "Off.",
+    "offRequired": "Off, but required for this account: turn it on.",
+    "turnOn": "Turn on…",
+    "on": "On. Recovery codes left: {{n}}.",
+    "requiredNote": "Required by your company or the platform: it can't be turned off.",
+    "newCodes": "New recovery codes",
+    "turnOff": "Turn off",
+    "password": "Your password",
+    "codePlaceholder": "App code or recovery code",
+    "console": {
+      "company": "Require two-factor authentication of this company's members",
+      "companyConfirm": "Whoever doesn't have it on yet is signed out, and must turn it on at the next sign-in. Go ahead?",
+      "platform": "Require two-factor authentication of every account",
+      "platformConfirm": "Every account without two-factor authentication is signed out, and must turn it on at the next sign-in. Go ahead?",
+      "reset": "Reset two-factor authentication",
+      "resetConfirm": "Reset the two-factor authentication of {{name}}? For a lost phone: at the next sign-in the password alone lets them in (or they turn it on again, if it is required).",
+      "resetDone": "Reset for {{name}}."
+    }
   }
 }

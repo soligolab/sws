@@ -82,6 +82,8 @@ versioni:
         en: "Symbol editor: «Generate photo» photographs an object with AI, and «Import SVG» keeps the photos inside the file. A symbol with photos exports to .swsym with its images."
       - it: "Libreria aziendale dei simboli: «In libreria» dall'editor, poi il simbolo si usa in ogni progetto dell'azienda. Se in libreria cambia, l'IDE propone di aggiornare le copie."
         en: "Company symbol library: «To library» from the editor, then the symbol is used in every project of the company. When it changes there, the IDE offers to update the copies."
+      - it: "Autenticazione a due fattori per gli account dell'IDE e del cloud: un codice dall'app del telefono oltre alla password, con dieci codici di recupero. L'azienda può renderla obbligatoria."
+        en: "Two-factor authentication for IDE and cloud accounts: a code from a phone app besides the password, with ten recovery codes. A company can make it mandatory."
       # rc.22 (20-11-2026): editor dei simboli, libreria immagini, assistente. Per fare
       # posto, alcune voci di prima sono unite e accorciate: da rivedere al collaudo.
       - it: "Editor dei simboli: apri un simbolo della libreria e cambialo, o fanne uno nuovo; strumenti di disegno, bocche dei tubi, «Anima…» per i pezzi che si muovono, SVG e file .swsym da importare."

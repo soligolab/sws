@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { PlatformRequires2fa } from "./TwoFactorConsole";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { avviso, scheda, titoletto } from "@/ui/base";
@@ -64,6 +65,8 @@ export function Installazione() {
           <span style={{ fontSize: 13 }}>{String(v ?? "—")}</span>
         </div>
       ))}
+      {/* Only the platform's administrator gets an answer: for the others it isn't shown. */}
+      <PlatformRequires2fa />
     </div>
   );
 }

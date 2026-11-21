@@ -365,9 +365,8 @@ impl Identita {
         .flatten()
         // Un utente disattivato fra la richiesta e l'uso del PIN non entra.
         .ok_or(Rifiuto::UtenteDisattivato)?;
-        self.emetti_accesso(id, durata)
-            .await
-            .map_err(|_| Rifiuto::CredenzialiErrate)
+        // The PIN is one factor, the mail box: with 2FA on, the code is next.
+        self.complete_login(id, &chiave(email), durata).await
     }
 
     /// Solo per i test: il codice in volo, come se lo si leggesse dalla posta.

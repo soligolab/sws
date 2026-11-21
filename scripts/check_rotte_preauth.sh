@@ -120,6 +120,9 @@ esito() {
 #   /api/identita/registrazione/conferma chi si registra non ha un account, chi
 #   /api/auth/pin                        chiede un PIN non ha la password. Le
 #   /api/auth/pin/accesso                protegge un codice monouso per posta
+#   /api/auth/second-factor[/setup[/confirm]]  the second factor (22-11-2026):
+#                                        protected by the challenge a right password
+#                                        gave (five minutes) and by the same limit
 #                                        (10 minuti, 5 tentativi per indirizzo
 #                                        contati con la password); rispondono
 #                                        uguale per iscritti e no, e la posta
@@ -151,6 +154,9 @@ ATTESE=(
     "/api/identita/registrazione/conferma"
     "/api/auth/pin"
     "/api/auth/pin/accesso"
+    "/api/auth/second-factor"
+    "/api/auth/second-factor/setup"
+    "/api/auth/second-factor/setup/confirm"
     "/condizioni"
     "/privacy"
 )

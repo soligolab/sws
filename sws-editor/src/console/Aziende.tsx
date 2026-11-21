@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { CompanyRequires2fa } from "./TwoFactorConsole";
 import { useTranslation } from "react-i18next";
 import { api, type Azienda, type Marchio } from "@/api/client";
 import { conferma } from "@/finestraAvviso/finestraAvviso";
@@ -415,6 +416,7 @@ export function Aziende({ piattaforma = true }: { piattaforma?: boolean }) {
             <p style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", margin: "0 0 8px", lineHeight: 1.4 }}>
               {t("console.aziende.postaNota")}
             </p>
+            {scelta && <CompanyRequires2fa companyId={scelta.id} />}
             <CampiSmtp valore={bozza.smtp} onChange={(smtp) => setBozza({ ...bozza, smtp })} />
             {!scelta.smtp_host && (
               <div style={avviso}>{t("console.aziende.postaNessuna")}</div>

@@ -944,6 +944,16 @@ pub fn rotte_di_azienda() -> Router<AppState> {
             get(elenca_utenti).post(crea_utente),
         )
         .route("/api/amministrazione/utenti/:id", patch(modifica_utente))
+        // Two-factor authentication (plan 2026-11-21-p6-2fa-e-ldap): a company
+        // requires it of its members; a reset for a phone lost.
+        .route(
+            "/api/amministrazione/aziende/:id/require-2fa",
+            get(crate::two_factor_routes::company_get).put(crate::two_factor_routes::company_put),
+        )
+        .route(
+            "/api/amministrazione/utenti/:id/2fa/reset",
+            axum::routing::post(crate::two_factor_routes::user_reset),
+        )
         // I marchi si **leggono** per mostrarli; sceglierli è della
         // piattaforma (decisione del maintainer, 08-10-2026: un marchio è
         // anche il nome di qualcun altro).
@@ -968,6 +978,11 @@ pub fn rotte_di_piattaforma() -> Router<AppState> {
         .route(
             "/api/amministrazione/smtp",
             get(leggi_posta).put(scrivi_posta),
+        )
+        // The platform requires 2FA of every account.
+        .route(
+            "/api/amministrazione/require-2fa",
+            get(crate::two_factor_routes::platform_get).put(crate::two_factor_routes::platform_put),
         )
         .route(
             "/api/amministrazione/smtp/prova",

@@ -911,7 +911,9 @@ export const sulGateway = (path: string) =>
   // And the providers they prefer (17-11-2026), for the same reason.
   || path === "/api/identity/ai-preferences"
   // The company's symbol library (21-11-2026): the company is the gateway's.
-  || path.startsWith("/api/library/");
+  || path.startsWith("/api/library/")
+  // Two-factor authentication (22-11-2026): the accounts are the gateway's.
+  || path.startsWith("/api/auth/second-factor") || path.startsWith("/api/identity/2fa");
 
 /** La base a cui mandare una richiesta: il prefisso del progetto, o la radice
  *  per le rotte del gateway quando siamo nel cloud. */
@@ -1259,6 +1261,26 @@ export interface LoginOk {
   progetto_aperto?: boolean;
 }
 
+/** The second factor at login (plan 2026-11-21-p6-2fa-e-ldap): a right
+ *  password of an account with 2FA answers with a challenge, and the window
+ *  of `auth/secondFactor.tsx` turns it into the session. Every way in passes
+ *  here, so their callers still get a `LoginOk`. */
+async function passSecondFactor(r: LoginOk | { second_factor: "code" | "setup"; challenge: string }, riautentica: boolean): Promise<LoginOk> {
+  if (!("second_factor" in r) || typeof r.second_factor !== "string") return r as LoginOk;
+  const { askSecondFactor } = await import("@/auth/secondFactor");
+  const post = <T,>(path: string, body: unknown) =>
+    request<T>(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  return askSecondFactor(r, {
+    code: (challenge, code) => post<LoginOk>("/api/auth/second-factor", { challenge, code, riautentica }),
+    setup: (challenge) => post<{ secret: string; uri: string }>("/api/auth/second-factor/setup", { challenge }),
+    setupConfirm: (challenge, code) =>
+      post<LoginOk & { recovery_codes?: string[] }>("/api/auth/second-factor/setup/confirm", { challenge, code, riautentica }),
+  });
+}
+
+/** The state of an account's two-factor authentication. */
+export interface TwoFactorStatus { enabled: boolean; recovery_left: number; required: boolean }
+
 export const api = {
   // Auth
   /** `ricordami` vale solo per gli utenti dell'installazione: 30 giorni
@@ -1267,20 +1289,39 @@ export const api = {
    *  vede chiudere. `segnale` lo passa la schermata di login, che dopo 60 s
    *  senza risposta si ferma (09-11-2026): è l'unica chiamata che lo prende,
    *  un tempo massimo per tutte non c'è. */
-  login: (username: string, password: string, ricordami = false, riautentica = false, segnale?: AbortSignal) =>
-    request<LoginOk>("/api/auth/login", {
+  login: async (username: string, password: string, ricordami = false, riautentica = false, segnale?: AbortSignal) =>
+    passSecondFactor(await request<LoginOk>("/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username, password, ricordami, riautentica }),
       signal: segnale,
-    }),
+    }), riautentica),
 
   /** «Mandami un PIN». Risponde uguale per chiunque: non dice chi è iscritto. */
   chiediPin: (email: string, lingua: string) =>
     request<void>("/api/auth/pin", { method: "POST", body: JSON.stringify({ email, lingua }) }),
 
-  accediConPin: (email: string, pin: string, ricordami: boolean, riautentica = false) =>
-    request<LoginOk>("/api/auth/pin/accesso", { method: "POST", body: JSON.stringify({ email, pin, ricordami, riautentica }) }),
+  accediConPin: async (email: string, pin: string, ricordami: boolean, riautentica = false) =>
+    passSecondFactor(await request<LoginOk>("/api/auth/pin/accesso", { method: "POST", body: JSON.stringify({ email, pin, ricordami, riautentica }) }), riautentica),
+
+  /** The account's own two-factor authentication (`/api/identity/2fa…`). */
+  twoFactorStatus: () => request<TwoFactorStatus>("/api/identity/2fa"),
+  twoFactorStart: () => request<{ secret: string; uri: string }>("/api/identity/2fa/start", { method: "POST" }),
+  twoFactorConfirm: (code: string) =>
+    request<{ recovery_codes: string[] }>("/api/identity/2fa/confirm", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code }) }),
+  twoFactorDisable: (password: string, code: string) =>
+    request<void>("/api/identity/2fa/disable", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password, code }) }),
+  twoFactorNewCodes: (code: string) =>
+    request<{ recovery_codes: string[] }>("/api/identity/2fa/recovery-codes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code }) }),
+  /** The console: a company (or the platform) requires it; a reset. */
+  companyRequires2fa: (id: number) => request<{ on: boolean }>(`/api/amministrazione/aziende/${id}/require-2fa`),
+  setCompanyRequires2fa: (id: number, on: boolean) =>
+    request<void>(`/api/amministrazione/aziende/${id}/require-2fa`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ on }) }),
+  platformRequires2fa: () => request<{ on: boolean }>("/api/amministrazione/require-2fa"),
+  setPlatformRequires2fa: (on: boolean) =>
+    request<void>("/api/amministrazione/require-2fa", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ on }) }),
+  resetUser2fa: (userId: number) =>
+    request<void>(`/api/amministrazione/utenti/${userId}/2fa/reset`, { method: "POST" }),
 
   /** Registrazione da sé: parte un codice per posta. Anche qui la risposta è la
    *  stessa per un indirizzo nuovo e per uno già iscritto. */

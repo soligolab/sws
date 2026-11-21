@@ -12,7 +12,7 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — dieci rami annidati da collaudare; gruppo 2 pianificato, fasi 3 e 7 fatte (2026-11-22 notte, `ufficio`)
+## ▶ Riprendere da qui — undici rami annidati da collaudare; gruppo 2: fasi 3 e 7 e la 2FA fatte (2026-11-22 notte, `ufficio`)
 
 **Gruppo 2, sessione di plan fatta** (la sera del 21-11): quattro piani in `docs/plans/`, ordine deciso dal maintainer
 **3 → 7 → P6 → 8** — [fase 3, le foto](docs/plans/2026-11-21-simboli-fase-3-foto.md),
@@ -24,7 +24,19 @@
    zip; il deploy si ferma verso un pannello che non le conosce.
 10. `feat/symbol-library` — **la libreria aziendale dei simboli**: «In libreria» nell'editor, la famiglia «Libreria
     aziendale» nella galleria (un clic copia nel progetto), la barra «versioni più nuove» con «Aggiorna»; servita dal
-    gateway nel cloud e dall'IDE in locale, solo ai membri dell'azienda. Prossimo: P6, 2FA (`feat/2fa`).
+    gateway nel cloud e dall'IDE in locale, solo ai membri dell'azienda.
+11. `feat/2fa` — **l'autenticazione a due fattori degli account** IDE/cloud: TOTP con codici di recupero, finestra del
+    codice per ogni strada d'accesso, menu 👤, obbligo per azienda o piattaforma dalla console, azzeramento.
+    Prossimo: LDAP (`feat/ldap`), poi la fase 8.
+
+**Il collaudo della 2FA, cosa guardare** (IDE locale su `feat/2fa`, poi nel cloud; un'app di autenticazione vera):
+- menu 👤 → «Autenticazione a due fattori» → Attiva → QR con l'app → codice → i dieci codici di recupero;
+- esci e rientra: password, poi la finestra del codice; un codice di recupero funziona una volta sola; la finestra
+  «Sessione scaduta» e il PIN per posta chiedono il codice anche loro;
+- console → Aziende → «Richiedi l'autenticazione a due fattori» → un membro senza viene disconnesso, e al login deve
+  attivarla (QR, codice, codici) prima di entrare; non la può spegnere dal profilo;
+- console → Persone → «Azzera» per chi ha perso il telefono → rientra con la sola password;
+- cinque codici sbagliati → «troppi tentativi»; nel registro `auth.second_factor_failed` e `auth.login_blocked`.
 
 **Il collaudo della fase 7, cosa guardare** (IDE locale su `feat/symbol-library`, poi nel cloud con due utenti):
 - editor dei simboli → «In libreria» → la famiglia «Libreria aziendale» lo mostra; in un altro progetto un clic lo

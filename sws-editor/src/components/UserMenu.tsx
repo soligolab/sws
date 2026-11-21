@@ -6,6 +6,7 @@ import { UiLangSelect } from "@/components/UiLangSelect";
 import { useAppStore, type Role } from "@/store";
 import { prefissoGateway } from "@/api/prefisso";
 import { openMyAiKeys } from "@/components/MyAiKeys";
+import { openMyTwoFactor } from "@/components/MyTwoFactor";
 import { Icona } from "@/components/Icona";
 
 /** Role pill colours. The three dark ones keep a fixed light text; Viewer uses
@@ -77,6 +78,12 @@ export function UserMenu({ onLogout }: { onLogout: () => void }) {
               {t("myAiKeys.title")}
             </button>
           )}
+          {/* The account's two-factor authentication (22-11-2026): the window
+              says so when this instance has no accounts. */}
+          <button style={DROP_ITEM} data-testid="user-menu-two-factor"
+            onClick={() => { setOpen(false); void openMyTwoFactor(t("twoFactor.menu")); }}>
+            {t("twoFactor.menu")}
+          </button>
           <div style={DROP_SEP} />
           <button style={DROP_ITEM} onClick={() => { onLogout(); setOpen(false); }}>
             {t("menu.logout")}

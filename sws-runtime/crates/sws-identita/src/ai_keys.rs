@@ -27,7 +27,7 @@ use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM, NONCE_LEN};
 
 /// The master key file, next to the database.
 pub const MASTER_KEY_FILE: &str = "chiave_segreti";
-const MASTER_LEN: usize = 32;
+pub(crate) const MASTER_LEN: usize = 32;
 /// A provider key is about fifty characters: more than this is a wrong paste.
 const MAX_KEY: usize = 512;
 const MAX_PROVIDER: usize = 32;
@@ -77,7 +77,7 @@ fn aad(user_id: i64, provider: &str) -> Vec<u8> {
 /// Reads the master key, or creates it if the file is not there. A file that is
 /// there but does not read is **not** rewritten: the keys already encrypted
 /// would become unreadable, silently.
-fn load_or_create_master(path: &Path) -> anyhow::Result<[u8; MASTER_LEN]> {
+pub(crate) fn load_or_create_master(path: &Path) -> anyhow::Result<[u8; MASTER_LEN]> {
     match std::fs::read_to_string(path) {
         Ok(text) => {
             let hex = text.trim();
@@ -124,7 +124,7 @@ fn load_or_create_master(path: &Path) -> anyhow::Result<[u8; MASTER_LEN]> {
     }
 }
 
-fn encrypt(
+pub(crate) fn encrypt(
     master: &[u8; MASTER_LEN],
     aad_: &[u8],
     plain: &str,
@@ -145,7 +145,7 @@ fn encrypt(
 }
 
 /// `None` if it does not decrypt: another master key, a copied row, damaged data.
-fn decrypt(
+pub(crate) fn decrypt(
     master: &[u8; MASTER_LEN],
     aad_: &[u8],
     nonce: &[u8],
@@ -165,7 +165,7 @@ fn decrypt(
 }
 
 impl Identita {
-    fn master_path(&self) -> PathBuf {
+    pub(crate) fn master_path(&self) -> PathBuf {
         self.percorso
             .parent()
             .unwrap_or_else(|| Path::new("."))

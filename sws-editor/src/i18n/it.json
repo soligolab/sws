@@ -5875,5 +5875,43 @@
     "overwrite": "Nella libreria c'è già un simbolo con questo nome («{{name}}»), non copiato da qui. Sostituirlo?",
     "newer": "In libreria ci sono versioni più nuove di {{n}} simboli di questo progetto.",
     "newerAction": "Aggiorna"
+  },
+  "twoFactor": {
+    "menu": "Autenticazione a due fattori",
+    "title": "Il codice dell'app",
+    "setupTitle": "Attiva l'autenticazione a due fattori",
+    "codeHelp": "Scrivi il codice a 6 cifre dell'app di autenticazione, o uno dei codici di recupero.",
+    "enter": "Entra",
+    "wrong": "Il codice non va bene: riprova.",
+    "tooMany": "Troppi tentativi: riprova fra qualche minuto.",
+    "cancelled": "Accesso annullato: manca il codice.",
+    "required": "Per questo account l'autenticazione a due fattori è obbligatoria: attivala ora per entrare.",
+    "setupHelp": "Inquadra il codice con l'app di autenticazione (Google Authenticator, Microsoft Authenticator, 2FAS…) o scrivi la chiave qui sotto, poi il primo codice.",
+    "qrLabel": "Il codice da inquadrare con l'app di autenticazione",
+    "activate": "Attiva",
+    "recoveryHelp": "Questi dieci codici di recupero fanno entrare se perdi il telefono, uno per volta. Non si vedranno più: copiali o scrivili in un posto sicuro.",
+    "copy": "Copia",
+    "copied": "Copiati",
+    "saved": "Li ho salvati",
+    "help": "Oltre alla password, all'accesso serve il codice a 6 cifre di un'app sul telefono.",
+    "unavailable": "Questa istanza non ha account: l'autenticazione a due fattori non c'è.",
+    "off": "Non attiva.",
+    "offRequired": "Non attiva, ma obbligatoria per questo account: attivala.",
+    "turnOn": "Attiva…",
+    "on": "Attiva. Codici di recupero rimasti: {{n}}.",
+    "requiredNote": "Obbligatoria per la tua azienda o per la piattaforma: non si può spegnere.",
+    "newCodes": "Nuovi codici di recupero",
+    "turnOff": "Disattiva",
+    "password": "La tua password",
+    "codePlaceholder": "Codice dell'app o di recupero",
+    "console": {
+      "company": "Richiedi l'autenticazione a due fattori ai membri di quest'azienda",
+      "companyConfirm": "Chi non l'ha ancora attiva viene disconnesso, e al prossimo accesso deve attivarla. Procedere?",
+      "platform": "Richiedi l'autenticazione a due fattori a tutti gli account",
+      "platformConfirm": "Ogni account senza autenticazione a due fattori viene disconnesso, e al prossimo accesso deve attivarla. Procedere?",
+      "reset": "Azzera l'autenticazione a due fattori",
+      "resetConfirm": "Azzerare l'autenticazione a due fattori di {{name}}? Serve quando ha perso il telefono: al prossimo accesso entra con la sola password (o la riattiva, se è obbligatoria).",
+      "resetDone": "Azzerata per {{name}}."
+    }
   }
 }

@@ -262,6 +262,14 @@ pub enum Rifiuto {
     /// la posta», non «chiedi all'amministratore». Si dice solo **dopo** una
     /// password giusta, quindi non rivela chi e iscritto.
     DaConfermare,
+    /// The password (or PIN) is right, and the second factor is next
+    /// (`two_factor.rs`): no session yet, a challenge that the code turns
+    /// into one — or, with 2FA required and not set up, that lets the person
+    /// set it up.
+    SecondFactor {
+        challenge: String,
+        kind: two_factor::ChallengeKind,
+    },
 }
 
 impl std::fmt::Display for Rifiuto {
@@ -277,6 +285,7 @@ impl std::fmt::Display for Rifiuto {
             }
             Rifiuto::UtenteDisattivato => write!(f, "utente disattivato"),
             Rifiuto::DaConfermare => write!(f, "indirizzo non ancora confermato"),
+            Rifiuto::SecondFactor { .. } => write!(f, "second factor required"),
         }
     }
 }
@@ -309,10 +318,15 @@ pub struct Identita {
     /// memoria come i fallimenti: un riavvio invalida i codici di una finestra
     /// di dieci minuti, ed e un prezzo che vale una tabella in meno.
     codici: Arc<Mutex<HashMap<(String, registrazione::Scopo), registrazione::InVolo>>>,
+    /// The second-factor challenges in flight (`two_factor.rs`): in memory,
+    /// five minutes each, like the codes above.
+    sfide: Arc<Mutex<HashMap<String, two_factor::Challenge>>>,
     percorso: PathBuf,
 }
 
 mod ai_keys;
+pub mod two_factor;
+pub use two_factor::{ChallengeKind, TwoFactorSetup, TwoFactorStatus};
 pub use ai_keys::{AiKeyInfo, AI_PREFERENCE_KINDS, MASTER_KEY_FILE};
 mod registrazione;
 pub use registrazione::{Registrato, Scopo, VERSIONE_CONDIZIONI};
@@ -724,7 +738,14 @@ impl Identita {
                     conn.execute(sql, [])?;
                 }
             }
-            conn.pragma_update(None, "user_version", 8)?;
+            // Schema 9 (22-11-2026): two-factor authentication.
+            conn.execute_batch(two_factor::TABLES_V9)?;
+            for (tabella, sql) in two_factor::COLUMNS_V9 {
+                if !colonna_presente(&conn, tabella, sql) {
+                    conn.execute(sql, [])?;
+                }
+            }
+            conn.pragma_update(None, "user_version", 9)?;
             // Il file contiene hash di password e sessioni: non deve essere leggibile da altri.
             #[cfg(unix)]
             {
@@ -739,6 +760,7 @@ impl Identita {
             conn: Arc::new(Mutex::new(conn)),
             fallimenti: Arc::new(Mutex::new(HashMap::new())),
             codici: Arc::new(Mutex::new(HashMap::new())),
+            sfide: Arc::new(Mutex::new(HashMap::new())),
             percorso,
         };
         id.assicura_azienda_implicita().await?;
@@ -897,9 +919,7 @@ impl Identita {
         }
 
         self.fallimenti.lock().unwrap().remove(&chiave);
-        self.emetti_accesso(id, durata)
-            .await
-            .map_err(|_| Rifiuto::CredenzialiErrate)
+        self.complete_login(id, &chiave, durata).await
     }
 
     /// **L'unico posto che apre una sessione** (30-10-2026). Prima stava dentro
@@ -2335,8 +2355,8 @@ mod test {
                 .unwrap()
         };
         assert_eq!(
-            versione, 8,
-            "lo schema 8: le chiavi IA dell'utente (15-11-2026); il 7 era la posta dell'azienda"
+            versione, 9,
+            "schema 9: two-factor authentication (22-11-2026); 8 the user's AI keys, 7 the company's mail"
         );
         // Lo schema 7 aggiunge la posta dell'azienda anche a un archivio v2,
         // vuota: l'azienda continua a usare la posta dell'installazione.

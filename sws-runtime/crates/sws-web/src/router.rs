@@ -1375,6 +1375,21 @@ pub fn build(
         // Le proprie aziende: serve a decidere se mostrare una scelta, quindi
         // sta col gruppo self-service e non con la console.
         .route("/api/identita/mie-aziende", get(mie_aziende))
+        // The account's own two-factor authentication.
+        .route("/api/identity/2fa", get(crate::two_factor_routes::status))
+        .route("/api/identity/2fa/start", post(crate::two_factor_routes::start))
+        .route(
+            "/api/identity/2fa/confirm",
+            post(crate::two_factor_routes::confirm),
+        )
+        .route(
+            "/api/identity/2fa/disable",
+            post(crate::two_factor_routes::disable),
+        )
+        .route(
+            "/api/identity/2fa/recovery-codes",
+            post(crate::two_factor_routes::new_codes),
+        )
         // The company's symbol library (plan 2026-11-21-simboli-fase-7-libreria-
         // aziendale): any user, the membership is checked by the handlers.
         .route(
@@ -1631,6 +1646,20 @@ pub fn build(
         .route(
             "/api/identita/registrazione/conferma",
             post(crate::registrazione::conferma),
+        )
+        // The second factor (plan 2026-11-21-p6-2fa-e-ldap): pre-auth like the
+        // login, protected by the challenge it gave and by the same limit.
+        .route(
+            "/api/auth/second-factor",
+            post(crate::two_factor_routes::second_factor),
+        )
+        .route(
+            "/api/auth/second-factor/setup",
+            post(crate::two_factor_routes::setup),
+        )
+        .route(
+            "/api/auth/second-factor/setup/confirm",
+            post(crate::two_factor_routes::setup_confirm),
         )
         .route("/api/auth/pin", post(crate::registrazione::chiedi_pin))
         .route(
@@ -3387,6 +3416,18 @@ pub(crate) async fn entra(
     via: &str,
     riautentica: bool,
 ) -> Response {
+    entra_with(s, a, via, riautentica, None).await
+}
+
+/// [`entra`], with more fields in the answer (the recovery codes of a 2FA
+/// set up at login).
+pub(crate) async fn entra_with(
+    s: &AppState,
+    a: sws_identita::Accesso,
+    via: &str,
+    riautentica: bool,
+    extra: Option<serde_json::Value>,
+) -> Response {
     // **Entrare chiude il progetto aperto.**
     //
     // Il progetto attivo e uno stato globale dell'istanza, non di
@@ -3432,7 +3473,7 @@ pub(crate) async fn entra(
     let progetto_aperto = s.project_dir.read().await.is_some();
     // La forma della risposta è quella che il frontend già conosce
     // (`LoginOk`): email al posto di username, e il ruolo tradotto.
-    Json(serde_json::json!({
+    let mut body = serde_json::json!({
         "token": a.token,
         "username": a.utente.email,
         "role": "Admin",
@@ -3440,8 +3481,11 @@ pub(crate) async fn entra(
         "must_change_password": a.utente.deve_cambiare_password,
         "amministratore_piattaforma": a.utente.amministratore_piattaforma,
         "progetto_aperto": progetto_aperto,
-    }))
-    .into_response()
+    });
+    if let (Some(o), Some(serde_json::Value::Object(more))) = (body.as_object_mut(), extra) {
+        o.extend(more);
+    }
+    Json(body).into_response()
 }
 
 async fn login(
@@ -3489,6 +3533,11 @@ async fn login(
             .await
         {
             Ok(a) => entra(&s, a, "password", riautentica).await,
+            // Two-factor authentication (plan 2026-11-21-p6-2fa-e-ldap): the
+            // password was right, the code is next.
+            Err(sws_identita::Rifiuto::SecondFactor { challenge, kind }) => {
+                crate::two_factor_routes::challenge_response(&s, &creds.username, &challenge, kind)
+            }
             // La password era giusta: dirlo non rivela niente a chi non la sa,
             // e a chi la sa serve sapere che manca solo il codice per posta.
             Err(sws_identita::Rifiuto::DaConfermare) => (
@@ -3496,14 +3545,23 @@ async fn login(
                 Json(serde_json::json!({"motivo": "da_confermare"})),
             )
                 .into_response(),
-            Err(sws_identita::Rifiuto::Bloccato { riprova_fra }) => (
-                StatusCode::TOO_MANY_REQUESTS,
-                [(
-                    axum::http::header::RETRY_AFTER,
-                    riprova_fra.as_secs().to_string(),
-                )],
-            )
-                .into_response(),
+            Err(sws_identita::Rifiuto::Bloccato { riprova_fra }) => {
+                // A blocked login goes in the register too (22-11-2026): it
+                // was the gap the P6 plan named.
+                s.audit.log(
+                    "auth.login_blocked",
+                    Some(creds.username.clone()),
+                    serde_json::json!({"fonte": "installazione", "riprova_fra_s": riprova_fra.as_secs()}),
+                );
+                (
+                    StatusCode::TOO_MANY_REQUESTS,
+                    [(
+                        axum::http::header::RETRY_AFTER,
+                        riprova_fra.as_secs().to_string(),
+                    )],
+                )
+                    .into_response()
+            }
             Err(motivo) => {
                 s.audit.log(
                     "auth.login_failed",

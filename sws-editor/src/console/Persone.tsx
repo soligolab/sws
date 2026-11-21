@@ -1,4 +1,5 @@
 import { CampoPassword } from "@/components/CampoPassword";
+import { ResetUser2fa } from "./TwoFactorConsole";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, type Azienda, type UtenteInstallazione } from "@/api/client";
@@ -372,6 +373,8 @@ export function Persone() {
                 {bozza.nuovaPassword ? t("console.persone.resetInSospeso") : t("console.persone.resetNota")}
               </p>
             </div>
+
+            {scelta && <ResetUser2fa userId={scelta.id} name={scelta.email} />}
 
             <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13, marginBottom: 14 }}>
               <input
