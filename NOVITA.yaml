@@ -9,6 +9,13 @@
 # Regole (le controlla scripts/check_novita.sh):
 #   - una voce per cosa che chi usa SWS nota; `it` e `en` sempre tutte e due;
 #   - una voce sta in una riga o due (al massimo 220 caratteri per lingua);
+#   - al massimo 15 voci per versione, **ma solo alla release ufficiale**: finché
+#     la versione dichiarata è una `-rc`, nel suo blocco si aggiunge tutto, senza
+#     fondere né tagliare. Prima di rilasciare la versione ufficiale le voci si
+#     sintetizzano insieme al maintainer (regola del 20-11-2026: «fin che siamo
+#     in rc aggiungi sempre tutto, poi prima di rilasciare una versione ufficiale
+#     vediamo assieme come sintetizzare»). Togliere il `-rc` fa tornare rossa la
+#     guardia, e lì ci si ferma;
 #   - `compatibilita`: ciò che va fatto a mano dopo l'aggiornamento, o che smette
 #     di funzionare. Il pannello lo mette in cima e chiede una conferma in più;
 #   - una `-rc` mostra la voce della release a cui porta (2.12.0-rc.8 → 2.12.0):
@@ -63,6 +70,8 @@ versioni:
       # posto, alcune voci di prima sono unite e accorciate: da rivedere al collaudo.
       - it: "Editor dei simboli: apri un simbolo della libreria e cambialo, o fanne uno nuovo; strumenti di disegno, bocche dei tubi, «Anima…» per i pezzi che si muovono, SVG e file .swsym da importare."
         en: "Symbol editor: open a library symbol and change it, or make a new one; drawing tools, pipe ports, «Animate…» for moving parts, SVG and .swsym files to import."
+      - it: "Chiudendo l'editor dei simboli con modifiche non salvate puoi scegliere «Salva e chiudi», «Esci senza salvare» o Annulla."
+        en: "Closing the symbol editor with unsaved changes lets you choose «Save and close», «Leave without saving» or Cancel."
       - it: "Libreria immagini del progetto: carica, ottimizza, trascina o incolla una foto nella pagina, rinomina e sostituisci ovunque. La galleria propone solo simboli dello stesso tipo; il navigatore ha pulsanti in più."
         en: "Project image library: upload, optimise, drag or paste a photo into the page, rename and replace everywhere. The gallery offers only symbols of the same kind; the page navigator has extra buttons."
       - it: "Assistente IA: chiede prima di lavorare e scrive formattato; disegna simboli nell'editor; sfondi alla misura della pagina, anche per il progetto girato; pulsante nella barra. Anche Mistral o un modello in casa."
@@ -91,6 +100,33 @@ versioni:
         en: "The alarm list has «ACK all» and «shelve»; an alarm with a delay fires even if the variable then stops changing; a critical command without access asks you to log in; «Alarms» in the content language."
       - it: "Pannello più leggero e a colori pieni (niente bande nelle foto LVGL); le pagine con una foto di sfondo si aprono subito; oltre 5 s «Dati in ritardo di N s» e tutto grigio; login lento: avviso a 10 s."
         en: "Lighter panel, in full colour (no bands in LVGL photos); pages with a background photo open at once; past 5 s «Data delayed by N s» and all grey; slow login: notice at 10 s."
+      # Recuperate il 20-11-2026 (regola nuova: in rc si aggiunge tutto): voci tolte
+      # o accorciate per stare nelle 15, e funzioni che una voce non l'avevano avuta.
+      # Si sintetizzano col maintainer prima della release ufficiale.
+      - it: "Gruppi veri sull'editor: un clic seleziona tutto il gruppo, il doppio clic entra e lavora sul singolo oggetto. Il riquadro di selezione prende solo gli oggetti interi, mai lo sfondo bloccato."
+        en: "Real groups in the editor: one click selects the whole group, a double click enters it to work on one object. The selection box only takes whole objects, never the locked background."
+      - it: "Un progetto nuovo apre da solo le sue impostazioni (motore, formato, sfondi, cornice); il motore non si chiede più alla creazione."
+        en: "A new project opens its own settings (engine, format, backgrounds, frame); the engine is no longer asked at creation."
+      - it: "Registro più rapido, azzerato al deploy, nel cloud anche quello del pannello; «Aggiorna ora» non parte due volte né si perde chiudendo il progetto; se il runtime si riavvia l'IDE aspetta e riapre il progetto."
+        en: "Faster log, cleared on deploy, in the cloud the panel's too; «Update now» never starts twice nor gets lost closing the project; if the runtime restarts the IDE waits and reopens the project."
+      - it: "Funzioni Python: una funzione usa i valori predefiniti dei parametri che il pulsante non passa; rinominarla aggiorna i pulsanti che la chiamano; su LVGL un bottone chiama la sua funzione."
+        en: "Python functions: a function uses the default values of parameters the button does not pass; renaming it updates the buttons that call it; on LVGL a button calls its function."
+      - it: "Sul pannello LVGL i comandi critici chiedono password e motivo, come sul web; LED, radio e immagini si disegnano come sul web."
+        en: "On the LVGL panel critical commands ask for password and reason, as on the web; LEDs, radios and images are drawn as on the web."
+      - it: "Una foto legata a uno slider ne segue la trasparenza senza scatti. Cambiando un testo tradotto usato altrove, Annulla lo lascia com'era invece di cambiarlo dappertutto."
+        en: "A photo bound to a slider follows its opacity without jumps. Changing a translated text used elsewhere, Cancel leaves it as it was instead of changing it everywhere."
+      - it: "Il primo deploy verso un pannello appena abbinato porta da sé utenti e segreti; i successivi solo se gli utenti sono cambiati. Il deploy avvisa prima se porta utenti che dovranno cambiare password."
+        en: "The first deploy to a newly paired panel brings users and secrets by itself; later ones only if users changed. Deploy warns first if it brings users who must change their password."
+      - it: "Le tue chiavi IA nel menu 👤 del cloud: Anthropic, Kimi, Mistral, OpenAI e Black Forest Labs, con «Prova la chiave» e il modello preferito, che vale dove il progetto non sceglie."
+        en: "Your AI keys in the cloud's 👤 menu: Anthropic, Kimi, Mistral, OpenAI and Black Forest Labs, with «Test the key» and the preferred model, used where the project does not choose."
+      - it: "L'assistente disegna la casa sulla sua pianta e i simboli come SVG libero, con le bocche dei tubi; sfondi anche con FLUX.2; la scheda «Spesa» dice quanto è costata ogni conversazione."
+        en: "The assistant draws the house on its floor plan and symbols as free SVG, with pipe ports; backgrounds also with FLUX.2; the «Spending» tab tells what each conversation cost."
+      - it: "SWS gira sul Tiny TY (TY570) senza container: pacchetto da sws.soligo.net, luce, riposo e beep al tocco dal progetto, fotogrammi al secondo scelti nelle impostazioni del progetto."
+        en: "SWS runs on the Tiny TY (TY570) without containers: package from sws.soligo.net, backlight, sleep and touch beep from the project, frames per second chosen in the project settings."
+      - it: "Testi di sistema {{sys:nome}} nella lingua dei contenuti, anche senza tabella delle lingue. Il collegamento perso si vede in 5 s anche se un cavo staccato non chiude la connessione."
+        en: "System texts {{sys:name}} in the content language, even without a language table. A lost connection shows within 5 s even when an unplugged cable does not close it."
+      - it: "Il manuale è pubblico su sws.soligo.net/manuale/."
+        en: "The manual is public at sws.soligo.net/manuale/."
   - versione: "2.25.2"
     voci:
       - it: "Nel cloud la chat e il registro in una finestra a parte si aprono davvero: nella 2.25.1 davano l'errore 401."

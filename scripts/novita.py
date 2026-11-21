@@ -53,6 +53,11 @@ def controlla(versioni: list, versione: str | None) -> list[str]:
     """I problemi, in parole. Vuoto = tutto a posto."""
     problemi = []
     viste = set()
+    # While the declared version is an rc, the block it leads to has no entry
+    # limit: everything goes in, and the summary is done with the maintainer
+    # before the final release, when the declared version loses its `-rc` and
+    # this check turns red again (maintainer's rule, 2026-11-20).
+    in_rc = base(versione) if versione and "-" in versione else None
     for v in versioni:
         nome = str(v.get("versione", "?"))
         if nome in viste:
@@ -61,8 +66,11 @@ def controlla(versioni: list, versione: str | None) -> list[str]:
         voci = v.get("voci") or []
         if not voci:
             problemi.append(f"{nome}: nessuna voce")
-        if len(voci) > MAX_VOCI:
-            problemi.append(f"{nome}: {len(voci)} voci, al massimo {MAX_VOCI} — sono Novità, non il CHANGELOG")
+        if len(voci) > MAX_VOCI and nome != in_rc:
+            problemi.append(
+                f"{nome}: {len(voci)} voci, al massimo {MAX_VOCI} — sono Novità, non il CHANGELOG. "
+                "Prima della release ufficiale si sintetizzano insieme al maintainer"
+            )
         for tipo in ("voci", "compatibilita"):
             for i, r in enumerate(v.get(tipo) or [], 1):
                 for lingua in LINGUE:

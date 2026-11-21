@@ -50,6 +50,20 @@ else
   ok "una voce senza inglese non passa"
 fi
 
+# Entry limit: none while the declared version is an rc of that block; back at
+# the final release (maintainer's rule, 2026-11-20).
+python3 - "$FINTO" <<'PY' && ok "più di 15 voci passano finché si è in rc, e fermano la release ufficiale" || no "il limite delle voci non segue rc/release"
+import sys; sys.path.insert(0, "scripts")
+from pathlib import Path
+import novita as n
+v = n.carica(Path(sys.argv[1]))
+v[0]["voci"] = [{"it": f"voce {i}", "en": f"entry {i}"} for i in range(n.MAX_VOCI + 1)]
+rc = [p for p in n.controlla(v, "3.0.0-rc.2") if "al massimo" in p]
+final = [p for p in n.controlla(v, "3.0.0") if "al massimo" in p]
+other_rc = [p for p in n.controlla(v, "4.0.0-rc.1") if "al massimo" in p]
+sys.exit(0 if not rc and final and other_rc else 1)
+PY
+
 echo
 [ "$rossi" -eq 0 ] && { printf '\033[32mNovità: tutto verde (%d).\033[0m\n' "$verdi"; exit 0; }
 printf '\033[31mNovità: %d rossi.\033[0m\n' "$rossi"; exit 1
