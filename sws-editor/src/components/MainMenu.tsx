@@ -5,6 +5,7 @@ import { prefissoGateway, progettoDalPercorso } from "@/api/prefisso";
 import { canConfigureProject } from "@/auth/permissions";
 import { DROP_ITEM, DROP_PANEL, DROP_SEP, HDR_BTN, useOutsideClose } from "@/components/headerStyles";
 import { chiedi, conferma } from "@/finestraAvviso/finestraAvviso";
+import { askCopyRepository } from "@/components/copyRepository";
 import { pickInitialPageId } from "@/pageLayout";
 import { selectIsDirty, useAppStore } from "@/store";
 import { Icona } from "@/components/Icona";
@@ -136,11 +137,15 @@ export function MainMenu({
       ok: t("common.save"),
     }))?.trim();
     if (!nuovo || nuovo === currentName) return;
+    // A repository asks what the copy does with it (21-11-2026): until then
+    // the copy kept `origin`, and its Push landed on the original's remote.
+    const git = await askCopyRepository(nuovo);
+    if (git === null) return;
     setSalvandoCome(true); setIoStat(null);
     try {
       const rif = await indirizzoDelProgettoAperto(currentName);
       const azienda = rif.split("/")[0];
-      await api.duplicateProject(rif, nuovo);
+      await api.duplicateProject(rif, nuovo, git);
       // Si va sulla copia: «salva come» vuol dire che da adesso lavori li'.
       const rifNuovo = `${azienda}/${nuovo}`;
       if (prefissoGateway()) {

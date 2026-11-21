@@ -724,6 +724,12 @@ function authHeaders(extra?: HeadersInit): Headers {
  *  progetto, e la si rimanda in `If-Match` su ogni salvataggio di sezione.
  *  `null` = non l'abbiamo ancora vista, e in quel caso non si manda niente e il
  *  server si comporta come prima. */
+/** «Save as…» on a repository (21-11-2026): `CopyRepository` in `git_deploy.rs`. */
+export type CopyRepository =
+  | { mode: "new_repository" }
+  | { mode: "no_repository" }
+  | { mode: "branch"; name: string };
+
 let VERSIONE_PROGETTO: string | null = null;
 
 /** I percorsi la cui risposta porta la versione del progetto. Non tutti: un
@@ -2344,11 +2350,13 @@ export const api = {
       body: JSON.stringify({ new_name: newName }),
     }),
 
-  duplicateProject: (riferimento: string, newName: string) =>
+  /** `git`: what the copy does with the repository (21-11-2026); absent on a
+   *  repository the server makes it a new one. */
+  duplicateProject: (riferimento: string, newName: string, git?: CopyRepository) =>
     request<{ name: string }>(`/api/projects/${rotta(riferimento)}/duplicate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ new_name: newName }),
+      body: JSON.stringify({ new_name: newName, ...(git ? { git } : {}) }),
     }),
 
   // Template gallery (pre-auth)

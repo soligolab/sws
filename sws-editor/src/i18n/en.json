@@ -217,7 +217,12 @@
     "salvaCome": "Save as…",
     "salvaComeTitle": "Make a copy of this project under a new name and keep working on the copy",
     "salvaComePrompt": "Name of the copy:",
-    "salvaComeNonSalvato": "There are unsaved changes: the copy will hold the project as it is on disk, not what you see now. Go ahead?"
+    "salvaComeNonSalvato": "There are unsaved changes: the copy will hold the project as it is on disk, not what you see now. Go ahead?",
+    "copyGitQuestion": "The project is a git repository (branch «{{branch}}»). What does the copy do?",
+    "copyGitNew": "New repository: the history stays, the link to the remote does not",
+    "copyGitNone": "No repository",
+    "copyGitBranch": "A new branch of the same repository",
+    "copyGitBranchPrompt": "Branch name (Push will publish it on the same remote):"
   },
   "roles": {
     "admin": "Admin",

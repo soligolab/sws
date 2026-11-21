@@ -66,6 +66,8 @@ versioni:
       - it: "Le installazioni native non hanno più admin/admin: partono col codice di abbinamento. Un admin/admin rimasto va cambiato al primo accesso."
         en: "Native installations no longer have admin/admin: they start with the pairing code. An admin/admin left over must be changed at the next login."
     voci:
+      - it: "«Salva come…» su un progetto con repository git chiede cosa fa la copia: un ramo nuovo dello stesso repository, un repository nuovo o nessuno. Il Push della copia non finisce più sull'originale."
+        en: "«Save as…» on a project with a git repository asks what the copy does: a new branch of the same repository, a new repository or none. The copy's Push no longer lands on the original."
       - it: "Una sorgente si spegne senza cancellarla: interruttore «Attiva» sulla sua scheda. Spenta non parte, i suoi tag sono Bad e .disponibile è falso."
         en: "A source can be switched off without deleting it: the «On» switch on its card. When off it does not start, its tags are Bad and .disponibile is false."
       - it: "Modbus: «Giri di tolleranza». Una risposta persa (le chiavette Solarman) lascia l'ultimo valore, segnato incerto, invece di mandare subito i tag a Bad."

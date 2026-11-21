@@ -1929,6 +1929,11 @@ pub async fn close_project(State(s): State<AppState>) -> Response {
 #[serde(deny_unknown_fields)] // Q9: payload solo-API, campi ignoti = 400
 pub struct RenameRequest {
     pub new_name: String,
+    /// Duplicating only: what to do with the repository of a project that is
+    /// one (21-11-2026). Absent on a repository = a new repository, the safe
+    /// one: the copy can no longer push to the original's remote.
+    #[serde(default)]
+    pub git: Option<crate::git_deploy::CopyRepository>,
 }
 
 /// A project's directory is "external" when it doesn't live directly under
@@ -2742,17 +2747,40 @@ pub async fn duplicate_project(
     // duplicare mentre un salvataggio è a metà produrrebbe una copia con un
     // project.yaml troncato, e il difetto si scoprirebbe aprendo il duplicato.
     let _scrittura = s.project_write_lock.lock().await;
+    // The repository (21-11-2026): a copy that kept `origin` pushed to the
+    // original's remote. Asked by the IDE; absent, a new repository.
+    let sorgente_git = crate::git_deploy::GitDeploy::new(src_dir.clone());
+    let scelta_git = sorgente_git.is_git_repo().then(|| {
+        req.git
+            .clone()
+            .unwrap_or(crate::git_deploy::CopyRepository::NewRepository)
+    });
+    let chiave_progetto =
+        sorgente_git.chiave_ssh().as_deref() == Some(crate::git_deploy::CHIAVE_PROGETTO);
+    let mut salta = vec![crate::archivio::SEGNO, crate::trash::MARK];
+    if scelta_git == Some(crate::git_deploy::CopyRepository::NoRepository) {
+        salta.push(".git");
+    }
     // Il segno dell'archivio non si copia: la copia nasce viva (18-10-2026).
-    if let Err(e) = copy_dir_all(
-        &src_dir,
-        &dst_dir,
-        &[crate::archivio::SEGNO, crate::trash::MARK],
-    )
-    .await
-    {
+    if let Err(e) = copy_dir_all(&src_dir, &dst_dir, &salta).await {
         warn!("duplicate_project: copy {src_name} → {dst_name}: {e}");
         let _ = tokio::fs::remove_dir_all(&dst_dir).await;
         return (StatusCode::INTERNAL_SERVER_ERROR, "copy failed").into_response();
+    }
+    if let Some(scelta) = scelta_git {
+        let copia = crate::git_deploy::GitDeploy::new(dst_dir.clone());
+        let esito =
+            tokio::task::spawn_blocking(move || copia.adapt_copy(&scelta, chiave_progetto)).await;
+        let errore = match esito {
+            Ok(Ok(())) => None,
+            Ok(Err(e)) => Some(e.to_string()),
+            Err(e) => Some(e.to_string()),
+        };
+        if let Some(e) = errore {
+            warn!("duplicate_project: repository of {dst_name}: {e}");
+            let _ = tokio::fs::remove_dir_all(&dst_dir).await;
+            return (StatusCode::BAD_REQUEST, e).into_response();
+        }
     }
     s.known_projects.touch(&chiave_dst, &dst_dir).await;
     crate::gateway::progetti::segui_duplicazione(&s.projects_root, &src_dir, &dst_dir).await;

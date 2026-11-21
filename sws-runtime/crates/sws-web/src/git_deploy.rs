@@ -974,6 +974,53 @@ impl GitDeploy {
         Ok(())
     }
 
+    /// What «Save as…» does with the repository the copy brought along
+    /// (21-11-2026). `self` is the **copy**; `project_key` says whether the
+    /// original talked to its remote with the project's own key.
+    ///
+    /// Until then the copy kept `origin`, the branch and the key of the
+    /// original, and a Push from the copy landed on the original's repository.
+    pub fn adapt_copy(&self, choice: &CopyRepository, project_key: bool) -> anyhow::Result<()> {
+        let dir = self.project_dir.to_string_lossy().to_string();
+        match choice {
+            // The copy skipped `.git`: nothing to adapt.
+            CopyRepository::NoRepository => {}
+            CopyRepository::NewRepository => {
+                // History kept, everything that ties it to the original's
+                // remote gone — what the fork from a commit does.
+                let _ = Command::new("git")
+                    .args(["-C", &dir, "remote", "remove", "origin"])
+                    .output();
+                let _ = Command::new("git")
+                    .args(["-C", &dir, "config", "--unset", "core.sshCommand"])
+                    .output();
+                let chiave = cartella_chiave_progetto(&self.project_dir);
+                if chiave.exists() {
+                    std::fs::remove_dir_all(&chiave)?;
+                }
+            }
+            CopyRepository::Branch { name } => {
+                let name = name.trim();
+                if !Self::ref_sicuro(name) {
+                    anyhow::bail!("nome del ramo non valido: «{name}»");
+                }
+                run_git(&dir, &["checkout", "-q", "-b", name])?;
+                // A trial of a commit in the original is not a trial here.
+                let prova = self.project_dir.join(".git").join(MARCATORE_PROVA);
+                if prova.exists() {
+                    std::fs::remove_file(&prova)?;
+                }
+                // The copied `core.sshCommand` points at the original's key
+                // file: the copy uses its own copy of the same key.
+                if project_key {
+                    self.imposta_chiave_ssh(Some(CHIAVE_PROGETTO))?;
+                }
+            }
+        }
+        info!(dir = %dir, ?choice, "git: repository of a copy adapted");
+        Ok(())
+    }
+
     /// Nomi dei tag esistenti, più recente per prima.
     pub fn list_tags(&self) -> anyhow::Result<Vec<String>> {
         let dir = self.project_dir.to_string_lossy().to_string();
@@ -1249,6 +1296,19 @@ const SUFFISSO_SSH: &str =
 /// progetto è l'unica cosa che sopravvive al container, che si ricrea a ogni
 /// apertura. La `@` la tiene fuori dai nomi possibili di `~/.ssh`.
 pub const CHIAVE_PROGETTO: &str = "@sws";
+
+/// The three answers to «the project is a repository: what about the copy?»
+/// (21-11-2026, plan `docs/plans/2026-11-21-lock-salva-come-sorgenti-sandbox.md`).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
+#[serde(tag = "mode", rename_all = "snake_case")]
+pub enum CopyRepository {
+    /// The history stays; `origin` and the project key do not.
+    NewRepository,
+    /// The copy has no `.git`.
+    NoRepository,
+    /// Same repository, a branch of its own: Push publishes that branch.
+    Branch { name: String },
+}
 
 /// Dove vive la chiave del progetto.
 pub fn cartella_chiave_progetto(project_dir: &Path) -> PathBuf {
@@ -2134,6 +2194,80 @@ mod tests {
     }
 
     // ── Fase 3 del gestore: il fork ─────────────────────────────────────────
+
+    /// «Save as…» (21-11-2026): a repository with `origin` and the project
+    /// key, copied as `copy_dir_all` copies it.
+    fn copia_di_un_repository() -> (TempDir, TempDir, std::path::PathBuf) {
+        let orig = repo_di_prova();
+        let o = orig.path().to_string_lossy().to_string();
+        std::fs::write(orig.path().join("project.yaml"), "meta: {}\n").unwrap();
+        run_git(&o, &["add", "-A"]).unwrap();
+        run_git(&o, &["commit", "-q", "-m", "primo"]).unwrap();
+        run_git(&o, &["remote", "add", "origin", "git@example.org:a/b.git"]).unwrap();
+        let k = cartella_chiave_progetto(orig.path());
+        std::fs::create_dir_all(&k).unwrap();
+        std::fs::write(k.join("id_ed25519"), "chiave").unwrap();
+        GitDeploy::new(orig.path().to_path_buf())
+            .imposta_chiave_ssh(Some(CHIAVE_PROGETTO))
+            .unwrap();
+        let altrove = tempfile::tempdir().unwrap();
+        let dst = altrove.path().join("Copia");
+        let out = Command::new("cp")
+            .args(["-r", &o, &dst.to_string_lossy()])
+            .output()
+            .unwrap();
+        assert!(out.status.success());
+        (orig, altrove, dst)
+    }
+
+    #[test]
+    fn a_copy_as_a_new_repository_cannot_push_to_the_original() {
+        let (_orig, _altrove, dst) = copia_di_un_repository();
+        let d = dst.to_string_lossy().to_string();
+        GitDeploy::new(dst.clone())
+            .adapt_copy(&CopyRepository::NewRepository, true)
+            .unwrap();
+        assert!(git_out(&d, &["remote"]).unwrap().is_empty(), "no origin");
+        assert!(git_out(&d, &["config", "--get", "core.sshCommand"]).is_err());
+        assert!(!cartella_chiave_progetto(&dst).exists(), "the key stays with the original");
+        assert_eq!(GitDeploy::new(dst).log(10, 0).unwrap().len(), 1, "the history stays");
+    }
+
+    #[test]
+    fn a_copy_on_a_branch_keeps_the_remote_and_uses_its_own_key() {
+        let (orig, _altrove, dst) = copia_di_un_repository();
+        let d = dst.to_string_lossy().to_string();
+        let copia = GitDeploy::new(dst.clone());
+        copia
+            .adapt_copy(&CopyRepository::Branch { name: "impianto-due".into() }, true)
+            .unwrap();
+        assert_eq!(git_out(&d, &["symbolic-ref", "--short", "HEAD"]).unwrap(), "impianto-due");
+        assert_eq!(git_out(&d, &["remote", "get-url", "origin"]).unwrap(), "git@example.org:a/b.git");
+        assert_eq!(copia.chiave_ssh().as_deref(), Some(CHIAVE_PROGETTO), "its own key file");
+        let cmd = git_out(&d, &["config", "--get", "core.sshCommand"]).unwrap();
+        assert!(!cmd.contains(&*orig.path().to_string_lossy()), "{cmd}");
+        // The original did not move.
+        let o = orig.path().to_string_lossy().to_string();
+        assert_ne!(git_out(&o, &["symbolic-ref", "--short", "HEAD"]).unwrap(), "impianto-due");
+    }
+
+    #[test]
+    fn a_branch_name_that_is_not_safe_is_refused() {
+        let (_orig, _altrove, dst) = copia_di_un_repository();
+        let err = GitDeploy::new(dst)
+            .adapt_copy(&CopyRepository::Branch { name: "--force".into() }, false)
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("non valido"), "{err}");
+    }
+
+    #[test]
+    fn the_choice_reads_from_json() {
+        let c: CopyRepository = serde_json::from_str(r#"{"mode":"branch","name":"b"}"#).unwrap();
+        assert_eq!(c, CopyRepository::Branch { name: "b".into() });
+        let c: CopyRepository = serde_json::from_str(r#"{"mode":"no_repository"}"#).unwrap();
+        assert_eq!(c, CopyRepository::NoRepository);
+    }
 
     #[test]
     fn fork_da_un_commit_vecchio() {

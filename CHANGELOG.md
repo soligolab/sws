@@ -12,6 +12,16 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Aggiunto
+- **«Salva come…» e il repository git** (ramo `feat/save-as-git`, piano
+  `docs/plans/2026-11-21-lock-salva-come-sorgenti-sandbox.md`). La copia si portava dietro `.git` intero: `origin`, il
+  ramo e la chiave del progetto, e un Push dalla copia pubblicava sul repository dell'originale. Ora, se il progetto
+  è un repository, l'IDE chiede (`components/copyRepository.ts`): **un ramo nuovo** dello stesso repository (nome
+  proposto da quello della copia; la chiave del progetto ripuntata sulla copia; il primo Push imposta l'upstream,
+  come già faceva), **un repository nuovo** (storia tenuta, `origin`, `core.sshCommand` e `.git/sws-ssh` tolti, come
+  il fork da un commit) o **nessun repository** (`.git` non copiato). Lato server `CopyRepository` e
+  `GitDeploy::adapt_copy`, campo `git` di `POST /api/projects/…/duplicate`; senza il campo, su un repository, vale
+  «repository nuovo» — anche per il ⧉ dell'elenco dei progetti, che non chiede. «Porta qui le modifiche di un altro
+  ramo» resta nel seme.
 - **Le sorgenti si spengono senza cancellarle, e Modbus tollera le risposte perse** (ramo `feat/source-enabled`,
   piano `docs/plans/2026-11-21-lock-salva-come-sorgenti-sandbox.md`). Campo `enabled` su tutte e nove le sorgenti
   (default vero, scritto solo quando è falso): `SourceSupervisor::reload` non avvia quelle spente, ferma quelle che lo

@@ -217,7 +217,12 @@
     "salvaCome": "Salva come…",
     "salvaComeTitle": "Crea una copia di questo progetto con un nome nuovo e continua a lavorare sulla copia",
     "salvaComePrompt": "Nome della copia:",
-    "salvaComeNonSalvato": "Ci sono modifiche non salvate: la copia conterrà il progetto com'è sul disco, non quello che vedi adesso. Procedo?"
+    "salvaComeNonSalvato": "Ci sono modifiche non salvate: la copia conterrà il progetto com'è sul disco, non quello che vedi adesso. Procedo?",
+    "copyGitQuestion": "Il progetto è un repository git (ramo «{{branch}}»). Cosa fa la copia?",
+    "copyGitNew": "Repository nuovo: la storia resta, il collegamento al remoto no",
+    "copyGitNone": "Nessun repository",
+    "copyGitBranch": "Un ramo nuovo dello stesso repository",
+    "copyGitBranchPrompt": "Nome del ramo (il Push lo pubblicherà sullo stesso remoto):"
   },
   "roles": {
     "admin": "Admin",
