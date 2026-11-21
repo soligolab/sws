@@ -1644,6 +1644,20 @@ export const api = {
   /** POST /api/symbols/ai — the model of the «Simboli» purpose draws the symbol, new or changed
    *  from `description`, also from a photo. Nothing is saved; every outcome is a 200 with `ok`
    *  (plan docs/archive/2026-11-19-assistente-ia-simboli.md). IDE instance only. */
+  /** The AI on one IDE field (plan 2026-11-20-ia-sui-campi): a proposal for
+   *  the field and its neighbours, or one question. Nothing is saved. */
+  aiField: (req: {
+    kind: string; field: string; value: string; entity: unknown; live_value: unknown;
+    allowed: string[]; tags: string[]; request: string; rounds: { question: string; answer: string }[];
+  }) =>
+    request<{
+      ok: boolean; code?: string; message?: string;
+      kind?: "proposal" | "question";
+      changes?: { field: string; value: string }[]; note?: string;
+      question?: string; choices?: string[];
+      cost_usd?: number; model?: string;
+    }>("/api/ai/field", { method: "POST", body: JSON.stringify(req) }),
+
   symbolAi: (req: SymbolAiRequest, signal?: AbortSignal) =>
     request<SymbolAiResult>("/api/symbols/ai", { method: "POST", body: JSON.stringify(req), signal }),
 

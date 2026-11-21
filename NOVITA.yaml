@@ -70,6 +70,8 @@ versioni:
       # posto, alcune voci di prima sono unite e accorciate: da rivedere al collaudo.
       - it: "Editor dei simboli: apri un simbolo della libreria e cambialo, o fanne uno nuovo; strumenti di disegno, bocche dei tubi, «Anima…» per i pezzi che si muovono, SVG e file .swsym da importare."
         en: "Symbol editor: open a library symbol and change it, or make a new one; drawing tools, pipe ports, «Animate…» for moving parts, SVG and .swsym files to import."
+      - it: "IA sui campi: una scintilla accanto all'espressione di un tag e al formato di un oggetto. Dici cosa vuoi, l'IA propone il campo e i suoi vicini (unità, decimali), e chiede se qualcosa non è chiaro."
+        en: "AI on fields: a sparkle next to a tag's expression and an object's format. Say what you want, the AI proposes the field and its neighbours (unit, decimals), and asks when something is unclear."
       - it: "Ogni progetto ricorda il suo pannello: cambiare progetto chiude il collegamento, e all'apertura l'IDE chiede se ricollegarsi. Un deploy non finisce più sul pannello di un altro progetto."
         en: "Each project remembers its panel: switching project closes the connection, and on open the IDE asks whether to reconnect. A deploy no longer ends up on another project's panel."
       - it: "Chiudendo l'editor dei simboli con modifiche non salvate puoi scegliere «Salva e chiudi», «Esci senza salvare» o Annulla."

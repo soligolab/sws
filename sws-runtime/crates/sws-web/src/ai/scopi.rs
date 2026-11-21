@@ -34,14 +34,17 @@ pub enum Scopo {
     Simboli,
     Traduzione,
     Sfondi,
+    /// The AI on a single IDE field (plan `docs/plans/2026-11-20-ia-sui-campi.md`).
+    Fields,
 }
 
 impl Scopo {
-    pub const TUTTI: [Scopo; 4] = [
+    pub const TUTTI: [Scopo; 5] = [
         Scopo::Assistente,
         Scopo::Simboli,
         Scopo::Traduzione,
         Scopo::Sfondi,
+        Scopo::Fields,
     ];
 
     pub fn nome(self) -> &'static str {
@@ -50,6 +53,7 @@ impl Scopo {
             Scopo::Simboli => "simboli",
             Scopo::Traduzione => "traduzione",
             Scopo::Sfondi => "sfondi",
+            Scopo::Fields => "fields",
         }
     }
 
@@ -337,22 +341,22 @@ pub const FORNITORI: [(&str, &str, &[&str]); 6] = [
     (
         "anthropic",
         "Anthropic (Claude)",
-        &["assistente", "simboli", "traduzione"],
+        &["assistente", "simboli", "traduzione", "fields"],
     ),
     (
         "kimi",
         "Moonshot (Kimi)",
-        &["assistente", "simboli", "traduzione"],
+        &["assistente", "simboli", "traduzione", "fields"],
     ),
     (
         "mistral",
         "Mistral AI",
-        &["assistente", "simboli", "traduzione"],
+        &["assistente", "simboli", "traduzione", "fields"],
     ),
     (
         "local",
         "Local model (OpenAI-compatible)",
-        &["assistente", "simboli", "traduzione"],
+        &["assistente", "simboli", "traduzione", "fields"],
     ),
     ("openai", "OpenAI (immagini)", &["sfondi"]),
     ("bfl", "Black Forest Labs (FLUX)", &["sfondi"]),
@@ -575,7 +579,7 @@ mod tests {
             .iter()
             .find(|(id, _, _)| *id == "mistral")
             .unwrap();
-        assert_eq!(*purposes, ["assistente", "simboli", "traduzione"]);
+        assert_eq!(*purposes, ["assistente", "simboli", "traduzione", "fields"]);
         assert_eq!(file_chiave("mistral"), Some("mistral.key"));
     }
 

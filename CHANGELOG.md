@@ -12,6 +12,16 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Aggiunto
+- **L'IA sui campi** (piano `docs/plans/2026-11-20-ia-sui-campi.md`, ramo `feat/ai-fields`). Accanto all'espressione
+  λ di un tag e al «Formato» di un oggetto c'è una piccola scintilla: si scrive cosa si vuole («la RAM in MB con due
+  decimali») e il modello propone il valore del campo e, se serve, dei vicini (unità e decimali del tag), mostrati
+  come prima → dopo e applicati tutti o nessuno. Se la richiesta è ambigua (kB o KiB?) fa prima una domanda con le
+  sue scelte, fino a tre giri. Vede l'oggetto intero, il valore vivo e, per un'espressione, i nomi dei tag del
+  progetto. Rotta `POST /api/ai/field` (`ai/field_assist.rs`, solo nell'IDE), risposta tenuta a uno schema JSON sui
+  modelli locali, i campi fuori da quelli permessi scartati dal server. Scopo nuovo **«IA sui campi»** (`fields`) in
+  Configurazione → IA, che senza una scelta sua è l'assistente; spesa contata a parte. Niente si salva: le modifiche
+  vanno nel modulo e si salva come sempre. Condizioni d'allarme, regole delle animazioni e codice Python restano per
+  dopo (seme `docs/plans/semi/2026-11-20-ia-sui-campi-altri-campi.md`).
 - **Gli sfondi generati hanno la misura della pagina, con l'intervista e la gemella per il progetto girato** (ramo
   `feat/backgrounds-page-size`, piano `docs/plans/2026-11-20-sfondi-alla-misura-della-pagina.md`). Erano sempre
   1536×1024, e su una pagina verticale (TY570, 600×1024) se ne vedeva il 40 %. Ora il server calcola la misura

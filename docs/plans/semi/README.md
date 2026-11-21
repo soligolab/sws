@@ -29,6 +29,7 @@
 <!-- RIGHE-NUOVI-SEMI -->
 | Seme | Origine | Cosa resta |
 |---|---|---|
+| [2026-11-20-ia-sui-campi-altri-campi.md](2026-11-20-ia-sui-campi-altri-campi.md) | aprendo `feat/ai-fields`, 20-11-2026 | **seme — decisione** — l'IA sui campi per le condizioni d'allarme (livelli interi, non testo), le regole delle animazioni dei simboli e il codice Python |
 | [2026-11-20-3d-viva-nel-viewer-web.md](2026-11-20-3d-viva-nel-viewer-web.md) | il maintainer, 20-11-2026, guardando three.js: la 3D di una stanza viva nel viewer web, solo per i dispositivi grossi (niente LVGL e TY) | **seme — decisione** — un oggetto «Scena 3D» legato a una planimetria e ai dati (colori, allarmi, faceplate); three.js c'è già nell'IDE; il PNG di oggi come ripiego; quali dispositivi; prima l'editor di planimetrie completo |
 | [2026-11-18-smtp-nostro-per-le-notifiche.md](2026-11-18-smtp-nostro-per-le-notifiche.md) | appunti di una riunione del maintainer, 18-11-2026 | **seme — decisione** — servizio SMTP nostro (tipo smtp2go) per le notifiche e-mail quando il cliente non ha accesso al suo |
 | [2026-11-18-store-and-forward-database-esterno.md](2026-11-18-store-and-forward-database-esterno.md) | appunti di una riunione del maintainer, 18-11-2026 | **seme — decisione** — store and forward per il database esterno, in caso di perdita di connessione |

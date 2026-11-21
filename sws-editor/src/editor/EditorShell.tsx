@@ -74,6 +74,7 @@ import { useNomePagina } from "@/i18n/nomePagina";
 import { NavigatorProperties } from "./NavigatorProperties";
 import { CampoTestoTradotto } from "@/editor/CampoTestoTradotto";
 import { CampoFormato } from "@/components/CampoFormato";
+import { AiFieldButton } from "@/components/AiFieldButton";
 import type { AlignMode } from "@/store";
 import type { AlarmSeverity, ButtonAction, FunctionDef, GridCell, PageLayoutConfig, PageSizeMode, ProjectTargetKind, RadioOption, SubCellEntry, SubGrid, SynopticObject, SynopticPage, TableRow, TagDef, TypeDef, TextListEntry, TrendTrace, XySeries } from "@/types";
 import { eBoot, paginePerNavigazione } from "@/boot/tipi";
@@ -3822,13 +3823,24 @@ export function ObjectProps({
 
   /** Il campo «Formato» col suo elenco (▾) e l'anteprima sul valore vero. */
   const formatInput = (placeholder?: string) => (
-    <CampoFormato
-      style={INPUT}
-      placeholder={mixedKeys.has("format") ? t("props.vari") : placeholder}
-      value={mixedKeys.has("format") ? "" : (obj.format ?? "")}
-      statoTag={statoTag}
-      onChange={(v) => onChange({ format: v || undefined })}
-    />
+    <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <CampoFormato
+          style={INPUT}
+          placeholder={mixedKeys.has("format") ? t("props.vari") : placeholder}
+          value={mixedKeys.has("format") ? "" : (obj.format ?? "")}
+          statoTag={statoTag}
+          onChange={(v) => onChange({ format: v || undefined })}
+        />
+      </div>
+      {/* The AI on the field (plan 2026-11-20-ia-sui-campi). */}
+      <AiFieldButton
+        kind="format" field="format" label={t("props.formatBound")}
+        value={mixedKeys.has("format") ? "" : (obj.format ?? "")}
+        entity={obj} liveValue={statoTag?.value}
+        onApply={(c) => { if ("format" in c) onChange({ format: c.format.trim() || undefined }); }}
+      />
+    </div>
   );
 
 

@@ -4848,8 +4848,10 @@
         "assistente": "Assistente",
         "simboli": "Disegno dei simboli",
         "traduzione": "Traduzione",
-        "sfondi": "Sfondi"
+        "sfondi": "Sfondi",
+        "fields": "IA sui campi"
       },
+      "spiega_fields": "L'icona IA accanto ai campi difficili (espressione di un tag, formato): propone il valore del campo e dei suoi vicini. Basta un modello piccolo, anche in casa.",
       "spiega_assistente": "La chat: legge il progetto, compone le pagine e propone le modifiche.",
       "spiega_simboli": "Disegna i simboli nuovi del progetto quando l'assistente gliene chiede uno, e nella scheda «IA» dell'editor dei simboli.",
       "spiega_traduzione": "L'opzione «IA» della traduzione automatica, in Lingue.",
@@ -5421,6 +5423,32 @@
     "wifiNoIpv4Tag": "senza IPv4",
     "wifiNoIpv4": "Collegato alla rete, ma senza indirizzo IPv4: il DHCP della rete non ha risposto. Si può usare l'indirizzo IPv6, o controllare il DHCP del router.",
     "wifiDetails": "Indirizzi della rete Wi-Fi"
+  },
+  "aiField": {
+    "unit": "Unità",
+    "decimals": "Decimali",
+    "title": "IA — {{label}}",
+    "button": "Chiedi all'IA di scrivere questo campo",
+    "explain": "Scrivi cosa vuoi ottenere: l'IA propone il valore del campo, e se serve anche dei campi vicini. Niente si salva finché non salvi tu.",
+    "live": "Valore adesso: {{value}}",
+    "placeholderExpression": "es. la RAM in MB con due decimali",
+    "placeholderFormat": "es. una cifra decimale e l'unità bar",
+    "ask": "Chiedi",
+    "thinking": "Ci penso…",
+    "answer": "La tua risposta",
+    "send": "Rispondi",
+    "apply": "Applica",
+    "cancel": "Annulla",
+    "retry": "Chiedi di nuovo",
+    "noChanges": "Nessuna modifica proposta.",
+    "err": {
+      "no_model": "Nessun modello IA configurato: si sceglie in Configurazione → IA.",
+      "cap_reached": "Tetto di spesa raggiunto ({{detail}}). Si alza in Configurazione → IA → Un modello per scopo.",
+      "provider": "Il fornitore dell'IA non ha risposto: {{detail}}",
+      "invalid": "Il modello non ha dato una risposta leggibile. Riprova, o scegli un modello più capace per «IA sui campi».",
+      "bad_request": "Richiesta non valida: {{detail}}",
+      "ideOnly": "L'IA sui campi c'è solo nell'IDE, non nell'amministrazione del pannello."
+    }
   },
   "deviceMemory": {
     "title": "Pannello del progetto",

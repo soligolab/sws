@@ -4848,8 +4848,10 @@
         "assistente": "Assistant",
         "simboli": "Symbol drawing",
         "traduzione": "Translation",
-        "sfondi": "Backgrounds"
+        "sfondi": "Backgrounds",
+        "fields": "AI on fields"
       },
+      "spiega_fields": "The AI icon next to hard fields (a tag's expression, a format): it proposes the value of the field and of its neighbours. A small model is enough, even a local one.",
       "spiega_assistente": "The chat: reads the project, composes pages and proposes changes.",
       "spiega_simboli": "Draws the project's new symbols when the assistant asks for one, and in the «AI» tab of the symbol editor.",
       "spiega_traduzione": "The «AI» option of automatic translation, in Languages.",
@@ -5421,6 +5423,32 @@
     "wifiNoIpv4Tag": "no IPv4",
     "wifiNoIpv4": "Joined the network, but with no IPv4 address: its DHCP did not answer. The IPv6 address works, or check the router's DHCP.",
     "wifiDetails": "Wi-Fi network addresses"
+  },
+  "aiField": {
+    "unit": "Unit",
+    "decimals": "Decimals",
+    "title": "AI — {{label}}",
+    "button": "Ask the AI to write this field",
+    "explain": "Say what you want: the AI proposes the value of the field, and of the fields next to it when needed. Nothing is saved until you save.",
+    "live": "Value now: {{value}}",
+    "placeholderExpression": "e.g. RAM in MB with two decimals",
+    "placeholderFormat": "e.g. one decimal and the unit bar",
+    "ask": "Ask",
+    "thinking": "Thinking…",
+    "answer": "Your answer",
+    "send": "Reply",
+    "apply": "Apply",
+    "cancel": "Cancel",
+    "retry": "Ask again",
+    "noChanges": "No change proposed.",
+    "err": {
+      "no_model": "No AI model configured: choose one in Configuration → AI.",
+      "cap_reached": "Spending cap reached ({{detail}}). Raise it in Configuration → AI → One model per purpose.",
+      "provider": "The AI provider did not answer: {{detail}}",
+      "invalid": "The model gave no readable answer. Try again, or choose a stronger model for «AI on fields».",
+      "bad_request": "Invalid request: {{detail}}",
+      "ideOnly": "The AI on fields is in the IDE only, not in the panel's administration."
+    }
   },
   "deviceMemory": {
     "title": "Project panel",

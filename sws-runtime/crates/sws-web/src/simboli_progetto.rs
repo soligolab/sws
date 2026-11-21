@@ -289,16 +289,25 @@ async fn symbol_model(
     s: &AppState,
     user: &AuthUser,
 ) -> Result<(Option<crate::ai::client::Scelta>, reqwest::Client), Response> {
+    purpose_model(s, user, crate::ai::scopi::Scopo::Simboli).await
+}
+
+/// [`symbol_model`] for any text purpose: the AI on the fields uses it too.
+pub(crate) async fn purpose_model(
+    s: &AppState,
+    user: &AuthUser,
+    purpose: crate::ai::scopi::Scopo,
+) -> Result<(Option<crate::ai::client::Scelta>, reqwest::Client), Response> {
     use crate::ai::{local_http, scopi, user_keys};
     if !s.ide_only {
         return Err((
             StatusCode::NOT_FOUND,
-            "the AI draws symbols on the IDE instance only",
+            "the AI on symbols and fields runs on the IDE instance only",
         )
             .into_response());
     }
     let keys = user_keys::fetch_all(s, &user.username).await;
-    let choice = scopi::carica_per_con(&s.config_dir, scopi::Scopo::Simboli, &keys);
+    let choice = scopi::carica_per_con(&s.config_dir, purpose, &keys);
     let base = || {
         reqwest::Client::builder()
             .connect_timeout(std::time::Duration::from_secs(10))
@@ -349,6 +358,23 @@ pub async fn ai_interview(
     match symbol_model(&s, &user).await {
         Ok((choice, http)) => {
             Json(crate::ai::symbol_draw::interview(&s, choice, &http, req).await).into_response()
+        }
+        Err(r) => r,
+    }
+}
+
+/// `POST /api/ai/field` — the AI on one IDE field (plan
+/// `docs/plans/2026-11-20-ia-sui-campi.md`): the model of the `fields` purpose
+/// proposes the field's value and its neighbours', or asks one question.
+/// Nothing is saved. IDE only, like the AI on symbols.
+pub async fn ai_field(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Json(req): Json<crate::ai::field_assist::FieldRequest>,
+) -> Response {
+    match purpose_model(&s, &user, crate::ai::scopi::Scopo::Fields).await {
+        Ok((choice, http)) => {
+            Json(crate::ai::field_assist::assist(&s, choice, &http, req).await).into_response()
         }
         Err(r) => r,
     }

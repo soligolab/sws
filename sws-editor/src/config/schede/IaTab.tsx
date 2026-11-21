@@ -23,7 +23,7 @@ import { S, SaveBar } from "@/config/comuni";
 // nel browser. Le rotte esistono solo sull'istanza IDE: altrove rispondono 404,
 // e qui il 404 si legge come «non si configura da questa macchina».
 
-const SCOPI: ScopoIa[] = ["assistente", "simboli", "traduzione", "sfondi"];
+const SCOPI: ScopoIa[] = ["assistente", "simboli", "traduzione", "fields", "sfondi"];
 
 /** La configurazione IA, ricaricabile. `assente` = 404 (non è un'istanza IDE). */
 function useConfigIa() {
@@ -334,7 +334,7 @@ function RigaScopo({ scopo, cfg, valore, onCambia }: {
   const { t } = useTranslation();
   const adatti = cfg.fornitori.filter((f) => f.scopi.includes(scopo));
   // Simboli e traduzione possono «fare come l'assistente»: è il valore vuoto.
-  const puoEreditare = scopo === "simboli" || scopo === "traduzione";
+  const puoEreditare = scopo === "simboli" || scopo === "traduzione" || scopo === "fields";
   const eff = cfg.scopi[scopo];
   // In the cloud, without a choice of the project, what the purpose uses
   // depends on who opens the menu: their preferred provider, their keys.

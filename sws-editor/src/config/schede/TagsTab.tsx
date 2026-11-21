@@ -21,6 +21,7 @@ import { TRANS_COMP, BarraConflittoSezione, S, SaveBar } from "@/config/comuni";
 import { segnalaSalvataggioFallito } from "@/config/salvataggioFallito";
 import { CampoNumero } from "@/components/CampoNumero";
 import { Icona } from "@/components/Icona";
+import { AiFieldButton } from "@/components/AiFieldButton";
 
 // ── TAG tab ───────────────────────────────────────────────────────────────────
 
@@ -798,6 +799,25 @@ export function TagsTab({ scheda }: { scheda: IdScheda }) {
                         value={tag.expression ?? ""}
                         onChange={(e) => updateTag(i, { expression: e.target.value || undefined })}
                         spellCheck={false}
+                      />
+                      <AiFieldButton
+                        kind="tag_expression" field="expression" label={t("cfgUi.lambdaEspressione")}
+                        value={tag.expression ?? ""} entity={tag} liveValue={tv?.value}
+                        neighbours={[
+                          { field: "unit", label: t("aiField.unit"), value: tag.unit ?? "" },
+                          { field: "decimals", label: t("aiField.decimals"), value: tag.decimals != null ? String(tag.decimals) : "" },
+                        ]}
+                        tags={tags.map((x) => x.id).filter((id) => id !== tag.id)}
+                        onApply={(c) => {
+                          const patch: Partial<typeof tag> = {};
+                          if ("expression" in c) patch.expression = c.expression.trim() || undefined;
+                          if ("unit" in c) patch.unit = c.unit.trim() || undefined;
+                          if ("decimals" in c) {
+                            const n = Number.parseInt(c.decimals, 10);
+                            patch.decimals = Number.isFinite(n) && n >= 0 && n <= 6 ? n : undefined;
+                          }
+                          updateTag(i, patch);
+                        }}
                       />
                     </div>
                   </td>

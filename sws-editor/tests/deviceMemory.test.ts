@@ -42,7 +42,7 @@ describe("the panel each project remembers", () => {
     let auto = rispondi(false);
     try { await offerReconnect({ url: "http://tc620:7444" }); } finally { auto.ferma(); }
     expect(connect).not.toHaveBeenCalled();
-    expect(auto.chiamate[0].testo).toContain("http://tc620:7444");
+    expect((auto.chiamate[0] as { testo?: string }).testo).toContain("http://tc620:7444");
     auto = rispondi(true);
     try { await offerReconnect({ url: "http://tc620:7444", username: "admin" }); } finally { auto.ferma(); }
     expect(connect).toHaveBeenCalledWith("http://tc620:7444", "admin", undefined);

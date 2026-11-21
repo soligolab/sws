@@ -12,7 +12,42 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — la rc.22 costruita e nel cloud; elitedesk pronta come seconda macchina di lavoro (2026-11-20 sera, theobroma)
+## ▶ Riprendere da qui — quattro rami annidati da collaudare (2026-11-20 notte, `ufficio`)
+
+**Niente è in `main`.** Quattro rami, uno sull'altro, **non pushati**; il maintainer li prova il 21-11 e poi si
+squashano in ordine:
+1. `fix/symbol-editor-close-dialog` — chiudere l'editor dei simboli con modifiche non salvate: Annulla | Esci senza
+   salvare | Salva e chiudi (con errori nel simbolo, niente «Salva»);
+2. `chore/novita-no-limit-in-rc` — **regola nuova**: finché la versione è una `-rc` nessun limite di voci in
+   `NOVITA.yaml`, la sintesi si fa insieme prima della release ufficiale (`check_novita.sh` torna rossa lì). Recuperate
+   dodici voci tolte o mai scritte: il blocco 2.26.0 è a 30 voci;
+3. `feat/device-per-project` — ogni progetto ricorda il suo pannello (`last_device` in `project.yaml`, senza password);
+   aprire o chiudere un progetto chiude il collegamento (IDE locale); all'apertura «Ricollegarsi a …?»;
+4. `feat/ai-fields` — la scintilla IA accanto all'espressione λ dei tag e al «Formato» degli oggetti, scopo nuovo
+   «IA sui campi». Condizioni d'allarme, animazioni e codice Python in un seme.
+
+Piani: [dispositivo per progetto](docs/plans/2026-11-20-dispositivo-ricordato-per-progetto.md) e
+[IA sui campi](docs/plans/2026-11-20-ia-sui-campi.md), decisi col maintainer la sera del 20-11. Definition of done
+verde su ogni ramo tranne la conferma del maintainer.
+
+**Il collaudo, cosa guardare** (IDE da `start_editor_develop.sh` sul ramo in cima, `feat/ai-fields`; TC620 di casa):
+- editor dei simboli: modifica, «Chiudi» → Annulla (resta); «Salva e chiudi»; Esc → «Esci senza salvare»;
+- progetto A → Connessione al TC620 → chiudi → apri B: scollegato, scheda Connessione vuota (o col pannello di B) →
+  riapri A: «Ricollegarsi a …?» → Sì. Deploy di B sul pannello di A: la conferma «sostituisce progetti»;
+- IA sui campi: un tag calcolato, λ → scintilla → «la RAM in MB con due decimali»: la domanda kB/KiB, poi espressione,
+  unità, decimali come prima → dopo, «Applica», Salva. Lo stesso col campo «Formato» di un testo legato a un tag. Con
+  Ollama in Configurazione → IA → «IA sui campi»;
+- rileggere le dodici voci recuperate di `NOVITA.yaml` 2.26.0.
+
+**Rimandato, col maintainer**: il bug «Later» al cambio password (seme
+`docs/plans/semi/2026-11-15-cambio-password-later-errore.md`). Nell'IDE il codice non lo spiega (con la vecchia
+password vuota l'invio è disabilitato, «Più tardi» non legge i campi): va riprodotto sul TC620 con un utente che deve
+cambiare la password, cioè toccando gli utenti del pannello — non fatto di notte senza di lui.
+
+**Dopo il merge**: CasaDomotica (regola di `CLAUDE.md`): un tag con l'espressione scritta con la scintilla; il
+`last_device` arriva da solo al primo collegamento.
+
+## Sessione precedente — la rc.22 costruita e nel cloud; elitedesk pronta come seconda macchina di lavoro (2026-11-20 sera, theobroma)
 
 Il maintainer: «facciamo una nuova RC di tutto», poi «sì» a registrare il collaudo, archiviare i piani, le due
 correzioni piccole e la rc.22.

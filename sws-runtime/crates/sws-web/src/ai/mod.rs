@@ -31,6 +31,7 @@ pub mod chat_completions;
 pub mod client;
 pub mod config_api;
 mod conversazioni;
+pub(crate) mod field_assist;
 mod floor_plan_tool;
 mod foto_ide;
 mod free_symbol_bench;

@@ -6,7 +6,7 @@
 > il dato "55044.44921875" di ram che ora è mostrato così in un dato in MB pari a 55,04 MB».
 >
 > **Piano dal 20-11-2026 sera** (sessione di plan col maintainer, da `ufficio`): decisioni qui sotto. Ramo
-> `feat/ai-fields`, annidato su `fix/later-password` ← `feat/device-per-project` (catena del 20-11).
+> `feat/ai-fields`, annidato su `feat/device-per-project` (catena del 20-11; il bug «Later» è rimandato al collaudo sul TC620).
 
 ## L'idea
 Accanto a un campo dell'IDE, una piccola icona con la forma di quella dell'assistente nel menù laterale. Un clic apre

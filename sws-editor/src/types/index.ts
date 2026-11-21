@@ -2643,7 +2643,7 @@ export interface ConfigTraduzione {
 }
 
 /** Uno degli scopi del menù IA (piano 2026-11-04-un-modello-per-ogni-scopo). */
-export type ScopoIa = "assistente" | "simboli" | "traduzione" | "sfondi";
+export type ScopoIa = "assistente" | "simboli" | "traduzione" | "sfondi" | "fields";
 
 /** La scelta salvata per uno scopo: tutto facoltativo, assente = default. */
 export interface ScopoIaCfg {

@@ -523,6 +523,8 @@ pub fn build(
         )
         // The AI tab of the symbol editor (plan 2026-11-19-assistente-ia-simboli).
         .route("/api/symbols/ai", post(crate::simboli_progetto::ai))
+        // The AI on one IDE field (plan of 20-11-2026).
+        .route("/api/ai/field", post(crate::simboli_progetto::ai_field))
         .route(
             "/api/symbols/ai/interview",
             post(crate::simboli_progetto::ai_interview),

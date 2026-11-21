@@ -28,10 +28,10 @@ const vuoto = { salvato: null, attivo: true, eredita: false,
                 effettivo: { fornitore: "anthropic", modello: "claude-opus-5-5", tetto_usd: 10 } };
 const CFG: AiConfig = {
   fornitori: [
-    { id: "anthropic", nome: "Anthropic (Claude)", scopi: ["assistente", "simboli", "traduzione"], chiave: true, modello_default: "claude-opus-5-5" },
-    { id: "kimi", nome: "Moonshot (Kimi)", scopi: ["assistente", "simboli", "traduzione"], chiave: false, modello_default: "kimi-k3" },
-    { id: "mistral", nome: "Mistral AI", scopi: ["assistente", "simboli", "traduzione"], chiave: false, modello_default: "mistral-large-latest" },
-    { id: "local", nome: "Local model (OpenAI-compatible)", scopi: ["assistente", "simboli", "traduzione"], chiave: false, modello_default: "" },
+    { id: "anthropic", nome: "Anthropic (Claude)", scopi: ["assistente", "simboli", "traduzione", "fields"], chiave: true, modello_default: "claude-opus-5-5" },
+    { id: "kimi", nome: "Moonshot (Kimi)", scopi: ["assistente", "simboli", "traduzione", "fields"], chiave: false, modello_default: "kimi-k3" },
+    { id: "mistral", nome: "Mistral AI", scopi: ["assistente", "simboli", "traduzione", "fields"], chiave: false, modello_default: "mistral-large-latest" },
+    { id: "local", nome: "Local model (OpenAI-compatible)", scopi: ["assistente", "simboli", "traduzione", "fields"], chiave: false, modello_default: "" },
     { id: "openai", nome: "OpenAI (immagini)", scopi: ["sfondi"], chiave: false, modello_default: "gpt-image-2" },
     { id: "bfl", nome: "Black Forest Labs (FLUX)", scopi: ["sfondi"], chiave: false, modello_default: "flux-2-pro" },
   ],
@@ -39,6 +39,7 @@ const CFG: AiConfig = {
     assistente: vuoto,
     simboli: { ...vuoto, eredita: true },
     traduzione: { ...vuoto, eredita: true },
+    fields: { ...vuoto, eredita: true },
     sfondi: { salvato: null, attivo: false, eredita: false, effettivo: { fornitore: null, modello: null, tetto_usd: null } },
   },
   da_ambiente: [],
