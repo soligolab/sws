@@ -13,6 +13,7 @@ import { impostaLibreriaPerTest } from "../src/symbols/lib/libreria";
 import type { ManifestLib } from "../src/symbols/lib/manifest";
 import { SymbolEditorHost } from "../src/symbols/editor/SymbolEditor";
 import { openNewSymbol, openSymbolEditorFor } from "../src/symbols/editor/open";
+import { openBlankSymbol } from "./openBlankSymbol";
 import { newEllipse, newRect, type Op } from "../src/symbols/editor/model";
 import type { DescrizioneSimbolo, SynopticObject } from "../src/types";
 
@@ -55,7 +56,7 @@ describe("symbol editor", () => {
   afterEach(() => { vi.restoreAllMocks(); act(() => useAppStore.getState().closeSymbolEditor()); });
 
   it("compiles with the trace and saves a new symbol into the project", async () => {
-    act(() => openNewSymbol());
+    await openBlankSymbol();
     render(<SymbolEditorHost />);
     expect(screen.getByTestId("symbol-editor")).toBeTruthy();
     await waitFor(() => expect(api.compilaSimboli).toHaveBeenCalled());
@@ -66,8 +67,25 @@ describe("symbol editor", () => {
     expect(useAppStore.getState().project?.simboli?.map((s) => s.slug)).toEqual(["new-symbol"]);
   });
 
+  it("«New symbol» asks the name and the size first, and starts empty, inviting to draw", async () => {
+    // Cancelled: no editor.
+    const none = rispondi(null);
+    try { await act(async () => { await openNewSymbol(); }); } finally { none.ferma(); }
+    expect(none.chiamate[0].tipo).toBe("modulo");
+    expect(useAppStore.getState().symbolEditor).toBeNull();
+    // The compiler's complaint about an empty body is not shown as an error.
+    vi.spyOn(api, "compilaSimboli").mockImplementation(async (ds) => ds.map((d) => (
+      (d.ops as Op[]).some((o) => o.op === "forma")
+        ? compiled(d) : { slug: d.slug, ok: false, errori: ["manca lo strato body"] } as never)));
+    await openBlankSymbol("Caldaia", 160, 80);
+    expect(useAppStore.getState().symbolEditor?.draft).toMatchObject({ slug: "caldaia", it: "Caldaia", w: 160, h: 80, ops: [{ op: "corpo" }] });
+    render(<SymbolEditorHost />);
+    await waitFor(() => expect(screen.getByTestId("symbol-editor-empty")).toBeTruthy());
+    expect(screen.queryByTestId("symbol-editor-errors")).toBeNull();
+  });
+
   it("closing with unsaved changes offers cancel, leave without saving, and save and close", async () => {
-    act(() => openNewSymbol());
+    await openBlankSymbol();
     render(<SymbolEditorHost />);
     await waitFor(() => expect(api.compilaSimboli).toHaveBeenCalled());
     const closeWith = async (answer: unknown) => {
@@ -91,7 +109,7 @@ describe("symbol editor", () => {
   });
 
   it("leaving without saving closes the editor and writes nothing", async () => {
-    act(() => openNewSymbol());
+    await openBlankSymbol();
     render(<SymbolEditorHost />);
     await waitFor(() => expect(api.compilaSimboli).toHaveBeenCalled());
     const auto = rispondi("discard");
@@ -165,7 +183,7 @@ describe("symbol editor", () => {
   });
 
   it("the view zooms and fits; the «Try» tab shows the inputs", async () => {
-    act(() => openNewSymbol());
+    await openBlankSymbol();
     render(<SymbolEditorHost />);
     expect(screen.getByTestId("symbol-zoom").textContent).toBe("100%");
     fireEvent.click(screen.getByTitle(/Ingrandisci|Zoom in/));
@@ -285,6 +303,27 @@ ${(d.ops as Op[]).map((op, i) => (op.op === "forma"
       dragBy([20, 5], 14);
       await waitFor(() => expect(shape().getAttribute("x")).toBe("30"));
       expect(shape().getAttribute("y")).toBe("0");
+      fireEvent.click(screen.getByTestId("symbol-grid-snap"));
+
+      // A corner handle moves that corner; the opposite one stays (test of
+      // 2.26.0-rc.23, 21-11-2026: the handles were wired to the opposite corner,
+      // and the first drag shrank the shape to a dot).
+      const resize = async (corner: string, to: [number, number], want: Record<string, string>) => {
+        const h = screen.getByTestId(`symbol-resize-${corner}`);
+        const at = [Number(h.getAttribute("x")) + Number(h.getAttribute("width")) / 2,
+          Number(h.getAttribute("y")) + Number(h.getAttribute("height")) / 2];
+        fireEvent.pointerDown(h, { button: 0, clientX: at[0], clientY: at[1], pointerId: 1 });
+        fireEvent.pointerMove(canvas, { clientX: to[0], clientY: to[1], pointerId: 1 });
+        fireEvent.pointerUp(canvas, { pointerId: 1 });
+        await waitFor(() => {
+          for (const [k, v] of Object.entries(want)) expect(shape().getAttribute(k)).toBe(v);
+        });
+      };
+      // The shape is at 30,0 and 10 × 10, still selected.
+      await resize("11", [36, 22], { x: "30", y: "0", width: "6", height: "22" });
+      await resize("00", [24, 7], { x: "24", y: "7", width: "12", height: "15" });
+      await resize("10", [41, 3], { x: "24", y: "3", width: "17", height: "19" });
+      await resize("01", [27, 33], { x: "27", y: "3", width: "14", height: "30" });
     } finally {
       proto.getBBox = real.getBBox;
       proto.getScreenCTM = real.getScreenCTM;

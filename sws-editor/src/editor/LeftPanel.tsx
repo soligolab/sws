@@ -1060,7 +1060,7 @@ function RamoSimboli({ ultimoGruppo }: { ultimoGruppo: boolean }) {
           maintainer did not find it. */}
       <RigaStrumento testid="simbolo-nuovo" rientro={36} titolo={t("symbolEditor.newSymbolTitle")}
         icona={<span style={{ width: px, textAlign: "center", flexShrink: 0 }}>+</span>}
-        nome={t("symbolEditor.newSymbol")} onClick={() => openNewSymbol()}
+        nome={t("symbolEditor.newSymbol")} onClick={() => void openNewSymbol()}
         guide={guideAlbero(esterne, { x: 27, finoA: 34, ultimo: false })} />
       {/* A symbol from another project (`.swsym`) or a drawing (`.svg`), 20-11-2026. */}
       <RigaStrumento testid="simbolo-importa" rientro={36} titolo={t("symbolEditor.file.importTitle")}

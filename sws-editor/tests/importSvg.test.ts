@@ -264,15 +264,15 @@ describe("placeImport", () => {
     const base = emptySymbol({ it: "x", en: "x" }, []);
     const d: DescrizioneSimbolo = { ...base, ops: [...base.ops, newRect({ x: 0, y: 0, w: 10, h: 10 })] };
     expect(isBlank(d)).toBe(false);
-    // Three operations, and the new layer.
-    expect(roomFor(d)).toBe(MAX_OPS - 4);
+    // Two operations, and the new layer.
+    expect(roomFor(d)).toBe(MAX_OPS - 3);
     const r = placeImport(d, imported(2));
-    expect((r.d.ops as Op[]).map((o) => o.op)).toEqual(["corpo", "forma", "forma", "statico", "forma", "forma"]);
-    expect(r.at).toEqual([4, 5]);
+    expect((r.d.ops as Op[]).map((o) => o.op)).toEqual(["corpo", "forma", "statico", "forma", "forma"]);
+    expect(r.at).toEqual([3, 4]);
     // The next import goes into that same layer.
     const again = placeImport(r.d, imported(1));
-    expect(again.d.ops).toHaveLength(7);
-    expect(again.at).toEqual([6]);
+    expect(again.d.ops).toHaveLength(6);
+    expect(again.at).toEqual([5]);
   });
 });
 

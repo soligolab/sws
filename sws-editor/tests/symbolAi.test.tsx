@@ -11,7 +11,7 @@ import { useAppStore } from "../src/store";
 import { impostaLibreriaPerTest } from "../src/symbols/lib/libreria";
 import type { ManifestLib } from "../src/symbols/lib/manifest";
 import { SymbolEditorHost } from "../src/symbols/editor/SymbolEditor";
-import { openNewSymbol } from "../src/symbols/editor/open";
+import { openBlankSymbol } from "./openBlankSymbol";
 import type { DescrizioneSimbolo } from "../src/types";
 
 const manifest = JSON.parse(
@@ -73,7 +73,7 @@ describe("the AI tab of the symbol editor", () => {
       interviewed.push(req);
       return interviews.shift() ?? { ok: true, brief: req.instruction, cost_usd: 0, model: "qwen3.5:9b" };
     });
-    act(() => openNewSymbol());
+    await openBlankSymbol();
     render(<SymbolEditorHost />);
     await waitFor(() => expect(api.compilaSimboli).toHaveBeenCalled());
     fireEvent.click(screen.getByTestId("symbol-tab-ai"));
@@ -165,7 +165,8 @@ describe("the AI tab of the symbol editor", () => {
     expect(interviewed[1].rounds).toEqual([{ questions: ["Gli ingressi dove?", "Che tag?"], answers: ["sopra", "collettore.ingresso"] }]);
     fireEvent.change(screen.getByTestId("symbol-ai-brief"), { target: { value: "Un collettore 160×100, ingressi sopra, 5 LED." } });
     await drawBrief();
-    expect(asked[0]).toMatchObject({ mode: "edit", instruction: "Un collettore 160×100, ingressi sopra, 5 LED." });
+    // A new symbol is empty (21-11-2026): nothing to edit, the request draws a new one.
+    expect(asked[0]).toMatchObject({ mode: "new", instruction: "Un collettore 160×100, ingressi sopra, 5 LED." });
     expect(screen.getByTestId("symbol-ai-proposal")).toBeTruthy();
     expect(screen.queryByTestId("symbol-ai-interview")).toBeNull();
   });

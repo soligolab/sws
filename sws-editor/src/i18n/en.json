@@ -5846,6 +5846,16 @@
       "noModel": "No image model configured: AI → One model per purpose → Sfondi.",
       "done": "Photo {{name}} added ({{cost}} $). This model can't make a transparent background: the photo has a light grey one.",
       "doneTransparent": "Photo {{name}} added, with a transparent background ({{cost}} $)."
+    },
+    "drawFirst": "The symbol is empty: draw a shape or add a photo from the Piece tab.",
+    "newDialog": {
+      "title": "New symbol",
+      "text": "The name and the size of the symbol. The size can be changed later too, in the Structure tab.",
+      "name": "Name",
+      "width": "Width",
+      "height": "Height",
+      "sizeHint": "Multiples of 10, from 10 to 510.",
+      "create": "Create"
     }
   },
   "images": {

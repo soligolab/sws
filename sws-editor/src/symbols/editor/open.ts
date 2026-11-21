@@ -13,6 +13,7 @@ import type { DescrizioneSimbolo, SynopticObject } from "@/types";
 import { trovaSimboloOriginale } from "@/symbols/lib/libreria";
 import { avviso } from "@/finestraAvviso/finestraAvviso";
 import { emptySymbol, needsExplicitPorts } from "./model";
+import { askNewSymbol } from "./newSymbolDialog";
 import { importSvg, placeImport, roomFor, MAX_SVG_BYTES, SVG_WARNINGS, type SvgWarning } from "./importSvg";
 import { isZip, readSymbolFile, readSymbolZip, MAX_SYMBOL_FILE_BYTES, MAX_SYMBOL_ZIP_BYTES } from "./symbolFile";
 import { contentName } from "./photoUpload";
@@ -82,11 +83,12 @@ export async function openSymbolEditorFor(symbolId: string, fromObjectId?: strin
   return null;
 }
 
-/** Opens the editor on a new, empty symbol. */
-export function openNewSymbol(): void {
-  const t = i18n.t.bind(i18n);
+/** Opens the editor on a new, empty symbol, after asking its name and size. */
+export async function openNewSymbol(): Promise<void> {
+  const a = await askNewSymbol();
+  if (!a) return;
   useAppStore.getState().openSymbolEditor({
-    draft: emptySymbol({ it: t("symbolEditor.newName", { lng: "it" }), en: t("symbolEditor.newName", { lng: "en" }) }, takenSlugs()),
+    draft: emptySymbol({ it: a.name, en: a.name }, takenSlugs(), { w: a.w, h: a.h }),
     isNew: true,
   });
 }

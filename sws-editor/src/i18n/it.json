@@ -5846,6 +5846,16 @@
       "noModel": "Nessun modello di immagini configurato: IA → Un modello per scopo → Sfondi.",
       "done": "Foto {{name}} aggiunta ({{cost}} $). Questo modello non fa lo sfondo trasparente: la foto ha un fondo grigio chiaro.",
       "doneTransparent": "Foto {{name}} aggiunta, con lo sfondo trasparente ({{cost}} $)."
+    },
+    "drawFirst": "Il simbolo è vuoto: disegna una forma o aggiungi una foto dalla scheda Pezzo.",
+    "newDialog": {
+      "title": "Nuovo simbolo",
+      "text": "Il nome e la misura del simbolo. La misura si cambia anche dopo, nella scheda Struttura.",
+      "name": "Nome",
+      "width": "Larghezza",
+      "height": "Altezza",
+      "sizeHint": "Multipli di 10, da 10 a 510.",
+      "create": "Crea"
     }
   },
   "images": {

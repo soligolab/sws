@@ -12,7 +12,8 @@ import { rispondi } from "../src/finestraAvviso/finestraAvviso";
 import { impostaLibreriaPerTest } from "../src/symbols/lib/libreria";
 import type { ManifestLib } from "../src/symbols/lib/manifest";
 import { SymbolEditorHost } from "../src/symbols/editor/SymbolEditor";
-import { openNewSymbol, openSymbolFile } from "../src/symbols/editor/open";
+import { openSymbolFile } from "../src/symbols/editor/open";
+import { openBlankSymbol } from "./openBlankSymbol";
 import { readSymbolFile, symbolFileText } from "../src/symbols/editor/symbolFile";
 import type { Op } from "../src/symbols/editor/model";
 import type { DescrizioneSimbolo } from "../src/types";
@@ -59,8 +60,8 @@ describe("symbol import", () => {
   afterEach(() => { vi.restoreAllMocks(); act(() => useAppStore.getState().closeSymbolEditor()); });
 
   it("«Import SVG…» puts the drawing in a new symbol's body, in its proportions, and says what it left out", async () => {
+    await openBlankSymbol();
     const auto = rispondi(undefined);
-    act(() => openNewSymbol());
     render(<SymbolEditorHost />);
     await act(async () => {
       fireEvent.change(screen.getByTestId("symbol-import-svg-file"), { target: { files: [svgFile(DRAWING)] } });
@@ -77,7 +78,7 @@ describe("symbol import", () => {
   });
 
   it("Ctrl+V of SVG code imports it; of anything else pastes the copied shapes", async () => {
-    act(() => openNewSymbol());
+    await openBlankSymbol();
     render(<SymbolEditorHost />);
     const paste = (text: string) => {
       const e = new Event("paste", { bubbles: true, cancelable: true });
@@ -97,7 +98,7 @@ describe("symbol import", () => {
   });
 
   it("«Export» downloads the symbol as it is, and it comes back as a new symbol", async () => {
-    act(() => openNewSymbol());
+    await openBlankSymbol();
     render(<SymbolEditorHost />);
     let blob: Blob | null = null;
     const create = vi.fn((b: Blob) => { blob = b; return "blob:x"; });

@@ -965,14 +965,22 @@ export function slugFrom(label: string, taken: readonly string[]): string {
   return slug;
 }
 
-/** An empty symbol to draw from scratch: a body with one shape, so the state
- *  colour has something to colour. */
-export function emptySymbol(label: { it: string; en: string }, taken: readonly string[]): DescrizioneSimbolo {
-  const d: DescrizioneSimbolo = {
-    slug: slugFrom(label.en || label.it, taken), w: 100, h: 100, tipo: "project", body: "body-pump",
-    it: label.it, en: label.en, ops: [],
+/** An empty symbol to draw from scratch: the body layer is open, with nothing
+ *  in it — the first shape drawn goes there. Until 21-11-2026 it started with a
+ *  blue box, which the maintainer found ugly and always had to delete. */
+export function emptySymbol(
+  label: { it: string; en: string }, taken: readonly string[], size: { w: number; h: number } = { w: 100, h: 100 },
+): DescrizioneSimbolo {
+  return {
+    slug: slugFrom(label.en || label.it, taken), w: size.w, h: size.h, tipo: "project", body: "body-pump",
+    it: label.it, en: label.en, ops: [{ op: "corpo" }],
   };
-  return addInput(d, "state")!.d;
+}
+
+/** Nothing drawn yet: the editor invites to draw instead of listing the
+ *  compiler's complaint about the empty body. */
+export function nothingDrawn(d: DescrizioneSimbolo): boolean {
+  return !(d.ops as Op[]).some(draws);
 }
 
 /** «Save as»: the same drawing as a new symbol of its own, no longer a

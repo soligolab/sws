@@ -25,7 +25,7 @@ import {
   insertInLayer, layers, mapBox, matrixOps, moveLayer, movePort, moveToLayer, moveToNewLayer, NEW_LAYER, newCircle, newEllipse, newLine, newPath, newRect, ports, r2,
   removeInput, renamePart, reorderOp, resizeSymbol, saveAsCopy, setExtra, setFill, setGeo, setPartGeo, setPathD,
   setPort, setVeil, transformOps, turnMatrix, union, validPathD, validPortId, validSize, INPUT_KINDS, SIDES,
-  animateSelection, setPartParam, newImage, setImageOpacity,
+  animateSelection, setPartParam, newImage, setImageOpacity, nothingDrawn,
   type Affine, type AlignMode, type Box, type InputKind, type Layer, type Op, type Port, type Side,
 } from "./model";
 import { predefinito } from "@/coloriPredefiniti";
@@ -71,6 +71,7 @@ interface Preview {
 
 type Drag =
   | { kind: "move"; start: [number, number]; ids: number[]; d: [number, number] }
+  /** `corner`: the corner being dragged (1 = right / bottom); the opposite one stays. */
   | { kind: "resize"; box: Box; corner: [0 | 1, 0 | 1]; ids: number[]; cur: Box }
   | { kind: "draw"; start: [number, number]; cur: [number, number] }
   | { kind: "anchor"; op: number; cur: [number, number] }
@@ -1241,7 +1242,8 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
                       <rect key={`${cx}${cy}`} x={b.x + cx * b.w - hs / 2} y={b.y + cy * b.h - hs / 2} width={hs} height={hs}
                         fill={C.bg} stroke={C.accent} strokeWidth={0.4 * u}
                         style={{ cursor: cx === cy ? "nwse-resize" : "nesw-resize" }}
-                        onPointerDown={startResize([cx ? 0 : 1, cy ? 0 : 1] as [0 | 1, 0 | 1])} />
+                        data-testid={`symbol-resize-${cx}${cy}`}
+                        onPointerDown={startResize([cx, cy])} />
                     ))}
                   </g>
                 );
@@ -1268,7 +1270,12 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
               )}
             </svg>
           </div>
-          {compiled.errors.length > 0 && (
+          {compiled.errors.length > 0 && nothingDrawn(d) && (
+            <div data-testid="symbol-editor-empty" style={{ borderTop: `1px solid ${C.border}`, padding: 8, color: C.muted }}>
+              {t("symbolEditor.drawFirst")}
+            </div>
+          )}
+          {compiled.errors.length > 0 && !nothingDrawn(d) && (
             <div data-testid="symbol-editor-errors" style={{ borderTop: `1px solid ${C.border}`, padding: 8, color: C.danger, maxHeight: 120, overflow: "auto" }}>
               <strong>{t("symbolEditor.errors")}</strong>
               {compiled.errors.map((m, k) => <div key={k}>{m}</div>)}

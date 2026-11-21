@@ -226,9 +226,9 @@ const DA_SIMBOLO: &str = " A photograph of one single industrial object, to be u
     light, no shadow on the ground. No text, no labels, no logos, no people, no watermark.";
 
 /// A photo for a project symbol: `descrizione` → a PNG with a transparent
-/// background from OpenAI (its models can), a JPEG on a plain light grey from
-/// Black Forest Labs (FLUX can't make transparency). The bytes as the
-/// provider sends them.
+/// background from the OpenAI models that can (`supports_transparency`), a JPEG
+/// on a plain light grey from the others and from Black Forest Labs (FLUX can't
+/// make transparency). The bytes as the provider sends them.
 pub async fn genera_foto_simbolo(
     http: &reqwest::Client,
     bfl_at: &bfl::Endpoint,
@@ -247,26 +247,63 @@ pub async fn genera_foto_simbolo(
             .map(Generated::from)
             .map_err(|f| Failed::from_bfl(f, estimate));
     }
-    let prompt = format!("{}{DA_SIMBOLO} Transparent background.", descrizione.trim());
-    with_fixed_size_fallback(size, |(w, h)| {
-        let corpo = json!({
-            "model": s.modello, "prompt": prompt, "size": format!("{w}x{h}"),
-            "quality": s.qualita, "n": 1, "output_format": "png", "background": "transparent",
-        });
-        async move {
-            let r = http
-                .post("https://api.openai.com/v1/images/generations")
-                .bearer_auth(&s.chiave)
-                .json(&corpo)
-                .send()
-                .await
-                .map_err(|e| format!("OpenAI non raggiungibile: {e}"))?;
-            immagine_da(r).await
+    let ask = |transparent: bool| {
+        let prompt = if transparent {
+            format!("{}{DA_SIMBOLO} Transparent background.", descrizione.trim())
+        } else {
+            format!(
+                "{}{DA_SIMBOLO} On a plain flat light grey background.",
+                descrizione.trim()
+            )
+        };
+        with_fixed_size_fallback(size, move |(w, h)| {
+            let mut corpo = json!({
+                "model": s.modello, "prompt": prompt, "size": format!("{w}x{h}"),
+                "quality": s.qualita, "n": 1,
+            });
+            // The extension of the saved file tells the IDE which of the two it
+            // got (`ai_photo`): a PNG is the transparent one.
+            if transparent {
+                corpo["output_format"] = json!("png");
+                corpo["background"] = json!("transparent");
+            } else {
+                corpo["output_format"] = json!("jpeg");
+            }
+            async move {
+                let r = http
+                    .post("https://api.openai.com/v1/images/generations")
+                    .bearer_auth(&s.chiave)
+                    .json(&corpo)
+                    .send()
+                    .await
+                    .map_err(|e| format!("OpenAI non raggiungibile: {e}"))?;
+                immagine_da(r).await
+            }
+        })
+    };
+    let first = supports_transparency(&s.modello);
+    let r = match ask(first).await {
+        // A model that turned out not to know (test of 2.26.0-rc.23, 21-11-2026:
+        // `gpt-image-2` answers 400 «Transparent background is not supported for
+        // this model»): once more, on grey.
+        Err(e) if first && refuses_transparency(&e) => {
+            tracing::info!("OpenAI refused the transparent background, asking it on grey: {e}");
+            ask(false).await
         }
-    })
-    .await
-    .map(openai)
-    .map_err(Failed::free)
+        r => r,
+    };
+    r.map(openai).map_err(Failed::free)
+}
+
+/// The OpenAI image models that can make a transparent background: the
+/// `gpt-image-1` family. `gpt-image-2`, the default since 20-11-2026, cannot.
+fn supports_transparency(model: &str) -> bool {
+    model.starts_with("gpt-image-1")
+}
+
+fn refuses_transparency(error: &str) -> bool {
+    let e = error.to_ascii_lowercase();
+    e.contains("transparent") && e.contains("not supported")
 }
 
 /// Una variante di luce di una base: la base va come immagine da modificare,
@@ -469,6 +506,21 @@ impl Sfondo {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Test of 2.26.0-rc.23 (21-11-2026): «Genera foto» always failed with the
+    /// default model, which cannot make a transparent background.
+    #[test]
+    fn only_the_gpt_image_1_family_is_asked_for_transparency() {
+        assert!(supports_transparency("gpt-image-1"));
+        assert!(supports_transparency("gpt-image-1-mini"));
+        assert!(supports_transparency("gpt-image-1.5"));
+        assert!(!supports_transparency("gpt-image-2"));
+        let refused =
+            "OpenAI ha rifiutato (400): Transparent background is not supported for this model.";
+        assert!(refuses_transparency(refused));
+        assert!(!refuses_size(refused), "not mistaken for a refused size");
+        assert!(!refuses_transparency("OpenAI ha rifiutato (400): Invalid size"));
+    }
 
     #[test]
     fn the_twin_keeps_the_scene_and_names_the_frame() {

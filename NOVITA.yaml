@@ -159,6 +159,13 @@ versioni:
         en: "System texts {{sys:name}} in the content language, even without a language table. A lost connection shows within 5 s even when an unplugged cable does not close it."
       - it: "Il manuale è pubblico su sws.soligo.net/manuale/."
         en: "The manual is public at sws.soligo.net/manuale/."
+      # Collaudo della 2.26.0-rc.23 (21-11-2026), ramo fix/rc23-test-findings.
+      - it: "Editor dei simboli: trascinare un angolo ridimensiona la forma da quell'angolo; prima la riduceva a un puntino."
+        en: "Symbol editor: dragging a corner resizes the shape from that corner; before, it shrank it to a dot."
+      - it: "Un simbolo nuovo chiede subito nome e misura, e parte vuoto: niente più rettangolo azzurro da cancellare."
+        en: "A new symbol asks its name and size first, and starts empty: no more blue box to delete."
+      - it: "«Genera foto» funziona anche coi modelli OpenAI che non fanno lo sfondo trasparente: la foto arriva su un grigio chiaro."
+        en: "«Generate photo» also works with OpenAI models that cannot make a transparent background: the photo comes on a light grey."
   - versione: "2.25.2"
     voci:
       - it: "Nel cloud la chat e il registro in una finestra a parte si aprono davvero: nella 2.25.1 davano l'errore 401."

@@ -11,6 +11,19 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Corretto
+- **Tre anomalie del collaudo della 2.26.0-rc.23** (21-11-2026, ramo `fix/rc23-test-findings`).
+  - Le maniglie degli angoli nell'editor dei simboli erano collegate all'angolo opposto (`startResize([cx ? 0 : 1, …])`
+    contro un calcolo che tratta `corner` come l'angolo trascinato): il primo trascinamento spostava il bordo
+    sbagliato, fermo a un'unità dall'altro, e la forma diventava un puntino. Così dalla fase 1 (19-11), per tutte le
+    forme. Test che trascina i quattro angoli, e che fallisce col collegamento vecchio.
+  - «+ Nuovo simbolo» chiede nome e misura (`newSymbolDialog.tsx`) e il simbolo parte vuoto, con lo strato del corpo
+    aperto e senza il rettangolo azzurro; finché non c'è niente disegnato l'editor invita a disegnare invece di mostrare
+    in rosso l'errore del corpo vuoto (`nothingDrawn`). Prima un simbolo nuovo si salvava come «Nuovo simbolo».
+  - «Genera foto» con OpenAI chiede lo sfondo trasparente solo alla famiglia `gpt-image-1`; `gpt-image-2`, il modello
+    predefinito, rispondeva 400 «Transparent background is not supported», e il pulsante falliva sempre. Gli altri
+    modelli fanno la foto su grigio chiaro in JPEG, e se OpenAI rifiuta la trasparenza si riprova una volta sul grigio.
+
 ### Aggiunto
 - **Effetti nei simboli, la fiamma** (ramo `feat/symbol-fx-flame`, stesso piano). Parte `flame` (riquadro, colore,
   periodo 800 ms): una lingua esterna e un cuore giallo a goccia, appoggiati sul fondo del riquadro, che tremolano su

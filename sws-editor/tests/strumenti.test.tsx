@@ -3,6 +3,7 @@
  *  senza perdere tipi, icone SVG nostre, i simboli di libreria come rami, e un
  *  filtro che cerca nei nomi che si vedono. */
 import { render, screen, fireEvent, act } from "@testing-library/react";
+import { rispondi } from "../src/finestraAvviso/finestraAvviso";
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -115,10 +116,13 @@ describe("ramo Strumenti", () => {
     expect(aggiunte).toEqual([["symbol", { symbol_id: sim.id }]]);
   });
 
-  it("«+ New symbol» is at the top of the Symbols branch, without opening a family", () => {
+  it("«+ New symbol» is at the top of the Symbols branch, without opening a family", async () => {
     render(<LeftPanel />);
     fireEvent.click(screen.getByText(t("editor.palette.group.simboli")));
-    fireEvent.click(screen.getByTestId("simbolo-nuovo"));
+    // It asks the name and the size first (21-11-2026).
+    const auto = rispondi({ name: "Nuovo", w: 100, h: 100 });
+    try { await act(async () => { fireEvent.click(screen.getByTestId("simbolo-nuovo")); }); } finally { auto.ferma(); }
+    expect(auto.chiamate[0].tipo).toBe("modulo");
     expect(useAppStore.getState().symbolEditor?.isNew).toBe(true);
     act(() => useAppStore.getState().closeSymbolEditor());
   });

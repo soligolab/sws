@@ -10,7 +10,7 @@ import {
   addPort, movePort, needsExplicitPorts, ports, resizeSymbol, setPort, validPortId,
   absolutePath, align, distribute, explodedOffsets, mapBox, matrixOp, matrixPath, moveLayer, moveToLayer, moveToNewLayer, newCircle, newPath,
   setExtra, turnMatrix, validPathD, type Box,
-  animateSelection, partDefaults, setPartKind, setPartParam, freePartId,
+  animateSelection, partDefaults, setPartKind, setPartParam, freePartId, nothingDrawn,
 } from "../src/symbols/editor/model";
 
 const gabbia: DescrizioneSimbolo = JSON.parse(
@@ -54,7 +54,7 @@ describe("operations", () => {
   });
 
   it("deletes, duplicates and reorders inside a layer", () => {
-    const d = emptySymbol({ it: "Prova", en: "Test" }, []);
+    const d = boxed({ it: "Prova", en: "Test" });
     const body = layers(d).find((l) => l.id === "body")!;
     const { d: d2, added } = duplicateOps(d, body.ops);
     expect(d2.ops.length).toBe(d.ops.length + 1);
@@ -77,7 +77,7 @@ describe("operations", () => {
 
 describe("colours", () => {
   it("switches between material, own colour and the body's", () => {
-    const d = emptySymbol({ it: "P", en: "P" }, []);
+    const d = boxed({ it: "P", en: "P" });
     const i = layers(d).find((l) => l.id === "body")!.ops[0];
     expect(fillOf(d.ops[i] as Op)).toEqual({ body: true });
     const own = setFill(d, i, { color: "#12ab3c" });
@@ -88,9 +88,26 @@ describe("colours", () => {
   });
 });
 
+/** A new symbol as it started until 21-11-2026: the body with one box in it. */
+function boxed(label: { it: string; en: string }) {
+  return addInput({ ...emptySymbol(label, []), ops: [] }, "state")!.d;
+}
+
+describe("a new symbol", () => {
+  it("starts empty, at the size asked, with the body layer open for the first shape", () => {
+    const d = emptySymbol({ it: "Caldaia", en: "Boiler" }, ["boiler"], { w: 160, h: 80 });
+    expect(d).toMatchObject({ slug: "boiler-2", w: 160, h: 80, it: "Caldaia", en: "Boiler", ops: [{ op: "corpo" }] });
+    expect(nothingDrawn(d)).toBe(true);
+    expect(inputs(d).map((i) => i.kind)).toEqual(["state"]);
+    const r = insertInLayer(d, "body", newRect({ x: 0, y: 0, w: 10, h: 10 }));
+    expect(nothingDrawn(r.d)).toBe(false);
+    expect(layers(r.d).find((l) => l.id === "body")!.ops).toEqual([r.at]);
+  });
+});
+
 describe("inputs", () => {
   it("adds one input per behaviour, with a shape and unique ids", () => {
-    let d = emptySymbol({ it: "P", en: "P" }, []);
+    let d = boxed({ it: "P", en: "P" });
     expect(addInput(d, "state")).toBeNull();
     for (const k of ["rotor", "rotor", "level", "needle", "lever", "lamp"] as const) d = addInput(d, k)!.d;
     expect(inputs(d).map((i) => i.id)).toEqual(["state", "rotor", "rotor-2", "level", "needle", "lever", "lamp"]);
