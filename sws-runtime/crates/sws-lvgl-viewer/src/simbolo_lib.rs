@@ -1216,6 +1216,15 @@ mod tests {
         assert!((78..=82).contains(&dove.w) && (88..=92).contains(&dove.h), "{dove:?}");
         assert_ne!(fotogrammi[0], fotogrammi[4]);
         assert!(fotogrammi.iter().all(|f| f.iter().any(|b| *b != 0)));
+        // The smoke too, in a box wider than its part (the puffs grow).
+        let Some(PezzoStrato::Effetto { dove, .. }) = p
+            .strati
+            .iter()
+            .find(|x| matches!(x, PezzoStrato::Effetto { id, .. } if id == "chimney"))
+        else {
+            panic!("the smoke")
+        };
+        assert!(dove.w > 48, "{dove:?}");
     }
 
     #[test]

@@ -5525,7 +5525,8 @@
       "pulse": "Pulsazione",
       "signal": "Segnale",
       "glow": "Bagliore",
-      "bubbles": "Bollicine"
+      "bubbles": "Bollicine",
+      "smoke": "Fumo"
     },
     "shape": {
       "rect": "Rettangolo",
@@ -5704,7 +5705,8 @@
         "vibrate": "Vibra mentre l'ingresso è vero",
         "pulse": "Pulsa mentre l'ingresso è vero",
         "glow": "Si illumina mentre l'ingresso è vero",
-        "bubbles": "Bollicine che salgono mentre l'ingresso è vero"
+        "bubbles": "Bollicine che salgono mentre l'ingresso è vero",
+        "smoke": "Fumo o vapore che sale mentre l'ingresso è vero"
       },
       "note": "Le forme scelte diventano un pezzo animato: uno strato col suo ingresso, che in pagina si collega a un tag o a un valore.",
       "ccw": "Antioraria",

@@ -51,7 +51,7 @@ describe("the glow", () => {
 });
 
 import fx from "../../tests/fixtures/symbol-fx.json";
-import { bubble, bubbleOpacity } from "../src/symbols/lib/effects";
+import { bubble, bubbleOpacity, puff } from "../src/symbols/lib/effects";
 
 describe("the bubbles", () => {
   it("are where the panel draws them (shared cases)", () => {
@@ -72,5 +72,15 @@ describe("the bubbles", () => {
     expect(at(true, true)).toBe(4);
     expect(at(true, false)).toBe(0);
     expect(at(false, true)).toBe(0);
+  });
+});
+
+describe("the smoke", () => {
+  it("puffs where the panel draws them (shared cases)", () => {
+    for (const c of fx.puffs) {
+      const [x, y, w, h] = c.box;
+      const q = puff(c.i, x, y, w, h);
+      [q.cx0, q.cx1, q.cy0, q.cy1, q.r0, q.r1].forEach((v, k) => expect(v).toBeCloseTo(c.expected[k], 6));
+    }
   });
 });

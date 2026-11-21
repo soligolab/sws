@@ -419,7 +419,7 @@ export function valoriParti(
       if (bound) out[p.id] = { frazione: fraction(l?.min ?? 0, l?.max ?? 100) };
     } else if (p.kind === "slide") {
       out[p.id] = { frazione: fraction(l?.min ?? 0, l?.max ?? 1) };
-    } else if (p.kind === "vibrate" || p.kind === "pulse" || p.kind === "glow" || p.kind === "bubbles") {
+    } else if (p.kind === "vibrate" || p.kind === "pulse" || p.kind === "glow" || p.kind === "bubbles" || p.kind === "smoke") {
       out[p.id] = { active: v === undefined ? null : veroSimbolo(v) };
     } else if (p.kind === "signal") {
       out[p.id] = { entry: v === undefined ? null : signalEntry(p.entries ?? [], v) };

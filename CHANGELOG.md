@@ -12,6 +12,10 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Aggiunto
+- **Effetti nei simboli, il fumo** (ramo `feat/symbol-fx-smoke`, stesso piano). Parte `smoke` (riquadro, colore,
+  periodo): quattro sbuffi che salgono, si allargano fino a un terzo della larghezza e svaniscono, quelli dispari
+  derivando dall'altra parte. Stessa strada delle bollicine: `puff` in `symbol_fx.rs` e in `effects.tsx`, casi
+  condivisi, SMIL nel browser, fotogrammi sul pannello in un riquadro più largo della parte.
 - **Effetti nei simboli, le bollicine** (ramo `feat/symbol-fx-bubbles`, stesso piano). Parte `bubbles` (riquadro
   `x y w h`, colore, quante, periodo), accesa dall'ingresso. Le formule stanno in `sws-core/src/symbol_fx.rs`, col
   gemello `symbols/lib/effects.tsx` e i casi condivisi in `tests/fixtures/symbol-fx.json`. Il browser anima con SMIL

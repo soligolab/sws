@@ -18,8 +18,8 @@ export type InputKind = "state" | "level" | "rotor" | "needle" | "lever" | "lamp
   // The animated pieces (plan docs/archive/2026-11-19-animazioni-dei-simboli.md).
   | "slide" | "vibrate" | "pulse" | "signal"
   // The effects (plan docs/plans/2026-11-21-simboli-fase-8-effetti.md).
-  | "glow" | "bubbles";
-export const INPUT_KINDS: InputKind[] = ["state", "level", "rotor", "needle", "lever", "lamp", "slide", "vibrate", "pulse", "signal", "glow", "bubbles"];
+  | "glow" | "bubbles" | "smoke";
+export const INPUT_KINDS: InputKind[] = ["state", "level", "rotor", "needle", "lever", "lamp", "slide", "vibrate", "pulse", "signal", "glow", "bubbles", "smoke"];
 
 /** What «Anima…» offers, by family (the lamp is a signal now: not offered,
  *  but the symbols that have one keep it). */
@@ -28,7 +28,7 @@ export const ANIMATE_FAMILIES: { family: string; kinds: InputKind[] }[] = [
   { family: "colour", kinds: ["signal"] },
   { family: "movement", kinds: ["slide", "level"] },
   { family: "vibration", kinds: ["vibrate", "pulse"] },
-  { family: "effects", kinds: ["glow", "bubbles"] },
+  { family: "effects", kinds: ["glow", "bubbles", "smoke"] },
 ];
 
 export interface Layer {
@@ -489,6 +489,7 @@ export function partDefaults(kind: InputKind, b: Box, colour?: string): Record<s
     case "pulse": return { depth: 0.6, period_ms: 1000 };
     case "glow": return { radius: 4 };
     case "bubbles": return { x: r2(b.x), y: r2(b.y), w: r2(Math.max(2, b.w)), h: r2(Math.max(2, b.h)), count: 6, period_ms: 2000 };
+    case "smoke": return { x: r2(b.x), y: r2(b.y), w: r2(Math.max(2, b.w)), h: r2(Math.max(2, b.h)), period_ms: 2000 };
     case "signal": return {
       color: colour ?? "#64748b",
       entries: [{ value: 1, color: "#22c55e" }, { value: 2, color: "#ef4444", blink: true }],

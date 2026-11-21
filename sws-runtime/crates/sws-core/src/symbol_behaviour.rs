@@ -203,7 +203,8 @@ pub fn valori_parti<'a>(
             ParteLib::Vibrate { .. }
             | ParteLib::Pulse { .. }
             | ParteLib::Glow { .. }
-            | ParteLib::Bubbles { .. } => {
+            | ParteLib::Bubbles { .. }
+            | ParteLib::Smoke { .. } => {
                 ValoreParte::Active(v.map(Scalar::truthy))
             }
             ParteLib::Signal { entries, .. } => {

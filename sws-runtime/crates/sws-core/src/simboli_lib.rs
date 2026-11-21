@@ -126,6 +126,19 @@ pub enum ParteLib {
         #[serde(default = "fx_period_default")]
         period_ms: f64,
     },
+    /// Smoke (or steam) puffing up from the bottom of the box while the input
+    /// is true; see `symbol_fx`.
+    Smoke {
+        id: String,
+        x: f64,
+        y: f64,
+        w: f64,
+        h: f64,
+        #[serde(default)]
+        color: Option<String>,
+        #[serde(default = "fx_period_default")]
+        period_ms: f64,
+    },
     /// A kind this binary doesn't know: a manifest written by a newer runtime.
     /// The layer is drawn still, instead of the whole manifest becoming
     /// unreadable (which turned every project symbol into a placeholder).
@@ -234,7 +247,8 @@ impl ParteLib {
             | ParteLib::Pulse { id, .. }
             | ParteLib::Signal { id, .. }
             | ParteLib::Glow { id, .. }
-            | ParteLib::Bubbles { id, .. } => id,
+            | ParteLib::Bubbles { id, .. }
+            | ParteLib::Smoke { id, .. } => id,
             ParteLib::Unknown => "",
         }
     }

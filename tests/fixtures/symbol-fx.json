@@ -1,5 +1,5 @@
 {
-  "_doc": "The moving effects of the symbols, shared by the panel (sws-core/src/symbol_fx.rs) and the browser (sws-editor/src/symbols/lib/effects.tsx): plan docs/plans/2026-11-21-simboli-fase-8-effetti.md. Bubble: [cx, cy0, r, travel].",
+  "_doc": "The moving effects of the symbols, shared by the panel (sws-core/src/symbol_fx.rs) and the browser (sws-editor/src/symbols/lib/effects.tsx): plan docs/plans/2026-11-21-simboli-fase-8-effetti.md. Bubble: [cx, cy0, r, travel]. Puff: [cx0, cx1, cy0, cy1, r0, r1].",
   "bubbles": [
     {
       "i": 0,
@@ -111,5 +111,58 @@
       1.0,
       0.0
     ]
+  ],
+  "puffs": [
+    {
+      "i": 0,
+      "box": [
+        40,
+        0,
+        20,
+        50
+      ],
+      "expected": [
+        48.0,
+        52.0,
+        47.6,
+        7.5,
+        2.4,
+        7.4
+      ]
+    },
+    {
+      "i": 1,
+      "box": [
+        40,
+        0,
+        20,
+        50
+      ],
+      "expected": [
+        52.0,
+        48.0,
+        47.6,
+        7.5,
+        2.4,
+        7.4
+      ]
+    },
+    {
+      "i": 3,
+      "box": [
+        0,
+        10,
+        30,
+        80
+      ],
+      "expected": [
+        18.0,
+        12.0,
+        86.4,
+        22.0,
+        3.5999999999999996,
+        11.1
+      ]
+    }
   ]
 }

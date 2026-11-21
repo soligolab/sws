@@ -90,6 +90,8 @@ versioni:
         en: "Effects in symbols: the glow. A lamp or a neon tube drawn in a part gets a luminous halo while the input is true."
       - it: "Effetti nei simboli: le bollicine che salgono in un serbatoio o in una caldaia mentre l'ingresso è vero, nel browser e sul pannello."
         en: "Effects in symbols: bubbles rising in a tank or a boiler while the input is true, in the browser and on the panel."
+      - it: "Effetti nei simboli: il fumo o il vapore che sale da un camino, da uno scarico o da una caldaia mentre l'ingresso è vero."
+        en: "Effects in symbols: smoke or steam rising from a chimney, an exhaust or a boiler while the input is true."
       # rc.22 (20-11-2026): editor dei simboli, libreria immagini, assistente. Per fare
       # posto, alcune voci di prima sono unite e accorciate: da rivedere al collaudo.
       - it: "Editor dei simboli: apri un simbolo della libreria e cambialo, o fanne uno nuovo; strumenti di disegno, bocche dei tubi, «Anima…» per i pezzi che si muovono, SVG e file .swsym da importare."

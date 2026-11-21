@@ -1420,6 +1420,7 @@ pub fn schema_simbolo() -> Esito {
             "signal": "geo {color: #rrggbb as drawn, entries: [{value | value_min/value_max, color?, blink?, hidden?}] (at most 8)}: the shapes WITHOUT mat take the colour of the first entry the input matches (like the states of a symbol), blink or hide; no entry = as drawn",
             "glow": "geo {color?: #rrggbb, radius?: 0.5–20 (default 4)}: while the input is true the shapes of the part get a blurred halo, in color or in their own (a lamp, a neon tube). Bound in symbol_parts",
             "bubbles": "geo {x, y, w, h, color?, count?: 1–12 (6), period_ms?: 400–10000 (2000)}: bubbles rising in the box while the input is true (a tank, a boiler). The part needs no shapes. Bound in symbol_parts",
+            "smoke": "geo {x, y, w, h, color?, period_ms?: 400–10000 (2000)}: smoke or steam puffing up from the bottom of the box while the input is true (a chimney, an exhaust, a boiler). The part needs no shapes. Bound in symbol_parts",
         },
         "legame_delle_parti": "in pagina symbol_parts[id] = {tag?, value?, min?, max?}: the tag wins; without a tag, the fixed value; min/max scale a number to the fraction (needle and level 0..100 by default, slide 0..1)",
         "materiali": MATERIALI.iter().map(|(n, c)| json!({ "nome": n, "colore": c })).collect::<Vec<_>>(),

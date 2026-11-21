@@ -17,6 +17,9 @@ pub const MIN_FX_PERIOD_MS: f64 = 400.0;
 pub const MAX_FX_PERIOD_MS: f64 = 10_000.0;
 
 pub const BUBBLE_COLOUR: &str = "#bae6fd";
+pub const SMOKE_COLOUR: &str = "#9ca3af";
+/// Puffs of smoke on their way at once.
+pub const SMOKE_PUFFS: usize = 4;
 
 fn frac(v: f64) -> f64 {
     v - v.floor()
@@ -57,18 +60,51 @@ pub fn bubble_opacity(phase: f64) -> f64 {
     }
 }
 
+/// One puff of `SMOKE_PUFFS`: where it starts and ends (`cx`, `cy`), how big it
+/// starts and ends. It drifts a little sideways, odd puffs the other way.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Puff {
+    pub cx0: f64,
+    pub cx1: f64,
+    pub cy0: f64,
+    pub cy1: f64,
+    pub r0: f64,
+    pub r1: f64,
+}
+
+pub fn puff(i: usize, x: f64, y: f64, w: f64, h: f64) -> Puff {
+    let side = if i % 2 == 0 { 1.0 } else { -1.0 };
+    let mid = x + w * 0.5;
+    let r0 = w * 0.12;
+    Puff {
+        cx0: mid - 0.1 * w * side,
+        cx1: mid + 0.1 * w * side,
+        cy0: y + h - r0,
+        cy1: y + h * 0.15,
+        r0,
+        r1: w * 0.37,
+    }
+}
+
+/// A puff fades as it rises: 0.6 at the bottom, 0 at the top.
+pub fn smoke_opacity(phase: f64) -> f64 {
+    0.6 * (1.0 - phase)
+}
+
 /// The box an effect may draw in: its part's, a little wider for what
 /// spreads out of it (the smoke grows). `None` for a part that isn't an effect.
 pub fn fx_box(p: &ParteLib) -> Option<(f64, f64, f64, f64)> {
     match p {
         ParteLib::Bubbles { x, y, w, h, .. } => Some((*x, *y, *w, *h)),
+        // The puffs grow to about a third of the width either side.
+        ParteLib::Smoke { x, y, w, h, .. } => Some((x - 0.3 * w, y - 0.1 * h, w * 1.6, h * 1.1)),
         _ => None,
     }
 }
 
 pub fn fx_period_ms(p: &ParteLib) -> Option<f64> {
     match p {
-        ParteLib::Bubbles { period_ms, .. } => Some(*period_ms),
+        ParteLib::Bubbles { period_ms, .. } | ParteLib::Smoke { period_ms, .. } => Some(*period_ms),
         _ => None,
     }
 }
@@ -107,6 +143,25 @@ pub fn fx_elements(p: &ParteLib, t: f64) -> Option<String> {
             }
             Some(out)
         }
+        ParteLib::Smoke {
+            x, y, w, h, color, ..
+        } => {
+            let c = color.as_deref().unwrap_or(SMOKE_COLOUR);
+            let mut out = String::new();
+            for i in 0..SMOKE_PUFFS {
+                let p = puff(i, *x, *y, *w, *h);
+                let ph = frac(t + i as f64 / SMOKE_PUFFS as f64);
+                let lerp = |a: f64, b: f64| a + (b - a) * ph;
+                out.push_str(&format!(
+                    "<circle cx=\"{}\" cy=\"{}\" r=\"{}\" fill=\"{c}\" stroke=\"none\" opacity=\"{}\"/>",
+                    num(lerp(p.cx0, p.cx1)),
+                    num(lerp(p.cy0, p.cy1)),
+                    num(lerp(p.r0, p.r1)),
+                    num(smoke_opacity(ph)),
+                ));
+            }
+            Some(out)
+        }
         _ => None,
     }
 }
@@ -119,6 +174,13 @@ mod tests {
     struct Fixture {
         bubbles: Vec<BubbleCase>,
         bubble_opacity: Vec<(f64, f64)>,
+        puffs: Vec<PuffCase>,
+    }
+    #[derive(serde::Deserialize)]
+    struct PuffCase {
+        i: usize,
+        r#box: [f64; 4],
+        expected: [f64; 6],
     }
     #[derive(serde::Deserialize)]
     struct BubbleCase {
@@ -145,6 +207,24 @@ mod tests {
         for (p, want) in fixture().bubble_opacity {
             assert!((bubble_opacity(p) - want).abs() < 1e-9, "{p}");
         }
+    }
+
+    #[test]
+    fn the_puffs_of_the_shared_cases() {
+        for c in fixture().puffs {
+            let [x, y, w, h] = c.r#box;
+            let p = puff(c.i, x, y, w, h);
+            let got = [p.cx0, p.cx1, p.cy0, p.cy1, p.r0, p.r1];
+            for (g, e) in got.iter().zip(c.expected) {
+                assert!((g - e).abs() < 1e-6, "puff {}: {got:?} vs {:?}", c.i, c.expected);
+            }
+        }
+        let p: ParteLib = serde_json::from_value(serde_json::json!({
+            "kind": "smoke", "id": "s", "x": 40, "y": 0, "w": 20, "h": 50
+        }))
+        .unwrap();
+        assert_eq!(fx_elements(&p, 0.3).unwrap().matches("<circle").count(), SMOKE_PUFFS);
+        assert_eq!(fx_box(&p), Some((34.0, -5.0, 32.0, 55.00000000000001)));
     }
 
     #[test]

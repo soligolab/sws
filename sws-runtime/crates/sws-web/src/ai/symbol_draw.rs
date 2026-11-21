@@ -168,6 +168,10 @@ pub(crate) fn answer_schema() -> Value {
                 &[],
             ),
             "glow" => (json!({ "color": colour, "radius": num }), &[]),
+            "smoke" => (
+                json!({ "x": num, "y": num, "w": num, "h": num, "color": colour, "period_ms": num }),
+                &["x", "y", "w", "h"],
+            ),
             "bubbles" => (
                 json!({ "x": num, "y": num, "w": num, "h": num, "color": colour,
                         "count": num, "period_ms": num }),

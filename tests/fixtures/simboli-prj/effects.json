@@ -57,6 +57,18 @@
         "count": 5,
         "period_ms": 1800
       }
+    },
+    {
+      "op": "parte",
+      "id": "chimney",
+      "kind": "smoke",
+      "geo": {
+        "x": 8,
+        "y": 4,
+        "w": 24,
+        "h": 40,
+        "period_ms": 2500
+      }
     }
   ]
 }
