@@ -5422,6 +5422,13 @@
     "wifiNoIpv4": "Joined the network, but with no IPv4 address: its DHCP did not answer. The IPv6 address works, or check the router's DHCP.",
     "wifiDetails": "Wi-Fi network addresses"
   },
+  "deviceMemory": {
+    "title": "Project panel",
+    "ask": "This project was connected to the panel {{url}}. Reconnect?",
+    "askWithUser": "This project was connected to the panel {{url}}, user {{user}}. Reconnect?",
+    "reconnect": "Reconnect",
+    "notNow": "Not now"
+  },
   "symbolEditor": {
     "scaleDrawing": "A new size scales the drawing, the parts and the ports",
     "port": {

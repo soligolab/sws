@@ -2343,6 +2343,32 @@ impl ReportDef {
     }
 }
 
+/// The panel a project remembers: its address and the user that entered,
+/// without the password (`username` empty = no user).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LastDevice {
+    pub url: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub username: String,
+}
+
+impl LastDevice {
+    /// `http(s)://` and sensible lengths: the address ends up in a dialog.
+    pub fn validate(&self) -> Result<(), String> {
+        let url = self.url.trim();
+        if !(url.starts_with("http://") || url.starts_with("https://")) {
+            return Err("url must start with http:// or https://".into());
+        }
+        if url.len() > 512 || self.username.len() > 128 {
+            return Err("url or username too long".into());
+        }
+        if url.chars().any(char::is_whitespace) || self.username.chars().any(char::is_control) {
+            return Err("invalid characters in url or username".into());
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Project {
     pub meta: ProjectMeta,
@@ -2443,6 +2469,11 @@ pub struct Project {
     /// project's service PIN. `None` = enabled, with the device's initial PIN.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub control_panel: Option<ControlPanelConfig>,
+    /// The last panel the IDE was connected to with this project open (plan
+    /// `docs/plans/2026-11-20-dispositivo-ricordato-per-progetto.md`). On open
+    /// the IDE asks whether to reconnect to it. Never the password.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_device: Option<LastDevice>,
     /// Lo stile dei simboli del progetto (Fase 4 del piano
     /// docs/archive/2026-10-14-motore-simboli-lib.md): colori di stato, colori dei
     /// materiali della libreria, volume e contorno, animazioni. Ogni campo
@@ -3158,6 +3189,54 @@ mod template_tests {
 /// divergono, lo stesso progetto dice tre cose diverse a seconda di chi lo
 /// legge — e una di quelle tre è una notifica che arriva sul telefono di chi è
 /// di turno.
+#[cfg(test)]
+mod last_device_tests {
+    use super::*;
+
+    #[test]
+    fn an_old_project_has_no_device_and_writes_none() {
+        let p: Project = serde_yaml::from_str("meta:\n  name: x\n  version: '1'\n").unwrap();
+        assert!(p.last_device.is_none());
+        assert!(!serde_yaml::to_string(&p).unwrap().contains("last_device"));
+    }
+
+    #[test]
+    fn the_device_round_trips_without_a_password() {
+        let mut p: Project = serde_yaml::from_str("meta:\n  name: x\n  version: '1'\n").unwrap();
+        p.last_device = Some(LastDevice {
+            url: "https://wp630.local:7444".into(),
+            username: "admin".into(),
+        });
+        let y = serde_yaml::to_string(&p).unwrap();
+        assert!(y.contains("last_device"));
+        assert!(!y.contains("password"));
+        let back: Project = serde_yaml::from_str(&y).unwrap();
+        assert_eq!(back.last_device, p.last_device);
+        // No user: the key is left out.
+        p.last_device = Some(LastDevice {
+            url: "http://10.0.0.5:7444".into(),
+            username: String::new(),
+        });
+        assert!(!serde_yaml::to_string(&p).unwrap().contains("username"));
+    }
+
+    #[test]
+    fn only_http_addresses_are_valid() {
+        let d = |u: &str| LastDevice {
+            url: u.into(),
+            username: String::new(),
+        };
+        assert!(d("https://wp630.local:7444").validate().is_ok());
+        assert!(d("http://192.168.1.204:7444").validate().is_ok());
+        assert!(d("ftp://x").validate().is_err());
+        assert!(d("javascript:alert(1)").validate().is_err());
+        assert!(d("http://a b").validate().is_err());
+        assert!(d(&format!("http://{}", "a".repeat(600)))
+            .validate()
+            .is_err());
+    }
+}
+
 #[cfg(test)]
 mod sorgenti_da_rivedere_tests {
     use super::*;

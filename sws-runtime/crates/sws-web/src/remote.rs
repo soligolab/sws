@@ -1190,6 +1190,19 @@ pub async fn remote_certificati_dimentica(
     .await
 }
 
+/// Closing or switching project closes the connection to the panel, outside
+/// the cloud: no project inherits the panel of the one before (plan
+/// `docs/plans/2026-11-20-dispositivo-ricordato-per-progetto.md`). In the cloud
+/// the container *is* the project, and its panel stays (`dispositivo.yaml`).
+pub(crate) async fn drop_on_project_change(s: &AppState) {
+    if s.supervisor.e_nel_cloud() {
+        return;
+    }
+    if let Some(t) = s.remote_target.write().await.take() {
+        tracing::info!(url = %t.url, "project changed: disconnected from remote runtime");
+    }
+}
+
 /// `DELETE /api/remote/connect` — clear the remote target state.
 pub async fn disconnect_remote(State(s): State<AppState>) -> StatusCode {
     if s.remote_target.write().await.take().is_some() {
@@ -3967,6 +3980,23 @@ pub async fn remote_status(State(s): State<AppState>) -> Json<RemoteStatus> {
 
 #[cfg(test)]
 mod tests {
+    /// Opening or closing a project outside the cloud drops the panel: no
+    /// project inherits the one before (plan of 20-11-2026).
+    #[tokio::test]
+    async fn a_project_change_drops_the_panel() {
+        let d = tempfile::tempdir().unwrap();
+        let s = crate::router::stato_di_prova(d.path()).await;
+        *s.remote_target.write().await = Some(super::RemoteTarget {
+            url: "http://tc620:7444".into(),
+            token: "t".into(),
+            connected_at_ms: 0,
+            credenziali: None,
+            autenticato: true,
+        });
+        super::drop_on_project_change(&s).await;
+        assert!(s.remote_target.read().await.is_none());
+    }
+
     /// Il 401 del WP630 visto dalla LAN dell'ufficio il 28-10-2026, parola per
     /// parola. L'IDE mostrava «Target returned 401 Unauthorized on
     /// /api/projects»; il pannello stava dicendo tutt'altro.

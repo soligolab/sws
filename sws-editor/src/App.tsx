@@ -68,6 +68,7 @@ import { canEditProject, canConfigureProject } from "@/auth/permissions";
 import { useMarchioDellAzienda } from "@/branding/perAzienda";
 import { conferma, modulo, scegli } from "@/finestraAvviso/finestraAvviso";
 import { Icona } from "@/components/Icona";
+import { useDeviceMemory } from "@/config/deviceMemory";
 
 // Port 7444 — full IDE (canvas editor + ConfigView + project management).
 // Served via admin-main.tsx which calls setForceLocalApi(true) before render.
@@ -138,6 +139,8 @@ export function App() {
   // I simboli disegnati nel progetto: ricompilati quando cambiano le loro
   // descrizioni, così una proposta applicata si disegna prima del Salva.
   useEffect(() => avviaSincroniaSimboli(), []);
+  // Each project remembers its panel; opening one asks to reconnect (20-11-2026).
+  useDeviceMemory();
   // Log drawer: state stays here (App owns <LogPanel>), the toggle moved into
   // the ☰ menu — it is a diagnostic, not a per-minute control.
   //

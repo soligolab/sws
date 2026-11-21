@@ -1199,6 +1199,7 @@ pub async fn create_project(
                 page_layout: None,
                 pannello: None,
                 control_panel: None,
+                last_device: None,
                 symbol_style: None,
                 ai: None,
                 target: req.target.clone(),
@@ -1675,6 +1676,7 @@ pub async fn open_project(
         )
             .into_response();
     }
+    crate::remote::drop_on_project_change(&s).await;
     {
         // Q30: la migrazione riscrive project.yaml (il percorso SQLite di
         // default) con un leggi-modifica-scrivi. Tiene già
@@ -1886,6 +1888,7 @@ pub async fn close_project(State(s): State<AppState>) -> Response {
             .into_response();
     }
     let _switch = s.project_switch_lock.lock().await;
+    crate::remote::drop_on_project_change(&s).await;
     // Check there's something to close.
     if active_dir(&s).await.is_err() {
         return (StatusCode::NO_CONTENT, ()).into_response();

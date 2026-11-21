@@ -81,7 +81,7 @@ nell'import) → `00f6c4cb1` l'intervista prima di lavorare (scheda IA e chat) e
   non si legge. Con qwen3.5:9b le risposte leggibili passano da 0 su 8 a 8 su 8; dalla scheda IA i simboli validi da
   2 su 9 a 5 su 14. I disegni restano poveri: serve un modello più grande. Misure nel piano dell'assistente IA. Gli
   IDE 8462 e 8464 girano su questo ramo. Definition of done verde (cargo test 2088, clippy, fmt, check_static 58/58).
-- **Seme nuovo dal maintainer**: [il dispositivo ricordato per progetto](docs/plans/semi/2026-11-20-dispositivo-ricordato-per-progetto.md)
+- **Seme nuovo dal maintainer**: [il dispositivo ricordato per progetto](docs/plans/2026-11-20-dispositivo-ricordato-per-progetto.md)
   — cambiando progetto nell'IDE locale il collegamento resta sul pannello di prima (rischio di deploy sbagliato).
   Chiesto come seme; per la regola del 09-11 è del tipo che passa davanti, decide il maintainer quando.
 

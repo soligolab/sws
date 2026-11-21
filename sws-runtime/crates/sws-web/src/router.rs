@@ -550,6 +550,8 @@ pub fn build(
             "/api/project/control-panel",
             put(update_project_control_panel),
         )
+        // The panel the project remembers (plan of 20-11-2026, device per project).
+        .route("/api/project/last-device", put(update_project_last_device))
         // T-58 — il motore di rendering del progetto. Fino all'11-09-2026 si
         // sceglieva solo alla creazione e poi si cambiava editando
         // `project.yaml` a mano, con una trappola: il runtime riscrive il file
@@ -5820,6 +5822,7 @@ where
             page_layout: None,
             pannello: None,
             control_panel: None,
+            last_device: None,
             symbol_style: None,
             ai: None,
             target: None,
@@ -12176,6 +12179,34 @@ async fn update_project_pannello(
         );
     }
     res
+}
+
+/// `PUT /api/project/last-device` — the panel this project was last connected
+/// to (plan `docs/plans/2026-11-20-dispositivo-ricordato-per-progetto.md`).
+/// Body `{url, username}`, or `null` to forget it. Never a password.
+async fn update_project_last_device(
+    State(s): State<AppState>,
+    headers: axum::http::HeaderMap,
+    Json(device): Json<Option<sws_core::project::LastDevice>>,
+) -> Response {
+    let device = device.map(|d| sws_core::project::LastDevice {
+        url: d.url.trim().trim_end_matches('/').to_string(),
+        username: d.username.trim().to_string(),
+    });
+    if let Some(Err(e)) = device.as_ref().map(sws_core::project::LastDevice::validate) {
+        return (StatusCode::BAD_REQUEST, e).into_response();
+    }
+    let dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
+    patch_project_se(
+        &s.project_write_lock,
+        &dir,
+        versione_attesa(&headers),
+        |p| p.last_device = device,
+    )
+    .await
 }
 
 /// The body of `PUT /api/project/control-panel`. The PIN goes in plain and is

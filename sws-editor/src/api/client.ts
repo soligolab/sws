@@ -781,7 +781,7 @@ const PATH_VERSIONATI = [
   "/api/project/notifications", "/api/project/page-layout", "/api/project/target", "/api/project/symbol-style",
   "/api/project/backup-config", "/api/project/retention-time", "/api/project/tags/import-csv",
   "/api/project/simboli", "/api/project/ai", "/api/project/impostazione-iniziale", "/api/project/pannello",
-  "/api/project/control-panel",
+  "/api/project/control-panel", "/api/project/last-device",
 ];
 
 /** L'header `If-Match` da mettere su un salvataggio di sezione, se sappiamo su
@@ -2883,6 +2883,14 @@ export const api = {
       method: "PUT",
       headers: { "Content-Type": "application/json", ...seVersionato("/api/project/pannello") },
       body: JSON.stringify(pannello),
+    }),
+
+  /** The panel this project remembers (`null` forgets it). Never a password. */
+  setLastDevice: (device: { url: string; username?: string } | null) =>
+    request<void>("/api/project/last-device", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...seVersionato("/api/project/last-device") },
+      body: JSON.stringify(device),
     }),
 
   /** The device control panel of the project: the switch and, when given, a

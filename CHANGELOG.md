@@ -43,6 +43,18 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   e stesso tetto dello scopo «Simboli», risposta tenuta a uno schema JSON sui server locali.
 
 ### Cambiato
+- **Ogni progetto ricorda il suo pannello, e cambiare progetto chiude il collegamento** (piano
+  `docs/plans/2026-11-20-dispositivo-ricordato-per-progetto.md`, ramo `feat/device-per-project`). Nell'IDE locale il
+  collegamento era dell'istanza: chiudendo un progetto e aprendone un altro restava sul pannello di prima, e un deploy
+  mandava il progetto nuovo al pannello sbagliato. Ora `open_project` e `close_project` lo chiudono
+  (`remote::drop_on_project_change`, non nel cloud, dove il container è il progetto). Il progetto ricorda l'ultimo
+  pannello in `project.yaml` (`last_device: {url, username}`, mai la password), scritto dall'IDE a ogni collegamento
+  riuscito con la rotta versionata `PUT /api/project/last-device`. All'apertura l'IDE chiede «Ricollegarsi a …?»: sì
+  tenta senza password, e un pannello con utenti porta alla scheda Connessione già compilata. Le chiavi del browser
+  `sws.runtime.targetUrl`/`targetUser` seguono il progetto aperto (`config/deviceMemory.ts`), così la scheda
+  Connessione e il «riconnetti» della testata non propongono mai il pannello di un altro progetto. Nel cloud resta
+  `dispositivo.yaml`, ma anche lì si scrive `last_device`. L'avviso al deploy su un pannello con un progetto di
+  altro nome c'era già (03-10-2026).
 - **Chiudere l'editor dei simboli con modifiche non salvate offre tre strade** (ramo `fix/symbol-editor-close-dialog`):
   Annulla, «Esci senza salvare» e «Salva e chiudi», al posto del solo «andranno perse». Vale per il bottone «Chiudi»
   e per Esc. Se il salvataggio non riesce o viene interrotto (la conferma sulla rinomina di ingressi o parti),

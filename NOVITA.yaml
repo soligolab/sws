@@ -70,6 +70,8 @@ versioni:
       # posto, alcune voci di prima sono unite e accorciate: da rivedere al collaudo.
       - it: "Editor dei simboli: apri un simbolo della libreria e cambialo, o fanne uno nuovo; strumenti di disegno, bocche dei tubi, «Anima…» per i pezzi che si muovono, SVG e file .swsym da importare."
         en: "Symbol editor: open a library symbol and change it, or make a new one; drawing tools, pipe ports, «Animate…» for moving parts, SVG and .swsym files to import."
+      - it: "Ogni progetto ricorda il suo pannello: cambiare progetto chiude il collegamento, e all'apertura l'IDE chiede se ricollegarsi. Un deploy non finisce più sul pannello di un altro progetto."
+        en: "Each project remembers its panel: switching project closes the connection, and on open the IDE asks whether to reconnect. A deploy no longer ends up on another project's panel."
       - it: "Chiudendo l'editor dei simboli con modifiche non salvate puoi scegliere «Salva e chiudi», «Esci senza salvare» o Annulla."
         en: "Closing the symbol editor with unsaved changes lets you choose «Save and close», «Leave without saving» or Cancel."
       - it: "Libreria immagini del progetto: carica, ottimizza, trascina o incolla una foto nella pagina, rinomina e sostituisci ovunque. La galleria propone solo simboli dello stesso tipo; il navigatore ha pulsanti in più."

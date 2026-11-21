@@ -2130,6 +2130,12 @@ export interface BeepTocco {
   volume: number;
 }
 
+/** The panel a project remembers: `username` absent = no user. */
+export interface LastDevice {
+  url: string;
+  username?: string;
+}
+
 export interface ProjectInfo {
   meta: { name: string; version: string };
   /** I tipi struttura riusabili (Fase 1b). Assente nei progetti che non ne hanno. */
@@ -2157,6 +2163,9 @@ export interface ProjectInfo {
   pannello?: PannelloConfig;
   /** The device control panel (plan 2026-11-13-pannello-di-controllo). */
   control_panel?: ControlPanelConfig;
+  /** The panel this project was last connected to, without the password
+   *  (plan 2026-11-20-dispositivo-ricordato-per-progetto). */
+  last_device?: LastDevice;
   /** Lo stile dei simboli del progetto (Fase 4 del piano dei simboli di libreria). */
   symbol_style?: import("@/symbols/stileProgetto").StileSimboliProgetto;
   /** Le regole di contesto dell'IA (04-11-2026): viaggiano col progetto. */

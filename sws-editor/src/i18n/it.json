@@ -5422,6 +5422,13 @@
     "wifiNoIpv4": "Collegato alla rete, ma senza indirizzo IPv4: il DHCP della rete non ha risposto. Si può usare l'indirizzo IPv6, o controllare il DHCP del router.",
     "wifiDetails": "Indirizzi della rete Wi-Fi"
   },
+  "deviceMemory": {
+    "title": "Pannello del progetto",
+    "ask": "Questo progetto era collegato al pannello {{url}}. Ricollegarsi?",
+    "askWithUser": "Questo progetto era collegato al pannello {{url}}, utente {{user}}. Ricollegarsi?",
+    "reconnect": "Ricollega",
+    "notNow": "Non ora"
+  },
   "symbolEditor": {
     "scaleDrawing": "Cambiando la misura, scala il disegno, i pezzi e le bocche",
     "port": {
