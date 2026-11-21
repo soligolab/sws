@@ -59,6 +59,30 @@ decidiamo». Il ramo resta aperto fra una ripresa e l'altra; si riparte dal prim
 | 6 | `feat/cra-6-update-notices` | C7 dal lato del pannello e gli avvisi | da fare |
 | 7 | `docs/cra-7-technical-file` | C8: valutazione del rischio, fascicolo, capitolo Sicurezza | da fare |
 
+## C7, la firma degli aggiornamenti: le decisioni del maintainer (22-11-2026)
+
+Nate da una domanda del maintainer dopo la pubblicazione della rc.23: «registrare nel VPS, in una posizione diversa,
+le firme sha256 dei file di aggiornamento per verificare l'autenticità prima dell'installazione». Un hash sullo
+stesso VPS protegge solo dal download rotto (chi sostituisce il file sostituisce anche l'hash): per l'autenticità
+serve una **firma** con una chiave che sul VPS non c'è. Si riprende con le sessioni 5 e 6.
+
+- **La chiave radice la custodisce il maintainer**, archiviata in modo sicuro, fuori da ogni server. Non firma gli
+  aggiornamenti: firma solo la chiave intermedia.
+- **Una chiave intermedia** su un container del server Proxmox di casa del maintainer, certificata dalla radice:
+  firma tutto quello che si pubblica. Se un giorno fosse compromessa, se ne certifica un'altra con la radice e i
+  pannelli non cambiano niente, perché si fidano della radice (catena radice → intermedia → file).
+- **Le release si firmano solo da casa**, dove sta l'intermedia.
+- **Cosa si firma**: le immagini container (il digest, con cosign; podman sa verificare prima del pull) **e il
+  pacchetto del Tiny TY** (un tar, non un'immagine: una firma ed25519, che `ring` già verifica). Le firme stanno sul
+  VPS accanto ai file: senza la chiave non si falsificano, e un VPS compromesso non fa installare niente.
+- **Chi verifica**: il runtime prima di «Aggiorna ora», `install-container.sh` e l'installatore del Tiny TY, con la
+  chiave pubblica radice dentro di loro. Un file senza firma valida non si installa.
+- **Da decidere — le rc.** Il maintainer chiede se le rc possono restare non firmate (si costruiscono anche fuori
+  casa, da theobroma). Si può, a una condizione: il canale `rc` lo usano solo i dispositivi di prova, e un pannello
+  sul canale stabile non accetta mai un'immagine non firmata. Il rischio che resta è un'immagine falsa sul canale rc.
+  L'alternativa vista il 22-11: una **chiave «rc»** sulle macchine di build, certificata dalla radice con l'uso
+  «solo canale rc»: le rc sono firmate anche fuori casa, e un pannello sul canale stabile la rifiuta comunque.
+
 ## Le decisioni prese in autonomia
 
 Ogni riga: la decisione, il perché, cosa cambia per chi usa SWS, come si disfa.
