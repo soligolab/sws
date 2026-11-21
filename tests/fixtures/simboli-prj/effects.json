@@ -1,0 +1,15 @@
+{
+  "slug": "effects",
+  "w": 120,
+  "h": 100,
+  "tipo": "project",
+  "body": "body-pump",
+  "it": "Effetti",
+  "en": "Effects",
+  "ops": [
+    { "op": "corpo" },
+    { "op": "forma", "tag": "rect", "geo": { "x": 4, "y": 60, "width": 112, "height": 36, "rx": 3 }, "velo": "paint-h" },
+    { "op": "parte", "id": "neon", "kind": "glow", "geo": { "color": "#22d3ee", "radius": 5 } },
+    { "op": "forma", "tag": "rect", "geo": { "x": 20, "y": 20, "width": 40, "height": 8, "rx": 4 }, "extra": { "fill": "#a5f3fc" } }
+  ]
+}

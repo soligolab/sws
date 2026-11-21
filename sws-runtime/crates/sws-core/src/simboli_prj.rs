@@ -201,6 +201,8 @@ pub const TIPI_PARTE: &[&str] = &[
     "level", "rotor", "needle", "lever", "lamp",
     // The animated pieces (plan 2026-11-19-animazioni-dei-simboli).
     "slide", "vibrate", "pulse", "signal",
+    // The effects (plan 2026-11-21-simboli-fase-8-effetti).
+    "glow",
 ];
 
 /// Le forme ammesse. Sono le sole che la libreria usa, e le sole che LVGL
@@ -760,6 +762,13 @@ impl<'a> Costruzione<'a> {
                         }
                     }
                 }
+                if kind == "glow" {
+                    if let Some(c) = geo.get("color").and_then(Value::as_str) {
+                        if !colore_esadecimale(c) {
+                            return Err(format!("part «{id}»: colour «{c}» is not #rgb or #rrggbb"));
+                        }
+                    }
+                }
                 let mut attributi = vec![testo("data-layer", "part")];
                 // A signal's colour as drawn: the shapes without a material
                 // take it from the layer, as the body's take the state colour.
@@ -1233,6 +1242,12 @@ fn piece_rules(p: &crate::simboli_lib::ParteLib, w: f64, h: f64) -> Result<(), S
         } => {
             between("depth", *depth, 0.05, 1.0)?;
             between("period_ms", *period_ms, MIN_PERIOD_MS, 10_000.0)
+        }
+        P::Glow { color, radius, .. } => {
+            if color.as_deref().is_some_and(|c| !colore_esadecimale(c)) {
+                return Err("the colour must be #rgb or #rrggbb".into());
+            }
+            between("radius", *radius, 0.5, 20.0)
         }
         P::Signal { color, entries, .. } => {
             if color.as_deref().is_some_and(|c| !colore_esadecimale(c)) {
@@ -1994,6 +2009,32 @@ mod tests {
         // With the trace the editor knows which operation drew the photo.
         let t = compila_con_traccia(&photo_boiler()).unwrap();
         assert!(t.svg.contains("data-src=\"boiler.jpg\" x=\"0\" y=\"0\" width=\"100\" height=\"120\" data-op=\"0\"/>"));
+    }
+
+    /// The effects (plan 2026-11-21-simboli-fase-8-effetti): a glow compiles
+    /// with its layer and its geometry, within its limits.
+    #[test]
+    fn a_glow_compiles_within_its_limits() {
+        let d: Descrizione = serde_json::from_str(include_str!(
+            "../../../../tests/fixtures/simboli-prj/effects.json"
+        ))
+        .unwrap();
+        let c = compila_e_controlla(&d).unwrap_or_else(|e| panic!("{e:?}"));
+        let s = c.simbolo().unwrap();
+        assert!(matches!(
+            s.parts[0],
+            crate::simboli_lib::ParteLib::Glow { radius, color: Some(_), .. } if radius == 5.0
+        ));
+        let with = |geo: Value| {
+            let mut d = d.clone();
+            if let Op::Parte { geo: g, .. } = &mut d.ops[2] {
+                *g = geo.as_object().unwrap().clone();
+            }
+            compila_e_controlla(&d).err().unwrap_or_default().join(" | ")
+        };
+        assert!(with(json!({ "radius": 50 })).contains("radius"));
+        assert!(with(json!({ "color": "red" })).contains("not #rgb"));
+        assert!(with(json!({})).is_empty(), "the radius has a default");
     }
 
     #[test]

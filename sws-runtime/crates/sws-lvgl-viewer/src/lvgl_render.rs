@@ -14881,6 +14881,14 @@ pub struct PulseLib {
     scritto: u8,
 }
 
+/// A glow: the halo under the layer, shown while the input is true.
+pub struct GlowLib {
+    halo: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    id: String,
+    _bufs: Vec<Vec<u8>>,
+    shown: bool,
+}
+
 /// A signal: one picture per colour, swapped when the matching entry changes.
 pub struct SignalLib {
     canvas: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
@@ -14905,6 +14913,7 @@ pub struct VivoLib {
     spie: Vec<SpiaLib>,
     mobili: Vec<MobileLib>,
     pulse: Vec<PulseLib>,
+    glows: Vec<GlowLib>,
     segnali: Vec<SignalLib>,
     /// Le parti del manifesto e i legami dell'oggetto (`symbol_parts`).
     parti: Vec<sws_core::simboli_lib::ParteLib>,
@@ -14967,6 +14976,11 @@ impl VivoLib {
             + self.spie.iter().map(|p| p._buf.len()).sum::<usize>()
             + self.mobili.iter().map(|p| p._buf.len()).sum::<usize>()
             + self.pulse.iter().map(|p| p._buf.len()).sum::<usize>()
+            + self
+                .glows
+                .iter()
+                .flat_map(|g| g._bufs.iter().map(Vec::len))
+                .sum::<usize>()
             + self
                 .segnali
                 .iter()
@@ -15199,6 +15213,7 @@ fn render_simbolo_lib(
         spie: Vec::new(),
         mobili: Vec::new(),
         pulse: Vec::new(),
+        glows: Vec::new(),
         segnali: Vec::new(),
         parti: sim.parts.clone(),
         legami: obj.symbol_parts.clone(),
@@ -15436,6 +15451,52 @@ fn render_simbolo_lib(
                         kind,
                         ultimo: base,
                     });
+                }
+                PezzoStrato::Glow {
+                    id,
+                    mut bitmap,
+                    halo,
+                } => {
+                    // The halo first: LVGL draws in the order of creation, and
+                    // it goes under the shapes.
+                    let mut bufs = Vec::new();
+                    let alone = match halo {
+                        Some(mut h) => {
+                            let c = tela_lib(
+                                scatola.as_ptr(),
+                                h.dove.x as i32,
+                                h.dove.y as i32,
+                                h.dove,
+                                &mut h.buf,
+                            )?;
+                            unsafe {
+                                lvgl_sys::lv_obj_add_flag(
+                                    c.as_ptr(),
+                                    lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t,
+                                )
+                            };
+                            bufs.push(h.buf);
+                            Some(c)
+                        }
+                        None => None,
+                    };
+                    tela_lib(
+                        scatola.as_ptr(),
+                        bitmap.dove.x as i32,
+                        bitmap.dove.y as i32,
+                        bitmap.dove,
+                        &mut bitmap.buf,
+                    )?;
+                    bufs.push(bitmap.buf);
+                    match alone {
+                        Some(halo) => vivo.glows.push(GlowLib {
+                            halo,
+                            id,
+                            _bufs: bufs,
+                            shown: false,
+                        }),
+                        None => vivo.fermi.extend(bufs),
+                    }
                 }
                 PezzoStrato::Pulse { id, mut bitmap } => {
                     let canvas = tela_lib(
@@ -15807,6 +15868,25 @@ fn aggiorna_simbolo_lib(v: &mut VivoLib, tags: &TagSnapshot) {
                 )
             };
             m.ultimo = dove;
+        }
+    }
+    for g in &mut v.glows {
+        let on = matches!(val(&g.id), Some(ValoreParte::Active(Some(true))));
+        if on != g.shown {
+            unsafe {
+                if on {
+                    lvgl_sys::lv_obj_clear_flag(
+                        g.halo.as_ptr(),
+                        lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t,
+                    )
+                } else {
+                    lvgl_sys::lv_obj_add_flag(
+                        g.halo.as_ptr(),
+                        lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t,
+                    )
+                }
+            };
+            g.shown = on;
         }
     }
     for p in &mut v.pulse {

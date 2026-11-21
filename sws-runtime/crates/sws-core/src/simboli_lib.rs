@@ -101,6 +101,16 @@ pub enum ParteLib {
         #[serde(default)]
         entries: Vec<SignalEntry>,
     },
+    /// A glow (neon, plan `2026-11-21-simboli-fase-8-effetti`): while its
+    /// input is true, a blurred halo of the part's own shapes — in `color`, or
+    /// in theirs — sits under them, `radius` units wide.
+    Glow {
+        id: String,
+        #[serde(default)]
+        color: Option<String>,
+        #[serde(default = "glow_radius_default")]
+        radius: f64,
+    },
     /// A kind this binary doesn't know: a manifest written by a newer runtime.
     /// The layer is drawn still, instead of the whole manifest becoming
     /// unreadable (which turned every project symbol into a placeholder).
@@ -162,6 +172,9 @@ fn vibrate_period_default() -> f64 {
 fn depth_default() -> f64 {
     0.6
 }
+fn glow_radius_default() -> f64 {
+    4.0
+}
 fn pulse_period_default() -> f64 {
     1000.0
 }
@@ -198,7 +211,8 @@ impl ParteLib {
             | ParteLib::Slide { id, .. }
             | ParteLib::Vibrate { id, .. }
             | ParteLib::Pulse { id, .. }
-            | ParteLib::Signal { id, .. } => id,
+            | ParteLib::Signal { id, .. }
+            | ParteLib::Glow { id, .. } => id,
             ParteLib::Unknown => "",
         }
     }

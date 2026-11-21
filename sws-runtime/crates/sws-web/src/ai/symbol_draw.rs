@@ -167,6 +167,7 @@ pub(crate) fn answer_schema() -> Value {
                 json!({ "color": colour, "entries": { "type": "array", "items": { "type": "object" } } }),
                 &[],
             ),
+            "glow" => (json!({ "color": colour, "radius": num }), &[]),
             _ => (json!({}), &[]),
         };
         let geo = json!({ "type": "object", "required": required, "properties": props });
@@ -1097,7 +1098,7 @@ mod tests {
         let items = &schema["properties"]["ops"]["items"];
         for kind in sws_core::simboli_prj::TIPI_PARTE {
             let part = json!({ "op": "parte", "id": "p1", "kind": kind, "geo": {} });
-            let needs_geo = !matches!(*kind, "lamp" | "vibrate" | "pulse" | "signal");
+            let needs_geo = !matches!(*kind, "lamp" | "vibrate" | "pulse" | "signal" | "glow");
             assert_eq!(fits(&part, items), !needs_geo, "{kind}");
         }
         // And what it is for: a description that does not read does not fit.

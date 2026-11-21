@@ -38,7 +38,10 @@ export type ParteLib =
   /** Breathes (opacity down by `depth` and back) while its input is true. */
   | { id: string; kind: "pulse"; depth?: number; period_ms?: number }
   /** The colour, blink and visibility of the first entry its input matches. */
-  | { id: string; kind: "signal"; color?: string; entries?: SignalEntry[] };
+  | { id: string; kind: "signal"; color?: string; entries?: SignalEntry[] }
+  /** A glow (plan 2026-11-21-simboli-fase-8-effetti): while its input is true,
+   *  a blurred halo of the part's shapes, in `color` or in theirs. */
+  | { id: string; kind: "glow"; color?: string; radius?: number };
 
 export type FillDir = "up" | "down" | "left" | "right";
 

@@ -22,7 +22,7 @@ pub enum ValoreParte {
     /// commento gemello in `libreria.ts`.
     Posizione(Option<usize>),
     Accesa(Option<bool>),
-    /// Rotor, vibrate, pulse: whether it moves.
+    /// Rotor, vibrate, pulse: whether it moves; a glow: whether it shines.
     Active(Option<bool>),
     /// Signal: the entry that matches.
     Entry(Option<usize>),
@@ -200,7 +200,7 @@ pub fn valori_parti<'a>(
             ParteLib::Slide { .. } => {
                 ValoreParte::Frazione(fraction(num("min", 0.0), num("max", 1.0)))
             }
-            ParteLib::Vibrate { .. } | ParteLib::Pulse { .. } => {
+            ParteLib::Vibrate { .. } | ParteLib::Pulse { .. } | ParteLib::Glow { .. } => {
                 ValoreParte::Active(v.map(Scalar::truthy))
             }
             ParteLib::Signal { entries, .. } => {

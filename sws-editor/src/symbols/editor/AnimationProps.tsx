@@ -20,10 +20,11 @@ const NUMBERS: Record<string, string[]> = {
   slide: ["dx", "dy", "transition_ms"],
   vibrate: ["amplitude", "period_ms"],
   pulse: ["depth", "period_ms"],
+  glow: ["radius"],
 };
 
 /** What the engines use when a number is left out (`sws-core/src/simboli_lib.rs`). */
-const DEFAULTS: Record<string, number> = { transition_ms: 300, amplitude: 1, period_ms: 0, depth: 0.6 };
+const DEFAULTS: Record<string, number> = { transition_ms: 300, amplitude: 1, period_ms: 0, depth: 0.6, radius: 4 };
 
 export function AnimationProps({ d, op, commit }: {
   d: DescrizioneSimbolo; op: number; commit: (d: DescrizioneSimbolo) => void;
@@ -69,6 +70,19 @@ export function AnimationProps({ d, op, commit }: {
         <SignalEntries colour={typeof g.color === "string" ? g.color : "#64748b"}
           entries={Array.isArray(g.entries) ? (g.entries as SignalEntry[]) : []}
           onColour={(c) => set("color", c)} onEntries={(e) => set("entries", e)} />
+      )}
+      {kind === "glow" && (
+        <>
+          <label style={{ display: "flex", gap: 6, alignItems: "center", color: C.muted }}>
+            <input type="checkbox" checked={typeof g.color === "string"} data-testid="symbol-glow-own-colour"
+              onChange={(e) => set("color", e.target.checked ? "#22d3ee" : undefined)} />
+            {t("symbolEditor.anim.glowColour")}
+          </label>
+          {typeof g.color === "string" && (
+            <input type="color" style={{ ...input, padding: 0, height: 22 }} value={g.color} onChange={(e) => set("color", e.target.value)} />
+          )}
+          <p style={{ margin: 0, color: C.subtle, fontSize: 11 }}>{t("symbolEditor.anim.glowNote")}</p>
+        </>
       )}
       {kind === "slide" && <p style={{ margin: 0, color: C.subtle, fontSize: 11 }}>{t("symbolEditor.anim.slideNote")}</p>}
     </>

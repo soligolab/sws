@@ -16,8 +16,10 @@ type Pairs = [string, number | string][];
  *  parts the two engines already draw). */
 export type InputKind = "state" | "level" | "rotor" | "needle" | "lever" | "lamp"
   // The animated pieces (plan docs/archive/2026-11-19-animazioni-dei-simboli.md).
-  | "slide" | "vibrate" | "pulse" | "signal";
-export const INPUT_KINDS: InputKind[] = ["state", "level", "rotor", "needle", "lever", "lamp", "slide", "vibrate", "pulse", "signal"];
+  | "slide" | "vibrate" | "pulse" | "signal"
+  // The effects (plan docs/plans/2026-11-21-simboli-fase-8-effetti.md).
+  | "glow";
+export const INPUT_KINDS: InputKind[] = ["state", "level", "rotor", "needle", "lever", "lamp", "slide", "vibrate", "pulse", "signal", "glow"];
 
 /** What «Anima…» offers, by family (the lamp is a signal now: not offered,
  *  but the symbols that have one keep it). */
@@ -26,6 +28,7 @@ export const ANIMATE_FAMILIES: { family: string; kinds: InputKind[] }[] = [
   { family: "colour", kinds: ["signal"] },
   { family: "movement", kinds: ["slide", "level"] },
   { family: "vibration", kinds: ["vibrate", "pulse"] },
+  { family: "effects", kinds: ["glow"] },
 ];
 
 export interface Layer {
@@ -484,6 +487,7 @@ export function partDefaults(kind: InputKind, b: Box, colour?: string): Record<s
     case "slide": return { dx: 0, dy: -r2(Math.max(1, b.h / 2)), transition_ms: 300 };
     case "vibrate": return { amplitude: 1, axis: "x", period_ms: 200 };
     case "pulse": return { depth: 0.6, period_ms: 1000 };
+    case "glow": return { radius: 4 };
     case "signal": return {
       color: colour ?? "#64748b",
       entries: [{ value: 1, color: "#22c55e" }, { value: 2, color: "#ef4444", blink: true }],

@@ -5523,7 +5523,8 @@
       "slide": "Movimento",
       "vibrate": "Vibrazione",
       "pulse": "Pulsazione",
-      "signal": "Segnale"
+      "signal": "Segnale",
+      "glow": "Bagliore"
     },
     "shape": {
       "rect": "Rettangolo",
@@ -5610,7 +5611,8 @@
       "transition_ms": "durata (ms)",
       "amplitude": "ampiezza",
       "period_ms": "periodo (ms)",
-      "depth": "profondità (0–1)"
+      "depth": "profondità (0–1)",
+      "radius": "Raggio"
     },
     "polyHint": "Un clic per punto; doppio clic o Invio per finire una linea; un clic sul primo punto chiude la forma.",
     "zoomIn": "Ingrandisci",
@@ -5687,7 +5689,8 @@
         "rotation": "Rotazione",
         "colour": "Colore e visibilità",
         "movement": "Movimento e riempimento",
-        "vibration": "Vibrazione e pulsazione"
+        "vibration": "Vibrazione e pulsazione",
+        "effects": "Effetti"
       },
       "kind": {
         "rotor": "Gira mentre l'ingresso è vero",
@@ -5697,7 +5700,8 @@
         "slide": "Si sposta fra due posizioni",
         "level": "Si riempie da un lato",
         "vibrate": "Vibra mentre l'ingresso è vero",
-        "pulse": "Pulsa mentre l'ingresso è vero"
+        "pulse": "Pulsa mentre l'ingresso è vero",
+        "glow": "Si illumina mentre l'ingresso è vero"
       },
       "note": "Le forme scelte diventano un pezzo animato: uno strato col suo ingresso, che in pagina si collega a un tag o a un valore.",
       "ccw": "Antioraria",
@@ -5724,7 +5728,9 @@
       "boundTitle": "Pezzi collegati in pagina",
       "boundRenamed": "«{{from}}» diventa «{{to}}»: {{n}} oggetti lo collegano.",
       "boundRemoved": "«{{id}}» sparisce: {{n}} oggetti lo collegano e resteranno senza.",
-      "boundText": "Salvando, gli oggetti di questa pagina seguono i nomi nuovi; quelli delle altre pagine vanno ricollegati."
+      "boundText": "Salvando, gli oggetti di questa pagina seguono i nomi nuovi; quelli delle altre pagine vanno ricollegati.",
+      "glowColour": "Alone di un colore suo (senza: il colore delle forme)",
+      "glowNote": "Le forme della parte prendono un alone sfocato quando l'ingresso è vero: una spia, un tubo al neon."
     },
     "ai": {
       "note": "Descrivi cosa disegnare o cosa cambiare: risponde il modello dello scopo «Disegno dei simboli». La proposta compare qui sotto; con «Accetta» entra nel simbolo, e Ctrl+Z la toglie. Prima di disegnare l'IA ti fa qualche domanda e ti mostra la richiesta come la disegnerà.",

@@ -150,6 +150,30 @@ export function SimboloLibSvg({ sim, svg, manifesto, prefisso, x, y, w, h, valor
       style={{ pointerEvents: "none" }} data-anim={dataAnim ? "1" : undefined} data-simbolo-lib={sim.id}>
       <defs dangerouslySetInnerHTML={html.defs} />
       <defs>
+        {/* The glows' filters (plan 2026-11-21-simboli-fase-8-effetti): the
+            halo under the shapes, over the whole drawing like the panel's
+            (`svg_alone` in simbolo_lib.rs). */}
+        {sim.parts.map((p) => {
+          if (p.kind !== "glow") return null;
+          const r = p.radius ?? 4;
+          const [vw, vh] = sim.viewBox;
+          return (
+            <filter key={`glow-${p.id}`} id={`${prefisso}-glow-${p.id}`} filterUnits="userSpaceOnUse" x={0} y={0} width={vw} height={vh}>
+              {p.color ? (
+                <>
+                  <feGaussianBlur in="SourceAlpha" stdDeviation={r} result="b" />
+                  <feFlood floodColor={p.color} result="f" />
+                  <feComposite in="f" in2="b" operator="in" result="g" />
+                </>
+              ) : (
+                <feGaussianBlur in="SourceGraphic" stdDeviation={r} result="g" />
+              )}
+              <feMerge><feMergeNode in="g" /><feMergeNode in="SourceGraphic" /></feMerge>
+            </filter>
+          );
+        })}
+      </defs>
+      <defs>
         {sim.parts.map((p) => {
           if (p.kind !== "level") return null;
           // A level bound per part has its own fraction (`null` = as drawn,
@@ -213,9 +237,10 @@ export function SimboloLibSvg({ sim, svg, manifesto, prefisso, x, y, w, h, valor
         } else if (parte?.kind === "lamp" && v && "accesa" in v && v.accesa === false) {
           opacita = 0;
         }
+        const glow = parte?.kind === "glow" && active === true;
         return (
           <g key={s.id} data-strato={s.id} style={style} data-anim={anim ? "1" : undefined} opacity={opacita}
-            visibility={visibility}
+            visibility={visibility} filter={glow ? `url(#${prefisso}-glow-${s.id})` : undefined}
             clipPath={parte?.kind === "level" ? `url(#${idClip(parte.id)})` : undefined}
             dangerouslySetInnerHTML={strati[i]} />
         );

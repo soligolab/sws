@@ -630,6 +630,42 @@ pub enum PezzoStrato {
         variants: Vec<Vec<u8>>,
         entry_variant: Vec<Option<usize>>,
     },
+    /// A glow (plan 2026-11-21-simboli-fase-8-effetti): the layer as drawn,
+    /// and under it its blurred halo, shown while the input is true. `None`:
+    /// no room in the page's budget, the layer stays without.
+    Glow {
+        id: String,
+        bitmap: BitmapStrato,
+        halo: Option<BitmapStrato>,
+    },
+}
+
+/// The SVG of a layer's halo: its shapes blurred by `radius` (viewBox units),
+/// in `color` or in their own. The filter covers the whole drawing, so the
+/// blur is never cut at the shapes' box. Twin of the filter in `SimboloLib.tsx`.
+pub fn svg_alone(testa: &str, markup: &str, view_box: [f64; 2], radius: f64, color: Option<&str>) -> String {
+    let r = sws_core::simboli_prj::fmt(radius);
+    let effetto = match color {
+        Some(c) => format!(
+            "<feGaussianBlur in=\"SourceAlpha\" stdDeviation=\"{r}\" result=\"b\"/>\
+             <feFlood flood-color=\"{c}\" result=\"f\"/><feComposite in=\"f\" in2=\"b\" operator=\"in\"/>"
+        ),
+        None => format!("<feGaussianBlur in=\"SourceGraphic\" stdDeviation=\"{r}\"/>"),
+    };
+    format!(
+        "{testa}<defs><filter id=\"sws-glow\" filterUnits=\"userSpaceOnUse\" x=\"0\" y=\"0\" width=\"{}\" height=\"{}\">{effetto}</filter></defs>\n<g filter=\"url(#sws-glow)\">\n{markup}</g>\n</svg>\n",
+        sws_core::simboli_prj::fmt(view_box[0]),
+        sws_core::simboli_prj::fmt(view_box[1])
+    )
+}
+
+/// `r` grown by `m` pixels on every side, inside the object.
+fn allarga(r: Ritaglio, m: u32, q: Quadro) -> Ritaglio {
+    let x0 = r.x.saturating_sub(m);
+    let y0 = r.y.saturating_sub(m);
+    let x1 = (r.x + r.w + m).min(q.w);
+    let y1 = (r.y + r.h + m).min(q.h);
+    Ritaglio { x: x0, y: y0, w: x1.saturating_sub(x0).max(1), h: y1.saturating_sub(y0).max(1) }
 }
 
 // ── the animation budget of a page ─────────────────────────────────────────
@@ -895,6 +931,31 @@ pub fn prepara_con_foto(
                     entry_variant,
                 });
             }
+            Some(ParteLib::Glow { radius, color, .. }) => {
+                let Some(bitmap) = rasterizza(&svg1, q, None) else {
+                    continue;
+                };
+                // The blur spreads about three radii: the halo's box is the
+                // layer's, that much wider.
+                let k = (q.w as f64 / s.view_box[0]).min(q.h as f64 / s.view_box[1]);
+                let dove = allarga(bitmap.dove, (3.0 * radius * k).ceil() as u32, q);
+                let alone = svg_alone(&d.testa, markup, s.view_box, *radius, color.as_deref());
+                let halo = rasterizza(&alone, q, Some(dove)).filter(|h| {
+                    let ok = anim_take(h.buf.len());
+                    if !ok {
+                        eprintln!(
+                            "[simboli-lib] {}/{id}: no glow, the animation budget of the page is full",
+                            s.id
+                        );
+                    }
+                    ok
+                });
+                out.push(PezzoStrato::Glow {
+                    id: id.clone(),
+                    bitmap,
+                    halo,
+                });
+            }
             _ if id == "body" => {
                 if let Some(bitmap) = rasterizza(&svg1, q, None) {
                     out.push(PezzoStrato::Corpo { bitmap });
@@ -1052,6 +1113,34 @@ mod tests {
             out.draw_pixmap(0, 0, pm.as_ref(), &resvg::tiny_skia::PixmapPaint::default(), Transform::identity(), None);
             out.save_png(dir.join(format!("photo-boiler-{state}.png"))).unwrap();
         }
+    }
+
+    /// The glow (plan 2026-11-21-simboli-fase-8-effetti): the layer as drawn,
+    /// and a halo wider than it, with colour outside the shape.
+    #[test]
+    fn a_glow_has_its_halo() {
+        let d: sws_core::simboli_prj::Descrizione = serde_json::from_str(include_str!(
+            "../../../../tests/fixtures/simboli-prj/effects.json"
+        ))
+        .unwrap();
+        let c = sws_core::simboli_prj::compila_e_controlla(&d).unwrap_or_else(|e| panic!("{e:?}"));
+        let s = c.simbolo().unwrap();
+        let m = manifesto_incluso();
+        let q = Quadro { w: 240, h: 200, flip_h: false, flip_v: false };
+        let p = prepara(&s, &c.svg, q, &stile_del_disegno(&m, None));
+        let Some(PezzoStrato::Glow { bitmap, halo: Some(halo), .. }) =
+            p.strati.iter().find(|x| matches!(x, PezzoStrato::Glow { .. }))
+        else {
+            panic!("a glow with its halo")
+        };
+        assert!(halo.dove.w > bitmap.dove.w + 20 && halo.dove.h > bitmap.dove.h + 20, "{:?} {:?}", halo.dove, bitmap.dove);
+        // Some colour in the halo's top-left corner area, outside the shape.
+        let bpp = halo.buf.len() / (halo.dove.w * halo.dove.h) as usize;
+        let alpha_at = |x: u32, y: u32| halo.buf[((y * halo.dove.w + x) as usize) * bpp + bpp - 1];
+        let y = (bitmap.dove.y - halo.dove.y) / 2;
+        let x = halo.dove.w / 2;
+        assert!(alpha_at(x, y) > 0, "the halo spreads above the shape");
+        assert!(svg_alone("<svg>", "<g/>", [120.0, 100.0], 5.0, None).contains("in=\"SourceGraphic\" stdDeviation=\"5\""));
     }
 
     #[test]

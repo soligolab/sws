@@ -5523,7 +5523,8 @@
       "slide": "Slide",
       "vibrate": "Vibration",
       "pulse": "Pulse",
-      "signal": "Signal"
+      "signal": "Signal",
+      "glow": "Glow"
     },
     "shape": {
       "rect": "Rectangle",
@@ -5610,7 +5611,8 @@
       "transition_ms": "duration (ms)",
       "amplitude": "amplitude",
       "period_ms": "period (ms)",
-      "depth": "depth (0–1)"
+      "depth": "depth (0–1)",
+      "radius": "Radius"
     },
     "polyHint": "One click per point; double click or Enter ends a line; a click on the first point closes the shape.",
     "zoomIn": "Zoom in",
@@ -5687,7 +5689,8 @@
         "rotation": "Rotation",
         "colour": "Colour and visibility",
         "movement": "Movement and fill",
-        "vibration": "Vibration and pulse"
+        "vibration": "Vibration and pulse",
+        "effects": "Effects"
       },
       "kind": {
         "rotor": "Turns while the input is true",
@@ -5697,7 +5700,8 @@
         "slide": "Moves between two positions",
         "level": "Fills from one side",
         "vibrate": "Shakes while the input is true",
-        "pulse": "Breathes while the input is true"
+        "pulse": "Breathes while the input is true",
+        "glow": "Glows while the input is true"
       },
       "note": "The chosen shapes become an animated piece: a layer with its input, bound in the page to a tag or a value.",
       "ccw": "Counter-clockwise",
@@ -5724,7 +5728,9 @@
       "boundTitle": "Pieces bound in the page",
       "boundRenamed": "«{{from}}» becomes «{{to}}»: {{n}} objects bind it.",
       "boundRemoved": "«{{id}}» goes away: {{n}} objects bind it and will be left without.",
-      "boundText": "When saved, the objects of this page follow the new names; those of other pages need binding again."
+      "boundText": "When saved, the objects of this page follow the new names; those of other pages need binding again.",
+      "glowColour": "A halo of its own colour (without: the shapes' colour)",
+      "glowNote": "The part's shapes get a blurred halo while the input is true: a lamp, a neon tube."
     },
     "ai": {
       "note": "Describe what to draw or what to change: the model of the «Symbol drawing» purpose answers. The proposal appears below; «Accept» puts it in the symbol, and Ctrl+Z takes it back. Before drawing, the AI asks you a few questions and shows you the request as it will draw it.",

@@ -86,6 +86,8 @@ versioni:
         en: "Two-factor authentication for IDE and cloud accounts: a code from a phone app besides the password, with ten recovery codes. A company can make it mandatory."
       - it: "Utenti del pannello dal dominio aziendale (LDAP o Active Directory): l'operatore entra con l'account di dominio, il ruolo viene dal gruppo. Gli utenti locali restano."
         en: "Panel users from the company domain (LDAP or Active Directory): operators sign in with their domain account, the role comes from the group. Local users stay."
+      - it: "Effetti nei simboli: il bagliore. Una spia o un tubo al neon disegnati in una parte prendono un alone luminoso quando l'ingresso è vero."
+        en: "Effects in symbols: the glow. A lamp or a neon tube drawn in a part gets a luminous halo while the input is true."
       # rc.22 (20-11-2026): editor dei simboli, libreria immagini, assistente. Per fare
       # posto, alcune voci di prima sono unite e accorciate: da rivedere al collaudo.
       - it: "Editor dei simboli: apri un simbolo della libreria e cambialo, o fanne uno nuovo; strumenti di disegno, bocche dei tubi, «Anima…» per i pezzi che si muovono, SVG e file .swsym da importare."

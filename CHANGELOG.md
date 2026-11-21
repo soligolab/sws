@@ -12,6 +12,13 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Aggiunto
+- **Effetti nei simboli, il bagliore** (ramo `feat/symbol-fx-glow`, piano `docs/plans/2026-11-21-simboli-fase-8-effetti.md`).
+  Parte nuova `glow` (`ParteLib::Glow { color?, radius }`, ingresso acceso/spento come la pulsazione): mentre
+  l'ingresso è vero le forme della parte hanno un alone sfocato, del colore dato o del loro. Scelte del maintainer:
+  animazioni native per motore, e il bagliore attorno alle forme della parte. Browser: un filtro SVG
+  (`feGaussianBlur`, `feFlood`, `feMerge`) sullo strato. Pannello: l'alone pre-disegnato da resvg con lo stesso filtro
+  (`svg_alone`), in un canvas sotto lo strato, mostrato e nascosto; conta nel budget delle animazioni della pagina.
+  Editor: famiglia «Effetti» in «Anima…», raggio e colore dell'alone.
 - **Gli utenti del pannello da LDAP / Active Directory** (ramo `feat/ldap`, piano `docs/plans/2026-11-21-p6-2fa-e-ldap.md`).
   `project.yaml` ha una sezione `ldap` (`LdapConfig`: server `ldaps://` o `ldap://` con STARTTLS, account di servizio,
   base e filtro degli utenti, gruppi → ruolo e zone); la password dell'account di servizio sta in `secrets.yaml`

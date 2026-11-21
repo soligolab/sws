@@ -1418,6 +1418,7 @@ pub fn schema_simbolo() -> Esito {
             "vibrate": "geo {amplitude?=1 (0.1–20), axis?: x|y, period_ms?=200 (at least 200)}: the piece shakes while its input is true: a motor running rough, a vibrating screen",
             "pulse": "geo {depth?=0.6 (0.05–1), period_ms?=1000 (at least 200)}: the piece breathes (its opacity goes down and back) while its input is true: a glow, a heater on",
             "signal": "geo {color: #rrggbb as drawn, entries: [{value | value_min/value_max, color?, blink?, hidden?}] (at most 8)}: the shapes WITHOUT mat take the colour of the first entry the input matches (like the states of a symbol), blink or hide; no entry = as drawn",
+            "glow": "geo {color?: #rrggbb, radius?: 0.5–20 (default 4)}: while the input is true the shapes of the part get a blurred halo, in color or in their own (a lamp, a neon tube). Bound in symbol_parts",
         },
         "legame_delle_parti": "in pagina symbol_parts[id] = {tag?, value?, min?, max?}: the tag wins; without a tag, the fixed value; min/max scale a number to the fraction (needle and level 0..100 by default, slide 0..1)",
         "materiali": MATERIALI.iter().map(|(n, c)| json!({ "nome": n, "colore": c })).collect::<Vec<_>>(),
