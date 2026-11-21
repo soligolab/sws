@@ -12,7 +12,17 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — sedici rami annidati da collaudare; il gruppo 2 è tutto fatto (2026-11-22 notte, `ufficio`)
+## ▶ Riprendere da qui — la 2.26.0-rc.23 pubblicata: i sedici rami in `main`, da collaudare (2026-11-22, `ufficio`)
+
+**Fatto, su richiesta del maintainer («rc.23 vera», poi «fai pure il push»)**: i sedici rami squashati in `main` in
+ordine (alberi controllati, rami eliminati), `chore(rc): 2.26.0-rc.23` (`3e9e1d6c`) col tag annotato, **pushati**
+`main` e il tag. Immagini su ghcr: `2.26.0-rc.23-*`, `3e9e1d6c-*`, `rc-*` (arm64 e amd64), archivi in `dist/`.
+**Gateway del VPS** su `3e9e1d6c-amd64`: healthy, `/health` ok, `check_gateway_immagine` verde; ripiego la rc.22
+(`1d4d5e380`), tolta la `fe8c71338`. Il **TC620** lo aggiorna il maintainer dall'IDE («Aggiorna ora», canale rc).
+Il collaudo: `docs/COLLAUDI_IN_SOSPESO.md`, sezione «Collaudo 2.26.0-rc.23» (28 voci), con `/test-changes`.
+Per fare spazio alla build tolta la cache incrementale di cargo (`sws-runtime/target/debug/incremental`, 52 GB).
+
+## Il lavoro dentro la rc.23 — sedici rami, il gruppo 2 tutto fatto (2026-11-22 notte, `ufficio`)
 
 **Gruppo 2, sessione di plan fatta** (la sera del 21-11): quattro piani in `docs/plans/`, ordine deciso dal maintainer
 **3 → 7 → P6 → 8** — [fase 3, le foto](docs/plans/2026-11-21-simboli-fase-3-foto.md),

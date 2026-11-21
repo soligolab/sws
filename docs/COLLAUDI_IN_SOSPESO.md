@@ -27,6 +27,91 @@
 
 ---
 
+## Collaudo 2.26.0-rc.23 (22-11-2026) — i sedici rami del 20-22-11
+
+Squash in `main` prima del collaudo (regola «rc prima del collaudo»), tag `2.26.0-rc.23`, immagini `3e9e1d6c-*` e
+`rc-*`, gateway del VPS sulla rc.23. Il TC620 si aggiorna dall'IDE: Configurazione → Istanza → Device → Connessione →
+«Aggiorna ora» (canale rc) — è anche la prova dell'aggiornamento. Le misure degli effetti: TC620 ora, TY570 da lunedì.
+
+### L'editor dei simboli e la chiusura
+1. [ ] Modifica un simbolo → «Chiudi»: Annulla (resta), «Esci senza salvare», «Salva e chiudi»; Esc → «Esci senza
+       salvare»; con errori nel simbolo niente «Salva».
+
+### Il progetto e il suo pannello
+2. [ ] IDE locale: progetto A → Connessione al TC620 → chiudi → apri B: scollegato; riapri A: «Ricollegarsi a …?» →
+       Sì. Deploy di B sul pannello di A: la conferma «sostituisce progetti».
+
+### L'IA sui campi
+3. [ ] Un tag calcolato → λ → scintilla → «la RAM in MB con due decimali»: la domanda, poi espressione, unità,
+       decimali → «Applica», Salva. Lo stesso col «Formato» di un testo legato a un tag.
+
+### NOVITA
+4. [ ] Le voci della 2.26.0 nel pannello prima dell'aggiornamento (ora sono una quarantina, in rc senza limite):
+       si leggono, nessuna doppia, nessuna sbagliata. La sintesi in 15 si fa insieme prima della 2.26.0.
+
+### La sandbox degli script
+5. [ ] Una costante in cima usata in un `def`; `f(*lista)` e `f(**diz)` sul pannello; un `print` prima di un errore
+       arriva nel registro; un parametro chiamato `state` rifiutato al salvataggio.
+
+### Le sorgenti
+6. [ ] «Attiva» tolto su una sorgente → «spenta» in testata, tag Bad, `<id>.disponibile` falso; riattivata riparte.
+7. [ ] Modbus con «Giri di tolleranza» 3 (CasaDomotica, Solarman): una risposta persa lascia l'ultimo valore,
+       incerto; staccando il dispositivo, Bad dopo tre giri.
+
+### «Salva come…» col repository
+8. [ ] Su un progetto con repository: la domanda; «ramo nuovo» → scheda Git sul ramo, Push che lo pubblica;
+       «repository nuovo» → nessun remoto; «nessuno» → niente scheda Git. Il ⧉ dell'elenco non chiede.
+
+### Il lock del progetto
+9. [ ] Due schede (o due browser) sullo stesso progetto: la seconda vede «aperto da … da N minuti» → sola lettura:
+       barra in alto, Salva non salva → «Prendi il controllo» → la prima, entro 15 s, avvisa e passa in sola lettura.
+10. [ ] Chiusa la scheda che lo tiene, dopo un minuto il progetto è libero; una ricarica della stessa scheda non è
+        «un'altra scheda». Anche nel cloud, due browser su CasaDomotica.
+
+### Le foto nei simboli (fase 3)
+11. [ ] Editor dei simboli → «Foto…» → una foto del progetto: sotto a tutto, alle proporzioni giuste; sposta,
+        ridimensiona, opacità; dentro una parte rotore gira con lei (scheda Prova).
+12. [ ] Un segnale con due voci e una foto ciascuna: in Prova, in pagina legato a un tag, e sul TC620 la foto cambia
+        col valore.
+13. [ ] «Genera foto» nella scheda IA (modello per «Sfondi»): OpenAI trasparente, FLUX grigio; la foto è fra le
+        immagini del progetto.
+14. [ ] «Importa SVG» con una foto dentro; «Esporta» → `.swsym` zip → importato altrove con le foto (`sym-…`).
+15. [ ] Risorse → Immagini: «nel simbolo …» fra gli usi; rinominarla → il simbolo la segue; cancellarla → avviso.
+16. [ ] Deploy verso un pannello ancora sulla rc.22: si ferma col messaggio, senza mandare niente.
+
+### La libreria aziendale (fase 7)
+17. [ ] «In libreria» dall'editor → «Libreria aziendale» nella galleria → in un altro progetto un clic la copia (con le
+        foto) e la mette in pagina.
+18. [ ] Modificata e rimessa in libreria → aprendo l'altro progetto, la barra «versioni più nuove» → «Aggiorna»:
+        l'oggetto cambia aspetto e resta legato al tag. Una variante di una pompa di SWS: «sostituirla?».
+19. [ ] Nel cloud: un membro di un'altra azienda non la vede; due della stessa la condividono; ✕ la toglie, le
+        copie restano.
+
+### L'autenticazione a due fattori
+20. [ ] Menu 👤 → «Autenticazione a due fattori» → Attiva → QR con l'app → codice → i dieci codici di recupero.
+21. [ ] Esci e rientra: password, poi il codice; un codice di recupero vale una volta; «Sessione scaduta» e PIN per
+        posta chiedono il codice anche loro.
+22. [ ] Console → Aziende → «Richiedi l'autenticazione a due fattori»: un membro senza viene disconnesso e al login
+        deve attivarla; non la può spegnere. Console → Persone → «Azzera» → rientra con la sola password.
+23. [ ] Cinque codici sbagliati → «troppi tentativi»; nel registro `auth.second_factor_failed`, `auth.login_blocked`.
+
+### LDAP
+24. [ ] Configurazione → Utenti → «Collega un dominio…» → «Prova» (anche con un utente: il ruolo) → Salva; la
+        password in `secrets.yaml`, non in `project.yaml`.
+25. [ ] Sul pannello (viewer e LVGL) l'utente di dominio entra col ruolo e le zone del gruppo; password sbagliata no;
+        un nome che è anche utente locale entra solo con la password locale; server spento: l'Admin locale entra,
+        `auth.ldap_unreachable` nel registro. Per la prova in casa: OpenLDAP in `podman` come nel test
+        `a_real_directory` (`STATUS.md`).
+
+### Gli effetti (fase 8)
+26. [ ] «Anima…» → «Effetti»: bagliore su una spia, bollicine in un serbatoio, fumo su un camino, fiamma in una
+        caldaia; in Prova con «Anima» si muovono, spenti spariscono.
+27. [ ] In pagina legati a un tag booleano: nel browser con «Anteprima effetti» e nel viewer; sul TC620 dopo il deploy.
+28. [ ] Le misure sul TC620 (SSH chiedendo): `SWS_MISURA_SIMBOLI=1`, `SWS_TEMPI_LOG=1`, `VmRSS` con i quattro effetti
+        accesi in una pagina; lunedì le stesse sul TY570.
+
+---
+
 ## Gli sfondi alla misura della pagina e il pulsante «Assistente IA» (20-11-2026)
 
 Dal piano [sfondi alla misura della pagina](plans/2026-11-20-sfondi-alla-misura-della-pagina.md), ramo
