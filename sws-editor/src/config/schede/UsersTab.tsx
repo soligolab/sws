@@ -6,6 +6,7 @@ import { useAppStore } from "@/store";
 import { useFocus, usePubblicaElenco } from "@/config/fogliaConfig";
 import { TRANS_COMP, S } from "@/config/comuni";
 import { conferma } from "@/finestraAvviso/finestraAvviso";
+import { LdapSection } from "./LdapSection";
 
 // ── Main ConfigView ───────────────────────────────────────────────────────────
 
@@ -351,6 +352,7 @@ export function UsersTab() {
           {t("cfgUi.forzaCambioPassword")}
         </label>
       </div>
+      <LdapSection />
     </div>
   );
 }

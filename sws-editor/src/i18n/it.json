@@ -5913,5 +5913,35 @@
       "resetConfirm": "Azzerare l'autenticazione a due fattori di {{name}}? Serve quando ha perso il telefono: al prossimo accesso entra con la sola password (o la riattiva, se è obbligatoria).",
       "resetDone": "Azzerata per {{name}}."
     }
+  },
+  "ldap": {
+    "title": "Dominio (LDAP)",
+    "help": "Gli operatori entrano nel pannello con l'account di dominio (Active Directory o LDAP), e il ruolo viene dal loro gruppo. Gli utenti qui sopra restano, e su un nome uguale vincono loro. Tieni almeno un Admin locale: se il server non risponde, entrano solo gli utenti locali.",
+    "add": "Collega un dominio…",
+    "enabled": "Attivo",
+    "url": "Server",
+    "starttls": "STARTTLS (con ldap://)",
+    "bindDn": "Account di servizio",
+    "bindPassword": "Sua password",
+    "userBase": "Dove sono gli utenti",
+    "userFilter": "Filtro utente ({user} = il nome scritto)",
+    "groups": "Gruppi → ruolo (e zone, separate da virgole)",
+    "allZones": "tutte le zone",
+    "addGroup": "Gruppo",
+    "save": "Salva",
+    "saved": "Salvato.",
+    "remove": "Scollega",
+    "testTitle": "Prova connessione (facoltativi: un utente e la sua password, per vedere che ruolo avrebbe)",
+    "testUser": "Utente",
+    "testPassword": "Password",
+    "test": "Prova",
+    "testOk": "Il server risponde e l'account di servizio entra.",
+    "testUserOk": "L'utente entra come {{role}}, zone: {{zones}}.",
+    "testRefused": "Il server risponde, ma l'utente non entra: password sbagliata, utente non trovato o in nessun gruppo qui sopra.",
+    "testUnreachable": "Il server non risponde, o l'account di servizio non entra: {{message}}",
+    "urlExample": "ldaps://dc.azienda.local",
+    "bindDnExample": "CN=svc-sws,OU=Servizi,DC=azienda,DC=local",
+    "userBaseExample": "OU=Utenti,DC=azienda,DC=local",
+    "groupExample": "CN=Operatori SWS,OU=Gruppi,DC=azienda,DC=local"
   }
 }

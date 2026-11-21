@@ -2042,6 +2042,56 @@ fn is_true(v: &bool) -> bool {
     *v
 }
 
+/// An LDAP / Active Directory server for the panel's users.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LdapConfig {
+    #[serde(default = "bool_true")]
+    pub enabled: bool,
+    /// `ldaps://host:636` or `ldap://host:389` (with `starttls`).
+    pub url: String,
+    #[serde(default)]
+    pub starttls: bool,
+    /// The account that searches the directory; none = an anonymous search.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bind_dn: Option<String>,
+    /// Its password: kept in `secrets.yaml`, like every secret of a project.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bind_password: Option<String>,
+    /// The environment variable to read it from instead.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub password_env: Option<String>,
+    /// Where the users are: `OU=Users,DC=example,DC=local`.
+    pub user_base: String,
+    /// How a user is found; `{user}` is the name typed, escaped.
+    #[serde(default = "ldap_user_filter")]
+    pub user_filter: String,
+    /// Group → role (and zones). A user in no group listed doesn't get in.
+    #[serde(default)]
+    pub groups: Vec<LdapGroup>,
+    #[serde(default = "ldap_timeout_ms")]
+    pub timeout_ms: u64,
+}
+
+/// A directory group and what its members are on the panel.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LdapGroup {
+    /// The group's DN, as in `memberOf`.
+    pub dn: String,
+    /// `viewer`, `operator`, `supervisor` or `admin`.
+    pub role: String,
+    /// The zones its members may act on; empty = all.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub zones: Vec<String>,
+}
+
+fn ldap_user_filter() -> String {
+    "(sAMAccountName={user})".into()
+}
+
+fn ldap_timeout_ms() -> u64 {
+    5000
+}
+
 fn bool_true() -> bool {
     true
 }
@@ -2459,6 +2509,12 @@ pub struct Project {
     pub global_scripts: Vec<GlobalScriptDef>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub notifications: Option<NotificationConfig>,
+    /// The panel's users from a company directory (plan
+    /// `2026-11-21-p6-2fa-e-ldap`): operators sign in with their domain
+    /// account, the role comes from their group. The local users of
+    /// `users.yaml` stay, and win on the same name.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ldap: Option<LdapConfig>,
     /// I report programmati (P3, 26-10-2026): PDF ed Excel con le tabelle dello
     /// storico e gli allarmi del periodo, salvati nel progetto e mandati per
     /// email. Piano `docs/archive/2026-10-26-report-programmati.md`.

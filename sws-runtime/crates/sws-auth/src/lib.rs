@@ -206,6 +206,10 @@ struct Session {
     /// tardi», 07-11-2026): vale solo per questa sessione, e il segno
     /// dell'utente resta dov'è — al prossimo accesso la domanda torna.
     rimandato: bool,
+    /// The zones of a user who is not in `users.yaml` (an LDAP user, plan
+    /// `2026-11-21-p6-2fa-e-ldap`): they come from the directory with the
+    /// session, since there is no stored user to read them from.
+    external_zones: Option<Vec<String>>,
 }
 
 #[derive(Debug, Default)]
@@ -664,6 +668,7 @@ impl AuthState {
                 expires_at,
                 effective_ttl,
                 rimandato: false,
+                external_zones: None,
             },
         );
         self.failures.write().await.remove(&creds.username);
@@ -674,6 +679,60 @@ impl AuthState {
             role: user.role,
             expires_at_ms,
             must_change_password: user.must_change_password,
+        })
+    }
+
+    /// Whether `username` is a user of this store.
+    pub async fn has_user(&self, username: &str) -> bool {
+        self.users.read().await.contains_key(username)
+    }
+
+    /// `Some(seconds)` while `username` is locked out by too many failures.
+    pub async fn locked_out(&self, username: &str) -> Option<u64> {
+        self.check_lockout(username).await
+    }
+
+    /// A failed login that didn't go through [`Self::login`] (an LDAP one):
+    /// it counts toward the same lockout.
+    pub async fn note_failure(&self, username: &str) {
+        self.record_failure(username).await;
+    }
+
+    /// A session for a user **not** in `users.yaml`, whom an external
+    /// directory vouched for (LDAP, plan `2026-11-21-p6-2fa-e-ldap`): its
+    /// role and zones come from there. Refused for a name that is a stored
+    /// user: the local one wins, and must not be shadowed.
+    pub async fn issue_external_session(
+        &self,
+        username: &str,
+        role: Role,
+        zones: Vec<String>,
+    ) -> Option<LoginOk> {
+        if self.has_user(username).await {
+            return None;
+        }
+        let token = uuid::Uuid::new_v4().to_string();
+        let expires_at = Some(Instant::now() + self.ttl);
+        let expires_at_ms = Some(now_unix_ms() + self.ttl.as_millis() as u64);
+        self.sessions.write().await.insert(
+            token.clone(),
+            Session {
+                username: username.to_string(),
+                role,
+                expires_at,
+                effective_ttl: Some(self.ttl),
+                rimandato: false,
+                external_zones: Some(zones),
+            },
+        );
+        self.failures.write().await.remove(username);
+        info!(user = %username, role = role.as_str(), "login: external session issued");
+        Some(LoginOk {
+            token,
+            username: username.to_string(),
+            role,
+            expires_at_ms,
+            must_change_password: false,
         })
     }
 
@@ -715,7 +774,16 @@ impl AuthState {
         let username = session.username.clone();
         let role = session.role;
         let rimandato = session.rimandato;
+        let external_zones = session.external_zones.clone();
         drop(sessions);
+        if let Some(zones) = external_zones {
+            return Some(SessionInfo {
+                username,
+                role,
+                must_change_password: false,
+                allowed_zones: zones,
+            });
+        }
 
         let (must_change, allowed_zones) = {
             let users = self.users.read().await;
@@ -1145,6 +1213,34 @@ mod tests {
     /// Cambiare progetto non reintroduce l'admin che il progetto nuovo non ha:
     /// è il caso che si presenta a ogni deploy, perché `open_project` chiama
     /// `swap_store` col seed letto dall'ambiente del dispositivo.
+    /// An LDAP user (plan 2026-11-21-p6-2fa-e-ldap): a session with the role
+    /// and zones the directory gave, never over a local user's name.
+    #[tokio::test]
+    async fn an_external_session_carries_its_role_and_zones() {
+        let d = tempfile::tempdir().unwrap();
+        let a = AuthState::new_persistent(
+            d.path().join("users.yaml"),
+            seed_admin(),
+            Duration::from_secs(60),
+            5,
+            Duration::from_secs(60),
+        )
+        .unwrap();
+        assert!(a.issue_external_session("admin", Role::Viewer, vec![]).await.is_none());
+        let ok = a
+            .issue_external_session("mario.rossi", Role::Operator, vec!["caldaia".into()])
+            .await
+            .unwrap();
+        let info = a.validate(&ok.token).await.unwrap();
+        assert_eq!(info.role, Role::Operator);
+        assert_eq!(info.allowed_zones, vec!["caldaia".to_string()]);
+        assert!(!info.must_change_password);
+        for _ in 0..5 {
+            a.note_failure("mario.rossi").await;
+        }
+        assert!(a.locked_out("mario.rossi").await.is_some());
+    }
+
     #[tokio::test]
     async fn swap_store_non_reintroduce_l_admin_tolto_dal_progetto() {
         let d = tempfile::tempdir().unwrap();

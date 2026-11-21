@@ -547,6 +547,9 @@ pub fn build(
             "/api/project/notifications",
             put(update_project_notifications),
         )
+        // The panel's users from LDAP (plan 2026-11-21-p6-2fa-e-ldap).
+        .route("/api/project/ldap", put(crate::ldap_auth::save))
+        .route("/api/auth/ldap/test", post(crate::ldap_auth::test_route))
         .route("/api/project/page-layout", put(update_project_page_layout))
         // Lo stile dei simboli del progetto (Fase 4 del piano dei simboli di libreria).
         .route(
@@ -3581,6 +3584,17 @@ async fn login(
         }
         altro => altro,
     };
+    // Then the company directory (plan 2026-11-21-p6-2fa-e-ldap), for a name
+    // neither store has: an operator with the domain account.
+    let esito = match esito {
+        Err(LoginError::BadCredentials) => {
+            match crate::ldap_auth::login_via_ldap(&s, &creds.username, &creds.password).await {
+                Some(ok) => return Json(ok).into_response(),
+                None => Err(LoginError::BadCredentials),
+            }
+        }
+        altro => altro,
+    };
     match esito {
         Ok(ok) => {
             s.audit.log(
@@ -5911,6 +5925,7 @@ where
             datastores: vec![],
             global_scripts: vec![],
             notifications: None,
+            ldap: None,
             reports: Vec::new(),
             saved_by: None,
             languages: Default::default(),

@@ -5,6 +5,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+ldap3.workspace = true
 tokio.workspace        = true
 zbus.workspace         = true
 tokio-util.workspace   = true

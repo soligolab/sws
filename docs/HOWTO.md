@@ -1348,6 +1348,7 @@ cambia, l'id no):
 | `sources.<id>.auth_password` | sorgente OPC-UA client, autenticazione utente/password |
 | `datastores.<id>.password` | datastore Postgres |
 | `datastores.<id>.connection_string` | datastore ODBC (può contenere `PWD=`) |
+| `ldap.bind_password` | Configurazione → Utenti → Dominio (LDAP), la password dell'account di servizio (22-11-2026) |
 
 ### Quello che si vede nell'IDE
 
@@ -1385,6 +1386,36 @@ contengono ancora le credenziali in chiaro, e non si riscrive la storia per ripu
 - **Chiave privata TLS** (`tls.key`): nella cartella di configurazione, `0600` dal 22-09-2026; una chiave più
   vecchia viene stretta al primo avvio.
 - **`opcua-pki/`**: la chiave privata del client OPC-UA viaggia come sempre, dentro la cartella del progetto.
+
+### La chiave degli account: `chiave_segreti`
+
+Accanto al database degli account (`identita.db`, nell'IDE e sul gateway del cloud) c'è un file, **`chiave_segreti`**:
+32 byte casuali creati da SWS al primo uso, permessi `0600`. Non è una chiave che si sceglie o si cambia: è la
+chiave con cui il database cifra due cose degli account, perché sul disco non stiano in chiaro:
+
+- le **chiavi IA** che ognuno mette nel suo profilo (menu 👤 → «Le mie chiavi IA»);
+- il **segreto dell'autenticazione a due fattori** (dal 22-11-2026), quello che l'app del telefono ha letto dal QR.
+
+Cambiare o togliere le proprie chiavi IA non tocca questo file, né la 2FA.
+
+**Il backup del cloud la lascia fuori apposta** (`deploy/vps/backup-dati.sh`): chi avesse in mano un backup non deve
+avere insieme il database e la chiave per leggerlo. Il prezzo arriva solo il giorno di un ripristino senza il file:
+
+- le chiavi IA dei profili non si leggono più, e ognuno le riscrive;
+- **i codici dell'app di autenticazione non vengono più accettati**. Si entra con un **codice di recupero** (quelli
+  non sono cifrati, sono salvati come impronta), oppure l'amministratore azzera la 2FA dalla console (Persone →
+  «Azzera l'autenticazione a due fattori») e la persona la riattiva.
+
+Per non arrivarci: **salva una copia di `chiave_segreti` in un posto diverso dal backup** (non sullo stesso VPS, non
+nella stessa cartella dei backup), e al ripristino rimettila accanto a `identita.db` prima di avviare il gateway.
+Sul VPS il file sta in `~/sws-vps/gateway-config/chiave_segreti`; nell'IDE locale nella cartella di configurazione
+(`.run-editor/config/` con gli script di sviluppo). La copia va fatta una volta sola: il file non cambia, a meno che
+qualcuno non lo cancelli.
+
+```bash
+# sul VPS, una volta: la copia finisce sul tuo PC, non sul VPS
+scp <vps>:sws-vps/gateway-config/chiave_segreti ~/al-sicuro/sws-chiave_segreti
+```
 
 ### Verificare che sia tutto a posto
 

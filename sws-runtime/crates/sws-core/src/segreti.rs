@@ -66,7 +66,7 @@ fn chiave_datastore(id: &str, campo: &str) -> String {
 /// vuole curare: per questo un test verifica che sia lungo quanto i segreti
 /// che [`estrai`] tira fuori dal progetto di prova, che i sette campi li ha
 /// tutti pieni.
-pub const CAMPI_COPERTI: [&str; 9] = [
+pub const CAMPI_COPERTI: [&str; 10] = [
     "TelegramConfig.bot_token",
     "TwilioConfig.auth_token",     // P4, 26-10-2026
     "TwilioConfig.api_key_secret", // 28-10-2026: Twilio lo mostra una volta sola
@@ -76,6 +76,7 @@ pub const CAMPI_COPERTI: [&str; 9] = [
     "UsernamePassword.password", // variante di OpcUaAuth
     "Postgres.password",         // variante di DatastoreBackendConfig
     "Odbc.connection_string",    // idem — può contenere `PWD=`
+    "LdapConfig.bind_password",  // 22-11-2026, plan 2026-11-21-p6-2fa-e-ldap
 ];
 
 /// Toglie i sette valori-segreto dal progetto (campo vuoto / `None`) e li
@@ -87,8 +88,13 @@ pub fn estrai(project: &mut Project) -> Segreti {
     let mut out = estrai_notifiche(project.notifications.as_mut());
     out.append(&mut estrai_sorgenti(&mut project.sources));
     out.append(&mut estrai_datastores(&mut project.datastores));
+    if let Some(p) = project.ldap.as_mut().and_then(|l| l.bind_password.take()) {
+        out.insert(LDAP_BIND_PASSWORD.into(), p);
+    }
     out
 }
+
+const LDAP_BIND_PASSWORD: &str = "ldap.bind_password";
 
 /// Rimette nel progetto i valori di `segreti`, **senza sovrascrivere** un
 /// valore già presente — vedi il commento di modulo sulla precedenza.
@@ -96,6 +102,11 @@ pub fn applica(project: &mut Project, segreti: &Segreti) {
     applica_notifiche(project.notifications.as_mut(), segreti);
     applica_sorgenti(&mut project.sources, segreti);
     applica_datastores(&mut project.datastores, segreti);
+    if let Some(l) = project.ldap.as_mut() {
+        if l.bind_password.is_none() {
+            l.bind_password = segreti.get(LDAP_BIND_PASSWORD).cloned();
+        }
+    }
 }
 
 // ── Le tre metà della tabella ────────────────────────────────────────────────
@@ -504,6 +515,7 @@ notifications:
   smtp: { host: h, from: f, password: smtp-secret }
   telegram: { bot_token: tg-secret, chat_ids: [] }
   twilio: { account_sid: AC1, auth_token: twilio-secret, api_key_sid: SK1, api_key_secret: twilio-api-secret, numero: "+39000" }
+ldap: { url: "ldaps://dc", user_base: "DC=x", bind_dn: "CN=svc", bind_password: ldap-secret }
 "#,
         )
         .expect("progetto di prova con segreti")

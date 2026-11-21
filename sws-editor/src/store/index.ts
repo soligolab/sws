@@ -595,6 +595,7 @@ interface AppState {
   updateProjectLanguages: (languages: LanguageTable) => void;
   updateProjectAlarms: (alarms: AlarmDef[]) => void;
   updateProjectNotifications: (notifications: NotificationConfig | null) => void;
+  updateProjectLdap: (ldap: import("@/api/client").LdapConfig | null) => void;
   updateProjectPageLayout: (pageLayout: PageLayoutConfig | null) => void;
   /** T-58 — il motore di rendering del progetto, cambiato dall'IDE. `null`
    *  toglie il campo: un progetto senza `target` è web. */
@@ -1356,6 +1357,9 @@ export const useAppStore = create<AppState>((set, get) => {
 
     updateProjectNotifications: (notifications) =>
       set((s) => ({ project: s.project ? { ...s.project, notifications: notifications ?? undefined } : s.project })),
+
+    updateProjectLdap: (ldap) =>
+      set((s) => ({ project: s.project ? { ...s.project, ldap: ldap ?? undefined } : s.project })),
 
     updateProjectPageLayout: (pageLayout) =>
       set((s) => ({

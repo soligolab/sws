@@ -12,7 +12,7 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — undici rami annidati da collaudare; gruppo 2: fasi 3 e 7 e la 2FA fatte (2026-11-22 notte, `ufficio`)
+## ▶ Riprendere da qui — dodici rami annidati da collaudare; gruppo 2: fasi 3 e 7, 2FA e LDAP fatte (2026-11-22 notte, `ufficio`)
 
 **Gruppo 2, sessione di plan fatta** (la sera del 21-11): quattro piani in `docs/plans/`, ordine deciso dal maintainer
 **3 → 7 → P6 → 8** — [fase 3, le foto](docs/plans/2026-11-21-simboli-fase-3-foto.md),
@@ -27,7 +27,9 @@
     gateway nel cloud e dall'IDE in locale, solo ai membri dell'azienda.
 11. `feat/2fa` — **l'autenticazione a due fattori degli account** IDE/cloud: TOTP con codici di recupero, finestra del
     codice per ogni strada d'accesso, menu 👤, obbligo per azienda o piattaforma dalla console, azzeramento.
-    Prossimo: LDAP (`feat/ldap`), poi la fase 8.
+12. `feat/ldap` — **gli utenti del pannello dal dominio** (LDAP / Active Directory): «Dominio (LDAP)» nella scheda
+    Utenti, login del pannello col nome di dominio e il ruolo dal gruppo, utenti locali di riserva. Provato contro un
+    OpenLDAP in `podman`. Prossimo: la fase 8, gli effetti dei simboli.
 
 **Il collaudo della 2FA, cosa guardare** (IDE locale su `feat/2fa`, poi nel cloud; un'app di autenticazione vera):
 - menu 👤 → «Autenticazione a due fattori» → Attiva → QR con l'app → codice → i dieci codici di recupero;
@@ -37,6 +39,16 @@
   attivarla (QR, codice, codici) prima di entrare; non la può spegnere dal profilo;
 - console → Persone → «Azzera» per chi ha perso il telefono → rientra con la sola password;
 - cinque codici sbagliati → «troppi tentativi»; nel registro `auth.second_factor_failed` e `auth.login_blocked`.
+
+**Il collaudo di LDAP, cosa guardare** (serve un server vero raggiungibile dal pannello; per una prova in casa
+`podman run --rm -p 127.0.0.1:13389:389 -e LDAP_DOMAIN=example.org -e LDAP_ADMIN_PASSWORD=adminpw
+docker.io/osixia/openldap:1.5.0` più un utente e un gruppo, come nel test `a_real_directory`):
+- Configurazione → Utenti → «Collega un dominio…» → server, account di servizio, base, un gruppo → «Prova» (anche con
+  un utente: dice il ruolo) → Salva; `secrets.yaml` ha la password, `project.yaml` no;
+- deploy sul pannello → login dal viewer e dal pannello LVGL con l'utente di dominio: entra col ruolo del gruppo e
+  con le sue zone; con la password sbagliata no; un nome che è anche utente locale entra solo con la password locale;
+- server spento: l'Admin locale entra, nel registro `auth.ldap_unreachable`;
+- da verificare alla prossima rc: la build per ARM/Yocto con `ldap3` (Rust puro, rustls con ring).
 
 **Il collaudo della fase 7, cosa guardare** (IDE locale su `feat/symbol-library`, poi nel cloud con due utenti):
 - editor dei simboli → «In libreria» → la famiglia «Libreria aziendale» lo mostra; in un altro progetto un clic lo

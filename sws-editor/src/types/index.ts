@@ -2179,6 +2179,8 @@ export interface ProjectInfo {
   /** I report programmati (P3, 26-10-2026). */
   reports?: ReportDef[];
   notifications?: NotificationConfig;
+  /** The panel's users from LDAP (plan 2026-11-21-p6-2fa-e-ldap). */
+  ldap?: import("@/api/client").LdapConfig;
   languages?: LanguageTable;
   page_layout?: PageLayoutConfig;
   /** Lo schermo del pannello (12-11-2026): `fps` = quante volte al secondo i

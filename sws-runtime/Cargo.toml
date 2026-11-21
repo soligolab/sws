@@ -81,6 +81,10 @@ serde_path_to_error = "0.1"
 # Declaring ring here makes the feature flag unambiguous; main.rs calls
 # install_default() as the belt-and-suspenders counterpart.
 rustls        = { version = "0.23", features = ["ring"] }
+# The panel's users from an LDAP / Active Directory server (plan
+# 2026-11-21-p6-2fa-e-ldap): pure Rust, TLS with rustls and ring like the rest —
+# no OpenSSL to cross-compile for the panels.
+ldap3         = { version = "0.12", default-features = false, features = ["tls-rustls-ring"] }
 tokio-rustls  = "0.26"
 rcgen         = "0.13"
 # Le autorità pubbliche per `pin_tls` (10-10-2026): solo dati, nessun codice

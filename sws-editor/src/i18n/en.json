@@ -5913,5 +5913,35 @@
       "resetConfirm": "Reset the two-factor authentication of {{name}}? For a lost phone: at the next sign-in the password alone lets them in (or they turn it on again, if it is required).",
       "resetDone": "Reset for {{name}}."
     }
+  },
+  "ldap": {
+    "title": "Domain (LDAP)",
+    "help": "Operators sign in to the panel with their domain account (Active Directory or LDAP), and the role comes from their group. The users above stay, and win on the same name. Keep at least one local Admin: if the server doesn't answer, only the local users get in.",
+    "add": "Connect a domain…",
+    "enabled": "On",
+    "url": "Server",
+    "starttls": "STARTTLS (with ldap://)",
+    "bindDn": "Service account",
+    "bindPassword": "Its password",
+    "userBase": "Where the users are",
+    "userFilter": "User filter ({user} = the name typed)",
+    "groups": "Groups → role (and zones, comma separated)",
+    "allZones": "all zones",
+    "addGroup": "Group",
+    "save": "Save",
+    "saved": "Saved.",
+    "remove": "Disconnect",
+    "testTitle": "Test the connection (optional: a user and their password, to see the role they would get)",
+    "testUser": "User",
+    "testPassword": "Password",
+    "test": "Test",
+    "testOk": "The server answers and the service account gets in.",
+    "testUserOk": "The user gets in as {{role}}, zones: {{zones}}.",
+    "testRefused": "The server answers, but the user doesn't get in: wrong password, user not found or in no group above.",
+    "testUnreachable": "The server doesn't answer, or the service account doesn't get in: {{message}}",
+    "urlExample": "ldaps://dc.company.local",
+    "bindDnExample": "CN=svc-sws,OU=Services,DC=company,DC=local",
+    "userBaseExample": "OU=Users,DC=company,DC=local",
+    "groupExample": "CN=SWS Operators,OU=Groups,DC=company,DC=local"
   }
 }

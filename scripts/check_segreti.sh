@@ -52,6 +52,9 @@ ECCEZIONI=(
     "HomeAssistantConfig.token_env"
     "MqttConfig.password_env"
     "UsernamePassword.password_env"
+    # The NAME of the environment variable with the LDAP service password, not
+    # the password (22-11-2026): like the three `*_env` above.
+    "LdapConfig.password_env"
     "LangEntry.key"
     # Il SID di una chiave API Twilio (`SK…`) è un identificatore, come un nome
     # utente: Twilio lo mostra nella console tutte le volte che vuoi. Il segreto

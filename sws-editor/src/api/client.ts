@@ -811,6 +811,8 @@ const PATH_RIPORTANO_VERSIONE = [
  *  Rispecchia gli handler che in `router.rs` chiamano `patch_project_se`: se
  *  cambia lì, cambia qui. */
 const PATH_VERSIONATI = [
+  // The panel's users from LDAP (22-11-2026).
+  "/api/project/ldap",
   "/api/project/tags", "/api/project/types", "/api/project/languages", "/api/project/sources",
   "/api/project/alarms", "/api/project/functions", "/api/project/custom-symbols",
   "/api/project/datastores", "/api/project/global-scripts", "/api/project/reports",
@@ -1276,6 +1278,21 @@ async function passSecondFactor(r: LoginOk | { second_factor: "code" | "setup"; 
     setupConfirm: (challenge, code) =>
       post<LoginOk & { recovery_codes?: string[] }>("/api/auth/second-factor/setup/confirm", { challenge, code, riautentica }),
   });
+}
+
+/** The panel's users from LDAP (`project.yaml`, `ldap`). */
+export interface LdapGroup { dn: string; role: string; zones?: string[] }
+export interface LdapConfig {
+  enabled: boolean;
+  url: string;
+  starttls: boolean;
+  bind_dn?: string;
+  bind_password?: string;
+  password_env?: string;
+  user_base: string;
+  user_filter: string;
+  groups: LdapGroup[];
+  timeout_ms: number;
 }
 
 /** The state of an account's two-factor authentication. */
@@ -2966,6 +2983,21 @@ export const api = {
   /** Un SMS di prova col Twilio del progetto (P4). */
   provaSms: (numero: string) =>
     request<void>("/api/telefono/prova", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ numero }) }),
+
+  /** PUT /api/project/ldap — `null` removes it. */
+  saveLdap: (config: LdapConfig | null) =>
+    request<void>("/api/project/ldap", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...seVersionato("/api/project/ldap") },
+      body: JSON.stringify(config),
+    }),
+  /** «Prova connessione»: the server and the service account; with a user, also their role. */
+  testLdap: (config: LdapConfig | null, username?: string, password?: string) =>
+    request<{ ok: boolean; code?: string; message?: string; role?: string; zones?: string[] }>("/api/auth/ldap/test", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ config, username, password }),
+    }),
 
   saveNotifications: (config: NotificationConfig | null) =>
     request<void>("/api/project/notifications", {

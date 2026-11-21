@@ -60,6 +60,7 @@ pub mod simboli_progetto;
 pub mod sized_image;
 pub mod symbol_library;
 pub mod two_factor_routes;
+pub mod ldap_auth;
 pub mod sonda;
 pub mod source_supervisor;
 pub mod synoptic;

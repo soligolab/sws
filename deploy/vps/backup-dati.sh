@@ -37,7 +37,9 @@ LINK=()
 # cui `identita.db` cifra le chiavi IA degli utenti (`sws-identita`, ai_keys.rs).
 # Una copia che portasse database e chiave insieme darebbe le chiavi a chi la
 # ruba. Dopo un ripristino le righe ci sono ma non si leggono, e gli utenti le
-# riscrivono dal loro menu.
+# riscrivono dal loro menu. Dal 22-11-2026 cifra anche i segreti della 2FA: senza
+# la chiave si entra coi codici di recupero, o l'amministratore azzera la 2FA.
+# Per evitarlo si tiene una copia della chiave fuori dal VPS (docs/HOWTO.md, §18).
 rsync -a "${LINK[@]}" --exclude='*.db-wal' --exclude='*.db-shm' --exclude='chiave_segreti' \
   "$BASE/gateway-config" "$BASE/progetti" "$LAVORO/"
 

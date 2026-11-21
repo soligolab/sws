@@ -1193,6 +1193,7 @@ pub async fn create_project(
                 datastores: vec![default_datastore()],
                 global_scripts: vec![],
                 notifications: None,
+                ldap: None,
                 reports: Vec::new(),
                 saved_by: None,
                 languages: lingua_iniziale(req.lang.as_deref()),

@@ -12,6 +12,19 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Aggiunto
+- **Gli utenti del pannello da LDAP / Active Directory** (ramo `feat/ldap`, piano `docs/plans/2026-11-21-p6-2fa-e-ldap.md`).
+  `project.yaml` ha una sezione `ldap` (`LdapConfig`: server `ldaps://` o `ldap://` con STARTTLS, account di servizio,
+  base e filtro degli utenti, gruppi → ruolo e zone); la password dell'account di servizio sta in `secrets.yaml`
+  (`CAMPI_COPERTI` sale a dieci). Al login del pannello, dopo gli utenti del progetto e l'Admin del dispositivo e solo
+  per un nome che nessuno dei due ha (`ldap_auth::login_via_ldap`): ricerca con l'account di servizio, bind come
+  l'utente, `memberOf` → il ruolo più alto fra i gruppi configurati (nessun gruppo → rifiutato); la sessione è
+  «esterna» (`AuthState::issue_external_session`, ruolo e zone dalla directory, mai sopra il nome di un utente
+  locale), i tentativi sbagliati contano nel blocco. Password vuota rifiutata prima di parlare col server (sarebbe un
+  bind anonimo), nome escape nel filtro (RFC 4515). Server irraggiungibile: entrano gli utenti locali, e
+  `auth.ldap_unreachable` nel registro. Crate `ldap3` 0.12 con rustls e ring (nessun OpenSSL da compilare per i
+  pannelli). IDE: «Dominio (LDAP)» nella scheda Utenti, con «Prova connessione» (`POST /api/auth/ldap/test`, anche con
+  un utente per vedere il ruolo che avrebbe). Provato contro un OpenLDAP vero in `podman` (test `a_real_directory`,
+  ignorato senza `SWS_LDAP_TEST_URL`).
 - **L'autenticazione a due fattori degli account** (ramo `feat/2fa`, piano `docs/plans/2026-11-21-p6-2fa-e-ldap.md`,
   la P6 del piano prima fascia). `sws_identita::two_factor`: TOTP RFC 6238 (HMAC-SHA1 di `ring`, passi di 30 s, 6
   cifre, ±1 passo, base32 scritto a mano: nessun crate nuovo; un codice già usato si rifiuta), segreto cifrato con la
