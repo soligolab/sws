@@ -436,6 +436,10 @@ interface AppState {
    *  lavoro di chi ha salvato prima è intatto. */
   saveConflict: boolean;
   setSaveConflict: (v: boolean) => void;
+  /** The project lock (21-11-2026): set when another IDE tab holds it and this
+   *  one is read-only — who holds it, for the banner. Saving is off. */
+  lockReadOnly: import("@/api/client").LockHolder | null;
+  setLockReadOnly: (h: import("@/api/client").LockHolder | null) => void;
 
   // ── Unsaved-changes tracking ──────────────────────────────────────────
   //
@@ -1219,6 +1223,8 @@ export const useAppStore = create<AppState>((set, get) => {
     saveStatus: "idle",
     saveConflict: false,
     setSaveConflict: (v: boolean) => set({ saveConflict: v }),
+    lockReadOnly: null,
+    setLockReadOnly: (h) => set({ lockReadOnly: h }),
     saveError: null,
     pagesRev: 0,
     savedPagesRev: 0,
@@ -3309,6 +3315,11 @@ export const useAppStore = create<AppState>((set, get) => {
 
     saveAll: async () => {
       if (get().saveStatus === "saving") return;
+      // Read-only (another tab holds the lock): nothing would be accepted.
+      if (get().lockReadOnly) {
+        set({ saveStatus: "error", saveError: i18n.t("projectLock.writeRefused") });
+        return;
+      }
       if (saveOkTimer !== null) { window.clearTimeout(saveOkTimer); saveOkTimer = null; }
       set({ saveStatus: "saving", saveError: null, saveConflict: false, ultimiTagCreati: [] });
 

@@ -7,6 +7,11 @@
 approfondita e dedicata, per sviscerarne tutti i dettagli. Qui ci sono l'idea, le misure e le
 code rimaste, non un progetto.
 
+> **Aggiornamento del 21-11-2026.** Il punto 1 (`enabled`) e il livello 2 del punto 2 (`tolerance_rounds` su Modbus)
+> sono fatti nel piano [lock, Salva come, sorgenti, sandbox](../2026-11-21-lock-salva-come-sorgenti-sandbox.md), ramo
+> `feat/source-enabled`. Restano il livello 3 (l'assenza prevista, «solo quando…»), le code dell'inverter e il
+> certificato OPC UA.
+
 ## L'idea
 
 Una sorgente (un protocollo configurato nel progetto) oggi è sempre accesa. Non si può fermare

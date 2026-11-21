@@ -12,6 +12,21 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Aggiunto
+- **Il lock del progetto** (ramo `feat/project-lock`, piano `docs/plans/2026-11-21-lock-salva-come-sorgenti-sandbox.md`,
+  richiesta del maintainer del 21-11-2026: «proteggere l'apertura una seconda volta»). Il runtime che serve il
+  progetto tiene, per progetto, quale scheda dell'IDE può scrivere (`project_lock.rs`, in memoria): la scheda lo
+  prende all'apertura (`POST /api/project/lock`, Admin come ogni scrittura di progetto), lo tiene vivo con un battito
+  ogni 15 s e lo lascia alla chiusura o quando la pagina se ne va (`/api/project/lock/release`, con `keepalive`).
+  Senza battiti per un minuto è libero. Chi apre un progetto preso vede chi lo ha e da quando («da te in un'altra
+  scheda» se è lo stesso utente) e sceglie: sola lettura, «Prendi il controllo» o Annulla, che lo richiude. In sola
+  lettura una barra lo dice, con «Prendi il controllo» (conferma, poi la pagina si ricarica sul progetto com'è);
+  `saveAll` non parte. La scheda a cui è stato preso lo scopre al battito dopo, con un avviso, e passa in sola
+  lettura. Il server lo fa rispettare con un middleware (`guard_project_lock`, le rotte di
+  `rotta_bloccata_in_prova` più l'entrata in prova git): 423 con `x-sws-conflitto: lock`, che l'IDE traduce in
+  `ProjectLockedError`. L'identificativo della scheda viaggia in `X-SWS-Tab` (in `sessionStorage`, così una
+  ricarica resta la stessa scheda); una richiesta senza (script, `curl`, viewer) passa come prima. La barra d'avviso
+  senza ✕ (`onChiudi` facoltativo in `BarraAvviso`). Le proposte dell'assistente passano dai salvataggi del
+  browser, quindi dal lock anche loro.
 - **«Salva come…» e il repository git** (ramo `feat/save-as-git`, piano
   `docs/plans/2026-11-21-lock-salva-come-sorgenti-sandbox.md`). La copia si portava dietro `.git` intero: `origin`, il
   ramo e la chiave del progetto, e un Push dalla copia pubblicava sul repository dell'originale. Ora, se il progetto

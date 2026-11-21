@@ -714,7 +714,22 @@ export interface UpdateUserBody {
 function authHeaders(extra?: HeadersInit): Headers {
   const headers = new Headers(extra);
   if (getAuthToken()) headers.set("Authorization", `Bearer ${getAuthToken()}`);
+  if (LOCK_TAB) headers.set("X-SWS-Tab", LOCK_TAB);
   return headers;
+}
+
+/** The project lock (21-11-2026): the id of this IDE tab, sent on every
+ *  request once the IDE has a project open. `null` = not sent (the viewer,
+ *  scripts), and the server lets the request through as before. */
+let LOCK_TAB: string | null = null;
+export function setLockTab(tab: string | null) { LOCK_TAB = tab; }
+
+/** Who holds the project lock, as `POST /api/project/lock` says it. */
+export interface LockHolder { user: string | null; since_ms: number; same_user: boolean }
+
+/** A project write refused because another IDE tab holds the lock (423). */
+export class ProjectLockedError extends Error {
+  constructor() { super(i18n.t("projectLock.writeRefused")); this.name = "ProjectLockedError"; }
 }
 
 /** Q30: la versione di `project.yaml` da cui vengono i dati che abbiamo in mano.
@@ -904,6 +919,7 @@ export interface AnteprimaCron {
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers);
   if (TOKEN) headers.set("Authorization", `Bearer ${TOKEN}`);
+  if (LOCK_TAB) headers.set("X-SWS-Tab", LOCK_TAB);
   // Un corpo senza tipo dichiarato: axum risponde **415** e la chiamata
   // fallisce per un motivo che non c'entra niente con ciò che si stava
   // facendo. È successo il 15-09-2026 alla prima prova della traduzione
@@ -942,6 +958,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     // torna a esistere è un file nuovo, non quello di prima.
     if (et) VERSIONI_FILE.set(chiave, et.replace(/"/g, ""));
     else if (init?.method === "DELETE") VERSIONI_FILE.delete(chiave);
+  }
+  if (res.status === 423 && res.headers.get("x-sws-conflitto") === "lock") {
+    throw new ProjectLockedError();
   }
   if (res.status === 409 && res.headers.get("x-sws-conflitto") === "versione") {
     let testo = "";
@@ -2972,6 +2991,27 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ bot_token: botToken }),
     }),
+
+  /** Claim the project lock for this tab, or keep it alive (21-11-2026). */
+  projectLock: (tab: string, take = false) =>
+    request<{ held: boolean; holder?: LockHolder }>("/api/project/lock", {
+      method: "POST", body: JSON.stringify({ tab, take }),
+    }),
+
+  releaseProjectLock: (tab: string) =>
+    request<void>("/api/project/lock/release", { method: "POST", body: JSON.stringify({ tab }) }),
+
+  /** The same release when the page goes away: `keepalive` outlives it, and
+   *  unlike `sendBeacon` it carries the token. */
+  releaseProjectLockOnExit: (tab: string) => {
+    try {
+      void fetch(`${getBaseUrl()}/api/project/lock/release`, {
+        method: "POST", keepalive: true,
+        headers: authHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ tab }),
+      }).catch(() => {});
+    } catch { /* the page is going away anyway */ }
+  },
 
   getGitStatus: () =>
     request<import("../types").GitStatus>("/api/project/git-status"),

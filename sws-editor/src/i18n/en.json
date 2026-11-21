@@ -5821,5 +5821,16 @@
       "go": "Upload",
       "failed": "Upload failed: {{err}}"
     }
+  },
+  "projectLock": {
+    "busy": "This project has been open by {{user}} for {{minutes}} minutes.",
+    "busySameUser": "This project has been open by you in another tab for {{minutes}} minutes.",
+    "someone": "another user",
+    "openReadOnly": "Open read-only",
+    "takeControl": "Take control",
+    "takeConfirm": "The other tab becomes read-only and its unsaved changes can no longer be saved. The page reloads to show you the project as it is now. Go ahead?",
+    "readOnlyBanner": "Read-only: the project is open by {{user}}. Changes are not saved.",
+    "taken": "{{user}} took control of the project: this tab is now read-only, and its unsaved changes can no longer be saved.",
+    "writeRefused": "The project is being edited in another tab: this one is read-only. To edit it use «Take control»."
   }
 }

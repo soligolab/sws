@@ -242,6 +242,8 @@ pub struct AppState {
     /// processo serve un progetto alla volta, e serializzare due progetti
     /// diversi non costa niente di percepibile.
     pub project_write_lock: Arc<tokio::sync::Mutex<()>>,
+    /// Which IDE tab may write each project (21-11-2026): see `project_lock.rs`.
+    pub project_lock: Arc<crate::project_lock::ProjectLock>,
 }
 
 impl AppState {
@@ -476,6 +478,7 @@ pub fn build(
         project_switch_lock: Arc::new(tokio::sync::Mutex::new(())),
         deploy_lock: Arc::new(tokio::sync::Mutex::new(())),
         project_write_lock: Arc::new(tokio::sync::Mutex::new(())),
+        project_lock: Arc::new(crate::project_lock::ProjectLock::new()),
     };
     // Build the runtime router (7443) before consuming state for admin.
     let runtime_app = build_runtime_inner(state.clone(), www_dir.clone());
@@ -554,6 +557,10 @@ pub fn build(
         )
         // The panel the project remembers (plan of 20-11-2026, device per project).
         .route("/api/project/last-device", put(update_project_last_device))
+        // The project lock (21-11-2026): Admin like every project write, since
+        // it is the right to write that it hands out.
+        .route("/api/project/lock", post(project_lock_claim))
+        .route("/api/project/lock/release", post(project_lock_release))
         // T-58 — il motore di rendering del progetto. Fino all'11-09-2026 si
         // sceglieva solo alla creazione e poi si cambiava editando
         // `project.yaml` a mano, con una trappola: il runtime riscrive il file
@@ -1833,6 +1840,12 @@ pub fn build(
     app = app.layer(middleware::from_fn_with_state(
         state.clone(),
         blocca_in_prova,
+    ));
+    // The project lock (21-11-2026): a project write from an IDE tab that
+    // does not hold it stops here, in one place like the trial above.
+    app = app.layer(middleware::from_fn_with_state(
+        state.clone(),
+        guard_project_lock,
     ));
 
     // HTTP request counter — applied to every route, identifies the matched
@@ -12224,6 +12237,95 @@ async fn update_project_pannello(
     res
 }
 
+#[derive(Debug, serde::Deserialize)]
+struct LockBody {
+    tab: String,
+    /// Take the lock from the tab that holds it.
+    #[serde(default)]
+    take: bool,
+}
+
+/// A tab id as the IDE makes them: short, letters, digits and dashes.
+fn tab_id_ok(tab: &str) -> bool {
+    !tab.is_empty() && tab.len() <= 64 && tab.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
+}
+
+/// The key of the open project's lock: its folder.
+async fn lock_key(s: &AppState) -> Option<String> {
+    s.project_dir
+        .read()
+        .await
+        .as_ref()
+        .map(|d| d.to_string_lossy().to_string())
+}
+
+/// `POST /api/project/lock` — claim the lock of the open project, or keep it
+/// alive (the heartbeat). Body `{tab, take}`; answer `{held, holder?}`.
+async fn project_lock_claim(
+    State(s): State<AppState>,
+    user: Option<Extension<AuthUser>>,
+    Json(body): Json<LockBody>,
+) -> Response {
+    if !tab_id_ok(&body.tab) {
+        return (StatusCode::BAD_REQUEST, "invalid tab id").into_response();
+    }
+    let Some(key) = lock_key(&s).await else {
+        return (StatusCode::SERVICE_UNAVAILABLE, "no active project").into_response();
+    };
+    let user = user.map(|Extension(u)| u.username);
+    let claim = s.project_lock.claim(
+        &key,
+        &body.tab,
+        user.as_deref(),
+        body.take,
+        std::time::Instant::now(),
+        sws_core::now_ms(),
+    );
+    if body.take {
+        info!(project = %key, user = ?user, "project lock: control taken");
+    }
+    Json(claim).into_response()
+}
+
+/// `POST /api/project/lock/release` — the tab lets the lock go.
+async fn project_lock_release(State(s): State<AppState>, Json(body): Json<LockBody>) -> Response {
+    if let Some(key) = lock_key(&s).await {
+        s.project_lock.release(&key, &body.tab);
+    }
+    StatusCode::NO_CONTENT.into_response()
+}
+
+/// A project write from a tab that does not hold the lock: 423. Requests
+/// without the tab header pass, as without `If-Match`.
+async fn guard_project_lock(State(s): State<AppState>, req: Request, next: Next) -> Response {
+    let write = !matches!(
+        *req.method(),
+        axum::http::Method::GET | axum::http::Method::HEAD | axum::http::Method::OPTIONS
+    );
+    if write && crate::project_lock::route_needs_lock(req.uri().path()) {
+        let tab = req
+            .headers()
+            .get(crate::project_lock::TAB_HEADER)
+            .and_then(|v| v.to_str().ok())
+            .map(str::to_string);
+        if let (Some(tab), Some(key)) = (tab, lock_key(&s).await) {
+            if !s.project_lock.may_write(&key, &tab, std::time::Instant::now()) {
+                let mut r = (
+                    StatusCode::LOCKED,
+                    "the project is being edited in another IDE tab: this one is read-only",
+                )
+                    .into_response();
+                r.headers_mut().insert(
+                    "x-sws-conflitto",
+                    axum::http::HeaderValue::from_static("lock"),
+                );
+                return r;
+            }
+        }
+    }
+    next.run(req).await
+}
+
 /// `PUT /api/project/last-device` — the panel this project was last connected
 /// to (plan `docs/plans/2026-11-20-dispositivo-ricordato-per-progetto.md`).
 /// Body `{url, username}`, or `null` to forget it. Never a password.
@@ -15901,5 +16003,91 @@ mod prove_immagini_progetto {
         let dir = s.project_dir.read().await.clone().unwrap();
         assert!(!images_dir_at(&dir).join("a.png").exists());
         assert!(images_dir_at(&dir).join("c.png").exists());
+    }
+}
+
+#[cfg(test)]
+mod project_lock_on_the_router {
+    use super::*;
+
+    /// 21-11-2026: the lock through the real IDE router — claim, refuse a
+    /// write from the other tab, let a request without a tab pass, take
+    /// control.
+    #[tokio::test]
+    async fn a_tab_without_the_lock_cannot_write_the_project() {
+        let dir = tempfile::tempdir().unwrap();
+        let progetto = dir.path().join("prova");
+        std::fs::create_dir_all(&progetto).unwrap();
+        std::fs::write(
+            progetto.join("project.yaml"),
+            "meta:\n  name: prova\n  version: \"1\"\ntags: []\n",
+        )
+        .unwrap();
+        let (_, ide, s) = build_di_prova(dir.path(), None, None).await;
+        *s.project_dir.write().await = Some(progetto.clone());
+        s.auth
+            .swap_store(dir.path().join("users.yaml"), Vec::new())
+            .await
+            .unwrap();
+        s.auth
+            .create_user(sws_auth::CreateUser {
+                username: "mauro".into(),
+                password: "a-long-password-1".into(),
+                role: sws_auth::Role::Admin,
+                must_change_password: false,
+                allowed_zones: vec![],
+            })
+            .await
+            .unwrap();
+        let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base = format!("http://127.0.0.1:{}", l.local_addr().unwrap().port());
+        tokio::spawn(async move { axum::serve(l, ide).await.unwrap() });
+        let c = reqwest::Client::new();
+        let login: serde_json::Value = c
+            .post(format!("{base}/api/auth/login"))
+            .json(&serde_json::json!({"username": "mauro", "password": "a-long-password-1"}))
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        let token = login["token"].as_str().unwrap().to_string();
+        let claim = |tab: &'static str, take: bool| {
+            c.post(format!("{base}/api/project/lock"))
+                .bearer_auth(&token)
+                .json(&serde_json::json!({ "tab": tab, "take": take }))
+                .send()
+        };
+        let save = |tab: Option<&'static str>| {
+            let mut r = c
+                .put(format!("{base}/api/project/tags"))
+                .bearer_auth(&token)
+                .json(&serde_json::json!([]));
+            if let Some(t) = tab {
+                r = r.header(crate::project_lock::TAB_HEADER, t);
+            }
+            r.send()
+        };
+
+        let r = claim("tab-a", false).await.unwrap();
+        let st = r.status();
+        let a: serde_json::Value = serde_json::from_str(&r.text().await.unwrap()).unwrap_or_else(|e| panic!("{st}: {e}"));
+        assert_eq!(a["held"], true, "{st}: {a}");
+        let b: serde_json::Value = claim("tab-b", false).await.unwrap().json().await.unwrap();
+        assert_eq!(b["held"], false);
+        assert!(b["holder"]["since_ms"].as_u64().is_some(), "{b}");
+
+        let refused = save(Some("tab-b")).await.unwrap();
+        assert_eq!(refused.status(), StatusCode::LOCKED);
+        assert_eq!(refused.headers()["x-sws-conflitto"], "lock");
+        assert!(save(Some("tab-a")).await.unwrap().status().is_success());
+        assert!(save(None).await.unwrap().status().is_success(), "no tab header: as before");
+
+        let taken: serde_json::Value = claim("tab-b", true).await.unwrap().json().await.unwrap();
+        assert_eq!(taken["held"], true);
+        assert_eq!(save(Some("tab-a")).await.unwrap().status(), StatusCode::LOCKED);
+        let a: serde_json::Value = claim("tab-a", false).await.unwrap().json().await.unwrap();
+        assert_eq!(a["held"], false, "the old holder learns it at its heartbeat");
     }
 }

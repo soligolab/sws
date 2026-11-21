@@ -7,6 +7,11 @@
 > **Quando questo lavoro comincia, il primo passo è una sessione di plan approfondita** per
 > decidere ogni dettaglio: qui c'è la domanda e le misure di oggi, non un progetto.
 
+> **Aggiornamento del 21-11-2026.** Il maintainer ha scelto il **lock** (strada 2): fatto nel piano
+> [lock, Salva come, sorgenti, sandbox](../2026-11-21-lock-salva-come-sorgenti-sandbox.md), ramo `feat/project-lock`:
+> lock per scheda con battito, scadenza di un minuto, sola lettura o «Prendi il controllo». La strada 3 c'era già
+> (Q30, `If-Match` su ogni salvataggio). Resta la presenza (strada 1), se servirà.
+
 ## Cosa c'è oggi, misurato
 
 **Nessun lock di utente.** I tre `Mutex` del runtime — `project_write_lock`,

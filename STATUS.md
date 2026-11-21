@@ -12,10 +12,25 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — quattro rami annidati da collaudare (2026-11-20 notte, `ufficio`)
+## ▶ Riprendere da qui — otto rami annidati da collaudare (2026-11-21 notte, `ufficio`)
 
-**Niente è in `main`.** Quattro rami, uno sull'altro, **non pushati**; il maintainer li prova il 21-11 e poi si
-squashano in ordine:
+**Niente è in `main`.** Otto rami, uno sull'altro, **non pushati**: i quattro del 20-11 qui sotto, poi i quattro del
+«gruppo 1» (i difetti che possono far perdere lavoro), scelti dal maintainer la sera del 21-11 con una sessione di
+plan breve ([piano](docs/plans/2026-11-21-lock-salva-come-sorgenti-sandbox.md)). Si squashano in ordine dopo il
+collaudo. Il gruppo 1, dal basso:
+5. `fix/sandbox-small` — negli script le costanti di primo livello si vedono nei `def`, `f(*a, **k)` va sul
+   pannello, il `print` di un giro fallito arriva nel registro, un parametro non può coprire `state`/`tags`/`_…`;
+6. `feat/source-enabled` — «Attiva» su ogni sorgente (spenta: tag Bad, `.disponibile` falso); «Giri di tolleranza»
+   su Modbus TCP e RTU (una risposta persa lascia l'ultimo valore, incerto);
+7. `feat/save-as-git` — «Salva come…» su un repository chiede: ramo nuovo, repository nuovo o nessuno;
+8. `feat/project-lock` — **il lock del progetto**: una scheda alla volta scrive; la seconda vede chi e da quando e
+   sceglie sola lettura / «Prendi il controllo» / Annulla; battito ogni 15 s, libero dopo un minuto; il server
+   risponde 423 alle scritture di una scheda senza lock.
+
+Poi si passa al **gruppo 2** (deciso dal maintainer: «partiamo dal gruppo 1, poi una volta fatto passiamo al 2»):
+editor dei simboli fasi 3, 7, 8 e P6 (2FA e LDAP), ognuno con la sua sessione di plan.
+
+I quattro del 20-11, dal basso:
 1. `fix/symbol-editor-close-dialog` — chiudere l'editor dei simboli con modifiche non salvate: Annulla | Esci senza
    salvare | Salva e chiudi (con errori nel simbolo, niente «Salva»);
 2. `chore/novita-no-limit-in-rc` — **regola nuova**: finché la versione è una `-rc` nessun limite di voci in
@@ -37,7 +52,19 @@ verde su ogni ramo tranne la conferma del maintainer.
 - IA sui campi: un tag calcolato, λ → scintilla → «la RAM in MB con due decimali»: la domanda kB/KiB, poi espressione,
   unità, decimali come prima → dopo, «Applica», Salva. Lo stesso col campo «Formato» di un testo legato a un tag. Con
   Ollama in Configurazione → IA → «IA sui campi»;
-- rileggere le dodici voci recuperate di `NOVITA.yaml` 2.26.0.
+- rileggere le dodici voci recuperate di `NOVITA.yaml` 2.26.0;
+- **gruppo 1** (stesso IDE, ramo in cima `feat/project-lock`):
+  - lock: due schede (o due browser) sullo stesso progetto → la seconda vede «aperto da … da N minuti» → sola
+    lettura: barra in alto, Salva non salva → «Prendi il controllo» → la prima scheda, entro 15 s, avvisa e passa in
+    sola lettura. Chiudere la scheda che lo tiene: dopo un minuto il progetto è libero. Una ricarica della stessa
+    scheda non si vede come «un'altra scheda». Anche nel cloud, due browser su CasaDomotica;
+  - «Salva come…» su un progetto con repository: la domanda; «ramo nuovo» → scheda Git sul ramo, Push che lo
+    pubblica; «repository nuovo» → nessun remoto; «nessuno» → niente scheda Git;
+  - sorgenti: «Attiva» tolto su una sorgente → «spenta» in testata, tag Bad, `<id>.disponibile` falso; riattivata
+    riparte. Modbus con «Giri di tolleranza» 3: staccando il dispositivo i tag restano col valore, incerti, per tre
+    giri, poi Bad;
+  - script: una costante in cima usata in un `def`; `f(*lista)`; un `print` prima di un errore nel registro; un
+    parametro chiamato `state` rifiutato al salvataggio.
 
 **Rimandato, col maintainer**: il bug «Later» al cambio password (seme
 `docs/plans/semi/2026-11-15-cambio-password-later-errore.md`). Nell'IDE il codice non lo spiega (con la vecchia
@@ -45,7 +72,8 @@ password vuota l'invio è disabilitato, «Più tardi» non legge i campi): va ri
 cambiare la password, cioè toccando gli utenti del pannello — non fatto di notte senza di lui.
 
 **Dopo il merge**: CasaDomotica (regola di `CLAUDE.md`): un tag con l'espressione scritta con la scintilla; il
-`last_device` arriva da solo al primo collegamento.
+`last_device` arriva da solo al primo collegamento; «Giri di tolleranza» 3 sulla sorgente Solarman dell'inverter. Il
+lock e «Salva come…» non hanno un posto nell'impianto: sono funzioni dell'IDE.
 
 ## Sessione precedente — la rc.22 costruita e nel cloud; elitedesk pronta come seconda macchina di lavoro (2026-11-20 sera, theobroma)
 

@@ -5821,5 +5821,16 @@
       "go": "Carica",
       "failed": "Caricamento non riuscito: {{err}}"
     }
+  },
+  "projectLock": {
+    "busy": "Questo progetto è aperto da {{user}} da {{minutes}} minuti.",
+    "busySameUser": "Questo progetto è aperto da te in un'altra scheda da {{minutes}} minuti.",
+    "someone": "un altro utente",
+    "openReadOnly": "Apri in sola lettura",
+    "takeControl": "Prendi il controllo",
+    "takeConfirm": "L'altra scheda passa in sola lettura e le sue modifiche non salvate non si potranno più salvare. La pagina si ricarica per mostrarti il progetto com'è adesso. Procedo?",
+    "readOnlyBanner": "Sola lettura: il progetto è aperto da {{user}}. Le modifiche non si salvano.",
+    "taken": "{{user}} ha preso il controllo del progetto: questa scheda ora è in sola lettura, e le modifiche non salvate non si possono più salvare.",
+    "writeRefused": "Il progetto è aperto in modifica in un'altra scheda: questa è in sola lettura. Per modificarlo usa «Prendi il controllo»."
   }
 }

@@ -29,7 +29,9 @@ export function BarraAvviso({ tono, icona, children, stileBottone, ricarica, onR
   /** Cosa fa il pulsante. Senza, ricarica subito la pagina — che butta via il
    *  lavoro non salvato: chi ha modifiche in sospeso passa un gestore che chiede. */
   onRicarica?: () => void;
-  onChiudi: () => void;
+  /** Without it there is no ✕: a bar that states a condition (read-only,
+   *  21-11-2026) and goes away only when the condition does. */
+  onChiudi?: () => void;
   titoloChiudi?: string;
   /** Barre d'errore delle finestre staccate: un filo più basse. */
   compatta?: boolean;
@@ -51,15 +53,17 @@ export function BarraAvviso({ tono, icona, children, stileBottone, ricarica, onR
           {ricarica}
         </button>
       )}
-      <button
-        style={compatta
-          ? { ...stileBottone, padding: "2px 8px" }
-          : { ...stileBottone, background: "transparent", color: c.testo, border: "none" }}
-        onClick={onChiudi}
-        title={titoloChiudi}
-      >
-        ✕
-      </button>
+      {onChiudi && (
+        <button
+          style={compatta
+            ? { ...stileBottone, padding: "2px 8px" }
+            : { ...stileBottone, background: "transparent", color: c.testo, border: "none" }}
+          onClick={onChiudi}
+          title={titoloChiudi}
+        >
+          ✕
+        </button>
+      )}
     </div>
   );
 }

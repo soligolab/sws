@@ -16,6 +16,10 @@
 > espressioni (`EVAL_HARNESS` in `sws-runtime/crates/sws-pyscript/src/lib.rs`), solo compilando, come `Engine::check`
 > fa per gli script.
 
+> **Aggiornamento del 21-11-2026.** C1, C2, C3 e A3 sono fatti nel piano
+> [lock, Salva come, sorgenti, sandbox](../2026-11-21-lock-salva-come-sorgenti-sandbox.md), ramo `fix/sandbox-small`.
+> Restano A4, A5, B2, il controllo delle espressioni nell'IDE e il debug passo-passo.
+
 ## Da dove nasce
 
 La sessione L0 del piano [Logica unificata](../../archive/2026-11-04-logica-unificata.md) (ramo `fix/sandbox-python`,

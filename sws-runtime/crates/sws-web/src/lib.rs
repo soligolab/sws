@@ -40,6 +40,7 @@ pub mod packaging;
 pub mod planimetrie;
 pub mod power_fail;
 pub mod prestazioni;
+pub mod project_lock;
 pub mod project_registry;
 pub mod projects;
 pub mod quadlet;

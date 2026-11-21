@@ -7,6 +7,11 @@
 > approfondita e dedicata, per sviscerarne tutti i dettagli. Qui ci sono l'idea del maintainer e le
 > misure sul codice del 10-11-2026, non un progetto.
 
+> **Aggiornamento del 21-11-2026.** Le tre scelte (ramo nuovo, repository nuovo, nessuno) sono fatte nel piano
+> [lock, Salva come, sorgenti, sandbox](../2026-11-21-lock-salva-come-sorgenti-sandbox.md), ramo `feat/save-as-git`.
+> Resta qui **portare le differenze fra rami** (merge o cherry-pick dalla scheda Git, conflitti senza terminale) e la
+> scelta del ramo sul pannello al deploy.
+
 ## Cosa ha scritto il maintainer
 
 Il punto è in prima persona. Lo riporto intero; ho corretto solo due refusi («ritorovo» → «ritrovo»,

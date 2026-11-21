@@ -69,6 +69,7 @@ import { useMarchioDellAzienda } from "@/branding/perAzienda";
 import { conferma, modulo, scegli } from "@/finestraAvviso/finestraAvviso";
 import { Icona } from "@/components/Icona";
 import { useDeviceMemory } from "@/config/deviceMemory";
+import { useProjectLock, takeControl } from "@/projectLock/projectLock";
 
 // Port 7444 — full IDE (canvas editor + ConfigView + project management).
 // Served via admin-main.tsx which calls setForceLocalApi(true) before render.
@@ -764,6 +765,17 @@ export function App() {
     setNoActiveProject(true);
   };
 
+  // The project lock (21-11-2026): claimed while a project is open in this
+  // tab; «Cancel» on a project someone else holds closes it again.
+  const lockReadOnly = useAppStore((s) => s.lockReadOnly);
+  // Only this tab leaves: `executeClose` would close the project on the
+  // runtime, that is under the tab that holds the lock too.
+  useProjectLock(project ? project.meta.name : null, () => {
+    if (tornaAllaRadiceSeNelCloud()) return;
+    resetProjectState();
+    setNoActiveProject(true);
+  });
+
   // «Ricarica» delle barre d'avviso: con modifiche non salvate chiede prima —
   // ricaricare le butta via (20-09-2026: una pagina appena creata sparì così).
   const executeReload = () => {
@@ -1131,6 +1143,13 @@ export function App() {
           nel secondo caso c'è una modifica appena rifiutata di cui rendere
           conto. */}
       <BannerProvaGit stileBottone={HDR_BTN} />
+
+      {lockReadOnly && (
+          <BarraAvviso tono="attenzione" icona="🔒" stileBottone={HDR_BTN}
+            ricarica={t("projectLock.takeControl")} onRicarica={() => void takeControl()}>
+            {t("projectLock.readOnlyBanner", { user: lockReadOnly.user ?? t("projectLock.someone") })}
+          </BarraAvviso>
+        )}
 
       {(projectChangedOutside || saveConflict) && (
           <BarraAvviso tono="attenzione" icona="⟳" stileBottone={HDR_BTN}
