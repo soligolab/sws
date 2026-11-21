@@ -638,6 +638,14 @@ pub enum PezzoStrato {
         bitmap: BitmapStrato,
         halo: Option<BitmapStrato>,
     },
+    /// A moving effect (bubbles, smoke, flame): its frames over one period,
+    /// all in the same box, shown in turn while the input is true.
+    Effetto {
+        id: String,
+        fotogrammi: Vec<Vec<u8>>,
+        dove: Ritaglio,
+        period_ms: f64,
+    },
 }
 
 /// The SVG of a layer's halo: its shapes blurred by `radius` (viewBox units),
@@ -780,6 +788,47 @@ pub fn prepara_con_foto(
         let parte = s.parts.iter().find(|p| p.id() == id);
         let svg1 = svg_di_strato(&d.testa, markup, None);
         match parte {
+            // The moving effects (plan 2026-11-21-simboli-fase-8-effetti): the
+            // layer's own shapes still, the effect in frames over them.
+            Some(p) if sws_core::symbol_fx::fx_box(p).is_some() => {
+                if let Some(b) = rasterizza(&svg1, q, None) {
+                    out.push(PezzoStrato::Fermo(b));
+                }
+                let (x, y, w, h) = sws_core::symbol_fx::fx_box(p).expect("checked");
+                let a = in_pixel(s.view_box, q, x, y);
+                let b = in_pixel(s.view_box, q, x + w, y + h);
+                let pts = [
+                    resvg::tiny_skia::Point::from_xy(a.0, a.1),
+                    resvg::tiny_skia::Point::from_xy(b.0, b.1),
+                ];
+                let Some(dove) = svg_raster::ritaglio_di(&pts, q.w, q.h) else {
+                    continue;
+                };
+                let per_frame = crate::pixel::alpha_buffer_len(dove.w as usize, dove.h as usize);
+                let n = frames_in_budget(sws_core::symbol_fx::FX_FRAMES, per_frame);
+                if !anim_take(n * per_frame) {
+                    eprintln!(
+                        "[simboli-lib] {}/{id}: the effect stays out, the animation budget of the page is full",
+                        s.id
+                    );
+                    continue;
+                }
+                let fotogrammi: Vec<Vec<u8>> = (0..n)
+                    .filter_map(|k| {
+                        let el = sws_core::symbol_fx::fx_elements(p, k as f64 / n as f64)?;
+                        let svgk = format!("{}<g>{el}</g>\n</svg>\n", d.testa);
+                        rasterizza(&svgk, q, Some(dove)).map(|b| b.buf)
+                    })
+                    .collect();
+                if fotogrammi.len() == n {
+                    out.push(PezzoStrato::Effetto {
+                        id: id.clone(),
+                        fotogrammi,
+                        dove,
+                        period_ms: sws_core::symbol_fx::fx_period_ms(p).unwrap_or(2000.0),
+                    });
+                }
+            }
             Some(ParteLib::Rotor {
                 cx,
                 cy,
@@ -1141,6 +1190,32 @@ mod tests {
         let x = halo.dove.w / 2;
         assert!(alpha_at(x, y) > 0, "the halo spreads above the shape");
         assert!(svg_alone("<svg>", "<g/>", [120.0, 100.0], 5.0, None).contains("in=\"SourceGraphic\" stdDeviation=\"5\""));
+    }
+
+    /// The moving effects (plan 2026-11-21-simboli-fase-8-effetti): frames in
+    /// the effect's box, all different, none of them empty.
+    #[test]
+    fn an_effect_has_its_frames() {
+        let d: sws_core::simboli_prj::Descrizione = serde_json::from_str(include_str!(
+            "../../../../tests/fixtures/simboli-prj/effects.json"
+        ))
+        .unwrap();
+        let c = sws_core::simboli_prj::compila_e_controlla(&d).unwrap_or_else(|e| panic!("{e:?}"));
+        let s = c.simbolo().unwrap();
+        let m = manifesto_incluso();
+        let q = Quadro { w: 240, h: 200, flip_h: false, flip_v: false };
+        let p = prepara(&s, &c.svg, q, &stile_del_disegno(&m, None));
+        let Some(PezzoStrato::Effetto { fotogrammi, dove, period_ms, id }) =
+            p.strati.iter().find(|x| matches!(x, PezzoStrato::Effetto { .. }))
+        else {
+            panic!("the bubbles")
+        };
+        assert_eq!(id, "tank-bubbles");
+        assert_eq!(*period_ms, 1800.0);
+        assert_eq!(fotogrammi.len(), sws_core::symbol_fx::FX_FRAMES);
+        assert!((78..=82).contains(&dove.w) && (88..=92).contains(&dove.h), "{dove:?}");
+        assert_ne!(fotogrammi[0], fotogrammi[4]);
+        assert!(fotogrammi.iter().all(|f| f.iter().any(|b| *b != 0)));
     }
 
     #[test]

@@ -111,6 +111,21 @@ pub enum ParteLib {
         #[serde(default = "glow_radius_default")]
         radius: f64,
     },
+    /// Bubbles rising in the box `x y w h` while the input is true (plan
+    /// `2026-11-21-simboli-fase-8-effetti`); see `symbol_fx`.
+    Bubbles {
+        id: String,
+        x: f64,
+        y: f64,
+        w: f64,
+        h: f64,
+        #[serde(default)]
+        color: Option<String>,
+        #[serde(default = "bubbles_count_default")]
+        count: u32,
+        #[serde(default = "fx_period_default")]
+        period_ms: f64,
+    },
     /// A kind this binary doesn't know: a manifest written by a newer runtime.
     /// The layer is drawn still, instead of the whole manifest becoming
     /// unreadable (which turned every project symbol into a placeholder).
@@ -172,6 +187,12 @@ fn vibrate_period_default() -> f64 {
 fn depth_default() -> f64 {
     0.6
 }
+fn bubbles_count_default() -> u32 {
+    6
+}
+fn fx_period_default() -> f64 {
+    2000.0
+}
 fn glow_radius_default() -> f64 {
     4.0
 }
@@ -212,7 +233,8 @@ impl ParteLib {
             | ParteLib::Vibrate { id, .. }
             | ParteLib::Pulse { id, .. }
             | ParteLib::Signal { id, .. }
-            | ParteLib::Glow { id, .. } => id,
+            | ParteLib::Glow { id, .. }
+            | ParteLib::Bubbles { id, .. } => id,
             ParteLib::Unknown => "",
         }
     }

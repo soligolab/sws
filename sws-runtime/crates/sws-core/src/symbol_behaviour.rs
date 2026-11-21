@@ -200,7 +200,10 @@ pub fn valori_parti<'a>(
             ParteLib::Slide { .. } => {
                 ValoreParte::Frazione(fraction(num("min", 0.0), num("max", 1.0)))
             }
-            ParteLib::Vibrate { .. } | ParteLib::Pulse { .. } | ParteLib::Glow { .. } => {
+            ParteLib::Vibrate { .. }
+            | ParteLib::Pulse { .. }
+            | ParteLib::Glow { .. }
+            | ParteLib::Bubbles { .. } => {
                 ValoreParte::Active(v.map(Scalar::truthy))
             }
             ParteLib::Signal { entries, .. } => {

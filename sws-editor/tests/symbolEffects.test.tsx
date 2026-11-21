@@ -49,3 +49,28 @@ describe("the glow", () => {
     expect(valoriParti(sim.parts, { neon: { tag: "t" } }, () => 0)).toEqual({ neon: { active: false } });
   });
 });
+
+import fx from "../../tests/fixtures/symbol-fx.json";
+import { bubble, bubbleOpacity } from "../src/symbols/lib/effects";
+
+describe("the bubbles", () => {
+  it("are where the panel draws them (shared cases)", () => {
+    for (const c of fx.bubbles) {
+      const [x, y, w, h] = c.box;
+      const b = bubble(c.i, c.n, x, y, w, h);
+      [b.cx, b.cy0, b.r, b.travel].forEach((v, k) => expect(v).toBeCloseTo(c.expected[k], 6));
+    }
+    for (const [p, want] of fx.bubble_opacity) expect(bubbleOpacity(p)).toBeCloseTo(want, 9);
+  });
+
+  it("move only while the input is true and the effects are on", () => {
+    const withBubbles: SimboloLib = { ...sim, parts: [{ id: "neon", kind: "bubbles", x: 10, y: 10, w: 20, h: 60, count: 4 }] };
+    const at = (active: boolean, animate: boolean) => render(
+      <svg><SimboloLibSvg sim={withBubbles} svg={SVG} manifesto={manifesto} prefisso="b" x={0} y={0} w={120} h={100}
+        valori={{ corpo: null, gira: false, periodoS: 2, animate, parti: { neon: { active } } }} /></svg>,
+    ).container.querySelectorAll('[data-fx="bubbles"] circle').length;
+    expect(at(true, true)).toBe(4);
+    expect(at(true, false)).toBe(0);
+    expect(at(false, true)).toBe(0);
+  });
+});

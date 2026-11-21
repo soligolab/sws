@@ -202,7 +202,7 @@ pub const TIPI_PARTE: &[&str] = &[
     // The animated pieces (plan 2026-11-19-animazioni-dei-simboli).
     "slide", "vibrate", "pulse", "signal",
     // The effects (plan 2026-11-21-simboli-fase-8-effetti).
-    "glow",
+    "glow", "bubbles",
 ];
 
 /// Le forme ammesse. Sono le sole che la libreria usa, e le sole che LVGL
@@ -762,7 +762,7 @@ impl<'a> Costruzione<'a> {
                         }
                     }
                 }
-                if kind == "glow" {
+                if kind == "glow" || kind == "bubbles" {
                     if let Some(c) = geo.get("color").and_then(Value::as_str) {
                         if !colore_esadecimale(c) {
                             return Err(format!("part «{id}»: colour «{c}» is not #rgb or #rrggbb"));
@@ -787,6 +787,18 @@ impl<'a> Costruzione<'a> {
                     attributi,
                     corpo: vec![],
                 });
+                // A moving effect draws itself (`symbol_fx`): its layer
+                // holds an invisible box, so it exists and can be picked.
+                if kind == "bubbles" {
+                    let n = |k: &str| geo.get(k).and_then(Value::as_f64).unwrap_or(0.0);
+                    self.metti(format!(
+                        "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"none\" stroke=\"none\" data-fx=\"{kind}\"/>",
+                        fmt(n("x")),
+                        fmt(n("y")),
+                        fmt(n("w")),
+                        fmt(n("h"))
+                    ));
+                }
             }
             Op::Forma {
                 tag,
@@ -1243,6 +1255,28 @@ fn piece_rules(p: &crate::simboli_lib::ParteLib, w: f64, h: f64) -> Result<(), S
             between("depth", *depth, 0.05, 1.0)?;
             between("period_ms", *period_ms, MIN_PERIOD_MS, 10_000.0)
         }
+        P::Bubbles {
+            x,
+            y,
+            w: bw,
+            h: bh,
+            color,
+            count,
+            period_ms,
+            ..
+        } => {
+            if color.as_deref().is_some_and(|c| !colore_esadecimale(c)) {
+                return Err("the colour must be #rgb or #rrggbb".into());
+            }
+            fx_box_rules(*x, *y, *bw, *bh, w, h)?;
+            between("count", *count as f64, 1.0, 12.0)?;
+            between(
+                "period_ms",
+                *period_ms,
+                crate::symbol_fx::MIN_FX_PERIOD_MS,
+                crate::symbol_fx::MAX_FX_PERIOD_MS,
+            )
+        }
         P::Glow { color, radius, .. } => {
             if color.as_deref().is_some_and(|c| !colore_esadecimale(c)) {
                 return Err("the colour must be #rgb or #rrggbb".into());
@@ -1283,6 +1317,22 @@ fn piece_rules(p: &crate::simboli_lib::ParteLib, w: f64, h: f64) -> Result<(), S
             Ok(())
         }
         _ => Ok(()),
+    }
+}
+
+/// The box of a moving effect: inside the drawing, not empty.
+fn fx_box_rules(x: f64, y: f64, bw: f64, bh: f64, w: f64, h: f64) -> Result<(), String> {
+    let ok = [x, y, bw, bh].iter().all(|v| v.is_finite())
+        && bw >= 2.0
+        && bh >= 2.0
+        && x >= -1.0
+        && y >= -1.0
+        && x + bw <= w + 1.0
+        && y + bh <= h + 1.0;
+    if ok {
+        Ok(())
+    } else {
+        Err(format!("the effect's box must be inside the drawing {w}×{h}, at least 2×2"))
     }
 }
 

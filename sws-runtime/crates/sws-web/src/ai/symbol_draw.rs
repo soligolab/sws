@@ -168,6 +168,11 @@ pub(crate) fn answer_schema() -> Value {
                 &[],
             ),
             "glow" => (json!({ "color": colour, "radius": num }), &[]),
+            "bubbles" => (
+                json!({ "x": num, "y": num, "w": num, "h": num, "color": colour,
+                        "count": num, "period_ms": num }),
+                &["x", "y", "w", "h"],
+            ),
             _ => (json!({}), &[]),
         };
         let geo = json!({ "type": "object", "required": required, "properties": props });

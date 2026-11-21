@@ -41,7 +41,9 @@ export type ParteLib =
   | { id: string; kind: "signal"; color?: string; entries?: SignalEntry[] }
   /** A glow (plan 2026-11-21-simboli-fase-8-effetti): while its input is true,
    *  a blurred halo of the part's shapes, in `color` or in theirs. */
-  | { id: string; kind: "glow"; color?: string; radius?: number };
+  | { id: string; kind: "glow"; color?: string; radius?: number }
+  /** Bubbles rising in the box while the input is true (`symbol_fx.rs`, `effects.tsx`). */
+  | { id: string; kind: "bubbles"; x: number; y: number; w: number; h: number; color?: string; count?: number; period_ms?: number };
 
 export type FillDir = "up" | "down" | "left" | "right";
 

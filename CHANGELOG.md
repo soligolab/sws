@@ -12,6 +12,12 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Aggiunto
+- **Effetti nei simboli, le bollicine** (ramo `feat/symbol-fx-bubbles`, stesso piano). Parte `bubbles` (riquadro
+  `x y w h`, colore, quante, periodo), accesa dall'ingresso. Le formule stanno in `sws-core/src/symbol_fx.rs`, col
+  gemello `symbols/lib/effects.tsx` e i casi condivisi in `tests/fixtures/symbol-fx.json`. Il browser anima con SMIL
+  (`<animate>`), in continuo, solo con gli effetti accesi («Anteprima effetti» nell'editor). Il pannello disegna 16
+  fotogrammi del periodo (`PezzoStrato::Effetto`, nel budget delle animazioni) e li alterna come la girante; spenta,
+  la tela è nascosta. Lo strato di un effetto porta un riquadro invisibile (`data-fx`), così esiste anche senza forme.
 - **Effetti nei simboli, il bagliore** (ramo `feat/symbol-fx-glow`, piano `docs/plans/2026-11-21-simboli-fase-8-effetti.md`).
   Parte nuova `glow` (`ParteLib::Glow { color?, radius }`, ingresso acceso/spento come la pulsazione): mentre
   l'ingresso è vero le forme della parte hanno un alone sfocato, del colore dato o del loro. Scelte del maintainer:

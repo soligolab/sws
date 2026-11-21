@@ -14881,6 +14881,17 @@ pub struct PulseLib {
     scritto: u8,
 }
 
+/// A moving effect: its frames in turn while the input is true, hidden otherwise.
+pub struct EffettoLib {
+    canvas: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    id: String,
+    fotogrammi: Vec<Vec<u8>>,
+    dove: crate::svg_raster::Ritaglio,
+    period_ms: f64,
+    /// The frame shown; `None` = hidden.
+    ultimo: Option<usize>,
+}
+
 /// A glow: the halo under the layer, shown while the input is true.
 pub struct GlowLib {
     halo: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
@@ -14914,6 +14925,7 @@ pub struct VivoLib {
     mobili: Vec<MobileLib>,
     pulse: Vec<PulseLib>,
     glows: Vec<GlowLib>,
+    effetti: Vec<EffettoLib>,
     segnali: Vec<SignalLib>,
     /// Le parti del manifesto e i legami dell'oggetto (`symbol_parts`).
     parti: Vec<sws_core::simboli_lib::ParteLib>,
@@ -14980,6 +14992,11 @@ impl VivoLib {
                 .glows
                 .iter()
                 .flat_map(|g| g._bufs.iter().map(Vec::len))
+                .sum::<usize>()
+            + self
+                .effetti
+                .iter()
+                .flat_map(|e| e.fotogrammi.iter().map(Vec::len))
                 .sum::<usize>()
             + self
                 .segnali
@@ -15214,6 +15231,7 @@ fn render_simbolo_lib(
         mobili: Vec::new(),
         pulse: Vec::new(),
         glows: Vec::new(),
+        effetti: Vec::new(),
         segnali: Vec::new(),
         parti: sim.parts.clone(),
         legami: obj.symbol_parts.clone(),
@@ -15450,6 +15468,32 @@ fn render_simbolo_lib(
                         passo,
                         kind,
                         ultimo: base,
+                    });
+                }
+                PezzoStrato::Effetto {
+                    id,
+                    mut fotogrammi,
+                    dove,
+                    period_ms,
+                } => {
+                    let canvas = tela_lib(
+                        scatola.as_ptr(),
+                        dove.x as i32,
+                        dove.y as i32,
+                        dove,
+                        &mut fotogrammi[0],
+                    )?;
+                    lvgl_sys::lv_obj_add_flag(
+                        canvas.as_ptr(),
+                        lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t,
+                    );
+                    vivo.effetti.push(EffettoLib {
+                        canvas,
+                        id,
+                        fotogrammi,
+                        dove,
+                        period_ms,
+                        ultimo: None,
                     });
                 }
                 PezzoStrato::Glow {
@@ -15868,6 +15912,34 @@ fn aggiorna_simbolo_lib(v: &mut VivoLib, tags: &TagSnapshot) {
                 )
             };
             m.ultimo = dove;
+        }
+    }
+    for e in &mut v.effetti {
+        let on = matches!(val(&e.id), Some(ValoreParte::Active(Some(true))));
+        let want = on.then(|| {
+            let n = e.fotogrammi.len();
+            let p = e.period_ms.max(1.0);
+            (((ms as f64 % p) / p) * n as f64) as usize % n
+        });
+        if want != e.ultimo {
+            unsafe {
+                match (want, e.ultimo) {
+                    (None, _) => lvgl_sys::lv_obj_add_flag(
+                        e.canvas.as_ptr(),
+                        lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t,
+                    ),
+                    (Some(k), before) => {
+                        if before.is_none() {
+                            lvgl_sys::lv_obj_clear_flag(
+                                e.canvas.as_ptr(),
+                                lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t,
+                            );
+                        }
+                        cambia_buffer(e.canvas, e.dove, &mut e.fotogrammi[k]);
+                    }
+                }
+            }
+            e.ultimo = want;
         }
     }
     for g in &mut v.glows {

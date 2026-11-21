@@ -29,6 +29,7 @@
 <!-- RIGHE-NUOVI-SEMI -->
 | Seme | Origine | Cosa resta |
 |---|---|---|
+| [2026-11-22-funzioni-per-prodotto-di-destinazione.md](2026-11-22-funzioni-per-prodotto-di-destinazione.md) | il maintainer, 22-11-2026, durante gli effetti dei simboli: limiti per prodotto di destinazione come la «L» per LVGL | **seme — decisione** — classi di prodotto (web, pannello capace, pannello piccolo), un segno per funzione, il deploy che avvisa; la regola già decisa: le funzioni che nel browser vengono decisamente meglio si decidono caso per caso |
 | [2026-11-20-ia-sui-campi-altri-campi.md](2026-11-20-ia-sui-campi-altri-campi.md) | aprendo `feat/ai-fields`, 20-11-2026 | **seme — decisione** — l'IA sui campi per le condizioni d'allarme (livelli interi, non testo), le regole delle animazioni dei simboli e il codice Python |
 | [2026-11-20-3d-viva-nel-viewer-web.md](2026-11-20-3d-viva-nel-viewer-web.md) | il maintainer, 20-11-2026, guardando three.js: la 3D di una stanza viva nel viewer web, solo per i dispositivi grossi (niente LVGL e TY) | **seme — decisione** — un oggetto «Scena 3D» legato a una planimetria e ai dati (colori, allarmi, faceplate); three.js c'è già nell'IDE; il PNG di oggi come ripiego; quali dispositivi; prima l'editor di planimetrie completo |
 | [2026-11-18-smtp-nostro-per-le-notifiche.md](2026-11-18-smtp-nostro-per-le-notifiche.md) | appunti di una riunione del maintainer, 18-11-2026 | **seme — decisione** — servizio SMTP nostro (tipo smtp2go) per le notifiche e-mail quando il cliente non ha accesso al suo |

@@ -15,6 +15,7 @@ import type { ParteLegata } from "@/types";
 import { stileEffettivo, useStileProgetto, type SovrascrittureSimbolo, type StileSimboliProgetto } from "@/symbols/stileProgetto";
 import type { ManifestLib } from "./manifest";
 import { useHrefImmagini } from "@/canvas/ImmagineSvg";
+import { EffectSvg, isEffect } from "./effects";
 
 export interface ValoriParti {
   /** Colore del corpo (di stato); `null` = colore del materiale. */
@@ -238,11 +239,17 @@ export function SimboloLibSvg({ sim, svg, manifesto, prefisso, x, y, w, h, valor
           opacita = 0;
         }
         const glow = parte?.kind === "glow" && active === true;
+        // A moving effect (bubbles, smoke, flame) over its layer: only while
+        // its input is true and the timed effects are on.
+        const effect = parte && isEffect(parte) && active === true && !!valori.animate;
         return (
-          <g key={s.id} data-strato={s.id} style={style} data-anim={anim ? "1" : undefined} opacity={opacita}
-            visibility={visibility} filter={glow ? `url(#${prefisso}-glow-${s.id})` : undefined}
-            clipPath={parte?.kind === "level" ? `url(#${idClip(parte.id)})` : undefined}
-            dangerouslySetInnerHTML={strati[i]} />
+          <g key={s.id}>
+            <g data-strato={s.id} style={style} data-anim={anim ? "1" : undefined} opacity={opacita}
+              visibility={visibility} filter={glow ? `url(#${prefisso}-glow-${s.id})` : undefined}
+              clipPath={parte?.kind === "level" ? `url(#${idClip(parte.id)})` : undefined}
+              dangerouslySetInnerHTML={strati[i]} />
+            {effect && <EffectSvg p={parte} />}
+          </g>
         );
       })}
     </svg>
