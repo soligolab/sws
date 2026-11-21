@@ -173,7 +173,20 @@ resta 404: così un bundle che manca non torna come HTML con stato 200.
 (`10.89.0.x`): il limite di 20 richieste/s vale per tutti insieme finché non c'è l'indirizzo vero (seme «indirizzo vero
 dietro Traefik»). Si aggiorna con `scripts/manuale/pubblica.sh`.
 
-**Versione in esecuzione: `1d4d5e380-amd64` (2.26.0-rc.22)** dal 20-11-2026, 17:45: l'editor dei simboli (fasi 1 e
+**Versione in esecuzione: `e4167f8f-amd64` (2.26.0-rc.25)** dal 21-11-2026, 23:20: le anomalie del collaudo della
+rc.23 (maniglie degli angoli, simbolo nuovo con nome e misura, «Genera foto» con `gpt-image-2`, il clic sul disegno
+vecchio che faceva crollare l'IDE). La rc.24 (`32e372fb`) è stata pubblicata ma il gateway non l'ha mai fatta girare:
+si è passati direttamente alla rc.25 per non interrompere due volte il maintainer, che lavorava nell'IDE del cloud.
+Sequenza solita: `diff` fra la copia maestra e la macchina (uguali), `podman pull`, copia
+`sws-gateway.container.prima-rc25`, `sed` del commit in `Image=` e `--gateway-immagine`, `daemon-reload`, `restart
+sws-gateway`. Verificato: gateway e CasaDomotica `healthy`, radice 200, `/health` «ok», `check_gateway_immagine` verde.
+Tolta l'immagine della rc.22 (`1d4d5e380-amd64`); resta la rc.23 come ripiego.
+
+Prima: **Versione in esecuzione: `3e9e1d6c-amd64` (2.26.0-rc.23)** dal 21-11-2026 pomeriggio: i sedici rami del 20-22-11
+(gruppi 1 e 2: lock, «Salva come», sorgenti, sandbox, foto e libreria dei simboli, 2FA, LDAP, effetti). Questa riga
+mancava: la sessione di allora non aveva aggiornato il file. Copia del quadlet `.prima-rc23`.
+
+Prima: **Versione in esecuzione: `1d4d5e380-amd64` (2.26.0-rc.22)** dal 20-11-2026, 17:45: l'editor dei simboli (fasi 1 e
 2), la libreria immagini, l'assistente che chiede prima di lavorare, gli sfondi alla misura della pagina. Sequenza
 solita, nessun cambio di configurazione: `diff` fra la copia maestra e la macchina (uguali), `podman pull` dell'immagine
 nuova, copia `sws-gateway.container.prima-rc22-2026-11-20`, `sed` del commit in `Image=` e `--gateway-immagine`, `scp`,
