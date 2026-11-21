@@ -66,6 +66,8 @@ versioni:
       - it: "Le installazioni native non hanno più admin/admin: partono col codice di abbinamento. Un admin/admin rimasto va cambiato al primo accesso."
         en: "Native installations no longer have admin/admin: they start with the pairing code. An admin/admin left over must be changed at the next login."
     voci:
+      - it: "Negli script le costanti scritte in cima si vedono dentro un def, e f(*lista) e f(**diz) funzionano anche sul pannello. Il print di un giro finito in errore arriva nel registro."
+        en: "In scripts the constants written at the top are visible inside a def, and f(*list) and f(**dict) work on the panel too. The print of a run that failed reaches the log."
       # rc.22 (20-11-2026): editor dei simboli, libreria immagini, assistente. Per fare
       # posto, alcune voci di prima sono unite e accorciate: da rivedere al collaudo.
       - it: "Editor dei simboli: apri un simbolo della libreria e cambialo, o fanne uno nuovo; strumenti di disegno, bocche dei tubi, «Anima…» per i pezzi che si muovono, SVG e file .swsym da importare."

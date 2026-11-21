@@ -1593,11 +1593,9 @@ fn schema_python(sandbox_attiva: bool) -> Esito {
             "I parametri di una funzione sono **variabili globali** col loro nome \
              (`chi`, non `args['chi']`). Un parametro non passato prende il suo \
              default; senza default resta indefinito (NameError se lo si usa).",
-            "Le assegnazioni di primo livello NON si vedono dentro un `def` dello \
-             stesso script: lo script gira con `exec(codice, globali, {})`, e quelle \
-             finiscono nel dizionario locale. Dentro una funzione definita nello \
-             script, porta con te le costanti (definiscile dentro, o passale come \
-             argomenti).",
+            "Le costanti di primo livello si vedono dentro un `def` dello stesso \
+             script, come in Python normale. Non sopravvivono al giro: per ricordare \
+             un valore fra un giro e l'altro c'è `state`.",
         ],
         "vietati": [
             "`import` di qualunque modulo — niente `os`, `time`, `requests`, `math`.",
@@ -2193,8 +2191,8 @@ mod tests {
                 n.nome
             );
         }
-        // 5. I due modi in cui non è Python normale: i parametri sono globali,
-        //    e le costanti di primo livello non si vedono dentro un `def`.
+        // 5. I parametri sono globali, e le costanti di primo livello si vedono
+        //    dentro un `def` (dal 21-11-2026).
         assert!(tutto.contains("globali"), "{tutto}");
         assert!(tutto.contains("`def`"), "{tutto}");
     }

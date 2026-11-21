@@ -264,9 +264,16 @@ const DEFAULT_TIMEOUT_MS: u64 = 5_000;
 /// `+=` failed with `NameError` on every panel — and passed on a development
 /// PC, where RestrictedPython is usually missing.
 ///
-/// Top-level assignments land in the throw-away locals dict of
-/// `exec(code, globals, {})`, so a `def` in the script does not see them:
-/// `schema_python` says so, and `demo-sim` keeps its table inside the `def`.
+/// The script runs with one dict, `exec(code, globals)`, as plain Python does,
+/// so a `def` in the script sees the constants assigned at top level. Until
+/// 21-11-2026 it was `exec(code, globals, {})`: top-level names landed in a
+/// throw-away locals dict and a function defined in the script could not see
+/// them. The globals dict is built fresh for every run, so nothing the script
+/// assigns survives into the next one (`state` is for that).
+///
+/// `_apply_` (21-11-2026): RestrictedPython rewrites `f(*a)` and `f(**k)` into
+/// `_apply_(f, *a, **k)` and ships no guard for it, so both gave `NameError`
+/// on every panel — and worked on a development PC without the sandbox.
 ///
 /// Preemption: `sys.settrace` installs a per-bytecode-boundary trace function
 /// that checks `__sws_kill_switch__.is_set()`, true once the run's deadline
@@ -360,6 +367,7 @@ try:
             '_getattr_':   __sws_getattr__,
             '_getitem_':   lambda o, k: o[k],
             '_write_':     lambda x: x,
+            '_apply_':     lambda __sws_f__, *a, **k: __sws_f__(*a, **k),
             '_print_':     __SwsPrint__,
             '_getiter_':   default_guarded_getiter,
             '_iter_unpack_sequence_': guarded_iter_unpack_sequence,
@@ -415,7 +423,7 @@ try:
         sys.stdout, sys.stderr = __sws_out__, __sws_err__
         try:
             sys.settrace(__sws_trace__)
-            exec(__sws_compiled__, __sws_globals__, {})
+            exec(__sws_compiled__, __sws_globals__)
         except KeyboardInterrupt:
             __sws_error__ = 'TimeoutError: script exceeded the configured timeout (SWS_SCRIPT_TIMEOUT_MS)'
         except BaseException:
@@ -1075,7 +1083,13 @@ impl Engine {
                 }
                 Ok(out)
             }
-            Ok(Ok(Err(msg))) => {
+            Ok(Ok(Err(RunFailure { message: msg, stdout }))) => {
+                // What the script printed before failing goes to the log like
+                // the `print` of a clean run, with the same name: it is the
+                // diagnosis someone put there for this very case.
+                if !stdout.is_empty() {
+                    info!(nome = %identity, testo = %testo_per_il_log(&stdout), "print");
+                }
                 // `debug` e non `warn`: l'errore torna comunque al chiamante, e
                 // **tutti e due** i chiamanti lo mostrano già.
                 // `global_scripts::exec_once` lo registra a ERROR (strozzato per
@@ -1638,12 +1652,12 @@ fn run_in_python(
     scratch: Arc<Mutex<std::collections::HashMap<String, serde_json::Value>>>,
     functions_registry: Option<FunctionsRegistry>,
     engine_for_functions: Engine,
-) -> Result<ExecOutput, String> {
+) -> Result<ExecOutput, RunFailure> {
     // Arm the kill switch: past this instant the Python trace function raises
     // KeyboardInterrupt.
     let scadenza = Instant::now() + timeout;
 
-    Python::attach(|py| -> PyResult<ExecOutput> {
+    Python::attach(|py| -> PyResult<Result<ExecOutput, RunFailure>> {
         let handle_for_functions = handle.clone();
         let api = Py::new(py, TagApi { db, bus, handle })?;
         let notifier = Py::new(py, Notifier { tx: telegram_tx })?;
@@ -1734,17 +1748,32 @@ fn run_in_python(
             }
         });
 
-        if let Some(err) = error {
-            return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err));
+        if let Some(message) = error {
+            return Ok(Err(RunFailure { message, stdout }));
         }
 
-        Ok(ExecOutput {
+        Ok(Ok(ExecOutput {
             stdout,
             stderr,
             sandboxed: sandbox,
+        }))
+    })
+    .unwrap_or_else(|e| {
+        Err(RunFailure {
+            message: Python::attach(|py| e.value(py).to_string()),
+            stdout: String::new(),
         })
     })
-    .map_err(|e| Python::attach(|py| e.value(py).to_string()))
+}
+
+/// A run that failed, with what it printed before failing (21-11-2026).
+///
+/// Until then only the message came back, and the `print` put there to find
+/// the fault was lost in exactly the runs that went wrong.
+#[derive(Debug)]
+struct RunFailure {
+    message: String,
+    stdout: String,
 }
 
 /// Convert a `serde_json::Map` into a Python dict whose values use the
@@ -2600,6 +2629,86 @@ mod tests_sandbox_l0 {
             .await
             .expect("print non deve dare NameError");
         assert_eq!(out.stdout, "ciao 2\ndentro\n");
+    }
+
+    /// C3 (21-11-2026): a `def` sees the top-level constants, and a function
+    /// defined in the script can call another one (both were `NameError`).
+    #[tokio::test]
+    async fn a_def_sees_the_top_level_names() {
+        let (e, db) = motore();
+        let codice = "\
+SCALA = 10
+def doppio(x):
+    return x * 2
+def calcola(x):
+    return doppio(x) * SCALA
+tags.write('r', calcola(3))
+";
+        e.execute(codice.into(), "s").await.expect("the script must run");
+        assert_eq!(valore(&db, "r").await, Some(TagValue::Int(60)));
+    }
+
+    /// C3: one dict per run, built fresh, so a name assigned in one run is not
+    /// there in the next.
+    #[tokio::test]
+    async fn top_level_names_do_not_survive_the_run() {
+        let (e, db) = motore();
+        e.execute("vista = 1\n".into(), "s").await.expect("first run");
+        e.execute("try:\n    vista\n    tags.write('c', 1)\nexcept NameError:\n    tags.write('c', 2)\n".into(), "s")
+            .await
+            .expect("second run");
+        assert_eq!(valore(&db, "c").await, Some(TagValue::Int(2)));
+    }
+
+    /// C2 (21-11-2026): `f(*a)` and `f(**k)` need `_apply_` under
+    /// RestrictedPython.
+    #[tokio::test]
+    async fn star_args_and_star_kwargs_work() {
+        let (e, db) = motore();
+        let codice = "\
+def somma(a, b, c=0):
+    return a + b + c
+v = [1, 2]
+k = {'c': 4}
+tags.write('s', somma(*v, **k))
+";
+        e.execute(codice.into(), "s").await.expect("f(*a, **k) must run");
+        assert_eq!(valore(&db, "s").await, Some(TagValue::Int(7)));
+    }
+
+    /// C1 (21-11-2026): what a failed run printed comes back with the failure,
+    /// so it can reach the log.
+    #[tokio::test]
+    async fn a_failed_run_keeps_what_it_printed() {
+        let handle = Handle::current();
+        let db = Arc::new(TagDb::new(4));
+        let bus = Arc::new(TagWriteBus::new());
+        let engine = Engine::new(db.clone(), bus.clone());
+        let sandbox = engine.is_sandboxed();
+        let r = tokio::task::spawn_blocking(move || {
+            run_in_python(
+                db,
+                bus,
+                handle,
+                sandbox,
+                "print('prima')\n1 / 0\n".into(),
+                Default::default(),
+                Duration::from_secs(5),
+                None,
+                Arc::new(Mutex::new(Vec::new())),
+                0,
+                0,
+                0,
+                Arc::new(Mutex::new(Default::default())),
+                None,
+                engine,
+            )
+        })
+        .await
+        .unwrap();
+        let f = r.expect_err("1 / 0 fails");
+        assert!(f.message.contains("ZeroDivisionError"), "{}", f.message);
+        assert_eq!(f.stdout, "prima\n");
     }
 
     #[tokio::test]

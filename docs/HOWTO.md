@@ -1219,10 +1219,14 @@ default.
   rifiuta, e si scrivono `conteggi['k'] = conteggi['k'] + 1`.
 - I builtin: quelli di `safe_builtins` (`int`, `float`, `str`, `len`, `range`, `round`…) più
   `min`, `max`, `sum`, `list`, `dict`, `enumerate`, `any`, `all`, `sorted`.
-- **Le costanti di primo livello non si vedono dentro un `def`** dello stesso script: il codice
-  gira con `exec(codice, globali, {})`, e le assegnazioni di primo livello finiscono nel
-  dizionario locale. Dentro una funzione definita nello script, la costante va definita dentro o
-  passata come argomento (è il motivo per cui la tabella di `demo-sim` sta dentro `wave`).
+- **Le costanti di primo livello si vedono dentro un `def`** dello stesso script, come in Python
+  normale (dal 21-11-2026; prima il codice girava con `exec(codice, globali, {})` e non si
+  vedevano, ed è il motivo per cui la tabella di `demo-sim` sta ancora dentro `wave`). Non
+  sopravvivono al giro: un valore da ricordare fra un giro e l'altro va in `state`.
+- `f(*lista)` e `f(**diz)` funzionano anche sul pannello (dal 21-11-2026; prima davano `NameError`
+  solo lì, per la guardia `_apply_` che mancava).
+- Un parametro di funzione non può cominciare con `_` né chiamarsi come un nome pronto (`tags`,
+  `state`, `print`…): lo coprirebbe, e il salvataggio lo rifiuta.
 
 ### Cosa NON fare
 

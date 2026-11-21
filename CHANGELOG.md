@@ -11,6 +11,16 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Corretto
+- **La sandbox degli script, la parte piccola** (ramo `fix/sandbox-small`, piano
+  `docs/plans/2026-11-21-lock-salva-come-sorgenti-sandbox.md`, punti C1, C2, C3 e A3 del seme della sandbox).
+  Lo script gira con un dizionario solo (`exec(codice, globali)`), quindi un `def` vede le costanti di primo livello e
+  una funzione dello script può chiamarne un'altra; il dizionario si rifà a ogni giro, niente sopravvive. `_apply_`
+  fornito: `f(*lista)` e `f(**diz)` davano `NameError` solo sul pannello. Il `print` di un giro finito in errore o in
+  timeout arriva nel registro col nome dello script (`RunFailure` in `run_in_python`). Un parametro di funzione che
+  comincia con `_` o si chiama come un nome fornito (`state`, `tags`, `print`…) è rifiutato al salvataggio
+  (`param_name_shadows`). Testi aggiornati in `schema_python` e `docs/HOWTO.md` §15.
+
 ### Aggiunto
 - **L'IA sui campi** (piano `docs/plans/2026-11-20-ia-sui-campi.md`, ramo `feat/ai-fields`). Accanto all'espressione
   λ di un tag e al «Formato» di un oggetto c'è una piccola scintilla: si scrive cosa si vuole («la RAM in MB con due

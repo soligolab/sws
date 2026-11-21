@@ -6891,6 +6891,13 @@ async fn update_project_functions(
                 )
                     .into_response();
             }
+            if let Some(why) = param_name_shadows(&p.name) {
+                return (
+                    StatusCode::UNPROCESSABLE_ENTITY,
+                    format!("function '{}': param '{}' {why}", f.name, p.name),
+                )
+                    .into_response();
+            }
         }
     }
 
@@ -8018,6 +8025,37 @@ fn is_valid_python_identifier(s: &str) -> bool {
         "try", "while", "with", "yield", "match", "case",
     ];
     !KEYWORDS.contains(&s)
+}
+
+/// Why a parameter name would cover something the sandbox puts in the globals,
+/// or `None` when it is fine (21-11-2026, sandbox seed A3).
+///
+/// Parameters enter the globals after the guards and the provided names, so a
+/// parameter called `_print_` or `state` replaced them for that function: its
+/// `print` stopped working, or `state.set` hit a number.
+fn param_name_shadows(name: &str) -> Option<&'static str> {
+    if name.starts_with('_') {
+        return Some("starts with '_', which the sandbox keeps for its own names");
+    }
+    if sws_pyscript::NOMI_FORNITI.iter().any(|n| n.nome == name) {
+        return Some("has the name of something every script already gets (tags, state, print…)");
+    }
+    None
+}
+
+#[cfg(test)]
+mod tests_param_names {
+    use super::param_name_shadows;
+
+    #[test]
+    fn a_param_cannot_cover_a_guard_or_a_provided_name() {
+        for bad in ["_print_", "__builtins__", "_x", "state", "tags", "print", "functions"] {
+            assert!(param_name_shadows(bad).is_some(), "{bad}");
+        }
+        for good in ["chi", "valore", "x_1", "states", "tag"] {
+            assert!(param_name_shadows(good).is_none(), "{good}");
+        }
+    }
 }
 
 // ── Synoptic endpoints ───────────────────────────────────────────────────────
