@@ -12,6 +12,7 @@ import { rispondi } from "../src/finestraAvviso/finestraAvviso";
 import { impostaLibreriaPerTest } from "../src/symbols/lib/libreria";
 import type { ManifestLib } from "../src/symbols/lib/manifest";
 import { SymbolEditorHost } from "../src/symbols/editor/SymbolEditor";
+import { SymbolEditorBoundary } from "../src/symbols/editor/SymbolEditorBoundary";
 import { openNewSymbol, openSymbolEditorFor } from "../src/symbols/editor/open";
 import { openBlankSymbol } from "./openBlankSymbol";
 import { newEllipse, newRect, type Op } from "../src/symbols/editor/model";
@@ -324,11 +325,38 @@ ${(d.ops as Op[]).map((op, i) => (op.op === "forma"
       await resize("00", [24, 7], { x: "24", y: "7", width: "12", height: "15" });
       await resize("10", [41, 3], { x: "24", y: "3", width: "17", height: "19" });
       await resize("01", [27, 33], { x: "27", y: "3", width: "14", height: "30" });
+
+      // Test of 2.26.0-rc.23 (21-11-2026): the last shape of the body deleted,
+      // the description does not compile and the canvas kept the last drawing;
+      // a click on a shape that was no longer there crashed the whole IDE.
+      act(() => { fireEvent.keyDown(window, { key: "a", ctrlKey: true }); });
+      act(() => { fireEvent.keyDown(window, { key: "Delete" }); });
+      await waitFor(() => expect(screen.getByTestId("symbol-editor-empty")).toBeTruthy());
+      // No drawing left on the canvas, and a click there picks nothing.
+      expect(document.querySelector('[data-op="1"]')).toBeNull();
+      fireEvent.pointerDown(canvas, { button: 0, clientX: 30, clientY: 10, pointerId: 1 });
+      fireEvent.pointerUp(canvas, { pointerId: 1 });
+      expect(screen.getByTestId("symbol-editor")).toBeTruthy();
+      expect(screen.queryByTestId("symbol-editor-crashed")).toBeNull();
     } finally {
       proto.getBBox = real.getBBox;
       proto.getScreenCTM = real.getScreenCTM;
       vi.unstubAllGlobals();
     }
+  });
+
+  it("an error inside the editor stops the editor alone, and «Close» leaves the IDE as it was", () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    act(() => useAppStore.getState().openSymbolEditor({
+      draft: { slug: "rotto", w: 100, h: 100, body: "body-pump", it: "R", en: "R", ops: [{ op: "corpo" }] }, isNew: true,
+    }));
+    const Broken = () => { throw new Error("boom"); };
+    render(<div data-testid="ide"><SymbolEditorBoundary><Broken /></SymbolEditorBoundary></div>);
+    expect(screen.getByTestId("ide")).toBeTruthy();
+    expect(screen.getByTestId("symbol-editor-crashed").textContent).toMatch(/boom/);
+    fireEvent.click(screen.getByTestId("symbol-editor-crashed-close"));
+    expect(useAppStore.getState().symbolEditor).toBeNull();
+    spy.mockRestore();
   });
 });
 

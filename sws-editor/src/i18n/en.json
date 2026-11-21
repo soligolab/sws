@@ -5856,6 +5856,11 @@
       "height": "Height",
       "sizeHint": "Multiples of 10, from 10 to 510.",
       "create": "Create"
+    },
+    "crashed": {
+      "title": "The symbol editor stopped because of an error",
+      "text": "The rest of the IDE and the project are untouched. Unsaved changes to the symbol are lost: close the editor and open it again.",
+      "close": "Close the editor"
     }
   },
   "images": {

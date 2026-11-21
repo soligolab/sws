@@ -166,6 +166,8 @@ versioni:
         en: "A new symbol asks its name and size first, and starts empty: no more blue box to delete."
       - it: "«Genera foto» funziona anche coi modelli OpenAI che non fanno lo sfondo trasparente: la foto arriva su un grigio chiaro."
         en: "«Generate photo» also works with OpenAI models that cannot make a transparent background: the photo comes on a light grey."
+      - it: "Editor dei simboli: cliccare dove c'era una forma appena cancellata non fa più chiudere l'IDE; un errore dell'editor ferma solo l'editor."
+        en: "Symbol editor: clicking where a just-deleted shape was no longer closes the IDE; an editor error stops only the editor."
   - versione: "2.25.2"
     voci:
       - it: "Nel cloud la chat e il registro in una finestra a parte si aprono davvero: nella 2.25.1 davano l'errore 401."

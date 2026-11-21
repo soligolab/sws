@@ -12,6 +12,12 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Corretto
+- **L'editor dei simboli faceva crollare l'IDE** (collaudo della 2.26.0-rc.23, 21-11-2026, ramo
+  `fix/symbol-editor-stale-pick`). Cancellata l'ultima forma del corpo, la descrizione non compila e la tela teneva
+  l'ultimo disegno riuscito; un clic su una forma che non c'era più la selezionava, il pannello andava in errore e,
+  senza nulla che lo fermasse, si smontava tutta l'IDE (pagina vuota, progetto da riaprire con F5). Ora `pickable`
+  sceglie solo ciò che la descrizione disegna davvero, la selezione perde gli indici spariti, la tela di un simbolo
+  vuoto è vuota, e `SymbolEditorBoundary` ferma da solo l'editor dicendo perché, con «Chiudi l'editor».
 - **Tre anomalie del collaudo della 2.26.0-rc.23** (21-11-2026, ramo `fix/rc23-test-findings`).
   - Le maniglie degli angoli nell'editor dei simboli erano collegate all'angolo opposto (`startResize([cx ? 0 : 1, …])`
     contro un calcolo che tratta `corner` come l'angolo trascinato): il primo trascinamento spostava il bordo

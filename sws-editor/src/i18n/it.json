@@ -5856,6 +5856,11 @@
       "height": "Altezza",
       "sizeHint": "Multipli di 10, da 10 a 510.",
       "create": "Crea"
+    },
+    "crashed": {
+      "title": "L'editor dei simboli si è fermato per un errore",
+      "text": "Il resto dell'IDE e il progetto non sono toccati. Le modifiche al simbolo non salvate sono perse: chiudi l'editor e riaprilo.",
+      "close": "Chiudi l'editor"
     }
   },
   "images": {

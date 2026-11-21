@@ -13,6 +13,7 @@ import type React from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { C, Field, Num, input } from "./ui";
+import { SymbolEditorBoundary } from "./SymbolEditorBoundary";
 import { useAppStore } from "@/store";
 import type { DescrizioneSimbolo } from "@/types";
 import { avviso, chiedi, conferma, scegli } from "@/finestraAvviso/finestraAvviso";
@@ -25,7 +26,7 @@ import {
   insertInLayer, layers, mapBox, matrixOps, moveLayer, movePort, moveToLayer, moveToNewLayer, NEW_LAYER, newCircle, newEllipse, newLine, newPath, newRect, ports, r2,
   removeInput, renamePart, reorderOp, resizeSymbol, saveAsCopy, setExtra, setFill, setGeo, setPartGeo, setPathD,
   setPort, setVeil, transformOps, turnMatrix, union, validPathD, validPortId, validSize, INPUT_KINDS, SIDES,
-  animateSelection, setPartParam, newImage, setImageOpacity, nothingDrawn,
+  animateSelection, setPartParam, newImage, setImageOpacity, nothingDrawn, draws,
   type Affine, type AlignMode, type Box, type InputKind, type Layer, type Op, type Port, type Side,
 } from "./model";
 import { predefinito } from "@/coloriPredefiniti";
@@ -91,7 +92,7 @@ const PAD = 24;
 export function SymbolEditorHost() {
   const target = useAppStore((s) => s.symbolEditor);
   if (!target) return null;
-  return <SymbolEditor key={target.draft.slug} target={target} />;
+  return <SymbolEditorBoundary><SymbolEditor key={target.draft.slug} target={target} /></SymbolEditorBoundary>;
 }
 
 /** Half units, or the grid when it snaps. */
@@ -294,9 +295,22 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [explode.on, explode.k, boxes]);
   const pickable = useCallback((i: number) => {
+    // The drawing on the canvas is the last one that compiled: after a delete
+    // that does not compile (the last shape of the body), it still shows shapes
+    // the description no longer has. Picking one crashed the whole IDE (test of
+    // 2.26.0-rc.23, 21-11-2026): only what is drawn in the description is picked.
+    const op = (d.ops as Op[])[i];
+    if (!op || !draws(op)) return false;
     const l = layerOf(i);
     return !l || (!hidden.has(l.id) && !locked.has(l.id));
-  }, [layerOf, hidden, locked]);
+  }, [d, layerOf, hidden, locked]);
+  // What is selected and no longer there (a delete, an undo) leaves the selection.
+  useEffect(() => {
+    setSel((s) => {
+      const kept = s.filter((i) => i < d.ops.length);
+      return kept.length === s.length ? s : kept;
+    });
+  }, [d]);
   const selBox = useMemo(() => union(sel.map((i) => shown(i)).filter((b): b is Box => !!b)), [sel, shown]);
   const dirty = saved === null || JSON.stringify(saved) !== JSON.stringify(d);
   const original = d.overrides ? trovaSimboloOriginale(d.overrides) : undefined;
@@ -1157,7 +1171,8 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
               </defs>
               <rect x={0} y={0} width={w} height={h} fill={C.surface} />
               <rect x={0} y={0} width={w} height={h} fill={grid.on ? "url(#sym-edit-grid)" : "none"} stroke={C.subtle} strokeWidth={0.3 * u} strokeDasharray={`${2 * u} ${2 * u}`} />
-              {compiled.svg && compiled.voce && manifesto && (
+              {/* Nothing drawn: no drawing, not the last one that compiled. */}
+              {compiled.svg && compiled.voce && manifesto && !nothingDrawn(d) && (
                 <g ref={drawRef}>
                   <SimboloLibSvg sim={compiled.voce} svg={compiled.svg} manifesto={manifesto} prefisso="sym-edit"
                     x={0} y={0} w={w} h={h}
@@ -1270,7 +1285,7 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
               )}
             </svg>
           </div>
-          {compiled.errors.length > 0 && nothingDrawn(d) && (
+          {nothingDrawn(d) && (
             <div data-testid="symbol-editor-empty" style={{ borderTop: `1px solid ${C.border}`, padding: 8, color: C.muted }}>
               {t("symbolEditor.drawFirst")}
             </div>
