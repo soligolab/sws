@@ -51,7 +51,7 @@ describe("the glow", () => {
 });
 
 import fx from "../../tests/fixtures/symbol-fx.json";
-import { bubble, bubbleOpacity, puff } from "../src/symbols/lib/effects";
+import { bubble, bubbleOpacity, flamePath, flameScale, puff } from "../src/symbols/lib/effects";
 
 describe("the bubbles", () => {
   it("are where the panel draws them (shared cases)", () => {
@@ -82,5 +82,16 @@ describe("the smoke", () => {
       const q = puff(c.i, x, y, w, h);
       [q.cx0, q.cx1, q.cy0, q.cy1, q.r0, q.r1].forEach((v, k) => expect(v).toBeCloseTo(c.expected[k], 6));
     }
+  });
+});
+
+describe("the flame", () => {
+  it("flickers through the same poses, with the same outline (shared cases)", () => {
+    for (const [t, sx, sy] of fx.flame_scale) {
+      const [gx, gy] = flameScale(t);
+      expect(gx).toBeCloseTo(sx, 9);
+      expect(gy).toBeCloseTo(sy, 9);
+    }
+    for (const c of fx.flame_path) expect(flamePath(c.a, c.hh)).toBe(c.d);
   });
 });

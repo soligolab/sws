@@ -202,7 +202,7 @@ pub const TIPI_PARTE: &[&str] = &[
     // The animated pieces (plan 2026-11-19-animazioni-dei-simboli).
     "slide", "vibrate", "pulse", "signal",
     // The effects (plan 2026-11-21-simboli-fase-8-effetti).
-    "glow", "bubbles", "smoke",
+    "glow", "bubbles", "smoke", "flame",
 ];
 
 /// Le forme ammesse. Sono le sole che la libreria usa, e le sole che LVGL
@@ -762,7 +762,7 @@ impl<'a> Costruzione<'a> {
                         }
                     }
                 }
-                if matches!(kind.as_str(), "glow" | "bubbles" | "smoke") {
+                if matches!(kind.as_str(), "glow" | "bubbles" | "smoke" | "flame") {
                     if let Some(c) = geo.get("color").and_then(Value::as_str) {
                         if !colore_esadecimale(c) {
                             return Err(format!("part «{id}»: colour «{c}» is not #rgb or #rrggbb"));
@@ -789,7 +789,7 @@ impl<'a> Costruzione<'a> {
                 });
                 // A moving effect draws itself (`symbol_fx`): its layer
                 // holds an invisible box, so it exists and can be picked.
-                if matches!(kind.as_str(), "bubbles" | "smoke") {
+                if matches!(kind.as_str(), "bubbles" | "smoke" | "flame") {
                     let n = |k: &str| geo.get(k).and_then(Value::as_f64).unwrap_or(0.0);
                     self.metti(format!(
                         "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"none\" stroke=\"none\" data-fx=\"{kind}\"/>",
@@ -1278,6 +1278,15 @@ fn piece_rules(p: &crate::simboli_lib::ParteLib, w: f64, h: f64) -> Result<(), S
             )
         }
         P::Smoke {
+            x,
+            y,
+            w: bw,
+            h: bh,
+            color,
+            period_ms,
+            ..
+        }
+        | P::Flame {
             x,
             y,
             w: bw,

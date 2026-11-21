@@ -5526,7 +5526,8 @@
       "signal": "Signal",
       "glow": "Glow",
       "bubbles": "Bubbles",
-      "smoke": "Smoke"
+      "smoke": "Smoke",
+      "flame": "Flame"
     },
     "shape": {
       "rect": "Rectangle",
@@ -5706,7 +5707,8 @@
         "pulse": "Breathes while the input is true",
         "glow": "Glows while the input is true",
         "bubbles": "Bubbles rising while the input is true",
-        "smoke": "Smoke or steam rising while the input is true"
+        "smoke": "Smoke or steam rising while the input is true",
+        "flame": "A flame flickering while the input is true"
       },
       "note": "The chosen shapes become an animated piece: a layer with its input, bound in the page to a tag or a value.",
       "ccw": "Counter-clockwise",

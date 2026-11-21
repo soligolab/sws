@@ -45,7 +45,9 @@ export type ParteLib =
   /** Bubbles rising in the box while the input is true (`symbol_fx.rs`, `effects.tsx`). */
   | { id: string; kind: "bubbles"; x: number; y: number; w: number; h: number; color?: string; count?: number; period_ms?: number }
   /** Smoke or steam puffing up in the box while the input is true. */
-  | { id: string; kind: "smoke"; x: number; y: number; w: number; h: number; color?: string; period_ms?: number };
+  | { id: string; kind: "smoke"; x: number; y: number; w: number; h: number; color?: string; period_ms?: number }
+  /** A flame flickering on the bottom of the box while the input is true. */
+  | { id: string; kind: "flame"; x: number; y: number; w: number; h: number; color?: string; period_ms?: number };
 
 export type FillDir = "up" | "down" | "left" | "right";
 

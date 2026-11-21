@@ -18,6 +18,17 @@ pub const MAX_FX_PERIOD_MS: f64 = 10_000.0;
 
 pub const BUBBLE_COLOUR: &str = "#bae6fd";
 pub const SMOKE_COLOUR: &str = "#9ca3af";
+pub const FLAME_COLOUR: &str = "#f97316";
+pub const FLAME_CORE_COLOUR: &str = "#fde047";
+/// The poses of a flickering flame over one period: when, width, height.
+/// The web's `keyTimes` and `values` are these.
+pub const FLAME_POSES: [(f64, f64, f64); 5] = [
+    (0.0, 1.0, 1.0),
+    (0.25, 0.92, 1.12),
+    (0.5, 1.05, 0.94),
+    (0.75, 0.95, 1.08),
+    (1.0, 1.0, 1.0),
+];
 /// Puffs of smoke on their way at once.
 pub const SMOKE_PUFFS: usize = 4;
 
@@ -91,6 +102,46 @@ pub fn smoke_opacity(phase: f64) -> f64 {
     0.6 * (1.0 - phase)
 }
 
+/// The scale of the flame at `t`, between its poses.
+pub fn flame_scale(t: f64) -> (f64, f64) {
+    let t = frac(t);
+    for w in FLAME_POSES.windows(2) {
+        let (t0, x0, y0) = w[0];
+        let (t1, x1, y1) = w[1];
+        if t <= t1 {
+            let k = if t1 > t0 { (t - t0) / (t1 - t0) } else { 0.0 };
+            return (x0 + (x1 - x0) * k, y0 + (y1 - y0) * k);
+        }
+    }
+    (1.0, 1.0)
+}
+
+/// A flame's outline, drawn from its base (0, 0) upwards: half-width `a`,
+/// height `hh`. The core is the same shape, half as wide and a little lower.
+pub fn flame_path(a: f64, hh: f64) -> String {
+    let n = num;
+    format!(
+        "M0 0 C{} 0 {} {} 0 {} C{} {} {} 0 0 0 Z",
+        n(-a),
+        n(-a),
+        n(-0.45 * hh),
+        n(-hh),
+        n(a),
+        n(-0.45 * hh),
+        n(a)
+    )
+}
+
+/// The base of the flame, its outline and its core, for the box.
+pub fn flame_geometry(x: f64, y: f64, w: f64, h: f64) -> (f64, f64, String, String) {
+    (
+        x + w / 2.0,
+        y + h,
+        flame_path(w * 0.45, h * 0.85),
+        flame_path(w * 0.22, h * 0.47),
+    )
+}
+
 /// The box an effect may draw in: its part's, a little wider for what
 /// spreads out of it (the smoke grows). `None` for a part that isn't an effect.
 pub fn fx_box(p: &ParteLib) -> Option<(f64, f64, f64, f64)> {
@@ -98,13 +149,17 @@ pub fn fx_box(p: &ParteLib) -> Option<(f64, f64, f64, f64)> {
         ParteLib::Bubbles { x, y, w, h, .. } => Some((*x, *y, *w, *h)),
         // The puffs grow to about a third of the width either side.
         ParteLib::Smoke { x, y, w, h, .. } => Some((x - 0.3 * w, y - 0.1 * h, w * 1.6, h * 1.1)),
+        // It flickers up to 12 % taller and 5 % wider.
+        ParteLib::Flame { x, y, w, h, .. } => Some((x - 0.05 * w, y - 0.15 * h, w * 1.1, h * 1.15)),
         _ => None,
     }
 }
 
 pub fn fx_period_ms(p: &ParteLib) -> Option<f64> {
     match p {
-        ParteLib::Bubbles { period_ms, .. } | ParteLib::Smoke { period_ms, .. } => Some(*period_ms),
+        ParteLib::Bubbles { period_ms, .. }
+        | ParteLib::Smoke { period_ms, .. }
+        | ParteLib::Flame { period_ms, .. } => Some(*period_ms),
         _ => None,
     }
 }
@@ -162,6 +217,20 @@ pub fn fx_elements(p: &ParteLib, t: f64) -> Option<String> {
             }
             Some(out)
         }
+        ParteLib::Flame {
+            x, y, w, h, color, ..
+        } => {
+            let (bx, by, outer, core) = flame_geometry(*x, *y, *w, *h);
+            let (sx, sy) = flame_scale(t);
+            Some(format!(
+                "<g transform=\"translate({} {}) scale({} {})\"><path d=\"{outer}\" fill=\"{}\" stroke=\"none\"/><path d=\"{core}\" fill=\"{FLAME_CORE_COLOUR}\" stroke=\"none\"/></g>",
+                num(bx),
+                num(by),
+                num(sx),
+                num(sy),
+                color.as_deref().unwrap_or(FLAME_COLOUR),
+            ))
+        }
         _ => None,
     }
 }
@@ -175,6 +244,14 @@ mod tests {
         bubbles: Vec<BubbleCase>,
         bubble_opacity: Vec<(f64, f64)>,
         puffs: Vec<PuffCase>,
+        flame_scale: Vec<(f64, f64, f64)>,
+        flame_path: Vec<FlamePathCase>,
+    }
+    #[derive(serde::Deserialize)]
+    struct FlamePathCase {
+        a: f64,
+        hh: f64,
+        d: String,
     }
     #[derive(serde::Deserialize)]
     struct PuffCase {
@@ -225,6 +302,24 @@ mod tests {
         .unwrap();
         assert_eq!(fx_elements(&p, 0.3).unwrap().matches("<circle").count(), SMOKE_PUFFS);
         assert_eq!(fx_box(&p), Some((34.0, -5.0, 32.0, 55.00000000000001)));
+    }
+
+    #[test]
+    fn the_flame_of_the_shared_cases() {
+        let f = fixture();
+        for (t, sx, sy) in f.flame_scale {
+            let (gx, gy) = flame_scale(t);
+            assert!((gx - sx).abs() < 1e-9 && (gy - sy).abs() < 1e-9, "{t}: {gx} {gy}");
+        }
+        for c in f.flame_path {
+            assert_eq!(flame_path(c.a, c.hh), c.d);
+        }
+        let p: ParteLib = serde_json::from_value(serde_json::json!({
+            "kind": "flame", "id": "f", "x": 50, "y": 50, "w": 20, "h": 30
+        }))
+        .unwrap();
+        assert_ne!(fx_elements(&p, 0.0), fx_elements(&p, 0.25), "it flickers");
+        assert_eq!(fx_period_ms(&p), Some(800.0));
     }
 
     #[test]

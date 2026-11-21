@@ -204,7 +204,8 @@ pub fn valori_parti<'a>(
             | ParteLib::Pulse { .. }
             | ParteLib::Glow { .. }
             | ParteLib::Bubbles { .. }
-            | ParteLib::Smoke { .. } => {
+            | ParteLib::Smoke { .. }
+            | ParteLib::Flame { .. } => {
                 ValoreParte::Active(v.map(Scalar::truthy))
             }
             ParteLib::Signal { entries, .. } => {

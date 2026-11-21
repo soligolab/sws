@@ -1,5 +1,5 @@
 {
-  "_doc": "The moving effects of the symbols, shared by the panel (sws-core/src/symbol_fx.rs) and the browser (sws-editor/src/symbols/lib/effects.tsx): plan docs/plans/2026-11-21-simboli-fase-8-effetti.md. Bubble: [cx, cy0, r, travel]. Puff: [cx0, cx1, cy0, cy1, r0, r1].",
+  "_doc": "The moving effects of the symbols, shared by the panel (sws-core/src/symbol_fx.rs) and the browser (sws-editor/src/symbols/lib/effects.tsx): plan docs/plans/2026-11-21-simboli-fase-8-effetti.md. Bubble: [cx, cy0, r, travel]. Puff: [cx0, cx1, cy0, cy1, r0, r1]. Flame: scale [t, sx, sy] between FLAME_POSES; path of half-width a and height hh.",
   "bubbles": [
     {
       "i": 0,
@@ -163,6 +163,65 @@
         3.5999999999999996,
         11.1
       ]
+    }
+  ],
+  "flame_scale": [
+    [
+      0,
+      1.0,
+      1.0
+    ],
+    [
+      0.1,
+      0.968,
+      1.048
+    ],
+    [
+      0.25,
+      0.92,
+      1.12
+    ],
+    [
+      0.4,
+      0.998,
+      1.012
+    ],
+    [
+      0.5,
+      1.05,
+      0.94
+    ],
+    [
+      0.6,
+      1.01,
+      0.996
+    ],
+    [
+      0.75,
+      0.95,
+      1.08
+    ],
+    [
+      0.9,
+      0.98,
+      1.032
+    ]
+  ],
+  "flame_path": [
+    {
+      "a": 9,
+      "hh": 25.5,
+      "d": "M0 0 C-9 0 -9 -11.47 0 -25.5 C9 -11.47 9 0 0 0 Z"
+    },
+    {
+      "a": 4.4,
+      "hh": 14.1,
+      "d": "M0 0 C-4.4 0 -4.4 -6.34 0 -14.1 C4.4 -6.34 4.4 0 0 0 Z"
+    },
+    {
+      "a": 13.333,
+      "hh": 40,
+      "d": "M0 0 C-13.33 0 -13.33 -18 0 -40 C13.33 -18 13.33 0 0 0 Z"
     }
   ]
 }

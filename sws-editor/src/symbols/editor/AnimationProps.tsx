@@ -23,6 +23,7 @@ const NUMBERS: Record<string, string[]> = {
   glow: ["radius"],
   bubbles: ["x", "y", "w", "h", "count", "period_ms"],
   smoke: ["x", "y", "w", "h", "period_ms"],
+  flame: ["x", "y", "w", "h", "period_ms"],
 };
 
 /** What the engines use when a number is left out (`sws-core/src/simboli_lib.rs`). */
@@ -37,7 +38,7 @@ export function AnimationProps({ d, op, commit }: {
   const kind = String(p.kind);
   const g = (p.geo as Record<string, unknown> | undefined) ?? {};
   const set = (k: string, v: unknown) => commit(setPartParam(d, op, k, v));
-  const periodDefault = kind === "vibrate" ? 200 : kind === "bubbles" || kind === "smoke" ? 2000 : 1000;
+  const periodDefault = kind === "vibrate" ? 200 : kind === "bubbles" || kind === "smoke" ? 2000 : kind === "flame" ? 800 : 1000;
   return (
     <>
       {(NUMBERS[kind] ?? []).map((k) => (
@@ -73,17 +74,17 @@ export function AnimationProps({ d, op, commit }: {
           entries={Array.isArray(g.entries) ? (g.entries as SignalEntry[]) : []}
           onColour={(c) => set("color", c)} onEntries={(e) => set("entries", e)} />
       )}
-      {(kind === "bubbles" || kind === "smoke") && (
+      {(kind === "bubbles" || kind === "smoke" || kind === "flame") && (
         <label style={{ display: "flex", gap: 6, alignItems: "center", color: C.muted }}>
           <input type="checkbox" checked={typeof g.color === "string"}
-            onChange={(e) => set("color", e.target.checked ? (kind === "smoke" ? "#9ca3af" : "#bae6fd") : undefined)} />
+            onChange={(e) => set("color", e.target.checked ? (kind === "smoke" ? "#9ca3af" : kind === "flame" ? "#f97316" : "#bae6fd") : undefined)} />
           {t("symbolEditor.anim.ownColour")}
           {typeof g.color === "string" && (
             <input type="color" style={{ ...input, padding: 0, height: 20, width: 32 }} value={g.color} onChange={(e) => set("color", e.target.value)} />
           )}
         </label>
       )}
-      {(kind === "bubbles" || kind === "smoke") && <p style={{ margin: 0, color: C.subtle, fontSize: 11 }}>{t("symbolEditor.anim.fxNote")}</p>}
+      {(kind === "bubbles" || kind === "smoke" || kind === "flame") && <p style={{ margin: 0, color: C.subtle, fontSize: 11 }}>{t("symbolEditor.anim.fxNote")}</p>}
       {kind === "glow" && (
         <>
           <label style={{ display: "flex", gap: 6, alignItems: "center", color: C.muted }}>

@@ -12,7 +12,7 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — dodici rami annidati da collaudare; gruppo 2: fasi 3 e 7, 2FA e LDAP fatte (2026-11-22 notte, `ufficio`)
+## ▶ Riprendere da qui — sedici rami annidati da collaudare; il gruppo 2 è tutto fatto (2026-11-22 notte, `ufficio`)
 
 **Gruppo 2, sessione di plan fatta** (la sera del 21-11): quattro piani in `docs/plans/`, ordine deciso dal maintainer
 **3 → 7 → P6 → 8** — [fase 3, le foto](docs/plans/2026-11-21-simboli-fase-3-foto.md),
@@ -29,7 +29,20 @@
     codice per ogni strada d'accesso, menu 👤, obbligo per azienda o piattaforma dalla console, azzeramento.
 12. `feat/ldap` — **gli utenti del pannello dal dominio** (LDAP / Active Directory): «Dominio (LDAP)» nella scheda
     Utenti, login del pannello col nome di dominio e il ruolo dal gruppo, utenti locali di riserva. Provato contro un
-    OpenLDAP in `podman`. Prossimo: la fase 8, gli effetti dei simboli.
+    OpenLDAP in `podman`.
+13–16. `feat/symbol-fx-glow`, `-bubbles`, `-smoke`, `-flame` — **gli effetti dei simboli** (fase 8): bagliore delle
+    forme di una parte, bollicine, fumo, fiamma, accesi dall'ingresso. Scelte del maintainer: animazioni native per
+    motore (SMIL continuo nel browser, 16 fotogrammi sul pannello, formule condivise in `symbol_fx.rs`), il bagliore
+    attorno alle forme. Le misure sul pannello: **TC620 di casa adesso, TY570 da lunedì 24-11** (il maintainer).
+    Il gruppo 2 è finito: restano collaudo, squash in ordine e CasaDomotica.
+
+**Il collaudo degli effetti, cosa guardare** (IDE su `feat/symbol-fx-flame`; pannello TC620, poi TY570):
+- editor dei simboli → selezione → «Anima…» → famiglia «Effetti»: bagliore su una spia, bollicine in un serbatoio,
+  fumo su un camino, fiamma in una caldaia; scheda Prova con «Anima»: si muovono, spenti spariscono;
+- in pagina, legati a un tag booleano: nel browser con «Anteprima effetti» e nel viewer; sul pannello dopo il deploy;
+- le misure sul pannello (SSH, chiedendo): `SWS_MISURA_SIMBOLI=1` per il tempo di preparazione,
+  `SWS_TEMPI_LOG=1` e `VmRSS` con i quattro effetti accesi in una pagina; il budget `SWS_ANIM_BUDGET_KB` se servono
+  meno fotogrammi; lo stesso lunedì sul TY570 — sono i primi numeri per il seme delle funzioni per prodotto.
 
 **Il collaudo della 2FA, cosa guardare** (IDE locale su `feat/2fa`, poi nel cloud; un'app di autenticazione vera):
 - menu 👤 → «Autenticazione a due fattori» → Attiva → QR con l'app → codice → i dieci codici di recupero;
@@ -133,7 +146,8 @@ cambiare la password, cioè toccando gli utenti del pannello — non fatto di no
 **Dopo il merge**: CasaDomotica (regola di `CLAUDE.md`): un tag con l'espressione scritta con la scintilla; il
 `last_device` arriva da solo al primo collegamento; «Giri di tolleranza» 3 sulla sorgente Solarman dell'inverter. Il
 lock e «Salva come…» non hanno un posto nell'impianto: sono funzioni dell'IDE. Fase 3: un simbolo con foto in una
-pagina (la caldaia fotografata, con la fiamma come foto per stato).
+pagina (la caldaia fotografata, con la fiamma come foto per stato). Effetti: la fiamma nella caldaia legata al
+bruciatore acceso, il fumo sul camino, il bagliore sulla spia della pompa di calore.
 
 ## Sessione precedente — la rc.22 costruita e nel cloud; elitedesk pronta come seconda macchina di lavoro (2026-11-20 sera, theobroma)
 

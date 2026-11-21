@@ -12,6 +12,10 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Aggiunto
+- **Effetti nei simboli, la fiamma** (ramo `feat/symbol-fx-flame`, stesso piano). Parte `flame` (riquadro, colore,
+  periodo 800 ms): una lingua esterna e un cuore giallo a goccia, appoggiati sul fondo del riquadro, che tremolano su
+  cinque pose (`FLAME_POSES`): `animateTransform` nel browser, interpolazione delle stesse pose nei fotogrammi del
+  pannello. `flame_path` e `flame_scale` condivisi coi casi di `symbol-fx.json`.
 - **Effetti nei simboli, il fumo** (ramo `feat/symbol-fx-smoke`, stesso piano). Parte `smoke` (riquadro, colore,
   periodo): quattro sbuffi che salgono, si allargano fino a un terzo della larghezza e svaniscono, quelli dispari
   derivando dall'altra parte. Stessa strada delle bollicine: `puff` in `symbol_fx.rs` e in `effects.tsx`, casi

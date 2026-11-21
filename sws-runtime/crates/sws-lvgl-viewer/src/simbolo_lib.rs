@@ -1192,6 +1192,44 @@ mod tests {
         assert!(svg_alone("<svg>", "<g/>", [120.0, 100.0], 5.0, None).contains("in=\"SourceGraphic\" stdDeviation=\"5\""));
     }
 
+    /// A picture of the effects, as the panel's engine draws them: the glow's
+    /// halo and one frame of each moving effect. For looking, not checking.
+    /// `SWS_SNAPSHOT_DIR=<dir> cargo test -p sws-lvgl-viewer effects_snapshot -- --ignored`
+    #[test]
+    #[ignore]
+    fn effects_snapshot() {
+        use resvg::tiny_skia::{Color, Pixmap, PixmapPaint, Transform};
+        let dir = std::path::PathBuf::from(std::env::var("SWS_SNAPSHOT_DIR").expect("SWS_SNAPSHOT_DIR"));
+        let d: sws_core::simboli_prj::Descrizione = serde_json::from_str(include_str!(
+            "../../../../tests/fixtures/simboli-prj/effects.json"
+        ))
+        .unwrap();
+        let c = sws_core::simboli_prj::compila_e_controlla(&d).unwrap();
+        let s = c.simbolo().unwrap();
+        let parts = dividi(&c.svg);
+        for (name, t) in [("a", 0.1), ("b", 0.45), ("c", 0.8)] {
+            let mut body = String::new();
+            for (id, _, mk) in &parts.strati {
+                if let Some(ParteLib::Glow { radius, color, .. }) = s.parts.iter().find(|p| p.id() == id) {
+                    let halo = svg_alone("", mk, s.view_box, *radius, color.as_deref());
+                    body.push_str(halo.trim_end_matches("</svg>\n"));
+                }
+                body.push_str(mk);
+                if let Some(el) = s.parts.iter().find(|p| p.id() == id).and_then(|p| sws_core::symbol_fx::fx_elements(p, t)) {
+                    body.push_str(&format!("<g>{el}</g>\n"));
+                }
+            }
+            let svg = format!("{}{body}</svg>\n", parts.testa);
+            let (w, h) = (480, 400);
+            let r = svg_raster::rasterize(svg.as_bytes(), w, h, false, false).expect("raster");
+            let mut out = Pixmap::new(w, h).unwrap();
+            out.fill(Color::from_rgba8(30, 35, 41, 255));
+            let pm = Pixmap::from_vec(r.pixels.clone(), resvg::tiny_skia::IntSize::from_wh(w, h).unwrap()).unwrap();
+            out.draw_pixmap(0, 0, pm.as_ref(), &PixmapPaint::default(), Transform::identity(), None);
+            out.save_png(dir.join(format!("effects-{name}.png"))).unwrap();
+        }
+    }
+
     /// The moving effects (plan 2026-11-21-simboli-fase-8-effetti): frames in
     /// the effect's box, all different, none of them empty.
     #[test]
@@ -1225,6 +1263,15 @@ mod tests {
             panic!("the smoke")
         };
         assert!(dove.w > 48, "{dove:?}");
+        let Some(PezzoStrato::Effetto { fotogrammi, period_ms, .. }) = p
+            .strati
+            .iter()
+            .find(|x| matches!(x, PezzoStrato::Effetto { id, .. } if id == "burner"))
+        else {
+            panic!("the flame")
+        };
+        assert_eq!(*period_ms, 800.0);
+        assert_ne!(fotogrammi[0], fotogrammi[4], "it flickers");
     }
 
     #[test]

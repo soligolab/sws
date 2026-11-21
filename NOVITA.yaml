@@ -92,6 +92,8 @@ versioni:
         en: "Effects in symbols: bubbles rising in a tank or a boiler while the input is true, in the browser and on the panel."
       - it: "Effetti nei simboli: il fumo o il vapore che sale da un camino, da uno scarico o da una caldaia mentre l'ingresso è vero."
         en: "Effects in symbols: smoke or steam rising from a chimney, an exhaust or a boiler while the input is true."
+      - it: "Effetti nei simboli: la fiamma che tremola in un bruciatore o in una caldaia mentre l'ingresso è vero."
+        en: "Effects in symbols: a flame flickering in a burner or a boiler while the input is true."
       # rc.22 (20-11-2026): editor dei simboli, libreria immagini, assistente. Per fare
       # posto, alcune voci di prima sono unite e accorciate: da rivedere al collaudo.
       - it: "Editor dei simboli: apri un simbolo della libreria e cambialo, o fanne uno nuovo; strumenti di disegno, bocche dei tubi, «Anima…» per i pezzi che si muovono, SVG e file .swsym da importare."

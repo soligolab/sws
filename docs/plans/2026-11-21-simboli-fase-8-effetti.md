@@ -26,3 +26,15 @@ Tutti e quattro: **bagliore (neon)**, **bollicine**, **fumo/vapore**, **fiamma**
 ## Verifica
 Per ogni ramo la definition of done di `CLAUDE.md`, `check_lvgl_parity` e una misura sul TY570 (tempo per fotogramma e
 memoria, `SWS_TEMPI_LOG=1`, `VmRSS`; SSH solo chiedendo), poi `/test-changes`.
+
+## Com'è andata (22-11-2026)
+Fatti tutti e quattro, un ramo per effetto, annidati su `feat/ldap`, da collaudare. Decisioni del maintainer prese
+all'inizio della fase: **animazioni native per motore** (non fotogrammi uguali ovunque) e **il bagliore attorno alle
+forme della parte**. Come sono fatti:
+- **bagliore**: filtro SVG nel browser, alone pre-disegnato da resvg sul pannello, sotto lo strato;
+- **bollicine, fumo, fiamma**: formule in `sws-core/src/symbol_fx.rs`, gemello `symbols/lib/effects.tsx`, casi
+  condivisi in `tests/fixtures/symbol-fx.json`; SMIL continuo nel browser, 16 fotogrammi sul pannello
+  (`PezzoStrato::Effetto`, nel budget delle animazioni). Le bolle sul pannello sono fotogrammi, non `lv_obj` con
+  `lv_anim` come scriveva il piano: una strada sola per i tre effetti.
+- **Misure**: sul TC620 adesso, sul TY570 da lunedì 24-11 (il maintainer). Il seme
+  [funzioni per prodotto di destinazione](semi/2026-11-22-funzioni-per-prodotto-di-destinazione.md) è nato qui.

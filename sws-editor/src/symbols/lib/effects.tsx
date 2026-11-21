@@ -12,6 +12,37 @@ const frac = (v: number) => v - Math.floor(v);
 export const BUBBLE_COLOUR = "#bae6fd";
 export const SMOKE_COLOUR = "#9ca3af";
 export const SMOKE_PUFFS = 4;
+export const FLAME_COLOUR = "#f97316";
+export const FLAME_CORE_COLOUR = "#fde047";
+/** Twin of `FLAME_POSES`: when, width, height. */
+export const FLAME_POSES: [number, number, number][] = [
+  [0, 1, 1], [0.25, 0.92, 1.12], [0.5, 1.05, 0.94], [0.75, 0.95, 1.08], [1, 1, 1],
+];
+
+/** Two decimals, no trailing zeros, never «-0»: `fmt` of the compiler. */
+function fmt(v: number): string {
+  const s = v.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+  return s === "" || s === "-0" ? "0" : s;
+}
+
+/** Twin of `flame_scale`. */
+export function flameScale(t: number): [number, number] {
+  const u = frac(t);
+  for (let k = 0; k + 1 < FLAME_POSES.length; k++) {
+    const [t0, x0, y0] = FLAME_POSES[k];
+    const [t1, x1, y1] = FLAME_POSES[k + 1];
+    if (u <= t1) {
+      const f = t1 > t0 ? (u - t0) / (t1 - t0) : 0;
+      return [x0 + (x1 - x0) * f, y0 + (y1 - y0) * f];
+    }
+  }
+  return [1, 1];
+}
+
+/** Twin of `flame_path`: drawn from the base upwards. */
+export function flamePath(a: number, hh: number): string {
+  return `M0 0 C${fmt(-a)} 0 ${fmt(-a)} ${fmt(-0.45 * hh)} 0 ${fmt(-hh)} C${fmt(a)} ${fmt(-0.45 * hh)} ${fmt(a)} 0 0 0 Z`;
+}
 
 /** The `i`-th bubble of `n` in the box: twin of `bubble` in symbol_fx.rs. */
 export function bubble(i: number, n: number, x: number, y: number, w: number, h: number) {
@@ -34,7 +65,7 @@ export function puff(i: number, x: number, y: number, w: number, h: number) {
 }
 
 export function isEffect(p: ParteLib | undefined): boolean {
-  return p?.kind === "bubbles" || p?.kind === "smoke";
+  return p?.kind === "bubbles" || p?.kind === "smoke" || p?.kind === "flame";
 }
 
 /** The effect of part `p`, moving: drawn over its layer while its input is true. */
@@ -56,6 +87,20 @@ export function EffectSvg({ p }: { p: ParteLib }) {
             </circle>
           );
         })}
+      </g>
+    );
+  }
+  if (p.kind === "flame") {
+    const period = `${p.period_ms ?? 800}ms`;
+    const values = FLAME_POSES.map(([, x, y]) => `${x} ${y}`).join(";");
+    const keyTimes = FLAME_POSES.map(([t]) => t).join(";");
+    return (
+      <g data-fx="flame" pointerEvents="none" transform={`translate(${p.x + p.w / 2} ${p.y + p.h})`}>
+        <g>
+          <animateTransform attributeName="transform" type="scale" values={values} keyTimes={keyTimes} dur={period} repeatCount="indefinite" />
+          <path d={flamePath(p.w * 0.45, p.h * 0.85)} fill={p.color ?? FLAME_COLOUR} stroke="none" />
+          <path d={flamePath(p.w * 0.22, p.h * 0.47)} fill={FLAME_CORE_COLOUR} stroke="none" />
+        </g>
       </g>
     );
   }
