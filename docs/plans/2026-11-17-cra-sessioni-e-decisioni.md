@@ -77,11 +77,20 @@ serve una **firma** con una chiave che sul VPS non c'è. Si riprende con le sess
   VPS accanto ai file: senza la chiave non si falsificano, e un VPS compromesso non fa installare niente.
 - **Chi verifica**: il runtime prima di «Aggiorna ora», `install-container.sh` e l'installatore del Tiny TY, con la
   chiave pubblica radice dentro di loro. Un file senza firma valida non si installa.
-- **Da decidere — le rc.** Il maintainer chiede se le rc possono restare non firmate (si costruiscono anche fuori
-  casa, da theobroma). Si può, a una condizione: il canale `rc` lo usano solo i dispositivi di prova, e un pannello
-  sul canale stabile non accetta mai un'immagine non firmata. Il rischio che resta è un'immagine falsa sul canale rc.
-  L'alternativa vista il 22-11: una **chiave «rc»** sulle macchine di build, certificata dalla radice con l'uso
-  «solo canale rc»: le rc sono firmate anche fuori casa, e un pannello sul canale stabile la rifiuta comunque.
+- **Le rc hanno una chiave loro** (deciso il 22-11): una **chiave «rc»** sulle macchine di build, certificata dalla
+  radice con l'uso «solo canale rc». Le rc sono firmate anche fuori casa (theobroma); un pannello sul canale stabile
+  rifiuta una firma «rc», e nessun canale accetta un file senza firma.
+- **Non scaricabili senza un dispositivo in mano** (il maintainer, 22-11: «quello che vorrei evitare è che sia facile
+  accedere ai file senza avere un dispositivo in mano»). Lo scopo non è la cifratura — una chiave per decifrare
+  starebbe comunque su ogni pannello — ma il **controllo d'accesso al download**:
+  - immagini su ghcr **private**, e i pannelli le prendono con una credenziale; meglio di un token di sola lettura
+    uguale per tutti è un passaggio dal VPS che riconosce il **dispositivo abbinato** (la sua identità del tunnel) e
+    si revoca un dispositivo alla volta;
+  - il pacchetto del Tiny TY e gli archivi in `download/` serviti allo stesso modo, non più pubblici;
+  - da decidere nella sessione: come scarica la **prima installazione** un pannello che non è ancora abbinato (un
+    codice d'installazione per cliente? un archivio consegnato a mano?), e se la cifratura con `podman
+    --encryption-key` serva lo stesso come secondo strato (protegge le immagini su un registry privato violato, non
+    da chi ha un pannello).
 
 ## Le decisioni prese in autonomia
 

@@ -75,7 +75,7 @@ L'ordine è una proposta. Due vincoli reggono qualunque riordino: **C1–C2 per 
 | Onda 1 | **P1**: popup modale, non modale o entrambi; più popup aperti insieme; comportamento sul pannello LVGL |
 | Onda 3 | **P6**: LDAP solo per l'IDE o anche per i pannelli; 2FA obbligatoria per gli Admin? **C4**: come arriva la fiducia nel certificato del pannello (pinning all'abbinamento?) |
 | Onda 4 | **P4**: canale per SMS e voce: un servizio esterno via HTTP (Twilio o simili) oppure un modem GSM sul pannello. **P3**: chi genera il PDF (runtime sul pannello o servizio nel cloud) |
-| Onda 5 | **C7**: dove vive la chiave di firma e chi firma le release — **22-11-2026: deciso**, radice dal maintainer, intermedia sul Proxmox di casa, release firmate da casa; le rc da decidere ([sessioni CRA](2026-11-17-cra-sessioni-e-decisioni.md)) |
+| Onda 5 | **C7**: dove vive la chiave di firma e chi firma le release — **22-11-2026: deciso**, radice dal maintainer, intermedia sul Proxmox di casa, release firmate da casa, le rc con una chiave «rc» loro, download solo per i dispositivi abbinati ([sessioni CRA](2026-11-17-cra-sessioni-e-decisioni.md)) |
 
 ## Cosa si ottiene alla fine
 
