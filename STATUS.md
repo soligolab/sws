@@ -12,6 +12,32 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — la 2.26.0-rc.25 sul VPS, i menù dell'editor dei simboli da guardare (2026-11-22 notte, `ufficio`)
+
+**Il collaudo della rc.23 col maintainer (21-11, sera)**, `/test-changes` sul TC620: test 1-4 passati (registro
+dell'aggiornamento, lock, sorgenti e tolleranza, sandbox), il test 5 (foto) fermato dalle anomalie. Le anomalie sono
+in `tmp/test-changes/2026-11-21/anomalie.md` (8 voci); il monitoraggio dell'inverter di 2 h 27 min nello stesso posto.
+**Da registrare** in `docs/COLLAUDI_IN_SOSPESO.md` a fine collaudo (non ancora fatto).
+
+**Corrette e pubblicate** (squash in `main`, alberi controllati, rami eliminati):
+- **rc.24** (`32e372fb`, tag e `main` **pushati** col via del maintainer): maniglie degli angoli collegate al
+  contrario, simbolo nuovo che chiede nome e misura e parte vuoto, «Genera foto» con `gpt-image-2` (anomalie 4-6).
+- **rc.25** (`e4167f8f`, tag **locale**: il push aspetta il via, `check_release_coerente` resta rosso fino ad allora):
+  il clic sul disegno vecchio dopo aver cancellato l'ultima forma faceva crollare l'IDE (pagina vuota); in più una
+  rete di sicurezza attorno all'editor dei simboli. Immagini `2.26.0-rc.25-*`, `e4167f8f-*`, `rc-*` su ghcr;
+  **gateway del VPS su `e4167f8f-amd64`** (la rc.24 non ci è mai passata), ripiego la rc.23; **Tiny TY** `latest` =
+  rc.25.
+
+**Aperto, da guardare al mattino**: ramo **`feat/symbol-editor-panels`** (`05e266cb`, non mergiato, niente build: è
+lavoro d'interfaccia, si costruisce quando il risultato piace) — i pannelli dell'editor dei simboli nello stile
+dell'IDE (anomalia 7): barre alla stessa altezza, sezioni richiudibili che ricordano lo stato, strati richiudibili.
+Istantanee prima/dopo in `tmp/editor-simboli-menu/` (`prima-*.png`, `dopo-*.png`, script `vetrina.sh`).
+Definition of done verde tranne la conferma del maintainer.
+
+**Da fare dopo**: anomalia 8 (il disegno con l'IA si interrompe a 5 minuti con Kimi: streaming e messaggio di
+scadenza), anomalie 2-3 di Modbus (la riconnessione come giro di tolleranza — **deciso dal maintainer** — e i testi
+del registro), anomalia 1 (i log rumorosi durante l'aggiornamento); poi il resto del collaudo (test 5-14).
+
 ## ▶ Riprendere da qui — la 2.26.0-rc.23 pubblicata: i sedici rami in `main`, da collaudare (2026-11-22, `ufficio`)
 
 **Fatto, su richiesta del maintainer («rc.23 vera», poi «fai pure il push»)**: i sedici rami squashati in `main` in
