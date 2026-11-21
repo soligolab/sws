@@ -15,7 +15,7 @@ import { api } from "@/api/client";
 import { C, Field, Num, input } from "./ui";
 import { useAppStore } from "@/store";
 import type { DescrizioneSimbolo } from "@/types";
-import { avviso, chiedi, conferma } from "@/finestraAvviso/finestraAvviso";
+import { avviso, chiedi, conferma, scegli } from "@/finestraAvviso/finestraAvviso";
 import { SimboloLibSvg } from "@/symbols/lib/SimboloLib";
 import { trovaSimboloOriginale, useManifestoLib } from "@/symbols/lib/libreria";
 import type { SignalEntry, SimboloLib } from "@/symbols/lib/manifest";
@@ -710,10 +710,23 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
   };
   const doDistribute = (axis: "h" | "v") => commit(distribute(d, drawing(sel), boxes, axis));
 
-  const doClose = useCallback(async () => {
-    if (dirty && !(await conferma({ titolo: t("symbolEditor.closeTitle"), testo: t("symbolEditor.closeUnsaved"), pericolo: true }))) return;
-    close();
-  }, [close, dirty, t]);
+  // Unsaved changes: cancel, leave without saving, or save and close. A symbol
+  // with errors cannot be saved, so that choice is not offered. A save that
+  // fails or is stopped (a rename of ports or parts) keeps the editor open.
+  const doClose = async () => {
+    if (!dirty) { close(); return; }
+    const canSave = !compiled.errors.length;
+    const choice = await scegli<"discard" | "save">({
+      titolo: t("symbolEditor.closeTitle"),
+      testo: t(canSave ? "symbolEditor.closeUnsaved" : "symbolEditor.closeUnsavedErrors"),
+      scelte: [
+        { valore: "discard", etichetta: t("symbolEditor.closeDiscard"), pericolo: true },
+        ...(canSave ? [{ valore: "save" as const, etichetta: t("symbolEditor.closeSave") }] : []),
+      ],
+    });
+    if (choice === "discard") close();
+    else if (choice === "save" && (await save())) close();
+  };
 
   // Keys stay inside the editor: Delete must not delete an object of the page.
   useEffect(() => {
@@ -826,18 +839,20 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
     origin.current = new Map(ports(x).map((p) => [p.id, p.id]));
   };
 
-  const save = async () => {
-    if (compiled.errors.length) return;
-    if (!(await portsChecked())) return;
-    if (!(await partsChecked())) return;
+  /** `true` when the symbol was written. */
+  const save = async (): Promise<boolean> => {
+    if (compiled.errors.length) return false;
+    if (!(await portsChecked())) return false;
+    if (!(await partsChecked())) return false;
     setBusy(true);
     const err = await writeSymbols(withSymbol(d, savedSlug));
     setBusy(false);
-    if (err) { await avviso({ livello: "errore", titolo: t("symbolEditor.saveFailed"), testo: err }); return; }
+    if (err) { await avviso({ livello: "errore", titolo: t("symbolEditor.saveFailed"), testo: err }); return false; }
     setSaved(d);
     setSavedSlug(d.slug);
     portsSaved(d);
     partsSaved(d);
+    return true;
   };
 
   const saveAs = async () => {
@@ -943,7 +958,7 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
         <button type="button" style={btn(false)} disabled={busy || !!compiled.errors.length} onClick={() => void saveAs()}>{t("symbolEditor.saveAs")}</button>
         <button type="button" data-testid="symbol-editor-save" style={btn(dirty)} disabled={busy || !!compiled.errors.length || !dirty}
           onClick={() => void save()}>{t("symbolEditor.save")}</button>
-        <button type="button" style={btn(false)} onClick={() => void doClose()}>{t("symbolEditor.close")}</button>
+        <button type="button" data-testid="symbol-editor-close" style={btn(false)} onClick={() => void doClose()}>{t("symbolEditor.close")}</button>
       </div>
 
       <div style={{ display: "flex", flex: 1, minHeight: 0 }}>

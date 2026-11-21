@@ -5505,7 +5505,10 @@
       "ai": "IA"
     },
     "closeTitle": "Chiudere l'editor?",
-    "closeUnsaved": "Ci sono modifiche non salvate: andranno perse.",
+    "closeUnsaved": "Ci sono modifiche non salvate al simbolo. Cosa vuoi fare?",
+    "closeUnsavedErrors": "Ci sono modifiche non salvate, ma il simbolo ha errori e così non si può salvare. Uscendo andranno perse.",
+    "closeDiscard": "Esci senza salvare",
+    "closeSave": "Salva e chiudi",
     "saveFailed": "Salvataggio non riuscito",
     "saveAsTitle": "Salva come simbolo nuovo",
     "saveAsText": "Il nome del simbolo nuovo. L'originale resta com'è.",

@@ -5505,7 +5505,10 @@
       "ai": "AI"
     },
     "closeTitle": "Close the editor?",
-    "closeUnsaved": "There are unsaved changes: they will be lost.",
+    "closeUnsaved": "The symbol has unsaved changes. What do you want to do?",
+    "closeUnsavedErrors": "There are unsaved changes, but the symbol has errors and cannot be saved like this. Leaving will lose them.",
+    "closeDiscard": "Leave without saving",
+    "closeSave": "Save and close",
     "saveFailed": "Saving failed",
     "saveAsTitle": "Save as a new symbol",
     "saveAsText": "The name of the new symbol. The original stays as it is.",

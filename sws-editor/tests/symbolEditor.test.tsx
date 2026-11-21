@@ -66,6 +66,42 @@ describe("symbol editor", () => {
     expect(useAppStore.getState().project?.simboli?.map((s) => s.slug)).toEqual(["new-symbol"]);
   });
 
+  it("closing with unsaved changes offers cancel, leave without saving, and save and close", async () => {
+    act(() => openNewSymbol());
+    render(<SymbolEditorHost />);
+    await waitFor(() => expect(api.compilaSimboli).toHaveBeenCalled());
+    const closeWith = async (answer: unknown) => {
+      const auto = rispondi(answer);
+      try {
+        await act(async () => { fireEvent.click(screen.getByTestId("symbol-editor-close")); });
+      } finally { auto.ferma(); }
+      return auto.chiamate;
+    };
+    // Cancel: the editor stays, nothing written.
+    const asked = await closeWith(null);
+    expect(asked).toHaveLength(1);
+    expect(asked[0].tipo).toBe("scegli");
+    expect((asked[0] as { scelte: { valore: string }[] }).scelte.map((s) => s.valore)).toEqual(["discard", "save"]);
+    expect(useAppStore.getState().symbolEditor).not.toBeNull();
+    expect(saved).toHaveLength(0);
+    // Save and close: written, then closed.
+    await closeWith("save");
+    expect(saved).toHaveLength(1);
+    expect(useAppStore.getState().symbolEditor).toBeNull();
+  });
+
+  it("leaving without saving closes the editor and writes nothing", async () => {
+    act(() => openNewSymbol());
+    render(<SymbolEditorHost />);
+    await waitFor(() => expect(api.compilaSimboli).toHaveBeenCalled());
+    const auto = rispondi("discard");
+    try {
+      await act(async () => { fireEvent.click(screen.getByTestId("symbol-editor-close")); });
+    } finally { auto.ferma(); }
+    expect(saved).toHaveLength(0);
+    expect(useAppStore.getState().symbolEditor).toBeNull();
+  });
+
   it("opens a library symbol as a variant, and «save as» moves the object to the copy", async () => {
     vi.spyOn(api, "librarySymbolDescription").mockResolvedValue({
       slug: "centrifugal-pump", w: 100, h: 100, body: "body-pump", it: "x", en: "x",

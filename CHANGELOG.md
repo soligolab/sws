@@ -43,6 +43,11 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   e stesso tetto dello scopo «Simboli», risposta tenuta a uno schema JSON sui server locali.
 
 ### Cambiato
+- **Chiudere l'editor dei simboli con modifiche non salvate offre tre strade** (ramo `fix/symbol-editor-close-dialog`):
+  Annulla, «Esci senza salvare» e «Salva e chiudi», al posto del solo «andranno perse». Vale per il bottone «Chiudi»
+  e per Esc. Se il salvataggio non riesce o viene interrotto (la conferma sulla rinomina di ingressi o parti),
+  l'editor resta aperto. Un simbolo con errori non si può salvare: la finestra lo dice e offre solo Annulla ed
+  «Esci senza salvare». Era annotato nel collaudo del 20-11.
 - **L'assistente IA dei simboli, col modello locale: la risposta è tenuta a uno schema JSON** (ramo
   `feat/symbol-ai-schema`). Al modello di un server locale (Ollama, llama.cpp, vLLM) la domanda arriva con
   `response_format: json_schema` (`answer_schema` in `ai/symbol_draw.rs`, `client::ask_shaped`): il server ne fa una
