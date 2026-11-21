@@ -87,10 +87,14 @@ serve una **firma** con una chiave che sul VPS non c'è. Si riprende con le sess
     uguale per tutti è un passaggio dal VPS che riconosce il **dispositivo abbinato** (la sua identità del tunnel) e
     si revoca un dispositivo alla volta;
   - il pacchetto del Tiny TY e gli archivi in `download/` serviti allo stesso modo, non più pubblici;
-  - da decidere nella sessione: come scarica la **prima installazione** un pannello che non è ancora abbinato (un
-    codice d'installazione per cliente? un archivio consegnato a mano?), e se la cifratura con `podman
-    --encryption-key` serva lo stesso come secondo strato (protegge le immagini su un registry privato violato, non
-    da chi ha un pannello).
+  - **la prima installazione con un codice d'installazione** (deciso dal maintainer il 22-11): nella console della
+    piattaforma (`sws.soligo.net`, il «pannello di controllo» del maintainer) un **generatore di codici monouso**,
+    ognuno legato al cliente per cui nasce. Il pannello non ancora abbinato scarica con quel codice; usato, il codice
+    non vale più, e **nel database resta la registrazione dell'installazione**: la data, il cliente che l'ha usato e
+    l'identificativo del dispositivo. Da vedere nella sessione: la durata di un codice non usato, l'elenco dei codici
+    e delle installazioni nella console, e come si lega il codice all'abbinamento al cloud che segue;
+  - da decidere nella sessione: se la cifratura con `podman --encryption-key` serva lo stesso come secondo strato
+    (protegge le immagini su un registry privato violato, non da chi ha un pannello).
 
 ## Le decisioni prese in autonomia
 
