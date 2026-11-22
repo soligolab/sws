@@ -49,8 +49,12 @@ def testo(versioni: list, versione: str, lingua: str, compat: bool = False) -> s
     return "\n".join(f"- {r[lingua].strip()}" for r in righe if r.get(lingua))
 
 
-def controlla(versioni: list, versione: str | None) -> list[str]:
-    """I problemi, in parole. Vuoto = tutto a posto."""
+def controlla(versioni: list, versione: str | None, rilasciate: set[str] | None = None) -> list[str]:
+    """I problemi, in parole. Vuoto = tutto a posto.
+
+    `rilasciate`: the versions that have a release tag. When given, the entry
+    limit applies only to those blocks and to the declared final release.
+    """
     problemi = []
     viste = set()
     # While the declared version is an rc, the block it leads to has no entry
@@ -58,6 +62,15 @@ def controlla(versioni: list, versione: str | None) -> list[str]:
     # before the final release, when the declared version loses its `-rc` and
     # this check turns red again (maintainer's rule, 2026-11-20).
     in_rc = base(versione) if versione and "-" in versione else None
+    # Since 22-11-2026 a release can be stabilised on `release/X.Y` while `main`
+    # already declares the next one (`2.27.0-dev.0`): the 2.26.0 block is still
+    # unreleased, and its summary is still to be done. So, knowing the tags, a
+    # block is limited only once it is released, or when it is the declared
+    # final release itself.
+    def limitato(nome: str) -> bool:
+        if rilasciate is not None:
+            return nome == versione or nome in rilasciate
+        return nome != in_rc
     for v in versioni:
         nome = str(v.get("versione", "?"))
         if nome in viste:
@@ -66,7 +79,7 @@ def controlla(versioni: list, versione: str | None) -> list[str]:
         voci = v.get("voci") or []
         if not voci:
             problemi.append(f"{nome}: nessuna voce")
-        if len(voci) > MAX_VOCI and nome != in_rc:
+        if len(voci) > MAX_VOCI and limitato(nome):
             problemi.append(
                 f"{nome}: {len(voci)} voci, al massimo {MAX_VOCI} — sono Novità, non il CHANGELOG. "
                 "Prima della release ufficiale si sintetizzano insieme al maintainer"
@@ -79,14 +92,27 @@ def controlla(versioni: list, versione: str | None) -> list[str]:
                         problemi.append(f"{nome} {tipo} #{i}: manca «{lingua}»")
                     elif len(str(t)) > MAX_CARATTERI:
                         problemi.append(f"{nome} {tipo} #{i} ({lingua}): {len(str(t))} caratteri, al massimo {MAX_CARATTERI}")
-    if versione and not voce_della(versioni, versione):
+    # A dev version may have no entries yet: they are written with the work.
+    if versione and "-dev." not in versione and not voce_della(versioni, versione):
         problemi.append(f"la versione dichiarata {versione} non ha Novità (cercata come {base(versione)})")
     return problemi
 
 
+def tag_rilasciati() -> set[str] | None:
+    """The release tags in git (`2.25.2`, old `v2.1.0`), without pre-releases.
+    None when git is not there: then the old rule holds."""
+    import subprocess
+    try:
+        out = subprocess.run(["git", "-C", str(FILE.parent), "tag", "-l"],
+                             capture_output=True, text=True, check=True).stdout
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    return {t.lstrip("v") for t in out.split() if "-" not in t}
+
+
 def main(argv: list[str]) -> int:
     if argv and argv[0] == "--controlla":
-        problemi = controlla(carica(), argv[1] if len(argv) > 1 else None)
+        problemi = controlla(carica(), argv[1] if len(argv) > 1 else None, tag_rilasciati())
         for p in problemi:
             print(f"✗ {p}")
         return 1 if problemi else 0

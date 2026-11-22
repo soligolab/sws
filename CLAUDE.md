@@ -6,7 +6,7 @@
 ## Hard rules
 
 1. **Never `git push`** without an explicit instruction in the current session. Confirming that a feature works is *not* approval to push.
-2. **Never commit directly to `main`**, except meta commits (`STATUS.md`, `CHANGELOG.md`, `CLAUDE.md`, `docs/**`) and the squash merges described below.
+2. **Never commit directly to `main` or to a `release/X.Y` branch**, except meta commits (`STATUS.md`, `CHANGELOG.md`, `CLAUDE.md`, `docs/**`), the squash merges described below, and the version commits (`chore(dev)`, `chore(rc)`) described in `docs/HOWTO.md` §19.
 3. **Never resolve an item in `docs/OPEN_QUESTIONS.md`**, and since 2026-09-18 **never add one either**: a new open question becomes a **short plan file** in `docs/plans/` (see «Plans»). The questions file is frozen — it keeps its numbers and its references, nothing more.
 4. **Never ask permission for commands allowed in `.claude/settings.json`** (cargo, pnpm, git, ls/cat/grep, mkdir, podman…). Just run them. If a safe, recurring command is denied, propose a specific allow rule — never `Bash(*)`.
 5. **Never SSH into a test device without asking** — addresses change every session.
@@ -219,6 +219,20 @@ la cancellazione stessa a rendere impossibile il parallelo. Fa eccezione
 `backup/main-pre-riscrittura-2026-09-09`, che non è un ramo di lavoro ma la storia pre-riscrittura
 e **non si tocca**.
 
+Fanno eccezione anche i **rami di release** `release/X.Y` (dal 22-11-2026): non sono rami di lavoro
+ma la release in stabilizzazione, e possono stare accanto a `main` finché la release non è uscita e
+riportata. Il lavoro si fa comunque un ramo alla volta: una correzione è un `fix/…` da `release/X.Y`,
+squashato lì e poi riportato in `main` con `git cherry-pick`; una funzione nuova è un ramo da `main`.
+Il ramo di release si elimina dopo la release e il riporto.
+
+## Dev, rc e release (regola del maintainer, 2026-11-22)
+
+Le **rc** servono solo a finalizzare una release: correzioni e prestazioni, col profilo Rust pieno, e
+sono quelle che si collaudano. Il lavoro nuovo esce come **dev** (`X.Y.Z-dev.N`) da `main`. Parole del
+maintainer: «le rc dovrebbero essere finalizzate alla release, quindi solo bugfix, noi ora le usiamo
+come dev». Il come sta in `docs/HOWTO.md` §19 e nel piano
+[`docs/plans/2026-11-22-dev-rc-release-e-portale-di-sviluppo.md`](docs/plans/2026-11-22-dev-rc-release-e-portale-di-sviluppo.md).
+
 ## Un'anomalia che rovina l'uso passa davanti (regola del maintainer, 2026-11-09)
 
 **Quando salta fuori un'anomalia che pesa davvero sull'esperienza di chi usa il prodotto, non si
@@ -289,6 +303,6 @@ Do this *before* you run out of room, not after:
 
 1. `cargo check` / `pnpm build` / `./scripts/check_static.sh` green.
 2. Update `STATUS.md` — what was done, what's next, anything left half-finished.
-3. Update `CHANGELOG.md` under `[Unreleased]`, **and `NOVITA.yaml`** for anything a panel user would notice: one short line in Italian **and** English (it is what panels show before updating — `check_novita.sh` checks both languages and the length). **While the declared version is an `-rc`, add every entry: no 15-entry limit, no merging, no "the block is full" warnings** (maintainer's rule, 2026-11-20). The limit comes back when the version loses its `-rc` — `check_novita.sh` turns red there, and the entries are summarized **together with the maintainer** before the final release.
+3. Update `CHANGELOG.md` under `[Unreleased]`, **and `NOVITA.yaml`** for anything a panel user would notice: one short line in Italian **and** English (it is what panels show before updating — `check_novita.sh` checks both languages and the length). **While the declared version is an `-rc` or a `-dev`, or the block belongs to a release still being stabilised (no tag yet), add every entry: no 15-entry limit, no merging, no "the block is full" warnings** (maintainer's rule, 2026-11-20). The limit comes back when the version loses its `-rc` — `check_novita.sh` turns red there, and the entries are summarized **together with the maintainer** before the final release.
 4. Commit with `-s` and a clear message.
 5. Anything architectural that surfaced → a **short plan file** in `docs/plans/` (see «Plans»), not a decision. Not `docs/OPEN_QUESTIONS.md` any more.

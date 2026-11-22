@@ -64,6 +64,22 @@ other_rc = [p for p in n.controlla(v, "4.0.0-rc.1") if "al massimo" in p]
 sys.exit(0 if not rc and final and other_rc else 1)
 PY
 
+# With the tags known (22-11-2026): a block still being stabilised on
+# release/X.Y has no limit while main declares the next dev; once tagged, it has.
+python3 - "$FINTO" <<'PY' && ok "un blocco non ancora rilasciato non ha limite mentre main è sulla dev successiva" || no "il limite non segue i tag delle release"
+import sys; sys.path.insert(0, "scripts")
+from pathlib import Path
+import novita as n
+v = n.carica(Path(sys.argv[1]))
+v[0]["voci"] = [{"it": f"voce {i}", "en": f"entry {i}"} for i in range(n.MAX_VOCI + 1)]
+stabilising = [p for p in n.controlla(v, "4.0.0-dev.0", {"2.0.0"}) if "al massimo" in p]
+released = [p for p in n.controlla(v, "4.0.0-dev.0", {"2.0.0", "3.0.0"}) if "al massimo" in p]
+final = [p for p in n.controlla(v, "3.0.0", {"2.0.0"}) if "al massimo" in p]
+dev_without_block = [p for p in n.controlla(v, "4.0.0-dev.0", {"2.0.0"}) if "non ha Novità" in p]
+rc_without_block = [p for p in n.controlla(v, "4.0.0-rc.1", {"2.0.0"}) if "non ha Novità" in p]
+sys.exit(0 if not stabilising and released and final and not dev_without_block and rc_without_block else 1)
+PY
+
 echo
 [ "$rossi" -eq 0 ] && { printf '\033[32mNovità: tutto verde (%d).\033[0m\n' "$verdi"; exit 0; }
 printf '\033[31mNovità: %d rossi.\033[0m\n' "$rossi"; exit 1

@@ -124,9 +124,21 @@ tag_di() {
     fi
 }
 
+# A release being stabilised on its own branch (22-11-2026, dev/rc/release plan)
+# has its section in `main` before it has a tag: `## [2.26.0] — in
+# stabilizzazione`. It is accepted only while its branch `release/X.Y` exists,
+# here or on origin; once the release is out the tag is there and the branch goes.
+in_stabilizzazione() {
+    local v="$1" ramo="release/${1%.*}"
+    grep -qE "^## \[${v//./\\.}\] — in stabilizzazione" CHANGELOG.md || return 1
+    git rev-parse -q --verify "refs/heads/$ramo" >/dev/null ||
+        git rev-parse -q --verify "refs/remotes/origin/$ramo" >/dev/null
+}
+
 orfane=""; orfane_dichiarate=""
 for v in "${RILASCIATE[@]}"; do
     [ -n "$(tag_di "$v")" ] && continue
+    in_stabilizzazione "$v" && continue
     if dichiarata "$v"; then
         orfane_dichiarate="${orfane_dichiarate} ${v}"
     else

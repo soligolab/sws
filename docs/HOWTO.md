@@ -1427,49 +1427,72 @@ grep -E 'bot_token|password|token' ~/sws_projects/<progetto>/project.yaml   # no
 
 ---
 
-## 19. Dare un nome a un'immagine di prova: le versioni `-rc`
+## 19. Dare un nome a un'immagine di prova: dev, rc e release
 
-Prassi decisa dal maintainer il 2026-09-25, e dal 2026-09-27 con `-rc` al posto di `-dev` («Al posto di dev
-chiamiamo rc le immagini di test»). Un'immagine costruita per collaudare lavoro non ancora rilasciato porta
-una **versione di prova**, così la riconosci sul pannello, in Configurazione → Istanza → Device → Stato,
-nella lista dei dispositivi («SWS v…») e nel nome dell'archivio in `dist/`. Senza, l'immagine si chiamerebbe
-come l'ultima release e non sapresti quale delle due gira.
+> **Dal 22-11-2026 i livelli sono tre** (piano
+> [`docs/plans/2026-11-22-dev-rc-release-e-portale-di-sviluppo.md`](plans/2026-11-22-dev-rc-release-e-portale-di-sviluppo.md)).
+> Il maintainer: «le rc dovrebbero essere finalizzate alla release, quindi solo bugfix, noi ora le usiamo come dev».
+> Fino alla 2.26.0-rc.26 ogni prova era una `-rc`; da qui le rc tornano a essere quello che dice il nome.
+> Gli script dedicati (`build_dev.sh`, `build_rc.sh`) e la versione letta da fuori del binario arrivano con le parti
+> 1 e 2 del piano: fino ad allora si usano gli script di sempre, come descritto sotto.
 
-**La forma è `<prossima release>-rc.<N>`**: `2.12.0-rc.1`, `2.12.0-rc.2`… In semver una pre-release si ordina
-**prima** della release vera, quindi `2.12.0` risulta sempre più nuova di tutte le sue `-rc`; e `-dev` viene
-prima di `-rc`, quindi `2.12.0-rc.1` è più nuova delle vecchie `2.12.0-dev.N`. Un numero di patch più alto
-(`2.12.2-rc.1`) si ordinerebbe invece dopo `2.12.0`.
+Un'immagine di prova porta una **versione di prova**, così la riconosci sul pannello (Configurazione → Istanza →
+Device → Stato), nella lista dei dispositivi e nel nome dell'archivio in `dist/`. Senza, si chiamerebbe come l'ultima
+release e non sapresti quale delle due gira.
 
-### I passi
+| livello | forma | a cosa serve | dove nasce |
+|---|---|---|---|
+| **dev** | `2.27.0-dev.N` | il lavoro di tutti i giorni, le funzioni nuove | `main` |
+| **rc** | `2.26.0-rc.N` | **solo** correzioni e prestazioni verso la release; è la versione che si collauda | `release/X.Y` |
+| **release** | `2.26.0` | quella che va ai clienti | `release/X.Y` |
 
-1. Scegli N: `git tag -l '2.12.0-rc.*'` mostra quelle già usate, e si prende la successiva.
+In semver una pre-release si ordina **prima** della release, e `dev` prima di `rc`: `2.27.0-dev.9` < `2.27.0-rc.1` <
+`2.27.0`. Un numero di patch più alto (`2.12.2-rc.1`) si ordinerebbe invece dopo `2.12.0`.
+
+### Il ramo di release
+
+Quando una release entra in stabilizzazione si apre `release/X.Y` dal punto in cui è `main` (la 2.26 il 22-11-2026, dalla
+rc.26), e `main` passa alla `X.(Y+1).0-dev.0`. Da lì:
+
+- una **correzione** si fa su un ramo `fix/…` **da `release/X.Y`**, si squasha in `release/X.Y`, poi si riporta in
+  `main` con `git cherry-pick <commit>`; il messaggio del riporto dice da dove viene;
+- una **funzione nuova** va solo in `main`, come dev;
+- nel `CHANGELOG.md` di `main` la release in stabilizzazione ha la sua sezione, `## [X.Y.0] — in stabilizzazione`:
+  `check_release_coerente.sh` la accetta senza tag finché esiste il ramo `release/X.Y`;
+- in `NOVITA.yaml` il blocco della release in stabilizzazione non ha limite di voci finché non ha il suo tag (`novita.py`
+  legge i tag): la sintesi in 15 si fa col maintainer prima della release;
+- alla release: tag `X.Y.0` su `release/X.Y`, la sezione e il blocco riportati in `main`, il ramo si elimina dopo il
+  riporto.
+
+### I passi di una rc (e di una dev, finché non c'è `build_dev.sh`)
+
+1. Scegli N: `git tag -l '2.26.0-rc.*'` mostra quelle già usate, e si prende la successiva.
 2. Scrivi la versione nei **quattro file** che la portano (`sws-runtime/Cargo.toml`,
    `sws-runtime/crates/sws-kiosk/Cargo.toml`, `sws-runtime/crates/sws-lvgl-viewer/Cargo.toml`,
    `sws-editor/package.json`), poi `cargo check` per aggiornare `Cargo.lock`.
-3. Commit su `main` (`chore(rc): 2.12.0-rc.N`), **tag con lo stesso nome** e push di tutti e due:
-   `git push origin main 2.12.0-rc.N`. Il tag è obbligatorio: `check_release_coerente.sh` rifiuta
-   un tag di versione che esiste solo sulla tua macchina.
-4. Sulla macchina che raggiunge il dispositivo: `./scripts/session_start.sh`, poi
-   `./scripts/build_container.sh`:
-   - **con `--push`** l'immagine va su ghcr.io e sposta il tag **`rc-arm64`**, il canale di prova: i pannelli
-     installati su quel canale la vedono in Configurazione → Istanza → Device → Connessione → «Aggiornamento del
-     runtime» e si aggiornano con «Aggiorna ora»;
-   - **senza `--push`** esce solo l'archivio `dist/sws-runtime-2.12.0-rc.N-aarch64-image.tar.gz`.
+3. Commit sul ramo giusto (`chore(rc): 2.26.0-rc.N` su `release/2.26`, `chore(dev): 2.27.0-dev.N` su `main`), **tag con
+   lo stesso nome**, e push di tutti e due quando il maintainer lo dice. Il tag è obbligatorio:
+   `check_release_coerente.sh` rifiuta un tag di versione che esiste solo sulla tua macchina.
+4. `./scripts/build_container.sh` (o `build_containers_all.sh` per le due architetture):
+   - **con `--push`** l'immagine va su ghcr.io e sposta il tag mobile del suo canale (**`rc-arm64`** per una rc): i
+     pannelli installati su quel canale la vedono in Configurazione → Istanza → Device → Connessione →
+     «Aggiornamento del runtime» e si aggiornano con «Aggiorna ora»;
+   - **senza `--push`** esce solo l'archivio `dist/sws-runtime-<versione>-aarch64-image.tar.gz`.
 5. Per un pannello installato da archivio: Configurazione → Istanza → Device → Installazione, passo «Immagine»
    → **Archivio locale** (§10 e §12).
 
 ### Il CHANGELOG
 
-Una versione `-rc` **non** ha una sezione sua: il lavoro che contiene resta sotto `[Unreleased]` e
-diventa la sezione della release vera quando la si fa. `check_release_coerente.sh` lo sa, e per una
-`-rc` (o una vecchia `-dev`) non chiede la sezione.
+Una versione `-rc` o `-dev` **non** ha una sezione sua: il lavoro che contiene resta sotto `[Unreleased]` (in `main`) o
+sotto la sezione «in stabilizzazione» (la release del suo ramo), e diventa la sezione della release vera quando la si
+fa. `check_release_coerente.sh` lo sa, e per una `-rc` o una `-dev` non chiede la sezione.
 
 ### Alla release
 
-Si scrive la versione vera (`2.12.0`) nei quattro file, `[Unreleased]` diventa `## [2.12.0]`, e si
-tagga come sempre (§5). Il `--push` di una release sposta **`latest-arm64`** (canale stabile) **e `rc-arm64`**,
-così il canale di prova non resta indietro. I tag `-rc` (e i vecchi `-dev`) restano: dicono quale commit era
-dentro ogni immagine di prova.
+Si scrive la versione vera (`2.26.0`) nei quattro file su `release/2.26`, la sezione «in stabilizzazione» prende la data,
+e si tagga come sempre (§5). Il `--push` di una release sposta **`latest-arm64`** (canale stabile) **e `rc-arm64`**,
+così il canale di prova non resta indietro. I tag `-rc` e `-dev` restano: dicono quale commit era dentro ogni immagine
+di prova.
 
 ---
 

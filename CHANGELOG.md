@@ -11,6 +11,22 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+Il lavoro della **2.27.0** (versioni `2.27.0-dev.N`). Dal 22-11-2026 `main` porta la release successiva, e la 2.26.0
+si stabilizza su `release/2.26` (piano `docs/plans/2026-11-22-dev-rc-release-e-portale-di-sviluppo.md`).
+
+### Cambiato
+- **Tre livelli di versione: dev, rc e release.** Le rc servono solo a finalizzare una release (correzioni e
+  prestazioni); il lavoro nuovo esce come `X.Y.Z-dev.N`. La 2.26.0 entra in stabilizzazione sul ramo `release/2.26`,
+  `main` passa a `2.27.0-dev.0`. Le guardie seguono: `novita.py` limita a 15 le voci solo nei blocchi già rilasciati
+  (con il loro tag) o in quello della release dichiarata, e accetta una `-dev` senza Novità ancora scritte;
+  `check_release_coerente.sh` accetta una sezione `## [X.Y.Z] — in stabilizzazione` senza tag finché esiste il ramo
+  `release/X.Y`.
+
+## [2.26.0] — in stabilizzazione (ramo `release/2.26`)
+
+Il lavoro dalla 2.25.2 alla 2.26.0-rc.26. Le correzioni della stabilizzazione si fanno su `release/2.26` e si
+riportano qui con `cherry-pick`; la data arriva con la release.
+
 ### Cambiato
 - **I pannelli dell'editor dei simboli nello stile dell'IDE** (collaudo della 2.26.0-rc.23, 21-11-2026, ramo
   `feat/symbol-editor-panels`). Il maintainer: «tutti i menù sono fissi e in uno stile diverso dall'IDE principale».

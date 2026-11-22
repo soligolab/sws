@@ -389,7 +389,10 @@ if [ "$(git rev-parse --abbrev-ref HEAD)" = "main" ]; then
   VISTI=""
   while read -r r; do
     [ -z "$r" ] && continue
-    case "$r" in main|origin/main|origin/HEAD|backup/*|origin/backup/*) continue ;; esac
+    # `release/X.Y` is not a work branch (22-11-2026): the release being
+    # stabilised, whose fixes reach main by cherry-pick, so it always has
+    # commits main has not. It is named below, apart.
+    case "$r" in main|origin/main|origin/HEAD|backup/*|origin/backup/*|release/*|origin/release/*) continue ;; esac
     # `feat/x` e `origin/feat/x` sono lo stesso lavoro: si nomina una volta sola,
     # o l'avviso sembra dire che i rami aperti sono il doppio di quelli veri.
     corto="${r#origin/}"
@@ -400,6 +403,9 @@ if [ "$(git rev-parse --abbrev-ref HEAD)" = "main" ]; then
       APERTI="${APERTI}\n      ${corto} (${n} commit non su main)"
     fi
   done < <(git for-each-ref --format='%(refname:short)' refs/heads refs/remotes)
+  RELEASE="$(git for-each-ref --format='%(refname:short)' 'refs/heads/release/*' 'refs/remotes/origin/release/*' \
+             | sed 's#^origin/##' | sort -u | tr '\n' ' ')"
+  [ -n "$RELEASE" ] && info "release in stabilizzazione: ${B}${RELEASE}${Z}(correzioni lì, poi cherry-pick su main)"
   if [ -n "$APERTI" ]; then
     printf '  %s!%s sei su %smain%s ma c%sè lavoro non mergiato:%b\n' "$G" "$Z" "$B" "$Z" "'" "$APERTI"
     info "Prima di aprire qualcosa di nuovo: «un ramo alla volta» (CLAUDE.md)."

@@ -17,8 +17,9 @@ invocazione, esplicita quanto questa.
 
 ## 1. Niente rami aperti
 
-- `git branch -v`. Se compare un ramo diverso da `main` e da
-  `backup/main-pre-riscrittura-2026-09-09` (che non è un ramo di lavoro e non si tocca),
+- `git branch -v`. Se compare un ramo diverso da `main`, da
+  `backup/main-pre-riscrittura-2026-09-09` (che non è un ramo di lavoro e non si tocca) e dai rami di release
+  `release/X.Y` (la release in stabilizzazione, dal 22-11-2026: si pushano come `main`, nominandoli),
   **fermati**: la regola «Un ramo alla volta» dice che a fine giornata non dovrebbe essercene
   nessuno. Non decidere da solo se mergiarlo, annidarci sopra o abbandonarlo — chiedi al
   maintainer prima di proseguire con questa skill.
