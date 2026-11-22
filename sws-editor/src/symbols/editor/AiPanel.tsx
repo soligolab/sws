@@ -18,7 +18,7 @@ import type { ManifestLib, SimboloLib } from "@/symbols/lib/manifest";
 import type { StileSimboliProgetto } from "@/symbols/stileProgetto";
 import { pictureForModel } from "@/images/optimize";
 import { draws, type Op } from "./model";
-import { C, input } from "./ui";
+import { C, button as plainButton, input } from "./ui";
 
 type Proposal = Extract<SymbolAiResult, { ok: true }> & { instruction: string };
 type Photo = { media_type: string; data: string };
@@ -192,11 +192,11 @@ export function AiPanel({ d, commit, current, manifesto, projectStyle }: {
         <div style={{ display: "flex", gap: 6, alignItems: "center" }} data-testid="symbol-ai-photo">
           <img src={`data:${photo.media_type};base64,${photo.data}`} alt="" style={{ width: 56, height: 56, objectFit: "cover", borderRadius: 3 }} />
           <span style={{ flex: 1, color: C.muted }}>{t("symbolEditor.ai.photoAdded")}</span>
-          <button type="button" style={{ ...input, width: "auto", color: C.danger }} disabled={busy} title={t("symbolEditor.ai.removePhoto")}
+          <button type="button" style={{ ...plainButton, color: C.danger }} disabled={busy} title={t("symbolEditor.ai.removePhoto")}
             onClick={() => setPhoto(null)}>×</button>
         </div>
       ) : (
-        <button type="button" style={{ ...input, width: "auto", alignSelf: "flex-start" }} disabled={busy}
+        <button type="button" style={{ ...plainButton, alignSelf: "flex-start" }} disabled={busy}
           data-testid="symbol-ai-add-photo" onClick={() => fileRef.current?.click()}>
           + {t("symbolEditor.ai.addPhoto")}
         </button>
@@ -268,7 +268,7 @@ export function AiPanel({ d, commit, current, manifesto, projectStyle }: {
         <div data-testid="symbol-ai-busy" style={{ display: "flex", gap: 6, alignItems: "center", color: C.muted }}>
           <span style={{ flex: 1 }}>{t(busyKind === "interview" ? "symbolEditor.ai.interview.thinking" : "symbolEditor.ai.drawing",
             { s: Math.max(0, Math.round((now - since) / 1000)) })}</span>
-          <button type="button" style={{ ...input, width: "auto" }} onClick={() => abort.current?.abort()}>{t("symbolEditor.ai.stop")}</button>
+          <button type="button" style={plainButton} onClick={() => abort.current?.abort()}>{t("symbolEditor.ai.stop")}</button>
         </div>
       )}
 

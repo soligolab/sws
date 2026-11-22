@@ -5861,6 +5861,26 @@
       "title": "The symbol editor stopped because of an error",
       "text": "The rest of the IDE and the project are untouched. Unsaved changes to the symbol are lost: close the editor and open it again.",
       "close": "Close the editor"
+    },
+    "section": {
+      "arrange": "Layer and order",
+      "geometry": "Position and size",
+      "photo": "Photo",
+      "fill": "Fill",
+      "outline": "Outline",
+      "symbol": "Symbol",
+      "try": "Trial values",
+      "aiDraw": "Drawing with AI",
+      "transform": "Turn and align"
+    },
+    "layerSelect": "Select the layer's shapes",
+    "layerEmpty": "Empty",
+    "collapse": "Collapse",
+    "expand": "Expand",
+    "transform": {
+      "turn": "Turn and flip",
+      "align": "Align",
+      "distribute": "Distribute"
     }
   },
   "images": {

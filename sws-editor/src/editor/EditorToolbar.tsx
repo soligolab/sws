@@ -37,7 +37,7 @@ function nearestStepIndex(z: number): number {
   return best;
 }
 
-const BAR: React.CSSProperties = {
+export const BAR: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   gap: 10,
@@ -48,7 +48,7 @@ const BAR: React.CSSProperties = {
   borderBottom: "1px solid var(--brand-surface-2, #334155)",
 };
 
-const BTN: React.CSSProperties = {
+export const BTN: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   gap: 4,
@@ -62,13 +62,13 @@ const BTN: React.CSSProperties = {
   whiteSpace: "nowrap",
 };
 
-const SEP: React.CSSProperties = {
+export const SEP: React.CSSProperties = {
   width: 1,
   height: 18,
   background: "var(--brand-surface-2, #334155)",
 };
 
-const SELECT: React.CSSProperties = {
+export const SELECT: React.CSSProperties = {
   background: "var(--brand-bg, #0f172a)",
   color: "var(--brand-text, #e2e8f0)",
   border: "1px solid var(--brand-surface-2, #334155)",
@@ -80,14 +80,18 @@ const SELECT: React.CSSProperties = {
 
 /** Un pulsante disabilitato resta visibile ma spento: toglierlo farebbe
  *  ballare la barra a ogni modifica. */
-function dim(disabled: boolean): React.CSSProperties {
+export function dim(disabled: boolean): React.CSSProperties {
   return disabled ? { opacity: 0.35, cursor: "default" } : {};
 }
 
-function toggled(active: boolean): React.CSSProperties {
+/** Off, it still names the border colour: a `borderColor` that disappears from
+ *  the style makes React clear it, and the `border` shorthand of `BTN` then
+ *  falls back to the text colour — a pressed-looking frame on a button that is
+ *  off (seen on the symbol editor's tools, 22-11-2026). */
+export function toggled(active: boolean): React.CSSProperties {
   return active
     ? { background: "var(--brand-surface-2, #334155)", borderColor: "var(--brand-border, #475569)" }
-    : {};
+    : { background: "transparent", borderColor: "transparent" };
 }
 
 export function EditorToolbar({

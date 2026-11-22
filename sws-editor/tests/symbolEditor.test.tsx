@@ -68,6 +68,36 @@ describe("symbol editor", () => {
     expect(useAppStore.getState().project?.simboli?.map((s) => s.slug)).toEqual(["new-symbol"]);
   });
 
+  it("the panels open and close like the IDE's, and remember it; a layer's name still picks its shapes", async () => {
+    try { localStorage.clear(); } catch { /* no storage */ }
+    act(() => useAppStore.getState().openSymbolEditor({
+      draft: { slug: "pannelli", w: 100, h: 100, body: "body-pump", it: "P", en: "P",
+        ops: [{ op: "corpo" }, newRect({ x: 10, y: 10, w: 20, h: 20 }), newRect({ x: 50, y: 50, w: 20, h: 20 })] },
+      isNew: true,
+    }));
+    const { unmount } = render(<SymbolEditorHost />);
+    await waitFor(() => expect(api.compilaSimboli).toHaveBeenCalled());
+    // The layer's name picks its two shapes; the arrow closes it.
+    fireEvent.click(screen.getByTestId("symbol-layer-name-body"));
+    expect(screen.getByTestId("symbol-op-row-1").getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByTestId("symbol-op-row-2").getAttribute("aria-selected")).toBe("true");
+    fireEvent.click(screen.getByTestId("symbol-layer-toggle-body"));
+    expect(screen.queryByTestId("symbol-op-row-1")).toBeNull();
+    // A section of the Structure tab closes, and stays closed when the editor opens again.
+    fireEvent.click(screen.getByTestId("symbol-tab-structure"));
+    const inputs = screen.getByTestId("symbol-section-inputs");
+    expect(inputs.querySelector("p")).toBeTruthy();
+    fireEvent.click(inputs.querySelector("button[aria-expanded]")!);
+    expect(screen.getByTestId("symbol-section-inputs").querySelector("p")).toBeNull();
+    unmount();
+    render(<SymbolEditorHost />);
+    fireEvent.click(screen.getByTestId("symbol-tab-structure"));
+    expect(screen.getByTestId("symbol-section-inputs").querySelector("button[aria-expanded]")!.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByTestId("symbol-op-row-1")).toBeNull();
+    // What this test closed must not stay closed for the next ones.
+    try { localStorage.clear(); } catch { /* no storage */ }
+  });
+
   it("«New symbol» asks the name and the size first, and starts empty, inviting to draw", async () => {
     // Cancelled: no editor.
     const none = rispondi(null);

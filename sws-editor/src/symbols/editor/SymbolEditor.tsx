@@ -12,7 +12,11 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import type React from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
-import { C, Field, Num, input } from "./ui";
+import { BAR_HEIGHT, C, Field, Num, Section, button, input, note } from "./ui";
+import { SPAZIO, TESTO, useSezioneAperta } from "@/editor/stilePannelli";
+import { BAR, BTN, SELECT, SEP, dim, toggled } from "@/editor/EditorToolbar";
+import { HDR_BTN } from "@/components/headerStyles";
+import { EditorIcon, opIcon } from "./icons";
 import { SymbolEditorBoundary } from "./SymbolEditorBoundary";
 import { useAppStore } from "@/store";
 import type { DescrizioneSimbolo } from "@/types";
@@ -949,13 +953,14 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
 
   // ── render ──
   const { w, h } = d;
-  const btn = (on: boolean): React.CSSProperties => ({
-    padding: "4px 10px", fontSize: 12, borderRadius: 4, cursor: "pointer",
-    border: `1px solid ${on ? C.accent : C.border}`, background: on ? C.accent : "transparent",
-    color: on ? "var(--brand-on-primary, #fff)" : C.text,
+  /** A check box of the toolbar, as «Snap alla griglia» in the IDE's. */
+  const check: React.CSSProperties = { display: "flex", alignItems: "center", gap: 4, cursor: "pointer", fontSize: 12, color: C.muted, whiteSpace: "nowrap" };
+  const accent: React.CSSProperties = { accentColor: C.accent, margin: 0 };
+  /** A layer's command: an icon, as the page commands in the IDE's tree. */
+  const layerButton = (enabled: boolean, on = false): React.CSSProperties => ({
+    background: "transparent", border: "none", padding: 2, borderRadius: 3, lineHeight: 0, flexShrink: 0,
+    cursor: enabled ? "pointer" : "default", opacity: enabled ? 1 : 0.35, color: on ? C.accent : C.subtle,
   });
-  const small: React.CSSProperties = { ...btn(false), padding: "2px 6px", fontSize: 11 };
-  const tiny = (enabled: boolean): React.CSSProperties => ({ ...small, minWidth: 24, opacity: enabled ? 1 : 0.4 });
   const parts = ins.filter((i) => i.kind !== "state");
   // The piece the selected shapes are all in, if they are in one (19-11-2026).
   const selLayers = [...new Set(drawing(sel).map((i) => layerOf(i)))];
@@ -1016,137 +1021,149 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
       display: "flex", flexDirection: "column", fontSize: 12,
     }}>
       <PhotoPickerHost />
-      {/* top bar */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderBottom: `1px solid ${C.border}` }}>
-        <strong style={{ fontSize: 14 }}>{t("symbolEditor.title")}: {d[lang]}</strong>
-        {original && <span style={{ color: C.muted }}>{t("symbolEditor.variantOf", { name: t(original.label) })}</span>}
-        <span style={{ color: C.subtle }}>{t("symbolEditor.usage", { n: use.objects, pages: use.pages })}</span>
+      {/* top bar: the IDE's header (48 px, its buttons) */}
+      <div style={{
+        height: 48, flexShrink: 0, display: "flex", alignItems: "center", gap: 12, padding: "0 16px",
+        background: C.surface, borderBottom: `1px solid ${C.surface2}`,
+      }}>
+        <strong style={{ fontSize: 14, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+          {t("symbolEditor.title")}: {d[lang]}
+        </strong>
+        {original && <span style={{ color: C.muted, fontSize: 13 }}>{t("symbolEditor.variantOf", { name: t(original.label) })}</span>}
+        <span style={{ color: C.subtle, fontSize: 13, whiteSpace: "nowrap" }}>{t("symbolEditor.usage", { n: use.objects, pages: use.pages })}</span>
         <span style={{ flex: 1 }} />
-        <button type="button" style={small} disabled={!hist.past.length} onClick={undo} title="Ctrl+Z">{t("symbolEditor.undo")}</button>
-        <button type="button" style={small} disabled={!hist.future.length} onClick={redo} title="Ctrl+Y">{t("symbolEditor.redo")}</button>
-        {original && saved && <button type="button" style={small} onClick={() => void revert()}>{t("symbolEditor.revert")}</button>}
-        <button type="button" style={btn(false)} disabled={!!compiled.errors.length} onClick={() => void exportFile()}
+        {original && saved && <button type="button" style={HDR_BTN} onClick={() => void revert()}>{t("symbolEditor.revert")}</button>}
+        <button type="button" style={{ ...HDR_BTN, ...dim(!!compiled.errors.length) }} disabled={!!compiled.errors.length} onClick={() => void exportFile()}
           data-testid="symbol-editor-export" title={t("symbolEditor.file.exportTitle")}>{t("symbolEditor.file.export")}</button>
         {library && (
-          <button type="button" style={btn(false)} disabled={busy || !!compiled.errors.length} data-testid="symbol-editor-to-library"
+          <button type="button" style={{ ...HDR_BTN, ...dim(busy || !!compiled.errors.length) }} disabled={busy || !!compiled.errors.length} data-testid="symbol-editor-to-library"
             title={t("symbolLibrary.saveTitle")} onClick={() => void toLibrary()}>{t("symbolLibrary.save")}</button>
         )}
-        <button type="button" style={btn(false)} disabled={busy || !!compiled.errors.length} onClick={() => void saveAs()}>{t("symbolEditor.saveAs")}</button>
-        <button type="button" data-testid="symbol-editor-save" style={btn(dirty)} disabled={busy || !!compiled.errors.length || !dirty}
+        <button type="button" style={{ ...HDR_BTN, ...dim(busy || !!compiled.errors.length) }} disabled={busy || !!compiled.errors.length} onClick={() => void saveAs()}>{t("symbolEditor.saveAs")}</button>
+        <button type="button" data-testid="symbol-editor-save" disabled={busy || !!compiled.errors.length || !dirty}
+          style={dirty
+            ? { ...HDR_BTN, background: C.accent, borderColor: C.accent, color: "var(--brand-on-primary, #fff)", ...dim(busy || !!compiled.errors.length) }
+            : { ...HDR_BTN, ...dim(true) }}
           onClick={() => void save()}>{t("symbolEditor.save")}</button>
-        <button type="button" data-testid="symbol-editor-close" style={btn(false)} onClick={() => void doClose()}>{t("symbolEditor.close")}</button>
+        <button type="button" data-testid="symbol-editor-close" style={HDR_BTN} onClick={() => void doClose()}>{t("symbolEditor.close")}</button>
       </div>
 
       <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
         {/* layers */}
-        <div style={{ width: 230, borderRight: `1px solid ${C.border}`, overflow: "auto", padding: 8 }}>
-          <div style={{ color: C.subtle, fontWeight: 700, marginBottom: 4 }}>{t("symbolEditor.layers")}</div>
+        <div style={{ width: 220, flexShrink: 0, borderRight: `1px solid ${C.surface2}`, overflow: "auto", background: C.surface, display: "flex", flexDirection: "column" }}>
+          <div style={barTitle}>{t("symbolEditor.layers")}</div>
           {ls.map((l) => (
-            <div key={`${l.id}-${l.start}`} style={{ marginBottom: 6 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <span onClick={() => setSel(l.ops.filter(pickable))} style={{ flex: 1, cursor: "pointer", color: C.muted, fontWeight: 600 }}>{layerLabel(l, t)}</span>
-                {([[-1, "▲", "symbolEditor.layerUp"], [1, "▼", "symbolEditor.layerDown"]] as const).map(([dir, g, k]) => {
+            <LayerBlock key={`${l.id}-${l.start}`} id={l.id} title={layerLabel(l, t)} count={l.ops.length}
+              onSelect={() => setSel(l.ops.filter(pickable))}
+              actions={<>
+                {([[-1, "up", "symbolEditor.layerUp"], [1, "down", "symbolEditor.layerDown"]] as const).map(([dir, g, k]) => {
                   const can = moveLayer(d, l.id, dir).at.length > 0;
                   return (
-                    <button key={dir} type="button" title={t(k)} disabled={!can} data-testid={`symbol-layer-${dir < 0 ? "up" : "down"}-${l.id}`}
-                      style={{ ...tiny(can), minWidth: 18, padding: "0 2px" }} onClick={() => shiftLayer(l.id, dir)}>{g}</button>
+                    <button key={dir} type="button" title={t(k)} aria-label={t(k)} disabled={!can} data-testid={`symbol-layer-${dir < 0 ? "up" : "down"}-${l.id}`}
+                      style={layerButton(can)} onClick={() => shiftLayer(l.id, dir)}><EditorIcon name={g} size={13} /></button>
                   );
                 })}
                 <button type="button" title={t(hidden.has(l.id) ? "symbolEditor.layerShow" : "symbolEditor.layerHide")}
-                  data-testid={`symbol-layer-hide-${l.id}`} style={{ ...tiny(true), minWidth: 20 }}
+                  aria-label={t(hidden.has(l.id) ? "symbolEditor.layerShow" : "symbolEditor.layerHide")} aria-pressed={hidden.has(l.id)}
+                  data-testid={`symbol-layer-hide-${l.id}`} style={layerButton(true, hidden.has(l.id))}
                   onClick={() => setHidden((s) => { const n = new Set(s); if (n.has(l.id)) n.delete(l.id); else n.add(l.id); return n; })}>
-                  {hidden.has(l.id) ? "○" : "◉"}
+                  <EditorIcon name={hidden.has(l.id) ? "eye-off" : "eye"} size={13} />
                 </button>
                 <button type="button" title={t(locked.has(l.id) ? "symbolEditor.layerUnlock" : "symbolEditor.layerLock")}
-                  style={{ ...tiny(true), minWidth: 20 }}
+                  aria-label={t(locked.has(l.id) ? "symbolEditor.layerUnlock" : "symbolEditor.layerLock")} aria-pressed={locked.has(l.id)}
+                  style={layerButton(true, locked.has(l.id))}
                   onClick={() => setLocked((s) => { const n = new Set(s); if (n.has(l.id)) n.delete(l.id); else n.add(l.id); return n; })}>
-                  {locked.has(l.id) ? "■" : "□"}
+                  <EditorIcon name={locked.has(l.id) ? "lock" : "unlock"} size={13} />
                 </button>
                 <button type="button" title={t(grouped.has(l.id) ? "symbolEditor.layerUngroup" : "symbolEditor.layerGroup")}
+                  aria-label={t(grouped.has(l.id) ? "symbolEditor.layerUngroup" : "symbolEditor.layerGroup")}
                   data-testid={`symbol-layer-group-${l.id}`} aria-pressed={grouped.has(l.id)} disabled={l.ops.length < 2}
-                  style={{ ...tiny(l.ops.length >= 2), minWidth: 20, ...(grouped.has(l.id) ? { background: C.accent, borderColor: C.accent, color: "var(--brand-on-primary, #fff)" } : {}) }}
+                  style={layerButton(l.ops.length >= 2, grouped.has(l.id))}
                   onClick={() => setGrouped((s) => { const n = new Set(s); if (n.has(l.id)) n.delete(l.id); else n.add(l.id); return n; })}>
-                  ⧉
+                  <EditorIcon name="group" size={13} />
                 </button>
-              </div>
+              </>}>
               {/* The list still picks one shape, also of a grouped layer. */}
-              <div style={grouped.has(l.id) ? { borderLeft: `2px solid ${C.accent}`, marginLeft: 6 } : undefined}>
+              <div style={grouped.has(l.id) ? { borderLeft: `2px solid ${C.accent}`, marginLeft: 10 } : undefined}>
+              {l.ops.length === 0 && <div style={{ ...note, padding: "2px 12px 2px 26px" }}>{t("symbolEditor.layerEmpty")}</div>}
               {l.ops.map((i) => (
                 <div key={i} data-testid={`symbol-op-row-${i}`} aria-selected={sel.includes(i)} onClick={(e) => {
                   if (!pickable(i)) return;
                   setSel(e.shiftKey ? (sel.includes(i) ? sel.filter((x) => x !== i) : [...sel, i]) : [i]);
                 }}
                   style={{
-                    cursor: pickable(i) ? "pointer" : "default", padding: "1px 6px 1px 14px", borderRadius: 3,
-                    background: sel.includes(i) ? C.accent : "transparent",
-                    color: sel.includes(i) ? "var(--brand-on-primary, #fff)" : pickable(i) ? C.text : C.subtle,
+                    // The rows of the IDE's tree (`LeftPanel`, `S.row`).
+                    display: "flex", alignItems: "center", gap: SPAZIO.s,
+                    cursor: pickable(i) ? "pointer" : "default", padding: "3px 12px 3px 26px", fontSize: TESTO.riga,
+                    background: sel.includes(i) ? C.surface2 : "transparent",
+                    color: sel.includes(i) ? C.text : pickable(i) ? "var(--brand-text-2, #cbd5e1)" : C.subtle,
                   }}>
-                  {opLabel(d.ops[i] as Op, t)} <span style={{ opacity: 0.6 }}>#{i + 1}</span>
+                  <span style={{ color: sel.includes(i) ? C.accent : C.subtle }}><EditorIcon name={opIcon(d.ops[i] as Op)} size={13} /></span>
+                  <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {opLabel(d.ops[i] as Op, t)} <span style={{ color: C.subtle }}>#{i + 1}</span>
+                  </span>
                 </div>
               ))}
               </div>
-            </div>
+            </LayerBlock>
           ))}
         </div>
 
         {/* canvas */}
         <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
-          <div style={{ display: "flex", gap: 6, padding: 6, borderBottom: `1px solid ${C.border}`, alignItems: "center", flexWrap: "wrap" }}>
-            {TOOLS.map((k) => (
-              <button key={k} type="button" data-testid={`symbol-tool-${k}`} style={btn(tool === k)}
-                onClick={() => { setPoly([]); setTool(k); }} title={k === "poly" ? t("symbolEditor.polyHint") : undefined}>
-                {t(`symbolEditor.tool.${k}`)}
-              </button>
-            ))}
-            <button type="button" style={btn(false)} data-testid="symbol-import-svg" title={t("symbolEditor.svg.importTitle")}
-              onClick={() => svgInput.current?.click()}>{t("symbolEditor.svg.import")}</button>
-            <input ref={svgInput} type="file" accept=".svg,image/svg+xml" style={{ display: "none" }} data-testid="symbol-import-svg-file"
-              onChange={(e) => { void importSvgFile(e.target.files?.[0]); e.target.value = ""; }} />
-            <button type="button" style={btn(false)} data-testid="symbol-add-photo" title={t("symbolEditor.photo.addTitle")}
-              onClick={() => void addPhoto()}>{t("symbolEditor.photo.add")}</button>
-            <span style={{ flex: 1 }} />
-            <span style={{ color: C.subtle }}>{w} × {h}</span>
-          </div>
-          <div style={{ display: "flex", gap: 4, padding: "4px 6px", borderBottom: `1px solid ${C.border}`, alignItems: "center", flexWrap: "wrap" }}>
-            <button type="button" style={tiny(true)} title={t("symbolEditor.zoomOut")} onClick={() => zoomAt(1 / 1.25)}>−</button>
-            <span style={{ color: C.muted, minWidth: 40, textAlign: "center" }} data-testid="symbol-zoom">{Math.round(view.z * 100)}%</span>
-            <button type="button" style={tiny(true)} title={t("symbolEditor.zoomIn")} onClick={() => zoomAt(1.25)}>+</button>
-            <button type="button" style={small} onClick={fit}>{t("symbolEditor.fit")}</button>
-            <span style={{ width: 8 }} />
-            <label style={{ display: "flex", gap: 3, alignItems: "center" }}>
-              <input type="checkbox" checked={grid.on} onChange={(e) => setGrid({ ...grid, on: e.target.checked })} />{t("symbolEditor.grid")}
+          {/* The IDE's toolbar, in its order: undo/redo, the view, the grid. */}
+          <div style={{ ...BAR, height: BAR_HEIGHT, boxSizing: "border-box", gap: 6 }}>
+            <button type="button" style={{ ...BTN, ...dim(!hist.past.length) }} disabled={!hist.past.length} onClick={undo}
+              title={`${t("symbolEditor.undo")} (Ctrl+Z)`} aria-label={t("symbolEditor.undo")}>↶</button>
+            <button type="button" style={{ ...BTN, ...dim(!hist.future.length) }} disabled={!hist.future.length} onClick={redo}
+              title={`${t("symbolEditor.redo")} (Ctrl+Y)`} aria-label={t("symbolEditor.redo")}>↷</button>
+            <div style={SEP} />
+            <button type="button" style={BTN} title={t("symbolEditor.zoomOut")} onClick={() => zoomAt(1 / 1.25)}>−</button>
+            <span style={{ color: C.muted, minWidth: 44, textAlign: "center", fontFamily: "monospace" }} data-testid="symbol-zoom">{Math.round(view.z * 100)}%</span>
+            <button type="button" style={BTN} title={t("symbolEditor.zoomIn")} onClick={() => zoomAt(1.25)}>+</button>
+            <button type="button" style={BTN} onClick={fit}><span aria-hidden="true">⊡</span> {t("symbolEditor.fit")}</button>
+            <div style={SEP} />
+            <label style={check}>
+              <input type="checkbox" checked={grid.on} onChange={(e) => setGrid({ ...grid, on: e.target.checked })} style={accent} />{t("symbolEditor.grid")}
             </label>
-            <select style={{ ...small, padding: "1px 2px" }} value={grid.step} onChange={(e) => setGrid({ ...grid, step: Number(e.target.value) })}
+            <select style={SELECT} value={grid.step} onChange={(e) => setGrid({ ...grid, step: Number(e.target.value) })}
               aria-label={t("symbolEditor.gridStep")}>
               {[5, 10, 20].map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
-            <label style={{ display: "flex", gap: 3, alignItems: "center" }}>
-              <input type="checkbox" checked={grid.snap} onChange={(e) => setGrid({ ...grid, snap: e.target.checked })} data-testid="symbol-grid-snap" />{t("symbolEditor.gridSnap")}
+            <label style={check}>
+              <input type="checkbox" checked={grid.snap} onChange={(e) => setGrid({ ...grid, snap: e.target.checked })} data-testid="symbol-grid-snap" style={accent} />{t("symbolEditor.gridSnap")}
             </label>
-            <label style={{ display: "flex", gap: 3, alignItems: "center" }} title={t("symbolEditor.magnetHint")}>
-              <input type="checkbox" checked={magnet} onChange={(e) => setMagnet(e.target.checked)} />{t("symbolEditor.magnet")}
+            <label style={check} title={t("symbolEditor.magnetHint")}>
+              <input type="checkbox" checked={magnet} onChange={(e) => setMagnet(e.target.checked)} style={accent} />{t("symbolEditor.magnet")}
             </label>
-            <span style={{ width: 8 }} />
-            <button type="button" style={tiny(sel.length > 0)} disabled={!sel.length} title={t("symbolEditor.turnCw")} onClick={() => turn("cw")} data-testid="symbol-turn-cw">⟳</button>
-            <button type="button" style={tiny(sel.length > 0)} disabled={!sel.length} title={t("symbolEditor.turnCcw")} onClick={() => turn("ccw")}>⟲</button>
-            <button type="button" style={tiny(sel.length > 0)} disabled={!sel.length} title={t("symbolEditor.flipH")} onClick={() => turn("flipH")}>⇋</button>
-            <button type="button" style={tiny(sel.length > 0)} disabled={!sel.length} title={t("symbolEditor.flipV")} onClick={() => turn("flipV")}>⇵</button>
-            <span style={{ width: 8 }} />
-            {([["left", "⇤"], ["hcenter", "↔"], ["right", "⇥"], ["top", "⤒"], ["vcenter", "↕"], ["bottom", "⤓"]] as [AlignMode, string][]).map(([m, g]) => (
-              <button key={m} type="button" style={tiny(nDrawing > 1)} disabled={nDrawing < 2} title={t(`symbolEditor.align.${m}`)}
-                onClick={() => doAlign(m)} data-testid={`symbol-align-${m}`}>{g}</button>
-            ))}
-            <button type="button" style={tiny(nDrawing > 2)} disabled={nDrawing < 3} title={t("symbolEditor.distributeH")} onClick={() => doDistribute("h")}>⋯</button>
-            <button type="button" style={tiny(nDrawing > 2)} disabled={nDrawing < 3} title={t("symbolEditor.distributeV")} onClick={() => doDistribute("v")}>⋮</button>
-            <span style={{ width: 8 }} />
-            <label style={{ display: "flex", gap: 3, alignItems: "center" }} title={t("symbolEditor.explodeHint")}>
-              <input type="checkbox" checked={explode.on} data-testid="symbol-explode"
+            <div style={SEP} />
+            <label style={check} title={t("symbolEditor.explodeHint")}>
+              <input type="checkbox" checked={explode.on} data-testid="symbol-explode" style={accent}
                 onChange={(e) => { setExplode({ ...explode, on: e.target.checked }); }} />{t("symbolEditor.explode")}
             </label>
             {explode.on && (
               <input type="range" min={0} max={2} step={0.1} value={explode.k} aria-label={t("symbolEditor.explodeAmount")}
-                onChange={(e) => setExplode({ ...explode, k: Number(e.target.value) })} style={{ width: 90 }} />
+                onChange={(e) => setExplode({ ...explode, k: Number(e.target.value) })} style={{ width: 90, ...accent, cursor: "pointer" }} />
             )}
+            <span style={{ flex: 1 }} />
+            <span style={{ color: C.subtle, whiteSpace: "nowrap" }}>{w} × {h}</span>
+          </div>
+          {/* The drawing tools, with the IDE's icons. */}
+          <div style={{ ...BAR, height: BAR_HEIGHT, boxSizing: "border-box", gap: 2, background: C.bg }}>
+            {TOOLS.map((k) => (
+              <button key={k} type="button" data-testid={`symbol-tool-${k}`} aria-pressed={tool === k}
+                style={{ ...BTN, ...toggled(tool === k), ...(tool === k ? { color: C.text } : {}) }}
+                onClick={() => { setPoly([]); setTool(k); }} title={k === "poly" ? t("symbolEditor.polyHint") : undefined}>
+                <EditorIcon name={k} />{t(`symbolEditor.tool.${k}`)}
+              </button>
+            ))}
+            <div style={{ ...SEP, margin: "0 6px" }} />
+            <button type="button" style={BTN} data-testid="symbol-import-svg" title={t("symbolEditor.svg.importTitle")}
+              onClick={() => svgInput.current?.click()}><EditorIcon name="importSvg" />{t("symbolEditor.svg.import")}</button>
+            <input ref={svgInput} type="file" accept=".svg,image/svg+xml" style={{ display: "none" }} data-testid="symbol-import-svg-file"
+              onChange={(e) => { void importSvgFile(e.target.files?.[0]); e.target.value = ""; }} />
+            <button type="button" style={BTN} data-testid="symbol-add-photo" title={t("symbolEditor.photo.addTitle")}
+              onClick={() => void addPhoto()}><EditorIcon name="photo" />{t("symbolEditor.photo.add")}</button>
           </div>
           <div style={{ flex: 1, minHeight: 0, padding: 16, display: "flex" }}
             onDragOver={(e) => { if (e.dataTransfer.types.includes("Files")) { e.preventDefault(); e.stopPropagation(); } }}
@@ -1299,38 +1316,44 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
         </div>
 
         {/* properties */}
-        <div style={{ width: 290, borderLeft: `1px solid ${C.border}`, overflow: "auto", display: "flex", flexDirection: "column" }}>
-          <div style={{ display: "flex", borderBottom: `1px solid ${C.border}` }}>
+        <div style={{ width: 300, flexShrink: 0, borderLeft: `1px solid ${C.surface2}`, overflow: "auto", display: "flex", flexDirection: "column", background: C.surface }}>
+          <div role="tablist" style={{ ...barTitle, padding: 0, gap: 0 }}>
             {(["piece", "structure", "try", "ai"] as const).map((k) => (
-              <button key={k} type="button" onClick={() => setTab(k)} data-testid={`symbol-tab-${k}`} style={{
-                flex: 1, padding: 8, border: "none", cursor: "pointer", fontSize: 12,
-                background: tab === k ? C.surface : "transparent", color: tab === k ? C.text : C.muted,
+              <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)} data-testid={`symbol-tab-${k}`} style={{
+                flex: 1, height: "100%", border: "none", borderBottom: `2px solid ${tab === k ? C.accent : "transparent"}`,
+                background: "transparent", cursor: "pointer", fontFamily: "inherit",
+                fontSize: TESTO.titoloSezione, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase",
+                color: tab === k ? C.text : C.muted,
               }}>{t(`symbolEditor.tab.${k}`)}</button>
             ))}
           </div>
-          <div style={{ padding: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ display: "flex", flexDirection: "column" }}>
             {tab === "piece" ? (
               one?.op === "bocca" ? (
-                <PortProps d={d} port={portList.find((q) => q.op === sel[0])!} pipes={pipes.get(String(one.id))?.total ?? 0}
-                  commit={commit} onRename={renamePort} onDel={del} />
+                <Section id="port" title={`${t("symbolEditor.port.one")} ${String(one.id ?? "")}`}>
+                  <PortProps d={d} port={portList.find((q) => q.op === sel[0])!} pipes={pipes.get(String(one.id))?.total ?? 0}
+                    commit={commit} onRename={renamePort} onDel={del} />
+                </Section>
               ) : (
-                <>
-                  {nDrawing > 0 && (
+                <PieceProps d={d} sel={sel} one={one} layer={oneLayer} layers={ls} catalog={catalog} commit={commit}
+                  onDup={dup} onDel={del} onReorder={(dir) => { const r = reorderOp(d, sel[0], dir); commit(r.d); setSel([r.at]); }}
+                  onMoveToLayer={(id) => {
+                    const r = id === NEW_LAYER ? moveToNewLayer(d, drawing(sel)) : moveToLayer(d, drawing(sel), id);
+                    commit(r.d);
+                    setSel(r.at);
+                  }}
+                  transform={(
+                    <TransformBlock canTurn={sel.length > 0} canAlign={nDrawing > 1} canDistribute={nDrawing > 2}
+                      onTurn={turn} onAlign={doAlign} onDistribute={doDistribute} />
+                  )}
+                  animation={nDrawing > 0 ? (
                     <AnimateBlock d={d} partOp={selPart?.start} commit={commit}
                       onAnimate={(k) => {
                         const r = animateSelection(d, selPart ? selPart.ops : drawing(sel), k, boxes, firstColour());
                         if (r) { commit(r.d); setSel(r.shapes); }
                       }}
                       onRemove={() => { if (selPart) commit(removeInput(d, selPart.start)); }} />
-                  )}
-                  <PieceProps d={d} sel={sel} one={one} layer={oneLayer} layers={ls} catalog={catalog} commit={commit}
-                    onDup={dup} onDel={del} onReorder={(dir) => { const r = reorderOp(d, sel[0], dir); commit(r.d); setSel([r.at]); }}
-                    onMoveToLayer={(id) => {
-                      const r = id === NEW_LAYER ? moveToNewLayer(d, drawing(sel)) : moveToLayer(d, drawing(sel), id);
-                      commit(r.d);
-                      setSel(r.at);
-                    }} />
-                </>
+                  ) : undefined} />
               )
             ) : tab === "structure" ? (
               <StructureProps d={d} catalog={catalog} commit={commit} isVariant={!!d.overrides}
@@ -1338,11 +1361,17 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
                 onRenamePart={renamePartTracked} />
             ) : tab === "ai" ? (
               <>
-                <AiPanel d={d} commit={commit} current={compiled} manifesto={manifesto} projectStyle={projectStyle} />
-                <AiPhoto d={d} commit={commit} />
+                <Section id="ai-draw" title={t("symbolEditor.section.aiDraw")}>
+                  <AiPanel d={d} commit={commit} current={compiled} manifesto={manifesto} projectStyle={projectStyle} />
+                </Section>
+                <Section id="ai-photo" title={t("symbolEditor.aiPhoto.title")}>
+                  <AiPhoto d={d} commit={commit} />
+                </Section>
               </>
             ) : (
-              <TryProps d={d} parts={parts} hasState={ins.some((i) => i.kind === "state")} preview={preview} setPreview={setPreview} />
+              <Section id="try" title={t("symbolEditor.section.try")}>
+                <TryProps d={d} parts={parts} hasState={ins.some((i) => i.kind === "state")} preview={preview} setPreview={setPreview} />
+              </Section>
             )}
           </div>
         </div>
@@ -1351,7 +1380,43 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
   );
 }
 
-// ── the side panels ────────────────────────────────────────────────────────
+// ── the side panels ──
+
+/** The bar on top of a side column: the height of the canvas tools, so the
+ *  three columns start on one line (21-11-2026), in the style of the IDE's
+ *  view titles (`TitoloVista`). */
+const barTitle: React.CSSProperties = {
+  display: "flex", alignItems: "center", gap: SPAZIO.s, flexShrink: 0, height: BAR_HEIGHT, boxSizing: "border-box",
+  padding: `0 ${SPAZIO.m}px`, fontSize: TESTO.titoloSezione, fontWeight: 700, letterSpacing: 0.5,
+  textTransform: "uppercase", color: C.muted, background: C.surface, borderBottom: `1px solid ${C.surface2}`,
+};
+
+/** A layer of the list: opens and closes like a section of the IDE (the arrow),
+ *  and the name picks its shapes, as before. */
+function LayerBlock({ id, title, count, onSelect, actions, children }: {
+  id: string; title: string; count: number; onSelect: () => void; actions: React.ReactNode; children: React.ReactNode;
+}) {
+  const { t } = useTranslation();
+  const [open, toggle] = useSezioneAperta(`simboli.strato.${id}`, true);
+  return (
+    <div data-testid={`symbol-layer-${id}`} style={{ borderBottom: `1px solid ${C.surface2}`, padding: `${SPAZIO.xs}px 0` }}>
+      <div style={{ display: "flex", alignItems: "center", gap: SPAZIO.xs, padding: `2px ${SPAZIO.s}px 2px ${SPAZIO.m}px` }}>
+        <button type="button" onClick={toggle} aria-expanded={open} title={t(open ? "symbolEditor.collapse" : "symbolEditor.expand")}
+          data-testid={`symbol-layer-toggle-${id}`}
+          style={{ border: "none", background: "transparent", cursor: "pointer", padding: 0, width: 12, fontSize: 10, color: C.subtle }}>
+          {open ? "▾" : "▸"}
+        </button>
+        <span onClick={onSelect} title={`${title} — ${t("symbolEditor.layerSelect")}`} data-testid={`symbol-layer-name-${id}`} style={{
+          flex: 1, minWidth: 0, cursor: "pointer", fontSize: TESTO.titoloSezione, fontWeight: 700, letterSpacing: 0.3,
+          color: "var(--brand-text-2, #cbd5e1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+        }}>{title} <span style={{ fontWeight: 400, color: C.subtle }}>({count})</span></span>
+        {actions}
+      </div>
+      {open && <div style={{ paddingTop: 2 }}>{children}</div>}
+    </div>
+  );
+}
+// ──────────────────────────────────────────────────────
 
 
 
@@ -1368,31 +1433,40 @@ function MaterialSelect({ value, catalog, onChange }: { value: string; catalog: 
   );
 }
 
-function PieceProps({ d, sel, one, layer, layers: ls, catalog, commit, onDup, onDel, onReorder, onMoveToLayer }: {
+function PieceProps({ d, sel, one, layer, layers: ls, catalog, commit, onDup, onDel, onReorder, onMoveToLayer, animation, transform }: {
   d: DescrizioneSimbolo; sel: number[]; one?: Op; layer?: Layer; layers: Layer[]; catalog: Catalog | null;
   commit: (d: DescrizioneSimbolo) => void; onDup: () => void; onDel: () => void; onReorder: (dir: 1 | -1) => void;
   onMoveToLayer: (layerId: string) => void;
+  /** The «Animate» block, when the selection draws something. */
+  animation?: React.ReactNode;
+  /** Turn, flip, align and distribute (`TransformBlock`). */
+  transform?: React.ReactNode;
 }) {
   const { t } = useTranslation();
-  if (!sel.length) return <p style={{ color: C.subtle, margin: 0 }}>{t("symbolEditor.noSelection")}</p>;
-  const toLayer = (
-    <Field label={t("symbolEditor.moveToLayer")}>
-      <select style={input} value="" data-testid="symbol-move-to-layer" onChange={(e) => { if (e.target.value) onMoveToLayer(e.target.value); }}>
-        <option value="" />
-        {ls.filter((l) => l.id !== layer?.id).map((l) => <option key={`${l.id}-${l.start}`} value={l.id}>{layerLabel(l, t)}</option>)}
-        <option value={NEW_LAYER}>{t("symbolEditor.newLayer")}</option>
-      </select>
-    </Field>
+  if (!sel.length) return <p style={{ ...note, padding: `${SPAZIO.m}px ${SPAZIO.m + 2}px` }}>{t("symbolEditor.noSelection")}</p>;
+  const arrange = (
+    <Section id="arrange" title={t("symbolEditor.section.arrange")}>
+      <Field label={t("symbolEditor.moveToLayer")}>
+        <select style={input} value="" data-testid="symbol-move-to-layer" onChange={(e) => { if (e.target.value) onMoveToLayer(e.target.value); }}>
+          <option value="" />
+          {ls.filter((l) => l.id !== layer?.id).map((l) => <option key={`${l.id}-${l.start}`} value={l.id}>{layerLabel(l, t)}</option>)}
+          <option value={NEW_LAYER}>{t("symbolEditor.newLayer")}</option>
+        </select>
+      </Field>
+      <div style={{ display: "flex", gap: SPAZIO.xs, flexWrap: "wrap" }}>
+        {one && <button type="button" style={button} onClick={() => onReorder(1)}>{t("symbolEditor.up")}</button>}
+        {one && <button type="button" style={button} onClick={() => onReorder(-1)}>{t("symbolEditor.down")}</button>}
+        <button type="button" style={button} onClick={onDup}>{t("symbolEditor.duplicate")}</button>
+        <button type="button" style={{ ...button, color: C.danger }} onClick={onDel}>{t("symbolEditor.delete")}</button>
+      </div>
+    </Section>
   );
-  const actions = (
-    <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-      {one && <button type="button" style={input} onClick={() => onReorder(1)}>{t("symbolEditor.up")}</button>}
-      {one && <button type="button" style={input} onClick={() => onReorder(-1)}>{t("symbolEditor.down")}</button>}
-      <button type="button" style={input} onClick={onDup}>{t("symbolEditor.duplicate")}</button>
-      <button type="button" style={{ ...input, color: C.danger }} onClick={onDel}>{t("symbolEditor.delete")}</button>
-    </div>
+  const head = (text: React.ReactNode) => (
+    <div style={{ padding: `${SPAZIO.m}px ${SPAZIO.m + 2}px ${SPAZIO.s}px`, fontSize: TESTO.riga, fontWeight: 700 }}>{text}</div>
   );
-  if (!one) return <>{t("symbolEditor.manySelected", { n: sel.length })}{toLayer}{actions}</>;
+  const anim = animation && <Section id="animation" title={t("symbolEditor.anim.animation")}>{animation}</Section>;
+  const turnAlign = transform && <Section id="transform" title={t("symbolEditor.section.transform")}>{transform}</Section>;
+  if (!one) return <>{head(t("symbolEditor.manySelected", { n: sel.length }))}{anim}{turnAlign}{arrange}</>;
   const i = sel[0];
   const fill = fillOf(one);
   const geo = Array.isArray(one.geo) ? (one.geo as [string, number | string][]) : [];
@@ -1405,18 +1479,25 @@ function PieceProps({ d, sel, one, layer, layers: ls, catalog, commit, onDup, on
   const stroke = extraOf(one, "stroke");
   const strokeKind = stroke === undefined ? "layer" : stroke === "none" ? "none" : "color";
   const num = (k: string) => { const v = extraOf(one, k); return typeof v === "number" ? v : typeof v === "string" && v !== "" ? Number(v) : undefined; };
+  const numbers = geo.filter(([, v]) => typeof v === "number") as [string, number][];
   return (
     <>
-      <div style={{ fontWeight: 700 }}>{opLabel(one, t)} #{i + 1}
-        {layer && <span style={{ color: C.subtle, fontWeight: 400 }}> · {layerLabel(layer, t)}</span>}</div>
-      {geo.map(([k, v]) => typeof v === "number" && (
-        <Field key={k} label={k}><Num value={v} onChange={(n) => commit(setGeo(d, i, k, n))} /></Field>
-      ))}
-      {(isLine || (isShape && one.tag === "path")) && <PathField value={pathD} onChange={(v) => commit(setPathD(d, i, v))} />}
+      {head(<>{opLabel(one, t)} #{i + 1}
+        {layer && <span style={{ color: C.subtle, fontWeight: 400 }}> · {layerLabel(layer, t)}</span>}</>)}
+      {anim}
+      {(numbers.length > 0 || isLine || (isShape && one.tag === "path")) && (
+        <Section id="geometry" title={t("symbolEditor.section.geometry")}>
+          {numbers.map(([k, v]) => (
+            <Field key={k} label={k}><Num value={v} onChange={(n) => commit(setGeo(d, i, k, n))} /></Field>
+          ))}
+          {(isLine || (isShape && one.tag === "path")) && <PathField value={pathD} onChange={(v) => commit(setPathD(d, i, v))} />}
+        </Section>
+      )}
+      {turnAlign}
       {one.op === "image" && (
-        <>
+        <Section id="photo" title={t("symbolEditor.section.photo")}>
           <Field label={t("symbolEditor.photo.file")}>
-            <button type="button" style={input} data-testid="symbol-photo-change" title={t("symbolEditor.photo.change")}
+            <button type="button" style={{ ...input, textAlign: "left", cursor: "pointer" }} data-testid="symbol-photo-change" title={t("symbolEditor.photo.change")}
               onClick={() => void pickPhoto().then((p) => {
                 if (p) commit({ ...d, ops: (d.ops as Op[]).map((o, k) => (k === i ? { ...o, src: p.name } : o)) });
               })}>{String(one.src ?? "")}</button>
@@ -1425,11 +1506,11 @@ function PieceProps({ d, sel, one, layer, layers: ls, catalog, commit, onDup, on
             <Num value={typeof one.opacity === "number" ? one.opacity : 1} step={0.05}
               onChange={(n) => commit(setImageOpacity(d, i, n))} />
           </Field>
-          <p style={{ margin: 0, color: C.subtle, fontSize: 11 }}>{t("symbolEditor.photo.note")}</p>
-        </>
+          <p style={note}>{t("symbolEditor.photo.note")}</p>
+        </Section>
       )}
       {(isShape || isLine) && fill && (
-        <>
+        <Section id="fill" title={t(isLine ? "symbolEditor.lineColour" : "symbolEditor.section.fill")}>
           <Field label={t(isLine ? "symbolEditor.lineColour" : "symbolEditor.colour")}>
             <select style={input} value={fillKind} data-testid="symbol-fill-kind" onChange={(e) => {
               const k = e.target.value;
@@ -1444,43 +1525,41 @@ function PieceProps({ d, sel, one, layer, layers: ls, catalog, commit, onDup, on
           {"mat" in fill && <Field label=""><MaterialSelect value={fill.mat} catalog={catalog} onChange={(m) => commit(setFill(d, i, { mat: m }))} /></Field>}
           {"color" in fill && <Field label=""><input type="color" style={{ ...input, padding: 0, height: 24 }} value={fill.color}
             onChange={(e) => commit(setFill(d, i, { color: e.target.value }))} /></Field>}
-          {fillKind === "color" && <p style={{ margin: 0, color: C.subtle, fontSize: 11 }}>{t("symbolEditor.ownColourNote")}</p>}
-        </>
-      )}
-      {isShape && (
-        <Field label={t("symbolEditor.veil")}>
-          <select style={input} value={String(one.velo ?? "")} onChange={(e) => commit(setVeil(d, i, e.target.value || null))}>
-            <option value="">{t("symbolEditor.noVeil")}</option>
-            {catalog?.veils.map((v) => <option key={v.name} value={v.name}>{v.name}</option>)}
-          </select>
-        </Field>
-      )}
-      {isShape && (
-        <>
-          <Field label={t("symbolEditor.outline")}>
-            <select style={input} value={strokeKind} data-testid="symbol-stroke-kind" onChange={(e) => {
-              const k = e.target.value;
-              commit(setExtra(d, i, "stroke", k === "layer" ? undefined : k === "none" ? "none" : "#1c2329" /* fixed-colour */));
-            }}>
-              <option value="layer">{t("symbolEditor.outlineLayer")}</option>
-              <option value="color">{t("symbolEditor.fill.own")}</option>
-              <option value="none">{t("symbolEditor.outlineNone")}</option>
-            </select>
-          </Field>
-          {strokeKind === "color" && <Field label=""><input type="color" style={{ ...input, padding: 0, height: 24 }} value={String(stroke)}
-            onChange={(e) => commit(setExtra(d, i, "stroke", e.target.value))} /></Field>}
-        </>
-      )}
-      {(isShape || isLine) && (
-        <>
-          <Field label={t("symbolEditor.strokeWidth")}>
-            <Num value={typeof sw === "number" ? sw : 1} step={0.1} onChange={(n) => commit(setGeo(d, i, "stroke_width", Math.max(0, Math.min(20, n))))} />
-          </Field>
+          {fillKind === "color" && <p style={note}>{t("symbolEditor.ownColourNote")}</p>}
+          {isShape && (
+            <Field label={t("symbolEditor.veil")}>
+              <select style={input} value={String(one.velo ?? "")} onChange={(e) => commit(setVeil(d, i, e.target.value || null))}>
+                <option value="">{t("symbolEditor.noVeil")}</option>
+                {catalog?.veils.map((v) => <option key={v.name} value={v.name}>{v.name}</option>)}
+              </select>
+            </Field>
+          )}
           {isShape && (
             <Field label={t("symbolEditor.fillOpacity")}>
               <Num value={num("fill_opacity") ?? 1} step={0.05} onChange={(n) => commit(setExtra(d, i, "fill_opacity", n >= 1 ? undefined : Math.max(0, n)))} />
             </Field>
           )}
+        </Section>
+      )}
+      {(isShape || isLine) && (
+        <Section id="outline" title={t("symbolEditor.section.outline")}>
+          {isShape && (
+            <Field label={t("symbolEditor.outline")}>
+              <select style={input} value={strokeKind} data-testid="symbol-stroke-kind" onChange={(e) => {
+                const k = e.target.value;
+                commit(setExtra(d, i, "stroke", k === "layer" ? undefined : k === "none" ? "none" : "#1c2329" /* fixed-colour */));
+              }}>
+                <option value="layer">{t("symbolEditor.outlineLayer")}</option>
+                <option value="color">{t("symbolEditor.fill.own")}</option>
+                <option value="none">{t("symbolEditor.outlineNone")}</option>
+              </select>
+            </Field>
+          )}
+          {isShape && strokeKind === "color" && <Field label=""><input type="color" style={{ ...input, padding: 0, height: 24 }} value={String(stroke)}
+            onChange={(e) => commit(setExtra(d, i, "stroke", e.target.value))} /></Field>}
+          <Field label={t("symbolEditor.strokeWidth")}>
+            <Num value={typeof sw === "number" ? sw : 1} step={0.1} onChange={(n) => commit(setGeo(d, i, "stroke_width", Math.max(0, Math.min(20, n))))} />
+          </Field>
           <Field label={t("symbolEditor.strokeOpacity")}>
             <Num value={num("stroke_opacity") ?? 1} step={0.05} onChange={(n) => commit(setExtra(d, i, "stroke_opacity", n >= 1 ? undefined : Math.max(0, n)))} />
           </Field>
@@ -1498,10 +1577,50 @@ function PieceProps({ d, sel, one, layer, layers: ls, catalog, commit, onDup, on
               {["butt", "round", "square"].map((c) => <option key={c} value={c}>{t(`symbolEditor.cap.${c}`)}</option>)}
             </select>
           </Field>
-        </>
+        </Section>
       )}
-      {toLayer}
-      {actions}
+      {arrange}
+    </>
+  );
+}
+
+/** Turn, flip, align and distribute the selection: in the panel, as the IDE's
+ *  alignment of several objects (`MultiSelectionProps`), and no longer in a
+ *  second canvas toolbar (22-11-2026). */
+function TransformBlock({ canTurn, canAlign, canDistribute, onTurn, onAlign, onDistribute }: {
+  canTurn: boolean; canAlign: boolean; canDistribute: boolean;
+  onTurn: (how: "cw" | "ccw" | "flipH" | "flipV") => void;
+  onAlign: (m: AlignMode) => void;
+  onDistribute: (axis: "h" | "v") => void;
+}) {
+  const { t } = useTranslation();
+  const b = (enabled: boolean): React.CSSProperties => ({
+    ...button, flex: 1, fontSize: 13, padding: "4px 0", color: "var(--brand-text-2, #cbd5e1)", ...dim(!enabled),
+  });
+  const row = (label: string, children: React.ReactNode) => (
+    <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+      <span style={{ color: C.muted, fontSize: TESTO.etichetta }}>{label}</span>
+      <div style={{ display: "flex", gap: SPAZIO.xs }}>{children}</div>
+    </div>
+  );
+  return (
+    <>
+      {row(t("symbolEditor.transform.turn"), <>
+        <button type="button" style={b(canTurn)} disabled={!canTurn} title={t("symbolEditor.turnCw")} onClick={() => onTurn("cw")} data-testid="symbol-turn-cw">⟳</button>
+        <button type="button" style={b(canTurn)} disabled={!canTurn} title={t("symbolEditor.turnCcw")} onClick={() => onTurn("ccw")}>⟲</button>
+        <button type="button" style={b(canTurn)} disabled={!canTurn} title={t("symbolEditor.flipH")} onClick={() => onTurn("flipH")}>⇋</button>
+        <button type="button" style={b(canTurn)} disabled={!canTurn} title={t("symbolEditor.flipV")} onClick={() => onTurn("flipV")}>⇵</button>
+      </>)}
+      {row(t("symbolEditor.transform.align"), (
+        ([["left", "⇤"], ["hcenter", "↔"], ["right", "⇥"], ["top", "⤒"], ["vcenter", "↕"], ["bottom", "⤓"]] as [AlignMode, string][]).map(([m, g]) => (
+          <button key={m} type="button" style={b(canAlign)} disabled={!canAlign} title={t(`symbolEditor.align.${m}`)}
+            onClick={() => onAlign(m)} data-testid={`symbol-align-${m}`}>{g}</button>
+        ))
+      ))}
+      {row(t("symbolEditor.transform.distribute"), <>
+        <button type="button" style={b(canDistribute)} disabled={!canDistribute} title={t("symbolEditor.distributeH")} onClick={() => onDistribute("h")}>⋯</button>
+        <button type="button" style={b(canDistribute)} disabled={!canDistribute} title={t("symbolEditor.distributeV")} onClick={() => onDistribute("v")}>⋮</button>
+      </>)}
     </>
   );
 }
@@ -1655,74 +1774,79 @@ function StructureProps({ d, catalog, commit, isVariant, ports: portList, pipes,
   const [scale, setScale] = useState(true);
   return (
     <>
-      {isVariant && <p style={{ margin: 0, color: C.muted }}>{t("symbolEditor.variantNote")}</p>}
-      <Field label={t("symbolEditor.nameIt")}><input style={input} value={d.it} maxLength={60} onChange={(e) => commit({ ...d, it: e.target.value })} /></Field>
-      <Field label={t("symbolEditor.nameEn")}><input style={input} value={d.en} maxLength={60} onChange={(e) => commit({ ...d, en: e.target.value })} /></Field>
-      <Field label={t("symbolEditor.category")}>
-        <CategorySelect value={d.tipo ?? "project"} onChange={(tipo) => commit({ ...d, tipo })} />
-      </Field>
-      <Field label={t("symbolEditor.size")}>
-        <Num value={d.w} step={10} onChange={(n) => commit(resizeSymbol(d, validSize(n), d.h, scale))} />
-        <Num value={d.h} step={10} onChange={(n) => commit(resizeSymbol(d, d.w, validSize(n), scale))} />
-      </Field>
-      <label style={{ display: "flex", gap: 6, alignItems: "center", color: C.muted, fontSize: 11 }}>
-        <input type="checkbox" checked={scale} onChange={(e) => setScale(e.target.checked)} data-testid="symbol-scale-drawing" />
-        {t("symbolEditor.scaleDrawing")}
-      </label>
-      <Field label={t("symbolEditor.bodyMaterial")}><MaterialSelect value={d.body} catalog={catalog} onChange={(m) => commit({ ...d, body: m })} /></Field>
+      <Section id="symbol" title={t("symbolEditor.section.symbol")}>
+        {isVariant && <p style={{ ...note, color: C.muted }}>{t("symbolEditor.variantNote")}</p>}
+        <Field label={t("symbolEditor.nameIt")}><input style={input} value={d.it} maxLength={60} onChange={(e) => commit({ ...d, it: e.target.value })} /></Field>
+        <Field label={t("symbolEditor.nameEn")}><input style={input} value={d.en} maxLength={60} onChange={(e) => commit({ ...d, en: e.target.value })} /></Field>
+        <Field label={t("symbolEditor.category")}>
+          <CategorySelect value={d.tipo ?? "project"} onChange={(tipo) => commit({ ...d, tipo })} />
+        </Field>
+        <Field label={t("symbolEditor.size")}>
+          <Num value={d.w} step={10} onChange={(n) => commit(resizeSymbol(d, validSize(n), d.h, scale))} />
+          <Num value={d.h} step={10} onChange={(n) => commit(resizeSymbol(d, d.w, validSize(n), scale))} />
+        </Field>
+        <label style={{ display: "flex", gap: 6, alignItems: "center", color: C.muted, fontSize: 11 }}>
+          <input type="checkbox" checked={scale} onChange={(e) => setScale(e.target.checked)} data-testid="symbol-scale-drawing" />
+          {t("symbolEditor.scaleDrawing")}
+        </label>
+        <p style={note}>{t("symbolEditor.sizeNote", { w: r2(d.w), h: r2(d.h) })}</p>
+        <Field label={t("symbolEditor.bodyMaterial")}><MaterialSelect value={d.body} catalog={catalog} onChange={(m) => commit({ ...d, body: m })} /></Field>
+      </Section>
 
-      <div style={{ fontWeight: 700, marginTop: 6 }}>{t("symbolEditor.inputs")}</div>
-      <p style={{ margin: 0, color: C.subtle, fontSize: 11 }}>{t("symbolEditor.inputsNote")}</p>
-      {ins.map((inp) => {
-        return (
-          <div key={`${inp.id}-${inp.op}`} style={{ border: `1px solid ${C.border}`, borderRadius: 4, padding: 6, display: "flex", flexDirection: "column", gap: 4 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <strong style={{ flex: 1 }}>{t(`symbolEditor.input.${inp.kind}`)}</strong>
-              <button type="button" style={{ ...input, width: "auto", color: C.danger }} onClick={() => commit(removeInput(d, inp.op))}>
-                {t("symbolEditor.delete")}
-              </button>
+      <Section id="inputs" title={t("symbolEditor.inputs")} count={ins.length}>
+        <p style={note}>{t("symbolEditor.inputsNote")}</p>
+        {ins.map((inp) => {
+          return (
+            <div key={`${inp.id}-${inp.op}`} style={{ border: `1px solid ${C.surface2}`, borderRadius: 4, padding: 6, display: "flex", flexDirection: "column", gap: 4, background: C.bg }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <strong style={{ flex: 1, fontSize: TESTO.riga }}>{t(`symbolEditor.input.${inp.kind}`)}</strong>
+                <button type="button" style={{ ...button, color: C.danger }} onClick={() => commit(removeInput(d, inp.op))}>
+                  {t("symbolEditor.delete")}
+                </button>
+              </div>
+              {inp.kind !== "state" && (
+                <Field label={t("symbolEditor.inputId")}>
+                  <input style={input} value={inp.id} maxLength={30}
+                    onChange={(e) => {
+                      const to = e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-");
+                      onRenamePart(inp.id, to);
+                      commit(renamePart(d, inp.op, to));
+                    }} />
+                </Field>
+              )}
+              <AnimationProps d={d} op={inp.op} commit={commit} />
             </div>
-            {inp.kind !== "state" && (
-              <Field label={t("symbolEditor.inputId")}>
-                <input style={input} value={inp.id} maxLength={30}
-                  onChange={(e) => {
-                    const to = e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-");
-                    onRenamePart(inp.id, to);
-                    commit(renamePart(d, inp.op, to));
-                  }} />
-              </Field>
-            )}
-            <AnimationProps d={d} op={inp.op} commit={commit} />
-          </div>
-        );
-      })}
-      <Field label={t("symbolEditor.addInput")}>
-        <select style={input} value={adding} onChange={(e) => setAdding(e.target.value as InputKind)}>
-          <option value="" />
-          {INPUT_KINDS.filter((k) => k !== "state" || !ins.some((i) => i.kind === "state")).map((k) => (
-            <option key={k} value={k}>{t(`symbolEditor.input.${k}`)}</option>
-          ))}
-        </select>
-        <button type="button" style={{ ...input, width: "auto" }} disabled={!adding} onClick={() => {
-          const r = adding ? addInput(d, adding) : null;
-          if (r) commit(r.d);
-          setAdding("");
-        }}>+</button>
-      </Field>
-      <div style={{ fontWeight: 700, marginTop: 6 }}>{t("symbolEditor.port.title")}</div>
-      <p style={{ margin: 0, color: C.subtle, fontSize: 11 }}>{t("symbolEditor.port.note")}</p>
-      {portList.length === 0 && <p style={{ margin: 0, color: C.subtle, fontSize: 11 }}>{t("symbolEditor.port.none")}</p>}
-      {portList.map((q) => (
-        <button key={q.op} type="button" data-testid={`symbol-port-row-${q.id}`} onClick={() => onSelectPort(q.op)}
-          style={{ ...input, display: "flex", gap: 6, cursor: "pointer", textAlign: "left" }}>
-          <strong style={{ flex: 1 }}>{q.id}</strong>
-          <span style={{ color: C.muted }}>{t(`symbolEditor.port.side.${q.side}`)} · Ø {q.d}</span>
-          <span style={{ color: (pipes.get(q.id)?.total ?? 0) ? C.port : C.subtle }}>
-            {t("symbolEditor.port.pipes", { n: pipes.get(q.id)?.total ?? 0 })}
-          </span>
-        </button>
-      ))}
-      <p style={{ margin: 0, color: C.subtle, fontSize: 11 }}>{t("symbolEditor.sizeNote", { w: r2(d.w), h: r2(d.h) })}</p>
+          );
+        })}
+        <Field label={t("symbolEditor.addInput")}>
+          <select style={input} value={adding} onChange={(e) => setAdding(e.target.value as InputKind)}>
+            <option value="" />
+            {INPUT_KINDS.filter((k) => k !== "state" || !ins.some((i) => i.kind === "state")).map((k) => (
+              <option key={k} value={k}>{t(`symbolEditor.input.${k}`)}</option>
+            ))}
+          </select>
+          <button type="button" style={button} disabled={!adding} onClick={() => {
+            const r = adding ? addInput(d, adding) : null;
+            if (r) commit(r.d);
+            setAdding("");
+          }}>+</button>
+        </Field>
+      </Section>
+
+      <Section id="ports" title={t("symbolEditor.port.title")} count={portList.length}>
+        <p style={note}>{t("symbolEditor.port.note")}</p>
+        {portList.length === 0 && <p style={note}>{t("symbolEditor.port.none")}</p>}
+        {portList.map((q) => (
+          <button key={q.op} type="button" data-testid={`symbol-port-row-${q.id}`} onClick={() => onSelectPort(q.op)}
+            style={{ ...input, display: "flex", gap: 6, cursor: "pointer", textAlign: "left" }}>
+            <strong style={{ flex: 1 }}>{q.id}</strong>
+            <span style={{ color: C.muted }}>{t(`symbolEditor.port.side.${q.side}`)} · Ø {q.d}</span>
+            <span style={{ color: (pipes.get(q.id)?.total ?? 0) ? C.port : C.subtle }}>
+              {t("symbolEditor.port.pipes", { n: pipes.get(q.id)?.total ?? 0 })}
+            </span>
+          </button>
+        ))}
+      </Section>
     </>
   );
 }
@@ -1739,8 +1863,7 @@ function PortProps({ d, port, pipes, commit, onRename, onDel }: {
   const ok = validPortId(id) && !taken;
   return (
     <>
-      <div style={{ fontWeight: 700 }}>{t("symbolEditor.port.one")} {port.id}</div>
-      <p style={{ margin: 0, color: pipes ? C.port : C.subtle, fontSize: 11 }}>{t("symbolEditor.port.pipes", { n: pipes })}</p>
+      <p style={{ ...note, color: pipes ? C.port : C.subtle }}>{t("symbolEditor.port.pipes", { n: pipes })}</p>
       <Field label={t("symbolEditor.port.id")}>
         <input style={{ ...input, borderColor: ok ? undefined : C.danger }} value={id} maxLength={30} data-testid="symbol-port-id"
           onChange={(e) => setId(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-"))}
@@ -1756,7 +1879,7 @@ function PortProps({ d, port, pipes, commit, onRename, onDel }: {
       <Field label={t("symbolEditor.port.diameter")}><Num value={port.d} onChange={(n) => commit(setPort(d, port.op, { d: Math.max(1, n) }))} /></Field>
       <Field label="x"><Num value={port.x} onChange={(n) => commit(setPort(d, port.op, { x: Math.min(d.w, Math.max(0, n)) }))} /></Field>
       <Field label="y"><Num value={port.y} onChange={(n) => commit(setPort(d, port.op, { y: Math.min(d.h, Math.max(0, n)) }))} /></Field>
-      <button type="button" style={{ ...input, color: C.danger, width: "auto" }} onClick={onDel}>{t("symbolEditor.delete")}</button>
+      <div><button type="button" style={{ ...button, color: C.danger }} onClick={onDel}>{t("symbolEditor.delete")}</button></div>
     </>
   );
 }

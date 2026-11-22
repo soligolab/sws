@@ -10,7 +10,7 @@ import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import type { DescrizioneSimbolo } from "@/types";
 import { newImage, type Op } from "./model";
-import { C, input } from "./ui";
+import { C, button, input, note as noteStyle } from "./ui";
 
 export function AiPhoto({ d, commit }: { d: DescrizioneSimbolo; commit: (d: DescrizioneSimbolo) => void }) {
   const { t } = useTranslation();
@@ -49,16 +49,15 @@ export function AiPhoto({ d, commit }: { d: DescrizioneSimbolo; commit: (d: Desc
   };
 
   return (
-    <div data-testid="symbol-ai-photo" style={{ display: "flex", flexDirection: "column", gap: 6, borderTop: `1px solid ${C.border}`, paddingTop: 8, marginTop: 8 }}>
-      <strong>{t("symbolEditor.aiPhoto.title")}</strong>
-      <span style={{ color: C.subtle, fontSize: 11 }}>{t("symbolEditor.aiPhoto.hint")}</span>
+    <div data-testid="symbol-ai-photo" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      <span style={noteStyle}>{t("symbolEditor.aiPhoto.hint")}</span>
       <textarea style={{ ...input, minHeight: 52, resize: "vertical" }} value={text} disabled={busy}
         placeholder={t("symbolEditor.aiPhoto.placeholder")} data-testid="symbol-ai-photo-text"
         onChange={(e) => setText(e.target.value)} />
       <div style={{ display: "flex", gap: 6 }}>
-        <button type="button" style={{ ...input, width: "auto" }} disabled={busy || !text.trim()} data-testid="symbol-ai-photo-go"
+        <button type="button" style={button} disabled={busy || !text.trim()} data-testid="symbol-ai-photo-go"
           onClick={() => void generate()}>{busy ? t("symbolEditor.aiPhoto.busy") : t("symbolEditor.aiPhoto.go")}</button>
-        {busy && <button type="button" style={{ ...input, width: "auto" }} onClick={() => abort.current?.abort()}>{t("common.cancel")}</button>}
+        {busy && <button type="button" style={button} onClick={() => abort.current?.abort()}>{t("common.cancel")}</button>}
       </div>
       {note && <span style={{ color: note.error ? C.danger : C.muted, fontSize: 11 }} data-testid="symbol-ai-photo-note">{note.text}</span>}
     </div>

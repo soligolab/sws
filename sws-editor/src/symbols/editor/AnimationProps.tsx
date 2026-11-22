@@ -8,7 +8,7 @@ import { useTranslation } from "react-i18next";
 import type { DescrizioneSimbolo } from "@/types";
 import type { SignalEntry } from "@/symbols/lib/manifest";
 import { setPartParam, ANIMATE_FAMILIES, type InputKind, type Op } from "./model";
-import { C, Field, Num, input } from "./ui";
+import { C, Field, Num, button, input, note } from "./ui";
 import { pickPhoto } from "./photoPicker";
 
 /** The numbers of each kind, in the order they are shown. */
@@ -141,7 +141,7 @@ function SignalEntries({ colour, entries, onColour, onEntries }: {
                 <input style={input} data-testid={`symbol-signal-value-${i}`} value={String(e.value ?? "")}
                   onChange={(ev) => put(i, { ...e, value: parse(ev.target.value) })} />
               )}
-              <button type="button" style={{ ...input, width: "auto", color: C.danger }} title={t("symbolEditor.delete")}
+              <button type="button" style={{ ...button, color: C.danger }} title={t("symbolEditor.delete")}
                 onClick={() => onEntries(entries.filter((_, j) => j !== i))}>×</button>
             </div>
             <div style={{ display: "flex", gap: 6, alignItems: "center", color: C.muted }}>
@@ -160,13 +160,13 @@ function SignalEntries({ colour, entries, onColour, onEntries }: {
                 images of the part show it while the entry matches. */}
             <div style={{ display: "flex", gap: 4, alignItems: "center", color: C.muted }}>
               {t("symbolEditor.photo.entry")}
-              <button type="button" style={{ ...input, width: "auto", flex: 1 }} data-testid={`symbol-signal-photo-${i}`}
+              <button type="button" style={{ ...button, flex: 1 }} data-testid={`symbol-signal-photo-${i}`}
                 disabled={e.hidden}
                 onClick={() => void pickPhoto().then((p) => { if (p) put(i, { ...e, image: p.name }); })}>
                 {e.image ?? t("symbolEditor.photo.asDrawn")}
               </button>
               {e.image && (
-                <button type="button" style={{ ...input, width: "auto" }} title={t("symbolEditor.photo.clear")}
+                <button type="button" style={button} title={t("symbolEditor.photo.clear")}
                   onClick={() => put(i, { ...e, image: undefined })}>×</button>
               )}
             </div>
@@ -174,7 +174,7 @@ function SignalEntries({ colour, entries, onColour, onEntries }: {
         );
       })}
       {entries.length < 8 && (
-        <button type="button" style={{ ...input, width: "auto" }} data-testid="symbol-signal-add"
+        <button type="button" style={button} data-testid="symbol-signal-add"
           onClick={() => onEntries([...entries, { value: entries.length + 1, color: "#22c55e" }])}>
           + {t("symbolEditor.anim.addEntry")}
         </button>
@@ -207,14 +207,14 @@ export function AnimateBlock({ d, partOp, onAnimate, onRemove, commit }: {
     </select>
   );
   return (
-    <div data-testid="symbol-animate-block" style={{ border: `1px solid ${C.border}`, borderRadius: 4, padding: 6, display: "flex", flexDirection: "column", gap: 4 }}>
-      <Field label={t("symbolEditor.anim.animation")}>{choose}</Field>
+    <div data-testid="symbol-animate-block" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      {choose}
       {partOp === undefined ? (
-        <p style={{ margin: 0, color: C.subtle, fontSize: 11 }}>{t("symbolEditor.anim.note")}</p>
+        <p style={note}>{t("symbolEditor.anim.note")}</p>
       ) : (
         <>
           <AnimationProps d={d} op={partOp} commit={commit} />
-          <button type="button" style={{ ...input, width: "auto", color: C.danger }} data-testid="symbol-animate-remove" onClick={onRemove}>
+          <button type="button" style={{ ...button, color: C.danger, alignSelf: "flex-start" }} data-testid="symbol-animate-remove" onClick={onRemove}>
             {t("symbolEditor.anim.remove")}
           </button>
         </>

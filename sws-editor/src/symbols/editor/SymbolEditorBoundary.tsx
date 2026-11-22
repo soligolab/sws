@@ -5,6 +5,7 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import i18n from "@/i18n";
 import { useAppStore } from "@/store";
+import { HDR_BTN } from "@/components/headerStyles";
 import { C } from "./ui";
 
 export class SymbolEditorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
@@ -31,9 +32,9 @@ export class SymbolEditorBoundary extends Component<{ children: ReactNode }, { e
           <strong>{i18n.t("symbolEditor.crashed.title")}</strong>
           <p style={{ color: C.muted }}>{i18n.t("symbolEditor.crashed.text")}</p>
           <pre style={{ whiteSpace: "pre-wrap", fontSize: 11, color: C.danger, margin: "0 0 12px" }}>{String(error.message || error)}</pre>
-          <button type="button" data-testid="symbol-editor-crashed-close" onClick={close} style={{
-            padding: "5px 12px", borderRadius: 4, border: `1px solid ${C.border}`, background: C.bg, color: C.text, cursor: "pointer",
-          }}>{i18n.t("symbolEditor.crashed.close")}</button>
+          <button type="button" data-testid="symbol-editor-crashed-close" onClick={close} style={HDR_BTN}>
+            {i18n.t("symbolEditor.crashed.close")}
+          </button>
         </div>
       </div>
     );

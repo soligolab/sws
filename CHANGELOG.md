@@ -11,6 +11,24 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Cambiato
+- **I pannelli dell'editor dei simboli nello stile dell'IDE** (collaudo della 2.26.0-rc.23, 21-11-2026, ramo
+  `feat/symbol-editor-panels`). Il maintainer: «tutti i menù sono fissi e in uno stile diverso dall'IDE principale».
+  Le tre barre in alto (Strati, strumenti della tela, schede) hanno la stessa altezza (`BAR_HEIGHT`), e le schede sono
+  quelle dell'IDE, maiuscolette con la riga sotto. Ogni scheda è divisa in sezioni che si aprono e si chiudono con
+  `IntestazioneSezione` e ricordano lo stato (`sws.pannelli.simboli.*`): Pezzo (Animazione, Posizione e misura, Foto,
+  Riempimento, Contorno, Strato e ordine), Struttura (Simbolo, Ingressi, Attacchi dei tubi), Prova, IA (Disegno con
+  l'IA, Genera foto). Gli strati si chiudono con la freccia e il nome seleziona ancora le loro forme. Campi e pulsanti
+  hanno lo stile del pannello proprietà; il testo di «Genera foto» non è più a spaziatura fissa.
+  Il 22-11-2026, sempre su richiesta («sistema l'aspetto dell'editor dei simboli per essere coerente con il resto
+  dell'IDE»), anche il resto: la barra in alto è l'intestazione dell'IDE (48 px, `HDR_BTN`); la barra della tela è
+  quella dell'IDE (`BAR`/`BTN`/`SEP` esportati da `EditorToolbar`) con ↶/↷, zoom, griglia e vista esplosa; gli
+  strumenti di disegno hanno le icone dell'IDE (`symbols/editor/icons.tsx`); ruota, rifletti, allinea e distribuisci
+  passano nella scheda Pezzo, sezione «Ruota e allinea», come l'allineamento di più oggetti nel pannello proprietà
+  dell'IDE; gli strati hanno comandi a icona e la selezione grigia dell'albero dell'IDE. Corretto anche `toggled()` di
+  `EditorToolbar`: spento, lasciava sul pulsante una cornice del colore del testo (React cancellava `borderColor` e lo
+  `border` di `BTN` ripiegava su `currentColor`), visto sugli strumenti e presente anche sul pulsante dei righelli.
+
 ### Corretto
 - **L'editor dei simboli faceva crollare l'IDE** (collaudo della 2.26.0-rc.23, 21-11-2026, ramo
   `fix/symbol-editor-stale-pick`). Cancellata l'ultima forma del corpo, la descrizione non compila e la tela teneva

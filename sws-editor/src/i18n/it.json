@@ -5861,6 +5861,26 @@
       "title": "L'editor dei simboli si è fermato per un errore",
       "text": "Il resto dell'IDE e il progetto non sono toccati. Le modifiche al simbolo non salvate sono perse: chiudi l'editor e riaprilo.",
       "close": "Chiudi l'editor"
+    },
+    "section": {
+      "arrange": "Strato e ordine",
+      "geometry": "Posizione e misura",
+      "photo": "Foto",
+      "fill": "Riempimento",
+      "outline": "Contorno",
+      "symbol": "Simbolo",
+      "try": "Valori di prova",
+      "aiDraw": "Disegno con l'IA",
+      "transform": "Ruota e allinea"
+    },
+    "layerSelect": "Seleziona le forme dello strato",
+    "layerEmpty": "Vuoto",
+    "collapse": "Chiudi",
+    "expand": "Apri",
+    "transform": {
+      "turn": "Ruota e rifletti",
+      "align": "Allinea",
+      "distribute": "Distribuisci"
     }
   },
   "images": {
