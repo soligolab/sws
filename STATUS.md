@@ -25,7 +25,9 @@ prestazioni); il lavoro nuovo esce come **dev** con un profilo Rust leggero. La 
 correzioni su un ramo `release/2.26`, lavoro nuovo in `main` come 2.27.0-dev. Il piano che lo mette in pratica (build
 dev e rc, versione letta da fuori del binario, portale di sviluppo `dev.sws.soligo.net`) è
 [`docs/plans/2026-11-22-dev-rc-release-e-portale-di-sviluppo.md`](docs/plans/2026-11-22-dev-rc-release-e-portale-di-sviluppo.md),
-approvato («Partiamo»): il seme della build veloce è diventato quel piano. «Dividere `sws-web`» è nel seme di
+approvato («Partiamo»): il seme della build veloce è diventato quel piano. **Parte 0 fatta** (`a8e6c3e3`): `release/2.26` (locale)
+per le correzioni della 2.26.0 (rc.27…), `main` a `2.27.0-dev.0`; le regole nuove in `CLAUDE.md` e in HOWTO §19. Le
+anomalie aperte del collaudo (Kimi, Modbus, log, 422) sono correzioni: si fanno su `fix/…` da `release/2.26`. «Dividere `sws-web`» è nel seme di
 riorganizzazione del codice.
 
 ## Prima — la 2.26.0-rc.25 sul VPS, i menù dell'editor dei simboli da guardare (2026-11-22 notte, `ufficio`)

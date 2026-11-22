@@ -51,6 +51,11 @@ Una rc costa **~75 minuti di build**, tutta in fila, prima di VPS e pannello (lo
 
 ## Parte 0 — il ramo di release (subito, solo git e documenti)
 
+> **Fatta il 22-11-2026** (`a8e6c3e3` in `main`): `release/2.26` da `049fa8bd` (la rc.26 più i documenti), `main` a
+> `2.27.0-dev.0`, CHANGELOG diviso, le guardie (`novita.py` legge i tag, `check_release_coerente.sh` accetta la sezione
+> «in stabilizzazione» finché c'è il ramo), `session_start.sh`, `/finalizza-giornata`, HOWTO §19 e `CLAUDE.md`
+> (regola 2, eccezione a «un ramo alla volta», «Dev, rc e release»). Né `release/2.26` né i commit sono ancora su origin.
+
 - `release/2.26` da `2.26.0-rc.26` (`c3180ab9`). Da lì le rc.27… con le sole correzioni (le anomalie aperte del
   collaudo: Kimi in streaming, Modbus e i testi dei log, i log rumorosi dell'aggiornamento, il 422 grezzo, e quelle che
   usciranno) e la 2.26.0.
