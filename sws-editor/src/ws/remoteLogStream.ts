@@ -108,6 +108,9 @@ export function useRemoteLogStream(): void {
     rws = new ReconnectingWs(
       () => buildRemoteLogsUrl(debug),
       (motivo) => rigaCanale(rigaDelCanale(etichetta, "WARN", i18n.t("logRemoto.resa", { motivo }))),
+      // A panel that updates or restarts comes back after minutes: the logs
+      // wait for it, quietly, instead of stopping after a minute.
+      { persistent: true },
     );
     const stream = rws;
     api.listDevices()

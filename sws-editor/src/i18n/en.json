@@ -5996,5 +5996,11 @@
     "bindDnExample": "CN=svc-sws,OU=Services,DC=company,DC=local",
     "userBaseExample": "OU=Users,DC=company,DC=local",
     "groupExample": "CN=SWS Operators,OU=Groups,DC=company,DC=local"
+  },
+
+  "apiError": {
+    "function_param_invalid": "Function «{{function}}» has a parameter «{{param}}» that is not a valid Python name: only letters, digits and «_», not starting with a digit.",
+    "function_param_reserved": "Function «{{function}}» has a parameter «{{param}}»: that is the name of something every script already gets (tags, state, print…). Choose another name.",
+    "function_param_underscore": "Function «{{function}}» has a parameter «{{param}}»: names starting with «_» are reserved for the sandbox. Choose another name."
   }
 }

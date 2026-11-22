@@ -6989,20 +6989,26 @@ async fn update_project_functions(
     // 2. Param-name validation — must be a Python identifier, not a keyword.
     for f in &functions {
         for p in &f.params {
+            // JSON with a code (22-11-2026): the IDE shows the sentence of its
+            // language files (`apiError.<code>`), `error` stays for the others.
             if !is_valid_python_identifier(&p.name) {
                 return (
                     StatusCode::UNPROCESSABLE_ENTITY,
-                    format!(
-                        "function '{}': param '{}' is not a valid Python identifier",
-                        f.name, p.name
-                    ),
+                    Json(serde_json::json!({
+                        "error": format!("function '{}': param '{}' is not a valid Python identifier", f.name, p.name),
+                        "code": "function_param_invalid", "function": f.name, "param": p.name,
+                    })),
                 )
                     .into_response();
             }
             if let Some(why) = param_name_shadows(&p.name) {
+                let code = if p.name.starts_with('_') { "function_param_underscore" } else { "function_param_reserved" };
                 return (
                     StatusCode::UNPROCESSABLE_ENTITY,
-                    format!("function '{}': param '{}' {why}", f.name, p.name),
+                    Json(serde_json::json!({
+                        "error": format!("function '{}': param '{}' {why}", f.name, p.name),
+                        "code": code, "function": f.name, "param": p.name,
+                    })),
                 )
                     .into_response();
             }

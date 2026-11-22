@@ -93,13 +93,18 @@ pub struct Errori {
     detti: HashSet<String>,
     /// Giri muti di fila, e da quando.
     silenzi: HashMap<String, (u32, Instant)>,
+    /// Since when an error answer was said (22-11-2026): the recovery line
+    /// said «dopo 0 s» for a block that answered with errors for 11 s.
+    errori_dal: HashMap<String, Instant>,
 }
 
 impl Errori {
     /// Un errore che si dice subito (una risposta d'errore del dispositivo, un
     /// valore fuori dai limiti): `true` la prima volta.
     pub fn errore(&mut self, k: impl Into<String>) -> bool {
-        self.detti.insert(k.into())
+        let k = k.into();
+        self.errori_dal.entry(k.clone()).or_insert_with(Instant::now);
+        self.detti.insert(k)
     }
 
     /// Un giro senza risposta: `true` al giro in cui va detto.
@@ -118,8 +123,15 @@ impl Errori {
     /// Una risposta: se il guasto era stato detto, da quanto durava (zero per
     /// un errore senza silenzio).
     pub fn risposta(&mut self, k: &str) -> Option<Duration> {
-        let da = self.silenzi.remove(k).map(|(_, da)| da.elapsed());
-        self.detti.remove(k).then(|| da.unwrap_or_default())
+        let muto = self.silenzi.remove(k).map(|(_, da)| da);
+        let errore = self.errori_dal.remove(k);
+        // The older of the two: a block that first erred and then went silent
+        // has been broken since the error.
+        let da = match (muto, errore) {
+            (Some(a), Some(b)) => Some(a.min(b)),
+            (a, b) => a.or(b),
+        };
+        self.detti.remove(k).then(|| da.map(|d| d.elapsed()).unwrap_or_default())
     }
 
     /// Detto, cioè nel registro come guasto.
@@ -274,6 +286,17 @@ pub async fn prepara(db: &TagDb, registri: &[RegisterMapping]) -> Vec<Mappatura>
 async fn marca_bad(db: &TagDb, m: &Mappatura) {
     for s in &m.slots {
         db.marca_qualita(&s.percorso, TagQuality::Bad).await;
+    }
+}
+
+/// What happens to the tags of a mapping that does not answer, said in the
+/// log line: `Bad` at once, or uncertain for the tolerance first (collaudo of
+/// 2.26.0-rc.23: the line said «Bad» while the tags were `Uncertain`).
+fn destino_dei_tag(rounds: u32) -> String {
+    if rounds == 0 {
+        "Bad".into()
+    } else {
+        format!("incerti per {rounds} giri, poi Bad")
     }
 }
 
@@ -445,7 +468,7 @@ pub async fn leggi_giro<D: Dispositivo>(
             Ok(Err(e)) => {
                 let chiave = format!("blocco@{}", b.da);
                 if in_errore.errore(chiave) {
-                    warn!(source = %sorgente, da = b.da, a = b.a, "Modbus: il blocco risponde con un errore: {e} — i suoi tag Bad");
+                    warn!(source = %sorgente, da = b.da, a = b.a, "Modbus: il blocco risponde con un errore: {e} — i suoi tag {}", destino_dei_tag(tolerance.rounds));
                 }
                 esito_giro.errore.get_or_insert_with(|| format!("blocco @{}..{}: {e}", b.da, b.a));
                 None
@@ -453,7 +476,7 @@ pub async fn leggi_giro<D: Dispositivo>(
             Err(_) => {
                 let chiave = format!("blocco@{}", b.da);
                 if in_errore.silenzio(&chiave) {
-                    warn!(source = %sorgente, da = b.da, a = b.a, "Modbus: il blocco non risponde da {GIRI_PER_DIRLO} giri (timeout {} ms) — i suoi tag Bad", timeout.as_millis());
+                    warn!(source = %sorgente, da = b.da, a = b.a, "Modbus: il blocco non risponde da {GIRI_PER_DIRLO} giri (timeout {} ms) — i suoi tag {}", timeout.as_millis(), destino_dei_tag(tolerance.rounds));
                 } else if !in_errore.detto(&chiave) {
                     debug!(source = %sorgente, da = b.da, a = b.a, "Modbus: il blocco non ha risposto in {} ms", timeout.as_millis());
                 }
@@ -519,7 +542,7 @@ pub async fn leggi_giro<D: Dispositivo>(
                 Ok(Err(e)) => {
                     muti.insert(chiave);
                     if in_errore.errore(m.tag.clone()) {
-                        warn!(source = %sorgente, tag = %m.tag, address = m.address, "Modbus: il dispositivo risponde con un errore: {e} — tag Bad, gli altri continuano");
+                        warn!(source = %sorgente, tag = %m.tag, address = m.address, "Modbus: il dispositivo risponde con un errore: {e} — tag {}, gli altri continuano", destino_dei_tag(tolerance.rounds));
                     }
                     esito_giro
                         .errore
@@ -530,7 +553,7 @@ pub async fn leggi_giro<D: Dispositivo>(
                 Err(_) => {
                     muti.insert(chiave);
                     if in_errore.silenzio(&m.tag) {
-                        warn!(source = %sorgente, tag = %m.tag, address = m.address, "Modbus: nessuna risposta da {GIRI_PER_DIRLO} giri (timeout {} ms) — tag Bad", timeout.as_millis());
+                        warn!(source = %sorgente, tag = %m.tag, address = m.address, "Modbus: nessuna risposta da {GIRI_PER_DIRLO} giri (timeout {} ms) — tag {}", timeout.as_millis(), destino_dei_tag(tolerance.rounds));
                     } else if !in_errore.detto(&m.tag) {
                         debug!(source = %sorgente, tag = %m.tag, address = m.address, "Modbus: nessuna risposta in {} ms", timeout.as_millis());
                     }
@@ -891,8 +914,8 @@ pub async fn giro_unita<D: Dispositivo>(
             u.detto_muto = true;
             stato.dispositivo(sorgente, u.unit_id, Collegamento::NonRisponde, esito.errore);
             warn!(source = %sorgente, unit_id = u.unit_id,
-                "Modbus: il dispositivo non risponde da {} — i suoi tag Bad, gli altri continuano; lo interrogo più di rado dopo {}",
-                durata_breve(da.elapsed()), durata_breve(ASSENZA_LUNGA));
+                "Modbus: il dispositivo non risponde da {} — i suoi tag {}, gli altri continuano; lo interrogo più di rado dopo {}",
+                durata_breve(da.elapsed()), destino_dei_tag(u.tolerance.rounds), durata_breve(ASSENZA_LUNGA));
         }
     } else {
         u.giri_muti = 0;
@@ -1058,6 +1081,19 @@ async fn registra(
     Mutex::new(rx)
 }
 
+/// A session that fell: one missed round for every mapping of every device
+/// (decision of the maintainer, 21-11-2026: «la riconnessione è un giro di
+/// tolleranza»). A Solarman stick closes the TCP session every ~30 minutes and
+/// SWS reconnects in a second, but the tags went `Bad` for 5-11 s each time.
+/// With no tolerance (zero rounds) this is `Bad` at once, as before.
+async fn caduta_con_tolleranza(db: &TagDb, unita: &mut [Unita]) {
+    for u in unita.iter_mut() {
+        for m in prepara(db, &u.registri).await {
+            u.tolerance.missed(db, &m).await;
+        }
+    }
+}
+
 async fn tutti_bad(db: &TagDb, registri: &[RegisterMapping]) {
     for m in prepara(db, registri).await {
         marca_bad(db, &m).await;
@@ -1169,7 +1205,10 @@ pub async fn run(
             .await;
             con_stato(&stato, &cfg.id, r).await
         },
-        || tutti_bad(&db, &registri),
+        || async {
+            let mut u = unita.lock().await;
+            caduta_con_tolleranza(&db, u.as_mut_slice()).await;
+        },
     )
     .await;
 }
@@ -1235,7 +1274,10 @@ pub async fn run_rtu(
             .await;
             con_stato(&stato, &cfg.id, r).await
         },
-        || tutti_bad(&db, &registri),
+        || async {
+            let mut u = unita.lock().await;
+            caduta_con_tolleranza(&db, u.as_mut_slice()).await;
+        },
     )
     .await;
 }

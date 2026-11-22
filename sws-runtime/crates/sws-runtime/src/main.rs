@@ -2076,7 +2076,15 @@ async fn main() -> anyhow::Result<()> {
                         .serve_connection_with_upgrades(io, hyper_svc)
                         .await
                     {
-                        warn!(%peer, "connection error: {e}");
+                        // A client closing a keep-alive mid-request (the
+                        // panel's own browser, during an update ~110 times)
+                        // is not a fault: debug. WARN only for the others
+                        // (collaudo of 2.26.0-rc.23, 21-11-2026).
+                        if is_normal_close(e.as_ref()) {
+                            tracing::debug!(%peer, "connection closed by the client: {e}");
+                        } else {
+                            warn!(%peer, "connection error: {e}");
+                        }
                     }
                 });
             }
@@ -2457,4 +2465,38 @@ fn build_tls_acceptor(config_dir: &PathBuf) -> anyhow::Result<TlsAcceptor> {
     // `POST /api/system/tls/generate`.
     sws_web::system::genera_certificato(config_dir)?;
     try_load_existing_tls(&cert_path, &key_path)
+}
+
+/// A connection the client closed while a request was open, or reset: normal
+/// for browsers and proxies, and not worth a WARN line each.
+fn is_normal_close(e: &(dyn std::error::Error + 'static)) -> bool {
+    let mut cur: Option<&(dyn std::error::Error + 'static)> = Some(e);
+    while let Some(err) = cur {
+        if let Some(h) = err.downcast_ref::<hyper::Error>() {
+            if h.is_incomplete_message() || h.is_canceled() || h.is_closed() {
+                return true;
+            }
+        }
+        if let Some(io) = err.downcast_ref::<std::io::Error>() {
+            use std::io::ErrorKind::*;
+            if matches!(io.kind(), ConnectionReset | BrokenPipe | ConnectionAborted | UnexpectedEof) {
+                return true;
+            }
+        }
+        cur = err.source();
+    }
+    false
+}
+
+#[cfg(test)]
+mod normal_close_tests {
+    use super::is_normal_close;
+
+    #[test]
+    fn a_reset_is_normal_and_another_error_is_not() {
+        let reset = std::io::Error::new(std::io::ErrorKind::ConnectionReset, "reset by peer");
+        assert!(is_normal_close(&reset));
+        let other = std::io::Error::new(std::io::ErrorKind::PermissionDenied, "no");
+        assert!(!is_normal_close(&other));
+    }
 }

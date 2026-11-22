@@ -304,6 +304,10 @@ async fn symbol_model(
 }
 
 /// [`symbol_model`] for any text purpose: the AI on the fields uses it too.
+/// How long a cloud model may take for one answer of the symbol and field
+/// tools: ten minutes, against the five of a local server.
+const CLOUD_REQUEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(600);
+
 pub(crate) async fn purpose_model(
     s: &AppState,
     user: &AuthUser,
@@ -319,10 +323,18 @@ pub(crate) async fn purpose_model(
     }
     let keys = user_keys::fetch_all(s, &user.username).await;
     let choice = scopi::carica_per_con(&s.config_dir, purpose, &keys);
+    // A cloud model gets longer than a local one (22-11-2026): the drawing is
+    // asked without streaming, up to 16000 tokens, and Kimi thinking went past
+    // the 300 s meant for a local server (collaudo of 2.26.0-rc.23, anomaly 8).
+    // Streaming with a silence deadline is the real cure, still to do.
+    let deadline = match &choice {
+        Some(sc) if sc.endpoint.is_none() => CLOUD_REQUEST_TIMEOUT,
+        _ => local_http::REQUEST_TIMEOUT,
+    };
     let base = || {
         reqwest::Client::builder()
             .connect_timeout(std::time::Duration::from_secs(10))
-            .timeout(local_http::REQUEST_TIMEOUT)
+            .timeout(deadline)
     };
     let http = match &choice {
         Some(sc) if sc.endpoint.is_some() => match local_http::client_for(sc, s.in_cloud(), base())

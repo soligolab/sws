@@ -1203,3 +1203,51 @@ async fn without_tolerance_a_lost_reply_is_bad_at_once() {
         .unwrap();
     assert_eq!(val(&db, "a").await.1, TagQuality::Bad);
 }
+
+/// A session that falls (a Solarman stick closes TCP every ~30 min) is one
+/// missed round within the tolerance (decision of the maintainer, 21-11-2026):
+/// the tags stay uncertain, and go `Bad` only past it. Zero tolerance: `Bad`.
+#[tokio::test(start_paused = true)]
+async fn a_dropped_session_is_one_round_of_the_tolerance() {
+    let db = db_con(&[tag("a", "u16")], &[]).await;
+    let regs = vec![mappa("a", 0, AreaModbus::Holding)];
+    let mut dev = Finto::default();
+    dev.registri.insert(0, 7);
+    let mut u = vec![Unita { tolerance: Tolerance::new(2), ..Unita::da(&disp(1, regs.clone()), 1000) }];
+    let m = prepara(&db, &regs).await;
+    leggi_giro(&mut dev, &db, &m, OrdineModbus::Abcd, T, &mut Errori::default(), "prova", &[], 0, &mut u[0].tolerance)
+        .await
+        .unwrap();
+    assert_eq!(val(&db, "a").await, (TagValue::Int(7), TagQuality::Good));
+    caduta_con_tolleranza(&db, &mut u).await;
+    assert_eq!(val(&db, "a").await, (TagValue::Int(7), TagQuality::Uncertain), "one drop: uncertain");
+    caduta_con_tolleranza(&db, &mut u).await;
+    caduta_con_tolleranza(&db, &mut u).await;
+    assert_eq!(val(&db, "a").await.1, TagQuality::Bad, "past the tolerance");
+
+    let mut senza = vec![Unita::da(&disp(1, regs.clone()), 1000)];
+    let db2 = db_con(&[tag("a", "u16")], &[]).await;
+    let m2 = prepara(&db2, &regs).await;
+    leggi_giro(&mut dev, &db2, &m2, OrdineModbus::Abcd, T, &mut Errori::default(), "prova", &[], 0, &mut senza[0].tolerance)
+        .await
+        .unwrap();
+    caduta_con_tolleranza(&db2, &mut senza).await;
+    assert_eq!(val(&db2, "a").await.1, TagQuality::Bad, "zero tolerance: Bad at once, as before");
+}
+
+/// The recovery line says how long an error answer lasted, not «0 s»
+/// (collaudo of 2.26.0-rc.23).
+#[tokio::test(start_paused = true)]
+async fn the_recovery_of_an_error_says_how_long_it_lasted() {
+    let mut e = Errori::default();
+    assert!(e.errore("blocco@0"));
+    tokio::time::advance(Duration::from_secs(11)).await;
+    let d = e.risposta("blocco@0").unwrap();
+    assert!(d >= Duration::from_secs(11), "{d:?}");
+}
+
+#[test]
+fn the_line_says_what_happens_to_the_tags() {
+    assert_eq!(destino_dei_tag(0), "Bad");
+    assert_eq!(destino_dei_tag(3), "incerti per 3 giri, poi Bad");
+}

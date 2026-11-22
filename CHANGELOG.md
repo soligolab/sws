@@ -67,6 +67,20 @@ riportano qui con `cherry-pick`; la data arriva con la release.
   `border` di `BTN` ripiegava su `currentColor`), visto sugli strumenti e presente anche sul pulsante dei righelli.
 
 ### Corretto
+- **Le anomalie piccole del collaudo della rc.23 rimaste aperte** (ramo `fix/collaudo-rc23-residui`, 22-11-2026; il
+  maintainer: «se ci sono piccole attività di cui eri a conoscenza, prima di fare la rc, non potevi implementarle?»).
+  **Modbus**: una sessione che cade (la chiavetta Solarman chiude il TCP ogni ~30 minuti) conta come un giro di
+  tolleranza (decisione del maintainer del 21-11): i tag restano incerti, non Bad per 5-11 s; con tolleranza zero
+  Bad subito, come prima (`caduta_con_tolleranza`). I messaggi dicono «incerti per N giri, poi Bad» quando la
+  tolleranza c'è, e la ripresa dice da quanto durava un blocco che rispondeva con errori (era «dopo 0 s»).
+  **Registro**: una connessione che il client chiude a metà (≈110 righe WARN durante un aggiornamento) scende a debug;
+  «il pannello non c'è adesso» del relay una volta al minuto per indirizzo; i log del pannello nell'IDE non si
+  arrendono più dopo un minuto (un pannello che si aggiorna torna dopo minuti): riprovano ogni 30 s in silenzio
+  (`ReconnectingWs`, opzione `persistent`). **Il parametro `state` di una funzione**: il rifiuto arriva come codice
+  (`function_param_reserved`, `…_underscore`, `…_invalid`) e l'IDE lo mostra tradotto (`apiError.*`), non più come
+  «API /api/project/functions: 422 — …» in inglese. **Il disegno con l'IA nel cloud**: dieci minuti per una risposta
+  di un modello nel cloud (erano i 300 s pensati per un server locale), e una scadenza dice «non ha finito in tempo»
+  invece di «non raggiungibile». Lo streaming col tempo di silenzio resta da fare.
 - **Editor dei simboli: la tela vuota, le forme che non andavano nel corpo, le colonne fisse, Kimi muto** (il
   maintainer nell'IDE del cloud sulla rc.26, 22-11-2026; ramo `fix/symbol-editor-rc27` da `release/2.26`).
   «Genera foto» generava la foto ma non si vedeva niente: la tela disegnava solo l'ultimo SVG che compilava, e un
