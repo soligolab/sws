@@ -17373,9 +17373,17 @@ fn ruolo_che_serve(
         .map(str::to_string);
     // Per la variabile l'anonimo vale Viewer, come sul server.
     let ho = chi.unwrap_or(Role::Viewer);
+    // The functions it runs count like the variables it writes (22-11-2026,
+    // `ruoloCheServe` in the web does the same).
+    let funzioni = [obj.on_press_fn.as_deref(), obj.on_release_fn.as_deref()]
+        .into_iter()
+        .flatten()
+        .filter(|n| !n.trim().is_empty())
+        .map(|n| sws_core::soglia_di_scrittura(soglie, &format!("fn:{n}")));
     let per_variabile = tag_scritti(obj)
         .iter()
         .map(|t| sws_core::soglia_di_scrittura(soglie, t))
+        .chain(funzioni)
         .filter(|s| rango(s) > ho)
         .max_by_key(|s| rango(s));
     match (per_oggetto, per_variabile) {
@@ -17470,7 +17478,13 @@ fn rendi_oggetti_in(
     let comanda = page
         .objects
         .iter()
-        .any(|o| !tag_scritti(o).is_empty() || o.obj_type.as_deref() == Some("faceplate"));
+        .any(|o| {
+            !tag_scritti(o).is_empty()
+                || o.obj_type.as_deref() == Some("faceplate")
+                // A function has a threshold of its own (22-11-2026).
+                || o.on_press_fn.as_deref().is_some_and(|n| !n.trim().is_empty())
+                || o.on_release_fn.as_deref().is_some_and(|n| !n.trim().is_empty())
+        });
     let soglie = if auth_required && comanda {
         rt_handle.block_on(client::fetch_soglie_scrittura(base_url))
     } else {
@@ -22947,6 +22961,17 @@ mod faceplate_tests {
             serde_json::json!({ "id": "e", "type": "button", "tag": "luce", "min_role": "Operator" }),
         );
         assert_eq!(ruolo_che_serve(&luce, &soglie, None), None);
+        // A function's own threshold (22-11-2026): `fn:<name>` in the same map.
+        let mut con_funzioni = soglie.clone();
+        con_funzioni.insert("fn:tapparelle_tutte".into(), "Viewer".into());
+        let chiudi = o(serde_json::json!({ "id": "f", "type": "button", "on_press_fn": "tapparelle_tutte" }));
+        assert_eq!(ruolo_che_serve(&chiudi, &con_funzioni, None), None, "open to all");
+        let altra = o(serde_json::json!({ "id": "g", "type": "button", "on_press_fn": "reset" }));
+        assert_eq!(
+            ruolo_che_serve(&altra, &con_funzioni, None).as_deref(),
+            Some("Operator"),
+            "a function without min_role wants an Operator, as the server"
+        );
         assert_eq!(
             ruolo_che_serve(&pompa, &soglie, None).as_deref(),
             Some("Operator")

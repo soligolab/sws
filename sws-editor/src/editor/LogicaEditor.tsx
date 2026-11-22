@@ -245,6 +245,19 @@ export function LogicaEditor({ voce, onClose }: { voce: VoceLogica; onClose: () 
             <input type="text" style={INPUT_STYLE} value={(funzione ? voce.fn.description : voce.script.description) ?? ""}
               onChange={(e) => patch({ description: e.target.value || undefined })} />
           </div>
+          {voce.tipo === "funzione" && (
+            <div>
+              <label style={LABEL_STYLE}>{t("functionEditor.minRoleLabel")}</label>
+              <select data-testid="logica-ruolo-minimo" style={{ ...INPUT_STYLE, cursor: "pointer" }}
+                value={voce.fn.min_role ?? ""}
+                onChange={(e) => patch({ min_role: e.target.value || undefined })}>
+                <option value="">{t("functionEditor.minRoleDefault")}</option>
+                <option value="Viewer">{t("functionEditor.minRoleViewer")}</option>
+                <option value="Supervisor">Supervisor</option>
+                <option value="Admin">Admin</option>
+              </select>
+            </div>
+          )}
           {voce.tipo === "funzione"
             ? <Parametri fn={voce.fn} onPatch={patch} />
             : <ScriptAvvio script={voce.script} onPatch={patch} />}

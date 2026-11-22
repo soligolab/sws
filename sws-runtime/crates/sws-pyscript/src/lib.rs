@@ -2409,6 +2409,7 @@ tags.write('delta', delta_ms())
                         description: None,
                         code: "tags.write('chi', chi)\n".into(),
                         params: vec![],
+                        min_role: None,
                     },
                 ),
             ])));
@@ -2461,6 +2462,7 @@ tags.write('delta', delta_ms())
                         code: "n = state.get('n', 0) + 1\nstate.set('n', n)\ntags.write('n', n)\n"
                             .into(),
                         params: vec![],
+                        min_role: None,
                     },
                 ),
             ])));
@@ -2518,6 +2520,7 @@ tags.write('delta', delta_ms())
                         description: None,
                         code: "functions.run('ricorsiva')".into(),
                         params: vec![],
+                        min_role: None,
                     },
                 ),
             ])));
@@ -2864,6 +2867,7 @@ tags.write('ok', ok)
                                 default: Some(2.into()),
                             },
                         ],
+                        min_role: None,
                     },
                 ),
             ])));
@@ -3023,6 +3027,7 @@ mod tests_modelli_ide {
                                 default: Some(v.clone()),
                             })
                             .collect(),
+                        min_role: None,
                     };
                     (p.nome.clone(), def)
                 })

@@ -1,5 +1,6 @@
 import { CampoPassword } from "@/components/CampoPassword";
 import { useEffect, useRef, useState } from "react";
+import { prendiAvvisoAccesso } from "@/auth/avvisoAccesso";
 import { useTranslation } from "react-i18next";
 import { BrandLogo } from "@/components/BrandLogo";
 import { getBrand } from "@/branding";
@@ -79,7 +80,9 @@ export function LoginScreen({
     return () => { vivo = false; };
   }, []);
   const [password, setPassword] = useState("");
-  const [error, setError]       = useState<string | null>(null);
+  // Why we're back here, when the page that sent us said it (22-11-2026: a
+  // session closed under the change-password page). Read once.
+  const [error, setError]       = useState<string | null>(prendiAvvisoAccesso);
   const [busy, setBusy]         = useState(false);
   // Oltre LOGIN_LENTO_MS senza risposta.
   const [lento, setLento]       = useState(false);

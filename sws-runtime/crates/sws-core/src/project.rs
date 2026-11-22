@@ -1775,9 +1775,23 @@ pub struct FunctionDef {
     pub code: String,
     #[serde(default)]
     pub params: Vec<FunctionParam>,
+    /// The lowest role that may run it from a page: "Viewer" | "Operator" |
+    /// "Supervisor" | "Admin", like a tag's `write_min_role`. Absent =
+    /// Operator, as before (22-11-2026: «Chiudi Tutto» on the TC620 had to
+    /// work for whoever stands at the screen without signing in).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub min_role: Option<String>,
 }
 
 impl FunctionDef {
+    /// The role it takes to run it.
+    pub fn role_needed(&self) -> &str {
+        match self.min_role.as_deref() {
+            Some(r @ ("Viewer" | "Supervisor" | "Admin")) => r,
+            _ => "Operator",
+        }
+    }
+
     /// Gli argomenti con cui la funzione gira: quelli passati, più il default
     /// di ogni parametro che il chiamante non ha passato.
     ///
@@ -1830,7 +1844,14 @@ mod tests_argomenti {
                     default: None,
                 },
             ],
+            min_role: None,
         };
+        assert_eq!(f.role_needed(), "Operator", "absent: Operator, as before");
+        let mut g = f.clone();
+        g.min_role = Some("Viewer".into());
+        assert_eq!(g.role_needed(), "Viewer");
+        g.min_role = Some("Qualcuno".into());
+        assert_eq!(g.role_needed(), "Operator", "an unknown name is not a way in");
         let passati = serde_json::Map::from_iter([
             ("volte".to_string(), 5.into()),
             ("chi".to_string(), serde_json::Value::Null),

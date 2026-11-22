@@ -280,6 +280,17 @@ pub(crate) async fn tag_write_allowed(
     role >= min
 }
 
+/// "Viewer" | "Operator" | "Supervisor" | "Admin" as a role; anything else is
+/// Operator, the historic threshold.
+pub(crate) fn role_from_name(name: &str) -> sws_auth::Role {
+    match name {
+        "Viewer" => sws_auth::Role::Viewer,
+        "Supervisor" => sws_auth::Role::Supervisor,
+        "Admin" => sws_auth::Role::Admin,
+        _ => sws_auth::Role::Operator,
+    }
+}
+
 /// Resolve the active project directory or return 503. Used at the top
 /// of every handler that needs a project dir (most of them).
 pub async fn active_dir(state: &AppState) -> Result<PathBuf, StatusCode> {
@@ -2247,8 +2258,7 @@ fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>) -> Router {
             post(shelve_alarm).delete(unshelve_alarm),
         )
         .route("/api/alarms/shelved", get(list_shelved_alarms))
-        .route("/api/recipes/:id/apply", post(apply_recipe))
-        .route("/api/script/run/:name", post(run_function));
+        .route("/api/recipes/:id/apply", post(apply_recipe));
     // Q47 (2026-09-09): `/api/script/exec` — esecuzione di Python arbitrario —
     // non c'è più, da nessuna parte: nessuna interfaccia lo chiamava e gli
     // script di progetto non passano da HTTP. Resta `/api/script/run/:name`,
@@ -2310,6 +2320,9 @@ fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>) -> Router {
         )
         .route("/ws/tags", get(ws_tags_handler))
         .route("/ws/alarms", get(ws_alarms_handler))
+        // A function decides who may run it (`min_role`, 22-11-2026), as a tag
+        // decides who may write it: the check is in `run_function`.
+        .route("/api/script/run/:name", post(run_function))
         .route_layer(middleware::from_fn(require_password_changed_to_write));
 
     // Self-service: token must be valid but not blocked by password-change flag.
@@ -3725,9 +3738,13 @@ struct Whoami {
     /// esiste.
     #[serde(default)]
     amministratore_piattaforma: bool,
+    /// Signed in with a PIN in the last ten minutes (22-11-2026): the
+    /// change-password screen doesn't ask for the current password then.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    recent_pin_login: bool,
 }
 
-async fn whoami(req: Request) -> Json<Whoami> {
+async fn whoami(State(s): State<AppState>, req: Request) -> Json<Whoami> {
     // require_auth has already inserted AuthUser; missing here would be a bug.
     let user = req
         .extensions()
@@ -3740,11 +3757,18 @@ async fn whoami(req: Request) -> Json<Whoami> {
             allowed_zones: vec![],
             amministratore_piattaforma: false,
         });
+    let recent_pin_login = match s.identita.as_ref() {
+        Some(id) if user.must_change_password && !user.username.is_empty() => {
+            id.pin_proof_fresh_for(&user.username).await
+        }
+        _ => false,
+    };
     Json(Whoami {
         username: user.username,
         role: user.role,
         must_change_password: user.must_change_password,
         amministratore_piattaforma: user.amministratore_piattaforma,
+        recent_pin_login,
     })
 }
 
@@ -8075,7 +8099,19 @@ async fn run_function(
     let (code, args) = {
         let map = s.functions.read().await;
         match map.get(&name) {
-            Some(f) => (f.code.clone(), f.argomenti(passati)),
+            Some(f) => {
+                let needed = f.role_needed();
+                if user.role < role_from_name(needed) {
+                    return (
+                        StatusCode::FORBIDDEN,
+                        Json(serde_json::json!({
+                            "code": "function_role", "function": name, "role": needed,
+                        })),
+                    )
+                        .into_response();
+                }
+                (f.code.clone(), f.argomenti(passati))
+            }
             None => {
                 return (StatusCode::NOT_FOUND, format!("no function named '{name}'"))
                     .into_response()
@@ -15818,6 +15854,7 @@ mod prove_run_function {
                     name: "chi".into(),
                     default: Some("operatore".into()),
                 }],
+                min_role: None,
             },
         );
         let utente = AuthUser {

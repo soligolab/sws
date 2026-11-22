@@ -3284,6 +3284,7 @@ global_scripts:
                 name: "p".into(),
                 default: None,
             }],
+            min_role: None,
         };
         let v = serde_json::to_value(&f).unwrap();
         let mut chiavi: Vec<&str> = v.as_object().unwrap().keys().map(String::as_str).collect();

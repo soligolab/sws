@@ -366,6 +366,8 @@ impl Identita {
         // Un utente disattivato fra la richiesta e l'uso del PIN non entra.
         .ok_or(Rifiuto::UtenteDisattivato)?;
         // The PIN is one factor, the mail box: with 2FA on, the code is next.
+        // It also stands in for the current password for a while (22-11-2026).
+        self.note_pin_proof(id);
         self.complete_login(id, &chiave(email), durata).await
     }
 
@@ -511,6 +513,32 @@ mod test {
         assert!(
             id.accedi_con_pin("admin@sws.it", &pin, None).await.is_err(),
             "monouso"
+        );
+    }
+
+    /// 22-11-2026: a new cloud user in with the PIN was asked for a current
+    /// password they never knew.
+    #[tokio::test]
+    async fn a_fresh_pin_login_stands_in_for_the_current_password() {
+        let (id, _d) = archivio().await;
+        assert!(
+            id.cambia_password_propria("admin@sws.it", "", "nuova-password-1", None).await.is_err(),
+            "without a PIN the current password is asked"
+        );
+        assert!(!id.pin_proof_fresh_for("admin@sws.it").await);
+        let pin = id.chiedi_pin("admin@sws.it").await.unwrap();
+        id.accedi_con_pin("admin@sws.it", &pin, None).await.unwrap();
+        assert!(id.pin_proof_fresh_for("admin@sws.it").await);
+        id.cambia_password_propria("admin@sws.it", "", "nuova-password-1", None)
+            .await
+            .unwrap();
+        assert!(id.accedi("admin@sws.it", "nuova-password-1").await.is_ok());
+        assert!(
+            !id.pin_proof_fresh_for("admin@sws.it").await,
+            "used once: the next change asks again"
+        );
+        assert!(
+            id.cambia_password_propria("admin@sws.it", "", "nuova-password-2", None).await.is_err()
         );
     }
 

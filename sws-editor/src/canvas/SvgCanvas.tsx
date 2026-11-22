@@ -55,7 +55,7 @@ import { effectiveFaceplateParams, figliDelFaceplate, substituteFaceplateParams 
 import { bboxDelGruppo, espandiAlGruppo, gruppoIntero } from "@/editor/gruppiSelezione";
 import { idsNelRiquadro } from "@/canvas/selezioneRiquadro";
 import { maiRicevuto } from "@/canvas/maiRicevuto";
-import type { AlarmSeverity, AlarmState, Cornice, CustomSymbol, FaceplateDef, GridCell, ObjectGroup, PageSizeMode, PipePoint, Sample, SynopticObject, SynopticObjectType, TableRow, TagDef, TagState, TypeDef } from "@/types";
+import type { AlarmSeverity, AlarmState, Cornice, CustomSymbol, FaceplateDef, GridCell, ObjectGroup, PageSizeMode, PipePoint, Sample, SynopticObject, SynopticObjectType, TableRow, TagDef, FunctionDef, TagState, TypeDef } from "@/types";
 import { fattoreFondoRespiro, luminositaValida, parametriLuminosita } from "./luce";
 import { puntiSvg, verticiPoligono } from "./forme";
 import { aggancioSu, bersagli, calamita, diametriCapi, instrada, percorsoTubo, type Bersaglio } from "./tubazioni";
@@ -418,6 +418,7 @@ const lucchetti = new WeakMap<SynopticObject, {
   ruolo: string | null | undefined;
   tags: TagDef[] | undefined;
   tipi: readonly TypeDef[] | undefined;
+  funzioni: readonly FunctionDef[] | undefined;
   esito: ReturnType<typeof ruoloCheServe>;
 }>();
 function lucchettoDi(
@@ -425,11 +426,12 @@ function lucchettoDi(
   ruolo: string | null | undefined,
   tags: TagDef[] | undefined,
   tipi: readonly TypeDef[] | undefined,
+  funzioni?: readonly FunctionDef[],
 ): ReturnType<typeof ruoloCheServe> {
   const m = lucchetti.get(obj);
-  if (m && m.ruolo === ruolo && m.tags === tags && m.tipi === tipi) return m.esito;
-  const esito = ruoloCheServe(obj, ruolo, tags, tipi);
-  lucchetti.set(obj, { ruolo, tags, tipi, esito });
+  if (m && m.ruolo === ruolo && m.tags === tags && m.tipi === tipi && m.funzioni === funzioni) return m.esito;
+  const esito = ruoloCheServe(obj, ruolo, tags, tipi, funzioni);
+  lucchetti.set(obj, { ruolo, tags, tipi, funzioni, esito });
   return esito;
 }
 
@@ -866,6 +868,7 @@ export function SvgCanvas({
   // R7 (04-11-2026): le soglie delle variabili, per il lucchetto sui comandi.
   const tagsProgetto = useAppStore((s) => s.project?.tags);
   const tipiProgetto = useAppStore((s) => s.project?.types);
+  const funzioniProgetto = useAppStore((s) => s.project?.functions);
   // D (2026-08-23): cattura waypoint dal canvas (motion_path). Esc esce.
   const captureTarget = useAppStore((s) => s.capturePathTarget);
   // Polilinea a clic (26-09-2026): come la cattura, i clic non selezionano ma
@@ -2174,7 +2177,7 @@ export function SvgCanvas({
         if (!inEdit && !roleOk && obj.min_role_effect === "hide") return null;
         // Il lucchetto col ruolo che manca (R7, 04-11-2026): solo a runtime,
         // come l'attenuazione qui sotto.
-        const lucchetto = !inEdit ? lucchettoDi(obj, viewerRole, tagsProgetto, tipiProgetto) : null;
+        const lucchetto = !inEdit ? lucchettoDi(obj, viewerRole, tagsProgetto, tipiProgetto, funzioniProgetto) : null;
         // F4 — lampeggio, stato allarme, stale e Bad-gray (tutti opt-in,
         // tutti calcolati qui una volta per ogni tipo di oggetto).
         const [ripiegoW, ripiegoH] = MISURA_DI_RIPIEGO[obj.type] ?? [100, 50];
@@ -3879,6 +3882,7 @@ function SvgObjectCorpo(p: ObjProps) {
   // viene innestata qui, quindi localizzare per prima cosa non l'avrebbe mai
   // vista. Era il secondo modo in cui un token poteva non risolversi.
   const projectTypes = useAppStore((s) => s.project?.types);
+  const projectFunctions = useAppStore((s) => s.project?.functions);
   // Il lucchetto sui figli di un faceplate (R7, 04-11-2026): il gruppo della
   // pagina non li vede, sono disegnati qui dentro.
   const ruoloVista = useAppStore((s) => s.authRole);
@@ -7175,7 +7179,7 @@ function SvgObjectCorpo(p: ObjProps) {
       <g transform={`translate(${obj.x}, ${obj.y})${scaleTf}`} style={{ cursor: "default" }}>
         {bgLayer(0, 0, obj.faceplate_scale ? defBox.w : w, obj.faceplate_scale ? defBox.h : h, 4)}
         {figli.map((resolved, i) => {
-          const lucchetto = ruoloCheServe(resolved, ruoloVista, projectTags, projectTypes);
+          const lucchetto = ruoloCheServe(resolved, ruoloVista, projectTags, projectTypes, projectFunctions);
           return (
             <Fragment key={resolved.id ?? i}>
               <SvgObject

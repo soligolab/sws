@@ -790,7 +790,9 @@
     "logout": "Log out",
     "piuTardi": "Later",
     "nonChiederePiu": "Don't ask again",
-    "nonChiederePiuConferma": "The password will stay as it is and the panel will stop asking to change it. Only do this if you chose the password yourself and nobody else knows it: whoever knows it gets in as you. Continue?"
+    "nonChiederePiuConferma": "The password will stay as it is and the panel will stop asking to change it. Only do this if you chose the password yourself and nobody else knows it: whoever knows it gets in as you. Continue?",
+    "sessionClosed": "The session was closed (for instance an administrator reset the password): sign in again.",
+    "pinNoCurrent": "You just signed in with the PIN from your mail: the current password isn't needed."
   },
   "props": {
     "diag45": "45° diagonal",
@@ -2195,7 +2197,10 @@
     "bindingsOrScript": ", or by a global script with ",
     "bindingsHowto": " (chapter 15 of HOWTO.md).",
     "codeLabel": "Python code",
-    "newFunctionBody": "# write the function body here"
+    "newFunctionBody": "# write the function body here",
+    "minRoleLabel": "Lowest role to run it",
+    "minRoleDefault": "Operator (default)",
+    "minRoleViewer": "Viewer — also whoever hasn't signed in"
   },
   "trendExpanded": {
     "presetAll": "All",
@@ -5883,8 +5888,11 @@
     "transform": {
       "turn": "Turn and flip",
       "align": "Align",
-      "distribute": "Distribute"
-    }
+      "distribute": "Distribute",
+      "frame": "Frame"
+    },
+    "fillFrame": "Fill the frame",
+    "fillFrameHint": "Scales the whole drawing, keeping its proportions, until it touches the symbol's frame (one unit of margin), and centres it. The ports stay on their border."
   },
   "images": {
     "upload": {
@@ -5997,10 +6005,10 @@
     "userBaseExample": "OU=Users,DC=company,DC=local",
     "groupExample": "CN=SWS Operators,OU=Groups,DC=company,DC=local"
   },
-
   "apiError": {
     "function_param_invalid": "Function «{{function}}» has a parameter «{{param}}» that is not a valid Python name: only letters, digits and «_», not starting with a digit.",
     "function_param_reserved": "Function «{{function}}» has a parameter «{{param}}»: that is the name of something every script already gets (tags, state, print…). Choose another name.",
-    "function_param_underscore": "Function «{{function}}» has a parameter «{{param}}»: names starting with «_» are reserved for the sandbox. Choose another name."
+    "function_param_underscore": "Function «{{function}}» has a parameter «{{param}}»: names starting with «_» are reserved for the sandbox. Choose another name.",
+    "function_role": "This command needs the {{role}} role: sign in with a user who has it."
   }
 }

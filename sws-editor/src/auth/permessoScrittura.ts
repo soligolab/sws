@@ -40,6 +40,13 @@ export function sogliaScritturaTag(
   return "Operator";
 }
 
+/** The role it takes to run the function `name` (its `min_role`; Operator
+ *  when absent or unknown, as on the server). */
+export function sogliaFunzione(functions: readonly { name: string; min_role?: string }[] | undefined, name: string): string {
+  const r = functions?.find((f) => f.name === name)?.min_role;
+  return r === "Viewer" || r === "Supervisor" || r === "Admin" ? r : "Operator";
+}
+
 /** Il ruolo `ruolo` (dallo store; `null` = non ancora saputo = anonimo) basta
  *  per la soglia? L'anonimo conta come Viewer, come sul server. */
 export function puoScrivere(soglia: string, ruolo: string | null | undefined): boolean {
@@ -107,10 +114,14 @@ export function tagScrittiDa(obj: {
  *  l'oggetto sta sotto Viewer (come `isRoleAllowed`), per la variabile vale
  *  Viewer (come il server). */
 export function ruoloCheServe(
-  obj: Parameters<typeof tagScrittiDa>[0] & { min_role?: string; table_rows?: { tag?: string; writable?: boolean }[] },
+  obj: Parameters<typeof tagScrittiDa>[0] & {
+    min_role?: string; table_rows?: { tag?: string; writable?: boolean }[];
+    on_press_fn?: string; on_release_fn?: string;
+  },
   ruolo: string | null | undefined,
   tags: TagDef[] | undefined,
   types: readonly TypeDef[] = [],
+  functions: readonly { name: string; min_role?: string }[] = [],
 ): { ruolo: string; attenua: boolean } | null {
   const ho = (r: string | null | undefined) => (r ? (RANGO[r] ?? -1) : -1);
   const perOggetto = obj.min_role && ho(ruolo) < (RANGO[obj.min_role] ?? 0) ? obj.min_role : undefined;
@@ -121,6 +132,14 @@ export function ruoloCheServe(
   let perVariabile: string | undefined;
   for (const id of scritti) {
     const soglia = sogliaScritturaTag(tags, id, types);
+    if (puoScrivere(soglia, ruolo)) continue;
+    if (perVariabile === undefined || rangoRuolo(soglia) > rangoRuolo(perVariabile)) perVariabile = soglia;
+  }
+  // The functions the object runs count like the variables it writes
+  // (22-11-2026): the object stays full and a touch opens the sign-in.
+  for (const nome of [obj.on_press_fn, obj.on_release_fn]) {
+    if (!nome) continue;
+    const soglia = sogliaFunzione(functions, nome);
     if (puoScrivere(soglia, ruolo)) continue;
     if (perVariabile === undefined || rangoRuolo(soglia) > rangoRuolo(perVariabile)) perVariabile = soglia;
   }

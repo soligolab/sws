@@ -24,7 +24,7 @@ import { useTagStream, tryTagWriteWs, sendSubscribe } from "@/ws/tagStream";
 import { impostaFps, useDatiInRitardo } from "@/ws/coalescenza";
 import { testoSistemaCon } from "@/i18n/testiSistema";
 import type { ButtonAction, CustomSymbol, FaceplateDef, FunctionDef, PageSizeMode, SynopticObject, SynopticPage } from "@/types";
-import { puoScrivere, sogliaScritturaTag } from "@/auth/permessoScrittura";
+import { puoScrivere, sogliaFunzione, sogliaScritturaTag } from "@/auth/permessoScrittura";
 import { CampoNumero } from "@/components/CampoNumero";
 
 // ── Script output toast ───────────────────────────────────────────────────────
@@ -310,6 +310,13 @@ export function RuntimeView() {
   }, []);
 
   const handleScript = (fn: string, args: Record<string, string | number | boolean>) => {
+    // The function's own threshold (22-11-2026), like a tag's: without the
+    // role the sign-in opens, instead of a command the server would refuse.
+    if (!puoScrivere(sogliaFunzione(project?.functions, fn), authRole)) {
+      loginTokenAtOpen.current = authToken;
+      setLoginOpen(true);
+      return;
+    }
     api.runFunction(fn, args).then((r) => {
       if (r.stdout) console.log(`[${fn} stdout]`, r.stdout.trimEnd());
       if (r.stderr) console.warn(`[${fn} stderr]`, r.stderr.trimEnd());

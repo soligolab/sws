@@ -888,11 +888,14 @@ impl Overlay {
                 let mut corpo = String::new();
                 for n in novita {
                     let (t, compat) = aggiornamento::novita_nella_lingua(n, lingua);
-                    if !compat.is_empty() {
+                    // The same warning, carried by several rcs of one release,
+                    // is said once (22-11-2026: five times on the TC620).
+                    let line = format!("⚠ {compat}");
+                    if !compat.is_empty() && !compatibilita.contains(line.as_str()) {
                         if !compatibilita.is_empty() {
                             compatibilita.push('\n');
                         }
-                        compatibilita.push_str(&format!("⚠ {compat}"));
+                        compatibilita.push_str(&line);
                     }
                     corpo.push_str(&format!("{}\n{}\n\n", n.versione, t));
                 }

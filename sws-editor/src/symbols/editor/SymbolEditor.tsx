@@ -27,7 +27,7 @@ import { trovaSimboloOriginale, useManifestoLib } from "@/symbols/lib/libreria";
 import type { SignalEntry, SimboloLib } from "@/symbols/lib/manifest";
 import { useStileProgetto } from "@/symbols/stileProgetto";
 import {
-  addInput, addPort, align, boxToBox, deleteOps, distribute, duplicateOps, explodedOffsets, extraOf, fillOf, inputs,
+  addInput, addPort, align, boxToBox, fillFrame, deleteOps, distribute, duplicateOps, explodedOffsets, extraOf, fillOf, inputs,
   insertInLayer, layers, mapBox, matrixOps, moveLayer, movePort, moveToLayer, moveToNewLayer, NEW_LAYER, newCircle, newEllipse, newLine, newPath, newRect, ports, r2,
   removeInput, renamePart, reorderOp, resizeSymbol, saveAsCopy, setExtra, setFill, setGeo, setPartGeo, setPathD,
   setPort, setVeil, transformOps, turnMatrix, union, validPathD, validPortId, validSize, INPUT_KINDS, SIDES,
@@ -290,7 +290,10 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
     // exploded view the shapes go out of both, so neither cuts (19-11-2026, the
     // maintainer: «spariscono dietro il bordo»).
     const inner = g.querySelector<SVGSVGElement>(":scope > svg");
-    if (inner) inner.style.overflow = explode.on ? "visible" : "";
+    // Outside «Prova» a photo past the frame shows whole, dimmed beyond the
+    // border, so it can be centred (22-11-2026); the symbol cuts it everywhere
+    // else.
+    if (inner) inner.style.overflow = explode.on || tab !== "try" ? "visible" : "";
     // The layers are the `<g>` directly inside the drawing.
     inner?.querySelectorAll<SVGGElement>(":scope > g").forEach((s) => { s.style.clipPath = explode.on ? "none" : ""; });
     const hiddenOps = new Set(ls.filter((l) => hidden.has(l.id)).flatMap((l) => l.ops));
@@ -303,7 +306,7 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
       else el.removeAttribute("transform");
       el.style.display = hiddenOps.has(i) ? "none" : "";
     });
-  }, [offsets, hidden, ls, boxes, explode.on, holding]);
+  }, [offsets, hidden, ls, boxes, explode.on, holding, tab]);
   // The view makes room for the exploded shapes, and comes back when it closes
   // (only then: with the view closed, the zoom chosen by hand stays).
   const wasExploded = useRef(false);
@@ -774,6 +777,7 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
     commit(matrixOps(d, sel, turnMatrix(kind, r2(box.x + box.w / 2), r2(box.y + box.h / 2))));
   }, [commit, d, sel, boxes]);
   const doAlign = (mode: AlignMode) => commit(align(d, drawing(sel), boxes, mode));
+  const doFill = () => commit(fillFrame(d, boxes));
   // A whole layer back or forward; what the editor keeps by layer id (hidden,
   // locked, grouped) follows it, since static layers are named by their place.
   const shiftLayer = (id: string, dir: 1 | -1) => {
@@ -1230,6 +1234,13 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
                     progetto={projectStyle} />
                 </g>
               )}
+              {/* What lies past the frame (a photo, the only thing allowed
+                  there) is shown dimmed: on the page it is cut away. */}
+              {!trying && (
+                <path d={`M${-10 * w} ${-10 * h}H${11 * w}V${11 * h}H${-10 * w}Z M0 0V${h}H${w}V0Z`}
+                  fillRule="evenodd" fill={C.surface} fillOpacity={0.7} style={{ pointerEvents: "none" }}
+                  data-testid="symbol-outside-frame" />
+              )}
               {/* part geometry: the level window and the anchors */}
               {!trying && parts.map((p) => {
                 const g = (d.ops[p.op] as Op).geo as Record<string, number>;
@@ -1378,7 +1389,7 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
                   }}
                   transform={(
                     <TransformBlock canTurn={sel.length > 0} canAlign={nDrawing > 1} canDistribute={nDrawing > 2}
-                      onTurn={turn} onAlign={doAlign} onDistribute={doDistribute} />
+                      onTurn={turn} onAlign={doAlign} onDistribute={doDistribute} onFill={doFill} />
                   )}
                   animation={nDrawing > 0 ? (
                     <AnimateBlock d={d} partOp={selPart?.start} commit={commit}
@@ -1659,11 +1670,13 @@ function PieceProps({ d, sel, one, layer, layers: ls, catalog, commit, onDup, on
 /** Turn, flip, align and distribute the selection: in the panel, as the IDE's
  *  alignment of several objects (`MultiSelectionProps`), and no longer in a
  *  second canvas toolbar (22-11-2026). */
-function TransformBlock({ canTurn, canAlign, canDistribute, onTurn, onAlign, onDistribute }: {
+function TransformBlock({ canTurn, canAlign, canDistribute, onTurn, onAlign, onDistribute, onFill }: {
   canTurn: boolean; canAlign: boolean; canDistribute: boolean;
   onTurn: (how: "cw" | "ccw" | "flipH" | "flipV") => void;
   onAlign: (m: AlignMode) => void;
   onDistribute: (axis: "h" | "v") => void;
+  /** The whole drawing on the frame; absent where it doesn't apply. */
+  onFill?: () => void;
 }) {
   const { t } = useTranslation();
   const b = (enabled: boolean): React.CSSProperties => ({
@@ -1693,6 +1706,10 @@ function TransformBlock({ canTurn, canAlign, canDistribute, onTurn, onAlign, onD
         <button type="button" style={b(canDistribute)} disabled={!canDistribute} title={t("symbolEditor.distributeH")} onClick={() => onDistribute("h")}>⋯</button>
         <button type="button" style={b(canDistribute)} disabled={!canDistribute} title={t("symbolEditor.distributeV")} onClick={() => onDistribute("v")}>⋮</button>
       </>)}
+      {onFill && row(t("symbolEditor.transform.frame"), (
+        <button type="button" style={{ ...b(true), fontSize: TESTO.etichetta }} title={t("symbolEditor.fillFrameHint")}
+          onClick={onFill} data-testid="symbol-fill-frame">⛶ {t("symbolEditor.fillFrame")}</button>
+      ))}
     </>
   );
 }

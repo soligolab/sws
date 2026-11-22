@@ -4,6 +4,10 @@
 > [fase 7](2026-11-21-simboli-fase-7-libreria-aziendale.md) e [P6](2026-11-21-p6-2fa-e-ldap.md). Piano madre:
 > [editor dei simboli](2026-11-18-editor-dei-simboli.md), decisione 8 del 18-11: «effetti difficili in una fase loro,
 > dopo».
+>
+> **Superato il 22-11-2026** dal collaudo della rc.28: gli effetti diventano **proprietà di forme e gruppi**, collegate a
+> un ingresso del simbolo, e le parti-effetto di questo piano si buttano. Il seguito sta nel
+> [piano della rc.29](2026-11-22-rc29-collaudo-utente-editor-simboli.md), blocco C.
 
 Rami, uno per effetto, in quest'ordine (dal più economico sul pannello): **`feat/symbol-fx-glow`**,
 **`feat/symbol-fx-bubbles`**, **`feat/symbol-fx-smoke`**, **`feat/symbol-fx-flame`**.

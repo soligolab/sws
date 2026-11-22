@@ -722,6 +722,37 @@ export function align(d: DescrizioneSimbolo, which: number[], boxes: Map<number,
   return out;
 }
 
+/**
+ * «Fill the frame» (22-11-2026, the stove drawn with empty bands above and
+ * below): the whole drawing scaled by the same factor in both directions until
+ * it touches the frame (one unit of margin), centred; the ports go back on
+ * their side of the border. Only on request, never on its own.
+ */
+export function fillFrame(d: DescrizioneSimbolo, boxes: Map<number, Box>, margin = 1): DescrizioneSimbolo {
+  const ops = d.ops as Op[];
+  const drawn = ops.flatMap((op, i) => (op.op !== "bocca" && boxes.has(i) ? [boxes.get(i)!] : []));
+  const u = union(drawn);
+  if (!u || u.w <= 0 || u.h <= 0) return d;
+  const s = Math.min((d.w - 2 * margin) / u.w, (d.h - 2 * margin) / u.h);
+  if (!(s > 0)) return d;
+  const a: Affine = {
+    sx: s, sy: s,
+    tx: r2(d.w / 2 - (u.x + u.w / 2) * s),
+    ty: r2(d.h / 2 - (u.y + u.h / 2) * s),
+  };
+  const moved = ops.map((op) => {
+    const o = transformOp(op, a);
+    if (o.op !== "bocca") return o;
+    const side = o.side as Side;
+    if (side === "left") return { ...o, x: 0, y: r2(clamp(Number(o.y), 0, d.h)) };
+    if (side === "right") return { ...o, x: d.w, y: r2(clamp(Number(o.y), 0, d.h)) };
+    if (side === "top") return { ...o, y: 0, x: r2(clamp(Number(o.x), 0, d.w)) };
+    if (side === "bottom") return { ...o, y: d.h, x: r2(clamp(Number(o.x), 0, d.w)) };
+    return o;
+  });
+  return withOps(d, moved);
+}
+
 /** Spreads the operations evenly: the same gap between one and the next,
  *  the first and the last where they are. */
 export function distribute(d: DescrizioneSimbolo, which: number[], boxes: Map<number, Box>, axis: "h" | "v"): DescrizioneSimbolo {

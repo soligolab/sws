@@ -1066,6 +1066,8 @@ pub async fn fetch_soglie_scrittura(
         tags: Vec<sws_core::TagDef>,
         #[serde(default)]
         types: Vec<sws_core::TypeDef>,
+        #[serde(default)]
+        functions: Vec<sws_core::FunctionDef>,
     }
     let url = format!("{}/api/project", base_url.trim_end_matches('/'));
     let client = reqwest::Client::builder()
@@ -1080,7 +1082,13 @@ pub async fn fetch_soglie_scrittura(
         .json::<Progetto>()
         .await
         .ok()?;
-    Some(sws_core::soglie_di_scrittura(&p.tags, &p.types))
+    let mut soglie = sws_core::soglie_di_scrittura(&p.tags, &p.types);
+    // The functions' thresholds (22-11-2026) travel in the same map, under
+    // `fn:<name>`: a tag id never starts with `fn:`.
+    for f in &p.functions {
+        soglie.insert(format!("fn:{}", f.name), f.role_needed().to_string());
+    }
+    Some(soglie)
 }
 
 pub async fn resolve_page_by_id(

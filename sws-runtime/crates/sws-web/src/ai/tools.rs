@@ -1436,6 +1436,7 @@ pub fn schema_simbolo() -> Esito {
             "una flangia a filo del bordo diventa una bocca da sé: l'id è n-left, n-right, n-top, n-bottom (n-left-2… se ce ne sono due sullo stesso lato)",
             "il corpo è la parte che cambia colore con lo stato: mettici la carcassa della macchina, non i tubi",
             "un simbolo descrive UNA macchina; le scritte, i valori e i tubi fra macchine stanno in pagina",
+            "when the request gives no sizes of its own, the machine fills the whole drawing: at most one unit of margin on each side, no empty bands above or below. When the request gives sizes, keep them",
             "what a description cannot draw can be a free SVG (bozza_simbolo with svg, view_box, ports instead of descrizione): a fixed drawing with ports, no live parts, no state colour, no style of the project. Only when the description is not enough",
         ],
         "esempi": esempi,

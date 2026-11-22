@@ -12,6 +12,7 @@ import { RuntimeView } from "@/runtime-view/RuntimeView";
 import { ordinaPagine } from "@/pageTree";
 import { pickInitialPageId } from "@/pageLayout";
 import { useProjectWatcher } from "@/ws/projectWatcher";
+import { ricaricaSimboliProgetto } from "@/symbols/lib/libreria";
 import { useBuildWatcher } from "@/ws/buildWatcher";
 import { riprovaFlussoTag } from "@/ws/tagStream";
 import { riprovaFlussoAllarmi } from "@/ws/alarmStream";
@@ -153,6 +154,10 @@ export function RuntimeViewer() {
   useProjectWatcher((fp) => {
     if (fp === null) { setNoActiveProject(true); return; }
     const current = useAppStore.getState().currentPageId;
+    // The project's symbols too (22-11-2026: a symbol added in the IDE stayed
+    // «symbol?» on the TC620 after the deploy, and a changed one would have
+    // kept its old drawing): the manifest was read once, at the first page.
+    ricaricaSimboliProgetto();
     return loadProjectData(current)
       .then(() => {
         // **Chi sono, adesso?** (22-10-2026, piano

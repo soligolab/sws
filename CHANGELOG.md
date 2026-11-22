@@ -48,6 +48,32 @@ si stabilizza su `release/2.26` (piano `docs/plans/2026-11-22-dev-rc-release-e-p
 Il lavoro dalla 2.25.2 alla 2.26.0-rc.26. Le correzioni della stabilizzazione si fanno su `release/2.26` e si
 riportano qui con `cherry-pick`; la data arriva con la release.
 
+### Corretto — collaudo della 2.26.0-rc.28 (22-11-2026, sul TC620, ramo `fix/rc29-collaudo`)
+- **Gli avvisi di compatibilità ripetuti per ogni rc**: aggiornando il TC620 dalla rc.23 alla rc.28 i sette avvisi della
+  2.26.0 comparivano cinque volte. Le rc di una release portano tutto il blocco della release, e il blocco cresce: la
+  versione più nuova della stessa release dice tutto quello che dicevano le precedenti. `senza_ripetizioni`
+  (`aggiornamento.rs`) le fonde per release, il gemello `novitaRaccolte` (`api/client.ts`) fa lo stesso nell'IDE e nel
+  viewer (il pannello può ancora girare una versione che non le fonde), LVGL non ripete un avviso uguale.
+- **Foto e disegni dell'IA che non riempivano il riquadro** (la stufa 100×140 con le fasce vuote): il testo al modello
+  d'immagine chiede l'oggetto da bordo a bordo; la foto salvata perde i bordi trasparenti o di colore uniforme
+  (`trim_border`, `simboli_progetto.rs`); le regole del disegno chiedono tutto il riquadro quando la richiesta non dà
+  misure sue; nell'editor «Riempi il riquadro» (`fillFrame`, `model.ts`) scala il disegno sul bordo, solo a mano.
+- **Una foto non poteva uscire dal riquadro del simbolo**: ora può, e la parte fuori è tagliata (web: l'`<svg>` del
+  simbolo; LVGL: il ritaglio alla tela); nell'editor si vede attenuata per poterla centrare. Rifiutata solo una foto
+  tutta fuori. I messaggi della regola sono in italiano come gli altri.
+- **Dopo un deploy il viewer non riprendeva i simboli del progetto** (`caldaia-sbrodego` restava «symbol?» sul TC620):
+  il sorvegliante del progetto ora rilegge anche il manifesto (`ricaricaSimboliProgetto`).
+- **«Chiudi Tutto» dava 403 a chi usa lo schermo senza accedere**: ogni funzione ha `min_role` (assente = Operator,
+  come prima), controllato da `run_function`; la rotta sul viewer sta fra le letture, come le scritture dei tag che
+  decidono da sé. Il 403 è JSON (`function_role`) e tradotto; il pulsante mostra il lucchetto e apre l'accesso (web) o il
+  lucchetto (LVGL, le soglie delle funzioni viaggiano come `fn:<nome>`). Nell'IDE «Ruolo minimo per eseguirla».
+- **La libreria aziendale senza anteprime**: le descrizioni si compilano (una volta per versione) con la rotta dei
+  simboli del progetto, e le foto si prendono dalla libreria (`AnteprimaLibreria`; `scaricaImmagine` usa `baseDi`).
+- **Il cambio password dopo un reset dell'amministratore restava su «Errore»**: il 401 di una sessione chiusa è un
+  `AuthError`, che la schermata non riconosceva; ora torna all'accesso dicendo perché. E chi è appena entrato col PIN
+  per posta (10 minuti) non deve scrivere la password attuale (`pin_proofs` in `sws-identita`, `recent_pin_login` in
+  `whoami`).
+
 ### Cambiato
 - **I pannelli dell'editor dei simboli nello stile dell'IDE** (collaudo della 2.26.0-rc.23, 21-11-2026, ramo
   `feat/symbol-editor-panels`). Il maintainer: «tutti i menù sono fissi e in uno stile diverso dall'IDE principale».

@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
-import { copyFromLibrary, deleteFromLibrary, outdated, updateFromLibrary, useCompanyLibrary } from "@/symbols/library/companyLibrary";
+import { copyFromLibrary, currentCompany, deleteFromLibrary, outdated, updateFromLibrary, useCompanyLibrary } from "@/symbols/library/companyLibrary";
+import { AnteprimaLibreria } from "@/symbols/library/AnteprimaLibreria";
 import { openNewSymbol, openSymbolEditorFor, openSymbolFile } from "@/symbols/editor/open";
 import { ImgProgetto } from "@/canvas/ImmagineSvg";
 import { useTranslation } from "react-i18next";
@@ -1142,7 +1143,7 @@ function FamigliaSimboli({ famiglia, tipologie, titolo, ultima, ultimoGruppo }: 
       {aperta && famiglia === "__libreria" && libreria?.map((e, i) => (
         <RigaStrumento key={e.slug} testid={`simbolo-libreria-${e.slug}`} rientro={52}
           titolo={t(e.symbol.overrides ? "symbolLibrary.useVariantTitle" : "symbolLibrary.useTitle")}
-          icona={<span style={{ width: px, textAlign: "center", flexShrink: 0 }}>{e.symbol.overrides ? "◇" : "◆"}</span>}
+          icona={<AnteprimaLibreria entry={e} company={currentCompany()} w={Math.round(px * 1.15)} h={px} />}
           nota={<span role="button" tabIndex={0} data-testid={`libreria-elimina-${e.slug}`} title={t("symbolLibrary.delete")}
             style={{ flexShrink: 0, padding: "0 4px", cursor: "pointer" }}
             onClick={(ev) => { ev.stopPropagation(); void deleteFromLibrary(e); }}

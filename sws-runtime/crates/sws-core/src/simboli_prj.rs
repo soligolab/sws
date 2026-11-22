@@ -1647,14 +1647,19 @@ pub fn regole(d: &Descrizione, c: &Compilato) -> Vec<String> {
             Op::Image { src, geo, opacity } => {
                 if !image_name_ok(src) {
                     male.push(format!(
-                        "{dove}: image «{src}» must be a file name in images/ (png, jpg, webp)"
+                        "{dove}: la foto «{src}» dev'essere il nome di un file in images/ (png, jpg, webp)"
                     ));
                 }
+                // A photo may go past the frame: what is outside is cut away
+                // (22-11-2026, the maintainer: «lo sfondo deve poter essere
+                // tirato per centrarlo al simbolo, quello che eccede deve
+                // essere troncato»). Shapes stay inside. Only a photo with
+                // nothing left inside is refused.
                 match riquadro("rect", geo) {
                     Some((x, y, ww, hh)) if ww > 0.0 && hh > 0.0 => {
-                        if fuori(x, y, ww, hh) {
+                        if x >= d.w as f64 || y >= d.h as f64 || x + ww <= 0.0 || y + hh <= 0.0 {
                             male.push(format!(
-                                "{dove}: the image goes out of the drawing {}×{} (x {} to {}, y {} to {})",
+                                "{dove}: la foto è tutta fuori dal disegno {}×{} (x da {} a {}, y da {} a {})",
                                 d.w,
                                 d.h,
                                 fmt(x),
@@ -1665,7 +1670,7 @@ pub fn regole(d: &Descrizione, c: &Compilato) -> Vec<String> {
                         }
                     }
                     _ => male.push(format!(
-                        "{dove}: the image needs x, y and a positive width and height"
+                        "{dove}: la foto vuole x, y e larghezza e altezza positive"
                     )),
                 }
                 if opacity.is_some_and(|o| !(0.0..=1.0).contains(&o)) {
@@ -2194,7 +2199,15 @@ mod tests {
             json!({ "op": "image", "src": "a.png", "geo": { "x": 50, "y": 0, "width": 100, "height": 10 } }),
         )
         .unwrap();
-        assert!(compila_e_controlla(&d).unwrap_err().join(" ").contains("goes out"));
+        assert!(
+            compila_e_controlla(&d).is_ok(),
+            "a photo past the frame is cut, not refused (22-11-2026)"
+        );
+        d.ops[0] = serde_json::from_value(
+            json!({ "op": "image", "src": "a.png", "geo": { "x": 500, "y": 0, "width": 100, "height": 10 } }),
+        )
+        .unwrap();
+        assert!(compila_e_controlla(&d).unwrap_err().join(" ").contains("tutta fuori"));
         d.ops[0] = serde_json::from_value(
             json!({ "op": "image", "src": "a.png", "geo": { "x": 0, "y": 0, "width": 0, "height": 10 } }),
         )
