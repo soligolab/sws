@@ -5875,7 +5875,9 @@
       "transform": "Turn and align"
     },
     "layerSelect": "Select the layer's shapes",
-    "layerEmpty": "Empty",
+    "layerEmptyTarget": "Empty: new shapes go here",
+    "layerEmptyPick": "Empty — click to draw in it",
+    "layerTarget": "New shapes go into this layer",
     "collapse": "Collapse",
     "expand": "Expand",
     "transform": {

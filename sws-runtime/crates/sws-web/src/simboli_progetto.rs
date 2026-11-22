@@ -114,7 +114,18 @@ pub fn esito_con(v: &Value, trace: bool) -> Value {
             };
             json!({ "slug": d.slug, "ok": true, "svg": svg, "voce": c.voce, "errori": [] })
         }
-        Err(e) => json!({ "slug": d.slug, "ok": false, "errori": e }),
+        // The drawing even when the rules refuse it (22-11-2026): the symbol
+        // editor draws it — WYSIWYG while drawing — and keeps «Save» off while
+        // `errori` is not empty. Every other caller reads `ok` and is not
+        // affected. Without a drawing (a material that does not exist) only the
+        // errors, as before.
+        Err(e) => match trace
+            .then(|| simboli_prj::compila_con_traccia(&d))
+            .unwrap_or_else(|| simboli_prj::compila(&d))
+        {
+            Ok(c) => json!({ "slug": d.slug, "ok": false, "svg": c.svg, "voce": c.voce, "errori": e }),
+            Err(_) => json!({ "slug": d.slug, "ok": false, "errori": e }),
+        },
     }
 }
 
@@ -603,6 +614,24 @@ mod tests {
             "../../../../tests/fixtures/simboli-prj/gabbia-laminazione.json"
         ))
         .unwrap()
+    }
+
+    /// The symbol editor draws what is there even while the rules refuse it
+    /// (22-11-2026): the drawing comes back with the errors, `ok` stays false.
+    #[test]
+    fn a_refused_symbol_still_comes_back_drawn() {
+        let mut v = serde_json::to_value(gabbia()).unwrap();
+        // Out of the drawing: a rule, not a compile error.
+        let ops = v["ops"].as_array_mut().unwrap();
+        let i = ops.iter().position(|o| o.get("geo").and_then(|g| g.get("cx")).is_some()).unwrap();
+        ops[i]["geo"]["cx"] = json!(1000);
+        let e = esito_con(&v, true);
+        assert_eq!(e["ok"], json!(false), "{e}");
+        assert!(!e["errori"].as_array().unwrap().is_empty(), "{e}");
+        assert!(e["svg"].as_str().is_some_and(|s| s.contains("data-op=")), "{e}");
+        // A description that does not read: no drawing, only the error.
+        let e = esito_con(&json!({ "slug": "x", "ops": "no" }), true);
+        assert!(e.get("svg").is_none(), "{e}");
     }
 
     #[test]

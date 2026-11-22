@@ -66,6 +66,10 @@ versioni:
       - it: "Le installazioni native non hanno più admin/admin: partono col codice di abbinamento. Un admin/admin rimasto va cambiato al primo accesso."
         en: "Native installations no longer have admin/admin: they start with the pairing code. An admin/admin left over must be changed at the next login."
     voci:
+      - it: "Editor dei simboli: la tela disegna sempre quello che c'è, e un simbolo fatto di foto si salva anche senza corpo."
+        en: "Symbol editor: the canvas always draws what is there, and a symbol made of photos saves without a body."
+      - it: "Editor dei simboli: un clic su uno strato, anche vuoto, sceglie dove vanno le forme nuove; colonne ridimensionabili."
+        en: "Symbol editor: a click on a layer, even an empty one, picks where new shapes go; resizable columns."
       - it: "Un progetto aperto in due schede o da due persone: la seconda vede chi lo ha aperto e da quando, e sceglie fra sola lettura e «Prendi il controllo». Una scheda chiusa libera il progetto in un minuto."
         en: "A project open in two tabs or by two people: the second sees who opened it and since when, and chooses between read-only and «Take control». A closed tab frees the project within a minute."
       - it: "«Salva come…» su un progetto con repository git chiede cosa fa la copia: un ramo nuovo dello stesso repository, un repository nuovo o nessuno. Il Push della copia non finisce più sull'originale."
