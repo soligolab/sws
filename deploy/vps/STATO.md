@@ -173,7 +173,14 @@ resta 404: così un bundle che manca non torna come HTML con stato 200.
 (`10.89.0.x`): il limite di 20 richieste/s vale per tutti insieme finché non c'è l'indirizzo vero (seme «indirizzo vero
 dietro Traefik»). Si aggiorna con `scripts/manuale/pubblica.sh`.
 
-**Versione in esecuzione: `e4167f8f-amd64` (2.26.0-rc.25)** dal 21-11-2026, 23:20: le anomalie del collaudo della
+**Versione in esecuzione: `c3180ab9-amd64` (2.26.0-rc.26)** dal 22-11-2026, 09:25: l'editor dei simboli nello stile
+dell'IDE (intestazione, barra, icone, sezioni richiudibili). Sequenza solita (`podman pull`, copia
+`sws-gateway.container.prima-rc26`, `sed` del commit in `Image=` e `--gateway-immagine`, `daemon-reload`, `restart
+sws-gateway`). Verificato: gateway `healthy`, CasaDomotica ripartita sull'immagine nuova, radice 200, `/health` «ok».
+Tolta l'immagine della rc.23 (`3e9e1d6c-amd64`); resta la rc.25 come ripiego. Pacchetto del Tiny TY: `latest.txt` =
+rc.26 (sha256 `1481e012…`).
+
+Prima: **Versione in esecuzione: `e4167f8f-amd64` (2.26.0-rc.25)** dal 21-11-2026, 23:20: le anomalie del collaudo della
 rc.23 (maniglie degli angoli, simbolo nuovo con nome e misura, «Genera foto» con `gpt-image-2`, il clic sul disegno
 vecchio che faceva crollare l'IDE). La rc.24 (`32e372fb`) è stata pubblicata ma il gateway non l'ha mai fatta girare:
 si è passati direttamente alla rc.25 per non interrompere due volte il maintainer, che lavorava nell'IDE del cloud.

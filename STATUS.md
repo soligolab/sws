@@ -12,7 +12,22 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — la 2.26.0-rc.25 sul VPS, i menù dell'editor dei simboli da guardare (2026-11-22 notte, `ufficio`)
+## ▶ Riprendere da qui — la 2.26.0-rc.26 pubblicata; dev, rc e release (2026-11-22 mattina, `ufficio`)
+
+**Fatto**: il ramo `feat/symbol-editor-panels` squashato in `main` (`7f7a60c9`, alberi controllati, ramo eliminato)
+dopo l'«Ok» del maintainer alle istantanee; `chore(rc): 2.26.0-rc.26` (`c3180ab9`); **pushati** `main` e i tag
+`2.26.0-rc.25` e `2.26.0-rc.26` («Fai il push»). Immagini `2.26.0-rc.26-*`, `c3180ab9-*`, `rc-*` su ghcr; **gateway del
+VPS su `c3180ab9-amd64`**, ripiego la rc.25; **Tiny TY** `latest` = rc.26. La build: 60 minuti in tutto (08:19-09:19),
+col pacchetto del Tiny TY lanciato in parallelo alle immagini (prima misura del parallelo, nel piano).
+
+**Il cambio di prassi deciso oggi dal maintainer**: le rc servono solo a finalizzare una release (correzioni e
+prestazioni); il lavoro nuovo esce come **dev** con un profilo Rust leggero. La **2.26.0 entra in stabilizzazione**:
+correzioni su un ramo `release/2.26`, lavoro nuovo in `main` come 2.27.0-dev. Il piano che lo mette in pratica (build
+dev e rc, versione letta da fuori del binario, portale di sviluppo `dev.sws.soligo.net`) è in bozza in
+`tmp/piano-build-rc/` e **aspetta l'approvazione** del maintainer; dopo, va in `docs/plans/` e il seme della build
+veloce in archivio. In bozza anche la sezione «dividere `sws-web`» per il seme di riorganizzazione del codice.
+
+## Prima — la 2.26.0-rc.25 sul VPS, i menù dell'editor dei simboli da guardare (2026-11-22 notte, `ufficio`)
 
 **Il collaudo della rc.23 col maintainer (21-11, sera)**, `/test-changes` sul TC620: test 1-4 passati (registro
 dell'aggiornamento, lock, sorgenti e tolleranza, sandbox), il test 5 (foto) fermato dalle anomalie. Le anomalie sono
