@@ -118,7 +118,7 @@ pub(crate) fn answer_schema() -> Value {
         op("corpo", json!({}), &[]),
         op(
             "tratto",
-            json!({ "d": path, "mat": mat, "extra": extra }),
+            json!({ "d": path, "mat": mat, "extra": extra, "group": id }),
             &["d"],
         ),
         op(
@@ -167,20 +167,6 @@ pub(crate) fn answer_schema() -> Value {
                 json!({ "color": colour, "entries": { "type": "array", "items": { "type": "object" } } }),
                 &[],
             ),
-            "glow" => (json!({ "color": colour, "radius": num }), &[]),
-            "flame" => (
-                json!({ "x": num, "y": num, "w": num, "h": num, "color": colour, "period_ms": num }),
-                &["x", "y", "w", "h"],
-            ),
-            "smoke" => (
-                json!({ "x": num, "y": num, "w": num, "h": num, "color": colour, "period_ms": num }),
-                &["x", "y", "w", "h"],
-            ),
-            "bubbles" => (
-                json!({ "x": num, "y": num, "w": num, "h": num, "color": colour,
-                        "count": num, "period_ms": num }),
-                &["x", "y", "w", "h"],
-            ),
             _ => (json!({}), &[]),
         };
         let geo = json!({ "type": "object", "required": required, "properties": props });
@@ -196,8 +182,22 @@ pub(crate) fn answer_schema() -> Value {
         json!({ "src": { "type": "string", "pattern": "^[A-Za-z0-9_-][A-Za-z0-9._-]{0,127}$" }, "geo": object(
             json!({ "x": num, "y": num, "width": num, "height": num }),
             &["x", "y", "width", "height"],
-        ), "opacity": num }),
+        ), "opacity": num, "group": id,
+           "clip": { "anyOf": FORME.iter().map(|tag| object(json!({ "tag": { "const": tag }, "geo": geo(tag) }), &["tag", "geo"])).collect::<Vec<_>>() } }),
         &["src", "geo"],
+    ));
+    // Inputs without a layer and the effects of groups (22-11-2026).
+    ops.push(op("ingresso", json!({ "id": id }), &["id"]));
+    ops.push(op(
+        "effetto",
+        json!({
+            "kind": { "enum": ["glow", "flame", "smoke", "bubbles"] },
+            "group": id, "input": id,
+            "when": object(json!({ "op": { "enum": ["gt", "ge", "lt", "le", "eq", "ne"] }, "value": num }), &["op", "value"]),
+            "level": object(json!({ "min": num, "max": num }), &["min", "max"]),
+            "color": colour, "period_ms": num, "count": num, "radius": num,
+        }),
+        &["kind", "group", "input"],
     ));
     let rect4 = json!({ "type": "array", "items": num, "minItems": 4, "maxItems": 4 });
     for name in ["flangia", "tronchetto"] {
@@ -207,7 +207,7 @@ pub(crate) fn answer_schema() -> Value {
         let t = json!({ "const": tag });
         ops.push(op(
             "forma",
-            json!({ "tag": t, "geo": geo(tag), "mat": mat, "velo": veil, "extra": extra }),
+            json!({ "tag": t, "geo": geo(tag), "mat": mat, "velo": veil, "extra": extra, "group": id }),
             &["tag", "geo"],
         ));
         ops.push(op(
@@ -1125,7 +1125,7 @@ mod tests {
         let items = &schema["properties"]["ops"]["items"];
         for kind in sws_core::simboli_prj::TIPI_PARTE {
             let part = json!({ "op": "parte", "id": "p1", "kind": kind, "geo": {} });
-            let needs_geo = !matches!(*kind, "lamp" | "vibrate" | "pulse" | "signal" | "glow");
+            let needs_geo = !matches!(*kind, "lamp" | "vibrate" | "pulse" | "signal");
             assert_eq!(fits(&part, items), !needs_geo, "{kind}");
         }
         // And what it is for: a description that does not read does not fit.

@@ -5535,7 +5535,8 @@
       "glow": "Bagliore",
       "bubbles": "Bollicine",
       "smoke": "Fumo",
-      "flame": "Fiamma"
+      "flame": "Fiamma",
+      "input": "Ingresso"
     },
     "shape": {
       "rect": "Rettangolo",
@@ -5690,7 +5691,8 @@
       "moves": "Si muove",
       "entry": "Voce",
       "play": "Anima",
-      "playNote": "Accende gli effetti a tempo (rotazione, vibrazione, pulsazione, lampeggio), come «Anteprima effetti» sul canvas."
+      "playNote": "Accende gli effetti a tempo (rotazione, vibrazione, pulsazione, lampeggio), come «Anteprima effetti» sul canvas.",
+      "value": "Valore"
     },
     "magnetHint": "Calamita: spostando, disegnando o ridimensionando, i bordi e il centro della forma (o il punto: una bocca, un perno, un vertice) si agganciano ai bordi e ai centri delle altre forme e al bordo e al centro del simbolo, se sono vicini. Una linea rossa mostra l'aggancio.",
     "anim": {
@@ -5894,7 +5896,46 @@
       "frame": "Riquadro"
     },
     "fillFrame": "Riempi il riquadro",
-    "fillFrameHint": "Ingrandisce tutto il disegno, nelle stesse proporzioni, finché tocca il riquadro del simbolo (un'unità di margine), e lo centra. Le bocche restano sul loro bordo."
+    "fillFrameHint": "Ingrandisce tutto il disegno, nelle stesse proporzioni, finché tocca il riquadro del simbolo (un'unità di margine), e lo centra. Le bocche restano sul loro bordo.",
+    "fx": {
+      "group": "Gruppo",
+      "inGroup": "Gruppo «{{g}}», {{n}} forme: si selezionano e si spostano insieme.",
+      "groupIt": "Raggruppa (Ctrl+G)",
+      "ungroup": "Separa (Ctrl+Maiusc+G)",
+      "effects": "Effetti",
+      "mixed": "Le forme scelte sono in gruppi diversi: aggiungendo un effetto diventano un gruppo solo.",
+      "kind": {
+        "glow": "Bagliore",
+        "flame": "Fiamma",
+        "smoke": "Fumo",
+        "bubbles": "Bollicine"
+      },
+      "input": "Ingresso",
+      "newInput": "+ nuovo ingresso…",
+      "when": "Acceso quando",
+      "whenTrue": "è vero (≠ 0)",
+      "op": {
+        "gt": ">",
+        "ge": "≥",
+        "lt": "<",
+        "le": "≤",
+        "eq": "=",
+        "ne": "≠"
+      },
+      "level": "Intensità",
+      "levelHint": "L'intensità segue il valore fra minimo e massimo (sul pannello LVGL l'effetto è pieno).",
+      "colour": "Colore",
+      "radius": "Raggio",
+      "count": "Quante",
+      "period": "Periodo ms",
+      "add": "Aggiungi effetto",
+      "note": "Bagliore: un alone attorno alle forme. Fiamma: le forme guizzano dalla base. Fumo: sbuffi dal bordo alto. Bollicine: salgono dentro le forme. In «Prova» si vedono con il loro ingresso.",
+      "mask": "Ritaglio",
+      "clip": "Ritaglia con la forma",
+      "unclip": "Togli ritaglio",
+      "maskNote": "La foto si vede solo dentro il contorno della forma, e si sposta e gira con lei.",
+      "oldRemoved": "Questo simbolo aveva {{n}} effetti nel formato di prima: sono stati tolti. Ora un effetto si assegna a una forma o a un gruppo (sezione Effetti del pannello Pezzo)."
+    }
   },
   "images": {
     "upload": {

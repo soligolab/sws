@@ -353,8 +353,9 @@ export type ValoreParte =
    *  valvola già installata — oggi `1` la apre, con l'indice la chiuderebbe. */
   | { posizione: number | null }
   | { accesa: boolean | null }
-  /** Rotor, vibrate, pulse: whether it moves. */
-  | { active: boolean | null }
+  /** Rotor, vibrate, pulse: whether it moves. An effect: whether it is on,
+   *  and how strong (0..1, when it has a `level`). */
+  | { active: boolean | null; intensity?: number }
   /** Signal: the index of the entry that matches. */
   | { entry: number | null };
 
@@ -375,6 +376,18 @@ function numeroParte(v: unknown): number | null {
   return null;
 }
 
+/** Whether `n` meets an effect's condition. Twin of `FxWhen::holds`. */
+export function fxHolds(w: { op: string; value: number }, n: number): boolean {
+  switch (w.op) {
+    case "gt": return n > w.value;
+    case "ge": return n >= w.value;
+    case "lt": return n < w.value;
+    case "le": return n <= w.value;
+    case "ne": return n !== w.value;
+    default: return n === w.value;
+  }
+}
+
 /** The values of the live parts from the bindings of the object. A tag wins; a
  *  tag with no value yet is "as drawn"; without a tag, the fixed `value`. A
  *  rotor or a level that is not bound is **left out**: it follows the settings
@@ -388,7 +401,9 @@ export function valoriParti(
 ): Record<string, ValoreParte> {
   const out: Record<string, ValoreParte> = {};
   for (const p of parti) {
-    const l = legami?.[p.id];
+    // An effect follows its input (22-11-2026): the binding is that one's.
+    const chiave = "input" in p && p.input ? p.input : p.id;
+    const l = legami?.[chiave];
     const fixed = l?.value ?? undefined;
     const bound = !!l?.tag || fixed !== undefined;
     const v = l?.tag ? valore(l.tag) : fixed;
@@ -419,8 +434,16 @@ export function valoriParti(
       if (bound) out[p.id] = { frazione: fraction(l?.min ?? 0, l?.max ?? 100) };
     } else if (p.kind === "slide") {
       out[p.id] = { frazione: fraction(l?.min ?? 0, l?.max ?? 1) };
-    } else if (p.kind === "vibrate" || p.kind === "pulse" || p.kind === "glow" || p.kind === "bubbles" || p.kind === "smoke" || p.kind === "flame") {
+    } else if (p.kind === "vibrate" || p.kind === "pulse") {
       out[p.id] = { active: v === undefined ? null : veroSimbolo(v) };
+    } else if (p.kind === "glow" || p.kind === "bubbles" || p.kind === "smoke" || p.kind === "flame") {
+      const n = numeroParte(v);
+      const w = p.when;
+      const on = v === undefined ? null : w ? n !== null && fxHolds(w, n) : veroSimbolo(v);
+      const lv = p.level;
+      const intensity = lv && n !== null && lv.max !== lv.min
+        ? Math.min(1, Math.max(0, (n - lv.min) / (lv.max - lv.min))) : undefined;
+      out[p.id] = intensity === undefined ? { active: on } : { active: on, intensity };
     } else if (p.kind === "signal") {
       out[p.id] = { entry: v === undefined ? null : signalEntry(p.entries ?? [], v) };
     }

@@ -201,8 +201,6 @@ pub const TIPI_PARTE: &[&str] = &[
     "level", "rotor", "needle", "lever", "lamp",
     // The animated pieces (plan 2026-11-19-animazioni-dei-simboli).
     "slide", "vibrate", "pulse", "signal",
-    // The effects (plan 2026-11-21-simboli-fase-8-effetti).
-    "glow", "bubbles", "smoke", "flame",
 ];
 
 /// Le forme ammesse. Sono le sole che la libreria usa, e le sole che LVGL
@@ -360,6 +358,10 @@ pub enum Op {
         velo: Option<String>,
         #[serde(default)]
         extra: Attributi,
+        /// The group it belongs to (22-11-2026): shapes with the same letters
+        /// move together in the editor and carry the group's effects.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        group: Option<String>,
     },
     /// Un riflesso di vetro: un velo senza forma piena sotto.
     Luce {
@@ -369,6 +371,10 @@ pub enum Op {
         velo: String,
         #[serde(default = "uno")]
         opacita: f64,
+        /// The group it belongs to (22-11-2026): shapes with the same letters
+        /// move together in the editor and carry the group's effects.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        group: Option<String>,
     },
     /// Un lampo di luce bianca.
     Riflesso {
@@ -376,6 +382,10 @@ pub enum Op {
         geo: Attributi,
         #[serde(default = "diciotto_centesimi")]
         opacita: f64,
+        /// The group it belongs to (22-11-2026): shapes with the same letters
+        /// move together in the editor and carry the group's effects.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        group: Option<String>,
     },
     /// A photo from the project's `images/` (plan
     /// `2026-11-21-simboli-fase-3-foto`), in the box `x y width height`, kept
@@ -388,6 +398,15 @@ pub enum Op {
         geo: Attributi,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         opacity: Option<f64>,
+        /// The shape it is cut to (22-11-2026, «Ritaglia con la forma»): only
+        /// what lies inside it shows. Kept here, not as a reference, so moving
+        /// shapes around never breaks it.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        clip: Option<ClipShape>,
+        /// The group it belongs to (22-11-2026): shapes with the same letters
+        /// move together in the editor and carry the group's effects.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        group: Option<String>,
     },
     /// Una linea senza riempimento.
     Tratto {
@@ -396,6 +415,35 @@ pub enum Op {
         mat: Option<String>,
         #[serde(default)]
         extra: Attributi,
+        /// The group it belongs to (22-11-2026): shapes with the same letters
+        /// move together in the editor and carry the group's effects.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        group: Option<String>,
+    },
+    /// An input of the symbol with no layer (22-11-2026): what effects follow
+    /// when no animated part does. Bound on the page like a part.
+    Ingresso { id: String },
+    /// An effect of a group of shapes (22-11-2026, the maintainer: «dovrebbero
+    /// essere proprietà che posso assegnare ad oggetti o gruppi di oggetti»):
+    /// `glow` a halo around them, `flame` they flicker, `smoke` puffs from
+    /// their top, `bubbles` rise inside them. On while `input` (a part or an
+    /// `Ingresso`) meets `when` (or is true).
+    Effetto {
+        kind: String,
+        group: String,
+        input: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        when: Option<crate::simboli_lib::FxWhen>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        level: Option<crate::simboli_lib::FxLevel>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        color: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        period_ms: Option<f64>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        count: Option<u32>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        radius: Option<f64>,
     },
     /// Una bocca dichiarata a mano, dove l'inferenza dalle flange non basta.
     Bocca {
@@ -450,6 +498,140 @@ pub enum Op {
     /// panel would have stopped the project from loading at all.
     #[serde(other)]
     Unknown,
+}
+
+/// Two decimals: the boxes the compiler derives, readable in the manifest.
+fn r2(x: f64) -> f64 {
+    (x * 100.0).round() / 100.0
+}
+
+/// The box of a path: its points and control points (a curve stays inside
+/// them), arcs widened by their radii. Absolute and relative commands.
+pub fn path_box(d: &str) -> Option<(f64, f64, f64, f64)> {
+    let mut nums: Vec<f64> = Vec::new();
+    let mut toks: Vec<(char, Vec<f64>)> = Vec::new();
+    let mut cmd: Option<char> = None;
+    let mut buf = String::new();
+    let flush = |buf: &mut String, nums: &mut Vec<f64>| {
+        if !buf.is_empty() {
+            if let Ok(n) = buf.parse::<f64>() {
+                nums.push(n);
+            }
+            buf.clear();
+        }
+    };
+    for ch in d.chars() {
+        if ch.is_ascii_alphabetic() && ch != 'e' && ch != 'E' {
+            flush(&mut buf, &mut nums);
+            if let Some(c) = cmd {
+                toks.push((c, std::mem::take(&mut nums)));
+            }
+            cmd = Some(ch);
+        } else if ch == '-' && !buf.is_empty() && !buf.ends_with('e') && !buf.ends_with('E') {
+            flush(&mut buf, &mut nums);
+            buf.push(ch);
+        } else if ch == ',' || ch.is_whitespace() {
+            flush(&mut buf, &mut nums);
+        } else if ch == '.' && buf.contains('.') && !buf.contains('e') {
+            flush(&mut buf, &mut nums);
+            buf.push(ch);
+        } else {
+            buf.push(ch);
+        }
+    }
+    flush(&mut buf, &mut nums);
+    if let Some(c) = cmd {
+        toks.push((c, nums));
+    }
+    let (mut x, mut y, mut sx, mut sy) = (0.0f64, 0.0f64, 0.0f64, 0.0f64);
+    let mut pts: Vec<(f64, f64)> = Vec::new();
+    for (c, v) in toks {
+        let rel = c.is_ascii_lowercase();
+        let (ox, oy) = if rel { (x, y) } else { (0.0, 0.0) };
+        match c.to_ascii_uppercase() {
+            'M' | 'L' | 'T' => {
+                for (i, p) in v.chunks(2).filter(|p| p.len() == 2).enumerate() {
+                    let (ox, oy) = if rel { (x, y) } else { (0.0, 0.0) };
+                    x = ox + p[0];
+                    y = oy + p[1];
+                    if i == 0 && c.to_ascii_uppercase() == 'M' {
+                        sx = x;
+                        sy = y;
+                    }
+                    pts.push((x, y));
+                }
+            }
+            'H' => {
+                for n in v {
+                    x = if rel { x + n } else { n };
+                    pts.push((x, y));
+                }
+            }
+            'V' => {
+                for n in v {
+                    y = if rel { y + n } else { n };
+                    pts.push((x, y));
+                }
+            }
+            'C' | 'S' | 'Q' => {
+                let k = match c.to_ascii_uppercase() { 'C' => 6, _ => 4 };
+                for seg in v.chunks(k).filter(|s| s.len() == k) {
+                    let (ox, oy) = if rel { (x, y) } else { (0.0, 0.0) };
+                    for p in seg.chunks(2) {
+                        pts.push((ox + p[0], oy + p[1]));
+                    }
+                    x = ox + seg[k - 2];
+                    y = oy + seg[k - 1];
+                }
+            }
+            'A' => {
+                for seg in v.chunks(7).filter(|s| s.len() == 7) {
+                    let (ox, oy) = if rel { (x, y) } else { (0.0, 0.0) };
+                    let (rx, ry) = (seg[0].abs(), seg[1].abs());
+                    let (nx, ny) = (ox + seg[5], oy + seg[6]);
+                    for (px, py) in [(x, y), (nx, ny)] {
+                        pts.push((px - rx, py - ry));
+                        pts.push((px + rx, py + ry));
+                    }
+                    x = nx;
+                    y = ny;
+                }
+            }
+            'Z' => {
+                x = sx;
+                y = sy;
+            }
+            _ => {}
+        }
+        let _ = (ox, oy);
+    }
+    let x0 = pts.iter().map(|p| p.0).fold(f64::INFINITY, f64::min);
+    let y0 = pts.iter().map(|p| p.1).fold(f64::INFINITY, f64::min);
+    let x1 = pts.iter().map(|p| p.0).fold(f64::NEG_INFINITY, f64::max);
+    let y1 = pts.iter().map(|p| p.1).fold(f64::NEG_INFINITY, f64::max);
+    (x0.is_finite() && y0.is_finite()).then_some((x0, y0, x1 - x0, y1 - y0))
+}
+
+/// A shape used to cut a photo: a `rect`, `circle`, `ellipse` or `path`
+/// with its geometry, as a `forma` has it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ClipShape {
+    pub tag: String,
+    pub geo: Attributi,
+}
+
+impl Op {
+    /// The group a drawing belongs to.
+    pub fn group(&self) -> Option<&str> {
+        match self {
+            Op::Forma { group, .. }
+            | Op::Luce { group, .. }
+            | Op::Riflesso { group, .. }
+            | Op::Image { group, .. }
+            | Op::Tratto { group, .. } => group.as_deref(),
+            _ => None,
+        }
+    }
 }
 
 /// Un simbolo descritto. Per la libreria `family` è una delle cinque famiglie e
@@ -577,6 +759,7 @@ pub fn espandi(ops: &[Op]) -> Vec<Op> {
         mat: Some("steel".into()),
         velo: Some(velo.into()),
         extra: Attributi::default(),
+        group: None,
     };
     let mut out = Vec::with_capacity(ops.len());
     for op in ops {
@@ -642,11 +825,26 @@ struct Costruzione<'a> {
     /// the operation that drew it in `Descrizione::ops` (before the shortcuts
     /// are expanded): how the symbol editor knows what was clicked. Never saved.
     traccia: Option<usize>,
+    /// The group of the operation being drawn (22-11-2026).
+    gruppo: Option<String>,
+    /// The groups whose shapes are drawn in their effect's layer (a glow, a
+    /// flame: the layer is what shines or flickers), with that layer's index.
+    fx_dest: std::collections::HashMap<String, usize>,
+    /// One layer per effect, in the order of the operations, after the others.
+    fx_layers: Vec<Strato>,
+    /// Each group's box and its shapes' geometry (for the bubbles' clip).
+    box_gruppi: std::collections::HashMap<String, (f64, f64, f64, f64)>,
+    clip_gruppi: std::collections::HashMap<String, Vec<String>>,
 }
 
 impl<'a> Costruzione<'a> {
     fn new(d: &'a Descrizione) -> Self {
         let mut c = Costruzione {
+            gruppo: None,
+            fx_dest: Default::default(),
+            fx_layers: vec![],
+            box_gruppi: Default::default(),
+            clip_gruppi: Default::default(),
             d,
             defs: vec![],
             veli_usati: vec![],
@@ -690,7 +888,112 @@ impl<'a> Costruzione<'a> {
             },
             None => e,
         };
+        if let Some(k) = self.gruppo.as_ref().and_then(|g| self.fx_dest.get(g)).copied() {
+            self.fx_layers[k].corpo.push(e);
+            return;
+        }
         self.qui().push(e);
+    }
+
+    /// A shape of the group being drawn: its box and its geometry.
+    fn segna_gruppo(&mut self, b: Option<(f64, f64, f64, f64)>, geometria: String) {
+        let Some(g) = self.gruppo.clone() else { return };
+        if let Some((x, y, w, h)) = b {
+            let e = self.box_gruppi.entry(g.clone()).or_insert((x, y, w, h));
+            let (x0, y0) = (e.0.min(x), e.1.min(y));
+            let (x1, y1) = ((e.0 + e.2).max(x + w), (e.1 + e.3).max(y + h));
+            *e = (x0, y0, x1 - x0, y1 - y0);
+        }
+        self.clip_gruppi.entry(g).or_default().push(geometria);
+    }
+
+    /// The effects (22-11-2026), once every shape is drawn: their manifest
+    /// entries and their layers, over all the others. Each effect's box comes
+    /// from its group's.
+    fn chiudi_effetti(&mut self, effetti: &[(usize, &Op)]) -> Result<(), String> {
+        let (dw, dh) = (self.d.w as f64, self.d.h as f64);
+        for (k, (_, op)) in effetti.iter().enumerate() {
+            let Op::Effetto {
+                kind, group, input, when, level, color, period_ms, count, radius,
+            } = op
+            else {
+                continue;
+            };
+            let id = format!("fx-{}", k + 1);
+            let Some(&(bx, by, bw, bh)) = self.box_gruppi.get(group) else {
+                return Err(format!("effetto {kind}: il gruppo «{group}» non ha forme"));
+            };
+            if let Some(c) = color {
+                if !colore_esadecimale(c) {
+                    return Err(format!("effetto {kind}: il colore «{c}» non è #rgb o #rrggbb"));
+                }
+            }
+            let mut p = serde_json::Map::new();
+            p.insert("id".into(), json!(id));
+            p.insert("kind".into(), json!(kind));
+            p.insert("input".into(), json!(input));
+            if let Some(w) = when {
+                p.insert("when".into(), json!(w));
+            }
+            if let Some(l) = level {
+                p.insert("level".into(), json!(l));
+            }
+            if let Some(c) = color {
+                p.insert("color".into(), json!(c));
+            }
+            if let Some(ms) = period_ms {
+                p.insert("period_ms".into(), json!(ms.clamp(400.0, 10_000.0)));
+            }
+            let riquadro = |x: f64, y: f64, w: f64, h: f64, p: &mut serde_json::Map<String, Value>| {
+                p.insert("x".into(), json!(r2(x)));
+                p.insert("y".into(), json!(r2(y)));
+                p.insert("w".into(), json!(r2(w.max(2.0))));
+                p.insert("h".into(), json!(r2(h.max(2.0))));
+            };
+            match kind.as_str() {
+                "glow" => {
+                    p.insert("radius".into(), json!(radius.unwrap_or(4.0).clamp(0.5, 20.0)));
+                }
+                "flame" => riquadro(bx, by, bw, bh, &mut p),
+                "smoke" => {
+                    // Above the group, as tall as it (at least 20), a little
+                    // wider; with no room above, over its top half.
+                    let alto = bh.max(20.0).min(by);
+                    if alto >= 4.0 {
+                        let x0 = (bx - bw * 0.25).max(0.0);
+                        let w = (bw * 1.5).min(dw - x0);
+                        riquadro(x0, by - alto, w, alto, &mut p);
+                    } else {
+                        riquadro(bx, by, bw, (bh / 2.0).max(2.0), &mut p);
+                    }
+                }
+                "bubbles" => {
+                    riquadro(bx, by, bw, bh.min(dh - by), &mut p);
+                    p.insert("count".into(), json!(count.unwrap_or(6).clamp(1, 12)));
+                    let clip = format!("{}-fxclip{}", self.d.slug, k + 1);
+                    let forme = self.clip_gruppi.get(group).cloned().unwrap_or_default().join("");
+                    self.defs.push(format!("<clipPath id=\"{clip}\">{forme}</clipPath>"));
+                    p.insert("clip".into(), json!(clip));
+                }
+                altro => return Err(format!("effetto «{altro}» sconosciuto (sono glow, flame, smoke, bubbles)")),
+            }
+            // Smoke and bubbles draw themselves: their layer holds an invisible
+            // box, so it exists and can be picked.
+            if matches!(kind.as_str(), "smoke" | "bubbles") {
+                let n = |k: &str| p.get(k).and_then(Value::as_f64).unwrap_or(0.0);
+                self.fx_layers[k].corpo.push(format!(
+                    "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"none\" stroke=\"none\" data-fx=\"{kind}\"/>",
+                    fmt(n("x")),
+                    fmt(n("y")),
+                    fmt(n("w")),
+                    fmt(n("h"))
+                ));
+            }
+            self.parti.push(Value::Object(p));
+        }
+        let layers = std::mem::take(&mut self.fx_layers);
+        self.strati.extend(layers);
+        Ok(())
     }
 
     fn usa_immagine(&mut self, name: &str) -> Result<(), String> {
@@ -733,6 +1036,15 @@ impl<'a> Costruzione<'a> {
                     ],
                     corpo: vec![],
                 });
+            }
+            Op::Ingresso { id } => {
+                self.parti.push(json!({ "id": id, "kind": "input" }));
+            }
+            Op::Effetto { .. } => {}
+            // The effect parts of the rc.22-rc.28 (plan fase 8), dropped on
+            // 22-11-2026 for effects of shapes: their layer is drawn still.
+            Op::Parte { kind, .. } if matches!(kind.as_str(), "glow" | "bubbles" | "smoke" | "flame") => {
+                self.statico();
             }
             Op::Parte { id, kind, geo } => {
                 if !TIPI_PARTE.contains(&kind.as_str()) {
@@ -806,7 +1118,17 @@ impl<'a> Costruzione<'a> {
                 mat,
                 velo,
                 extra,
+                ..
             } => {
+                let b = if tag == "path" {
+                    geo.0.iter().find(|(k, _)| k == "d").and_then(|(_, v)| match v {
+                        Valore::Testo(d) => path_box(d),
+                        _ => None,
+                    })
+                } else {
+                    riquadro(tag, geo)
+                };
+                self.segna_gruppo(b, format!("<{tag}{}/>", attrs(&geo.0)));
                 let a = match mat {
                     Some(m) => Self::materiale(m)?,
                     None => vec![],
@@ -838,7 +1160,9 @@ impl<'a> Costruzione<'a> {
                 geo,
                 velo,
                 opacita,
+                ..
             } => {
+                self.segna_gruppo(riquadro(tag, geo), format!("<{tag}{}/>", attrs(&geo.0)));
                 let url = self.velo(velo)?;
                 let fo = if *opacita == 1.0 {
                     String::new()
@@ -851,7 +1175,10 @@ impl<'a> Costruzione<'a> {
                 );
                 self.metti(e);
             }
-            Op::Riflesso { tag, geo, opacita } => {
+            Op::Riflesso {
+                tag, geo, opacita, ..
+            } => {
+                self.segna_gruppo(riquadro(tag, geo), format!("<{tag}{}/>", attrs(&geo.0)));
                 let e = format!(
                     "<{tag}{} fill=\"#fff\" fill-opacity=\"{}\" stroke=\"none\" opacity=\"1\" data-shade=\"highlight\"/>",
                     attrs(&geo.0),
@@ -859,8 +1186,11 @@ impl<'a> Costruzione<'a> {
                 );
                 self.metti(e);
             }
-            Op::Image { src, geo, opacity } => {
+            Op::Image {
+                src, geo, opacity, clip, ..
+            } => {
                 self.usa_immagine(src)?;
+                self.segna_gruppo(riquadro("rect", geo), format!("<rect{}/>", attrs(&geo.0)));
                 let mut a: Vec<(String, Valore)> = Vec::new();
                 for k in ["x", "y", "width", "height"] {
                     let v = geo
@@ -872,13 +1202,29 @@ impl<'a> Costruzione<'a> {
                 if let Some(o) = opacity {
                     a.push(("opacity".into(), Valore::Num(o.clamp(0.0, 1.0))));
                 }
+                // Cut to a shape (22-11-2026): a clip path in the head, which
+                // both engines carry into every layer.
+                if let Some(c) = clip {
+                    if !FORME.contains(&c.tag.as_str()) {
+                        return Err(format!("image «{src}»: «{}» is not a shape to cut with", c.tag));
+                    }
+                    self.n += 1;
+                    let id = format!("{}-clip{}", self.d.slug, self.n);
+                    self.defs.push(format!(
+                        "<clipPath id=\"{id}\"><{}{}/></clipPath>",
+                        c.tag,
+                        attrs(&c.geo.0)
+                    ));
+                    a.push(("clip-path".into(), Valore::Testo(format!("url(#{id})"))));
+                }
                 // No `href`: each engine resolves `data-src` its own way (the
                 // web with the session's token, the panel with a copy at the
                 // size it draws), and a saved SVG never points anywhere.
                 let e = format!("<image data-src=\"{src}\"{}/>", attrs(&a));
                 self.metti(e);
             }
-            Op::Tratto { d, mat, extra } => {
+            Op::Tratto { d, mat, extra, .. } => {
+                self.segna_gruppo(path_box(d), format!("<path d=\"{d}\"/>"));
                 let mut a = vec![testo("fill", "none")];
                 if let Some(m) = mat {
                     let c = colore_materiale(m)
@@ -1163,14 +1509,41 @@ pub fn compila_con_traccia(d: &Descrizione) -> Result<Compilato, String> {
 
 fn compila_con(d: &Descrizione, traccia: bool) -> Result<Compilato, String> {
     let mut c = Costruzione::new(d);
+    // The effects first (22-11-2026): a glow's or a flame's shapes are drawn
+    // in the effect's layer, which must exist before them.
+    let effetti: Vec<(usize, &Op)> = d
+        .ops
+        .iter()
+        .enumerate()
+        .filter(|(_, o)| matches!(o, Op::Effetto { .. }))
+        .collect();
+    for (k, (_, op)) in effetti.iter().enumerate() {
+        if let Op::Effetto { kind, group, .. } = op {
+            if matches!(kind.as_str(), "glow" | "flame") {
+                if c.fx_dest.insert(group.clone(), k).is_some() {
+                    return Err(format!(
+                        "il gruppo «{group}» ha due effetti fra bagliore e fiamma: al più uno"
+                    ));
+                }
+            }
+        }
+        c.fx_layers.push(Strato {
+            nome: format!("fx-{}", k + 1),
+            attributi: vec![testo("data-layer", "part")],
+            corpo: vec![],
+        });
+    }
     for (i, op) in d.ops.iter().enumerate() {
         if traccia {
             c.traccia = Some(i);
         }
+        c.gruppo = op.group().map(str::to_string);
         for op in espandi(std::slice::from_ref(op)) {
             c.esegui(&op)?;
         }
     }
+    c.gruppo = None;
+    c.chiudi_effetti(&effetti)?;
     let svg = c.svg();
     let voce = c.voce(&svg);
     Ok(Compilato { svg, voce })
@@ -1528,8 +1901,9 @@ pub fn regole(d: &Descrizione, c: &Compilato) -> Vec<String> {
     let fuori = |x: f64, y: f64, ww: f64, hh: f64| {
         x < -1.0 || y < -1.0 || x + ww > w + 1.0 || y + hh > h + 1.0
     };
+    let espanse = espandi(&d.ops);
     let mut ids_parti: Vec<&str> = Vec::new();
-    for (i, op) in espandi(&d.ops).iter().enumerate() {
+    for (i, op) in espanse.iter().enumerate() {
         let dove = format!("operazione {}", i + 1);
         if let Some(a) = attributo_ripetuto(op) {
             male.push(format!(
@@ -1580,6 +1954,7 @@ pub fn regole(d: &Descrizione, c: &Compilato) -> Vec<String> {
                 mat,
                 velo: v,
                 extra,
+                ..
             } => {
                 controlla_forma(tag, geo, &mut male);
                 if let Some(m) = mat {
@@ -1603,6 +1978,7 @@ pub fn regole(d: &Descrizione, c: &Compilato) -> Vec<String> {
                 geo,
                 velo: v,
                 opacita,
+                ..
             } => {
                 controlla_forma(tag, geo, &mut male);
                 if velo(v).is_none() {
@@ -1612,13 +1988,15 @@ pub fn regole(d: &Descrizione, c: &Compilato) -> Vec<String> {
                     male.push(format!("{dove}: opacità {opacita} fuori da 0–1"));
                 }
             }
-            Op::Riflesso { tag, geo, opacita } => {
+            Op::Riflesso {
+                tag, geo, opacita, ..
+            } => {
                 controlla_forma(tag, geo, &mut male);
                 if !(0.0..=1.0).contains(opacita) {
                     male.push(format!("{dove}: opacità {opacita} fuori da 0–1"));
                 }
             }
-            Op::Tratto { d: dd, mat, extra } => {
+            Op::Tratto { d: dd, mat, extra, .. } => {
                 if !path_ammesso(dd) {
                     male.push(format!(
                         "{dove}: la «d» del tratto ammette solo comandi SVG e numeri"
@@ -1635,16 +2013,23 @@ pub fn regole(d: &Descrizione, c: &Compilato) -> Vec<String> {
                     }
                 }
             }
-            Op::Parte { id, .. } => {
-                if !nome_ammesso(id, 2, 30) || id == "body" || id.starts_with("layer-") {
-                    male.push(format!("{dove}: id di parte «{id}» non valido (a-z, 0-9, «-»; non body né layer-N)"));
+            Op::Ingresso { id } | Op::Parte { id, .. } => {
+                if !nome_ammesso(id, 2, 30) || id == "body" || id.starts_with("layer-") || id.starts_with("fx-") {
+                    male.push(format!("{dove}: id di parte «{id}» non valido (a-z, 0-9, «-»; non body, layer-N né fx-N)"));
                 }
                 if del_progetto && ids_parti.contains(&id.as_str()) {
                     male.push(format!("{dove}: due parti con l'id «{id}»"));
                 }
                 ids_parti.push(id);
             }
-            Op::Image { src, geo, opacity } => {
+            Op::Image {
+                src, geo, opacity, clip, ..
+            } => {
+                if let Some(c) = clip {
+                    if !FORME.contains(&c.tag.as_str()) {
+                        male.push(format!("{dove}: la foto è ritagliata da «{}», che non è una forma", c.tag));
+                    }
+                }
                 if !image_name_ok(src) {
                     male.push(format!(
                         "{dove}: la foto «{src}» dev'essere il nome di un file in images/ (png, jpg, webp)"
@@ -1687,6 +2072,29 @@ pub fn regole(d: &Descrizione, c: &Compilato) -> Vec<String> {
         }
     }
 
+    // ── the effects of the groups (22-11-2026) ──
+    for (i, op) in d.ops.iter().enumerate() {
+        if let Op::Effetto { kind, group, input, .. } = op {
+            let dove = format!("operazione {}", i + 1);
+            if !ids_parti.contains(&input.as_str()) {
+                male.push(format!(
+                    "{dove}: l'effetto {kind} segue l'ingresso «{input}», che il simbolo non ha"
+                ));
+            }
+            if !d.ops.iter().any(|o| o.group() == Some(group.as_str())) {
+                male.push(format!("{dove}: l'effetto {kind} è del gruppo «{group}», che non ha forme"));
+            }
+        }
+        if let Op::Parte { kind, .. } = op {
+            if matches!(kind.as_str(), "glow" | "bubbles" | "smoke" | "flame") {
+                male.push(format!(
+                    "operazione {}: le parti effetto non esistono più: l'effetto si assegna a una forma o a un gruppo",
+                    i + 1
+                ));
+            }
+        }
+    }
+
     // ── il risultato ──
     let svg = &c.svg;
     let immagini = c.voce["images"].as_array().map_or(0, Vec::len);
@@ -1703,6 +2111,10 @@ pub fn regole(d: &Descrizione, c: &Compilato) -> Vec<String> {
     let parti: Vec<Value> = c.voce["parts"].as_array().cloned().unwrap_or_default();
     for p in &parti {
         let id = p["id"].as_str().unwrap_or("");
+        // An input of the symbol has no layer of its own (22-11-2026).
+        if p["kind"] == "input" {
+            continue;
+        }
         if !svg.contains(&format!("<g id=\"{id}\"")) {
             male.push(format!(
                 "la parte {id} non ha forme: lo strato resterebbe vuoto"
@@ -2129,27 +2541,71 @@ mod tests {
     /// The effects (plan 2026-11-21-simboli-fase-8-effetti): a glow compiles
     /// with its layer and its geometry, within its limits.
     #[test]
-    fn a_glow_compiles_within_its_limits() {
+    fn effects_of_groups_compile_into_parts_and_layers() {
+        use crate::simboli_lib::ParteLib as P;
         let d: Descrizione = serde_json::from_str(include_str!(
             "../../../../tests/fixtures/simboli-prj/effects.json"
         ))
         .unwrap();
         let c = compila_e_controlla(&d).unwrap_or_else(|e| panic!("{e:?}"));
         let s = c.simbolo().unwrap();
-        assert!(matches!(
-            s.parts[0],
-            crate::simboli_lib::ParteLib::Glow { radius, color: Some(_), .. } if radius == 5.0
-        ));
-        let with = |geo: Value| {
-            let mut d = d.clone();
-            if let Op::Parte { geo: g, .. } = &mut d.ops[2] {
-                *g = geo.as_object().unwrap().clone();
-            }
-            compila_e_controlla(&d).err().unwrap_or_default().join(" | ")
-        };
-        assert!(with(json!({ "radius": 50 })).contains("radius"));
-        assert!(with(json!({ "color": "red" })).contains("not #rgb"));
-        assert!(with(json!({})).is_empty(), "the radius has a default");
+        assert!(matches!(&s.parts[0], P::Input { id } if id == "acceso"));
+        assert!(matches!(&s.parts[1],
+            P::Glow { id, radius, color: Some(_), input: Some(i), .. } if id == "fx-1" && *radius == 5.0 && i == "acceso"));
+        // Bubbles in the box of their group, cut by its shapes.
+        assert!(matches!(&s.parts[2],
+            P::Bubbles { x, y, w, h, clip: Some(cl), .. } if *x == 74.0 && *y == 14.0 && *w == 32.0 && *h == 40.0 && cl == "effects-fxclip2"));
+        assert!(c.svg.contains("<clipPath id=\"effects-fxclip2\">"));
+        // Smoke above the chimney (top at 40): 20 tall at least, a bit wider.
+        assert!(matches!(&s.parts[3], P::Smoke { y, h, when: Some(_), level: Some(_), .. } if *y == 20.0 && *h == 20.0));
+        // The flame's box is its shape's, and its shape is drawn in its layer.
+        assert!(matches!(&s.parts[4], P::Flame { x, y, .. } if *x == 38.0 && *y == 32.0));
+        let fx4 = c.svg.split("id=\"fx-4\"").nth(1).expect("the flame's layer");
+        assert!(fx4.split("</g>").next().unwrap().contains("M42 58"), "the flame's shape moved into its layer");
+        // The neon moved into the glow's layer, out of the static one.
+        let fx1 = c.svg.split("id=\"fx-1\"").nth(1).unwrap();
+        assert!(fx1.split("</g>").next().unwrap().contains("#a5f3fc"));
+        // An effect that follows an input the symbol hasn't.
+        let mut bad = d.clone();
+        if let Op::Effetto { input, .. } = &mut bad.ops[8] {
+            *input = "nessuno".into();
+        }
+        assert!(compila_e_controlla(&bad).unwrap_err().join(" ").contains("«nessuno»"));
+        // Two of glow and flame on one group: no.
+        let mut two = d.clone();
+        if let Op::Effetto { group, .. } = &mut two.ops[11] {
+            *group = "neon".into();
+        }
+        assert!(compila(&two).is_err());
+        // The effect parts of before are refused by the rules, drawn still by the compiler.
+        let old: Descrizione = serde_json::from_value(json!({
+            "slug": "old", "w": 40, "h": 40, "tipo": "project", "body": "body-pump", "it": "V", "en": "O",
+            "ops": [{ "op": "corpo" }, { "op": "forma", "tag": "rect", "geo": { "x": 2, "y": 2, "width": 30, "height": 30 } },
+                    { "op": "parte", "id": "neon", "kind": "glow", "geo": {} }]
+        })).unwrap();
+        assert!(compila(&old).is_ok());
+        assert!(compila_e_controlla(&old).unwrap_err().join(" ").contains("non esistono più"));
+    }
+
+    #[test]
+    fn a_path_has_a_box() {
+        assert_eq!(path_box("M42 58 C38 48 44 40 50 32 C56 40 62 48 58 58 Z"), Some((38.0, 32.0, 24.0, 26.0)));
+        assert_eq!(path_box("m10 10 h20 v5 h-20 z"), Some((10.0, 10.0, 20.0, 5.0)));
+        assert_eq!(path_box(""), None);
+    }
+
+    #[test]
+    fn a_photo_cut_to_a_shape() {
+        let mut d = photo_boiler();
+        if let Op::Image { clip, .. } = &mut d.ops[0] {
+            *clip = Some(ClipShape {
+                tag: "circle".into(),
+                geo: serde_json::from_value(json!({ "cx": 50, "cy": 50, "r": 40 })).unwrap(),
+            });
+        }
+        let c = compila_e_controlla(&d).unwrap_or_else(|e| panic!("{e:?}"));
+        assert!(c.svg.contains("<clipPath id=\"photo-boiler-clip"), "{}", c.svg);
+        assert!(c.svg.contains("clip-path=\"url(#photo-boiler-clip"));
     }
 
     #[test]

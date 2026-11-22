@@ -110,6 +110,16 @@ pub enum ParteLib {
         color: Option<String>,
         #[serde(default = "glow_radius_default")]
         radius: f64,
+        /// The symbol input that drives it (22-11-2026, effects as properties
+        /// of shapes): a part's id or an `Ingresso`. None = its own id.
+        #[serde(default)]
+        input: Option<String>,
+        /// When it is on; none = whenever the input is true.
+        #[serde(default)]
+        when: Option<FxWhen>,
+        /// The input's range for its intensity (web only for now).
+        #[serde(default)]
+        level: Option<FxLevel>,
     },
     /// Bubbles rising in the box `x y w h` while the input is true (plan
     /// `2026-11-21-simboli-fase-8-effetti`); see `symbol_fx`.
@@ -125,6 +135,20 @@ pub enum ParteLib {
         count: u32,
         #[serde(default = "fx_period_default")]
         period_ms: f64,
+        /// The id of a `<clipPath>` in the symbol's head: the shape the
+        /// bubbles stay inside.
+        #[serde(default)]
+        clip: Option<String>,
+        /// The symbol input that drives it (22-11-2026, effects as properties
+        /// of shapes): a part's id or an `Ingresso`. None = its own id.
+        #[serde(default)]
+        input: Option<String>,
+        /// When it is on; none = whenever the input is true.
+        #[serde(default)]
+        when: Option<FxWhen>,
+        /// The input's range for its intensity (web only for now).
+        #[serde(default)]
+        level: Option<FxLevel>,
     },
     /// Smoke (or steam) puffing up from the bottom of the box while the input
     /// is true; see `symbol_fx`.
@@ -138,6 +162,16 @@ pub enum ParteLib {
         color: Option<String>,
         #[serde(default = "fx_period_default")]
         period_ms: f64,
+        /// The symbol input that drives it (22-11-2026, effects as properties
+        /// of shapes): a part's id or an `Ingresso`. None = its own id.
+        #[serde(default)]
+        input: Option<String>,
+        /// When it is on; none = whenever the input is true.
+        #[serde(default)]
+        when: Option<FxWhen>,
+        /// The input's range for its intensity (web only for now).
+        #[serde(default)]
+        level: Option<FxLevel>,
     },
     /// A flame flickering on the bottom of the box while the input is true;
     /// see `symbol_fx`.
@@ -151,7 +185,20 @@ pub enum ParteLib {
         color: Option<String>,
         #[serde(default = "flame_period_default")]
         period_ms: f64,
+        /// The symbol input that drives it (22-11-2026, effects as properties
+        /// of shapes): a part's id or an `Ingresso`. None = its own id.
+        #[serde(default)]
+        input: Option<String>,
+        /// When it is on; none = whenever the input is true.
+        #[serde(default)]
+        when: Option<FxWhen>,
+        /// The input's range for its intensity (web only for now).
+        #[serde(default)]
+        level: Option<FxLevel>,
     },
+    /// An input of the symbol with no layer of its own (22-11-2026): what the
+    /// effects of its shapes follow, bound on the page like any part.
+    Input { id: String },
     /// A kind this binary doesn't know: a manifest written by a newer runtime.
     /// The layer is drawn still, instead of the whole manifest becoming
     /// unreadable (which turned every project symbol into a placeholder).
@@ -219,6 +266,47 @@ fn bubbles_count_default() -> u32 {
 fn flame_period_default() -> f64 {
     800.0
 }
+/// When an effect is on: `op` among `gt ge lt le eq ne` against `value`.
+#[derive(Debug, Clone, PartialEq, Deserialize, serde::Serialize)]
+pub struct FxWhen {
+    pub op: String,
+    pub value: f64,
+}
+
+impl FxWhen {
+    /// Whether `n` (the input as a number) makes it true.
+    pub fn holds(&self, n: f64) -> bool {
+        match self.op.as_str() {
+            "gt" => n > self.value,
+            "ge" => n >= self.value,
+            "lt" => n < self.value,
+            "le" => n <= self.value,
+            "ne" => n != self.value,
+            _ => n == self.value,
+        }
+    }
+}
+
+/// The input's range that takes an effect from faint (`min`) to full (`max`).
+#[derive(Debug, Clone, PartialEq, Deserialize, serde::Serialize)]
+pub struct FxLevel {
+    pub min: f64,
+    pub max: f64,
+}
+
+impl ParteLib {
+    /// An effect's input, with its condition: `None` for the other kinds.
+    pub fn fx_input(&self) -> Option<(Option<&str>, Option<&FxWhen>)> {
+        match self {
+            ParteLib::Glow { input, when, .. }
+            | ParteLib::Bubbles { input, when, .. }
+            | ParteLib::Smoke { input, when, .. }
+            | ParteLib::Flame { input, when, .. } => Some((input.as_deref(), when.as_ref())),
+            _ => None,
+        }
+    }
+}
+
 fn fx_period_default() -> f64 {
     2000.0
 }
@@ -265,7 +353,8 @@ impl ParteLib {
             | ParteLib::Glow { id, .. }
             | ParteLib::Bubbles { id, .. }
             | ParteLib::Smoke { id, .. }
-            | ParteLib::Flame { id, .. } => id,
+            | ParteLib::Flame { id, .. }
+            | ParteLib::Input { id } => id,
             ParteLib::Unknown => "",
         }
     }

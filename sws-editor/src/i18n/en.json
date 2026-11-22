@@ -5535,7 +5535,8 @@
       "glow": "Glow",
       "bubbles": "Bubbles",
       "smoke": "Smoke",
-      "flame": "Flame"
+      "flame": "Flame",
+      "input": "Input"
     },
     "shape": {
       "rect": "Rectangle",
@@ -5690,7 +5691,8 @@
       "moves": "Moves",
       "entry": "Entry",
       "play": "Animate",
-      "playNote": "Turns on the timed effects (rotation, vibration, pulse, blink), like «Effects preview» on the canvas."
+      "playNote": "Turns on the timed effects (rotation, vibration, pulse, blink), like «Effects preview» on the canvas.",
+      "value": "Value"
     },
     "magnetHint": "Magnet: while moving, drawing or resizing, the edges and the centre of the shape (or the point: a port, a pivot, a vertex) snap to the edges and centres of the other shapes and to the border and centre of the symbol, when they are close. A red line shows the snap.",
     "anim": {
@@ -5894,7 +5896,46 @@
       "frame": "Frame"
     },
     "fillFrame": "Fill the frame",
-    "fillFrameHint": "Scales the whole drawing, keeping its proportions, until it touches the symbol's frame (one unit of margin), and centres it. The ports stay on their border."
+    "fillFrameHint": "Scales the whole drawing, keeping its proportions, until it touches the symbol's frame (one unit of margin), and centres it. The ports stay on their border.",
+    "fx": {
+      "group": "Group",
+      "inGroup": "Group «{{g}}», {{n}} shapes: selected and moved together.",
+      "groupIt": "Group (Ctrl+G)",
+      "ungroup": "Ungroup (Ctrl+Shift+G)",
+      "effects": "Effects",
+      "mixed": "The shapes selected are in different groups: adding an effect makes them one group.",
+      "kind": {
+        "glow": "Glow",
+        "flame": "Flame",
+        "smoke": "Smoke",
+        "bubbles": "Bubbles"
+      },
+      "input": "Input",
+      "newInput": "+ new input…",
+      "when": "On when",
+      "whenTrue": "true (≠ 0)",
+      "op": {
+        "gt": ">",
+        "ge": "≥",
+        "lt": "<",
+        "le": "≤",
+        "eq": "=",
+        "ne": "≠"
+      },
+      "level": "Intensity",
+      "levelHint": "The intensity follows the value between minimum and maximum (on the LVGL panel the effect is full).",
+      "colour": "Colour",
+      "radius": "Radius",
+      "count": "How many",
+      "period": "Period ms",
+      "add": "Add effect",
+      "note": "Glow: a halo around the shapes. Flame: the shapes flicker from their base. Smoke: puffs from the top edge. Bubbles: rise inside the shapes. «Try» shows them with their input.",
+      "mask": "Mask",
+      "clip": "Cut to the shape",
+      "unclip": "Remove the cut",
+      "maskNote": "The photo shows only inside the shape's outline, and moves and turns with it.",
+      "oldRemoved": "This symbol had {{n}} effects in the old format: they were removed. An effect is now given to a shape or a group (Effects section of the Piece panel)."
+    }
   },
   "images": {
     "upload": {

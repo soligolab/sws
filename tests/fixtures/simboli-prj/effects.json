@@ -7,79 +7,21 @@
   "it": "Effetti",
   "en": "Effects",
   "ops": [
-    {
-      "op": "corpo"
-    },
-    {
-      "op": "forma",
-      "tag": "rect",
-      "geo": {
-        "x": 4,
-        "y": 60,
-        "width": 112,
-        "height": 36,
-        "rx": 3
-      },
-      "velo": "paint-h"
-    },
-    {
-      "op": "parte",
-      "id": "neon",
-      "kind": "glow",
-      "geo": {
-        "color": "#22d3ee",
-        "radius": 5
-      }
-    },
-    {
-      "op": "forma",
-      "tag": "rect",
-      "geo": {
-        "x": 20,
-        "y": 20,
-        "width": 40,
-        "height": 8,
-        "rx": 4
-      },
-      "extra": {
-        "fill": "#a5f3fc"
-      }
-    },
-    {
-      "op": "parte",
-      "id": "tank-bubbles",
-      "kind": "bubbles",
-      "geo": {
-        "x": 70,
-        "y": 10,
-        "w": 40,
-        "h": 45,
-        "count": 5,
-        "period_ms": 1800
-      }
-    },
-    {
-      "op": "parte",
-      "id": "chimney",
-      "kind": "smoke",
-      "geo": {
-        "x": 8,
-        "y": 4,
-        "w": 24,
-        "h": 40,
-        "period_ms": 2500
-      }
-    },
-    {
-      "op": "parte",
-      "id": "burner",
-      "kind": "flame",
-      "geo": {
-        "x": 40,
-        "y": 30,
-        "w": 20,
-        "h": 28
-      }
-    }
+    { "op": "ingresso", "id": "acceso" },
+    { "op": "corpo" },
+    { "op": "forma", "tag": "rect", "geo": { "x": 4, "y": 60, "width": 112, "height": 36, "rx": 3 }, "velo": "paint-h" },
+    { "op": "statico" },
+    { "op": "forma", "tag": "rect", "geo": { "x": 20, "y": 20, "width": 40, "height": 8, "rx": 4 },
+      "extra": { "fill": "#a5f3fc" }, "group": "neon" },
+    { "op": "forma", "tag": "rect", "geo": { "x": 74, "y": 14, "width": 32, "height": 40, "rx": 4 },
+      "extra": { "fill": "#1e3a8a", "fill_opacity": 0.4 }, "group": "vasca" },
+    { "op": "forma", "tag": "rect", "geo": { "x": 12, "y": 40, "width": 14, "height": 20 }, "mat": "steel", "group": "camino" },
+    { "op": "forma", "tag": "path", "geo": { "d": "M42 58 C38 48 44 40 50 32 C56 40 62 48 58 58 Z" },
+      "extra": { "fill": "#f97316" }, "group": "fiamma" },
+    { "op": "effetto", "kind": "glow", "group": "neon", "input": "acceso", "color": "#22d3ee", "radius": 5 },
+    { "op": "effetto", "kind": "bubbles", "group": "vasca", "input": "acceso", "count": 5, "period_ms": 1800 },
+    { "op": "effetto", "kind": "smoke", "group": "camino", "input": "acceso", "when": { "op": "gt", "value": 0 },
+      "level": { "min": 0, "max": 100 }, "period_ms": 2500 },
+    { "op": "effetto", "kind": "flame", "group": "fiamma", "input": "acceso" }
   ]
 }

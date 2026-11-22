@@ -155,6 +155,26 @@ pub fn fx_box(p: &ParteLib) -> Option<(f64, f64, f64, f64)> {
     }
 }
 
+/// A flame of shapes (22-11-2026): the layer's own `markup` at `t`, grown
+/// and shrunk by the flame's poses from the middle of its base, so the base
+/// stays put while the top flickers. Twin of the keyframes in `SimboloLib.tsx`.
+pub fn flame_of_shapes(p: &ParteLib, markup: &str, t: f64) -> Option<String> {
+    let ParteLib::Flame { x, y, w, h, .. } = p else {
+        return None;
+    };
+    let (cx, by) = (x + w / 2.0, y + h);
+    let (sx, sy) = flame_scale(t);
+    Some(format!(
+        "<g transform=\"translate({} {}) scale({} {}) translate({} {})\">{markup}</g>",
+        num(cx),
+        num(by),
+        num(sx),
+        num(sy),
+        num(-cx),
+        num(-by)
+    ))
+}
+
 pub fn fx_period_ms(p: &ParteLib) -> Option<f64> {
     match p {
         ParteLib::Bubbles { period_ms, .. }
@@ -179,11 +199,17 @@ pub fn fx_elements(p: &ParteLib, t: f64) -> Option<String> {
             h,
             color,
             count,
+            clip,
             ..
         } => {
             let c = color.as_deref().unwrap_or(BUBBLE_COLOUR);
             let n = (*count).clamp(1, 12) as usize;
             let mut out = String::new();
+            // Inside their group's shapes (22-11-2026): the clip path is in
+            // the symbol's head, which every frame carries.
+            if let Some(cl) = clip {
+                out.push_str(&format!("<g clip-path=\"url(#{cl})\">"));
+            }
             for i in 0..n {
                 let b = bubble(i, n, *x, *y, *w, *h);
                 let phase = frac(t + i as f64 / n as f64);
@@ -195,6 +221,9 @@ pub fn fx_elements(p: &ParteLib, t: f64) -> Option<String> {
                     num((b.r * 0.25).max(0.3)),
                     num(bubble_opacity(phase)),
                 ));
+            }
+            if clip.is_some() {
+                out.push_str("</g>");
             }
             Some(out)
         }
