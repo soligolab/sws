@@ -16084,6 +16084,94 @@ fn aggiorna_livello(l: &mut LivelloLib, frazione: f64, ora: u64) {
     l.ultimo_px = px;
 }
 
+/// Who is signed in, for `{{user.*}}` (22-11-2026): set from the session
+/// before the objects of a page are created, read by `resolve_msg`. Twin of
+/// `impostaUtenteDeiTesti` in `projectI18n.ts`.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct UserOfTexts {
+    pub username: String,
+    pub name: Option<String>,
+    pub role: Option<Role>,
+    pub last_login_ms: Option<u64>,
+}
+
+thread_local! {
+    static USER_OF_TEXTS: RefCell<Option<UserOfTexts>> = const { RefCell::new(None) };
+}
+
+pub(crate) fn set_user_of_texts(u: Option<UserOfTexts>) {
+    USER_OF_TEXTS.with(|c| *c.borrow_mut() = u.filter(|u| !u.username.is_empty()));
+}
+
+/// `DD-MM-YYYY HH:MM` in the panel's local time: the web's form.
+fn login_date_time(ms: u64) -> String {
+    use chrono::TimeZone;
+    match chrono::Local.timestamp_millis_opt(ms as i64).single() {
+        Some(d) => d.format("%d-%m-%Y %H:%M").to_string(),
+        None => String::new(),
+    }
+}
+
+/// The value of `{{user.<field>}}`; `None` for a field that doesn't exist.
+fn user_field(field: &str, lang: &str) -> Option<String> {
+    USER_OF_TEXTS.with(|c| {
+        let u = c.borrow();
+        let u = u.as_ref();
+        Some(match field {
+            "name" => u
+                .map(|u| u.name.clone().filter(|n| !n.trim().is_empty()).unwrap_or_else(|| u.username.clone()))
+                .unwrap_or_default(),
+            "username" => u.map(|u| u.username.clone()).unwrap_or_default(),
+            "role" => match u.and_then(|u| u.role) {
+                Some(r) => {
+                    let t = match r {
+                        Role::Viewer => sws_core::testi_sistema::Testo::RoleViewer,
+                        Role::Operator => sws_core::testi_sistema::Testo::RoleOperator,
+                        Role::Supervisor => sws_core::testi_sistema::Testo::RoleSupervisor,
+                        Role::Admin => sws_core::testi_sistema::Testo::RoleAdmin,
+                    };
+                    sws_core::testi_sistema::testo(t, lang).to_string()
+                }
+                None => String::new(),
+            },
+            "last_login" => u
+                .and_then(|u| u.last_login_ms)
+                .map(login_date_time)
+                .unwrap_or_default(),
+            _ => return None,
+        })
+    })
+}
+
+/// A translated text may carry `{{user.*}}`: one more pass, for those only.
+fn resolve_user_tokens(v: &str, lang: &str) -> String {
+    if !v.contains("{{user.") {
+        return v.to_string();
+    }
+    let mut out = String::with_capacity(v.len());
+    let mut rest = v;
+    while let Some(open) = rest.find("{{") {
+        out.push_str(&rest[..open]);
+        let after = &rest[open + 2..];
+        match after.find("}}") {
+            Some(close) => {
+                let key = after[..close].trim();
+                match key.strip_prefix("user.").and_then(|f| user_field(f, lang)) {
+                    Some(val) => out.push_str(&val),
+                    None => out.push_str(&rest[open..open + 2 + close + 2]),
+                }
+                rest = &after[close + 2..];
+            }
+            None => {
+                out.push_str(&rest[open..]);
+                rest = "";
+            }
+        }
+    }
+    out.push_str(rest);
+    out
+}
+
 /// Sostituisce le occorrenze `{{token}}` in `s` con la traduzione per `lang`
 /// (fallback: default della tabella → token grezzo fra graffe se
 /// sconosciuto) — porta `resolveMsg` di `projectI18n.ts` 1:1. Testo senza
@@ -16123,6 +16211,12 @@ pub(crate) fn resolve_msg(s: &str, lang: &str, table: &LanguageTable) -> String 
                     rest = &rest[close + 2..];
                     continue;
                 }
+                // `{{user.name}}` and the others: who is signed in.
+                if let Some(v) = key.strip_prefix("user.").and_then(|f| user_field(f, lang)) {
+                    out.push_str(&v);
+                    rest = &rest[close + 2..];
+                    continue;
+                }
                 let resolved = table
                     .entries
                     .iter()
@@ -16130,7 +16224,7 @@ pub(crate) fn resolve_msg(s: &str, lang: &str, table: &LanguageTable) -> String 
                     .and_then(|e| e.values.get(lang).or_else(|| e.values.get(&table.default)))
                     .cloned()
                     .unwrap_or_else(|| format!("{{{{{key}}}}}"));
-                out.push_str(&resolved);
+                out.push_str(&resolve_user_tokens(&resolved, lang));
                 rest = &rest[close + 2..];
             }
             None => {
@@ -16166,7 +16260,15 @@ pub(crate) fn resolve_msg(s: &str, lang: &str, table: &LanguageTable) -> String 
 /// davanti al cliente, e mai sulla macchina di chi l'aveva fatto.
 fn localize_object(obj: &SynopticObject, lang: &str, table: &LanguageTable) -> SynopticObject {
     if lang.is_empty() || table.entries.is_empty() {
-        return obj.clone();
+        // Without a language table only `{{user.*}}` resolves (22-11-2026),
+        // in the plain text fields, as on the web.
+        let mut out = obj.clone();
+        for f in [&mut out.label, &mut out.text, &mut out.unit, &mut out.format] {
+            if let Some(v) = f.as_ref().filter(|v| v.contains("{{user.")) {
+                *f = Some(resolve_user_tokens(v, lang));
+            }
+        }
+        return out;
     }
     let mut out = obj.clone();
     if let Some(v) = &out.label {
@@ -17465,10 +17567,17 @@ fn rendi_oggetti_in(
     // del server, `/me` sul web): niente da attenuare, niente lucchetti. Fino
     // al 04-11-2026 qui l'anonimo restava sotto Viewer anche senza utenti, e un
     // oggetto con `min_role` era spento su un pannello dove chiunque comanda.
-    let auth_required = shared_session
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
-        .auth_required;
+    let auth_required = {
+        let sess = shared_session.lock().unwrap_or_else(|e| e.into_inner());
+        // Who is signed in, for the `{{user.*}}` of these objects.
+        set_user_of_texts(sess.username.clone().map(|username| UserOfTexts {
+            username,
+            name: sess.display_name.clone(),
+            role: sess.role,
+            last_login_ms: sess.previous_login_ms,
+        }));
+        sess.auth_required
+    };
     let viewer_role = if auth_required {
         viewer_role
     } else {
@@ -22625,6 +22734,53 @@ mod formattazione_valori_tests {
     #[derive(serde::Deserialize)]
     struct Fixture {
         casi: Vec<Caso>,
+    }
+
+    /// `{{user.*}}` (22-11-2026): the cases shared with the web.
+    #[test]
+    fn the_user_placeholders_shared_with_the_web() {
+        #[derive(serde::Deserialize)]
+        struct Utente {
+            username: String,
+            #[serde(default)]
+            name: Option<String>,
+            #[serde(default)]
+            role: Option<String>,
+        }
+        #[derive(serde::Deserialize)]
+        struct CasoUtente {
+            nome: String,
+            utente: Option<Utente>,
+            testo: String,
+            lang: String,
+            atteso: String,
+        }
+        #[derive(serde::Deserialize)]
+        struct F {
+            tabella: LanguageTable,
+            casi: Vec<CasoUtente>,
+        }
+        let percorso = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../tests/fixtures/segnaposto-utente.json"
+        );
+        let f: F = serde_json::from_str(&std::fs::read_to_string(percorso).unwrap()).unwrap();
+        let mut rotti = Vec::new();
+        for c in &f.casi {
+            set_user_of_texts(c.utente.as_ref().map(|u| UserOfTexts {
+                username: u.username.clone(),
+                name: u.name.clone(),
+                role: u.role.as_deref().and_then(Role::parse),
+                last_login_ms: None,
+            }));
+            let avuto = resolve_msg(&c.testo, &c.lang, &f.tabella);
+            if avuto != c.atteso {
+                rotti.push(format!("«{}»: atteso {:?}, avuto {:?}", c.nome, c.atteso, avuto));
+            }
+        }
+        set_user_of_texts(None);
+        assert!(rotti.is_empty(), "{}", rotti.join("\n"));
+        assert_eq!(login_date_time(0).len(), "01-01-1970 00:00".len());
     }
 
     #[test]

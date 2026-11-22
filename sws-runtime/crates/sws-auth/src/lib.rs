@@ -80,6 +80,14 @@ pub struct LoginOk {
     /// call will succeed. The login itself plus self-service endpoints
     /// (whoami / change-password / logout) still work.
     pub must_change_password: bool,
+    /// The name pages show for the user (`{{user.name}}`, 22-11-2026): the
+    /// stored «display name», or the directory's for an LDAP user.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display_name: Option<String>,
+    /// The login before this one on this device, if any (filled by the
+    /// router, which keeps the device's list).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub previous_login_ms: Option<u64>,
 }
 
 /// Public projection of a user — never carries the password hash.
@@ -97,6 +105,8 @@ pub struct UserSummary {
     pub session_ttl_secs: Option<u64>,
     /// Zones this user can access. Empty = all zones.
     pub allowed_zones: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display_name: Option<String>,
 }
 
 /// Patch shape for `PUT /api/auth/users/:username`. Every field is optional;
@@ -118,6 +128,9 @@ pub struct UserPatch {
     /// `n` = n seconds.
     #[serde(default)]
     pub session_ttl_secs: Option<Option<u64>>,
+    /// The name pages show; `null` clears it. Absent = unchanged.
+    #[serde(default)]
+    pub display_name: Option<Option<String>>,
 }
 
 /// Payload for `POST /api/auth/users`.
@@ -131,6 +144,8 @@ pub struct CreateUser {
     pub must_change_password: bool,
     #[serde(default)]
     pub allowed_zones: Vec<String>,
+    #[serde(default)]
+    pub display_name: Option<String>,
 }
 fn yes() -> bool {
     true
@@ -162,6 +177,9 @@ struct StoredUser {
     /// Zones this user is allowed to access. Empty = all zones (backwards compatible).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     allowed_zones: Vec<String>,
+    /// The name pages show (`{{user.name}}`); none = the login name.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    display_name: Option<String>,
 }
 
 impl StoredUser {
@@ -174,6 +192,7 @@ impl StoredUser {
             updated_at_ms: self.updated_at_ms,
             session_ttl_secs: self.session_ttl_secs,
             allowed_zones: self.allowed_zones.clone(),
+            display_name: self.display_name.clone(),
         }
     }
 
@@ -210,6 +229,11 @@ struct Session {
     /// `2026-11-21-p6-2fa-e-ldap`): they come from the directory with the
     /// session, since there is no stored user to read them from.
     external_zones: Option<Vec<String>>,
+    /// An LDAP user's name from the directory (none for a stored user: the
+    /// name is read from `users.yaml`, so a change shows at once).
+    external_name: Option<String>,
+    /// The login before this one, set by the router after the login.
+    previous_login_ms: Option<u64>,
 }
 
 #[derive(Debug, Default)]
@@ -350,6 +374,7 @@ fn applica_seed_di_recupero(
                 updated_at_ms: now,
                 session_ttl_secs: None,
                 allowed_zones: vec![],
+                display_name: None,
             },
         );
         aggiunti = true;
@@ -485,6 +510,7 @@ impl AuthState {
                     updated_at_ms: now,
                     session_ttl_secs: None,
                     allowed_zones: vec![],
+                    display_name: None,
                 },
             );
         }
@@ -669,6 +695,8 @@ impl AuthState {
                 effective_ttl,
                 rimandato: false,
                 external_zones: None,
+                external_name: None,
+                previous_login_ms: None,
             },
         );
         self.failures.write().await.remove(&creds.username);
@@ -679,6 +707,8 @@ impl AuthState {
             role: user.role,
             expires_at_ms,
             must_change_password: user.must_change_password,
+            display_name: user.display_name.clone(),
+            previous_login_ms: None,
         })
     }
 
@@ -690,6 +720,29 @@ impl AuthState {
     /// `Some(seconds)` while `username` is locked out by too many failures.
     pub async fn locked_out(&self, username: &str) -> Option<u64> {
         self.check_lockout(username).await
+    }
+
+    /// Remembers the login before this one on the session `token`, so pages
+    /// can show it for as long as the session lives.
+    pub async fn set_previous_login(&self, token: &str, ms: Option<u64>) {
+        if let Some(sess) = self.sessions.write().await.get_mut(token) {
+            sess.previous_login_ms = ms;
+        }
+    }
+
+    /// The name to show and the previous login of the session `token`.
+    /// `None` when the token is not a session of this store.
+    pub async fn session_profile(&self, token: &str) -> Option<(Option<String>, Option<u64>)> {
+        let (username, external, previous) = {
+            let sessions = self.sessions.read().await;
+            let sess = sessions.get(token)?;
+            (sess.username.clone(), sess.external_name.clone(), sess.previous_login_ms)
+        };
+        let name = match external {
+            Some(n) => Some(n),
+            None => self.users.read().await.get(&username).and_then(|u| u.display_name.clone()),
+        };
+        Some((name, previous))
     }
 
     /// A failed login that didn't go through [`Self::login`] (an LDAP one):
@@ -707,6 +760,7 @@ impl AuthState {
         username: &str,
         role: Role,
         zones: Vec<String>,
+        display_name: Option<String>,
     ) -> Option<LoginOk> {
         if self.has_user(username).await {
             return None;
@@ -723,6 +777,8 @@ impl AuthState {
                 effective_ttl: Some(self.ttl),
                 rimandato: false,
                 external_zones: Some(zones),
+                external_name: display_name.clone(),
+                previous_login_ms: None,
             },
         );
         self.failures.write().await.remove(username);
@@ -733,6 +789,8 @@ impl AuthState {
             role,
             expires_at_ms,
             must_change_password: false,
+            display_name,
+            previous_login_ms: None,
         })
     }
 
@@ -901,6 +959,7 @@ impl AuthState {
             updated_at_ms: now,
             session_ttl_secs: None,
             allowed_zones: p.allowed_zones,
+            display_name: p.display_name.filter(|n| !n.trim().is_empty()),
         };
         users.insert(p.username.clone(), u.clone());
         self.flush_locked(&users).await?;
@@ -942,6 +1001,9 @@ impl AuthState {
         }
         if let Some(zones) = patch.allowed_zones {
             user.allowed_zones = zones;
+        }
+        if let Some(name) = patch.display_name {
+            user.display_name = name.filter(|n| !n.trim().is_empty());
         }
         user.updated_at_ms = now_unix_ms();
         let summary = user.to_summary();
@@ -1099,6 +1161,7 @@ mod tests {
             updated_at_ms: 1,
             session_ttl_secs: None,
             allowed_zones: vec![],
+            display_name: None,
         };
         let f = UserFile { users: vec![u] };
         std::fs::write(&p, serde_yaml::to_string(&f).unwrap()).unwrap();
@@ -1129,6 +1192,7 @@ mod tests {
                 updated_at_ms: 1,
                 session_ttl_secs: None,
                 allowed_zones: vec![],
+                display_name: None,
             })
             .collect();
         std::fs::write(&p, serde_yaml::to_string(&UserFile { users }).unwrap()).unwrap();
@@ -1226,9 +1290,9 @@ mod tests {
             Duration::from_secs(60),
         )
         .unwrap();
-        assert!(a.issue_external_session("admin", Role::Viewer, vec![]).await.is_none());
+        assert!(a.issue_external_session("admin", Role::Viewer, vec![], None).await.is_none());
         let ok = a
-            .issue_external_session("mario.rossi", Role::Operator, vec!["caldaia".into()])
+            .issue_external_session("mario.rossi", Role::Operator, vec!["caldaia".into()], Some("Mario Rossi".into()))
             .await
             .unwrap();
         let info = a.validate(&ok.token).await.unwrap();
@@ -1540,6 +1604,7 @@ mod tests {
                 role: Role::Operator,
                 must_change_password: true,
                 allowed_zones: vec![],
+                display_name: None,
             })
             .await
             .unwrap();
@@ -1554,6 +1619,7 @@ mod tests {
                 role: Role::Operator,
                 must_change_password: true,
                 allowed_zones: vec![],
+                display_name: None,
             })
             .await,
             Err(UserError::AlreadyExists)
@@ -1569,6 +1635,7 @@ mod tests {
                     must_change_password: None,
                     session_ttl_secs: None,
                     allowed_zones: None,
+                    display_name: None,
                 },
             )
             .await
@@ -1605,6 +1672,7 @@ mod tests {
                     must_change_password: None,
                     session_ttl_secs: None,
                     allowed_zones: None,
+                    display_name: None,
                 }
             )
             .await,
@@ -1621,6 +1689,7 @@ mod tests {
             role: Role::Operator,
             must_change_password: true,
             allowed_zones: vec![],
+            display_name: None,
         })
         .await
         .unwrap();
@@ -1657,6 +1726,7 @@ mod tests {
             role: Role::Viewer,
             must_change_password: true,
             allowed_zones: vec![],
+            display_name: None,
         })
         .await
         .unwrap();

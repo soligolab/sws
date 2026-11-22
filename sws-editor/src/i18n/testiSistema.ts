@@ -90,7 +90,9 @@ export type VoceSistema =
   | "password_session_lost"
   | "keypad_invalid"
   | "keypad_below_min"
-  | "keypad_above_max";
+  | "keypad_above_max"
+  // The role of who is signed in, for `{{user.role}}` (22-11-2026).
+  | "role_viewer" | "role_operator" | "role_supervisor" | "role_admin";
 
 export const LINGUE_SISTEMA = ["it", "de", "fr", "es", "en"] as const;
 export type LinguaSistema = (typeof LINGUE_SISTEMA)[number];
@@ -348,6 +350,10 @@ export const TESTI_SISTEMA: Record<VoceSistema, Record<LinguaSistema, string>> =
     es: "Por encima del máximo ({max})",
     en: "Above the maximum ({max})",
   },
+  role_viewer: { it: "Visualizzatore", de: "Betrachter", fr: "Observateur", es: "Observador", en: "Viewer" },
+  role_operator: { it: "Operatore", de: "Bediener", fr: "Opérateur", es: "Operador", en: "Operator" },
+  role_supervisor: { it: "Supervisore", de: "Supervisor", fr: "Superviseur", es: "Supervisor", en: "Supervisor" },
+  role_admin: { it: "Amministratore", de: "Administrator", fr: "Administrateur", es: "Administrador", en: "Administrator" },
   allarme_attivo: {
     it: "🔴 ALLARME ATTIVO", de: "🔴 ALARM AKTIV", fr: "🔴 ALARME ACTIVE", es: "🔴 ALARMA ACTIVA", en: "🔴 ALARM ACTIVE",
   },

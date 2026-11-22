@@ -3897,6 +3897,10 @@ function SvgObjectCorpo(p: ObjProps) {
   const descrizioni = projectTags ? descrizioniDeiTag(projectTags, projectTypes) : undefined;
   const conDefault = applyTagDefaults(resolved, resolved.tag ? descrizioni?.get(resolved.tag) : undefined);
   const lingua = useLinguaContenuti();
+  // Read so that `{{user.*}}` redraws when who is signed in changes
+  // (`auth/profiloUtente.ts` sets the resolver from the same store).
+  useAppStore((s) => s.authProfilo);
+  useAppStore((s) => s.authUser);
   const obj = localizeObject(conDefault, lingua.lang, lingua.table);
   // Le tracce di un trend, lo stesso riferimento finché non cambiano (passo
   // 5e): `TrendCanvas` rifà tutto il disegno quando cambiano `seriesLabels` o

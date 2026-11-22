@@ -124,6 +124,14 @@ pub const NOMI_FORNITI: &[NomeFornito] = &[
                script globali: da dentro un'altra funzione solleva un errore esplicito.",
     },
     NomeFornito {
+        nome: "user",
+        uso: "user.name · user.username · user.role",
+        cosa: "Chi ha lanciato la funzione da un pulsante della pagina: `user.name` (il nome \
+               da mostrare, o il nome di accesso), `user.username`, `user.role` (Viewer, \
+               Operator, Supervisor, Admin). `None` se nessuno ha fatto l'accesso, o se a \
+               lanciarla è uno script globale o un evento. Solo lettura.",
+    },
+    NomeFornito {
         nome: "tr",
         uso: "tr(chiave)",
         cosa: "`tr('chiave')` — il segnaposto `{{chiave}}` della tabella lingue: scritto in un \
@@ -131,6 +139,11 @@ pub const NOMI_FORNITI: &[NomeFornito] = &[
                qui: restituisce il segnaposto.",
     },
 ];
+
+/// The argument under which the router passes who ran a function: `{name,
+/// username, role}`. Never a parameter name (they can't start with `_`), and
+/// taken out of the arguments before they become globals.
+pub const CALLER_ARG: &str = "__sws_caller__";
 
 /// I builtin che la sandbox aggiunge a `safe_builtins` di RestrictedPython
 /// (L0, decisione del 04-11-2026). `safe_builtins` non ha `min`, `max`, `sum`,
@@ -1656,8 +1669,22 @@ fn run_in_python(
     // Arm the kill switch: past this instant the Python trace function raises
     // KeyboardInterrupt.
     let scadenza = Instant::now() + timeout;
+    // Who ran it (22-11-2026): the router puts it under a name no parameter
+    // may have (a leading underscore is refused), and it becomes `user`.
+    let mut args = args;
+    let caller = args.remove(CALLER_ARG);
 
     Python::attach(|py| -> PyResult<Result<ExecOutput, RunFailure>> {
+        let user_obj: Py<PyAny> = match caller.as_ref().and_then(|c| c.as_object()) {
+            Some(c) => {
+                let kw = json_map_to_pydict(py, c)?;
+                py.import("types")?
+                    .getattr("SimpleNamespace")?
+                    .call((), Some(&kw))?
+                    .unbind()
+            }
+            None => py.None(),
+        };
         let handle_for_functions = handle.clone();
         let api = Py::new(py, TagApi { db, bus, handle })?;
         let notifier = Py::new(py, Notifier { tx: telegram_tx })?;
@@ -1700,6 +1727,7 @@ fn run_in_python(
                 "state" => state_obj.clone_ref(py).into_any(),
                 "functions" => functions_obj.clone_ref(py).into_any(),
                 "tr" => tr.clone_ref(py).into_any(),
+                "user" => user_obj.clone_ref(py),
                 // Lo fornisce la sandbox (`_print_` nell'harness), o Python
                 // stesso quando la sandbox manca.
                 "print" => continue,

@@ -39,6 +39,55 @@ export function effectiveProjectLang(table?: LanguageTable | null): string {
 
 const TOKEN_RE = /\{\{\s*([^}\s]+)\s*\}\}/g;
 
+// ── Who is signed in, for `{{user.*}}` (22-11-2026) ─────────────────────────
+//
+// «Benvenuto {{user.name}} — ultimo accesso {{user.last_login}}». The user is
+// a fact of this screen, not of the project: it is set here by the store when
+// the session changes, and every text resolves it like a `{{sys:…}}` word,
+// also without a language table. Nobody signed in: empty. Twin of
+// `resolve_msg` in the LVGL viewer; cases in `tests/fixtures/risoluzione-token.json`.
+
+export interface UtenteDeiTesti {
+  username: string;
+  name?: string | null;
+  role?: string | null;
+  lastLoginMs?: number | null;
+}
+let utenteDeiTesti: UtenteDeiTesti | null = null;
+
+export function impostaUtenteDeiTesti(u: UtenteDeiTesti | null): void {
+  utenteDeiTesti = u && u.username ? u : null;
+}
+
+const RUOLI: Record<string, string> = {
+  Viewer: "role_viewer", Operator: "role_operator", Supervisor: "role_supervisor", Admin: "role_admin",
+};
+
+/** `DD-MM-YYYY HH:MM` in local time: one form for both engines. */
+export function dataOraAccesso(ms: number): string {
+  const d = new Date(ms);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${p(d.getDate())}-${p(d.getMonth() + 1)}-${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+/** The value of `{{user.<field>}}`, or `null` for a field that doesn't exist. */
+export function campoUtente(field: string, lang: string, u: UtenteDeiTesti | null = utenteDeiTesti): string | null {
+  switch (field) {
+    case "name": return u ? (u.name?.trim() || u.username) : "";
+    case "username": return u?.username ?? "";
+    case "role": {
+      const k = u?.role ? RUOLI[u.role] : undefined;
+      return k ? testoSistemaPerNome(k, lang) ?? u!.role! : "";
+    }
+    case "last_login": return u?.lastLoginMs ? dataOraAccesso(u.lastLoginMs) : "";
+    default: return null;
+  }
+}
+
+function mentionsUser(v: unknown): boolean {
+  return typeof v === "string" && v.indexOf("{{user.") >= 0;
+}
+
 /** Sostituisce le occorrenze `{{token}}` in `str` con la traduzione per `lang`
  *  (fallback: default della tabella → token grezzo tra graffe se sconosciuto).
  *  Testo senza token passa invariato.
@@ -57,9 +106,15 @@ export function resolveMsg(str: string, lang: string, table?: LanguageTable | nu
     // `{{sys:nome}}`: una parola di sistema, nella lingua dei contenuti, anche
     // in un progetto senza tabella (i faceplate di sistema, 12-11-2026).
     if (key.startsWith("sys:")) return testoSistemaPerNome(key.slice(4), lang) ?? m;
+    if (key.startsWith("user.")) return campoUtente(key.slice(5), lang) ?? m;
     if (!table) return m;
     const entry = table.entries.find((e) => e.key === key);
-    return entry?.values[lang] ?? entry?.values[table.default] ?? `{{${key}}}`;
+    const v = entry?.values[lang] ?? entry?.values[table.default] ?? `{{${key}}}`;
+    // A translated text may carry `{{user.*}}` («Benvenuto {{user.name}}»
+    // typed in the field became a key): one more pass, for those only.
+    return v.indexOf("{{user.") >= 0
+      ? v.replace(TOKEN_RE, (mm, k: string) => (k.startsWith("user.") ? campoUtente(k.slice(5), lang) ?? mm : mm))
+      : v;
   });
 }
 
@@ -91,7 +146,17 @@ function hasToken(v: unknown): v is string {
  *  Non tocca tag, colori, id o altri dati. Se nessun token è presente ritorna
  *  l'oggetto originale (identità → nessun re-render inutile). */
 export function localizeObject(obj: SynopticObject, lang: string, table?: LanguageTable | null): SynopticObject {
-  if (!table || !lang) return obj;
+  // Without a language table only `{{user.*}}` can resolve: the plain text
+  // fields are looked at for it, the rest stays as it is.
+  if (!table || !lang) {
+    if (!TEXT_FIELDS.some((f) => mentionsUser(obj[f]))) return obj;
+    const out = { ...obj } as unknown as Record<string, unknown>;
+    for (const f of TEXT_FIELDS) {
+      const v = obj[f];
+      if (mentionsUser(v)) out[f] = resolveMsg(v as string, lang, table);
+    }
+    return out as unknown as SynopticObject;
+  }
   let out: SynopticObject | null = null;
   const ensure = () => (out ??= { ...obj });
 

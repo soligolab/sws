@@ -141,6 +141,11 @@ pub enum Testo {
     KeypadInvalid,
     KeypadBelowMin,
     KeypadAboveMax,
+    // The role of who is signed in, for `{{user.role}}` (22-11-2026).
+    RoleViewer,
+    RoleOperator,
+    RoleSupervisor,
+    RoleAdmin,
 }
 
 /// Tutte le voci, per i test che devono iterarle senza ripetere l'elenco a
@@ -221,6 +226,10 @@ pub const TUTTI: &[Testo] = &[
     Testo::KeypadInvalid,
     Testo::KeypadBelowMin,
     Testo::KeypadAboveMax,
+    Testo::RoleViewer,
+    Testo::RoleOperator,
+    Testo::RoleSupervisor,
+    Testo::RoleAdmin,
 ];
 
 /// Dal nome nella fixture alla voce. `None` = la fixture ha una voce che
@@ -302,6 +311,10 @@ pub fn da_nome(nome: &str) -> Option<Testo> {
         "keypad_invalid" => Testo::KeypadInvalid,
         "keypad_below_min" => Testo::KeypadBelowMin,
         "keypad_above_max" => Testo::KeypadAboveMax,
+        "role_viewer" => Testo::RoleViewer,
+        "role_operator" => Testo::RoleOperator,
+        "role_supervisor" => Testo::RoleSupervisor,
+        "role_admin" => Testo::RoleAdmin,
         _ => return None,
     })
 }
@@ -728,6 +741,26 @@ pub fn testo(t: Testo, lingua: &str) -> &'static str {
         (KeypadAboveMax, "fr") => "Au-dessus du maximum ({max})",
         (KeypadAboveMax, "es") => "Por encima del máximo ({max})",
         (KeypadAboveMax, _) => "Above the maximum ({max})",
+        (RoleViewer, "it") => "Visualizzatore",
+        (RoleViewer, "de") => "Betrachter",
+        (RoleViewer, "fr") => "Observateur",
+        (RoleViewer, "es") => "Observador",
+        (RoleViewer, _) => "Viewer",
+        (RoleOperator, "it") => "Operatore",
+        (RoleOperator, "de") => "Bediener",
+        (RoleOperator, "fr") => "Opérateur",
+        (RoleOperator, "es") => "Operador",
+        (RoleOperator, _) => "Operator",
+        (RoleSupervisor, "it") => "Supervisore",
+        (RoleSupervisor, "de") => "Supervisor",
+        (RoleSupervisor, "fr") => "Superviseur",
+        (RoleSupervisor, "es") => "Supervisor",
+        (RoleSupervisor, _) => "Supervisor",
+        (RoleAdmin, "it") => "Amministratore",
+        (RoleAdmin, "de") => "Administrator",
+        (RoleAdmin, "fr") => "Administrateur",
+        (RoleAdmin, "es") => "Administrador",
+        (RoleAdmin, _) => "Administrator",
     }
 }
 

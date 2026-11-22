@@ -66,6 +66,12 @@ versioni:
       - it: "Le installazioni native non hanno più admin/admin: partono col codice di abbinamento. Un admin/admin rimasto va cambiato al primo accesso."
         en: "Native installations no longer have admin/admin: they start with the pairing code. An admin/admin left over must be changed at the next login."
     voci:
+      - it: "Nei testi delle pagine {{user.name}}, {{user.role}} e {{user.last_login}}: «Benvenuto Mario, ultimo accesso…», sul web e sul pannello."
+        en: "In page texts {{user.name}}, {{user.role}} and {{user.last_login}}: «Welcome Mario, last login…», on the web and on the panel."
+      - it: "Gli utenti hanno un «Nome visualizzato»; per quelli del dominio LDAP si legge dalla directory."
+        en: "Users have a «Display name»; for domain (LDAP) users it is read from the directory."
+      - it: "Le funzioni Python sanno chi le ha lanciate: user.name, user.username, user.role."
+        en: "Python functions know who ran them: user.name, user.username, user.role."
       - it: "Ogni funzione ha il suo «Ruolo minimo per eseguirla»: con Viewer un pulsante la lancia anche chi non ha fatto l'accesso."
         en: "Each function has its own «Lowest role to run it»: with Viewer a button runs it even for whoever hasn't signed in."
       - it: "Aggiornando su più rc della stessa versione, le novità e gli avvisi di compatibilità compaiono una volta sola."

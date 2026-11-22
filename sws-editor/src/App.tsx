@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { avviaProfiloUtente } from "@/auth/profiloUtente";
 import { useTranslation } from "react-i18next";
 import { azioneDi } from "@/scorciatoie/registro";
 import { api, AuthError, NoProjectError, PasswordChangeRequiredError } from "@/api/client";
@@ -141,6 +142,8 @@ export function App() {
   // I simboli disegnati nel progetto: ricompilati quando cambiano le loro
   // descrizioni, così una proposta applicata si disegna prima del Salva.
   useEffect(() => avviaSincroniaSimboli(), []);
+  // Who is signed in, for the `{{user.*}}` of the pages (22-11-2026).
+  useEffect(() => avviaProfiloUtente(), []);
   // Each project remembers its panel; opening one asks to reconnect (20-11-2026).
   useDeviceMemory();
   // Log drawer: state stays here (App owns <LogPanel>), the toggle moved into

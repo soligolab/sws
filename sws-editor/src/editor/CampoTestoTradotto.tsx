@@ -204,6 +204,25 @@ export function CampoTestoTradotto({
       >
         <Icona emoji="🔣" />
       </button>
+      {/* The placeholders of who is signed in (22-11-2026): «Benvenuto
+          {{user.name}}». Inserted where the cursor is, like a character. */}
+      <select
+        value=""
+        title={t("userPlaceholder.title")}
+        data-testid="inserisci-segnaposto-utente"
+        onMouseDown={() => setAttivo(true)}
+        onChange={(e) => { if (e.target.value) inserisciCarattere(`{{user.${e.target.value}}}`); }}
+        style={{
+          flexShrink: 0, width: 26, height: 22, fontSize: 12, padding: 0, cursor: "pointer",
+          background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)",
+          borderRadius: 4, color: "var(--brand-text-muted, #94a3b8)", appearance: "none", textAlign: "center",
+        }}
+      >
+        <option value="">👤</option>
+        {(["name", "username", "role", "last_login"] as const).map((f) => (
+          <option key={f} value={f}>{t(`userPlaceholder.${f}`)}</option>
+        ))}
+      </select>
       {pickerAperto && (
         <CharacterPickerModal onPick={inserisciCarattere} onCancel={() => setPickerAperto(false)} />
       )}

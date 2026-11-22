@@ -68,6 +68,9 @@ export function LdapSection() {
               onChange={(e) => set({ user_base: e.target.value })} /></div>
           <div style={row}><span style={label}>{t("ldap.userFilter")}</span>
             <input style={{ ...S.input, flex: 1 }} value={draft.user_filter} onChange={(e) => set({ user_filter: e.target.value })} /></div>
+          <div style={row}><span style={label}>{t("ldap.nameAttribute")}</span>
+            <input style={{ ...S.input, flex: 1 }} value={draft.name_attribute ?? ""} placeholder="displayName, givenName"
+              onChange={(e) => set({ name_attribute: e.target.value.trim() || undefined })} /></div>
 
           <div style={{ fontSize: 12, margin: "10px 0 4px" }}>{t("ldap.groups")}</div>
           {draft.groups.map((g, i) => (

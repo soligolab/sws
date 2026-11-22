@@ -13,6 +13,7 @@ import { ordinaPagine } from "@/pageTree";
 import { pickInitialPageId } from "@/pageLayout";
 import { useProjectWatcher } from "@/ws/projectWatcher";
 import { ricaricaSimboliProgetto } from "@/symbols/lib/libreria";
+import { avviaProfiloUtente } from "@/auth/profiloUtente";
 import { useBuildWatcher } from "@/ws/buildWatcher";
 import { riprovaFlussoTag } from "@/ws/tagStream";
 import { riprovaFlussoAllarmi } from "@/ws/alarmStream";
@@ -99,6 +100,8 @@ function RuntimeRestartingScreen() {
 // No login prompt, no project management — just the live synoptic.
 
 export function RuntimeViewer() {
+  // Who is signed in, for the `{{user.*}}` of the pages (22-11-2026).
+  useEffect(() => avviaProfiloUtente(), []);
   const { t } = useTranslation();
   const [updatedNotice, setUpdatedNotice] = useState(false);
   const noticeTimer = useRef<number | null>(null);

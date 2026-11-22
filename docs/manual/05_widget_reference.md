@@ -112,6 +112,22 @@ Etichetta statica o dinamica.
 | `text_anchor` | Allineamento: `start`, `middle`, `end` |
 | `color` | Colore testo |
 
+#### Chi ha fatto l'accesso (dal 22-11-2026)
+
+In ogni testo — e nelle etichette, nelle unità e nei formati — si possono scrivere i dati di chi sta usando lo
+schermo. Si inseriscono dal pulsante 👤 accanto al campo:
+
+| Segnaposto | Diventa |
+|---|---|
+| `{{user.name}}` | il nome visualizzato (Configurazione → Utenti, o `displayName` del dominio LDAP), altrimenti il nome di accesso |
+| `{{user.username}}` | il nome di accesso |
+| `{{user.role}}` | il ruolo, nella lingua dei contenuti |
+| `{{user.last_login}}` | l'accesso **precedente** su questo pannello, `GG-MM-AAAA HH:MM`; vuoto al primo |
+
+Senza nessuno collegato diventano testo vuoto: «Benvenuto {{user.name}}» mostra «Benvenuto». Valgono uguali sul web e
+sul pannello LVGL, anche in un progetto senza tabella delle lingue. Le funzioni Python ricevono lo stesso dato come
+`user` (`user.name`, `user.username`, `user.role`), `None` se nessuno ha fatto l'accesso.
+
 #### I font (dal 18-10-2026)
 
 Sei famiglie, **uguali nel browser e sul pannello LVGL**, con grassetto vero:
