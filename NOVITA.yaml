@@ -66,6 +66,10 @@ versioni:
       - it: "Le installazioni native non hanno più admin/admin: partono col codice di abbinamento. Un admin/admin rimasto va cambiato al primo accesso."
         en: "Native installations no longer have admin/admin: they start with the pairing code. An admin/admin left over must be changed at the next login."
     voci:
+      - it: "Editor dei simboli: la colonna destra segue la selezione; senza selezione mostra il simbolo, gli ingressi e l'IA, e «Prova» è un interruttore."
+        en: "Symbol editor: the right column follows the selection; with nothing selected it shows the symbol, the inputs and the AI, and «Try» is a switch."
+      - it: "Editor dei simboli: su una foto «Cambia questa foto con un ingresso» la trasforma in un segnale con una foto per valore."
+        en: "Symbol editor: on a photo «Change this photo with an input» turns it into a signal with a photo per value."
       - it: "Editor dei simboli: gli effetti (bagliore, fiamma, fumo, bollicine) si assegnano a una forma o a un gruppo e seguono un ingresso, con condizione e intensità."
         en: "Symbol editor: effects (glow, flame, smoke, bubbles) are given to a shape or a group and follow an input, with a condition and an intensity."
       - it: "Editor dei simboli: i gruppi di forme (Ctrl+G) si selezionano e si spostano insieme."

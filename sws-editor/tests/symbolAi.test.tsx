@@ -76,7 +76,7 @@ describe("the AI tab of the symbol editor", () => {
     await openBlankSymbol();
     render(<SymbolEditorHost />);
     await waitFor(() => expect(api.compilaSimboli).toHaveBeenCalled());
-    fireEvent.click(screen.getByTestId("symbol-tab-ai"));
+    fireEvent.click(screen.getByTestId("symbol-tab-structure"));
   }
 
   /** The brief, confirmed: the drawing is asked. */

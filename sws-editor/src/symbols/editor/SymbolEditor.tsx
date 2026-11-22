@@ -144,7 +144,11 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
   const [fromObject, setFromObject] = useState(target.fromObjectId);
   const [sel, setSel] = useState<number[]>([]);
   const [tool, setTool] = useState<Tool>("select");
-  const [tab, setTab] = useState<"piece" | "structure" | "try" | "ai">("piece");
+  // The right column follows the selection (22-11-2026, the maintainer: the
+  // sections «si accodano una sotto l'altra e non è collegata all'oggetto
+  // selezionato»): «inspect» shows the symbol when nothing is selected, the
+  // selection otherwise; «try» is the test bench.
+  const [tab, setTab] = useState<"inspect" | "try">("inspect");
   const [compiled, setCompiled] = useState<{ svg?: string; voce?: SimboloLib; errors: string[] }>({ errors: [] });
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [boxes, setBoxes] = useState<Map<number, Box>>(new Map());
@@ -1260,7 +1264,8 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
               )}
               {/* part geometry: the level window and the anchors */}
               {!trying && parts.map((p) => {
-                const g = (d.ops[p.op] as Op).geo as Record<string, number>;
+                // An input with no layer has no geometry to show (22-11-2026).
+                const g = ((d.ops[p.op] as Op).geo ?? {}) as Record<string, number>;
                 if (p.kind === "level") return (
                   <rect key={p.id} x={g.x} y={g.y} width={g.w} height={g.h} fill="none" stroke={C.accent}
                     strokeWidth={0.4 * u} strokeDasharray={`${1.5 * u} ${u}`} pointerEvents="none" />
@@ -1386,17 +1391,24 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
         })} />
         <div ref={propsCol} data-testid="symbol-props-column" style={{ width: propsWidth, flexShrink: 0, overflow: "auto", display: "flex", flexDirection: "column", background: C.surface }}>
           <div role="tablist" style={{ ...barTitle, padding: 0, gap: 0 }}>
-            {(["piece", "structure", "try", "ai"] as const).map((k) => (
-              <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)} data-testid={`symbol-tab-${k}`} style={{
-                flex: 1, height: "100%", border: "none", borderBottom: `2px solid ${tab === k ? C.accent : "transparent"}`,
-                background: "transparent", cursor: "pointer", fontFamily: "inherit",
+            {/* What the column shows: the symbol (nothing selected), the
+                selection, or the test bench. «Symbol» clears the selection. */}
+            {([
+              ["structure", t("symbolEditor.tab.symbol"), tab === "inspect" && sel.length === 0, () => { setSel([]); setTab("inspect"); }],
+              ["piece", sel.length ? t("symbolEditor.tab.selection", { n: sel.length }) : t("symbolEditor.tab.selectionNone"), tab === "inspect" && sel.length > 0, () => setTab("inspect")],
+              ["try", t("symbolEditor.tab.try"), tab === "try", () => setTab(tab === "try" ? "inspect" : "try")],
+            ] as [string, string, boolean, () => void][]).map(([k, label, on, go]) => (
+              <button key={k} type="button" role="tab" aria-selected={on} onClick={go} data-testid={`symbol-tab-${k}`}
+                disabled={k === "piece" && !sel.length} style={{
+                flex: 1, height: "100%", border: "none", borderBottom: `2px solid ${on ? C.accent : "transparent"}`,
+                background: "transparent", cursor: k === "piece" && !sel.length ? "default" : "pointer", fontFamily: "inherit",
                 fontSize: TESTO.titoloSezione, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase",
-                color: tab === k ? C.text : C.muted,
-              }}>{t(`symbolEditor.tab.${k}`)}</button>
+                color: on ? C.text : C.muted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+              }}>{label}</button>
             ))}
           </div>
           <div style={{ display: "flex", flexDirection: "column" }}>
-            {tab === "piece" ? (
+            {tab === "inspect" && sel.length > 0 ? (
               one?.op === "bocca" ? (
                 <Section id="port" title={`${t("symbolEditor.port.one")} ${String(one.id ?? "")}`}>
                   <PortProps d={d} port={portList.find((q) => q.op === sel[0])!} pipes={pipes.get(String(one.id))?.total ?? 0}
@@ -1405,6 +1417,10 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
               ) : (
                 <PieceProps d={d} sel={sel} one={one} layer={oneLayer} layers={ls} catalog={catalog} commit={commit}
                   fx={<FxProps d={d} sel={sel} commit={commit} setSel={setSel} />}
+                  onPhotoSignal={() => {
+                    const r = animateSelection(d, drawing(sel), "signal", boxes, firstColour());
+                    if (r) { commit(r.d); setSel(r.shapes); }
+                  }}
                   onDup={dup} onDel={del} onReorder={(dir) => { const r = reorderOp(d, sel[0], dir); commit(r.d); setSel([r.at]); }}
                   onMoveToLayer={(id) => {
                     const r = id === NEW_LAYER ? moveToNewLayer(d, drawing(sel)) : moveToLayer(d, drawing(sel), id);
@@ -1424,12 +1440,17 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
                       onRemove={() => { if (selPart) commit(removeInput(d, selPart.start)); }} />
                   ) : undefined} />
               )
-            ) : tab === "structure" ? (
-              <StructureProps d={d} catalog={catalog} commit={commit} isVariant={!!d.overrides}
-                ports={portList} pipes={pipes} onSelectPort={(op) => { setSel([op]); setTab("piece"); }}
-                onRenamePart={renamePartTracked} />
-            ) : tab === "ai" ? (
+            ) : tab === "inspect" ? (
               <>
+                <StructureProps d={d} catalog={catalog} commit={commit} isVariant={!!d.overrides}
+                  ports={portList} pipes={pipes} onSelectPort={(op) => setSel([op])}
+                  onRenamePart={renamePartTracked} />
+                {!nothingDrawn(d) && (
+                  <Section id="frame" title={t("symbolEditor.transform.frame")}>
+                    <button type="button" style={button} title={t("symbolEditor.fillFrameHint")} onClick={doFill}
+                      data-testid="symbol-fill-frame-symbol">⛶ {t("symbolEditor.fillFrame")}</button>
+                  </Section>
+                )}
                 <Section id="ai-draw" title={t("symbolEditor.section.aiDraw")}>
                   <AiPanel d={d} commit={commit} current={compiled} manifesto={manifesto} projectStyle={projectStyle} />
                 </Section>
@@ -1540,7 +1561,7 @@ function MaterialSelect({ value, catalog, onChange }: { value: string; catalog: 
   );
 }
 
-function PieceProps({ d, sel, one, layer, layers: ls, catalog, commit, onDup, onDel, onReorder, onMoveToLayer, animation, transform, fx }: {
+function PieceProps({ d, sel, one, layer, layers: ls, catalog, commit, onDup, onDel, onReorder, onMoveToLayer, animation, transform, fx, onPhotoSignal }: {
   d: DescrizioneSimbolo; sel: number[]; one?: Op; layer?: Layer; layers: Layer[]; catalog: Catalog | null;
   commit: (d: DescrizioneSimbolo) => void; onDup: () => void; onDel: () => void; onReorder: (dir: 1 | -1) => void;
   onMoveToLayer: (layerId: string) => void;
@@ -1550,6 +1571,9 @@ function PieceProps({ d, sel, one, layer, layers: ls, catalog, commit, onDup, on
   transform?: React.ReactNode;
   /** Group, effects and mask (`FxProps`, 22-11-2026). */
   fx?: React.ReactNode;
+  /** «Change with an input» on a photo: it becomes a signal whose entries
+   *  each show a photo (22-11-2026). */
+  onPhotoSignal?: () => void;
 }) {
   const { t } = useTranslation();
   if (!sel.length) return <p style={{ ...note, padding: `${SPAZIO.m}px ${SPAZIO.m + 2}px` }}>{t("symbolEditor.noSelection")}</p>;
@@ -1617,6 +1641,17 @@ function PieceProps({ d, sel, one, layer, layers: ls, catalog, commit, onDup, on
               onChange={(n) => commit(setImageOpacity(d, i, n))} />
           </Field>
           <p style={note}>{t("symbolEditor.photo.note")}</p>
+        </Section>
+      )}
+      {/* «Foto per stato», where it is looked for (22-11-2026, anomaly 8 of the
+          rc.28 test run): on the photo itself. In a signal already, its
+          entries (each with a photo) are in «Animation» above. */}
+      {one.op === "image" && layer?.kind !== "signal" && onPhotoSignal && (
+        <Section id="photo-signal" title={t("symbolEditor.photo.byInput")}>
+          <button type="button" style={button} data-testid="symbol-photo-signal" onClick={onPhotoSignal}>
+            {t("symbolEditor.photo.byInputButton")}
+          </button>
+          <p style={note}>{t("symbolEditor.photo.byInputNote")}</p>
         </Section>
       )}
       {(isShape || isLine) && fill && (

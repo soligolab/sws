@@ -5563,7 +5563,10 @@
       "piece": "Piece",
       "structure": "Structure",
       "try": "Try",
-      "ai": "AI"
+      "ai": "AI",
+      "symbol": "Symbol",
+      "selection": "Selection ({{n}})",
+      "selectionNone": "Selection"
     },
     "closeTitle": "Close the editor?",
     "closeUnsaved": "The symbol has unsaved changes. What do you want to do?",
@@ -5845,7 +5848,10 @@
       "asDrawn": "as drawn",
       "clear": "Remove this entry's photo",
       "onlyProject": "A symbol takes only the project's photos in PNG, JPEG or WebP: not the catalogue icons, not SVGs.",
-      "exportMissing": "A photo of the symbol could not be read, the file was not written: {{error}}"
+      "exportMissing": "A photo of the symbol could not be read, the file was not written: {{error}}",
+      "byInput": "Change with an input",
+      "byInputButton": "Change this photo with an input",
+      "byInputNote": "The photo becomes a signal: in «Animation» above add the rows «when the input is … show this photo». Try shows it with the input."
     },
     "aiPhoto": {
       "title": "Generate photo",

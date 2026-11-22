@@ -5563,7 +5563,10 @@
       "piece": "Pezzo",
       "structure": "Struttura",
       "try": "Prova",
-      "ai": "IA"
+      "ai": "IA",
+      "symbol": "Simbolo",
+      "selection": "Selezione ({{n}})",
+      "selectionNone": "Selezione"
     },
     "closeTitle": "Chiudere l'editor?",
     "closeUnsaved": "Ci sono modifiche non salvate al simbolo. Cosa vuoi fare?",
@@ -5845,7 +5848,10 @@
       "asDrawn": "come disegnata",
       "clear": "Togli la foto di questa voce",
       "onlyProject": "In un simbolo vanno solo le foto del progetto in PNG, JPEG o WebP: le icone del catalogo e gli SVG no.",
-      "exportMissing": "Una foto del simbolo non si è potuta leggere, il file non è stato scritto: {{error}}"
+      "exportMissing": "Una foto del simbolo non si è potuta leggere, il file non è stato scritto: {{error}}",
+      "byInput": "Cambia con un ingresso",
+      "byInputButton": "Cambia questa foto con un ingresso",
+      "byInputNote": "La foto diventa un segnale: in «Animazione» qui sopra aggiungi le righe «quando l'ingresso vale … mostra questa foto». In Prova si vede con l'ingresso."
     },
     "aiPhoto": {
       "title": "Genera foto",
