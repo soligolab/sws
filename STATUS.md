@@ -12,7 +12,30 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — la 2.26.0-rc.26 pubblicata; dev, rc e release (2026-11-22 mattina, `ufficio`)
+## ▶ Riprendere da qui — la 2.26.0-rc.27 pubblicata; dev, rc e release in funzione (2026-11-22 pomeriggio, `ufficio`)
+
+**Fatto oggi, nell'ordine**:
+- **Piano dev, rc e release**, parti 0-2 ([piano](docs/plans/2026-11-22-dev-rc-release-e-portale-di-sviluppo.md)):
+  `release/2.26` per le correzioni della 2.26.0, `main` a `2.27.0-dev.0`; la versione nel file `VERSION`, letta dal
+  runtime da `SWS_VERSION`; `build_dev.sh` (profilo leggero: una dev che non tocca il Rust in 1 min, una modifica a
+  `sws-web` in 1 min 20 s) e `build_rc.sh` (tre gambe in parallelo). Resta la parte 3, il portale di sviluppo.
+- **rc.27** (`f863349f`, da `release/2.26`, tag **locale**): le correzioni dell'editor dei simboli (la tela che disegna
+  sempre, un simbolo di sole foto valido, lo strato di destinazione, le colonne ridimensionabili, il perché di Kimi
+  muto, il lanciatore Linux generico in bash). **38 minuti** per arm64, amd64 e Tiny TY in parallelo (la rc.25, in
+  fila, ~75). Riportata in `main` (`65d3bd6b`). **Gateway del VPS e CasaDomotica sulla rc.27**, Tiny TY `latest` =
+  rc.27. Da collaudare: l'editor dei simboli col caso della stufa (istantanee in `tmp/editor-simboli-rc27/`).
+- **Disco di `ufficio`**: era al 99 % per `sws-runtime/target` (228 GB di copie vecchie): tolti `deps` vecchi e
+  incremental, ~200 GB liberi.
+- **Semi nuovi**: [chi risponde nell'IA e gli scopi nell'account](docs/plans/semi/2026-11-22-ia-scelta-visibile-e-scopi-account.md),
+  [il modello di business](docs/plans/semi/2026-11-22-modello-di-business.md).
+
+**Push**: niente pushato da `8b4116cb` in poi; su origin mancano `main`, `release/2.26` e il tag `2.26.0-rc.27`
+(`check_release_coerente` resta rosso fino ad allora). Aspetta il via del maintainer.
+
+**Kimi**: la correzione dice il perché, non lo risolve. Al prossimo disegno che fallisce, il registro del container
+(`symbol drawing: no answer`, `AI answer without text`) dice `stop_reason` e i blocchi.
+
+## Prima — la 2.26.0-rc.26 pubblicata; dev, rc e release (2026-11-22 mattina, `ufficio`)
 
 **Fatto**: il ramo `feat/symbol-editor-panels` squashato in `main` (`7f7a60c9`, alberi controllati, ramo eliminato)
 dopo l'«Ok» del maintainer alle istantanee; `chore(rc): 2.26.0-rc.26` (`c3180ab9`); **pushati** `main` e i tag

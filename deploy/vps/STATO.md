@@ -173,7 +173,15 @@ resta 404: così un bundle che manca non torna come HTML con stato 200.
 (`10.89.0.x`): il limite di 20 richieste/s vale per tutti insieme finché non c'è l'indirizzo vero (seme «indirizzo vero
 dietro Traefik»). Si aggiorna con `scripts/manuale/pubblica.sh`.
 
-**Versione in esecuzione: `c3180ab9-amd64` (2.26.0-rc.26)** dal 22-11-2026, 09:25: l'editor dei simboli nello stile
+**Versione in esecuzione: `f863349f-amd64` (2.26.0-rc.27)** dal 22-11-2026, 13:35: le correzioni dell'editor dei
+simboli (la tela vuota con la foto, lo strato di destinazione, le colonne, il perché di Kimi muto), la prima rc
+costruita con `build_rc.sh` da `release/2.26` e la prima che legge la versione da fuori del binario (`SWS_VERSION`:
+gateway e CasaDomotica dichiarano 2.26.0-rc.27, verificato). Sequenza solita, copia `sws-gateway.container.prima-rc27`.
+Gateway e CasaDomotica `healthy`, radice 200, `/health` «ok». Tolta la rc.25 (`e4167f8f-amd64`); ripiego la rc.26.
+Tiny TY: `latest.txt` = rc.27 (sha256 `2a9195e8…`). **Da qui `sws.soligo.net` segue le rc della 2.26** (da
+`release/2.26`), non le dev della 2.27, finché non c'è il portale di sviluppo.
+
+Prima: **Versione in esecuzione: `c3180ab9-amd64` (2.26.0-rc.26)** dal 22-11-2026, 09:25: l'editor dei simboli nello stile
 dell'IDE (intestazione, barra, icone, sezioni richiudibili). Sequenza solita (`podman pull`, copia
 `sws-gateway.container.prima-rc26`, `sed` del commit in `Image=` e `--gateway-immagine`, `daemon-reload`, `restart
 sws-gateway`). Verificato: gateway `healthy`, CasaDomotica ripartita sull'immagine nuova, radice 200, `/health` «ok».
