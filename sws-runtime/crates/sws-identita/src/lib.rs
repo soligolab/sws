@@ -321,8 +321,16 @@ pub struct Identita {
     /// The second-factor challenges in flight (`two_factor.rs`): in memory,
     /// five minutes each, like the codes above.
     sfide: Arc<Mutex<HashMap<String, two_factor::Challenge>>>,
+    /// Who proved their mail box with a PIN, and when (22-11-2026): for ten
+    /// minutes after it, changing their own password doesn't ask for the
+    /// current one, which a new user may never have known. In memory: a
+    /// restart only brings the question back.
+    pin_proofs: Arc<Mutex<HashMap<i64, std::time::Instant>>>,
     percorso: PathBuf,
 }
+
+/// How long a PIN login stands in for the current password.
+pub const PIN_PROOF_TTL: Duration = Duration::from_secs(10 * 60);
 
 mod ai_keys;
 pub mod two_factor;
@@ -761,6 +769,7 @@ impl Identita {
             fallimenti: Arc::new(Mutex::new(HashMap::new())),
             codici: Arc::new(Mutex::new(HashMap::new())),
             sfide: Arc::new(Mutex::new(HashMap::new())),
+            pin_proofs: Arc::new(Mutex::new(HashMap::new())),
             percorso,
         };
         id.assicura_azienda_implicita().await?;
@@ -1257,7 +1266,7 @@ impl Identita {
         if nuova.len() < 8 {
             anyhow::bail!("la nuova password deve essere di almeno 8 caratteri");
         }
-        if nuova == attuale {
+        if !attuale.is_empty() && nuova == attuale {
             anyhow::bail!("la nuova password e uguale a quella attuale");
         }
         let chiave = email.trim().to_lowercase();
@@ -1278,11 +1287,48 @@ impl Identita {
         let Some((id, hash)) = trovato else {
             anyhow::bail!("nessun utente attivo con l'indirizzo «{email}»");
         };
-        if !verifica_password(attuale, &hash) {
+        if !self.pin_proof_fresh(id) && !verifica_password(attuale, &hash) {
             anyhow::bail!("la password attuale non e corretta");
         }
-        self.cambia_password_tenendo(id, nuova, sessione_corrente)
-            .await
+        let fatto = self
+            .cambia_password_tenendo(id, nuova, sessione_corrente)
+            .await;
+        if fatto.is_ok() {
+            self.pin_proofs.lock().unwrap().remove(&id);
+        }
+        fatto
+    }
+
+    /// Did this user sign in with a PIN in the last ten minutes?
+    fn pin_proof_fresh(&self, user_id: i64) -> bool {
+        let mut m = self.pin_proofs.lock().unwrap();
+        m.retain(|_, t| t.elapsed() < PIN_PROOF_TTL);
+        m.contains_key(&user_id)
+    }
+
+    /// The same, by address: the change-password screen asks it to know
+    /// whether to show the «current password» field.
+    pub async fn pin_proof_fresh_for(&self, email: &str) -> bool {
+        let conn = self.conn.clone();
+        let e = email.trim().to_lowercase();
+        let id: Option<i64> = task::spawn_blocking(move || {
+            let c = conn.lock().unwrap();
+            c.query_row("SELECT id FROM utenti WHERE email = ?1", params![e], |r| r.get(0))
+                .optional()
+                .ok()
+                .flatten()
+        })
+        .await
+        .ok()
+        .flatten();
+        id.is_some_and(|id| self.pin_proof_fresh(id))
+    }
+
+    pub(crate) fn note_pin_proof(&self, user_id: i64) {
+        self.pin_proofs
+            .lock()
+            .unwrap()
+            .insert(user_id, std::time::Instant::now());
     }
 
     /// **Reimposta** la password dall'amministrazione.

@@ -557,6 +557,29 @@ export function novitaNellaLingua(n: NovitaVersione, lingua: string): { testo: s
   };
 }
 
+/**
+ * The rcs of one release carry the whole block of that release (decision 56),
+ * and the block only grows: the newest version of the same release says
+ * everything the older ones said. Twin of `senza_ripetizioni` in
+ * `sws-web/src/aggiornamento.rs`, repeated here because the list comes from
+ * the panel, which may still run a version that doesn't collapse it
+ * (22-11-2026: the 2.26.0 warnings five times, rc.24 to rc.28).
+ */
+export function novitaRaccolte(voci: NovitaVersione[] | undefined): NovitaVersione[] {
+  const base = (v: string) => v.split("-")[0];
+  const fuori: NovitaVersione[] = [];
+  for (const n of voci ?? []) {
+    const prec = fuori[fuori.length - 1];
+    if (prec && ((prec.testo === n.testo && (prec.compatibilita ?? "") === (n.compatibilita ?? ""))
+      || base(prec.versione) === base(n.versione))) {
+      fuori[fuori.length - 1] = n;
+    } else {
+      fuori.push(n);
+    }
+  }
+  return fuori;
+}
+
 /** Gemello di `display_target::StatoDisplay` in `sws-web`. */
 export interface StatoDisplay {
   voluto: string;
@@ -934,7 +957,7 @@ export const sulGateway = (path: string) =>
 
 /** La base a cui mandare una richiesta: il prefisso del progetto, o la radice
  *  per le rotte del gateway quando siamo nel cloud. */
-function baseDi(path: string): string {
+export function baseDi(path: string): string {
   if (prefissoGateway() && sulGateway(path)) return "";
   return getBaseUrl();
 }
@@ -1597,6 +1620,8 @@ export const api = {
       role: UserRole;
       must_change_password: boolean;
       amministratore_piattaforma?: boolean;
+      /** Signed in with a PIN in the last ten minutes (22-11-2026). */
+      recent_pin_login?: boolean;
     }>("/api/auth/whoami"),
 
   /** L'account si può chiudere da sé: solo chi si è registrato (30-10-2026). */

@@ -2262,6 +2262,9 @@ export interface FunctionDef {
   /** Python source — capped at 64 KB by the server. */
   code: string;
   params: FunctionParam[];
+  /** The lowest role that may run it from a page ("Viewer" | "Operator" |
+   *  "Supervisor" | "Admin"); absent = Operator (22-11-2026). */
+  min_role?: string;
 }
 
 // ── Alarm types ───────────────────────────────────────────────────────────

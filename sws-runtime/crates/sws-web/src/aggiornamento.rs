@@ -270,17 +270,32 @@ pub fn novita_da_etichette(
 /// Le rc portano tutte le Novità della release a cui arrivano (decisione 56):
 /// saltando dalla rc.8 alla rc.11 lo stesso testo arriverebbe tre volte. Resta
 /// una volta sola, sotto la versione più nuova che lo porta.
+///
+/// The block of a release only grows from one rc to the next, so the newest
+/// version of the same release carries everything the older ones said: they
+/// collapse into it even when the text changed. On 22-11-2026 the TC620,
+/// updated from rc.23 to rc.28, showed the same seven compatibility warnings
+/// five times, once per rc, because each rc had added a line to the notes.
 pub fn senza_ripetizioni(voci: Vec<NovitaVersione>) -> Vec<NovitaVersione> {
     let mut fuori: Vec<NovitaVersione> = Vec::new();
     for n in voci {
         match fuori.last_mut() {
-            Some(prec) if prec.testo == n.testo && prec.compatibilita == n.compatibilita => {
+            Some(prec)
+                if (prec.testo == n.testo && prec.compatibilita == n.compatibilita)
+                    || same_release(&prec.versione, &n.versione) =>
+            {
                 *prec = n
             }
             _ => fuori.push(n),
         }
     }
     fuori
+}
+
+/// `2.26.0-rc.24` and `2.26.0-rc.28` (or `2.26.0`) belong to the same release.
+fn same_release(a: &str, b: &str) -> bool {
+    let base = |v: &str| v.split('-').next().unwrap_or(v).to_string();
+    base(a) == base(b)
 }
 
 fn formatta(v: &Versione) -> String {
@@ -1105,12 +1120,34 @@ mod tests {
             compatibilita_en: String::new(),
         };
         let fuori = senza_ripetizioni(vec![
+            n("2.11.3", "A"),
             n("2.12.0-rc.9", "A"),
-            n("2.12.0-rc.10", "A"),
-            n("2.12.0", "B"),
+            n("2.12.0-rc.10", "B"),
+            n("2.12.0", "C"),
         ]);
         let nomi: Vec<_> = fuori.iter().map(|x| x.versione.as_str()).collect();
-        assert_eq!(nomi, ["2.12.0-rc.10", "2.12.0"]);
+        assert_eq!(nomi, ["2.12.0"], "same text, then the same release: one entry");
+        assert_eq!(fuori[0].testo, "C", "the newest block wins");
+    }
+
+    /// 22-11-2026, TC620 from rc.23 to rc.28: the 2.26.0 warnings five times.
+    #[test]
+    fn the_rcs_of_one_release_show_their_warnings_once() {
+        let n = |v: &str, t: &str| NovitaVersione {
+            versione: v.into(),
+            testo: t.into(),
+            compatibilita: "- ports 7443".into(),
+            testo_en: String::new(),
+            compatibilita_en: String::new(),
+        };
+        let fuori = senza_ripetizioni(vec![
+            n("2.26.0-rc.24", "- a"),
+            n("2.26.0-rc.25", "- a\n- b"),
+            n("2.26.0-rc.28", "- a\n- b\n- c"),
+            n("2.27.0-rc.1", "- d"),
+        ]);
+        let nomi: Vec<_> = fuori.iter().map(|x| x.versione.as_str()).collect();
+        assert_eq!(nomi, ["2.26.0-rc.28", "2.27.0-rc.1"]);
     }
     /// Il 30-09-2026: aggiornato il pannello dalla rc.12 alla rc.13, sullo
     /// schermo restava «aggiornato dalla rc.11 alla rc.12» — l'esito del

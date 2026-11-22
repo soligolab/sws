@@ -1,7 +1,8 @@
 import { CampoPassword } from "@/components/CampoPassword";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { api } from "@/api/client";
+import { api, AuthError } from "@/api/client";
+import { lasciaAvvisoAccesso } from "@/auth/avvisoAccesso";
 import { useAppStore } from "@/store";
 import { conferma } from "@/finestraAvviso/finestraAvviso";
 import { paginaCentrata, schedaModulo } from "@/components/schermataAccesso";
@@ -50,6 +51,14 @@ export function ChangePasswordScreen({ onAnnulla, rimandabile }: {
   const [confirm,     setConfirm]     = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy,  setBusy]  = useState(false);
+  // Just in with a PIN from the mail: the mail box is the proof, and a new
+  // user may never have known a current password (22-11-2026).
+  const [pinRecente, setPinRecente] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    api.whoami().then((me) => { if (alive) setPinRecente(!!me.recent_pin_login); }).catch(() => { /* ask as before */ });
+    return () => { alive = false; };
+  }, []);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,14 +72,14 @@ export function ChangePasswordScreen({ onAnnulla, rimandabile }: {
       setError(t("auth.pwMismatch"));
       return;
     }
-    if (newPassword === oldPassword) {
+    if (!pinRecente && newPassword === oldPassword) {
       setError(t("auth.pwSameAsOld"));
       return;
     }
 
     setBusy(true);
     try {
-      await api.changePassword(oldPassword, newPassword);
+      await api.changePassword(pinRecente ? "" : oldPassword, newPassword);
       setMustChangePassword(false);
       // Il cambio VOLONTARIO non ha nessuna schermata dietro a cui tornare da
       // se: `mustChangePassword` era gia falso, quindi spegnerlo non cambia
@@ -78,9 +87,13 @@ export function ChangePasswordScreen({ onAnnulla, rimandabile }: {
       onAnnulla?.();
     } catch (e: any) {
       const msg = String(e?.message ?? "");
-      if (msg.includes("401")) {
-        // Token rejected: drop the session and bounce back to login.
+      if (e instanceof AuthError || msg.includes("401")) {
+        // The session is gone — for instance an administrator reset the
+        // password, which closes every session of the user (22-11-2026: the
+        // page stayed on «Error changing password» whatever was typed). Back
+        // to the sign-in, saying why.
         clearAuth();
+        lasciaAvvisoAccesso(t("auth.sessionClosed"));
       } else if (msg.includes("400") || msg.includes("invalid_password")) {
         // Il server manda il motivo vero in `detail`: «la password attuale non
         // è corretta» e «è uguale a quella di prima» sono cose diverse, e chi
@@ -123,12 +136,18 @@ export function ChangePasswordScreen({ onAnnulla, rimandabile }: {
           {onAnnulla ? "" : t("auth.mustSetNewPassword")}
         </p>
 
-        <div>
-          <label style={label}>{t("auth.currentPassword")}</label>
-          <CampoPassword value={oldPassword}
-                 onChange={(e) => setOldPassword(e.target.value)}
-                 autoComplete="current-password" autoFocus style={input} />
-        </div>
+        {pinRecente ? (
+          <p style={{ color: "var(--brand-text-muted, #94a3b8)", fontSize: 12, margin: 0 }} data-testid="cambio-pin-recente">
+            {t("auth.pinNoCurrent")}
+          </p>
+        ) : (
+          <div>
+            <label style={label}>{t("auth.currentPassword")}</label>
+            <CampoPassword value={oldPassword}
+                   onChange={(e) => setOldPassword(e.target.value)}
+                   autoComplete="current-password" autoFocus style={input} />
+          </div>
+        )}
         <div>
           <label style={label}>{t("auth.newPassword")}</label>
           <CampoPassword value={newPassword}
@@ -149,7 +168,7 @@ export function ChangePasswordScreen({ onAnnulla, rimandabile }: {
         )}
 
         <div style={{ display: "flex", gap: 8 }}>
-          <button type="submit" disabled={busy || !oldPassword || !newPassword}
+          <button type="submit" disabled={busy || (!pinRecente && !oldPassword) || !newPassword}
                   style={{
                     flex: 1,
                     background: busy ? "var(--sws-select-bg, #1e3a8a)" : "var(--brand-primary, #3b82f6)",

@@ -790,7 +790,9 @@
     "logout": "Esci",
     "piuTardi": "Più tardi",
     "nonChiederePiu": "Non chiedere più",
-    "nonChiederePiuConferma": "La password resterà quella attuale e il pannello non chiederà più di cambiarla. Fallo solo se la password l'hai scelta tu e nessun altro la conosce: chi la conosce entra come te. Continuare?"
+    "nonChiederePiuConferma": "La password resterà quella attuale e il pannello non chiederà più di cambiarla. Fallo solo se la password l'hai scelta tu e nessun altro la conosce: chi la conosce entra come te. Continuare?",
+    "sessionClosed": "La sessione è stata chiusa (per esempio la password è stata reimpostata da un amministratore): accedi di nuovo.",
+    "pinNoCurrent": "Sei appena entrato col PIN ricevuto per posta: la password attuale non serve."
   },
   "props": {
     "diag45": "45° diagonale",
@@ -2195,7 +2197,10 @@
     "bindingsOrScript": ", o da uno script globale con ",
     "bindingsHowto": " (capitolo 15 di HOWTO.md).",
     "codeLabel": "Codice Python",
-    "newFunctionBody": "# scrivi qui il corpo della funzione"
+    "newFunctionBody": "# scrivi qui il corpo della funzione",
+    "minRoleLabel": "Ruolo minimo per eseguirla",
+    "minRoleDefault": "Operator (predefinito)",
+    "minRoleViewer": "Viewer — anche chi non ha fatto l'accesso"
   },
   "trendExpanded": {
     "presetAll": "Tutto",
@@ -5883,8 +5888,11 @@
     "transform": {
       "turn": "Ruota e rifletti",
       "align": "Allinea",
-      "distribute": "Distribuisci"
-    }
+      "distribute": "Distribuisci",
+      "frame": "Riquadro"
+    },
+    "fillFrame": "Riempi il riquadro",
+    "fillFrameHint": "Ingrandisce tutto il disegno, nelle stesse proporzioni, finché tocca il riquadro del simbolo (un'unità di margine), e lo centra. Le bocche restano sul loro bordo."
   },
   "images": {
     "upload": {
@@ -5997,10 +6005,10 @@
     "userBaseExample": "OU=Utenti,DC=azienda,DC=local",
     "groupExample": "CN=Operatori SWS,OU=Gruppi,DC=azienda,DC=local"
   },
-
   "apiError": {
     "function_param_invalid": "La funzione «{{function}}» ha un parametro «{{param}}» che non è un nome valido in Python: solo lettere, cifre e «_», senza cominciare con una cifra.",
     "function_param_reserved": "La funzione «{{function}}» ha un parametro «{{param}}»: è il nome di qualcosa che ogni script riceve già (tags, state, print…). Scegli un altro nome.",
-    "function_param_underscore": "La funzione «{{function}}» ha un parametro «{{param}}»: i nomi che cominciano con «_» sono riservati alla sandbox. Scegli un altro nome."
+    "function_param_underscore": "La funzione «{{function}}» ha un parametro «{{param}}»: i nomi che cominciano con «_» sono riservati alla sandbox. Scegli un altro nome.",
+    "function_role": "Per questo comando serve il ruolo {{role}}: accedi con un utente che ce l'ha."
   }
 }

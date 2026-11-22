@@ -79,7 +79,7 @@ export function withPhoto(markup: string, href: string): string {
   return markup.split("\n").map((line) => (line.includes("<image ") ? setHref(line, href) : line)).join("\n");
 }
 
-export function SimboloLibSvg({ sim, svg, manifesto, prefisso, x, y, w, h, valori, dataAnim, progetto, sovrascritture }: {
+export function SimboloLibSvg({ sim, svg, manifesto, prefisso, x, y, w, h, valori, dataAnim, progetto, sovrascritture, photoAt = photoUrl }: {
   sim: SimboloLib;
   svg: string;
   manifesto: ManifestLib;
@@ -90,6 +90,9 @@ export function SimboloLibSvg({ sim, svg, manifesto, prefisso, x, y, w, h, valor
   /** Lo stile del progetto e quello dell'oggetto (Fase 4): senza, il disegno com'è. */
   progetto?: StileSimboliProgetto;
   sovrascritture?: SovrascrittureSimbolo;
+  /** Where its photos are: the project's by default; the company library
+   *  shows a symbol whose photos are still in the library (22-11-2026). */
+  photoAt?: (name: string) => string;
 }) {
   const ov = sovrascritture ?? {};
   const prep: SimboloPreparato = useMemo(
@@ -108,13 +111,13 @@ export function SimboloLibSvg({ sim, svg, manifesto, prefisso, x, y, w, h, valor
   // che si staccavano dal DOM mentre ci si scriveva.
   // The photos (plan 2026-11-21-simboli-fase-3-foto), fetched with the
   // session like every image of the project.
-  const photoUrls = useMemo(() => (sim.images ?? []).map(photoUrl), [sim.images]);
+  const photoUrls = useMemo(() => (sim.images ?? []).map(photoAt), [sim.images, photoAt]);
   const loaded = useHrefImmagini(photoUrls);
-  const photosKey = (sim.images ?? []).map((n) => `${n}=${loaded[photoUrl(n)] ?? ""}`).join("|");
+  const photosKey = (sim.images ?? []).map((n) => `${n}=${loaded[photoAt(n)] ?? ""}`).join("|");
   const photos = useMemo(() => {
     const out: Record<string, string> = {};
     for (const n of sim.images ?? []) {
-      const h = loaded[photoUrl(n)];
+      const h = loaded[photoAt(n)];
       if (h) out[n] = h;
     }
     return out;

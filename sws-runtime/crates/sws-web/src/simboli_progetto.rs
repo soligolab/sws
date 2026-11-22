@@ -419,6 +419,64 @@ pub fn photo_name(bytes: &[u8], ext: &str) -> String {
     format!("ai-photo-{hex}.{ext}")
 }
 
+/// The background around the object, cut away (22-11-2026: the photos for a
+/// 100×140 stove came back with empty bands, and the symbol showed them). The
+/// background is what is transparent, or else the colour of the four corners
+/// when they agree. `None` when there is nothing to trim, the image can't be
+/// read, or the object would be gone.
+pub fn trim_border(bytes: &[u8], png: bool) -> Option<(Vec<u8>, u32, u32)> {
+    const TOLERANCE: i32 = 18;
+    const MARGIN: u32 = 2;
+    let img = image::load_from_memory(bytes).ok()?.into_rgba8();
+    let (w, h) = img.dimensions();
+    if w < 8 || h < 8 {
+        return None;
+    }
+    let corners = [img.get_pixel(0, 0), img.get_pixel(w - 1, 0), img.get_pixel(0, h - 1), img.get_pixel(w - 1, h - 1)];
+    let close = |a: &image::Rgba<u8>, b: &image::Rgba<u8>| {
+        (0..3).all(|i| (a[i] as i32 - b[i] as i32).abs() <= TOLERANCE)
+    };
+    let transparent = corners.iter().all(|p| p[3] < 16);
+    let flat = !transparent && corners.iter().all(|p| p[3] > 240 && close(p, corners[0]));
+    if !transparent && !flat {
+        return None;
+    }
+    let bg = *corners[0];
+    let is_bg = |p: &image::Rgba<u8>| if transparent { p[3] < 16 } else { close(p, &bg) };
+    let (mut x0, mut y0, mut x1, mut y1) = (w, h, 0u32, 0u32);
+    for (x, y, p) in img.enumerate_pixels() {
+        if !is_bg(p) {
+            x0 = x0.min(x);
+            y0 = y0.min(y);
+            x1 = x1.max(x);
+            y1 = y1.max(y);
+        }
+    }
+    if x1 < x0 || y1 < y0 {
+        return None;
+    }
+    let (x0, y0) = (x0.saturating_sub(MARGIN), y0.saturating_sub(MARGIN));
+    let (x1, y1) = ((x1 + MARGIN).min(w - 1), (y1 + MARGIN).min(h - 1));
+    let (cw, ch) = (x1 - x0 + 1, y1 - y0 + 1);
+    // Less than 2 % to gain on both sides: leave the photo as it came.
+    if cw * 50 >= w * 49 && ch * 50 >= h * 49 {
+        return None;
+    }
+    if cw < 4 || ch < 4 {
+        return None;
+    }
+    let cut = image::imageops::crop_imm(&img, x0, y0, cw, ch).to_image();
+    let mut buf = Vec::new();
+    if png {
+        cut.write_to(&mut std::io::Cursor::new(&mut buf), image::ImageFormat::Png).ok()?;
+    } else {
+        image::codecs::jpeg::JpegEncoder::new_with_quality(&mut buf, 88)
+            .encode_image(&image::DynamicImage::ImageRgba8(cut).into_rgb8())
+            .ok()?;
+    }
+    Some((buf, cw, ch))
+}
+
 /// `POST /api/symbols/ai/photo` — «Genera foto» in the symbol editor: the
 /// image model of the «Sfondi» purpose photographs one object, and the photo
 /// is saved at once in the project's `images/` (it was paid for). IDE only,
@@ -472,9 +530,18 @@ pub async fn ai_photo(
                 .into_response()
         }
     };
-    let (width, height) = image::load_from_memory(&bytes)
-        .map(|i| (i.width(), i.height()))
-        .unwrap_or(size);
+    let (bytes, (width, height)) = match (ext != "webp")
+        .then(|| trim_border(&bytes, ext == "png"))
+        .flatten()
+    {
+        Some((cut, w, h)) => (cut, (w, h)),
+        None => {
+            let wh = image::load_from_memory(&bytes)
+                .map(|i| (i.width(), i.height()))
+                .unwrap_or(size);
+            (bytes, wh)
+        }
+    };
     let dir = match active_dir(&s).await {
         Ok(d) => crate::router::images_dir_at(&d),
         Err(c) => return c.into_response(),
@@ -614,6 +681,34 @@ mod photo_tests {
         let n = photo_name(b"abc", "png");
         assert!(sws_core::simboli_prj::image_name_ok(&n), "{n}");
         assert_eq!(n, photo_name(b"abc", "png"));
+    }
+
+    fn png_with_object(w: u32, h: u32, obj: (u32, u32, u32, u32), bg: [u8; 4]) -> Vec<u8> {
+        let mut img = image::RgbaImage::from_pixel(w, h, image::Rgba(bg));
+        for x in obj.0..obj.0 + obj.2 {
+            for y in obj.1..obj.1 + obj.3 {
+                img.put_pixel(x, y, image::Rgba([200, 30, 30, 255]));
+            }
+        }
+        let mut buf = Vec::new();
+        img.write_to(&mut std::io::Cursor::new(&mut buf), image::ImageFormat::Png).unwrap();
+        buf
+    }
+
+    /// 22-11-2026: a stove photographed with air above and below.
+    #[test]
+    fn the_background_around_the_object_is_cut_away() {
+        let grey = png_with_object(100, 140, (20, 30, 60, 80), [210, 210, 210, 255]);
+        let (_, w, h) = trim_border(&grey, true).expect("grey border trimmed");
+        assert_eq!((w, h), (64, 84), "object plus 2 px each side");
+        let clear = png_with_object(100, 140, (10, 10, 30, 30), [0, 0, 0, 0]);
+        let (cut, w, h) = trim_border(&clear, true).expect("transparent border trimmed");
+        assert_eq!((w, h), (34, 34));
+        assert!(image::load_from_memory(&cut).unwrap().color().has_alpha(), "stays a PNG with alpha");
+        let full = png_with_object(100, 140, (1, 1, 98, 138), [210, 210, 210, 255]);
+        assert!(trim_border(&full, true).is_none(), "already filling the frame");
+        let busy = png_with_object(100, 140, (0, 0, 10, 10), [210, 210, 210, 255]);
+        assert!(trim_border(&busy, true).is_none(), "corners that disagree: no background to trust");
     }
 }
 

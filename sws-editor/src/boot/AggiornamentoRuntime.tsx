@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { api, novitaNellaLingua, type NovitaVersione, type StatoAggiornamento } from "@/api/client";
+import { api, novitaNellaLingua, novitaRaccolte, type NovitaVersione, type StatoAggiornamento } from "@/api/client";
 import { FinestraAggiornamento } from "./FinestraAggiornamento";
 import { useAppStore } from "@/store";
 import { conferma } from "@/finestraAvviso/finestraAvviso";
@@ -110,7 +110,7 @@ export function AggiornamentoRuntime() {
     // Con avvisi di compatibilità si chiede una conferma in più (decisione
     // 43): quegli avvisi dicono che dopo l'aggiornamento qualcosa va rifatto,
     // e una sola conferma la si dà per abitudine.
-    const avvisi = (stato.novita ?? [])
+    const avvisi = novitaRaccolte(stato.novita)
       .filter((n) => nl(n).compatibilita)
       .map((n) => `${n.versione}: ${nl(n).compatibilita}`);
     return avvisi.length === 0
@@ -213,7 +213,7 @@ export function AggiornamentoRuntime() {
           l'unica parte per cui vale la pena fermarsi. */}
       {!avviato && !giaPartito && !errore && (stato?.novita?.length ?? 0) > 0 && (
         <div style={{ marginTop: 8, borderLeft: "2px solid var(--brand-surface-2, #334155)", paddingLeft: 8 }}>
-          {stato!.novita!.map((n) => (
+          {novitaRaccolte(stato!.novita).map((n) => (
             <div key={n.versione} style={{ marginBottom: 8 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: "var(--brand-text-2, #cbd5e1)" }}>
                 {n.versione}

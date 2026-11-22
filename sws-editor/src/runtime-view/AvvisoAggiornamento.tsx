@@ -28,7 +28,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { api, novitaNellaLingua, type NovitaVersione, type SceltaConferma, type StatoAggiornamento, type StatoConferma, type StatoQuadlet } from "@/api/client";
+import { api, novitaNellaLingua, novitaRaccolte, type NovitaVersione, type SceltaConferma, type StatoAggiornamento, type StatoConferma, type StatoQuadlet } from "@/api/client";
 import { useLinguaContenuti } from "@/i18n/linguaContenuti";
 import { testoSistema, testoSistemaCon } from "@/i18n/testiSistema";
 import { useAppStore } from "@/store";
@@ -368,7 +368,7 @@ export function AvvisoAggiornamento() {
   if (chiuso || !nuova) return null;
   if (versioneIgnorata() === nuova || stato?.versione_ignorata === nuova) return null;
 
-  const avvisi = (stato?.novita ?? []).filter((n) => nl(n).compatibilita);
+  const avvisi = novitaRaccolte(stato?.novita).filter((n) => nl(n).compatibilita);
 
   // Ignorare è una scelta che vale per tutti quelli che passano davanti al
   // pannello: la ricorda il runtime, e la chiede a un Admin.
@@ -441,7 +441,7 @@ export function AvvisoAggiornamento() {
             </button>
             {novitaAperte && (
               <div style={{ marginTop: 6, maxHeight: "32vh", overflowY: "auto" }}>
-                {stato!.novita!.map((n) => (
+                {novitaRaccolte(stato!.novita).map((n) => (
                   <div key={n.versione} style={{ marginBottom: 8 }}>
                     <div style={{ fontSize: 12, fontWeight: 700, color: "var(--brand-text-2, #cbd5e1)" }}>{n.versione}</div>
                     <div style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", whiteSpace: "pre-wrap" }}>{nl(n).testo}</div>

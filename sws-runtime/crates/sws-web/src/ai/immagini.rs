@@ -221,9 +221,14 @@ pub async fn genera(
 
 /// What a photo for a symbol is (plan `2026-11-21-simboli-fase-3-foto`): one
 /// object, whole, that the symbol draws its live parts over.
+///
+/// The object fills the frame edge to edge (22-11-2026: photos came back with
+/// air above and below, and the symbol showed empty bands); the background left
+/// around it is trimmed anyway when the photo is saved (`trim_border`).
 const DA_SIMBOLO: &str = " A photograph of one single industrial object, to be used as a symbol on a \
-    supervision screen: the whole object, centred, nothing cut off, seen from the front, even soft \
-    light, no shadow on the ground. No text, no labels, no logos, no people, no watermark.";
+    supervision screen: the whole object, centred, nothing cut off, filling the frame edge to edge \
+    with only a hair of margin, seen from the front, even soft light, no shadow on the ground. No \
+    text, no labels, no logos, no people, no watermark.";
 
 /// A photo for a project symbol: `descrizione` → a PNG with a transparent
 /// background from the OpenAI models that can (`supports_transparency`), a JPEG

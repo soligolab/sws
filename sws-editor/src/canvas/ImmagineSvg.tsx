@@ -20,7 +20,7 @@
  *  IDE senza utenti) l'URL resta com'è: lì funziona già. */
 import { useEffect, useState } from "react";
 import type { CSSProperties, ImgHTMLAttributes, SVGProps } from "react";
-import { getAuthToken, getBaseUrl } from "@/api/client";
+import { baseDi, getAuthToken } from "@/api/client";
 import { prefissoGateway, prefissoSchermo } from "@/api/prefisso";
 import { hrefDaDisegnare, immagineCaricata, useGiroImmagini } from "@/canvas/immaginiInSospeso";
 
@@ -65,7 +65,9 @@ export function scaricaImmagine(href: string): Promise<string | null> {
   const headers = new Headers();
   const tok = getAuthToken();
   if (tok && tok !== "no-auth") headers.set("Authorization", `Bearer ${tok}`);
-  const p = fetch(`${getBaseUrl()}${href}`, { headers })
+  // `baseDi`: in the cloud the company library's photos are the gateway's,
+  // not the project's (22-11-2026, library previews).
+  const p = fetch(`${baseDi(href)}${href}`, { headers })
     .then((r) => (r.ok ? r.blob() : null))
     .then((b) => {
       if (!b) return null;
