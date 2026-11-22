@@ -32,11 +32,13 @@ import {
   removeInput, renamePart, reorderOp, resizeSymbol, saveAsCopy, setExtra, setFill, setGeo, setPartGeo, setPathD,
   setPort, setVeil, transformOps, turnMatrix, union, validPathD, validPortId, validSize, INPUT_KINDS, SIDES,
   animateSelection, setPartParam, newImage, setImageOpacity, nothingDrawn, draws,
+  groupOf, groupOps, membersOf, stripOldEffects, ungroupOps,
   type Affine, type AlignMode, type Box, type InputKind, type Layer, type Op, type Port, type Side,
 } from "./model";
 import { predefinito } from "@/coloriPredefiniti";
-import type { ValoreParte } from "@/symbols/lib/libreria";
+import { valoriParti, type ValoreParte } from "@/symbols/lib/libreria";
 import { AnimateBlock, AnimationProps } from "./AnimationProps";
+import { FxProps } from "./FxProps";
 import { AiPanel } from "./AiPanel";
 import { AiPhoto } from "./AiPhoto";
 import { bindingsOnParts, pipesOnPorts, svgWarningLines, takenSlugs, usage, withSymbol, withoutSymbol, writeSymbols, type SymbolEditorTarget } from "./open";
@@ -131,7 +133,11 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
   const manifesto = useManifestoLib();
   const projectStyle = useStileProgetto();
 
-  const [hist, setHist] = useState<History>({ past: [], present: target.draft, future: [] });
+  // The effect parts of the rc.22-rc.28 are gone (22-11-2026): taken out at
+  // the opening, and said once.
+  const [cleaned] = useState(() => stripOldEffects(target.draft));
+  const [hist, setHist] = useState<History>({ past: [], present: cleaned.d, future: [] });
+  const [oldFx, setOldFx] = useState(cleaned.removed);
   const d = hist.present;
   const [saved, setSaved] = useState<DescrizioneSimbolo | null>(target.isNew ? null : target.draft);
   const [savedSlug, setSavedSlug] = useState(target.draft.slug);
@@ -263,9 +269,12 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
   useEffect(() => { groupedLayers.set(savedSlug, grouped); }, [grouped, savedSlug]);
   /** What a click on the canvas picks: the shape, or the whole grouped layer. */
   const unitOf = useCallback((i: number): number[] => {
+    // A shape of a group picks the whole group (22-11-2026).
+    const g = groupOf((d.ops as Op[])[i]);
+    if (g) return membersOf(d, g);
     const l = layerOf(i);
     return l && grouped.has(l.id) ? l.ops.filter((j) => j === i || boxes.has(j)) : [i];
-  }, [layerOf, grouped, boxes]);
+  }, [layerOf, grouped, boxes, d]);
   const offsets = useMemo(
     () => (explode.on
       ? explodedOffsets(boxes, [d.w / 2, d.h / 2], explode.k, Math.max(d.w, d.h), ls.filter((l) => grouped.has(l.id)).map((l) => l.ops))
@@ -828,6 +837,8 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
       else if (mod && (k === "y" || (k === "z" && e.shiftKey))) { e.preventDefault(); redo(); }
       else if (mod && k === "d") { e.preventDefault(); dup(); }
       else if (mod && k === "a") { e.preventDefault(); selectAll(); }
+      else if (mod && k === "g" && e.shiftKey) { e.preventDefault(); if (sel.length) commit(ungroupOps(d, sel)); }
+      else if (mod && k === "g") { e.preventDefault(); if (drawing(sel).length > 1) commit(groupOps(d, drawing(sel)).d); }
       else if (mod && k === "c") { e.preventDefault(); copy(false); }
       else if (mod && k === "x") { e.preventDefault(); copy(true); }
       else if (mod && k === "v") {
@@ -1019,6 +1030,12 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
       else if (p.kind === "slide") partValues[p.id] = { frazione: typeof v === "number" ? v : 0 };
       else if (p.kind === "vibrate" || p.kind === "pulse") partValues[p.id] = { active: !!v };
       else if (p.kind === "signal") partValues[p.id] = { entry: typeof v === "number" && v >= 0 ? v : null };
+    }
+    // The effects follow their input's test value (22-11-2026), as on a page.
+    if (compiled.voce) {
+      const fx = compiled.voce.parts.filter((p) => p.kind === "glow" || p.kind === "bubbles" || p.kind === "smoke" || p.kind === "flame");
+      const legami = Object.fromEntries(Object.entries(preview.parts).map(([k, v]) => [k, { value: v }]));
+      Object.assign(partValues, valoriParti(fx, legami, () => undefined));
     }
   }
 
@@ -1348,6 +1365,12 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
               {t("symbolEditor.drawFirst")}
             </div>
           )}
+          {oldFx > 0 && (
+            <div data-testid="symbol-editor-old-fx" style={{ borderTop: `1px solid ${C.border}`, padding: 8, color: C.muted, fontSize: 12, display: "flex", gap: 8 }}>
+              <span style={{ flex: 1 }}>{t("symbolEditor.fx.oldRemoved", { n: oldFx })}</span>
+              <button type="button" style={button} onClick={() => setOldFx(0)}>✕</button>
+            </div>
+          )}
           {compiled.errors.length > 0 && !nothingDrawn(d) && (
             <div data-testid="symbol-editor-errors" style={{ borderTop: `1px solid ${C.border}`, padding: 8, color: C.danger, maxHeight: 120, overflow: "auto" }}>
               <strong>{t("symbolEditor.errors")}</strong>
@@ -1381,6 +1404,7 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
                 </Section>
               ) : (
                 <PieceProps d={d} sel={sel} one={one} layer={oneLayer} layers={ls} catalog={catalog} commit={commit}
+                  fx={<FxProps d={d} sel={sel} commit={commit} setSel={setSel} />}
                   onDup={dup} onDel={del} onReorder={(dir) => { const r = reorderOp(d, sel[0], dir); commit(r.d); setSel([r.at]); }}
                   onMoveToLayer={(id) => {
                     const r = id === NEW_LAYER ? moveToNewLayer(d, drawing(sel)) : moveToLayer(d, drawing(sel), id);
@@ -1516,7 +1540,7 @@ function MaterialSelect({ value, catalog, onChange }: { value: string; catalog: 
   );
 }
 
-function PieceProps({ d, sel, one, layer, layers: ls, catalog, commit, onDup, onDel, onReorder, onMoveToLayer, animation, transform }: {
+function PieceProps({ d, sel, one, layer, layers: ls, catalog, commit, onDup, onDel, onReorder, onMoveToLayer, animation, transform, fx }: {
   d: DescrizioneSimbolo; sel: number[]; one?: Op; layer?: Layer; layers: Layer[]; catalog: Catalog | null;
   commit: (d: DescrizioneSimbolo) => void; onDup: () => void; onDel: () => void; onReorder: (dir: 1 | -1) => void;
   onMoveToLayer: (layerId: string) => void;
@@ -1524,6 +1548,8 @@ function PieceProps({ d, sel, one, layer, layers: ls, catalog, commit, onDup, on
   animation?: React.ReactNode;
   /** Turn, flip, align and distribute (`TransformBlock`). */
   transform?: React.ReactNode;
+  /** Group, effects and mask (`FxProps`, 22-11-2026). */
+  fx?: React.ReactNode;
 }) {
   const { t } = useTranslation();
   if (!sel.length) return <p style={{ ...note, padding: `${SPAZIO.m}px ${SPAZIO.m + 2}px` }}>{t("symbolEditor.noSelection")}</p>;
@@ -1549,7 +1575,7 @@ function PieceProps({ d, sel, one, layer, layers: ls, catalog, commit, onDup, on
   );
   const anim = animation && <Section id="animation" title={t("symbolEditor.anim.animation")}>{animation}</Section>;
   const turnAlign = transform && <Section id="transform" title={t("symbolEditor.section.transform")}>{transform}</Section>;
-  if (!one) return <>{head(t("symbolEditor.manySelected", { n: sel.length }))}{anim}{turnAlign}{arrange}</>;
+  if (!one) return <>{head(t("symbolEditor.manySelected", { n: sel.length }))}{anim}{fx}{turnAlign}{arrange}</>;
   const i = sel[0];
   const fill = fillOf(one);
   const geo = Array.isArray(one.geo) ? (one.geo as [string, number | string][]) : [];
@@ -1568,6 +1594,7 @@ function PieceProps({ d, sel, one, layer, layers: ls, catalog, commit, onDup, on
       {head(<>{opLabel(one, t)} #{i + 1}
         {layer && <span style={{ color: C.subtle, fontWeight: 400 }}> · {layerLabel(layer, t)}</span>}</>)}
       {anim}
+      {fx}
       {(numbers.length > 0 || isLine || (isShape && one.tag === "path")) && (
         <Section id="geometry" title={t("symbolEditor.section.geometry")}>
           {numbers.map(([k, v]) => (
@@ -1792,6 +1819,10 @@ function TryProps({ d, parts, hasState, preview, setPreview }: {
                 onChange={(e) => part(p.id, e.target.checked)} />
               {t("symbolEditor.try.moves")}
             </label>
+          )}
+          {p.kind === "input" && (
+            <Num value={typeof preview.parts[p.id] === "number" ? (preview.parts[p.id] as number) : 0} step={1}
+              onChange={(v) => part(p.id, v)} />
           )}
           {p.kind === "signal" && (
             <select style={input} data-testid={`symbol-try-${p.id}`} aria-label={t("symbolEditor.try.entry")}

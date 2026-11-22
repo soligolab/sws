@@ -791,6 +791,9 @@ pub fn prepara_con_foto(
             // The moving effects (plan 2026-11-21-simboli-fase-8-effetti): the
             // layer's own shapes still, the effect in frames over them.
             Some(p) if sws_core::symbol_fx::fx_box(p).is_some() => {
+                // A flame of shapes (22-11-2026): its shapes still under it,
+                // and its frames are the same shapes flickering over them.
+                let fiamma = matches!(p, ParteLib::Flame { .. });
                 if let Some(b) = rasterizza(&svg1, q, None) {
                     out.push(PezzoStrato::Fermo(b));
                 }
@@ -815,7 +818,12 @@ pub fn prepara_con_foto(
                 }
                 let fotogrammi: Vec<Vec<u8>> = (0..n)
                     .filter_map(|k| {
-                        let el = sws_core::symbol_fx::fx_elements(p, k as f64 / n as f64)?;
+                        let t = k as f64 / n as f64;
+                        let el = if fiamma {
+                            sws_core::symbol_fx::flame_of_shapes(p, markup, t)?
+                        } else {
+                            sws_core::symbol_fx::fx_elements(p, t)?
+                        };
                         let svgk = format!("{}<g>{el}</g>\n</svg>\n", d.testa);
                         rasterizza(&svgk, q, Some(dove)).map(|b| b.buf)
                     })
@@ -1214,9 +1222,16 @@ mod tests {
                     let halo = svg_alone("", mk, s.view_box, *radius, color.as_deref());
                     body.push_str(halo.trim_end_matches("</svg>\n"));
                 }
-                body.push_str(mk);
-                if let Some(el) = s.parts.iter().find(|p| p.id() == id).and_then(|p| sws_core::symbol_fx::fx_elements(p, t)) {
-                    body.push_str(&format!("<g>{el}</g>\n"));
+                let parte = s.parts.iter().find(|p| p.id() == id);
+                // A flame of shapes: its own shapes flickering, as `prepara` does.
+                match parte.and_then(|p| sws_core::symbol_fx::flame_of_shapes(p, mk, t)) {
+                    Some(f) => body.push_str(&f),
+                    None => {
+                        body.push_str(mk);
+                        if let Some(el) = parte.and_then(|p| sws_core::symbol_fx::fx_elements(p, t)) {
+                            body.push_str(&format!("<g>{el}</g>\n"));
+                        }
+                    }
                 }
             }
             let svg = format!("{}{body}</svg>\n", parts.testa);
@@ -1248,25 +1263,26 @@ mod tests {
         else {
             panic!("the bubbles")
         };
-        assert_eq!(id, "tank-bubbles");
+        // Effects of groups (22-11-2026): the bubbles of the tank «vasca».
+        assert_eq!(id, "fx-2");
         assert_eq!(*period_ms, 1800.0);
         assert_eq!(fotogrammi.len(), sws_core::symbol_fx::FX_FRAMES);
-        assert!((78..=82).contains(&dove.w) && (88..=92).contains(&dove.h), "{dove:?}");
+        assert!((62..=68).contains(&dove.w) && (78..=84).contains(&dove.h), "{dove:?}");
         assert_ne!(fotogrammi[0], fotogrammi[4]);
         assert!(fotogrammi.iter().all(|f| f.iter().any(|b| *b != 0)));
         // The smoke too, in a box wider than its part (the puffs grow).
         let Some(PezzoStrato::Effetto { dove, .. }) = p
             .strati
             .iter()
-            .find(|x| matches!(x, PezzoStrato::Effetto { id, .. } if id == "chimney"))
+            .find(|x| matches!(x, PezzoStrato::Effetto { id, .. } if id == "fx-3"))
         else {
             panic!("the smoke")
         };
-        assert!(dove.w > 48, "{dove:?}");
+        assert!(dove.w > 40, "{dove:?}");
         let Some(PezzoStrato::Effetto { fotogrammi, period_ms, .. }) = p
             .strati
             .iter()
-            .find(|x| matches!(x, PezzoStrato::Effetto { id, .. } if id == "burner"))
+            .find(|x| matches!(x, PezzoStrato::Effetto { id, .. } if id == "fx-4"))
         else {
             panic!("the flame")
         };

@@ -17,9 +17,12 @@ type Pairs = [string, number | string][];
 export type InputKind = "state" | "level" | "rotor" | "needle" | "lever" | "lamp"
   // The animated pieces (plan docs/archive/2026-11-19-animazioni-dei-simboli.md).
   | "slide" | "vibrate" | "pulse" | "signal"
-  // The effects (plan docs/plans/2026-11-21-simboli-fase-8-effetti.md).
-  | "glow" | "bubbles" | "smoke" | "flame";
-export const INPUT_KINDS: InputKind[] = ["state", "level", "rotor", "needle", "lever", "lamp", "slide", "vibrate", "pulse", "signal", "glow", "bubbles", "smoke", "flame"];
+  // The effect parts of the rc.22-rc.28: gone (22-11-2026), kept in the type
+  // only so an old symbol can be read and cleaned (`stripOldEffects`).
+  | "glow" | "bubbles" | "smoke" | "flame"
+  // An input with no layer, that only effects follow (22-11-2026).
+  | "input";
+export const INPUT_KINDS: InputKind[] = ["state", "level", "rotor", "needle", "lever", "lamp", "slide", "vibrate", "pulse", "signal", "input"];
 
 /** What «Anima…» offers, by family (the lamp is a signal now: not offered,
  *  but the symbols that have one keep it). */
@@ -28,7 +31,6 @@ export const ANIMATE_FAMILIES: { family: string; kinds: InputKind[] }[] = [
   { family: "colour", kinds: ["signal"] },
   { family: "movement", kinds: ["slide", "level"] },
   { family: "vibration", kinds: ["vibrate", "pulse"] },
-  { family: "effects", kinds: ["glow", "bubbles", "smoke", "flame"] },
 ];
 
 export interface Layer {
@@ -75,6 +77,7 @@ export function inputs(d: DescrizioneSimbolo): SymbolInput[] {
   (d.ops as Op[]).forEach((op, i) => {
     if (op.op === "corpo") out.push({ id: "state", kind: "state", op: i });
     else if (op.op === "parte") out.push({ id: String(op.id), kind: op.kind as InputKind, op: i });
+    else if (op.op === "ingresso") out.push({ id: String(op.id), kind: "input", op: i });
   });
   return out;
 }
@@ -164,9 +167,15 @@ export function transformOp(op: Op, a: Affine): Op {
   switch (op.op) {
     case "forma": case "luce": case "riflesso":
       return { ...op, geo: transformGeo(String(op.tag), op.geo as Pairs, a) };
-    // A photo moves and resizes like a rectangle (plan 2026-11-21-simboli-fase-3-foto).
-    case "image":
-      return { ...op, geo: transformGeo("rect", op.geo as Pairs, a) };
+    // A photo moves and resizes like a rectangle (plan 2026-11-21-simboli-fase-3-foto),
+    // and the shape it is cut to with it (22-11-2026).
+    case "image": {
+      const clip = op.clip as { tag: string; geo: Pairs } | undefined;
+      return {
+        ...op, geo: transformGeo("rect", op.geo as Pairs, a),
+        ...(clip ? { clip: { ...clip, geo: transformGeo(clip.tag, clip.geo, a) } } : {}),
+      };
+    }
     case "tratto":
       return { ...op, d: transformPath(String(op.d), a) };
     case "parte": {
@@ -227,7 +236,10 @@ export function transformOps(d: DescrizioneSimbolo, which: number[], a: Affine):
 
 export function deleteOps(d: DescrizioneSimbolo, which: number[]): DescrizioneSimbolo {
   const set = new Set(which);
-  return withOps(d, (d.ops as Op[]).filter((_, i) => !set.has(i)));
+  const left = (d.ops as Op[]).filter((_, i) => !set.has(i));
+  // An effect whose group lost all its shapes goes with them.
+  const groups = new Set(left.map(groupOf).filter((g): g is string => !!g));
+  return withOps(d, left.filter((op) => op.op !== "effetto" || groups.has(String(op.group))));
 }
 
 /** Copies of `which`, right after the last of them, moved by `offset`. */
@@ -1036,3 +1048,172 @@ export function validSize(n: number): number {
 }
 
 export { getPair };
+
+// ── groups, effects and photo masks (22-11-2026) ───────────────────────────
+//
+// The maintainer, at the rc.28 test run: the effects «dovrebbero essere
+// proprietà che posso assegnare ad oggetti o gruppi di oggetti». A group is
+// the shapes with the same `group`; an effect is an `effetto` operation that
+// names a group and the input it follows. A photo can be cut to a shape: the
+// shape goes inside the photo's `clip` (compiled into a clip path).
+
+export type FxKind = "glow" | "flame" | "smoke" | "bubbles";
+export const FX_KINDS: FxKind[] = ["glow", "flame", "smoke", "bubbles"];
+
+export interface FxOp {
+  op: "effetto";
+  kind: FxKind;
+  group: string;
+  input: string;
+  when?: { op: "gt" | "ge" | "lt" | "le" | "eq" | "ne"; value: number };
+  level?: { min: number; max: number };
+  color?: string;
+  period_ms?: number;
+  count?: number;
+  radius?: number;
+}
+
+export function groupOf(op: Op | undefined): string | undefined {
+  return op && typeof op.group === "string" && op.group ? op.group : undefined;
+}
+
+/** The operations of group `g`. */
+export function membersOf(d: DescrizioneSimbolo, g: string): number[] {
+  return (d.ops as Op[]).flatMap((op, i) => (groupOf(op) === g ? [i] : []));
+}
+
+export function freeGroupId(d: DescrizioneSimbolo): string {
+  const used = new Set((d.ops as Op[]).map(groupOf));
+  let n = 1;
+  while (used.has(`g${n}`)) n++;
+  return `g${n}`;
+}
+
+/** The drawings of `which` in one new group; the effects of the groups they
+ *  came from follow the first of them. */
+export function groupOps(d: DescrizioneSimbolo, which: number[]): { d: DescrizioneSimbolo; group: string } {
+  const ops = d.ops as Op[];
+  const drawn = which.filter((i) => draws(ops[i]));
+  const before = [...new Set(drawn.map((i) => groupOf(ops[i])).filter((g): g is string => !!g))];
+  const group = before[0] ?? freeGroupId(d);
+  const set = new Set(drawn);
+  const out = ops.map((op, i) => {
+    if (set.has(i)) return { ...op, group };
+    if (op.op === "effetto" && before.includes(String(op.group))) return { ...op, group };
+    return op;
+  });
+  // Two glows (or a glow and a flame) on one group are refused: keep the first.
+  let shaped = false;
+  const dedup = out.filter((op) => {
+    if (op.op !== "effetto" || op.group !== group || (op.kind !== "glow" && op.kind !== "flame")) return true;
+    if (shaped) return false;
+    shaped = true;
+    return true;
+  });
+  return { d: withOps(d, dedup), group };
+}
+
+/** The drawings of `which` out of their group; effects left without shapes go. */
+export function ungroupOps(d: DescrizioneSimbolo, which: number[]): DescrizioneSimbolo {
+  const set = new Set(which);
+  const ops = (d.ops as Op[]).map((op, i) => {
+    if (!set.has(i) || !groupOf(op)) return op;
+    const { group: _g, ...rest } = op;
+    return rest as Op;
+  });
+  const groups = new Set(ops.map(groupOf).filter((g): g is string => !!g));
+  return withOps(d, ops.filter((op) => op.op !== "effetto" || groups.has(String(op.group))));
+}
+
+/** The effects of group `g`, with where they are. */
+export function effectsOf(d: DescrizioneSimbolo, g: string | undefined): { at: number; fx: FxOp }[] {
+  if (!g) return [];
+  return (d.ops as Op[]).flatMap((op, at) => (op.op === "effetto" && op.group === g ? [{ at, fx: op as unknown as FxOp }] : []));
+}
+
+/** The ids an effect may follow: the parts and the inputs without a layer. */
+export function inputIds(d: DescrizioneSimbolo): string[] {
+  return inputs(d).filter((i) => i.kind !== "state").map((i) => i.id);
+}
+
+/** A new input with no layer, at the start (it opens nothing). */
+export function addIngresso(d: DescrizioneSimbolo, wanted?: string): { d: DescrizioneSimbolo; id: string } {
+  const taken = new Set(inputIds(d));
+  let id = wanted && /^[a-z0-9-]{2,30}$/.test(wanted) && !taken.has(wanted) && !wanted.startsWith("fx-") ? wanted : "";
+  for (let n = 1; !id; n++) if (!taken.has(`input-${n}`)) id = `input-${n}`;
+  return { d: withOps(d, [{ op: "ingresso", id }, ...(d.ops as Op[])]), id };
+}
+
+/** An effect for the drawings of `which`: they become a group if they aren't
+ *  one already. A glow or a flame replaces the other on the same group. */
+export function addEffect(d: DescrizioneSimbolo, which: number[], kind: FxKind, input: string): { d: DescrizioneSimbolo; group: string } {
+  const ops = d.ops as Op[];
+  const drawn = which.filter((i) => draws(ops[i]));
+  const groups = [...new Set(drawn.map((i) => groupOf(ops[i])))];
+  let cur = d, group: string;
+  if (groups.length === 1 && groups[0] && membersOf(d, groups[0]).every((i) => drawn.includes(i))) {
+    group = groups[0];
+  } else {
+    const r = groupOps(d, drawn);
+    cur = r.d;
+    group = r.group;
+  }
+  let list = cur.ops as Op[];
+  if (kind === "glow" || kind === "flame") {
+    list = list.filter((op) => !(op.op === "effetto" && op.group === group && (op.kind === "glow" || op.kind === "flame")));
+  }
+  const fx: FxOp = { op: "effetto", kind, group, input };
+  if (kind === "glow") { fx.color = "#22d3ee"; fx.radius = 4; }
+  if (kind === "bubbles") fx.count = 6;
+  return { d: withOps(cur, [...list, fx as unknown as Op]), group };
+}
+
+export function setEffect(d: DescrizioneSimbolo, at: number, patch: Partial<FxOp>): DescrizioneSimbolo {
+  const ops = [...(d.ops as Op[])];
+  if (ops[at]?.op !== "effetto") return d;
+  const next: Record<string, unknown> = { ...ops[at], ...patch };
+  for (const k of Object.keys(patch)) if ((patch as Record<string, unknown>)[k] === undefined) delete next[k];
+  ops[at] = next as Op;
+  return withOps(d, ops);
+}
+
+export function removeEffect(d: DescrizioneSimbolo, at: number): DescrizioneSimbolo {
+  return withOps(d, (d.ops as Op[]).filter((_, i) => i !== at));
+}
+
+/** Photo `photo` cut to shape `shape` («Ritaglia con la forma»): the shape
+ *  is no longer drawn, it is the photo's clip. */
+export function clipPhoto(d: DescrizioneSimbolo, photo: number, shape: number): DescrizioneSimbolo {
+  const ops = [...(d.ops as Op[])];
+  const p = ops[photo], s = ops[shape];
+  if (p?.op !== "image" || s?.op !== "forma") return d;
+  ops[photo] = { ...p, clip: { tag: s.tag, geo: s.geo } };
+  ops.splice(shape, 1);
+  return withOps(d, ops);
+}
+
+/** «Togli ritaglio»: the shape comes back, right after the photo, outlined. */
+export function unclipPhoto(d: DescrizioneSimbolo, photo: number): DescrizioneSimbolo {
+  const ops = [...(d.ops as Op[])];
+  const p = ops[photo];
+  const clip = p?.clip as { tag: string; geo: unknown } | undefined;
+  if (p?.op !== "image" || !clip) return d;
+  const { clip: _c, ...rest } = p;
+  ops[photo] = rest as Op;
+  ops.splice(photo + 1, 0, { op: "forma", tag: clip.tag, geo: clip.geo, extra: { fill: "none" } });
+  return withOps(d, ops);
+}
+
+/** The effect parts of before (rc.22-rc.28) taken out: their layer stays,
+ *  as a still one. How many there were, to say so. */
+export function stripOldEffects(d: DescrizioneSimbolo): { d: DescrizioneSimbolo; removed: number } {
+  let removed = 0;
+  const ops = (d.ops as Op[]).map((op) => {
+    if (op.op === "parte" && ["glow", "bubbles", "smoke", "flame"].includes(String(op.kind))) {
+      removed++;
+      return { op: "statico" } as Op;
+    }
+    return op;
+  });
+  return { d: removed ? withOps(d, ops) : d, removed };
+}

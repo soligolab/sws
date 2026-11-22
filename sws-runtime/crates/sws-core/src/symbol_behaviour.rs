@@ -154,7 +154,9 @@ pub fn valori_parti<'a>(
 ) -> Vec<(String, ValoreParte)> {
     let mut out = Vec::new();
     for p in parti {
-        let l = legami.and_then(|m| m.get(p.id()));
+        // An effect follows its input (22-11-2026): the binding is that one's.
+        let key = p.fx_input().and_then(|(i, _)| i).unwrap_or(p.id());
+        let l = legami.and_then(|m| m.get(key));
         let tag = l
             .and_then(|l| l.get("tag"))
             .and_then(|t| t.as_str())
@@ -200,13 +202,18 @@ pub fn valori_parti<'a>(
             ParteLib::Slide { .. } => {
                 ValoreParte::Frazione(fraction(num("min", 0.0), num("max", 1.0)))
             }
-            ParteLib::Vibrate { .. }
-            | ParteLib::Pulse { .. }
-            | ParteLib::Glow { .. }
+            ParteLib::Vibrate { .. } | ParteLib::Pulse { .. } => {
+                ValoreParte::Active(v.map(Scalar::truthy))
+            }
+            ParteLib::Glow { .. }
             | ParteLib::Bubbles { .. }
             | ParteLib::Smoke { .. }
             | ParteLib::Flame { .. } => {
-                ValoreParte::Active(v.map(Scalar::truthy))
+                let when = p.fx_input().and_then(|(_, w)| w);
+                ValoreParte::Active(v.map(|v| match when {
+                    Some(w) => v.number().is_some_and(|n| w.holds(n)),
+                    None => v.truthy(),
+                }))
             }
             ParteLib::Signal { entries, .. } => {
                 ValoreParte::Entry(v.and_then(|v| signal_entry(entries, v)))

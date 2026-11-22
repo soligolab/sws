@@ -48,6 +48,26 @@ si stabilizza su `release/2.26` (piano `docs/plans/2026-11-22-dev-rc-release-e-p
 Il lavoro dalla 2.25.2 alla 2.26.0-rc.26. Le correzioni della stabilizzazione si fanno su `release/2.26` e si
 riportano qui con `cherry-pick`; la data arriva con la release.
 
+### Cambiato — gli effetti dei simboli come proprietà delle forme (22-11-2026, ramo `feat/symbol-fx-groups`)
+- Il maintainer, al collaudo della rc.28: gli effetti «dovrebbero essere proprietà che posso assegnare ad oggetti o
+  gruppi di oggetti». Le **parti effetto** della fase 8 (glow, bubbles, smoke, flame col loro riquadro) **non ci sono
+  più**: il compilatore disegna il loro strato fermo, le regole le rifiutano, l'editor le toglie all'apertura e lo dice.
+- **Gruppi**: il campo `group` su `forma`, `luce`, `riflesso`, `tratto`, `image`; Ctrl+G / Ctrl+Maiusc+G; un clic
+  sceglie il gruppo intero.
+- **`effetto`** `{kind, group, input, when?, level?, color?, period_ms?, count?, radius?}`: il compilatore ne fa una parte
+  del manifesto (`fx-N`) col riquadro calcolato dal gruppo (`path_box` per i tracciati). Bagliore e fiamma prendono nel
+  loro strato le forme del gruppo (l'alone attorno al contorno; la fiamma guizza dalla base, `flame_of_shapes` su LVGL e
+  `animateTransform` sul web con le stesse pose); il fumo esce dal bordo alto; le bollicine salgono dentro le forme,
+  tagliate da un `clipPath` del gruppo.
+- **`ingresso`** `{id}`: un ingresso senza strato (manifesto `kind: input`), legato in pagina come una parte. Un effetto
+  segue un ingresso o una parte; `when` (gt, ge, lt, le, eq, ne) decide quando è acceso, `level` l'intensità (sul web
+  meno sbuffi e bolle quando è bassa; sul pannello LVGL l'effetto è pieno). Valutatore condiviso in
+  `symbol_behaviour.rs` e `libreria.ts`.
+- **Foto ritagliata su una forma**: `image.clip {tag, geo}` diventa un `clipPath` nella testa del simbolo, che i due
+  motori portano in ogni strato; nell'editor «Ritaglia con la forma» (foto + forma scelte) e «Togli ritaglio».
+- La scheda **Prova** mostra gli effetti con il valore del loro ingresso (prima non li mostrava affatto). Lo schema
+  dell'IA conosce gruppi, ingressi, effetti e ritagli.
+
 ### Aggiunto — chi ha fatto l'accesso, nelle pagine e negli script (22-11-2026, ramo `feat/current-user`)
 - **`{{user.name}}`, `{{user.username}}`, `{{user.role}}`, `{{user.last_login}}`** in ogni testo delle pagine, risolti nel
   client dei due motori accanto a `{{sys:…}}` (`campoUtente` in `projectI18n.ts`, `user_field` in `lvgl_render.rs`),

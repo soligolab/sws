@@ -41,13 +41,26 @@ export type ParteLib =
   | { id: string; kind: "signal"; color?: string; entries?: SignalEntry[] }
   /** A glow (plan 2026-11-21-simboli-fase-8-effetti): while its input is true,
    *  a blurred halo of the part's shapes, in `color` or in theirs. */
-  | { id: string; kind: "glow"; color?: string; radius?: number }
-  /** Bubbles rising in the box while the input is true (`symbol_fx.rs`, `effects.tsx`). */
-  | { id: string; kind: "bubbles"; x: number; y: number; w: number; h: number; color?: string; count?: number; period_ms?: number }
+  | ({ id: string; kind: "glow"; color?: string; radius?: number } & FxInput)
+  /** Bubbles rising in the box while the input is true (`symbol_fx.rs`, `effects.tsx`);
+   *  `clip`: the clip path of their group's shapes, in the symbol's head. */
+  | ({ id: string; kind: "bubbles"; x: number; y: number; w: number; h: number; color?: string; count?: number; period_ms?: number; clip?: string } & FxInput)
   /** Smoke or steam puffing up in the box while the input is true. */
-  | { id: string; kind: "smoke"; x: number; y: number; w: number; h: number; color?: string; period_ms?: number }
-  /** A flame flickering on the bottom of the box while the input is true. */
-  | { id: string; kind: "flame"; x: number; y: number; w: number; h: number; color?: string; period_ms?: number };
+  | ({ id: string; kind: "smoke"; x: number; y: number; w: number; h: number; color?: string; period_ms?: number } & FxInput)
+  /** A flame of shapes (22-11-2026): the layer's shapes flicker from the middle
+   *  of the base of the box while the input is true. */
+  | ({ id: string; kind: "flame"; x: number; y: number; w: number; h: number; color?: string; period_ms?: number } & FxInput)
+  /** An input of the symbol with no layer (22-11-2026): what effects follow. */
+  | { id: string; kind: "input" };
+
+/** What an effect follows (22-11-2026, effects as properties of shapes): the
+ *  input (a part's id or an `input`), when it is on (else: while true), and
+ *  the range of its intensity. Twin of `FxWhen`/`FxLevel` in `simboli_lib.rs`. */
+export interface FxInput {
+  input?: string;
+  when?: { op: "gt" | "ge" | "lt" | "le" | "eq" | "ne"; value: number };
+  level?: { min: number; max: number };
+}
 
 export type FillDir = "up" | "down" | "left" | "right";
 

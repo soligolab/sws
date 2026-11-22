@@ -69,7 +69,10 @@ export function isEffect(p: ParteLib | undefined): boolean {
 }
 
 /** The effect of part `p`, moving: drawn over its layer while its input is true. */
-export function EffectSvg({ p }: { p: ParteLib }) {
+export function EffectSvg({ p, intensity }: { p: ParteLib; intensity?: number }) {
+  // How strong (22-11-2026, an input with a range): fewer, fainter puffs and
+  // bubbles when low. The panel shows them full (declared in the manual).
+  const forza = intensity === undefined ? 1 : 0.3 + 0.7 * intensity;
   if (p.kind === "smoke") {
     const period = p.period_ms ?? 2000;
     const c = p.color ?? SMOKE_COLOUR;
@@ -83,7 +86,7 @@ export function EffectSvg({ p }: { p: ParteLib }) {
               <animate attributeName="cx" from={q.cx0} to={q.cx1} {...a} />
               <animate attributeName="cy" from={q.cy0} to={q.cy1} {...a} />
               <animate attributeName="r" from={q.r0} to={q.r1} {...a} />
-              <animate attributeName="opacity" values="0.6;0" {...a} />
+              <animate attributeName="opacity" values={`${0.6 * forza};0`} {...a} />
             </circle>
           );
         })}
@@ -105,7 +108,7 @@ export function EffectSvg({ p }: { p: ParteLib }) {
     );
   }
   if (p.kind !== "bubbles") return null;
-  const n = Math.max(1, Math.min(12, p.count ?? 6));
+  const n = Math.max(1, Math.min(12, Math.round((p.count ?? 6) * forza)));
   const period = `${p.period_ms ?? 2000}ms`;
   const c = p.color ?? BUBBLE_COLOUR;
   return (
