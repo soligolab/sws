@@ -30,8 +30,9 @@ per le correzioni della 2.26.0 (rc.27…), `main` a `2.27.0-dev.0`; le regole nu
 anomalie aperte del collaudo (Kimi, Modbus, log, 422) sono correzioni: si fanno su `fix/…` da `release/2.26`. «Dividere `sws-web`» è nel seme di
 riorganizzazione del codice.
 
-**Anomalie nuove dell'editor dei simboli (22-11-2026, il maintainer nell'IDE del cloud sulla rc.26)**, da correggere su
-un `fix/…` da `release/2.26` (rc.27) **dopo** la parte 2 del piano dev/rc/release («Prima finisco la parte 2»):
+**Anomalie nuove dell'editor dei simboli (22-11-2026, il maintainer nell'IDE del cloud sulla rc.26)**: **corrette** sul
+ramo `fix/symbol-editor-rc27` da `release/2.26` (istantanee in `tmp/editor-simboli-rc27/`), in attesa del via per la
+rc.27. Per Kimi la correzione dice il perché, non lo risolve: la prossima volta il registro mostra `stop_reason`.
 1. **«Genera foto» genera la foto ma la tela resta vuota.** La tela disegna solo l'ultimo SVG che compila
    (`SymbolEditor.tsx`, `compiled.svg`); il compilatore rifiuta un simbolo senza forme nel corpo (`simboli_prj.rs`,
    «manca lo strato body»); «Genera foto» mette la foto in uno strato fisso sotto il disegno. Nel simbolo nuovo

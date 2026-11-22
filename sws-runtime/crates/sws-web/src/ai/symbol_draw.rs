@@ -254,7 +254,21 @@ pub(crate) async fn draw(
         let (answer, usage) =
             client::ask_shaped(http, choice, system, &messages, MAX_TOKENS, Some(&shape))
                 .await
-                .map_err(|e| DrawError::Provider(format!("{e:#}")))?;
+                .map_err(|e| {
+                    // After refused attempts, say what was refused too: the
+                    // provider's failure alone (22-11-2026, Kimi at the third
+                    // attempt) hid two drawings that almost passed.
+                    let before = if last.is_empty() {
+                        String::new()
+                    } else {
+                        format!(
+                            " — al tentativo {attempt}; i precedenti erano stati rifiutati: {}",
+                            last.join("; ")
+                        )
+                    };
+                    tracing::warn!(attempt, error = %format!("{e:#}"), refused_before = ?last, "symbol drawing: no answer");
+                    DrawError::Provider(format!("{e:#}{before}"))
+                })?;
         let cost = price_list::cost_usd(
             &s.config_dir,
             choice.fornitore,

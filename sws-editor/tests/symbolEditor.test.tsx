@@ -68,6 +68,42 @@ describe("symbol editor", () => {
     expect(useAppStore.getState().project?.simboli?.map((s) => s.slug)).toEqual(["new-symbol"]);
   });
 
+  it("an empty layer clicked in the list becomes where new shapes go, also when it is not the last one", async () => {
+    act(() => useAppStore.getState().openSymbolEditor({
+      draft: { slug: "stufa", w: 100, h: 100, body: "body-pump", it: "S", en: "S",
+        ops: [newRect({ x: 10, y: 10, w: 20, h: 20 }), { op: "corpo" }, { op: "statico" }, newRect({ x: 50, y: 50, w: 20, h: 20 })] },
+      isNew: true,
+    }));
+    render(<SymbolEditorHost />);
+    await waitFor(() => expect(api.compilaSimboli).toHaveBeenCalled());
+    // Nothing selected: the last layer receives, as before.
+    expect(screen.getByTestId("symbol-layer-layer-1").getAttribute("data-target")).toBe("true");
+    expect(screen.getByTestId("symbol-layer-body").getAttribute("data-target")).toBeNull();
+    // The empty body, clicked, takes it (22-11-2026: «non riesco ad aggiungere un body»).
+    fireEvent.click(screen.getByTestId("symbol-layer-empty-body"));
+    expect(screen.getByTestId("symbol-layer-body").getAttribute("data-target")).toBe("true");
+    expect(screen.getByTestId("symbol-layer-layer-1").getAttribute("data-target")).toBeNull();
+    // A shape picked wins: its layer receives.
+    fireEvent.click(screen.getByTestId("symbol-op-row-0"));
+    expect(screen.getByTestId("symbol-layer-layer-0").getAttribute("data-target")).toBe("true");
+  });
+
+  it("a symbol the rules refuse is still drawn, and cannot be saved", async () => {
+    vi.mocked(api.compilaSimboli).mockImplementation(async (ds) => ds.map((d) => ({
+      ...(compiled(d) as object), ok: false, errori: ["manca lo strato body"],
+    })) as never);
+    act(() => useAppStore.getState().openSymbolEditor({
+      draft: { slug: "rifiutato", w: 100, h: 100, body: "body-pump", it: "R", en: "R",
+        ops: [newRect({ x: 10, y: 10, w: 20, h: 20 }), { op: "corpo" }] },
+      isNew: true,
+    }));
+    render(<SymbolEditorHost />);
+    await waitFor(() => expect(screen.getByText("manca lo strato body")).toBeTruthy());
+    // The drawing is on the canvas (before 22-11-2026 the canvas stayed empty).
+    expect(screen.getByTestId("symbol-editor-canvas").querySelector("[data-op]")).toBeTruthy();
+    expect((screen.getByTestId("symbol-editor-save") as HTMLButtonElement).disabled).toBe(true);
+  });
+
   it("the panels open and close like the IDE's, and remember it; a layer's name still picks its shapes", async () => {
     try { localStorage.clear(); } catch { /* no storage */ }
     act(() => useAppStore.getState().openSymbolEditor({

@@ -1688,7 +1688,11 @@ pub fn regole(d: &Descrizione, c: &Compilato) -> Vec<String> {
     if immagini > MAX_IMAGES {
         male.push(format!("{immagini} photos: at most {MAX_IMAGES}"));
     }
-    if !svg.contains("<g id=\"body\"") {
+    // The body is what takes the state colour. A symbol made of photos does not
+    // need one (decided by the maintainer on 22-11-2026, after «Genera foto»
+    // left a stove with an empty body and nothing on the canvas): it simply
+    // does not change colour. Without photos, a body is still required.
+    if !svg.contains("<g id=\"body\"") && immagini == 0 {
         male.push("manca lo strato body (serve un «corpo» con almeno una forma)".into());
     }
     let parti: Vec<Value> = c.voce["parts"].as_array().cloned().unwrap_or_default();
@@ -2051,6 +2055,33 @@ mod tests {
             "../../../../tests/fixtures/simboli-prj/photo-boiler.json"
         ))
         .unwrap()
+    }
+
+    /// 22-11-2026, decision of the maintainer: a symbol made of photos (and
+    /// fixed shapes) needs no body — «Genera foto» puts the photo in a fixed
+    /// layer, and a stove with an empty body could never be saved. Without a
+    /// photo the body is still required.
+    #[test]
+    fn a_symbol_of_photos_needs_no_body() {
+        let d: Descrizione = serde_json::from_value(json!({
+            "slug": "stufa", "w": 100, "h": 100, "tipo": "project", "body": "body-pump",
+            "it": "Stufa", "en": "Stove",
+            "ops": [
+                { "op": "statico" },
+                { "op": "image", "src": "ai-photo-06b279d001d2.jpg", "geo": { "x": 0, "y": 0, "width": 100, "height": 100 } },
+                { "op": "corpo" },
+            ],
+        }))
+        .unwrap();
+        compila_e_controlla(&d).unwrap_or_else(|e| panic!("{e:?}"));
+        let senza_foto: Descrizione = serde_json::from_value(json!({
+            "slug": "stufa", "w": 100, "h": 100, "tipo": "project", "body": "body-pump",
+            "it": "Stufa", "en": "Stove",
+            "ops": [{ "op": "statico" }, { "op": "corpo" }],
+        }))
+        .unwrap();
+        let e = compila_e_controlla(&senza_foto).err().unwrap_or_default();
+        assert!(e.iter().any(|m| m.contains("body")), "{e:?}");
     }
 
     /// Phase 3 (plan 2026-11-21-simboli-fase-3-foto): a photo is an element of

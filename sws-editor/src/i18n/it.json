@@ -5875,7 +5875,9 @@
       "transform": "Ruota e allinea"
     },
     "layerSelect": "Seleziona le forme dello strato",
-    "layerEmpty": "Vuoto",
+    "layerEmptyTarget": "Vuoto: le forme nuove vanno qui",
+    "layerEmptyPick": "Vuoto — clicca per disegnarci",
+    "layerTarget": "Le forme nuove vanno in questo strato",
     "collapse": "Chiudi",
     "expand": "Apri",
     "transform": {

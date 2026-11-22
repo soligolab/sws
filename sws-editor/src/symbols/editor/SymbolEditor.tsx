@@ -14,6 +14,7 @@ import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { BAR_HEIGHT, C, Field, Num, Section, button, input, note } from "./ui";
 import { SPAZIO, TESTO, useSezioneAperta } from "@/editor/stilePannelli";
+import { trascinaBordo } from "@/editor/bordoPannello";
 import { BAR, BTN, SELECT, SEP, dim, toggled } from "@/editor/EditorToolbar";
 import { HDR_BTN } from "@/components/headerStyles";
 import { EditorIcon, opIcon } from "./icons";
@@ -204,7 +205,11 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
       api.compilaSimboli([d], { trace: true }).then(([e]) => {
         if (!live) return;
         setHeld(null);
-        if (e?.ok && e.svg && e.voce) setCompiled({ svg: e.svg, voce: e.voce, errors: [] });
+        // The drawing comes back also when the rules refuse it (22-11-2026):
+        // the canvas shows what is there, and «Save» stays off while there are
+        // errors. Before, a stove with an empty body never compiled, and the
+        // canvas stayed empty while photos and shapes were piling up.
+        if (e?.svg && e.voce) setCompiled({ svg: e.svg, voce: e.voce, errors: e.ok ? [] : e.errori ?? ["?"] });
         else setCompiled((c) => ({ ...c, errors: e?.errori ?? ["?"] }));
       }).catch((err) => {
         if (!live) return;
@@ -238,6 +243,23 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
   const ls = useMemo(() => layers(d), [d]);
   const ins = useMemo(() => inputs(d), [d]);
   const layerOf = useCallback((i: number) => ls.find((l) => l.ops.includes(i)), [ls]);
+  // Where a new shape goes (22-11-2026): the layer of the selection; with
+  // nothing selected, the layer last clicked in the list — empty ones too —
+  // and only then the last layer. Before, a click on an empty layer chose
+  // nothing visible and the shape went to the last layer, or to the layer of
+  // a photo still selected: the maintainer «could not add a body».
+  const [targetLayer, setTargetLayer] = useState<string | null>(null);
+  // The two side columns are resizable like the IDE's panels (22-11-2026: «le
+  // colonne di strumenti hanno larghezza fissa e tagliano testi»), and remember
+  // their width.
+  const layersCol = useRef<HTMLDivElement>(null);
+  const propsCol = useRef<HTMLDivElement>(null);
+  const [layersWidth, setLayersWidth] = useState(() => storedWidth(LAYERS_WIDTH_KEY, 220, LAYERS_MIN, LAYERS_MAX));
+  const [propsWidth, setPropsWidth] = useState(() => storedWidth(PROPS_WIDTH_KEY, 300, PROPS_MIN, PROPS_MAX));
+  const drawInto = useMemo(
+    () => (sel.length ? layerOf(sel[0]) : undefined) ?? ls.find((l) => l.id === targetLayer) ?? ls[ls.length - 1],
+    [sel, layerOf, ls, targetLayer],
+  );
   useEffect(() => { groupedLayers.set(savedSlug, grouped); }, [grouped, savedSlug]);
   /** What a click on the canvas picks: the shape, or the whole grouped layer. */
   const unitOf = useCallback((i: number): number[] => {
@@ -428,8 +450,7 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
 
   const finishPoly = (closed: boolean) => {
     if (poly.length >= 2) {
-      const layer = (sel.length ? layerOf(sel[0]) : undefined) ?? ls[ls.length - 1];
-      const r = insertInLayer(d, layer.id, newPath(poly, closed && poly.length >= 3));
+      const r = insertInLayer(d, drawInto.id, newPath(poly, closed && poly.length >= 3));
       commit(r.d);
       setSel([r.at]);
     }
@@ -571,8 +592,7 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
       if (b.w < 1 && b.h < 1) { setTool("select"); return; }
       const bb = { ...b, w: Math.max(1, b.w), h: Math.max(1, b.h) };
       const op = tool === "rect" ? newRect(bb) : tool === "ellipse" ? newEllipse(bb) : tool === "circle" ? newCircle(bb) : newLine(x0, y0, x1, y1);
-      const layer = (sel.length ? layerOf(sel[0]) : undefined) ?? ls[ls.length - 1];
-      const r = insertInLayer(d, layer.id, op);
+      const r = insertInLayer(d, drawInto.id, op);
       commit(r.d);
       setSel([r.at]);
       setTool("select");
@@ -646,7 +666,7 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
     if (!clipboard.length) return;
     pastes.current += 1;
     const off = 4 * pastes.current;
-    const layer = (sel.length ? layerOf(sel[0]) : undefined) ?? ls[ls.length - 1];
+    const layer = drawInto;
     let out = d;
     const at: number[] = [];
     for (const op of clipboard) {
@@ -1004,7 +1024,7 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
     const p = await pickPhoto();
     if (!p) return;
     const op = newImage(p.name, w, h, p.size);
-    const layer = sel.length ? layerOf(sel[0]) : undefined;
+    const layer = sel.length ? layerOf(sel[0]) : ls.find((l) => l.id === targetLayer);
     if (layer) {
       const r = insertInLayer(d, layer.id, op);
       commit(r.d);
@@ -1050,11 +1070,12 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
 
       <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
         {/* layers */}
-        <div style={{ width: 220, flexShrink: 0, borderRight: `1px solid ${C.surface2}`, overflow: "auto", background: C.surface, display: "flex", flexDirection: "column" }}>
+        <div ref={layersCol} data-testid="symbol-layers-column" style={{ width: layersWidth, flexShrink: 0, overflow: "auto", background: C.surface, display: "flex", flexDirection: "column" }}>
           <div style={barTitle}>{t("symbolEditor.layers")}</div>
           {ls.map((l) => (
             <LayerBlock key={`${l.id}-${l.start}`} id={l.id} title={layerLabel(l, t)} count={l.ops.length}
-              onSelect={() => setSel(l.ops.filter(pickable))}
+              target={drawInto.id === l.id}
+              onSelect={() => { setTargetLayer(l.id); setSel(l.ops.filter(pickable)); }}
               actions={<>
                 {([[-1, "up", "symbolEditor.layerUp"], [1, "down", "symbolEditor.layerDown"]] as const).map(([dir, g, k]) => {
                   const can = moveLayer(d, l.id, dir).at.length > 0;
@@ -1085,7 +1106,12 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
               </>}>
               {/* The list still picks one shape, also of a grouped layer. */}
               <div style={grouped.has(l.id) ? { borderLeft: `2px solid ${C.accent}`, marginLeft: 10 } : undefined}>
-              {l.ops.length === 0 && <div style={{ ...note, padding: "2px 12px 2px 26px" }}>{t("symbolEditor.layerEmpty")}</div>}
+              {l.ops.length === 0 && (
+                <div data-testid={`symbol-layer-empty-${l.id}`} onClick={() => { setTargetLayer(l.id); setSel([]); }}
+                  style={{ ...note, padding: "2px 12px 2px 26px", cursor: "pointer" }}>
+                  {t(drawInto.id === l.id ? "symbolEditor.layerEmptyTarget" : "symbolEditor.layerEmptyPick")}
+                </div>
+              )}
               {l.ops.map((i) => (
                 <div key={i} data-testid={`symbol-op-row-${i}`} aria-selected={sel.includes(i)} onClick={(e) => {
                   if (!pickable(i)) return;
@@ -1108,11 +1134,15 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
             </LayerBlock>
           ))}
         </div>
+        <ResizeEdge testid="symbol-layers-resize" side="right" onMouseDown={(e) => trascinaBordo(e, {
+          larghezza: layersWidth, min: LAYERS_MIN, max: LAYERS_MAX, verso: 1, contenuto: layersCol.current,
+          onFine: (l) => { setLayersWidth(l); saveWidth(LAYERS_WIDTH_KEY, l); },
+        })} />
 
         {/* canvas */}
         <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
           {/* The IDE's toolbar, in its order: undo/redo, the view, the grid. */}
-          <div style={{ ...BAR, height: BAR_HEIGHT, boxSizing: "border-box", gap: 6 }}>
+          <div style={{ ...BAR, ...TOOLBAR_SCROLL, height: BAR_HEIGHT, boxSizing: "border-box", gap: 6 }}>
             <button type="button" style={{ ...BTN, ...dim(!hist.past.length) }} disabled={!hist.past.length} onClick={undo}
               title={`${t("symbolEditor.undo")} (Ctrl+Z)`} aria-label={t("symbolEditor.undo")}>↶</button>
             <button type="button" style={{ ...BTN, ...dim(!hist.future.length) }} disabled={!hist.future.length} onClick={redo}
@@ -1149,7 +1179,7 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
             <span style={{ color: C.subtle, whiteSpace: "nowrap" }}>{w} × {h}</span>
           </div>
           {/* The drawing tools, with the IDE's icons. */}
-          <div style={{ ...BAR, height: BAR_HEIGHT, boxSizing: "border-box", gap: 2, background: C.bg }}>
+          <div style={{ ...BAR, ...TOOLBAR_SCROLL, height: BAR_HEIGHT, boxSizing: "border-box", gap: 2, background: C.bg }}>
             {TOOLS.map((k) => (
               <button key={k} type="button" data-testid={`symbol-tool-${k}`} aria-pressed={tool === k}
                 style={{ ...BTN, ...toggled(tool === k), ...(tool === k ? { color: C.text } : {}) }}
@@ -1316,7 +1346,11 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
         </div>
 
         {/* properties */}
-        <div style={{ width: 300, flexShrink: 0, borderLeft: `1px solid ${C.surface2}`, overflow: "auto", display: "flex", flexDirection: "column", background: C.surface }}>
+        <ResizeEdge testid="symbol-props-resize" side="left" onMouseDown={(e) => trascinaBordo(e, {
+          larghezza: propsWidth, min: PROPS_MIN, max: PROPS_MAX, verso: -1, contenuto: propsCol.current,
+          onFine: (l) => { setPropsWidth(l); saveWidth(PROPS_WIDTH_KEY, l); },
+        })} />
+        <div ref={propsCol} data-testid="symbol-props-column" style={{ width: propsWidth, flexShrink: 0, overflow: "auto", display: "flex", flexDirection: "column", background: C.surface }}>
           <div role="tablist" style={{ ...barTitle, padding: 0, gap: 0 }}>
             {(["piece", "structure", "try", "ai"] as const).map((k) => (
               <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)} data-testid={`symbol-tab-${k}`} style={{
@@ -1391,16 +1425,54 @@ const barTitle: React.CSSProperties = {
   textTransform: "uppercase", color: C.muted, background: C.surface, borderBottom: `1px solid ${C.surface2}`,
 };
 
+/** The canvas toolbars scroll sideways instead of cutting the last tools when
+ *  the columns are wide (22-11-2026), with a thin scrollbar only when needed;
+ *  their buttons keep their size. */
+const TOOLBAR_SCROLL: React.CSSProperties = { overflowX: "auto", overflowY: "hidden", scrollbarWidth: "thin", flexShrink: 0 };
+
+const LAYERS_WIDTH_KEY = "sws.simboli.larghezza.strati";
+const PROPS_WIDTH_KEY = "sws.simboli.larghezza.proprieta";
+const LAYERS_MIN = 160, LAYERS_MAX = 480;
+const PROPS_MIN = 240, PROPS_MAX = 600;
+
+function storedWidth(key: string, fallback: number, min: number, max: number): number {
+  try {
+    const v = Number(localStorage.getItem(key));
+    return v >= min && v <= max ? v : fallback;
+  } catch { return fallback; }
+}
+function saveWidth(key: string, v: number) {
+  try { localStorage.setItem(key, String(Math.round(v))); } catch { /* private window: it is only a preference */ }
+}
+
+/** The border between a side column and the canvas, dragged to resize: the
+ *  IDE's handle (`EditorShell`, the right panel), here a 5-px strip that is
+ *  also the column's border line. */
+function ResizeEdge({ side, testid, onMouseDown }: { side: "left" | "right"; testid: string; onMouseDown: (e: React.MouseEvent) => void }) {
+  const { t } = useTranslation();
+  return (
+    <div role="separator" aria-orientation="vertical" data-testid={testid} title={t("editor.dragToResize")} onMouseDown={onMouseDown}
+      style={{ width: 5, flexShrink: 0, cursor: "ew-resize", background: "transparent",
+        [side === "right" ? "borderLeft" : "borderRight"]: `1px solid ${C.surface2}` }} />
+  );
+}
+
 /** A layer of the list: opens and closes like a section of the IDE (the arrow),
  *  and the name picks its shapes, as before. */
-function LayerBlock({ id, title, count, onSelect, actions, children }: {
-  id: string; title: string; count: number; onSelect: () => void; actions: React.ReactNode; children: React.ReactNode;
+function LayerBlock({ id, title, count, target, onSelect, actions, children }: {
+  id: string; title: string; count: number;
+  /** New shapes go into this layer: marked like the IDE's active row. */
+  target: boolean;
+  onSelect: () => void; actions: React.ReactNode; children: React.ReactNode;
 }) {
   const { t } = useTranslation();
   const [open, toggle] = useSezioneAperta(`simboli.strato.${id}`, true);
   return (
-    <div data-testid={`symbol-layer-${id}`} style={{ borderBottom: `1px solid ${C.surface2}`, padding: `${SPAZIO.xs}px 0` }}>
-      <div style={{ display: "flex", alignItems: "center", gap: SPAZIO.xs, padding: `2px ${SPAZIO.s}px 2px ${SPAZIO.m}px` }}>
+    <div data-testid={`symbol-layer-${id}`} data-target={target || undefined}
+      style={{ borderBottom: `1px solid ${C.surface2}`, padding: `${SPAZIO.xs}px 0`,
+        boxShadow: target ? `inset 2px 0 0 ${C.accent}` : undefined }}>
+      <div title={target ? t("symbolEditor.layerTarget") : undefined}
+        style={{ display: "flex", alignItems: "center", gap: SPAZIO.xs, padding: `2px ${SPAZIO.s}px 2px ${SPAZIO.m}px` }}>
         <button type="button" onClick={toggle} aria-expanded={open} title={t(open ? "symbolEditor.collapse" : "symbolEditor.expand")}
           data-testid={`symbol-layer-toggle-${id}`}
           style={{ border: "none", background: "transparent", cursor: "pointer", padding: 0, width: 12, fontSize: 10, color: C.subtle }}>
@@ -1408,7 +1480,7 @@ function LayerBlock({ id, title, count, onSelect, actions, children }: {
         </button>
         <span onClick={onSelect} title={`${title} — ${t("symbolEditor.layerSelect")}`} data-testid={`symbol-layer-name-${id}`} style={{
           flex: 1, minWidth: 0, cursor: "pointer", fontSize: TESTO.titoloSezione, fontWeight: 700, letterSpacing: 0.3,
-          color: "var(--brand-text-2, #cbd5e1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          color: target ? C.text : "var(--brand-text-2, #cbd5e1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
         }}>{title} <span style={{ fontWeight: 400, color: C.subtle }}>({count})</span></span>
         {actions}
       </div>

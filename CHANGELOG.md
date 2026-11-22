@@ -67,6 +67,22 @@ riportano qui con `cherry-pick`; la data arriva con la release.
   `border` di `BTN` ripiegava su `currentColor`), visto sugli strumenti e presente anche sul pulsante dei righelli.
 
 ### Corretto
+- **Editor dei simboli: la tela vuota, le forme che non andavano nel corpo, le colonne fisse, Kimi muto** (il
+  maintainer nell'IDE del cloud sulla rc.26, 22-11-2026; ramo `fix/symbol-editor-rc27` da `release/2.26`).
+  «Genera foto» generava la foto ma non si vedeva niente: la tela disegnava solo l'ultimo SVG che compilava, e un
+  simbolo nuovo con la foto in uno strato fisso e il corpo vuoto non compilava mai («manca lo strato body»). Ora
+  `/api/simboli/compila` rimanda il disegno anche quando le regole lo rifiutano (`ok: false`, con gli errori), la tela
+  lo mostra e «Salva» resta spento; e un simbolo con almeno una foto non ha più bisogno del corpo (decisione del
+  maintainer: il corpo serve solo a ricolorare per stato; `simboli_prj.rs`, `regole`). Le forme nuove andavano nello
+  strato della forma selezionata, o nell'ultimo: dopo la foto finivano tutte nello strato fisso, e un clic su uno
+  strato vuoto non sceglieva niente. Ora c'è uno **strato di destinazione**: un clic su uno strato (anche vuoto, anche
+  sulla riga «Vuoto») lo sceglie, ed è segnato col bordo arancio; una forma selezionata vince. Le due colonne si
+  allargano trascinando il bordo, come i pannelli dell'IDE, e ricordano la larghezza; le barre della tela scorrono
+  invece di tagliare gli strumenti. Kimi: al terzo tentativo di un disegno la risposta arrivava senza testo e l'editor
+  diceva solo «nessun testo nella risposta di kimi»; ora l'errore dice perché (`stop_reason`, i blocchi; «ha finito i
+  token ragionando») e cosa le regole avevano rifiutato prima, e finisce nel registro del container.
+- **Il runtime Linux generico non partiva dove `/bin/sh` è dash** (Debian, Ubuntu): `sws-runtime-launch.sh` era
+  dichiarato `sh` ma usa un array di bash, da `363e79ce`. Ora è `bash`.
 - **L'editor dei simboli faceva crollare l'IDE** (collaudo della 2.26.0-rc.23, 21-11-2026, ramo
   `fix/symbol-editor-stale-pick`). Cancellata l'ultima forma del corpo, la descrizione non compila e la tela teneva
   l'ultimo disegno riuscito; un clic su una forma che non c'era più la selezionava, il pannello andava in errore e,

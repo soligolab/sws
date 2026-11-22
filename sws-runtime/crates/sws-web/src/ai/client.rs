@@ -543,10 +543,43 @@ pub async fn ask_shaped(
                 .and_then(|t| t.as_str())
         })
         .map(|s| s.trim().to_string())
-        .ok_or_else(|| {
-            anyhow::anyhow!("nessun testo nella risposta di {}", scelta.fornitore.nome())
-        })?;
+        .ok_or_else(|| senza_testo(scelta, max_tokens, &v))?;
     Ok((testo, v.get("usage").cloned().unwrap_or_default()))
+}
+
+/// The error for an answer with no text block, saying why (22-11-2026): Kimi,
+/// drawing a stove at the third attempt, answered with no text and the editor
+/// said only «nessun testo nella risposta di kimi» — not why, and nothing in
+/// the log. Usually a reasoning model that spent every token thinking
+/// (`stop_reason: max_tokens` with only `thinking` blocks).
+fn senza_testo(scelta: &Scelta, max_tokens: u32, v: &Value) -> anyhow::Error {
+    let stop = v.get("stop_reason").and_then(Value::as_str).unwrap_or("?");
+    let blocchi: Vec<&str> = v
+        .get("content")
+        .and_then(Value::as_array)
+        .map(|a| a.iter().filter_map(|b| b.get("type").and_then(Value::as_str)).collect())
+        .unwrap_or_default();
+    tracing::warn!(
+        fornitore = scelta.fornitore.nome(),
+        modello = %scelta.modello,
+        stop_reason = stop,
+        blocchi = ?blocchi,
+        usage = %v.get("usage").cloned().unwrap_or_default(),
+        "AI answer without text"
+    );
+    let nome = scelta.fornitore.nome();
+    if stop == "max_tokens" {
+        anyhow::anyhow!(
+            "{nome} ({}) ha finito i token ({max_tokens}) prima di scrivere la risposta{}",
+            scelta.modello,
+            if blocchi.contains(&"thinking") { ", ragionando" } else { "" }
+        )
+    } else {
+        anyhow::anyhow!(
+            "nessun testo nella risposta di {nome} ({}): stop_reason «{stop}», blocchi {blocchi:?}",
+            scelta.modello
+        )
+    }
 }
 
 /// [`chiedi_con_uso`] for the chat-completions providers: same question, same
@@ -1412,6 +1445,34 @@ fn applica_evento(
 fn appendi(blocco: &mut Value, campo: &str, pezzo: &str) {
     let gia = blocco.get(campo).and_then(Value::as_str).unwrap_or("");
     blocco[campo] = Value::String(format!("{gia}{pezzo}"));
+}
+
+#[cfg(test)]
+mod answer_without_text_tests {
+    use super::*;
+
+    fn kimi() -> Scelta {
+        Scelta {
+            fornitore: Fornitore::Kimi,
+            chiave: "k".into(),
+            source: KeySource::Project,
+            modello: "kimi-k2.7-code".into(),
+            tetto_usd: 1.0,
+            endpoint: None,
+            sees_images: false,
+        }
+    }
+
+    #[test]
+    fn an_answer_without_text_says_why() {
+        let e = senza_testo(&kimi(), 16000, &serde_json::json!({
+            "stop_reason": "max_tokens", "content": [{ "type": "thinking", "thinking": "…" }]
+        }));
+        let m = e.to_string();
+        assert!(m.contains("finito i token (16000)") && m.contains("ragionando") && m.contains("kimi-k2.7-code"), "{m}");
+        let m = senza_testo(&kimi(), 16000, &serde_json::json!({ "stop_reason": "end_turn", "content": [] })).to_string();
+        assert!(m.contains("end_turn"), "{m}");
+    }
 }
 
 #[cfg(test)]

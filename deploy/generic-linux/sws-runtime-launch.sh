@@ -1,4 +1,8 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
+#
+# bash, not sh (22-11-2026): the script uses arrays (NO_ADMIN_ARGS), and where
+# /bin/sh is dash (Debian, Ubuntu) it stopped with «Syntax error: "(" unexpected»
+# before starting the runtime. It was declared sh since 363e79ce.
 #
 # Launch wrapper for sws-runtime on generic Linux systems.
 # Installed at /opt/sws/bin/sws-runtime-launch.sh and invoked by
