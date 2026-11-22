@@ -248,6 +248,23 @@ fn accorcia(mut m: String) -> String {
     m
 }
 
+/// True the first time an address is seen in a minute.
+fn prima_volta_da_un_minuto(url: &str) -> bool {
+    use std::collections::HashMap;
+    use std::sync::Mutex;
+    use std::time::{Duration, Instant};
+    static VISTI: Mutex<Option<HashMap<String, Instant>>> = Mutex::new(None);
+    let Ok(mut g) = VISTI.lock() else { return true };
+    let m = g.get_or_insert_with(HashMap::new);
+    let ora = Instant::now();
+    m.retain(|_, t| ora.duration_since(*t) < Duration::from_secs(60));
+    if m.contains_key(url) {
+        return false;
+    }
+    m.insert(url.to_string(), ora);
+    true
+}
+
 async fn fallito(
     local: WebSocket,
     sub: &str,
@@ -261,8 +278,15 @@ async fn fallito(
         if e_transitorio(st) {
             // Non è un difetto e non è definitivo: si dice una volta, piano, e
             // si lascia che il client riprovi da solo.
-            tracing::info!(url = %remote_url, stato = st,
-                "ws relay: il pannello non c'è adesso, riproverà — {lungo}");
+            // Said once a minute per address (collaudo of 2.26.0-rc.23): the
+            // client retries every few seconds while the panel restarts, and
+            // the line repeated for the whole restart.
+            if prima_volta_da_un_minuto(remote_url) {
+                tracing::info!(url = %remote_url, stato = st,
+                    "ws relay: il pannello non c'è adesso, riproverà — {lungo}");
+            } else {
+                tracing::debug!(url = %remote_url, stato = st, "ws relay: il pannello non c'è ancora");
+            }
             chiudi_spiegando(local, 1011, accorcia(breve)).await;
             return;
         }

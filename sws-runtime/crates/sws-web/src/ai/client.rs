@@ -520,7 +520,7 @@ pub async fn ask_shaped(
     let resp = req
         .send()
         .await
-        .map_err(|e| anyhow::anyhow!("{} non raggiungibile: {e}", scelta.fornitore.nome()))?;
+        .map_err(|e| errore_di_invio(scelta, &e))?;
     let stato = resp.status();
     let v: serde_json::Value = resp
         .json()
@@ -545,6 +545,23 @@ pub async fn ask_shaped(
         .map(|s| s.trim().to_string())
         .ok_or_else(|| senza_testo(scelta, max_tokens, &v))?;
     Ok((testo, v.get("usage").cloned().unwrap_or_default()))
+}
+
+/// The error of a request that did not get its answer (collaudo of 2.26.0-rc.23,
+/// anomaly 8): a deadline said «Kimi non raggiungibile», which was false — the
+/// provider was there, and was still thinking. reqwest keeps the cause in the
+/// chain, not in its `Display`.
+fn errore_di_invio(scelta: &Scelta, e: &reqwest::Error) -> anyhow::Error {
+    let nome = scelta.fornitore.nome();
+    if e.is_timeout() {
+        tracing::warn!(fornitore = nome, modello = %scelta.modello, "AI request: deadline reached");
+        anyhow::anyhow!(
+            "{nome} ({}) non ha finito in tempo: la risposta richiede più del tempo concesso — riprova, o scegli un modello più rapido per questo scopo",
+            scelta.modello
+        )
+    } else {
+        anyhow::anyhow!("{nome} non raggiungibile: {e}")
+    }
 }
 
 /// The error for an answer with no text block, saying why (22-11-2026): Kimi,

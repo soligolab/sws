@@ -66,6 +66,23 @@ describe("ReconnectingWs — quando smettere", () => {
     expect(motivi[0]).toContain("stabile");
   });
 
+  it("persistent: non si arrende: un pannello che si aggiorna torna dopo minuti (22-11-2026)", () => {
+    const motivi: string[] = [];
+    new ReconnectingWs(() => "ws://x/ws/remote/logs", (m) => motivi.push(m), { persistent: true });
+    for (let i = 0; i < 12; i++) {
+      FintoWs.ultimo!.fallisci(1006);
+      vi.advanceTimersByTime(60_000);
+    }
+    expect(FintoWs.aperti).toBeGreaterThanOrEqual(12);
+    expect(motivi).toHaveLength(0);
+    // Un rifiuto definitivo lo ferma lo stesso.
+    const prima = FintoWs.aperti;
+    FintoWs.ultimo!.fallisci(4404, "il pannello non espone i log da remoto");
+    vi.advanceTimersByTime(120_000);
+    expect(FintoWs.aperti).toBe(prima);
+    expect(motivi).toEqual(["il pannello non espone i log da remoto"]);
+  });
+
   it("un collegamento che REGGE azzera il conteggio: un riavvio non spegne il flusso", () => {
     new ReconnectingWs(() => "ws://x/ws/remote/tags");
     // Cinque cadute, poi uno che regge: non ci si deve arrendere al sesto.

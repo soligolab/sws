@@ -64,6 +64,11 @@ export class ReconnectingWs {
      *  mostrare in interfaccia cosa manca, invece di lasciare un pannello vuoto
      *  che sembra solo lento. */
     private readonly onResa?: (motivo: string) => void,
+    /** Never give up on an unstable channel: after the attempts, keep trying
+     *  every 30 s without a word (22-11-2026). For the logs of a panel: a panel
+     *  that updates is away for minutes, and the stream stopped for good after
+     *  a minute (collaudo of 2.26.0-rc.23). Definitive closes still stop it. */
+    private readonly options: { persistent?: boolean } = {},
   ) {
     this.open();
   }
@@ -100,6 +105,11 @@ export class ReconnectingWs {
         return;
       }
       this.falliti += 1;
+      if (this.falliti >= TENTATIVI_MAX && this.options.persistent) {
+        this.delay = MAX_DELAY_MS;
+        this.schedule();
+        return;
+      }
       if (this.falliti >= TENTATIVI_MAX) {
         this.motivoResa = ev.reason
           || i18n.t("ws.unstable", { max: TENTATIVI_MAX });

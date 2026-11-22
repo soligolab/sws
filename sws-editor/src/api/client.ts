@@ -74,6 +74,21 @@ import type { AiErrorCode } from "@/ai/errorCodes";
 import { faceplateAPagina } from "@/faceplate/modello";
 import i18n from "i18next";
 
+/** A refusal the runtime sends as `{ code, … }` with a sentence in the language
+ *  files (`apiError.<code>`): shown translated, not as the server's raw English
+ *  with «API /api/…: 422» in front (collaudo of 2.26.0-rc.23, 21-11-2026: a
+ *  function parameter called `state`). Anything else stays as before. */
+export function erroreTradotto(bodyText: string): string | null {
+  try {
+    const v = JSON.parse(bodyText) as Record<string, unknown>;
+    const code = typeof v?.code === "string" ? v.code : null;
+    if (!code || !i18n.exists(`apiError.${code}`)) return null;
+    return i18n.t(`apiError.${code}`, v as Record<string, string>);
+  } catch {
+    return null;
+  }
+}
+
 import { pannelloCollegato } from "./pannello";
 
 /** Le chiamate che toccano l'**impianto** — scoperte dei protocolli, prove di
@@ -1050,6 +1065,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (!res.ok) {
     let bodyText = "";
     try { bodyText = await res.text(); } catch { /* ignore */ }
+    const tradotto = erroreTradotto(bodyText);
+    if (tradotto) throw new Error(tradotto);
     throw new Error(`API ${path}: ${res.status} ${res.statusText}${bodyText ? ` — ${bodyText}` : ""}`);
   }
   segnalaScritturaNostra(path, init?.method);
