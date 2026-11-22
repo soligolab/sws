@@ -12,7 +12,24 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — la 2.26.0-rc.27 pubblicata; dev, rc e release in funzione (2026-11-22 pomeriggio, `ufficio`)
+## ▶ Riprendere da qui — la 2.26.0-rc.28 da collaudare (2026-11-22 sera, `ufficio`)
+
+**rc.28** (`2976b407`, da `release/2.26`, tag e ramo **pushati**): le anomalie piccole del collaudo della rc.23 che
+erano rimaste fuori dalla rc.27 (il maintainer: «se ci sono piccole attività di cui eri a conoscenza, prima di fare
+la rc, non potevi implementarle?» — regola in memoria: una rc raccoglie le correzioni note). Modbus: la sessione che
+cade conta come giro di tolleranza, i messaggi «incerti per N giri, poi Bad», la ripresa con la durata vera; il
+registro più quieto (chiusure normali a debug, il relay una volta al minuto, i log del pannello nell'IDE che aspettano
+il pannello che si aggiorna); il rifiuto del parametro `state` tradotto; l'IA nel cloud con dieci minuti e «non ha
+finito in tempo». Build: 36 minuti. **Gateway del VPS e CasaDomotica sulla rc.28**, Tiny TY `latest` = rc.28.
+Riportata in `main`.
+
+**Il collaudo di stasera, sulla rc.28**: l'editor dei simboli con la stufa (tela, strato di destinazione, colonne);
+Modbus sulla Solarman (alla caduta della sessione, ogni ~30 min, valori incerti e non Bad; il messaggio di ripresa);
+i log durante un aggiornamento del pannello; il parametro `state` in una funzione; Kimi, se lo si riprova (il registro
+dice il perché di un fallimento). **Resta fuori**: lo streaming del disegno con l'IA (lavoro vero), la causa del
+«nessun testo» di Kimi (dal registro, al prossimo fallimento).
+
+## Prima — la 2.26.0-rc.27 pubblicata; dev, rc e release in funzione (2026-11-22 pomeriggio, `ufficio`)
 
 **Fatto oggi, nell'ordine**:
 - **Piano dev, rc e release**, parti 0-2 ([piano](docs/plans/2026-11-22-dev-rc-release-e-portale-di-sviluppo.md)):
@@ -29,8 +46,7 @@
 - **Semi nuovi**: [chi risponde nell'IA e gli scopi nell'account](docs/plans/semi/2026-11-22-ia-scelta-visibile-e-scopi-account.md),
   [il modello di business](docs/plans/semi/2026-11-22-modello-di-business.md).
 
-**Push**: niente pushato da `8b4116cb` in poi; su origin mancano `main`, `release/2.26` e il tag `2.26.0-rc.27`
-(`check_release_coerente` resta rosso fino ad allora). Aspetta il via del maintainer.
+**Push**: fatti col via del maintainer (`main`, `release/2.26`, i tag rc.27 e rc.28).
 
 **Kimi**: la correzione dice il perché, non lo risolve. Al prossimo disegno che fallisce, il registro del container
 (`symbol drawing: no answer`, `AI answer without text`) dice `stop_reason` e i blocchi.

@@ -173,7 +173,12 @@ resta 404: così un bundle che manca non torna come HTML con stato 200.
 (`10.89.0.x`): il limite di 20 richieste/s vale per tutti insieme finché non c'è l'indirizzo vero (seme «indirizzo vero
 dietro Traefik»). Si aggiorna con `scripts/manuale/pubblica.sh`.
 
-**Versione in esecuzione: `f863349f-amd64` (2.26.0-rc.27)** dal 22-11-2026, 13:35: le correzioni dell'editor dei
+**Versione in esecuzione: `2976b407-amd64` (2.26.0-rc.28)** dal 22-11-2026, sera: le anomalie piccole del collaudo
+della rc.23 (Modbus e la sessione che cade, il registro, il parametro `state` tradotto, la scadenza dell'IA nel cloud).
+Copia `sws-gateway.container.prima-rc28`; gateway e CasaDomotica `healthy`, `SWS_VERSION` = 2.26.0-rc.28, radice 200,
+`/health` «ok». Tolta la rc.26 (`c3180ab9-amd64`); ripiego la rc.27. Tiny TY: `latest.txt` = rc.28 (sha256 `aa19cfdf…`).
+
+Prima: **Versione in esecuzione: `f863349f-amd64` (2.26.0-rc.27)** dal 22-11-2026, 13:35: le correzioni dell'editor dei
 simboli (la tela vuota con la foto, lo strato di destinazione, le colonne, il perché di Kimi muto), la prima rc
 costruita con `build_rc.sh` da `release/2.26` e la prima che legge la versione da fuori del binario (`SWS_VERSION`:
 gateway e CasaDomotica dichiarano 2.26.0-rc.27, verificato). Sequenza solita, copia `sws-gateway.container.prima-rc27`.
