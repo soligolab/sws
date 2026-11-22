@@ -23,9 +23,10 @@ col pacchetto del Tiny TY lanciato in parallelo alle immagini (prima misura del 
 **Il cambio di prassi deciso oggi dal maintainer**: le rc servono solo a finalizzare una release (correzioni e
 prestazioni); il lavoro nuovo esce come **dev** con un profilo Rust leggero. La **2.26.0 entra in stabilizzazione**:
 correzioni su un ramo `release/2.26`, lavoro nuovo in `main` come 2.27.0-dev. Il piano che lo mette in pratica (build
-dev e rc, versione letta da fuori del binario, portale di sviluppo `dev.sws.soligo.net`) è in bozza in
-`tmp/piano-build-rc/` e **aspetta l'approvazione** del maintainer; dopo, va in `docs/plans/` e il seme della build
-veloce in archivio. In bozza anche la sezione «dividere `sws-web`» per il seme di riorganizzazione del codice.
+dev e rc, versione letta da fuori del binario, portale di sviluppo `dev.sws.soligo.net`) è
+[`docs/plans/2026-11-22-dev-rc-release-e-portale-di-sviluppo.md`](docs/plans/2026-11-22-dev-rc-release-e-portale-di-sviluppo.md),
+approvato («Partiamo»): il seme della build veloce è diventato quel piano. «Dividere `sws-web`» è nel seme di
+riorganizzazione del codice.
 
 ## Prima — la 2.26.0-rc.25 sul VPS, i menù dell'editor dei simboli da guardare (2026-11-22 notte, `ufficio`)
 
@@ -1408,7 +1409,7 @@ nell'IDE?).
 - **Disco di theobroma** pieno a metà giornata: liberati 147 GB dentro `~/sws` (cache incrementale, `target/debug`,
   archivi in `dist/`, cache della vecchia build QEMU, due cartelle di compilazione in `tmp/`). Tenuti `target/release`
   (lo usa la prova OpenPLC che gira da 15 giorni) e le cache delle immagini container.
-- **Semi nuovi**: [build veloce e due portali](docs/plans/semi/2026-11-05-build-veloce-e-due-portali.md); nello
+- **Semi nuovi**: [build veloce e due portali](docs/plans/2026-11-22-dev-rc-release-e-portale-di-sviluppo.md); nello
   [stile sobrio](docs/archive/2026-11-14-stile-sobrio.md) la misura delle icone che non vale nelle barre dello stile VS
   Code. In `Appunti.txt`: la CI di GitHub rossa dal 05-10 al passo clippy.
 
@@ -1462,7 +1463,7 @@ tunnel del `tc620-garage` riaperto. Il `wp630-ufficio` non si è ricollegato: in
   IA che riconosce le pagine col nome tradotto, il selettore dell'istanza annidata in un faceplate.
 
 **Build più veloce in sviluppo — domanda del maintainer, salvata come seme** insieme ai due portali (stabile e di
-sviluppo): [`docs/plans/semi/2026-11-05-build-veloce-e-due-portali.md`](docs/plans/semi/2026-11-05-build-veloce-e-due-portali.md). La 2.25.1 ha preso 60 minuti: **19 per ricostruire il builder aarch64**, che non
+sviluppo): [`docs/plans/2026-11-22-dev-rc-release-e-portale-di-sviluppo.md`](docs/plans/2026-11-22-dev-rc-release-e-portale-di-sviluppo.md). La 2.25.1 ha preso 60 minuti: **19 per ricostruire il builder aarch64**, che non
 serviva, 16 + 5 + 16 di cargo, 3 di immagini e push. Il builder si rifà perché il suo stadio `sysroot`
 (`Containerfile.aarch64-cross.builder:45`) è un'immagine senza nome: la pulizia delle immagini podman la cancella
 (`clean_disk_space.sh:111` e la memoria «immagini vecchie»), e fino al 28-10 il builder prendeva un minuto. Anche

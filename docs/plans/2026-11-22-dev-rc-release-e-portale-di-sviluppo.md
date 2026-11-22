@@ -1,4 +1,165 @@
-# Build e rilascio più veloci in sviluppo, e due portali (stabile e di sviluppo) — seme
+# Dev, rc e release: build più veloci e il portale di sviluppo — piano
+
+> **Stato: piano — approvato il 22-11-2026** («Partiamo»). Nato dal seme «build veloce e due portali» del 05-11-2026, il
+> cui testo è in fondo a questo file (§ «Il seme del 05-11-2026»), portato in piano il 22-11-2026 su richiesta del maintainer («mi interessa in particolare per la fase in
+> cui faccio delle rc»).
+>
+> **Il cambio di concetto, parole del maintainer**: «le rc dovrebbero essere finalizzate alla release, quindi solo
+> bugfix, noi ora le usiamo come dev. Possiamo introdurre la dev e usare i multicore per rust, le performance e bugfix
+> le sistemiamo nelle rc». E sulla versione: «dal mio punto di vista è comunque una versione ma non testata».
+>
+> **Scelte del maintainer del 22-11-2026**:
+> - tre livelli: **dev** (lavoro di tutti i giorni, profilo Rust leggero su più core), **rc** (solo correzioni e
+>   prestazioni verso la release, profilo release pieno), **release**;
+> - **la 2.26.0 entra in stabilizzazione**: da ora solo correzioni (rc.27, rc.28…) fino al rilascio; il lavoro nuovo è
+>   **2.27.0-dev.N**, compreso questo piano;
+> - le correzioni della 2.26.0 stanno su un ramo **`release/2.26`**, da cui escono rc e release; `main` passa alla
+>   2.27.0-dev; le correzioni si riportano in `main` con `cherry-pick`;
+> - **la versione letta da fuori del binario** (il numero, rc o dev, resta la versione del prodotto: cambia solo dove è
+>   scritto);
+> - una build **dev** fa solo **amd64** (portale), arm64 e Tiny TY a richiesta; una **rc** fa sempre **tutte e tre, in
+>   parallelo**;
+> - il portale di sviluppo **sullo stesso VPS, con un secondo gateway**; nel dev **copie** dei progetti; il dev segue
+>   **dev e rc**, `sws.soligo.net` **solo le release**;
+> - prima la build, poi il portale («ci servirà per il portale»).
+
+## Le misure di oggi (22-11-2026, `ufficio`: 4 core, 22 GB, 45 GB liberi su 915)
+
+Una rc costa **~75 minuti di build**, tutta in fila, prima di VPS e pannello (log `tmp/build-rc25.log`,
+`tmp/build-tinyty-rc25.log`):
+
+| Gamba | runtime | viewer LVGL | resto | totale |
+|---|---|---|---|---|
+| arm64 (`build_container.sh`) | 17m20 | 5m22 | SPA, immagine, push, archivio ~3 min | ~26 min |
+| amd64 (`build_container_x86_64.sh`) | 16m26 | 5m03 | idem | ~24 min |
+| Tiny TY armv7 (`pacchetto_tiny_ty.sh`) | 16m33 | 4m11 | pacchetto ~2 min | ~24 min |
+
+- **Perché un core solo**: `[profile.release]` ha `lto = "thin"` e `codegen-units = 1` (ogni crate è un blocco unico,
+  ottimizzato su un core: binario più veloce e più piccolo, voluto per PX30 e Tiny TY), e i crate sono in catena
+  (`sws-core` → `sws-web`, 108 804 righe → `sws-runtime`). Dividere `sws-web` è nel seme
+  [riorganizzare il codice](semi/2026-09-22-riorganizzare-i-file-dell-editor.md).
+- **La versione è compilata nel binario** (`env!("CARGO_PKG_VERSION")`: `sws-core::project::runtime_version()`, la
+  costante `sws-web::aggiornamento::VERSIONE` usata in sei punti, `system.rs`, `mcp.rs`, `control_panel`, `main.rs`,
+  il viewer LVGL), e per cargo la versione di `Cargo.toml` fa parte dell'identità di ogni crate: ogni `-rc.N` ricompila
+  tutti i 16 crate `sws-*`. La rc.26 cambia solo la SPA e ricompila tutto il Rust tre volte.
+- **Il builder arm64 si rifà ancora da capo**: nella rc.24 e nella rc.25 (a un'ora l'una dall'altra) usciva dalla
+  cache; la mattina dopo, nella rc.26, lo stadio `sysroot` senza nome era stato tolto e si è rifatto con apt, e rustup
+  ha reinstallato la `stable` (`tmp/build-rc26.log`, righe 8-1172).
+- Le cartelle target dei builder: 17 GB arm64, 15 GB amd64, 3,4 GB armv7, 2,5 GB del vecchio `aarch64-generic`.
+- Il VPS: 2 vCPU, 3,8 GB (3,1 disponibili), 25 GB di disco liberi; girano Traefik, Portainer, il manuale, il gateway e
+  CasaDomotica. Il prefisso dei container di progetto è fisso (`gateway/podman.rs`, `NOME_PREFISSO = "sws-p-"`).
+
+## Parte 0 — il ramo di release (subito, solo git e documenti)
+
+- `release/2.26` da `2.26.0-rc.26` (`c3180ab9`). Da lì le rc.27… con le sole correzioni (le anomalie aperte del
+  collaudo: Kimi in streaming, Modbus e i testi dei log, i log rumorosi dell'aggiornamento, il 422 grezzo, e quelle che
+  usciranno) e la 2.26.0.
+- `main` passa a `2.27.0-dev.0` e apre il blocco 2.27.0 di `NOVITA.yaml` e di `CHANGELOG.md`.
+- Una correzione si fa su un ramo `fix/…` **da `release/2.26`**, si squasha lì, poi `git cherry-pick` in `main`. Il
+  messaggio dice da dove viene.
+- **Regole da scrivere in `CLAUDE.md`** (con il maintainer): `release/X.Y` non è un ramo di lavoro, è un'eccezione alla
+  regola «un ramo alla volta» come `backup/main-pre-riscrittura-2026-09-09`; si elimina dopo la release e il riporto in
+  `main`. «Mai commit diretti su `main`» vale anche per `release/X.Y`. `session_start.sh` e `/finalizza-giornata`
+  devono conoscere il ramo di release (oggi segnalerebbero un ramo aperto). HOWTO §19 riscritto: le tre versioni.
+- **Finché il portale di sviluppo non c'è** (Parte 3), `sws.soligo.net` resta sulla rc.26 e prende le rc della
+  2.26.0; le dev si provano nell'IDE locale 8460 e sui pannelli a richiesta.
+
+## Parte 1 — la versione da fuori (`feat/version-outside`, in `main`, 2.27.0-dev)
+
+**Obiettivo**: una dev o una rc che non tocca il Rust non ricompila il Rust.
+
+- **Un file solo per la versione del prodotto**: `VERSION` in radice (`2.27.0-dev.3`, `2.26.0-rc.27`). Lo leggono gli
+  script (`build_container*.sh`, `pacchetto_tiny_ty.sh`, `check_release_coerente.sh`, `check_versione_progetto.sh`,
+  `novita.py`) e `package.json` lo segue. **`Cargo.toml` porta solo il numero della release** (`2.27.0`) e cambia
+  solo quando cambia la release.
+- **Il runtime legge la versione all'avvio**: `sws-core::project::runtime_version()` prende `SWS_VERSION`
+  dall'ambiente (una volta, `OnceLock`), con `CARGO_PKG_VERSION` di riserva. `aggiornamento::VERSIONE` diventa una
+  funzione che chiama quella; gli altri usi passano da lì, viewer LVGL compreso.
+- **Chi la imposta**: le immagini con `ENV SWS_VERSION=$SWS_VERSION` (l'`ARG` c'è già, oggi finisce solo
+  nell'etichetta: la ereditano anche i container di progetto del gateway e quello del viewer LVGL); il Tiny TY dal
+  file `VERSIONE` del pacchetto (c'è già), esportato da `sws-runtime-launch.sh` e `sws-lvgl-viewer-launch.sh`; gli
+  script nativi (`start_runtime.sh`, `start_editor*.sh`) dal file `VERSION`.
+- **L'ordine semver delle dev**: `2.27.0-dev.N` < `2.27.0-rc.1` < `2.27.0`. Il canale di aggiornamento dei pannelli
+  impara il canale **dev** (`dev-arm64`, `dev-amd64`), accanto a rc e stabile; da verificare in `aggiornamento.rs` e
+  nell'IDE («Aggiornamento del runtime»), e le NOVITA delle dev.
+- **Da verificare nel ramo**: tutti i confronti di versione (aggiornamento, «Deploy verso un pannello ancora sulla
+  rc.22», NOVITA per versione, `saved_by` di `project.yaml`) leggono la stessa funzione. Un test che avvia il runtime
+  con una `SWS_VERSION` diversa da `Cargo.toml` e controlla `/api/system`.
+
+## Parte 2 — gli script: dev leggera, rc in parallelo (`feat/build-dev-rc`, in `main`)
+
+- **Un profilo per le dev**: `[profile.dev-image]` con `inherits = "release"`, `lto = "off"` (non `false`, che vuol
+  dire thin-local), `codegen-units = 16`, `incremental = true`. Stima: il runtime da ~16 a 3-5 minuti. **Mai per rc e
+  release.** Costa disco (una seconda serie di dipendenze compilate per architettura): si misura, e si decide la
+  pulizia (oggi 45 GB liberi, 95 %), a partire dal vecchio `target-container-aarch64-generic` (2,5 GB, non più
+  usato dal 14-09).
+- **Uno script per livello**:
+  - `scripts/build_dev.sh [--push] [--arm64] [--tiny-ty]`: profilo leggero, amd64 sempre, le altre a richiesta.
+    Tag `<versione>-<arch>`, `<commit>-<arch>` e il mobile `dev-<arch>`; mai `rc-*` né `latest-*`.
+  - `scripts/build_rc.sh [--push]`: profilo release, SPA e patch vendorizzate una volta, poi **le tre gambe in
+    parallelo**, ognuna col suo log (`tmp/build-<versione>-<gamba>.log`), i tempi di ogni passo alla fine. Una gamba
+    che fallisce non ferma le altre, ma lo script esce in errore e non sposta nessun tag mobile. Rifiuta di partire
+    fuori da `release/X.Y` e se `HEAD` non porta il tag della versione.
+  - una release: lo stesso `build_rc.sh` con una versione senza suffisso, che sposta anche `latest-*`.
+- **Il Rust si salta da solo** quando i sorgenti Rust (`sws-runtime/**`, `Cargo.lock`, i builder) hanno la stessa
+  impronta dell'ultima build riuscita di quella gamba e di quel profilo (`target-container-*/.impronta`). `--rust` la
+  forza.
+- **Il builder che non si rifà**: lo stadio `sysroot` con un nome (`sws-runtime-builder:aarch64-sysroot`), le immagini
+  `sws-runtime-builder:*` escluse dalla pulizia delle immagini vecchie (eccezione da scrivere nella memoria relativa),
+  rustc fissato a una versione nei tre Containerfile dei builder (oggi `stable`), cambiata a mano quando si decide.
+- **Il conflitto sul tag `ubuntu:24.04`** fra gambe parallele (`pull --platform` diversi dello stesso tag): `FROM` col
+  digest per architettura.
+- **I due difetti del seme**, ancora veri: `--no-rust` sull'arm64 salta anche la `pnpm build`, e il ramo `*)` sposta
+  `latest-*` senza controllo.
+- **I tag nel registry**: con le dev ne arrivano molti di più, e i pannelli leggono `tags/list?n=1000` senza
+  paginazione (`aggiornamento.rs`). Paginazione e una regola di potatura dei tag `<commit>-*` e delle dev vecchie.
+- **La prima misura del parallelo** (22-11-2026, rc.26, 4 core): il pacchetto del Tiny TY lanciato alle 08:42 accanto
+  alla gamba arm64. Il runtime arm64 è passato da 17m20 (rc.25, da solo) a **17m59**; quello armv7 da 16m33 a
+  **20m19**, il viewer armv7 da 4m11 a 4m51. Il Tiny TY intero (col builder rifatto) in 30 minuti, finito alle 09:12
+  mentre l'arm64 pubblicava: in fila sarebbe partito dopo l'amd64, verso le 09:35. Due gambe insieme costano poco
+  l'una all'altra, come ci si aspettava dal link su un core; con tre si misura. Primo passo del ramo:
+  `cargo build --timings` per sapere quanto del tempo è il link.
+
+## Parte 3 — il portale di sviluppo (`feat/dev-portal`, in `main`)
+
+**Obiettivo**: `dev.sws.soligo.net` segue dev e rc; `sws.soligo.net` resta sull'ultima release e non si ferma più a
+ogni prova.
+
+- **Codice**: il prefisso dei container per gateway (`--gateway-prefisso`, default `sws-p-`; il dev `sws-d-`), usato nei
+  nomi, negli alias DNS e nella pulizia all'avvio, che tocca solo i propri. Oggi due gateway sullo stesso podman si
+  cancellano i container a vicenda. Un test.
+- **VPS**: un secondo quadlet `sws-gateway-dev.container`, con la sua configurazione (`~/sws-vps/gateway-dev-config`:
+  `identita.db`, segreto, abbinamenti) e la sua radice dei progetti (`~/sws-vps/progetti-dev`); un router Traefik per
+  `dev.sws.soligo.net`, **il DNS su Cloudflare prima del router** (Let's Encrypt blocca dopo poche richieste fallite).
+  Copia maestra in `deploy/vps/quadlet/`, stato in `deploy/vps/STATO.md`, `check_etichette_container.sh` col quadlet
+  nuovo. `build_dev.sh --deploy` e `build_rc.sh --deploy` aggiornano il gateway dev a fine build.
+- **Account**: `identita.db` del dev parte come copia di quello stabile (lo schema migra solo in avanti: la copia va
+  dallo stabile al dev, mai al contrario).
+- **Progetti**: copie, con `scripts/copia_progetto_in_dev.sh <azienda> <progetto>` (lo storico a scelta). CasaDomotica
+  vera e il TC620 di casa restano sullo stabile.
+- **I pannelli restano sul tunnel dello stabile**, e scelgono il canale (dev, rc, stabile) dall'IDE. Un pannello in dev
+  collegato a un gateway in release: il protocollo del tunnel deve reggere la differenza; da verificare nel ramo. Se non
+  regge, un pannello di prova si abbina al dev.
+- **Risorse**: si misura con due progetti aperti per gateway, sui 3,1 GB disponibili.
+- **Prassi che cambia** (memorie «fine task: pubblica e allinea» e «il VPS sempre aggiornato», `deploy/vps/STATO.md`):
+  diventano **il dev sempre aggiornato**; `sws.soligo.net` passa alla 2.26.0 al rilascio e da lì solo release.
+
+## Ordine e verifica
+
+0 → 1 → 2 → 3, un ramo di lavoro alla volta, tutti in `main` (2.27.0-dev). Per ogni ramo: `cargo check`, `cargo test`,
+`pnpm build`, `pnpm exec vitest run`, `./scripts/check_static.sh`, poi la prova vera: una dev costruita con lo script
+nuovo (tempi misurati e scritti qui), poi una rc da `release/2.26` in parallelo, gateway dev su, aggiornamento del
+TC620 dal canale scelto. Collaudo con `/test-changes`. Niente push senza richiesta.
+
+## Fuori dal piano
+
+- Dividere `sws-web` in crate più piccoli: nel seme [riorganizzare il codice](semi/2026-09-22-riorganizzare-i-file-dell-editor.md)
+  (decisione del maintainer del 22-11-2026).
+- La CI di GitHub che costruisce le immagini, e il dev che segue ogni commit di `main` da solo.
+
+## Il seme del 05-11-2026 (materiale, com'era)
+
+> Il testo del seme, con le misure di allora. Le parti superate dalle scelte del 22-11-2026 restano come referto.
 
 > **Stato: seme — decisione.** Nato il 05-11-2026, mentre si costruiva la 2.25.1, da una domanda del maintainer:
 > «esiste un modo, fin che siamo in sviluppo, per accelerare la fase di build e rilascio di ogni aggiornamento? Un
@@ -11,7 +172,7 @@
 > (quattro misure, un progettista, due verifiche: una contro il codice, una contro le regole del progetto). Non è
 > un progetto, e nessuna strada è decisa.
 
-## L'idea
+### L'idea
 
 Due cose che vanno pensate insieme, perché la seconda cambia il peso della prima:
 
@@ -23,9 +184,9 @@ Due cose che vanno pensate insieme, perché la seconda cambia il peso della prim
    Oggi i due ruoli stanno nello stesso gateway, quindi una prova rotta ferma l'IDE di tutti i giorni, e ogni
    rilascio interrompe il lavoro per qualche secondo.
 
-## Le misure del 05-11-2026
+### Le misure del 05-11-2026
 
-### Dove va il tempo
+#### Dove va il tempo
 
 | Build | Builder aarch64 | cargo runtime arm64 | cargo viewer LVGL | cargo runtime amd64 | Totale |
 |---|---|---|---|---|---|
@@ -37,7 +198,7 @@ I passi «container» veri costano poco: immagine finale 27-37 s, push 15-22 s, 
 e ~29 s (amd64), SPA 10-16 s (fatta **due volte**, una per gamba). Log in `tmp/build-2.25.0.log` e
 `tmp/build-2.25.1.log` (su theobroma, non versionati).
 
-### Perché
+#### Perché
 
 - **Il builder aarch64 si ricostruisce a ogni build, dal 29-10 (2.23.7).** Il suo primo stadio, `sysroot`
   (`deploy/container/Containerfile.aarch64-cross.builder:45`), è un'immagine **senza nome**: il builder finale lo
@@ -65,7 +226,7 @@ e ~29 s (amd64), SPA 10-16 s (fatta **due volte**, una per gamba). Log in `tmp/b
   commit riscrive l'indice. In tutti e due i casi `sws-web` si ricompila a ogni giro. Nei builder git non c'è, e
   la revisione dentro le immagini vale sempre «sconosciuta» (`build.rs:32-47`).
 
-### Due difetti trovati per strada (veri anche senza questo piano)
+#### Due difetti trovati per strada (veri anche senza questo piano)
 
 - **`build_containers_all.sh --no-rust`, documentato in `docs/HOWTO.md` §5, pubblica l'immagine arm64 con la SPA
   vecchia**: in `scripts/build_container.sh` la `pnpm build` sta dentro il blocco Rust (righe 156 e 172-178), mentre
@@ -75,7 +236,7 @@ e ~29 s (amd64), SPA 10-16 s (fatta **due volte**, una per gamba). Log in `tmp/b
   `build_container_x86_64.sh:270`): una build di ramo che porta ancora il numero dell'ultima release la sostituisce
   e sposta il canale stabile. È il caso delle quattro immagini del 02-11 a 2.24.0.
 
-## Le strade per la build, da pesare nella sessione di plan
+### Le strade per la build, da pesare nella sessione di plan
 
 Dalla più piccola. I risparmi senza misura sono **stime**.
 
@@ -129,7 +290,7 @@ Una nota sul canale di prova, corretta dalla verifica: le Novità si leggono dal
 stessa release non perdono niente. Il rischio vero è che le `-rc` della release successiva spingano fuori dalla
 finestra una release **intermedia**.
 
-## I due portali
+### I due portali
 
 Misure del 05-11-2026, in sola lettura (repo e VPS).
 
@@ -145,7 +306,7 @@ sviluppo, e lo stabile segue solo le release: è un cambio di prassi, e lo decid
 | Un nome nuovo | un record DNS su Cloudflare (solo DNS, nessun wildcard) e un file di router di Traefik, che si ricarica da solo; il certificato arriva da Let's Encrypt (HTTP-01); nessuna porta nuova. Il DNS va **prima** del router: Let's Encrypt blocca dopo poche richieste fallite | `traefik.yml:58-77`, `dynamic/sws-gateway.yml`, `STATO.md:76-77` |
 | Due gateway con lo stesso podman | **si cancellano a vicenda**: il prefisso dei container è fisso (`sws-p-`), il nome dipende solo da azienda e progetto, e all'avvio un gateway ferma e rimuove i container `sws-p-*` che hanno un'immagine diversa dalla sua | `gateway/podman.rs:42`, `:50-73`, `:218-266`; `gateway/progetti.rs:278-361` |
 | Lo stato del gateway | tutto in `~/sws-vps/gateway-config`: `identita.db`, `segreto_gateway`, gli abbinamenti dei pannelli, `audit.jsonl`. Il segreto firma le chiavi dei container e i gettoni dei pannelli: un gateway con un segreto diverso non riconosce quelli dell'altro. `identita.db` migra solo in avanti e a ogni apertura scrive `user_version = 6`, senza guardia contro uno schema più nuovo | `gateway/mod.rs:13-53`, `tunnel/abbinati.rs:8-11`, `sws-identita/src/lib.rs:560-622` |
-| La radice dei progetti | 18-20 cartelle del maintainer (CasaDomotica col suo storico SQLite e il suo `.git`), montate in lettura e scrittura nei container; nessun lock fra processi (seme [due editor sullo stesso progetto](2026-10-21-due-editor-sullo-stesso-progetto.md)) | `gateway/progetti.rs:567-572`, `:773-783` |
+| La radice dei progetti | 18-20 cartelle del maintainer (CasaDomotica col suo storico SQLite e il suo `.git`), montate in lettura e scrittura nei container; nessun lock fra processi (seme [due editor sullo stesso progetto](semi/2026-10-21-due-editor-sullo-stesso-progetto.md)) | `gateway/progetti.rs:567-572`, `:773-783` |
 | I pannelli | un solo indirizzo di tunnel, scritto nell'immagine (`SWS_TUNNEL_URL=wss://tunnel.soligo.net/tunnel/v1`), e una sola coppia nome+gettone. Un portale di sviluppo vede un pannello solo se lo si reinstalla col suo `--tunnel` e lo si riabbina. Oggi gli abbinati sono due: `tc620-garage` e `wp630-ufficio` | `Containerfile.aarch64:143`, `install-container.sh:375` |
 | La CI di GitHub | **non costruisce immagini** (permessi `contents: read`, il lavoro delle immagini tolto il 02-09) e **è rossa dal 05-10**: le ultime 100 esecuzioni fallite, anche quella della 2.25.0 (`b8849b4d`), ferma a `cargo clippy -- -D warnings` mentre in locale è verde. Vede solo il codice pushato. Un'immagine amd64 si potrebbe costruire su un runner di GitHub (l'ultima build e test verde: 450 s, il 14-09) | `.github/workflows/ci.yml:3-11`, `:212-227`; API delle esecuzioni |
 | Gli script lanciati su `main` da soli | oggi **sovrascriverebbero la release**: `main` dichiara 2.25.1 ma la sua punta non porta il tag, e il ramo `*)` sposterebbe `2.25.1-amd64`, `latest` e `rc`. La guardia della strada 7 è un prerequisito | `build_container_x86_64.sh:257-276` |
@@ -170,7 +331,7 @@ rimessa verde e che vede solo il codice pushato); con che tag (`dev-<sha>` immut
 una versione `X.Y.Z-dev.N`); quali progetti vivono nel portale di sviluppo (copie, o gli stessi dello stabile); e se
 uno o due pannelli di prova passano al tunnel di sviluppo.
 
-## Domande per la sessione di plan
+### Domande per la sessione di plan
 
 - I due portali prima, o la build prima? Con un portale di sviluppo che segue `main` da solo, le strade 3 e 4
   servono meno sul VPS e restano utili per i pannelli.

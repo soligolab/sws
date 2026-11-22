@@ -90,3 +90,56 @@ componenti**. Finché un controllo è una espressione JSX dentro una funzione de
 - Si incrocia con il seme [«La configurazione diventa un albero laterale»](../../archive/2026-09-22-configurazione-ad-albero.md),
   che riorganizza la stessa superficie dal lato dell'interfaccia: **vanno decisi insieme**, o il
   secondo rifà quello che il primo ha appena spostato.
+
+## Il lato Rust: dividere `sws-web` (aggiunto il 22-11-2026)
+
+> Decisione del maintainer del 22-11-2026, mentre si portava in piano il seme della build veloce
+> ([le rc più veloci e il portale di sviluppo](../2026-11-22-dev-rc-release-e-portale-di-sviluppo.md)): dividere `sws-web`
+> «mettilo nel seme di riorganizzazione del codice». Vale anche qui la regola del seme: **prima una sessione di plan
+> approfondita**.
+
+**Perché conta.** Il profilo di release (`sws-runtime/Cargo.toml`, `[profile.release]`: `lto = "thin"`,
+`codegen-units = 1`) ottimizza ogni crate come un blocco unico, su un core solo: si fa apposta, il binario viene più
+veloce e più piccolo, e sul PX30 e sul Tiny TY conta. Ma quasi tutto il codice sta in un crate solo, e i crate sono in
+catena (`sws-core` → `sws-web` → `sws-runtime`): cargo non li può compilare insieme. Il 05-11-2026 si è misurato dal
+vivo `sws_web` su un core per circa 6 minuti e mezzo, poi `sws_runtime` col link per circa 9, con la macchina quasi
+ferma (carico 1,5-1,8 su 8 core). Ogni immagine (arm64, amd64, Tiny TY armv7) costa così ~16-17 minuti di solo
+runtime Rust, anche quando cambia un file solo.
+
+**Misurato il 22-11-2026** (righe di `.rs`):
+
+| crate | righe |
+|---|---:|
+| `sws-web` | 108 804 |
+| `sws-core` | 20 598 |
+| `sws-runtime` | 2 871 |
+
+Dentro `sws-web`, le parti più grosse:
+
+| parte | righe |
+|---|---:|
+| `ai/` | 21 901 |
+| `router.rs` | 16 192 |
+| `validate.rs` | 5 267 |
+| `control_panel/` | 5 320 |
+| `remote.rs` | 4 777 |
+| `projects.rs` | 4 752 |
+| `gateway/` | 3 340 |
+| `tunnel/` | 3 259 |
+| `packaging.rs` | 2 559 |
+| `git_deploy.rs` | 2 352 |
+| `synoptic_schema.rs` | 2 290 |
+| `report/` | 1 623 |
+
+`sws-web` dipende da `sws-core`, `sws-historian`, `sws-pyscript`, `sws-auth`, `sws-audit` e dai sette plugin delle
+sorgenti.
+
+**L'idea**: staccare le parti che stanno in piedi da sole in crate propri, compilati in parallelo e ricompilati solo
+quando cambiano. Candidati a vista: `ai/` (la parte più grossa, e la più toccata nelle ultime settimane), `gateway/` e
+`tunnel/` (servono solo al gateway del cloud), `report/`, `validate.rs` con `synoptic_schema.rs`. `router.rs` (16 192
+righe, un file solo) è il nodo: le rotte di ogni parte dovrebbero passare nel crate della parte.
+
+**Da decidere nella sessione di plan**: quali crate e in che ordine; quanto si guadagna davvero (misurare prima con
+`cargo build --timings` dove va il tempo); se `codegen-units = 1` resta (il guadagno di velocità del binario contro il
+tempo di build, da misurare sul PX30); come si incastra col seme [codice in inglese](2026-11-13-codice-in-inglese.md),
+che rinomina gli stessi file (meglio un concetto alla volta: o prima la divisione o prima i nomi, non insieme).
