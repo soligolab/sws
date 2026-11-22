@@ -2555,7 +2555,7 @@ pub struct Project {
     /// blocca. Stesso disegno di `sorgenti_da_rivedere`.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub impostazione_iniziale: bool,
-    /// Version of the runtime that last wrote this file (CARGO_PKG_VERSION).
+    /// Version of the runtime that last wrote this file (`runtime_version()`).
     /// Informational only — used by the IDE to warn when a project on disk was
     /// saved by a different runtime build and offer a one-click re-save.
     /// `None` on projects written before this field existed.
@@ -3187,11 +3187,56 @@ pub fn resolve_msg(s: &str, lang: &str, table: &LanguageTable) -> String {
     out
 }
 
-/// Version of this runtime build, stamped into `project.yaml` on every save.
-/// All workspace crates share `version.workspace`, so this matches the
-/// `sws-runtime` binary version.
+/// Version of this runtime, stamped into `project.yaml` on every save and the
+/// one place every other reader asks (update checks, `/api/system`, MCP, the
+/// control panel, the LVGL viewer).
+///
+/// Since 22-11-2026 it comes from **outside the binary**: `SWS_VERSION`, set by
+/// the image (`ENV` in the Containerfiles), by the Tiny TY launch scripts (the
+/// package's `VERSIONE` file) and by the native start scripts (the repo's
+/// `VERSION` file). `Cargo.toml` carries only the release number, so a new
+/// `-dev.N` or `-rc.N` no longer recompiles every `sws-*` crate (cargo hashes
+/// the package version into each crate's identity). Without `SWS_VERSION` — a
+/// bare `cargo run` — the release number from `Cargo.toml` is the fallback.
+/// Plan: `docs/plans/2026-11-22-dev-rc-release-e-portale-di-sviluppo.md`.
 pub fn runtime_version() -> &'static str {
-    env!("CARGO_PKG_VERSION")
+    static VERSION: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    VERSION.get_or_init(|| version_from(std::env::var("SWS_VERSION").ok()))
+}
+
+/// `SWS_VERSION` if it is a version, else the crate's. A malformed value (a
+/// typo in a quadlet, `2.27.0 (abc123)` pasted whole) must not end up in
+/// update comparisons: only its first word counts, and it must start with a
+/// digit and contain two dots.
+fn version_from(env: Option<String>) -> String {
+    env.as_deref()
+        .and_then(|v| v.split_whitespace().next())
+        .filter(|v| v.starts_with(|c: char| c.is_ascii_digit()) && v.split('.').count() >= 3)
+        .map(str::to_string)
+        .unwrap_or_else(|| env!("CARGO_PKG_VERSION").to_string())
+}
+
+#[cfg(test)]
+mod version_tests {
+    use super::version_from;
+
+    #[test]
+    fn the_version_comes_from_outside_when_given() {
+        assert_eq!(version_from(Some("2.27.0-dev.3".into())), "2.27.0-dev.3");
+        assert_eq!(version_from(Some("2.26.0-rc.27".into())), "2.26.0-rc.27");
+        // The Tiny TY package's file says `2.26.0-rc.25 (abc1234)`.
+        assert_eq!(version_from(Some("2.26.0-rc.25 (abc1234)".into())), "2.26.0-rc.25");
+    }
+
+    #[test]
+    fn without_a_usable_value_the_crate_version_holds() {
+        let own = env!("CARGO_PKG_VERSION");
+        assert_eq!(version_from(None), own);
+        assert_eq!(version_from(Some(String::new())), own);
+        assert_eq!(version_from(Some("  ".into())), own);
+        assert_eq!(version_from(Some("dev".into())), own);
+        assert_eq!(version_from(Some("2.27".into())), own);
+    }
 }
 
 impl Project {

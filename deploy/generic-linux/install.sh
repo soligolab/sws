@@ -107,6 +107,7 @@ install -m 644 "$SCRIPT_DIR/polkit/50-sws-control-panel.rules" "$POLKIT_RULES"
 echo "==> Installing binary and launch wrapper..."
 install -m 755 "$SCRIPT_DIR/bin/sws-runtime"          "$INSTALL_DIR/bin/sws-runtime"
 install -m 755 "$SCRIPT_DIR/bin/sws-runtime-launch.sh" "$INSTALL_DIR/bin/sws-runtime-launch.sh"
+[ -f "$SCRIPT_DIR/VERSIONE" ] && install -m 644 "$SCRIPT_DIR/VERSIONE" "$INSTALL_DIR/VERSIONE"
 
 echo "==> Installing web assets..."
 rm -rf "$INSTALL_DIR/www"

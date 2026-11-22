@@ -18,7 +18,7 @@ members = ["crates/*"]
 exclude = ["crates/sws-kiosk"]
 
 [workspace.package]
-version = "2.27.0-dev.0"
+version = "2.27.0"
 edition      = "2021"
 # Minima versione di Rust con cui il workspace compila: verificata con
 # `cargo +1.88 check --workspace` il 2026-09-09 (è il massimo richiesto dalle
@@ -173,6 +173,20 @@ opt-level     = 3
 lto           = "thin"
 codegen-units = 1
 strip         = "symbols"
+
+# The dev images (`X.Y.Z-dev.N`, 22-11-2026, plan
+# docs/plans/2026-11-22-dev-rc-release-e-portale-di-sviluppo.md): the same
+# optimisation level, but every crate split over 16 units and no LTO, so the
+# compile uses all the cores instead of one, and incremental so a small change
+# recompiles little. `lto = "off"`, not `false`: `false` still means thin-local.
+# NEVER for rc and release — those are collaudate on the PX30 with the release
+# profile; the build scripts pick the profile from the version and refuse this
+# one for anything but a `-dev`.
+[profile.dev-image]
+inherits      = "release"
+lto           = "off"
+codegen-units = 16
+incremental   = true
 
 # ── Sorgente di lvgl-sys ──────────────────────────────────────────────────────
 #

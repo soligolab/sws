@@ -3,6 +3,12 @@
 # Richiama in sequenza gli script di build container per costruire tutte le
 # immagini in un colpo solo invece di lanciarle una a una a mano.
 #
+# DAL 22-11-2026 PER LE VERSIONI SI USANO build_dev.sh E build_rc.sh: le gambe in
+# parallelo (col Tiny TY), una SPA sola, il profilo cargo scelto dalla versione,
+# il Rust riusato quando non è cambiato. Questo script resta per chi lo ha nelle
+# dita: costruisce in fila le due immagini, con lo stesso profilo e le stesse
+# regole sui tag (scripts/lib_build.sh).
+#
 # LE IMMAGINI SONO DUE: aarch64 e x86_64. L'aarch64 la costruisce
 # build_container.sh cross-compilando in un container Ubuntu (niente SDK Pixsys,
 # niente QEMU, ottimizzata) e vale per qualunque board arm64;

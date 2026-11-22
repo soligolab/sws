@@ -449,19 +449,14 @@ else
   fi
 fi
 
-# I quattro file che dichiarano la versione. Un disallineamento qui è il difetto
-# che la 2.3.4 ha già dovuto correggere una volta (un Cargo.lock che continuava
-# a dire 2.1.0), e non si vede da nessun'altra parte.
-VERS="$( { grep -m1 -oE '^version = "[0-9.]+(-[a-z]+\.[0-9]+)?"' "$REPO/sws-runtime/Cargo.toml";
-           grep -m1 -oE '"version": "[0-9.]+(-[a-z]+\.[0-9]+)?"'  "$REPO/sws-editor/package.json";
-           grep -m1 -oE '^version = "[0-9.]+(-[a-z]+\.[0-9]+)?"' "$REPO/sws-runtime/crates/sws-kiosk/Cargo.toml";
-           grep -m1 -oE '^version = "[0-9.]+(-[a-z]+\.[0-9]+)?"' "$REPO/sws-runtime/crates/sws-lvgl-viewer/Cargo.toml";
-         } 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+(-[a-z]+\.[0-9]+)?' | sort -u )"
-N_VERS="$(printf '%s\n' "$VERS" | grep -c .)"
-if [ "$N_VERS" -eq 1 ]; then
-  ok "versione dichiarata: ${VERS} (coerente nei quattro file)"
+# La versione: `VERSION` e i file che la seguono (dal 22-11-2026,
+# scripts/versione.sh). Un disallineamento qui è il difetto che la 2.3.4 ha già
+# dovuto correggere una volta (un Cargo.lock che continuava a dire 2.1.0), e non
+# si vede da nessun'altra parte.
+if [ -x "$REPO/scripts/versione.sh" ] && DISCORDI="$("$REPO/scripts/versione.sh" --controlla 2>&1)"; then
+  ok "versione dichiarata: $("$REPO/scripts/versione.sh") (VERSION, package.json e Cargo.toml coerenti)"
 else
-  grave "i quattro file che dichiarano la versione non sono d'accordo: $(printf '%s' "$VERS" | paste -sd' ')"
+  grave "la versione non è coerente: ${DISCORDI:-scripts/versione.sh mancante}"
   da_guardare=$((da_guardare+1))
 fi
 

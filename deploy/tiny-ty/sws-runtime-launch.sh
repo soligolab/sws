@@ -27,6 +27,14 @@ if [ -f /etc/sws/runtime.env ]; then
     set +a
 fi
 
+# The version this install declares (22-11-2026): the package's VERSIONE file
+# (`2.26.0-rc.27 (abc1234)`; the runtime keeps the first word). No longer
+# compiled into the binary: sws_core::project::runtime_version.
+if [ -f "$SWS_INSTALL/VERSIONE" ]; then
+    SWS_VERSION="$(cut -d' ' -f1 "$SWS_INSTALL/VERSIONE")"
+    export SWS_VERSION
+fi
+
 # The viewer drives the backlight here (schermo.rs, --retroilluminazione): the
 # control panel only saves the brightness, and the viewer applies it.
 export SWS_BACKLIGHT_BY_VIEWER=1

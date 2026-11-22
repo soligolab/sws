@@ -18,7 +18,7 @@ ok() { printf '  \033[32m✓\033[0m %s\n' "$1"; verdi=$((verdi+1)); }
 no() { printf '  \033[31m✗\033[0m %s\n' "$1"; rossi=$((rossi+1)); }
 printf '\033[1m── check_novita ──\033[0m\n'
 
-VERSIONE="$(grep -m1 -oE '^version = "[^"]+"' sws-runtime/Cargo.toml | cut -d'"' -f2)"
+VERSIONE="$(scripts/versione.sh)"
 if out="$(python3 scripts/novita.py --controlla "$VERSIONE" 2>&1)"; then
   ok "NOVITA.yaml: due lingue, voci brevi, e la $VERSIONE ha le sue Novità"
 else

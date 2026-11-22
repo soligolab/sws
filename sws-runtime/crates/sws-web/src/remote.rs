@@ -3392,7 +3392,7 @@ pub async fn remote_deploy(
             } else {
                 None
             };
-            let stessa = versione.as_deref() == Some(crate::aggiornamento::VERSIONE);
+            let stessa = versione.as_deref() == Some(crate::aggiornamento::version());
             // I simboli disegnati nel progetto viaggiano col progetto: basta che
             // il pannello sappia servirli (un runtime di prima del 03-11-2026 non
             // ha `/api/project/simboli` e li mostrerebbe come segnaposto).

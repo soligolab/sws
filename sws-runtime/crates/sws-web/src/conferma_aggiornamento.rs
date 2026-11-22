@@ -315,7 +315,7 @@ pub async fn all_avvio(config: PathBuf) {
             return;
         }
     };
-    let versione = crate::aggiornamento::VERSIONE;
+    let versione = crate::aggiornamento::version();
     if m.appena_tornato {
         m.appena_tornato = false;
         m.confermata = s.attuale.as_ref().map(|a| a.id.clone());

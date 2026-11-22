@@ -386,7 +386,7 @@ pub async fn compute_system_status(
     };
 
     SystemStatus {
-        runtime_version: env!("CARGO_PKG_VERSION").to_string(),
+        runtime_version: sws_core::project::runtime_version().to_string(),
         segreti_separati: true,
         symbol_photos: true,
         uptime_s: started_at.elapsed().as_secs(),

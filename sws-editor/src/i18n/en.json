@@ -3467,6 +3467,7 @@
     "canale": {
       "stabile": "stable channel",
       "prova": "test channel",
+      "sviluppo": "development channel",
       "fissata": "pinned version",
       "archivio": "installed from archive",
       "sconosciuto": "unmanaged install"

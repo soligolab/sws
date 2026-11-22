@@ -65,32 +65,14 @@ dichiarata() {
 }
 
 # ── 1. la versione è una sola ────────────────────────────────────────────────
-echo "=== 1. la versione dichiarata è la stessa nei quattro file ==="
-
-versione_di() {
-    case "$1" in
-        *.json) grep -m1 -oP '"version"\s*:\s*"\K[^"]+' "$1" ;;
-        *)      grep -m1 -oP '^version\s*=\s*"\K[^"]+' "$1" ;;
-    esac
-}
-
-PORTANO_VERSIONE=(
-    sws-runtime/Cargo.toml
-    sws-runtime/crates/sws-kiosk/Cargo.toml
-    sws-runtime/crates/sws-lvgl-viewer/Cargo.toml
-    sws-editor/package.json
-)
-
-VERSIONE="$(versione_di "${PORTANO_VERSIONE[0]}")"
-discordi=""
-for f in "${PORTANO_VERSIONE[@]}"; do
-    v="$(versione_di "$f")"
-    [ "$v" = "$VERSIONE" ] || discordi="${discordi} ${f}=${v:-vuota}"
-done
-if [ -z "$discordi" ]; then
-    esito ok "tutti e quattro dicono $VERSIONE"
+echo "=== 1. VERSION e i file che la seguono sono d'accordo ==="
+# Since 22-11-2026 the product version is `VERSION`; package.json carries it
+# whole, the three Cargo.toml only its release number (scripts/versione.sh).
+VERSIONE="$(scripts/versione.sh)"
+if discordi="$(scripts/versione.sh --controlla 2>&1)"; then
+    esito ok "VERSION dice $VERSIONE, package.json lo stesso, i Cargo.toml $(scripts/versione.sh --base)"
 else
-    esito no "non concordano (il primo dice $VERSIONE):$discordi"
+    esito no "$discordi"
 fi
 
 # ── 2. la versione dichiarata ha una sezione nel CHANGELOG ───────────────────

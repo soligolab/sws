@@ -4959,7 +4959,7 @@ async fn aggiornamento_avvia(
 ) -> Response {
     use crate::aggiornamento::Canale;
     let st = crate::aggiornamento::stato().await;
-    if !matches!(st.canale, Canale::Stabile | Canale::Prova) {
+    if !matches!(st.canale, Canale::Stabile | Canale::Prova | Canale::Sviluppo) {
         return (
             StatusCode::CONFLICT,
             "Questo runtime non segue un canale del registry (installato da archivio, o con una \
@@ -5155,7 +5155,7 @@ async fn istantanea_dati_prendi(
     Extension(user): Extension<AuthUser>,
 ) -> Response {
     let _scrittura = s.project_write_lock.lock().await;
-    match crate::istantanea_dati::prendi(crate::aggiornamento::VERSIONE).await {
+    match crate::istantanea_dati::prendi(crate::aggiornamento::version()).await {
         Ok(Some(info)) => {
             s.audit.log(
                 "update.istantanea",

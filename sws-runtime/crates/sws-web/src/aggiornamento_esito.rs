@@ -142,7 +142,7 @@ pub async fn all_avvio(s: crate::router::AppState) {
     let Some(ic) = carica(&dir).await.in_corso else {
         return;
     };
-    let versione = crate::aggiornamento::VERSIONE;
+    let versione = crate::aggiornamento::version();
     let esito = match decidi(&ic, versione, chrono::Utc::now().timestamp_millis()) {
         Decisione::Scaduto => {
             let mut p = carica(&dir).await;

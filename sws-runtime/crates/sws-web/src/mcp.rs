@@ -118,7 +118,7 @@ fn senza_stato(metodo: &str, id: Value, params: Option<&Value>) -> Value {
                 json!({
                     "protocolVersion": versione,
                     "capabilities": { "tools": {} },
-                    "serverInfo": { "name": "sws", "version": env!("CARGO_PKG_VERSION") },
+                    "serverInfo": { "name": "sws", "version": sws_core::project::runtime_version() },
                     "instructions": "Il progetto SWS aperto su questo runtime, in sola lettura. \
                                      Comincia da `elenca_pagine`. Nessuno strumento scrive: per \
                                      cambiare il progetto si passa dalla chat dell'IDE, che ha il \

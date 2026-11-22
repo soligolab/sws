@@ -42,7 +42,12 @@
 # monta il repo in /src e lancia `cargo build --target aarch64-unknown-linux-gnu`.
 
 # ── Stadio 1: il sysroot arm64 ───────────────────────────────────────────────
-FROM --platform=linux/arm64 ubuntu:24.04 AS sysroot
+# The base by digest, not by tag (22-11-2026): the builds of the different
+# architectures run in parallel now, and a local `ubuntu:24.04` tag flips its
+# architecture at every pull with another --platform. The digest is the
+# multi-arch index: --platform still picks the architecture. Updated by hand,
+# like rustc below, when we decide to take Ubuntu's updates.
+FROM --platform=linux/arm64 docker.io/library/ubuntu:24.04@sha256:9c7f200c07e3d4a03e7249d2c16bf66a51120fb876aa2242cf31451412543289 AS sysroot
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         libc6-dev \
@@ -54,7 +59,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # ── Stadio 2: il builder x86_64 ──────────────────────────────────────────────
-FROM --platform=linux/amd64 ubuntu:24.04
+FROM --platform=linux/amd64 docker.io/library/ubuntu:24.04@sha256:9c7f200c07e3d4a03e7249d2c16bf66a51120fb876aa2242cf31451412543289
 
 # build-essential, clang, libclang-dev, cmake, pkg-config: i build script dei
 #   crate (rusqlite bundled, ring, aws-lc-sys, lvgl-sys con bindgen). `lvgl`
@@ -90,7 +95,7 @@ ENV RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
     PATH=/usr/local/cargo/bin:$PATH
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
-      | sh -s -- -y --no-modify-path --profile minimal --default-toolchain stable && \
+      | sh -s -- -y --no-modify-path --profile minimal --default-toolchain 1.100.0 && \
     rustup target add aarch64-unknown-linux-gnu && \
     rustc --version && cargo --version
 

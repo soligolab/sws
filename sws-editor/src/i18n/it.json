@@ -3467,6 +3467,7 @@
     "canale": {
       "stabile": "canale stabile",
       "prova": "canale di prova",
+      "sviluppo": "canale di sviluppo",
       "fissata": "versione fissata",
       "archivio": "installato da archivio",
       "sconosciuto": "installazione non gestita"

@@ -61,9 +61,10 @@ fi
 
 # ── Resolve version / host arch ───────────────────────────────────────────────
 
-VERSION=$(cd "$REPO/sws-runtime" && cargo metadata --no-deps --format-version 1 \
-    | python3 -c "import json,sys; pkgs=json.load(sys.stdin)['packages']; \
-      print(next(p['version'] for p in pkgs if p['name']=='sws-runtime'))")
+# The product version is the `VERSION` file (22-11-2026), not Cargo.toml,
+# which carries only the release number: see scripts/versione.sh.
+"$REPO/scripts/versione.sh" --controlla >&2
+VERSION="$("$REPO/scripts/versione.sh")"
 HOST_ARCH="$(uname -m)"
 
 echo "==> Building SWS deploy packages ${VERSION}  (host=${BUILD_HOST} aarch64=${BUILD_ARM})"

@@ -840,7 +840,7 @@ pub fn stato_di_prova(quale: &str) -> Option<StatoAggiornamento> {
     }
     };
     let base = StatoAggiornamento {
-        versione: env!("CARGO_PKG_VERSION").to_string(),
+        versione: sws_core::project::runtime_version().to_string(),
         ..Default::default()
     };
     Some(match quale {

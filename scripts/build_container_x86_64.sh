@@ -48,6 +48,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$SCRIPT_DIR/.." && pwd)"
+# shellcheck source=lib_build.sh
+. "$SCRIPT_DIR/lib_build.sh"
 
 usage() {
     sed -n '2,45p' "${BASH_SOURCE[0]}" | sed 's/^#//; s/^ //'
@@ -61,10 +63,11 @@ PUSH=0
 REGISTRY="ghcr.io/soligolab/sws-runtime"
 OUT_DIR="$REPO/dist"
 # Non `target/release/`: quella è la build dell'host, con un'altra libpython.
-BIN="$REPO/sws-runtime/target-container-x86_64/release/sws-runtime"
+# BIN and LVGL_BIN are set once the version is known, under the cargo profile
+# it picks (`release/` or `dev-image/`, scripts/lib_build.sh).
+TARGET_DIR="$REPO/sws-runtime/target-container-x86_64"
 # Stessa target-dir del runtime: il viewer è nel workspace, e le dipendenze in
 # comune (tokio, serde, reqwest…) si compilano una volta sola.
-LVGL_BIN="$REPO/sws-runtime/target-container-x86_64/release/sws-lvgl-viewer"
 SPA_DIST="$REPO/sws-editor/dist"
 BUILDER_IMAGE="sws-runtime-builder:x86_64"
 # Python della base `ubuntu:24.04`, che builder e immagine finale condividono.
@@ -120,9 +123,21 @@ if [ "$PUSH" -eq 1 ]; then
     fi
 fi
 
-VERSION=$(cd "$REPO/sws-runtime" && cargo metadata --no-deps --format-version 1 \
-    | python3 -c "import json,sys; pkgs=json.load(sys.stdin)['packages']; \
-      print(next(p['version'] for p in pkgs if p['name']=='sws-runtime'))")
+# The product version is the `VERSION` file (22-11-2026), not Cargo.toml,
+# which carries only the release number: see scripts/versione.sh.
+"$REPO/scripts/versione.sh" --controlla >&2
+VERSION="$("$REPO/scripts/versione.sh")"
+PROFILO="$(profilo_cargo "$VERSION")"
+BIN="$TARGET_DIR/$PROFILO/sws-runtime"
+LVGL_BIN="$TARGET_DIR/$PROFILO/sws-lvgl-viewer"
+IMPRONTA_FILE="$TARGET_DIR/.impronta-$PROFILO"
+if [ "$PUSH" -eq 1 ]; then controlla_pubblicazione "$VERSION"; fi
+IMPRONTA="$(impronta_rust amd64 "$PROFILO" "$REPO/deploy/container/Containerfile.x86_64.builder")"
+if [ "$BUILD_RUST" -eq 1 ] && [ "${SWS_FORZA_RUST:-0}" != "1" ] && rust_aggiornato "$IMPRONTA_FILE" "$IMPRONTA" \
+        && [ -f "$BIN" ] && { [ "$WITH_LVGL" -eq 0 ] || [ -f "$LVGL_BIN" ]; }; then
+    echo "==> [1/4] Rust invariato dall'ultima build ($PROFILO, impronta $IMPRONTA): binari riusati"
+    BUILD_RUST=0
+fi
 # Suffisso di architettura anche nel tag locale: vedi il commento gemello
 # in build_container.sh.
 IMAGE="sws-runtime:${VERSION}-amd64"
@@ -158,7 +173,7 @@ if [ "$BUILD_RUST" -eq 1 ]; then
         -f "$REPO/deploy/container/Containerfile.x86_64.builder" \
         "$REPO/deploy/container"
 
-    echo "==> [1a/4] cargo build --release --bin sws-runtime (dentro il builder)"
+    echo "==> [1a/4] cargo build --profile $PROFILO --bin sws-runtime (dentro il builder)"
     # --target-dir dedicata: la `target/` dell'host contiene oggetti compilati
     # con un'altra libpython e un altro glibc, e mescolarli darebbe link
     # incoerenti difficili da diagnosticare. CARGO_HOME dentro il repo così i
@@ -171,7 +186,7 @@ if [ "$BUILD_RUST" -eq 1 ]; then
         -e CARGO_HOME=/src/.cargo-container-x86_64 \
         -e CARGO_TARGET_DIR=/src/sws-runtime/target-container-x86_64 \
         "$BUILDER_IMAGE" \
-        cargo build --release --bin sws-runtime
+        cargo build --profile "$PROFILO" --bin sws-runtime
 
     if [ "$WITH_LVGL" -eq 1 ]; then
         # Come nel gemello aarch64: le patch al codice LVGL vendorizzato
@@ -191,7 +206,7 @@ if [ "$BUILD_RUST" -eq 1 ]; then
         # nell'immagine si porterebbe dietro Mesa e LLVM (+270 MB misurati) per
         # una libreria che `--istantanea` non inizializza mai. Vedi il Cargo.toml
         # del viewer.
-        echo "==> [1c/4] cargo build --release -p sws-lvgl-viewer --features sdl-statico (dentro il builder)"
+        echo "==> [1c/4] cargo build --profile $PROFILO -p sws-lvgl-viewer --features sdl-statico (dentro il builder)"
         podman run --rm \
             --platform linux/amd64 \
             --network host \
@@ -200,10 +215,11 @@ if [ "$BUILD_RUST" -eq 1 ]; then
             -e CARGO_HOME=/src/.cargo-container-x86_64 \
             -e CARGO_TARGET_DIR=/src/sws-runtime/target-container-x86_64 \
             "$BUILDER_IMAGE" \
-            cargo build --release -p sws-lvgl-viewer --features sdl-statico
+            cargo build --profile "$PROFILO" -p sws-lvgl-viewer --features sdl-statico
     fi
+    segna_rust "$IMPRONTA_FILE" "$IMPRONTA"
 else
-    echo "==> [1/4] skipped (--no-rust)"
+    echo "==> [1/4] Rust non ricompilato"
 fi
 
 if [ "$BUILD_SPA" -eq 1 ]; then
@@ -322,14 +338,11 @@ if [ "$PUSH" -eq 1 ]; then
     # dell'installer è `latest-arm64`, quindi su x86_64 questo va passato a mano.
     TAG_LATEST="${REGISTRY}:latest-amd64"
     echo "==> [4/4] pubblicazione su $REGISTRY"
-    # Canali dell'aggiornamento (27-09-2026), come in build_container.sh:
-    # `-rc` sposta solo `rc-amd64`, una release sposta `latest-` e `rc-`.
-    TAG_RC="${REGISTRY}:rc-amd64"
-    case "$VERSION" in
-        *-rc.*) TAGS=( "$TAG_VERSION" "$TAG_COMMIT" "$TAG_RC" ) ;;
-        *-*)    TAGS=( "$TAG_VERSION" "$TAG_COMMIT" ) ;;
-        *)      TAGS=( "$TAG_VERSION" "$TAG_COMMIT" "$TAG_LATEST" "$TAG_RC" ) ;;
-    esac
+    # The moving tags since 22-11-2026, as in build_container.sh: dev-, rc-,
+    # latest-amd64, each moved only if this is the newest version the channel
+    # admits (scripts/lib_build.sh, tag_mobili).
+    TAGS=( "$TAG_VERSION" "$TAG_COMMIT" )
+    while read -r m; do [ -n "$m" ] && TAGS+=( "${REGISTRY}:$m" ); done < <(tag_mobili "$VERSION" amd64)
     for t in "${TAGS[@]}"; do
         podman tag "$IMAGE" "$t"
         echo "    push $t"

@@ -30,6 +30,22 @@ per le correzioni della 2.26.0 (rc.27…), `main` a `2.27.0-dev.0`; le regole nu
 anomalie aperte del collaudo (Kimi, Modbus, log, 422) sono correzioni: si fanno su `fix/…` da `release/2.26`. «Dividere `sws-web`» è nel seme di
 riorganizzazione del codice.
 
+**Anomalie nuove dell'editor dei simboli (22-11-2026, il maintainer nell'IDE del cloud sulla rc.26)**, da correggere su
+un `fix/…` da `release/2.26` (rc.27) **dopo** la parte 2 del piano dev/rc/release («Prima finisco la parte 2»):
+1. **«Genera foto» genera la foto ma la tela resta vuota.** La tela disegna solo l'ultimo SVG che compila
+   (`SymbolEditor.tsx`, `compiled.svg`); il compilatore rifiuta un simbolo senza forme nel corpo (`simboli_prj.rs`,
+   «manca lo strato body»); «Genera foto» mette la foto in uno strato fisso sotto il disegno. Nel simbolo nuovo
+   «Stufa» il corpo è vuoto, nessuna compilazione è mai riuscita, e la tela resta vuota anche per rettangolo ed
+   ellisse. **Decisione del maintainer**: la tela si disegna sempre, anche quando il simbolo non si può ancora salvare
+   (l'errore resta in basso), **e** un simbolo fatto solo di foto è salvabile (il corpo serve solo se c'è da ricolorare).
+2. **Non si riesce a mettere forme nel corpo**: dopo la foto lo strato aperto resta «Fisso 1» e le forme nuove
+   (rettangolo #3, ellisse #4) finiscono lì; scegliere il corpo come strato di destinazione non riesce.
+3. **Le colonne hanno larghezza fissa e tagliano i testi** (strati a 220 px dal 22-11: «Photo ai-photo-06b279d00…»,
+   «Body (state c…»), e forse gli strumenti: vanno ridimensionabili come i pannelli dell'IDE.
+4. Trovato per strada: `deploy/generic-linux/sws-runtime-launch.sh` è `sh` ma usa un array di bash (con dash non parte).
+5. **Kimi non disegna ancora** (anomalia 8 del collaudo, forma nuova): nella scheda IA dell'editor dei simboli la
+   richiesta riformulata parte, e la risposta è «The model did not answer: nessun testo nella risposta di kimi».
+
 ## Prima — la 2.26.0-rc.25 sul VPS, i menù dell'editor dei simboli da guardare (2026-11-22 notte, `ufficio`)
 
 **Il collaudo della rc.23 col maintainer (21-11, sera)**, `/test-changes` sul TC620: test 1-4 passati (registro
