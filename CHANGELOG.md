@@ -48,6 +48,16 @@ si stabilizza su `release/2.26` (piano `docs/plans/2026-11-22-dev-rc-release-e-p
 Il lavoro dalla 2.25.2 alla 2.26.0-rc.26. Le correzioni della stabilizzazione si fanno su `release/2.26` e si
 riportano qui con `cherry-pick`; la data arriva con la release.
 
+### Cambiato — la colonna destra dell'editor dei simboli segue la selezione (22-11-2026, ramo `feat/symbol-inspector`)
+- Il maintainer: «sono una serie di sezioni che si accodano una sotto l'altra e non è collegata all'oggetto
+  selezionato». Le schede Pezzo / Struttura / Prova / IA diventano **Simbolo / Selezione / Prova**: senza selezione la
+  colonna mostra il simbolo (nome, misura, ingressi, bocche, «Riempi il riquadro», IA); con una selezione le sue sezioni
+  (animazione, gruppo, effetti, ritaglio, posizione, aspetto, strato); «Simbolo» toglie la selezione, «Prova» è un
+  interruttore.
+- **«Cambia questa foto con un ingresso»** sulla foto scelta (anomalia 8 del collaudo della rc.28: la foto per stato non
+  si trovava): la foto diventa un segnale, le cui voci mostrano ciascuna una foto.
+- Lo spezzatino di `SymbolEditor.tsx` in un file per sezione, previsto dal piano, non è fatto: resta per un ramo suo.
+
 ### Cambiato — gli effetti dei simboli come proprietà delle forme (22-11-2026, ramo `feat/symbol-fx-groups`)
 - Il maintainer, al collaudo della rc.28: gli effetti «dovrebbero essere proprietà che posso assegnare ad oggetti o
   gruppi di oggetti». Le **parti effetto** della fase 8 (glow, bubbles, smoke, flame col loro riquadro) **non ci sono

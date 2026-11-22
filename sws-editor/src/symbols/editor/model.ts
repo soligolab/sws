@@ -1073,8 +1073,9 @@ export interface FxOp {
   radius?: number;
 }
 
+/** The group of a drawing (an `effetto` names a group, but isn't in it). */
 export function groupOf(op: Op | undefined): string | undefined {
-  return op && typeof op.group === "string" && op.group ? op.group : undefined;
+  return op && draws(op) && typeof op.group === "string" && op.group ? op.group : undefined;
 }
 
 /** The operations of group `g`. */
