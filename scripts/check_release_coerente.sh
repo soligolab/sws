@@ -65,32 +65,14 @@ dichiarata() {
 }
 
 # ── 1. la versione è una sola ────────────────────────────────────────────────
-echo "=== 1. la versione dichiarata è la stessa nei quattro file ==="
-
-versione_di() {
-    case "$1" in
-        *.json) grep -m1 -oP '"version"\s*:\s*"\K[^"]+' "$1" ;;
-        *)      grep -m1 -oP '^version\s*=\s*"\K[^"]+' "$1" ;;
-    esac
-}
-
-PORTANO_VERSIONE=(
-    sws-runtime/Cargo.toml
-    sws-runtime/crates/sws-kiosk/Cargo.toml
-    sws-runtime/crates/sws-lvgl-viewer/Cargo.toml
-    sws-editor/package.json
-)
-
-VERSIONE="$(versione_di "${PORTANO_VERSIONE[0]}")"
-discordi=""
-for f in "${PORTANO_VERSIONE[@]}"; do
-    v="$(versione_di "$f")"
-    [ "$v" = "$VERSIONE" ] || discordi="${discordi} ${f}=${v:-vuota}"
-done
-if [ -z "$discordi" ]; then
-    esito ok "tutti e quattro dicono $VERSIONE"
+echo "=== 1. VERSION e i file che la seguono sono d'accordo ==="
+# Since 22-11-2026 the product version is `VERSION`; package.json carries it
+# whole, the three Cargo.toml only its release number (scripts/versione.sh).
+VERSIONE="$(scripts/versione.sh)"
+if discordi="$(scripts/versione.sh --controlla 2>&1)"; then
+    esito ok "VERSION dice $VERSIONE, package.json lo stesso, i Cargo.toml $(scripts/versione.sh --base)"
 else
-    esito no "non concordano (il primo dice $VERSIONE):$discordi"
+    esito no "$discordi"
 fi
 
 # ── 2. la versione dichiarata ha una sezione nel CHANGELOG ───────────────────
@@ -124,9 +106,21 @@ tag_di() {
     fi
 }
 
+# A release being stabilised on its own branch (22-11-2026, dev/rc/release plan)
+# has its section in `main` before it has a tag: `## [2.26.0] — in
+# stabilizzazione`. It is accepted only while its branch `release/X.Y` exists,
+# here or on origin; once the release is out the tag is there and the branch goes.
+in_stabilizzazione() {
+    local v="$1" ramo="release/${1%.*}"
+    grep -qE "^## \[${v//./\\.}\] — in stabilizzazione" CHANGELOG.md || return 1
+    git rev-parse -q --verify "refs/heads/$ramo" >/dev/null ||
+        git rev-parse -q --verify "refs/remotes/origin/$ramo" >/dev/null
+}
+
 orfane=""; orfane_dichiarate=""
 for v in "${RILASCIATE[@]}"; do
     [ -n "$(tag_di "$v")" ] && continue
+    in_stabilizzazione "$v" && continue
     if dichiarata "$v"; then
         orfane_dichiarate="${orfane_dichiarate} ${v}"
     else

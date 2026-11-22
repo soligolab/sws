@@ -11,6 +11,43 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+Il lavoro della **2.27.0** (versioni `2.27.0-dev.N`). Dal 22-11-2026 `main` porta la release successiva, e la 2.26.0
+si stabilizza su `release/2.26` (piano `docs/plans/2026-11-22-dev-rc-release-e-portale-di-sviluppo.md`).
+
+### Cambiato
+- **Tre livelli di versione: dev, rc e release.** Le rc servono solo a finalizzare una release (correzioni e
+  prestazioni); il lavoro nuovo esce come `X.Y.Z-dev.N`. La 2.26.0 entra in stabilizzazione sul ramo `release/2.26`,
+  `main` passa a `2.27.0-dev.0`. Le guardie seguono: `novita.py` limita a 15 le voci solo nei blocchi già rilasciati
+  (con il loro tag) o in quello della release dichiarata, e accetta una `-dev` senza Novità ancora scritte;
+  `check_release_coerente.sh` accetta una sezione `## [X.Y.Z] — in stabilizzazione` senza tag finché esiste il ramo
+  `release/X.Y`.
+- **La versione letta da fuori del binario** (parte 1 del piano). La versione del prodotto è il file `VERSION` in
+  radice (`scripts/versione.sh` la legge, la controlla e la imposta); `package.json` la porta per intero, i tre
+  `Cargo.toml` solo il numero della release, perché cargo mette la versione del pacchetto nell'identità di ogni crate
+  e ogni `-rc.N` ricompilava i 16 crate `sws-*` (~17 minuti per architettura, anche per una rc che cambiava solo la
+  SPA). Il runtime la legge all'avvio da `SWS_VERSION` (`sws_core::project::runtime_version`, con la versione del
+  crate di riserva e un valore malformato ignorato): la impostano le immagini (`ENV` nei Containerfile, ereditato dai
+  container di progetto e dal viewer LVGL), gli script di avvio del Tiny TY e del pacchetto Linux generico (dal file
+  `VERSIONE` del pacchetto, che ora c'è anche nel generico) e gli script di avvio locali. Tutti gli usi della versione
+  passano da lì: aggiornamento, `/api/system`, MCP, pannello di controllo, viewer LVGL, `saved_by` di `project.yaml`.
+- **Il canale di sviluppo** `dev-<arch>`: un pannello installato su quel tag vede release, rc e dev; l'IDE lo chiama
+  «canale di sviluppo» e mostra «Aggiorna ora» anche lì. Chi sposta il tag lo decidono gli script della parte 2.
+- **Le build di dev, rc e release** (parte 2). `scripts/build_dev.sh`: profilo cargo `dev-image` (niente LTO, 16
+  unità, incrementale: tutti i core), solo amd64 se non si chiede altro. `scripts/build_rc.sh`: profilo release, arm64,
+  amd64 e Tiny TY in parallelo dopo una SPA sola (il 22-11-2026, con due gambe insieme, la rc.26 è passata da ~75 a 60
+  minuti col builder rifatto). Il Rust si ricompila solo se `sws-runtime/` è cambiato dall'ultima build riuscita
+  (impronta in `target-container-*/.impronta-<profilo>`). Col `--push`: ramo giusto e tag sul commit obbligatori, e i
+  tag mobili (`dev-*`, `rc-*`, `latest-*`) si spostano solo se la versione è la più alta del canale
+  (`scripts/registro.py`, `scripts/lib_build.sh`). I builder hanno rustc fissato (1.100.0) e le basi Ubuntu per
+  digest, lo stadio `sysroot` col nome (la pulizia lo toglieva, e ogni build arm64 rifaceva 19 minuti di apt).
+  Corretto anche `build_container.sh --no-rust`, che saltava la SPA. Il runtime legge i tag del registry **pagina per
+  pagina** (376 oggi, con le dev presto oltre i 1000 che leggeva).
+
+## [2.26.0] — in stabilizzazione (ramo `release/2.26`)
+
+Il lavoro dalla 2.25.2 alla 2.26.0-rc.26. Le correzioni della stabilizzazione si fanno su `release/2.26` e si
+riportano qui con `cherry-pick`; la data arriva con la release.
+
 ### Cambiato
 - **I pannelli dell'editor dei simboli nello stile dell'IDE** (collaudo della 2.26.0-rc.23, 21-11-2026, ramo
   `feat/symbol-editor-panels`). Il maintainer: «tutti i menù sono fissi e in uno stile diverso dall'IDE principale».

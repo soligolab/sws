@@ -32,9 +32,10 @@ done
 
 # ── Resolve version ───────────────────────────────────────────────────────────
 
-VERSION=$(cd "$REPO/sws-runtime" && cargo metadata --no-deps --format-version 1 \
-    | python3 -c "import json,sys; pkgs=json.load(sys.stdin)['packages']; \
-      print(next(p['version'] for p in pkgs if p['name']=='sws-runtime'))")
+# The product version is the `VERSION` file (22-11-2026), not Cargo.toml,
+# which carries only the release number: see scripts/versione.sh.
+"$REPO/scripts/versione.sh" --controlla >&2
+VERSION="$("$REPO/scripts/versione.sh")"
 ARCH="$(uname -m)"
 TARNAME="sws-${VERSION}-linux-${ARCH}"
 DIST="$REPO/dist"
@@ -85,6 +86,10 @@ cp -r "$SPA_DIST/." "$STAGE/www/"
 if [ -d "$REPO/examples/templates" ]; then
     cp -r "$REPO/examples/templates/." "$STAGE/templates/"
 fi
+
+# The version the install declares (22-11-2026): read by the launch script into
+# SWS_VERSION, no longer compiled into the binary.
+echo "$VERSION ($(git -C "$REPO" rev-parse --short HEAD 2>/dev/null || echo '?'))" > "$STAGE/VERSIONE"
 
 # Installer scripts
 install -m 755 "$REPO/deploy/generic-linux/install.sh"          "$STAGE/install.sh"

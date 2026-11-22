@@ -113,6 +113,14 @@ set --
 
 echo "[sws] viewer: schermo $SWS_DRM_CARD, touch $SWS_TOUCH, runtime $SWS_BASE_URL, $*" >&2
 
+# The version this install declares (22-11-2026): the package's VERSIONE file
+# (`2.26.0-rc.27 (abc1234)`; the runtime keeps the first word). No longer
+# compiled into the binary: sws_core::project::runtime_version.
+if [ -f "$SWS_INSTALL/VERSIONE" ]; then
+    SWS_VERSION="$(cut -d' ' -f1 "$SWS_INSTALL/VERSIONE")"
+    export SWS_VERSION
+fi
+
 exec "$SWS_INSTALL/bin/sws-lvgl-viewer" \
     --backend      drm \
     --drm-card     "$SWS_DRM_CARD" \

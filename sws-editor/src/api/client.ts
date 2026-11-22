@@ -502,7 +502,7 @@ export interface InventarioCertificati {
 export interface StatoAggiornamento {
   versione: string;
   immagine: string | null;
-  canale: "stabile" | "prova" | "fissata" | "archivio" | "sconosciuto";
+  canale: "stabile" | "prova" | "sviluppo" | "fissata" | "archivio" | "sconosciuto";
   disponibile: string | null;
   errore: string | null;
   /** Cosa cambia, letto dalle etichette delle immagini da attraversare: una

@@ -62,6 +62,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$SCRIPT_DIR/.." && pwd)"
+# shellcheck source=lib_build.sh
+. "$SCRIPT_DIR/lib_build.sh"
 
 usage() {
     sed -n '2,59p' "${BASH_SOURCE[0]}" | sed 's/^#//; s/^ //'
@@ -110,8 +112,8 @@ done
 # L'albero del cross-build è suo: separato da `sws-runtime/target/`, che è
 # quello delle build native dell'host. Mescolarli farebbe incartare un binario
 # x86_64 credendolo aarch64.
-BIN="$CROSS_TARGET/$TARGET_TRIPLE/release/sws-runtime"
-LVGL_BIN="$CROSS_TARGET_LVGL/$TARGET_TRIPLE/release/sws-lvgl-viewer"
+# BIN and LVGL_BIN: set once the version is known, under the cargo profile it
+# picks (`release/` or `dev-image/`).
 
 # ── Controlli preliminari alla pubblicazione ──────────────────────────────────
 # Tutti PRIMA della build: una cross-compilazione dura minuti, e scoprire alla
@@ -141,9 +143,17 @@ if [ "$PUSH" -eq 1 ]; then
     fi
 fi
 
-VERSION=$(cd "$REPO/sws-runtime" && cargo metadata --no-deps --format-version 1 \
-    | python3 -c "import json,sys; pkgs=json.load(sys.stdin)['packages']; \
-      print(next(p['version'] for p in pkgs if p['name']=='sws-runtime'))")
+# The product version is the `VERSION` file (22-11-2026), not Cargo.toml,
+# which carries only the release number: see scripts/versione.sh.
+"$REPO/scripts/versione.sh" --controlla >&2
+VERSION="$("$REPO/scripts/versione.sh")"
+# The cargo profile follows the version (22-11-2026): dev-image for a -dev, on
+# all the cores; release for rc and release (scripts/lib_build.sh).
+PROFILO="$(profilo_cargo "$VERSION")"
+BIN="$CROSS_TARGET/$TARGET_TRIPLE/$PROFILO/sws-runtime"
+LVGL_BIN="$CROSS_TARGET_LVGL/$TARGET_TRIPLE/$PROFILO/sws-lvgl-viewer"
+IMPRONTA_FILE="$CROSS_TARGET/.impronta-$PROFILO"
+if [ "$PUSH" -eq 1 ]; then controlla_pubblicazione "$VERSION"; fi
 # Il suffisso di architettura è nel tag LOCALE, non solo in quelli del
 # registry: senza, una build x86_64 si prende lo stesso nome e
 # `podman run sws-runtime:<versione>` dà quella costruita per ultima.
@@ -152,7 +162,26 @@ IMAGE="sws-runtime:${VERSION}-arm64"
 
 echo "==> SWS runtime container image ${VERSION} (linux/arm64, cross-build)"
 
+# ── 1. La SPA ─────────────────────────────────────────────────────────────────
+# Outside the Rust block since 22-11-2026: with --no-rust it was skipped too,
+# and the image went out with an old SPA (the defect the build seed found).
+if [ "$BUILD_SPA" -eq 1 ]; then
+    echo "==> [1b/4] pnpm build (SPA)"
+    if [ ! -d "$REPO/sws-editor/node_modules" ]; then
+        (cd "$REPO/sws-editor" && pnpm install)
+    fi
+    (cd "$REPO/sws-editor" && pnpm build)
+fi
+
 # ── 1. Il binario aarch64 ─────────────────────────────────────────────────────
+IMPRONTA="$(impronta_rust arm64 "$PROFILO" "$REPO/deploy/container/Containerfile.aarch64-cross.builder")"
+if [ "$BUILD_RUST" -eq 1 ] && [ "${SWS_FORZA_RUST:-0}" != "1" ] && rust_aggiornato "$IMPRONTA_FILE" "$IMPRONTA" \
+        && [ -f "$BIN" ] && { [ "$WITH_LVGL" -eq 0 ] || [ -f "$LVGL_BIN" ]; }; then
+    # Same Rust as the last build that succeeded: the binaries are those. Since
+    # part 1 the version is not compiled in, so a new -dev.N or -rc.N reuses them.
+    echo "==> [1/4] Rust invariato dall'ultima build ($PROFILO, impronta $IMPRONTA): binari riusati"
+    BUILD_RUST=0
+fi
 if [ "$BUILD_RUST" -eq 1 ]; then
     # Il builder: un'immagine x86_64 con gcc per aarch64 e le librerie :arm64 di
     # Ubuntu 24.04 in multiarch. Si ricostruisce solo se il Containerfile cambia
@@ -165,17 +194,11 @@ if [ "$BUILD_RUST" -eq 1 ]; then
     # primo giro del maintainer, 2026-09-10. `--network host` come gli altri
     # builder: la rete bridge rootless a volte non risolve ports.ubuntu.com.
     echo "==> [1a/4] immagine builder $BUILDER_IMAGE (x86_64 → aarch64, toolchain Ubuntu)"
+    nomina_stadio_sysroot "$REPO/deploy/container/Containerfile.aarch64-cross.builder" \
+        "sws-runtime-builder:aarch64-sysroot" linux/amd64
     podman build --platform linux/amd64 --network host -t "$BUILDER_IMAGE" \
         -f "$REPO/deploy/container/Containerfile.aarch64-cross.builder" \
         "$REPO/deploy/container"
-
-    if [ "$BUILD_SPA" -eq 1 ]; then
-        echo "==> [1b/4] pnpm build (SPA)"
-        if [ ! -d "$REPO/sws-editor/node_modules" ]; then
-            (cd "$REPO/sws-editor" && pnpm install)
-        fi
-        (cd "$REPO/sws-editor" && pnpm build)
-    fi
 
     # Stesso invito che fa la build nativa (scripts/yocto/build.sh): le patch
     # al codice LVGL vendorizzato devono essere applicate, perché cargo non si
@@ -193,30 +216,31 @@ if [ "$BUILD_RUST" -eq 1 ]; then
     # `--network host` per crates.io e per il DNS: la rete bridge di podman
     # rootless a volte non risolve, e una build che muore su un download non
     # dice niente di utile. `:Z` per gli host con SELinux, innocuo altrove.
-    echo "==> [1d/4] cargo build --release --target $TARGET_TRIPLE -p sws-runtime (nel builder)"
+    echo "==> [1d/4] cargo build --profile $PROFILO --target $TARGET_TRIPLE -p sws-runtime (nel builder)"
     podman run --rm --network host \
         -v "$REPO":/src:Z \
         -w /src/sws-runtime \
         -e CARGO_HOME=/src/.cargo-container-aarch64-cross \
         -e CARGO_TARGET_DIR=/src/sws-runtime/target-container-aarch64-cross \
         "$BUILDER_IMAGE" \
-        cargo build --release --target "$TARGET_TRIPLE" -p sws-runtime
+        cargo build --profile "$PROFILO" --target "$TARGET_TRIPLE" -p sws-runtime
 
     if [ "$WITH_LVGL" -eq 1 ]; then
         # Con la cartella del crate come working directory, non da --manifest-path:
         # il suo .cargo/config.toml imposta DEP_LV_CONFIG_PATH relativo alla cwd,
         # e cargo lo cerca risalendo da lì (stessa cosa in yocto/build.sh).
-        echo "==> [1e/4] cargo build --release --target $TARGET_TRIPLE (sws-lvgl-viewer, nel builder)"
+        echo "==> [1e/4] cargo build --profile $PROFILO --target $TARGET_TRIPLE (sws-lvgl-viewer, nel builder)"
         podman run --rm --network host \
             -v "$REPO":/src:Z \
             -w /src/sws-runtime/crates/sws-lvgl-viewer \
             -e CARGO_HOME=/src/.cargo-container-aarch64-cross \
             -e CARGO_TARGET_DIR=/src/sws-runtime/crates/sws-lvgl-viewer/target-container-aarch64-cross \
             "$BUILDER_IMAGE" \
-            cargo build --release --target "$TARGET_TRIPLE"
+            cargo build --profile "$PROFILO" --target "$TARGET_TRIPLE"
     fi
+    segna_rust "$IMPRONTA_FILE" "$IMPRONTA"
 else
-    echo "==> [1/4] skipped (--no-rust)"
+    echo "==> [1/4] Rust non ricompilato"
 fi
 
 [ -f "$BIN" ]                || { echo "ERROR: missing $BIN" >&2; exit 1; }
@@ -349,12 +373,13 @@ if [ "$PUSH" -eq 1 ]; then
     # la prova; una release sposta tutti e due, così il canale di prova non
     # resta mai indietro rispetto allo stabile. Un'altra pre-release (le
     # vecchie `-dev`) non sposta nessun canale.
-    TAG_RC="${REGISTRY}:rc-arm64"
-    case "$VERSION" in
-        *-rc.*) TAGS=( "$TAG_VERSION" "$TAG_COMMIT" "$TAG_RC" ) ;;
-        *-*)    TAGS=( "$TAG_VERSION" "$TAG_COMMIT" ) ;;
-        *)      TAGS=( "$TAG_VERSION" "$TAG_COMMIT" "$TAG_LATEST" "$TAG_RC" ) ;;
-    esac
+    # The moving tags (channels) since 22-11-2026: `dev-arm64` for the dev
+    # builds, `rc-arm64` for the rc, `latest-arm64` for the releases — each one
+    # moved only if this version is the newest the channel admits
+    # (scripts/lib_build.sh, tag_mobili). A release with no tag on HEAD never
+    # gets here: controlla_pubblicazione refused it.
+    TAGS=( "$TAG_VERSION" "$TAG_COMMIT" )
+    while read -r m; do [ -n "$m" ] && TAGS+=( "${REGISTRY}:$m" ); done < <(tag_mobili "$VERSION" arm64)
     # Q53: `-arm64-generic` era un'immagine a parte (QEMU, non ottimizzata), e
     # dal 2026-09-10 è la STESSA immagine con un altro nome, così un dispositivo
     # installato con quel riferimento continua ad aggiornarsi. Dal 14-09 la
@@ -373,7 +398,7 @@ if [ "$PUSH" -eq 1 ]; then
     done
     echo
     echo "    sul dispositivo:  ./install-container.sh --pull            # $TAG_LATEST (stabile)"
-    echo "    canale di prova:  ./install-container.sh --pull $TAG_RC"
+    echo "    canale di prova:  ./install-container.sh --pull ${REGISTRY}:rc-arm64"
     echo "    per inchiodare la versione:  ./install-container.sh --pull $TAG_VERSION"
 fi
 

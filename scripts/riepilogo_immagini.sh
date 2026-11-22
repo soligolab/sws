@@ -42,8 +42,7 @@ for arg in "$@"; do
 done
 
 if [ -z "$VERSION" ]; then
-    VERSION="$(grep -m1 -oE '^version = "[0-9][0-9.]*"' "$REPO_ROOT/sws-runtime/Cargo.toml" \
-               | grep -oE '[0-9][0-9.]*')"
+    VERSION="$("$REPO_ROOT/scripts/versione.sh")"
 fi
 REGISTRY="ghcr.io/soligolab/sws-runtime"
 

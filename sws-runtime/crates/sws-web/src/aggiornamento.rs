@@ -16,8 +16,11 @@ use serde::Serialize;
 use std::cmp::Ordering;
 use std::sync::atomic::{AtomicBool, Ordering as AtomicOrdering};
 
-/// La versione di questo runtime.
-pub const VERSIONE: &str = env!("CARGO_PKG_VERSION");
+/// The version of this runtime: read at start-up from `SWS_VERSION`
+/// (`sws_core::project::runtime_version`), no longer compiled in (22-11-2026).
+pub fn version() -> &'static str {
+    sws_core::project::runtime_version()
+}
 
 /// Da dove viene l'immagine che gira, e quindi come si aggiorna.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -27,6 +30,9 @@ pub enum Canale {
     Stabile,
     /// `rc-<arch>`: le release e le immagini di prova `-rc`.
     Prova,
+    /// `dev-<arch>` (22-11-2026): everything, the `-dev` builds of the next
+    /// release included. For the test panels and the development portal.
+    Sviluppo,
     /// Un tag di versione preciso (`2.11.0-arm64`): non segue niente.
     Fissata,
     /// `localhost/…`: installata da archivio, si aggiorna dall'IDE con un archivio.
@@ -69,6 +75,9 @@ pub fn canale(rif: Option<&str>) -> (Canale, Option<String>) {
     }
     if let Some(arch) = r.tag.strip_prefix("rc-") {
         return (Canale::Prova, Some(arch.into()));
+    }
+    if let Some(arch) = r.tag.strip_prefix("dev-") {
+        return (Canale::Sviluppo, Some(arch.into()));
     }
     (Canale::Fissata, None)
 }
@@ -126,6 +135,17 @@ impl PartialOrd for Versione {
     }
 }
 
+/// What a channel admits: the stable one only releases, the test one releases
+/// and `-rc`, the development one also `-dev`.
+fn ammette(canale: &Canale, v: &Versione) -> bool {
+    match (&v.pre, canale) {
+        (None, Canale::Stabile | Canale::Prova | Canale::Sviluppo) => true,
+        (Some((p, _)), Canale::Prova) => p == "rc",
+        (Some((p, _)), Canale::Sviluppo) => p == "rc" || p == "dev",
+        _ => false,
+    }
+}
+
 /// La versione più alta, fra i tag del registry, che il canale ammette per
 /// quell'architettura: lo stabile solo release, la prova release e `-rc`.
 pub fn migliore_nel_canale(tags: &[String], canale: &Canale, arch: &str) -> Option<Versione> {
@@ -137,11 +157,7 @@ pub fn migliore_nel_canale(tags: &[String], canale: &Canale, arch: &str) -> Opti
         // è ancora nel registry e in semver batterebbe ogni `2.x`: il TC620, il
         // 28-09, dava «disponibile: 2026.7.0» a una 2.12.0-rc.1.
         .filter(|v| v.numeri.0 < 1000)
-        .filter(|v| match (&v.pre, canale) {
-            (None, Canale::Stabile | Canale::Prova) => true,
-            (Some((p, _)), Canale::Prova) => p == "rc",
-            _ => false,
-        })
+        .filter(|v| ammette(canale, v))
         .max()
 }
 
@@ -163,11 +179,7 @@ pub fn versioni_dopo(
         .filter_map(|t| t.strip_suffix(&suffisso))
         .filter_map(Versione::leggi)
         .filter(|v| v.numeri.0 < 1000)
-        .filter(|v| match (&v.pre, canale) {
-            (None, Canale::Stabile | Canale::Prova) => true,
-            (Some((p, _)), Canale::Prova) => p == "rc",
-            _ => false,
-        })
+        .filter(|v| ammette(canale, v))
         .filter(|v| questa.map(|q| v > q).unwrap_or(true))
         .collect();
     v.sort();
@@ -344,21 +356,47 @@ async fn get_registry(
         .map_err(|e| format!("registry non raggiungibile: {e}"))
 }
 
-/// Elenca i tag dal registry.
+/// Elenca i tag dal registry, **tutte le pagine** (22-11-2026): ghcr ne dà al
+/// più `n` per risposta e indica la pagina dopo nell'intestazione `Link`. Erano
+/// 376 il 22-11-2026, e con le build dev arrivano presto oltre i 1000: senza
+/// pagine, le versioni più nuove potevano restare fuori dalla lista.
 async fn tag_del_registry(r: &Riferimento) -> Result<Vec<String>, String> {
-    let risposta = get_registry(r, "tags/list?n=1000", None).await?;
-    if !risposta.status().is_success() {
-        return Err(format!("il registry ha risposto {}", risposta.status()));
+    let mut tutti = Vec::new();
+    let mut percorso = "tags/list?n=1000".to_string();
+    // A ceiling, so a registry that keeps answering with the same link cannot
+    // keep the update check busy forever.
+    for _ in 0..20 {
+        let risposta = get_registry(r, &percorso, None).await?;
+        if !risposta.status().is_success() {
+            return Err(format!("il registry ha risposto {}", risposta.status()));
+        }
+        let dopo = risposta
+            .headers()
+            .get(reqwest::header::LINK)
+            .and_then(|v| v.to_str().ok())
+            .and_then(|l| pagina_dopo(l, &r.repo));
+        let corpo: serde_json::Value = risposta.json().await.map_err(|e| e.to_string())?;
+        if let Some(a) = corpo["tags"].as_array() {
+            tutti.extend(a.iter().filter_map(|t| t.as_str().map(String::from)));
+        }
+        match dopo {
+            Some(p) => percorso = p,
+            None => break,
+        }
     }
-    let corpo: serde_json::Value = risposta.json().await.map_err(|e| e.to_string())?;
-    Ok(corpo["tags"]
-        .as_array()
-        .map(|a| {
-            a.iter()
-                .filter_map(|t| t.as_str().map(String::from))
-                .collect()
-        })
-        .unwrap_or_default())
+    Ok(tutti)
+}
+
+/// The next page from a `Link` header (`</v2/<repo>/tags/list?last=x&n=1000>;
+/// rel="next"`), as the path after `/v2/<repo>/` that `get_registry` wants.
+fn pagina_dopo(link: &str, repo: &str) -> Option<String> {
+    if !link.contains("rel=\"next\"") {
+        return None;
+    }
+    let url = link.split('<').nth(1)?.split('>').next()?;
+    let prefisso = format!("/v2/{repo}/");
+    let i = url.find(&prefisso)?;
+    Some(url[i + prefisso.len()..].to_string())
 }
 
 /// I tipi di manifest che ghcr può rispondere. Senza questo `Accept` il
@@ -415,7 +453,7 @@ pub async fn stato() -> StatoAggiornamento {
     let immagine = std::env::var("SWS_IMAGE").ok().filter(|s| !s.is_empty());
     let (canale, arch) = canale(immagine.as_deref());
     let mut st = StatoAggiornamento {
-        versione: VERSIONE.to_string(),
+        versione: version().to_string(),
         immagine: immagine.clone(),
         canale: canale.clone(),
         disponibile: None,
@@ -431,7 +469,7 @@ pub async fn stato() -> StatoAggiornamento {
     };
     match tag_del_registry(&r).await {
         Ok(tags) => {
-            let questa = Versione::leggi(VERSIONE);
+            let questa = Versione::leggi(version());
             if let Some(m) = migliore_nel_canale(&tags, &canale, &arch) {
                 if questa.as_ref().map(|q| &m > q).unwrap_or(true) {
                     st.disponibile = Some(formatta(&m));
@@ -453,7 +491,7 @@ pub async fn stato_con_esito(config_dir: &std::path::Path) -> StatoAggiornamento
     let p = crate::aggiornamento_finestra::carica(config_dir).await;
     st.evento = p
         .evento
-        .filter(|e| riguarda_questa_versione(e, VERSIONE))
+        .filter(|e| riguarda_questa_versione(e, version()))
         .filter(|e| !esito_gia_visto(e, p.esito_visto));
     st.in_corso = p.in_corso.is_some() || in_preparazione();
     st.versione_ignorata = p.versione_ignorata.clone();
@@ -524,8 +562,8 @@ async fn novita_di_questa() -> Option<NovitaVersione> {
     let immagine = std::env::var("SWS_IMAGE").ok()?;
     let (_, arch) = canale(Some(&immagine));
     let r = scomponi(&immagine)?;
-    let e = etichette(&r, &format!("{VERSIONE}-{}", arch?)).await.ok()?;
-    novita_da_etichette(VERSIONE, &e)
+    let e = etichette(&r, &format!("{}-{}", version(), arch?)).await.ok()?;
+    novita_da_etichette(version(), &e)
 }
 
 /// Il massimo di versioni di cui si leggono le etichette in un colpo.
@@ -924,6 +962,10 @@ mod tests {
             (Canale::Prova, Some("amd64".into()))
         );
         assert_eq!(
+            c("ghcr.io/soligolab/sws-runtime:dev-amd64"),
+            (Canale::Sviluppo, Some("amd64".into()))
+        );
+        assert_eq!(
             c("ghcr.io/soligolab/sws-runtime:2.11.0-arm64").0,
             Canale::Fissata
         );
@@ -938,6 +980,27 @@ mod tests {
             scomponi("registro:5000/sws-runtime:rc-arm64").unwrap().host,
             "registro:5000"
         );
+    }
+
+    #[test]
+    fn la_pagina_dopo_viene_dall_intestazione_link() {
+        assert_eq!(
+            pagina_dopo(
+                r#"</v2/soligolab/sws-runtime/tags/list?last=2.26.0-rc.9-arm64&n=1000>; rel="next""#,
+                "soligolab/sws-runtime"
+            ),
+            Some("tags/list?last=2.26.0-rc.9-arm64&n=1000".into())
+        );
+        // An absolute URL works too.
+        assert_eq!(
+            pagina_dopo(
+                r#"<https://ghcr.io/v2/soligolab/sws-runtime/tags/list?last=x&n=1000>; rel="next""#,
+                "soligolab/sws-runtime"
+            ),
+            Some("tags/list?last=x&n=1000".into())
+        );
+        assert_eq!(pagina_dopo("", "soligolab/sws-runtime"), None);
+        assert_eq!(pagina_dopo(r#"</v2/altro/tags/list?last=x>; rel="next""#, "soligolab/sws-runtime"), None);
     }
 
     #[test]
@@ -963,6 +1026,11 @@ mod tests {
         assert_eq!(
             migliore_nel_canale(&tags, &Canale::Prova, "arm64"),
             Some(v("2.12.0-rc.2"))
+        );
+        // The development channel (22-11-2026) sees the dev builds too.
+        assert_eq!(
+            migliore_nel_canale(&tags, &Canale::Sviluppo, "arm64"),
+            Some(v("2.13.0-dev.1"))
         );
         assert_eq!(migliore_nel_canale(&tags, &Canale::Archivio, "arm64"), None);
         // La numerazione a calendario di luglio non è «più nuova».

@@ -389,7 +389,10 @@ if [ "$(git rev-parse --abbrev-ref HEAD)" = "main" ]; then
   VISTI=""
   while read -r r; do
     [ -z "$r" ] && continue
-    case "$r" in main|origin/main|origin/HEAD|backup/*|origin/backup/*) continue ;; esac
+    # `release/X.Y` is not a work branch (22-11-2026): the release being
+    # stabilised, whose fixes reach main by cherry-pick, so it always has
+    # commits main has not. It is named below, apart.
+    case "$r" in main|origin/main|origin/HEAD|backup/*|origin/backup/*|release/*|origin/release/*) continue ;; esac
     # `feat/x` e `origin/feat/x` sono lo stesso lavoro: si nomina una volta sola,
     # o l'avviso sembra dire che i rami aperti sono il doppio di quelli veri.
     corto="${r#origin/}"
@@ -400,6 +403,9 @@ if [ "$(git rev-parse --abbrev-ref HEAD)" = "main" ]; then
       APERTI="${APERTI}\n      ${corto} (${n} commit non su main)"
     fi
   done < <(git for-each-ref --format='%(refname:short)' refs/heads refs/remotes)
+  RELEASE="$(git for-each-ref --format='%(refname:short)' 'refs/heads/release/*' 'refs/remotes/origin/release/*' \
+             | sed 's#^origin/##' | sort -u | tr '\n' ' ')"
+  [ -n "$RELEASE" ] && info "release in stabilizzazione: ${B}${RELEASE}${Z}(correzioni lì, poi cherry-pick su main)"
   if [ -n "$APERTI" ]; then
     printf '  %s!%s sei su %smain%s ma c%sè lavoro non mergiato:%b\n' "$G" "$Z" "$B" "$Z" "'" "$APERTI"
     info "Prima di aprire qualcosa di nuovo: «un ramo alla volta» (CLAUDE.md)."
@@ -443,19 +449,14 @@ else
   fi
 fi
 
-# I quattro file che dichiarano la versione. Un disallineamento qui è il difetto
-# che la 2.3.4 ha già dovuto correggere una volta (un Cargo.lock che continuava
-# a dire 2.1.0), e non si vede da nessun'altra parte.
-VERS="$( { grep -m1 -oE '^version = "[0-9.]+(-[a-z]+\.[0-9]+)?"' "$REPO/sws-runtime/Cargo.toml";
-           grep -m1 -oE '"version": "[0-9.]+(-[a-z]+\.[0-9]+)?"'  "$REPO/sws-editor/package.json";
-           grep -m1 -oE '^version = "[0-9.]+(-[a-z]+\.[0-9]+)?"' "$REPO/sws-runtime/crates/sws-kiosk/Cargo.toml";
-           grep -m1 -oE '^version = "[0-9.]+(-[a-z]+\.[0-9]+)?"' "$REPO/sws-runtime/crates/sws-lvgl-viewer/Cargo.toml";
-         } 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+(-[a-z]+\.[0-9]+)?' | sort -u )"
-N_VERS="$(printf '%s\n' "$VERS" | grep -c .)"
-if [ "$N_VERS" -eq 1 ]; then
-  ok "versione dichiarata: ${VERS} (coerente nei quattro file)"
+# La versione: `VERSION` e i file che la seguono (dal 22-11-2026,
+# scripts/versione.sh). Un disallineamento qui è il difetto che la 2.3.4 ha già
+# dovuto correggere una volta (un Cargo.lock che continuava a dire 2.1.0), e non
+# si vede da nessun'altra parte.
+if [ -x "$REPO/scripts/versione.sh" ] && DISCORDI="$("$REPO/scripts/versione.sh" --controlla 2>&1)"; then
+  ok "versione dichiarata: $("$REPO/scripts/versione.sh") (VERSION, package.json e Cargo.toml coerenti)"
 else
-  grave "i quattro file che dichiarano la versione non sono d'accordo: $(printf '%s' "$VERS" | paste -sd' ')"
+  grave "la versione non è coerente: ${DISCORDI:-scripts/versione.sh mancante}"
   da_guardare=$((da_guardare+1))
 fi
 

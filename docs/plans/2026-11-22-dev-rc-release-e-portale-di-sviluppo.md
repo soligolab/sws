@@ -51,6 +51,11 @@ Una rc costa **~75 minuti di build**, tutta in fila, prima di VPS e pannello (lo
 
 ## Parte 0 — il ramo di release (subito, solo git e documenti)
 
+> **Fatta il 22-11-2026** (`a8e6c3e3` in `main`): `release/2.26` da `049fa8bd` (la rc.26 più i documenti), `main` a
+> `2.27.0-dev.0`, CHANGELOG diviso, le guardie (`novita.py` legge i tag, `check_release_coerente.sh` accetta la sezione
+> «in stabilizzazione» finché c'è il ramo), `session_start.sh`, `/finalizza-giornata`, HOWTO §19 e `CLAUDE.md`
+> (regola 2, eccezione a «un ramo alla volta», «Dev, rc e release»). Né `release/2.26` né i commit sono ancora su origin.
+
 - `release/2.26` da `2.26.0-rc.26` (`c3180ab9`). Da lì le rc.27… con le sole correzioni (le anomalie aperte del
   collaudo: Kimi in streaming, Modbus e i testi dei log, i log rumorosi dell'aggiornamento, il 422 grezzo, e quelle che
   usciranno) e la 2.26.0.
@@ -67,6 +72,15 @@ Una rc costa **~75 minuti di build**, tutta in fila, prima di VPS e pannello (lo
 ## Parte 1 — la versione da fuori (`feat/version-outside`, in `main`, 2.27.0-dev)
 
 **Obiettivo**: una dev o una rc che non tocca il Rust non ricompila il Rust.
+
+> **Fatta il 22-11-2026 sul ramo `feat/version-outside`**: `VERSION` e `scripts/versione.sh`, `runtime_version()` da
+> `SWS_VERSION`, `ENV` nei Containerfile, Tiny TY e Linux generico dal file `VERSIONE`, script di avvio locali, guardie
+> e script di build che leggono `VERSION`, il canale `dev-<arch>` (runtime e IDE). Restano per la parte 2: **chi sposta
+> `dev-<arch>`** (una rc della 2.26 non deve riportarlo sotto una dev della 2.27: si sposta con le dev, e con una rc o
+> release solo se è la versione più alta), e **la scelta del canale all'installazione** (oggi l'IDE installa
+> `latest-*` o `rc-*`). Trovato per strada, da correggere su `release/2.26`: `deploy/generic-linux/sws-runtime-launch.sh`
+> è `#!/usr/bin/env sh` ma usa un array di bash (`NO_ADMIN_ARGS=(--no-admin)`, da `363e79ce`): con `/bin/sh` = dash
+> (Debian, Ubuntu) il runtime generico non parte.
 
 - **Un file solo per la versione del prodotto**: `VERSION` in radice (`2.27.0-dev.3`, `2.26.0-rc.27`). Lo leggono gli
   script (`build_container*.sh`, `pacchetto_tiny_ty.sh`, `check_release_coerente.sh`, `check_versione_progetto.sh`,
@@ -87,6 +101,11 @@ Una rc costa **~75 minuti di build**, tutta in fila, prima di VPS e pannello (lo
   con una `SWS_VERSION` diversa da `Cargo.toml` e controlla `/api/system`.
 
 ## Parte 2 — gli script: dev leggera, rc in parallelo (`feat/build-dev-rc`, in `main`)
+
+> **Fatta il 22-11-2026** (squash in `main` insieme alla parte 1, riportata su `release/2.26` col via del maintainer):
+> `build_dev.sh`, `build_rc.sh`, `lib_build.sh`, `registro.py`; il profilo `dev-image`; l'impronta del Rust; i tag
+> mobili per canale; builder con rustc 1.100.0, basi Ubuntu per digest e lo stadio `sysroot` col nome; la paginazione
+> dei tag nel runtime. Le misure sono qui sotto. La prima build **pubblicata** con gli script nuovi sarà la rc.27.
 
 - **Un profilo per le dev**: `[profile.dev-image]` con `inherits = "release"`, `lto = "off"` (non `false`, che vuol
   dire thin-local), `codegen-units = 16`, `incremental = true`. Stima: il runtime da ~16 a 3-5 minuti. **Mai per rc e
@@ -119,6 +138,18 @@ Una rc costa **~75 minuti di build**, tutta in fila, prima di VPS e pannello (lo
   mentre l'arm64 pubblicava: in fila sarebbe partito dopo l'amd64, verso le 09:35. Due gambe insieme costano poco
   l'una all'altra, come ci si aspettava dal link su un core; con tre si misura. Primo passo del ramo:
   `cargo build --timings` per sapere quanto del tempo è il link.
+
+### Le misure della parte 2 (22-11-2026, `ufficio`, 4 core; `build_dev.sh --tutte`, senza push)
+
+| Prova | Tempo | Cosa è successo |
+|---|---|---|
+| prima dev col profilo `dev-image`, a freddo | **61 min** | tre gambe insieme; cargo ha compilato tutte le dipendenze (oltre mille crate) col profilo nuovo, per tre architetture. Runtime: arm64 43m11, amd64 33m48, armv7 35m20. Si paga una volta |
+| la stessa, rilanciata senza toccare il Rust | **1 min 7 s** | «Rust invariato… binari riusati» sulle tre gambe: SPA, tre immagini e il pacchetto del Tiny TY |
+| una riga cambiata in `sws-web`, solo amd64 | **1 min 20 s** | `sws-web` e `sws-runtime` ricompilati in **17,7 s** (profilo leggero, incrementale), poi l'immagine. Col profilo release lo stesso giro costava ~16 minuti |
+
+Disco: il profilo `dev-image` ha aggiunto ~15 GB fra le tre cartelle target. Il 22-11 il disco era arrivato al 99 %
+per `sws-runtime/target` (la build nativa, 228 GB di copie vecchie lasciate dai cambi di versione): tolti i file di
+`deps` più vecchi di un giorno e la cartella incremental, da 11 a 202 GB liberi.
 
 ## Parte 3 — il portale di sviluppo (`feat/dev-portal`, in `main`)
 

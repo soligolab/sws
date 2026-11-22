@@ -107,6 +107,10 @@ if [ -d "$NODE_MODULES" ]; then
   rm -rf "$NODE_MODULES"
 fi
 if command -v podman >/dev/null 2>&1; then
+  # Only images without a name. The builders (`sws-runtime-builder:*`) have one,
+  # and since 22-11-2026 so has the aarch64/armv7 sysroot stage: before, that
+  # stage was nameless, this prune removed it, and the next build redid 19
+  # minutes of apt (scripts/lib_build.sh, nomina_stadio_sysroot).
   echo "  podman image prune (dangling)"
   podman image prune -f >/dev/null 2>&1 || true
 fi

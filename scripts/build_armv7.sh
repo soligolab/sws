@@ -17,6 +17,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$SCRIPT_DIR/.." && pwd)"
+# shellcheck source=lib_build.sh
+. "$SCRIPT_DIR/lib_build.sh"
 TARGET_TRIPLE="armv7-unknown-linux-gnueabihf"
 BUILDER_IMAGE="sws-runtime-builder:armv7-cross"
 WITH_LVGL=1
@@ -34,7 +36,27 @@ done
     exit 1
 }
 
+# The cargo profile follows the version (22-11-2026, scripts/lib_build.sh), and
+# the Rust is not recompiled when it has not changed since the last build.
+VERSIONE="$("$REPO/scripts/versione.sh")"
+PROFILO="$(profilo_cargo "$VERSIONE")"
+TARGET_DIR="$REPO/sws-runtime/target-container-armv7-cross"
+TARGET_DIR_LVGL="$REPO/sws-runtime/crates/sws-lvgl-viewer/target-container-armv7-cross"
+BIN="$TARGET_DIR/$TARGET_TRIPLE/$PROFILO/sws-runtime"
+LVGL_BIN="$TARGET_DIR_LVGL/$TARGET_TRIPLE/$PROFILO/sws-lvgl-viewer"
+IMPRONTA_FILE="$TARGET_DIR/.impronta-$PROFILO"
+IMPRONTA="$(impronta_rust armv7 "$PROFILO" "$REPO/deploy/container/Containerfile.armv7-cross.builder")"
+COMPILA=1
+if [ "${SWS_FORZA_RUST:-0}" != "1" ] && rust_aggiornato "$IMPRONTA_FILE" "$IMPRONTA" \
+        && [ -f "$BIN" ] && { [ "$WITH_LVGL" -eq 0 ] || [ -f "$LVGL_BIN" ]; }; then
+    echo "==> Rust invariato dall'ultima build ($PROFILO, impronta $IMPRONTA): binari riusati"
+    COMPILA=0
+fi
+
+if [ "$COMPILA" -eq 1 ]; then
 echo "==> [1/4] immagine builder $BUILDER_IMAGE (x86_64 → armv7, Ubuntu 22.04)"
+nomina_stadio_sysroot "$REPO/deploy/container/Containerfile.armv7-cross.builder" \
+    "sws-runtime-builder:armv7-sysroot" linux/amd64
 podman build --platform linux/amd64 --network host -t "$BUILDER_IMAGE" \
     -f "$REPO/deploy/container/Containerfile.armv7-cross.builder" \
     "$REPO/deploy/container"
@@ -44,30 +66,32 @@ if [ "$WITH_LVGL" -eq 1 ]; then
     "$REPO/scripts/check_vendor_patches.sh"
 fi
 
-echo "==> [3/4] cargo build --release --target $TARGET_TRIPLE -p sws-runtime"
+echo "==> [3/4] cargo build --profile $PROFILO --target $TARGET_TRIPLE -p sws-runtime"
 podman run --rm --network host \
     -v "$REPO":/src:Z \
     -w /src/sws-runtime \
     -e CARGO_HOME=/src/.cargo-container-armv7-cross \
     -e CARGO_TARGET_DIR=/src/sws-runtime/target-container-armv7-cross \
     "$BUILDER_IMAGE" \
-    cargo build --release --target "$TARGET_TRIPLE" -p sws-runtime
+    cargo build --profile "$PROFILO" --target "$TARGET_TRIPLE" -p sws-runtime
 
 if [ "$WITH_LVGL" -eq 1 ]; then
     # Dalla cartella del crate: il suo .cargo/config.toml dà DEP_LV_CONFIG_PATH.
-    echo "==> [4/4] cargo build --release --target $TARGET_TRIPLE (sws-lvgl-viewer)"
+    echo "==> [4/4] cargo build --profile $PROFILO --target $TARGET_TRIPLE (sws-lvgl-viewer)"
     podman run --rm --network host \
         -v "$REPO":/src:Z \
         -w /src/sws-runtime/crates/sws-lvgl-viewer \
         -e CARGO_HOME=/src/.cargo-container-armv7-cross \
         -e CARGO_TARGET_DIR=/src/sws-runtime/crates/sws-lvgl-viewer/target-container-armv7-cross \
         "$BUILDER_IMAGE" \
-        cargo build --release --target "$TARGET_TRIPLE"
+        cargo build --profile "$PROFILO" --target "$TARGET_TRIPLE"
+fi
+segna_rust "$IMPRONTA_FILE" "$IMPRONTA"
 fi
 
 OUT="$REPO/dist/armv7"
 mkdir -p "$OUT"
-install -m 755 "$REPO/sws-runtime/target-container-armv7-cross/$TARGET_TRIPLE/release/sws-runtime" "$OUT/"
+install -m 755 "$BIN" "$OUT/"
 [ "$WITH_LVGL" -eq 0 ] || install -m 755 \
-    "$REPO/sws-runtime/crates/sws-lvgl-viewer/target-container-armv7-cross/$TARGET_TRIPLE/release/sws-lvgl-viewer" "$OUT/"
+    "$LVGL_BIN" "$OUT/"
 file "$OUT"/*

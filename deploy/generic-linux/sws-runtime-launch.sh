@@ -53,6 +53,14 @@ case "${SWS_ENABLE_IDE:-}" in
         echo "[sws] SWS_ENABLE_IDE: IDE COMPLETO abilitato su questo dispositivo" >&2 ;;
 esac
 
+# The version this install declares (22-11-2026): the package's VERSIONE file
+# (`2.27.0-dev.3 (abc1234)`; the runtime keeps the first word). No longer
+# compiled into the binary: sws_core::project::runtime_version.
+if [ -f "$SWS_INSTALL/VERSIONE" ]; then
+    SWS_VERSION="$(cut -d' ' -f1 "$SWS_INSTALL/VERSIONE")"
+    export SWS_VERSION
+fi
+
 # Runtime role: viewer operatori (7443) + porta di gestione remota (7444).
 # Without --viewer-port the viewer never binds and this would be IDE-only.
 exec "$SWS_INSTALL/bin/sws-runtime" \

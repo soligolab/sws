@@ -255,6 +255,9 @@ if [ -z "${SWS_SCRIPT_SENZA_SANDBOX:-}" ] && ! python3 -c 'import RestrictedPyth
   echo "[sviluppo]   per provare la sandbox: pip install --user RestrictedPython"
   export SWS_SCRIPT_SENZA_SANDBOX=1
 fi
+# The version this runtime declares (22-11-2026): the repo's VERSION file, read
+# at start-up as SWS_VERSION (no longer compiled into the binary).
+export SWS_VERSION="${SWS_VERSION:-$("$REPO_ROOT/scripts/versione.sh")}"
 exec "$REPO_ROOT/sws-runtime/target/debug/sws-runtime" \
   --config         "$CONFIG_DIR"         \
   --projects-root  "$PROJECTS_ROOT"      \

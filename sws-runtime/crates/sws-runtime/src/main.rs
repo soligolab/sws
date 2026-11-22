@@ -538,7 +538,7 @@ async fn main() -> anyhow::Result<()> {
     log_file::spawn_file_writer(log_bus.clone(), logs_dir.clone(), retention_days);
 
     info!(
-        version        = env!("CARGO_PKG_VERSION"),
+        version        = sws_core::project::runtime_version(),
         config         = %args.config.display(),
         projects_root  = %args.projects_root.display(),
         templates_root = %args.templates_root.display(),
@@ -2224,7 +2224,7 @@ fn announce_mdns(viewer_port: u16, admin_port: u16, tls: bool) -> Option<mdns_sd
     let mut properties = vec![
         ("admin_port", admin_port_str.as_str()),
         ("scheme", scheme),
-        ("version", env!("CARGO_PKG_VERSION")),
+        ("version", sws_core::project::runtime_version()),
     ];
     if let Some(engine) = container.as_deref() {
         properties.push(("container", engine));

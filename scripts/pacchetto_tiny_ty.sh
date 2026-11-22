@@ -37,8 +37,9 @@ for a in "$@"; do
     esac
 done
 
-VERSIONE="$(sed -n 's/^version = "\(.*\)"/\1/p' "$REPO/sws-runtime/Cargo.toml" | head -n1)"
-[ -n "$VERSIONE" ] || { echo "ERRORE: versione non trovata in sws-runtime/Cargo.toml" >&2; exit 1; }
+# The product version is the `VERSION` file (22-11-2026): scripts/versione.sh.
+"$REPO/scripts/versione.sh" --controlla >&2
+VERSIONE="$("$REPO/scripts/versione.sh")"
 NOME="sws-${VERSIONE}-tiny-ty-armv7"
 DIST="$REPO/dist"
 STAGE="$DIST/$NOME"

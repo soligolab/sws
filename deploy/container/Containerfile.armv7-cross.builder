@@ -15,7 +15,12 @@
 # Si usa solo da scripts/build_armv7.sh.
 
 # ── Stadio 1: il sysroot armhf ───────────────────────────────────────────────
-FROM --platform=linux/arm/v7 ubuntu:22.04 AS sysroot
+# The base by digest, not by tag (22-11-2026): the builds of the different
+# architectures run in parallel now, and a local `ubuntu:22.04` tag flips its
+# architecture at every pull with another --platform. The digest is the
+# multi-arch index: --platform still picks the architecture. Updated by hand,
+# like rustc below, when we decide to take Ubuntu's updates.
+FROM --platform=linux/arm/v7 docker.io/library/ubuntu:22.04@sha256:f64b2ffc2f10ab8f8505aa56b2664bd846cbb9df87c7e2532e30f7667021c0e6 AS sysroot
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         libc6-dev \
@@ -30,7 +35,7 @@ RUN apt-get update && \
 # Stessa 22.04 anche qui, così gcc cross (11) e gli header del sysroot sono
 # della stessa famiglia. libfreetype-dev x86_64 serve a lvgl-sys, che si
 # compila anche per l'host (vedi il builder aarch64).
-FROM --platform=linux/amd64 ubuntu:22.04
+FROM --platform=linux/amd64 docker.io/library/ubuntu:22.04@sha256:f64b2ffc2f10ab8f8505aa56b2664bd846cbb9df87c7e2532e30f7667021c0e6
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -52,7 +57,7 @@ ENV RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
     PATH=/usr/local/cargo/bin:$PATH
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
-      | sh -s -- -y --no-modify-path --profile minimal --default-toolchain stable && \
+      | sh -s -- -y --no-modify-path --profile minimal --default-toolchain 1.100.0 && \
     rustup target add armv7-unknown-linux-gnueabihf && \
     rustc --version && cargo --version
 

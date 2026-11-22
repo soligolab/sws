@@ -246,7 +246,7 @@ export function AggiornamentoRuntime() {
       )}
 
       {/* La finestra (Fase 2): solo per chi segue un canale del registry. */}
-      {stato && !avviato && !giaPartito && !errore && (stato.canale === "stabile" || stato.canale === "prova") && (
+      {stato && !avviato && !giaPartito && !errore && (stato.canale === "stabile" || stato.canale === "prova" || stato.canale === "sviluppo") && (
         <FinestraAggiornamento stato={stato} conferma={confermaAggiornamento} />
       )}
     </section>

@@ -18,7 +18,12 @@
 # Costruita da `scripts/build_container_x86_64.sh`, che poi ci lancia dentro un
 # container per il solo `cargo build`. Podman ne conserva i layer, quindi la
 # toolchain si scarica una volta sola.
-FROM ubuntu:24.04
+# The base by digest, not by tag (22-11-2026): the builds of the different
+# architectures run in parallel now, and a local `ubuntu:24.04` tag flips its
+# architecture at every pull with another --platform. The digest is the
+# multi-arch index: --platform still picks the architecture. Updated by hand,
+# like rustc below, when we decide to take Ubuntu's updates.
+FROM docker.io/library/ubuntu:24.04@sha256:9c7f200c07e3d4a03e7249d2c16bf66a51120fb876aa2242cf31451412543289
 
 # build-essential: rusqlite è compilato con la feature `bundled`, cioè compila
 #   il sorgente C di SQLite — serve un compilatore C.
@@ -60,13 +65,16 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # rustup e non il pacchetto `rustc` di Ubuntu: quello di distribuzione resta
-# indietro e il workspace dichiara MSRV 1.75 con edition 2021. Il canale stabile
-# tiene il passo senza dover inseguire la versione impacchettata.
+# indietro e il workspace dichiara MSRV 1.75 con edition 2021.
+# A fixed version, not `stable` (22-11-2026, same in the other two builders): a
+# builder rebuilt after a new stable changed rustc, and cargo then reused
+# nothing — a cold build of every crate on every architecture. Moved by hand,
+# in all three builders together, when we decide to.
 ENV RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
     PATH=/usr/local/cargo/bin:$PATH
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
-      | sh -s -- -y --no-modify-path --profile minimal --default-toolchain stable && \
+      | sh -s -- -y --no-modify-path --profile minimal --default-toolchain 1.100.0 && \
     rustc --version && cargo --version
 
 WORKDIR /src/sws-runtime
