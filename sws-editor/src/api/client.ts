@@ -743,6 +743,8 @@ export interface UserSummary {
   session_ttl_secs: number | null;
   /** Zones this user can access. Empty = all zones. */
   allowed_zones: string[];
+  /** The name pages show (`{{user.name}}`, 22-11-2026). */
+  display_name?: string;
 }
 
 export interface CreateUserBody {
@@ -760,6 +762,8 @@ export interface UpdateUserBody {
   /** null = reset to system default, 0 = never expires, n = n seconds */
   session_ttl_secs?: number | null;
   allowed_zones?: string[];
+  /** `null` clears it. */
+  display_name?: string | null;
 }
 
 /** Headers with the Bearer token attached, for the few endpoints (binary
@@ -1333,6 +1337,8 @@ export interface LdapConfig {
   user_filter: string;
   groups: LdapGroup[];
   timeout_ms: number;
+  /** The attribute with the name pages show; none = displayName, then givenName. */
+  name_attribute?: string;
 }
 
 /** The state of an account's two-factor authentication. */
@@ -1622,6 +1628,10 @@ export const api = {
       amministratore_piattaforma?: boolean;
       /** Signed in with a PIN in the last ten minutes (22-11-2026). */
       recent_pin_login?: boolean;
+      /** The name pages show (`{{user.name}}`), when there is one. */
+      display_name?: string;
+      /** The login before this one on this device (`{{user.last_login}}`). */
+      previous_login_ms?: number;
     }>("/api/auth/whoami"),
 
   /** L'account si può chiudere da sé: solo chi si è registrato (30-10-2026). */

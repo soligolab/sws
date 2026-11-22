@@ -612,6 +612,7 @@ pub async fn rivendica(
             role: sws_auth::Role::Admin,
             must_change_password: false,
             allowed_zones: vec![],
+            display_name: None,
         })
         .await
     {

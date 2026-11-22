@@ -345,6 +345,9 @@ interface AppState {
   authToken: string | null;
   authUser: string | null;
   authRole: Role | null;
+  /** The name to show and the previous login of who is signed in, for the
+   *  `{{user.*}}` placeholders (22-11-2026); `null` until `whoami` says. */
+  authProfilo: { name?: string | null; lastLoginMs?: number | null } | null;
   /** Unix timestamp (ms) when the session expires. Used to schedule proactive
    *  token refresh. Null when unknown (old persisted sessions without expiry). */
   expiresAtMs: number | null;
@@ -552,6 +555,7 @@ interface AppState {
   setMustChangePassword: (flag: boolean) => void;
   setReAuthNeeded: (v: boolean) => void;
   setProgettoHaUtenti: (v: boolean | null) => void;
+  setAuthProfilo: (p: { name?: string | null; lastLoginMs?: number | null } | null) => void;
   clearAuth: () => void;
   setNoActiveProject: (flag: boolean) => void;
 
@@ -1184,6 +1188,7 @@ export const useAppStore = create<AppState>((set, get) => {
     authToken: persisted?.token ?? null,
     authUser:  persisted?.username ?? null,
     authRole:  isRole(persisted?.role) ? (persisted!.role as Role) : null,
+    authProfilo: null,
     expiresAtMs: persisted?.expires_at_ms ?? null,
     mustChangePassword: persisted?.must_change_password === true,
     noActiveProject: false,
@@ -1259,6 +1264,7 @@ export const useAppStore = create<AppState>((set, get) => {
 
     setReAuthNeeded: (v) => set({ reAuthNeeded: v }),
     setProgettoHaUtenti: (v) => set({ progettoHaUtenti: v }),
+    setAuthProfilo: (p) => set({ authProfilo: p }),
 
     setMustChangePassword: (flag) => {
       const { authToken, authUser, authRole, expiresAtMs } = get();

@@ -26,7 +26,9 @@ use sws_core::project::{LdapConfig, LdapGroup};
 /// How a sign-in through the directory went.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Outcome {
-    In { role: Role, zones: Vec<String> },
+    /// `name`: the name pages show (`displayName`, else `givenName`, or the
+    /// attribute the configuration names), when the directory has one.
+    In { role: Role, zones: Vec<String>, name: Option<String> },
     /// Wrong password, unknown user, or in no group configured.
     Refused,
     /// The server didn't answer (or the service account was refused).
@@ -101,8 +103,16 @@ async fn connect(cfg: &LdapConfig) -> Result<ldap3::Ldap, String> {
     Ok(ldap)
 }
 
-/// Finds `user` with the service account: its DN and its groups.
-async fn find(cfg: &LdapConfig, user: &str) -> Result<Option<(String, Vec<String>)>, String> {
+/// The attributes that give the name to show, in order of preference.
+fn name_attributes(cfg: &LdapConfig) -> Vec<String> {
+    match cfg.name_attribute.as_deref().map(str::trim).filter(|a| !a.is_empty()) {
+        Some(a) => vec![a.to_string()],
+        None => vec!["displayName".into(), "givenName".into()],
+    }
+}
+
+/// Finds `user` with the service account: its DN, its groups and its name.
+async fn find(cfg: &LdapConfig, user: &str) -> Result<Option<(String, Vec<String>, Option<String>)>, String> {
     let mut ldap = connect(cfg).await?;
     if let Some(dn) = cfg.bind_dn.as_deref().filter(|d| !d.is_empty()) {
         ldap.simple_bind(dn, &bind_password(cfg).unwrap_or_default())
@@ -115,7 +125,9 @@ async fn find(cfg: &LdapConfig, user: &str) -> Result<Option<(String, Vec<String
             &cfg.user_base,
             Scope::Subtree,
             &user_filter(&cfg.user_filter, user),
-            vec!["memberOf"],
+            std::iter::once("memberOf".to_string())
+                .chain(name_attributes(cfg))
+                .collect::<Vec<_>>(),
         )
         .await
         .and_then(|r| r.success())
@@ -133,7 +145,15 @@ async fn find(cfg: &LdapConfig, user: &str) -> Result<Option<(String, Vec<String
         .find(|(k, _)| k.eq_ignore_ascii_case("memberOf"))
         .map(|(_, v)| v.clone())
         .unwrap_or_default();
-    Ok(Some((e.dn, groups)))
+    let name = name_attributes(cfg).iter().find_map(|a| {
+        e.attrs
+            .iter()
+            .find(|(k, _)| k.eq_ignore_ascii_case(a))
+            .and_then(|(_, v)| v.first())
+            .map(|v| v.trim().to_string())
+            .filter(|v| !v.is_empty())
+    });
+    Ok(Some((e.dn, groups, name)))
 }
 
 /// Signs `user` in through the directory.
@@ -141,7 +161,7 @@ pub async fn authenticate(cfg: &LdapConfig, user: &str, password: &str) -> Outco
     if !cfg.enabled || user.trim().is_empty() || password.is_empty() {
         return Outcome::Refused;
     }
-    let (dn, groups) = match find(cfg, user.trim()).await {
+    let (dn, groups, name) = match find(cfg, user.trim()).await {
         Ok(Some(x)) => x,
         Ok(None) => return Outcome::Refused,
         Err(e) => return Outcome::Unreachable(e),
@@ -160,7 +180,7 @@ pub async fn authenticate(cfg: &LdapConfig, user: &str, password: &str) -> Outco
         return Outcome::Refused;
     }
     match role_for(&cfg.groups, &groups) {
-        Some((role, zones)) => Outcome::In { role, zones },
+        Some((role, zones)) => Outcome::In { role, zones, name },
         None => Outcome::Refused,
     }
 }
@@ -171,7 +191,7 @@ pub async fn test(cfg: &LdapConfig, user: Option<&str>, password: Option<&str>) 
     use serde_json::json;
     match (user.filter(|u| !u.trim().is_empty()), password) {
         (Some(u), Some(p)) => match authenticate(cfg, u, p).await {
-            Outcome::In { role, zones } => json!({ "ok": true, "role": role.as_str(), "zones": zones }),
+            Outcome::In { role, zones, name } => json!({ "ok": true, "role": role.as_str(), "zones": zones, "name": name }),
             Outcome::Refused => json!({ "ok": false, "code": "refused" }),
             Outcome::Unreachable(m) => json!({ "ok": false, "code": "unreachable", "message": m }),
         },
@@ -240,7 +260,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             authenticate(&cfg, "mario", "mariopw").await,
-            Outcome::In { role: Role::Operator, zones: vec!["caldaia".into()] }
+            Outcome::In { role: Role::Operator, zones: vec!["caldaia".into()], name: None }
         );
         assert_eq!(authenticate(&cfg, "mario", "sbagliata").await, Outcome::Refused);
         assert_eq!(authenticate(&cfg, "nessuno", "x").await, Outcome::Refused);
@@ -364,8 +384,8 @@ pub(crate) async fn login_via_ldap(s: &AppState, username: &str, password: &str)
     }
     let cfg = saved(s).await.filter(|c| c.enabled)?;
     match authenticate(&cfg, username, password).await {
-        Outcome::In { role, zones } => {
-            let ok = s.auth.issue_external_session(username, role, zones.clone()).await?;
+        Outcome::In { role, zones, name } => {
+            let ok = s.auth.issue_external_session(username, role, zones.clone(), name).await?;
             s.audit.log(
                 "auth.login",
                 Some(username.to_string()),

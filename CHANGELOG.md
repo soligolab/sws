@@ -48,6 +48,20 @@ si stabilizza su `release/2.26` (piano `docs/plans/2026-11-22-dev-rc-release-e-p
 Il lavoro dalla 2.25.2 alla 2.26.0-rc.26. Le correzioni della stabilizzazione si fanno su `release/2.26` e si
 riportano qui con `cherry-pick`; la data arriva con la release.
 
+### Aggiunto — chi ha fatto l'accesso, nelle pagine e negli script (22-11-2026, ramo `feat/current-user`)
+- **`{{user.name}}`, `{{user.username}}`, `{{user.role}}`, `{{user.last_login}}`** in ogni testo delle pagine, risolti nel
+  client dei due motori accanto a `{{sys:…}}` (`campoUtente` in `projectI18n.ts`, `user_field` in `lvgl_render.rs`),
+  anche senza tabella delle lingue e dentro un testo tradotto; casi condivisi in `tests/fixtures/segnaposto-utente.json`.
+  Il ruolo è una parola di sistema (`role_*`, cinque lingue). Nessuno collegato: vuoto. Nel pannello proprietà il
+  pulsante 👤 li inserisce.
+- **Il nome visualizzato**: `display_name` negli utenti di `users.yaml` (campo nella scheda Utenti); per un utente LDAP
+  `displayName`, poi `givenName` (o `name_attribute` della configurazione), tenuto sulla sessione.
+- **L'accesso precedente**: `config/last_logins.json` del dispositivo (`last_logins.rs`), letto e riscritto a ogni
+  accesso riuscito (progetto, dispositivo, LDAP); `LoginOk` e `whoami` portano `display_name` e `previous_login_ms`.
+- **Gli script sanno chi li ha lanciati**: il nome fornito `user` (`user.name`, `user.username`, `user.role`), `None`
+  da uno script globale o da chi non ha fatto l'accesso. Il router lo passa sotto `__sws_caller__` e toglie quello che
+  arrivasse dal chiamante.
+
 ### Corretto — collaudo della 2.26.0-rc.28 (22-11-2026, sul TC620, ramo `fix/rc29-collaudo`)
 - **Gli avvisi di compatibilità ripetuti per ogni rc**: aggiornando il TC620 dalla rc.23 alla rc.28 i sette avvisi della
   2.26.0 comparivano cinque volte. Le rc di una release portano tutto il blocco della release, e il blocco cresce: la

@@ -192,6 +192,15 @@ export function UsersTab() {
                     <td style={S.td}>
                       <strong>{u.username}</strong>
                       {isSelf && <span style={{ marginLeft: 6, color: "var(--brand-text-subtle, #64748b)", fontSize: 11 }}>(tu)</span>}
+                      {/* The name pages show for this user, `{{user.name}}` (22-11-2026). */}
+                      <input key={`${u.username}:${u.display_name ?? ""}`}
+                        style={{ ...S.inputSm, fontSize: 11, display: "block", marginTop: 4, minWidth: 130 }}
+                        placeholder={t("cfg.displayName")} title={t("cfg.displayNameHint", { ph: "{{user.name}}", interpolation: { escapeValue: false } })}
+                        defaultValue={u.display_name ?? ""} disabled={busy} data-testid={`utente-nome-${u.username}`}
+                        onBlur={(e) => {
+                          const v = e.target.value.trim();
+                          if (v !== (u.display_name ?? "")) onPatch(u.username, { display_name: v || null });
+                        }} />
                     </td>
                     <td style={S.td}>
                       <select

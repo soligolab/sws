@@ -3504,6 +3504,24 @@ pub(crate) async fn entra_with(
     Json(body).into_response()
 }
 
+/// The login before this one (plan rc.29, block B): read from the device's
+/// list and replaced with now, kept on the session for `whoami`, and given back
+/// with the login itself.
+async fn with_previous_login(s: &AppState, mut ok: sws_auth::LoginOk) -> sws_auth::LoginOk {
+    let dir = s.config_dir.as_ref().clone();
+    let user = ok.username.clone();
+    let previous = tokio::task::spawn_blocking(move || {
+        crate::last_logins::record(&dir, &user, crate::last_logins::now_ms())
+    })
+    .await
+    .ok()
+    .flatten();
+    s.auth.set_previous_login(&ok.token, previous).await;
+    s.auth_dispositivo.set_previous_login(&ok.token, previous).await;
+    ok.previous_login_ms = previous;
+    ok
+}
+
 async fn login(
     State(s): State<AppState>,
     peer: Option<axum::extract::Extension<std::net::SocketAddr>>,
@@ -3602,7 +3620,7 @@ async fn login(
     let esito = match esito {
         Err(LoginError::BadCredentials) => {
             match crate::ldap_auth::login_via_ldap(&s, &creds.username, &creds.password).await {
-                Some(ok) => return Json(ok).into_response(),
+                Some(ok) => return Json(with_previous_login(&s, ok).await).into_response(),
                 None => Err(LoginError::BadCredentials),
             }
         }
@@ -3615,7 +3633,7 @@ async fn login(
                 Some(creds.username.clone()),
                 serde_json::json!({"role": ok.role}),
             );
-            Json(ok).into_response()
+            Json(with_previous_login(&s, ok).await).into_response()
         }
         Err(LoginError::BadCredentials) => {
             s.audit.log(
@@ -3742,9 +3760,24 @@ struct Whoami {
     /// change-password screen doesn't ask for the current password then.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     recent_pin_login: bool,
+    /// The name pages show for this user (`{{user.name}}`), when there is one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    display_name: Option<String>,
+    /// The login before this one on this device (`{{user.last_login}}`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    previous_login_ms: Option<u64>,
 }
 
 async fn whoami(State(s): State<AppState>, req: Request) -> Json<Whoami> {
+    let token = token_della_richiesta(&req);
+    let profile = match token.as_deref() {
+        Some(t) => match s.auth.session_profile(t).await {
+            Some(p) => Some(p),
+            None => s.auth_dispositivo.session_profile(t).await,
+        },
+        None => None,
+    };
+    let (display_name, previous_login_ms) = profile.unwrap_or_default();
     // require_auth has already inserted AuthUser; missing here would be a bug.
     let user = req
         .extensions()
@@ -3769,6 +3802,8 @@ async fn whoami(State(s): State<AppState>, req: Request) -> Json<Whoami> {
         must_change_password: user.must_change_password,
         amministratore_piattaforma: user.amministratore_piattaforma,
         recent_pin_login,
+        display_name,
+        previous_login_ms,
     })
 }
 
@@ -8085,14 +8120,30 @@ async fn run_function(
     State(s): State<AppState>,
     Extension(user): Extension<AuthUser>,
     Path(name): Path<String>,
+    headers: axum::http::HeaderMap,
     body: Option<Json<RunBody>>,
 ) -> Response {
     s.audit.log(
         "script.run",
-        Some(user.username),
+        Some(user.username.clone()),
         serde_json::json!({"name": name.clone()}),
     );
-    let passati = body.map(|Json(b)| b.args).unwrap_or_default();
+    // The name to show of who runs it (a directory user has it only on the
+    // session).
+    let caller_name = match headers
+        .get(header::AUTHORIZATION)
+        .and_then(|h| h.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+    {
+        Some(t) => match s.auth.session_profile(t).await {
+            Some((n, _)) => n,
+            None => s.auth_dispositivo.session_profile(t).await.and_then(|(n, _)| n),
+        },
+        None => None,
+    };
+    let mut passati = body.map(|Json(b)| b.args).unwrap_or_default();
+    // Who runs it is said by the session, never by the caller.
+    passati.remove(sws_pyscript::CALLER_ARG);
     // Il codice e gli argomenti, coi default dei parametri che il chiamante non
     // ha passato (L0, 05-11-2026): un pulsante manda `on_press_args ?? {}`, una
     // cella `{}`, e prima la funzione finiva in `NameError` sul parametro.
@@ -8110,7 +8161,18 @@ async fn run_function(
                     )
                         .into_response();
                 }
-                (f.code.clone(), f.argomenti(passati))
+                let mut args = f.argomenti(passati);
+                if !user.username.is_empty() {
+                    args.insert(
+                        sws_pyscript::CALLER_ARG.to_string(),
+                        serde_json::json!({
+                            "name": caller_name.clone().unwrap_or_else(|| user.username.clone()),
+                            "username": user.username,
+                            "role": user.role.as_str(),
+                        }),
+                    );
+                }
+                (f.code.clone(), args)
             }
             None => {
                 return (StatusCode::NOT_FOUND, format!("no function named '{name}'"))
@@ -15389,6 +15451,7 @@ mod password_change_on_the_viewer {
                 role: sws_auth::Role::Operator,
                 must_change_password: true,
                 allowed_zones: vec![],
+                display_name: None,
             })
             .await
             .unwrap();
@@ -15469,6 +15532,7 @@ mod factory_password_not_postponed {
                     role: sws_auth::Role::Admin,
                     must_change_password: true,
                     allowed_zones: vec![],
+                    display_name: None,
                 })
                 .await
                 .unwrap();
@@ -15868,6 +15932,7 @@ mod prove_run_function {
             State(s.clone()),
             Extension(utente),
             Path("saluta".into()),
+            axum::http::HeaderMap::new(),
             None,
         )
         .await;
@@ -15883,6 +15948,63 @@ mod prove_run_function {
             dopo.get("chi").map(|x| x.value.clone()),
             Some(TagValue::Str("operatore".into()))
         );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// 22-11-2026: a function says who may run it, and knows who did.
+    #[tokio::test]
+    async fn a_function_has_its_role_and_knows_its_caller() {
+        let dir = std::env::temp_dir().join(format!("sws-prova-ruolo-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let s = stato_di_prova(&dir).await;
+        let def = |name: &str, role: Option<&str>| sws_core::FunctionDef {
+            id: name.into(),
+            name: name.into(),
+            description: None,
+            code: "print(user.username if user else 'nessuno', user.role if user else '-')\n".into(),
+            params: vec![],
+            min_role: role.map(str::to_string),
+        };
+        s.functions.write().await.insert("chiudi".into(), def("chiudi", Some("Viewer")));
+        s.functions.write().await.insert("reset".into(), def("reset", None));
+        let chi = |name: &str, role: Role| AuthUser {
+            username: name.into(),
+            role,
+            must_change_password: false,
+            allowed_zones: vec![],
+            amministratore_piattaforma: false,
+        };
+        let run = |u: AuthUser, f: &str, args: serde_json::Value| {
+            let s = s.clone();
+            let f = f.to_string();
+            async move {
+                let body: RunBody = serde_json::from_value(serde_json::json!({ "args": args })).unwrap();
+                run_function(State(s), Extension(u), Path(f), axum::http::HeaderMap::new(), Some(Json(body))).await
+            }
+        };
+        // Nobody signed in, a function open to Viewers: it runs, `user` is None.
+        let r = run(chi("", Role::Viewer), "chiudi", serde_json::json!({})).await;
+        let v: serde_json::Value =
+            serde_json::from_slice(&axum::body::to_bytes(r.into_body(), 1 << 16).await.unwrap()).unwrap();
+        assert_eq!(v["stdout"], "nessuno -\n", "{v}");
+        // The default threshold stays Operator: 403 with a code the IDE translates.
+        let r = run(chi("", Role::Viewer), "reset", serde_json::json!({})).await;
+        assert_eq!(r.status(), StatusCode::FORBIDDEN);
+        let v: serde_json::Value =
+            serde_json::from_slice(&axum::body::to_bytes(r.into_body(), 1 << 16).await.unwrap()).unwrap();
+        assert_eq!(v["code"], "function_role");
+        assert_eq!(v["role"], "Operator");
+        // An operator runs it, and the function knows who; a forged caller is dropped.
+        let r = run(
+            chi("mario", Role::Operator),
+            "reset",
+            serde_json::json!({ "__sws_caller__": { "username": "admin", "role": "Admin" } }),
+        )
+        .await;
+        let v: serde_json::Value =
+            serde_json::from_slice(&axum::body::to_bytes(r.into_body(), 1 << 16).await.unwrap()).unwrap();
+        assert_eq!(v["stdout"], "mario Operator\n", "{v}");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -16178,6 +16300,7 @@ mod project_lock_on_the_router {
                 role: sws_auth::Role::Admin,
                 must_change_password: false,
                 allowed_zones: vec![],
+                display_name: None,
             })
             .await
             .unwrap();

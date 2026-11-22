@@ -1,0 +1,35 @@
+{
+  "_perche": [
+    "I segnaposto di chi ha fatto l'accesso (22-11-2026, piano della rc.29, blocco B): «Benvenuto {{user.name}}».",
+    "Li risolvono i due motori, il web (`campoUtente` in projectI18n.ts) e LVGL (`user_field` in lvgl_render.rs):",
+    "questi casi li leggono tutti e due i test, così una differenza si vede qui e non sul pannello.",
+    "`{{user.last_login}}` dipende dal fuso della macchina: si prova a parte, in ogni motore."
+  ],
+  "tabella": {
+    "default": "it",
+    "langs": ["it", "en"],
+    "entries": [
+      { "key": "benvenuto", "values": { "it": "Benvenuto {{user.name}}", "en": "Welcome {{user.name}}" } }
+    ]
+  },
+  "casi": [
+    { "nome": "il nome visualizzato", "utente": { "username": "mario", "name": "Mario Rossi", "role": "Operator" },
+      "testo": "Ciao {{user.name}}", "lang": "it", "atteso": "Ciao Mario Rossi" },
+    { "nome": "senza nome visualizzato vale il nome di accesso", "utente": { "username": "mario", "role": "Operator" },
+      "testo": "Ciao {{user.name}}", "lang": "it", "atteso": "Ciao mario" },
+    { "nome": "il nome di accesso", "utente": { "username": "mario", "name": "Mario Rossi", "role": "Operator" },
+      "testo": "{{user.username}}", "lang": "it", "atteso": "mario" },
+    { "nome": "il ruolo nella lingua dei contenuti", "utente": { "username": "anna", "role": "Supervisor" },
+      "testo": "{{user.role}}", "lang": "de", "atteso": "Supervisor" },
+    { "nome": "il ruolo in italiano", "utente": { "username": "anna", "role": "Admin" },
+      "testo": "Ruolo: {{user.role}}", "lang": "it", "atteso": "Ruolo: Amministratore" },
+    { "nome": "nessuno ha fatto l'accesso: vuoto", "utente": null,
+      "testo": "Benvenuto {{user.name}}", "lang": "it", "atteso": "Benvenuto " },
+    { "nome": "un campo che non esiste resta com'è", "utente": { "username": "mario" },
+      "testo": "{{user.email}}", "lang": "it", "atteso": "{{user.email}}" },
+    { "nome": "dentro un testo tradotto", "utente": { "username": "luca", "name": "Luca", "role": "Viewer" },
+      "testo": "{{benvenuto}}", "lang": "en", "atteso": "Welcome Luca" },
+    { "nome": "il primo accesso: nessuna data", "utente": { "username": "luca" },
+      "testo": "[{{user.last_login}}]", "lang": "it", "atteso": "[]" }
+  ]
+}

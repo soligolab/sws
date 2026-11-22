@@ -2075,7 +2075,9 @@
     "deployUtentiDaCambiare": "Questi arrivano col cambio password obbligatorio: {{utenti}}. Al primo accesso sul pannello verrà chiesta una password nuova (si potrà rimandare).",
     "deployUtentiSostituiti": "Questo deploy sostituisce gli utenti del pannello ({{pannello}}) con quelli del progetto ({{progetto}}). Sul pannello varranno le password del progetto: una password cambiata sul pannello andrà persa.",
     "deployUtentiTieni": "Se vuoi che il pannello tenga i suoi utenti, annulla e togli «Sostituisci anche gli utenti». Continuare?",
-    "deploySymbolPhotos": "Il pannello ha una versione di SWS che non conosce le foto nei simboli: con questo progetto non riuscirebbe nemmeno ad aprirlo. Aggiorna il pannello, poi rifai il deploy. Non è stato mandato niente."
+    "deploySymbolPhotos": "Il pannello ha una versione di SWS che non conosce le foto nei simboli: con questo progetto non riuscirebbe nemmeno ad aprirlo. Aggiorna il pannello, poi rifai il deploy. Non è stato mandato niente.",
+    "displayName": "Nome visualizzato",
+    "displayNameHint": "Il nome che le pagine mostrano con {{ph}} (es. «Benvenuto {{ph}}»). Vuoto: il nome di accesso."
   },
   "langtab": {
     "migrate": "Migra i testi…",
@@ -6003,12 +6005,20 @@
     "urlExample": "ldaps://dc.azienda.local",
     "bindDnExample": "CN=svc-sws,OU=Servizi,DC=azienda,DC=local",
     "userBaseExample": "OU=Utenti,DC=azienda,DC=local",
-    "groupExample": "CN=Operatori SWS,OU=Gruppi,DC=azienda,DC=local"
+    "groupExample": "CN=Operatori SWS,OU=Gruppi,DC=azienda,DC=local",
+    "nameAttribute": "Attributo col nome da mostrare"
   },
   "apiError": {
     "function_param_invalid": "La funzione «{{function}}» ha un parametro «{{param}}» che non è un nome valido in Python: solo lettere, cifre e «_», senza cominciare con una cifra.",
     "function_param_reserved": "La funzione «{{function}}» ha un parametro «{{param}}»: è il nome di qualcosa che ogni script riceve già (tags, state, print…). Scegli un altro nome.",
     "function_param_underscore": "La funzione «{{function}}» ha un parametro «{{param}}»: i nomi che cominciano con «_» sono riservati alla sandbox. Scegli un altro nome.",
     "function_role": "Per questo comando serve il ruolo {{role}}: accedi con un utente che ce l'ha."
+  },
+  "userPlaceholder": {
+    "title": "Inserisci un dato di chi ha fatto l'accesso",
+    "name": "Nome di chi ha fatto l'accesso",
+    "username": "Nome di accesso",
+    "role": "Ruolo",
+    "last_login": "Accesso precedente (data e ora)"
   }
 }

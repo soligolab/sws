@@ -75,6 +75,12 @@ pub struct LoginOk {
     /// decision D17 of the CRA sessions): the panel asks for it at once.
     #[serde(default)]
     pub must_change_password: bool,
+    /// The name pages show (`{{user.name}}`, 22-11-2026), when there is one.
+    #[serde(default)]
+    pub display_name: Option<String>,
+    /// The login before this one on the device (`{{user.last_login}}`).
+    #[serde(default)]
+    pub previous_login_ms: Option<u64>,
 }
 
 /// Stato della sessione, condiviso fra il thread di rendering LVGL (che lo
@@ -88,6 +94,11 @@ pub struct SessionState {
     pub username: Option<String>,
     pub role: Option<Role>,
     pub expires_at_ms: Option<u64>,
+    /// The name to show and the previous login (22-11-2026, `{{user.*}}`).
+    #[serde(default)]
+    pub display_name: Option<String>,
+    #[serde(default)]
+    pub previous_login_ms: Option<u64>,
     /// Il runtime ha utenti definiti? Deciso una volta all'avvio
     /// (`client::fetch_system`, `GET /api/system`), non persistito: un
     /// pannello senza utenti non ha nulla da autenticare, il controllo
@@ -197,6 +208,8 @@ impl SessionState {
         self.username = Some(ok.username);
         self.role = Some(ok.role);
         self.expires_at_ms = ok.expires_at_ms;
+        self.display_name = ok.display_name;
+        self.previous_login_ms = ok.previous_login_ms;
         self.save();
     }
 
@@ -210,6 +223,8 @@ impl SessionState {
         self.username = None;
         self.role = None;
         self.expires_at_ms = None;
+        self.display_name = None;
+        self.previous_login_ms = None;
         self.save();
     }
 }

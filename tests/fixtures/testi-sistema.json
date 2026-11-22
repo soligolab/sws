@@ -566,6 +566,34 @@
       "fr": "Au-dessus du maximum ({max})",
       "es": "Por encima del máximo ({max})",
       "en": "Above the maximum ({max})"
+    },
+    "role_viewer": {
+      "it": "Visualizzatore",
+      "de": "Betrachter",
+      "fr": "Observateur",
+      "es": "Observador",
+      "en": "Viewer"
+    },
+    "role_operator": {
+      "it": "Operatore",
+      "de": "Bediener",
+      "fr": "Opérateur",
+      "es": "Operador",
+      "en": "Operator"
+    },
+    "role_supervisor": {
+      "it": "Supervisore",
+      "de": "Supervisor",
+      "fr": "Superviseur",
+      "es": "Supervisor",
+      "en": "Supervisor"
+    },
+    "role_admin": {
+      "it": "Amministratore",
+      "de": "Administrator",
+      "fr": "Administrateur",
+      "es": "Administrador",
+      "en": "Administrator"
     }
   }
 }

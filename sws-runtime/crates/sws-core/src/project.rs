@@ -2091,6 +2091,10 @@ pub struct LdapConfig {
     pub groups: Vec<LdapGroup>,
     #[serde(default = "ldap_timeout_ms")]
     pub timeout_ms: u64,
+    /// The attribute with the name pages show (`{{user.name}}`); none =
+    /// `displayName`, then `givenName`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name_attribute: Option<String>,
 }
 
 /// A directory group and what its members are on the panel.
