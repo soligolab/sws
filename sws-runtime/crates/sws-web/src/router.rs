@@ -920,6 +920,8 @@ pub fn build(
                 .delete(crate::traduttore::delete_config_traduzione),
         )
         .route("/api/host/catalog", get(crate::system::get_host_catalog))
+        // The PLX800 I/O segment of this machine (23-11-2026).
+        .route("/api/plx800/status", get(crate::system::get_plx800_status))
         // Le porte seriali che questo runtime vede e può aprire (04-10-2026).
         .route("/api/host/seriali", get(crate::system::get_porte_seriali))
         .route("/api/system/tls", get(crate::system::get_tls_status))
@@ -993,6 +995,11 @@ pub fn build(
         .route(
             "/api/remote/host/catalog",
             get(crate::remote::remote_host_catalog),
+        )
+        // The PLX800 I/O segment of the connected device (23-11-2026).
+        .route(
+            "/api/remote/plx800/status",
+            get(crate::remote::remote_plx800_status),
         )
         // Le prossime esecuzioni di un cron nel fuso del dispositivo connesso:
         // gli script partono lì, non su questa macchina (10-11-2026).
@@ -2043,6 +2050,9 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
         // il 21-09-2026 due metriche `temp` sono state salvate senza zona e
         // sono rimaste Bad in silenzio. Sola lettura, nessun segreto.
         .route("/api/host/catalog", get(crate::system::get_host_catalog))
+        // The PLX800 I/O segment, for the source card of the connected
+        // editor (23-11-2026). Read only, no secrets.
+        .route("/api/plx800/status", get(crate::system::get_plx800_status))
         // Le porte seriali che questo runtime vede e può aprire (04-10-2026).
         .route("/api/host/seriali", get(crate::system::get_porte_seriali))
         // Lo stato delle sorgenti e dei dispositivi (04-10-2026): l'IDE connesso

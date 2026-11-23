@@ -783,6 +783,15 @@ DEVICETREE=/sys/firmware/devicetree/base
 if [ -d "$DEVICETREE" ]; then
     MOUNTS+=(-v "$DEVICETREE:/host/devicetree:ro")
 fi
+# The PLX800 I/O module (23-11-2026, plan 2026-11-23-plx800-sws-e-modulo-io):
+# PixsysOS publishes it in the host /dev/shm, which the container does not
+# see. The whole folder and not the single file: if the container starts
+# before the system service has created the segment, a file mount fails, and
+# the source could not find it later. Only where the segment exists.
+PLX800_SHM=/dev/shm/qmb800_registers
+if [ -e "$PLX800_SHM" ]; then
+    MOUNTS+=(-v "/dev/shm:/dev/shm")
+fi
 
 if [ "$AUTOSTART" -eq 1 ]; then
     echo "==> [5/6] unit quadlet + linger"
@@ -857,6 +866,10 @@ if [ "$AUTOSTART" -eq 1 ]; then
     if [ -d "$DEVICETREE" ] && ! grep -q "/host/devicetree" "$UNIT_DIR/$NAME.container"; then
         sed -i "/^Volume=.*:\/var\/sws\/logs\$/a Volume=$DEVICETREE:/host/devicetree:ro" "$UNIT_DIR/$NAME.container"
         echo "    mount del device-tree (seriale/modello della scheda) aggiunto"
+    fi
+    if [ -e "$PLX800_SHM" ] && ! grep -q "^Volume=/dev/shm:/dev/shm" "$UNIT_DIR/$NAME.container"; then
+        sed -i "/^Volume=.*:\/var\/sws\/logs\$/a Volume=/dev/shm:/dev/shm" "$UNIT_DIR/$NAME.container"
+        echo "    PLX800 I/O module found: host /dev/shm mounted"
     fi
 
     # Senza linger i servizi utente muoiono al logout e non partono al boot:

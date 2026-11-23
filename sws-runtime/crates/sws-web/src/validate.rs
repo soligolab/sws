@@ -2791,6 +2791,11 @@ fn mappature_tag(src: &SourceDef) -> Vec<(String, &str)> {
                 out.push((format!("metrics[{i}].tag"), m.tag.as_str()));
             }
         }
+        SourceDef::Plx800Io(c) => {
+            for (i, m) in c.points.iter().enumerate() {
+                out.push((format!("points[{i}].tag"), m.tag.as_str()));
+            }
+        }
         SourceDef::Mqtt(_) => {}
     }
     out
@@ -2945,6 +2950,7 @@ fn source_id(s: &SourceDef) -> &str {
         SourceDef::S7(c) => &c.id,
         SourceDef::EnIp(c) => &c.id,
         SourceDef::Host(c) => &c.id,
+        SourceDef::Plx800Io(c) => &c.id,
     }
 }
 

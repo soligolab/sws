@@ -2340,6 +2340,12 @@ pub async fn remote_host_catalog(State(s): State<AppState>) -> Response {
     proxy_get_json(&s, "/api/host/catalog").await
 }
 
+/// `GET /api/remote/plx800/status` — the PLX800 I/O segment of the connected
+/// device (23-11-2026): the source card shows whether the module is there.
+pub async fn remote_plx800_status(State(s): State<AppState>) -> Response {
+    proxy_get_json(&s, "/api/plx800/status").await
+}
+
 /// `GET /api/remote/cron/prossime?espressione=…` — le prossime esecuzioni di un
 /// cron nel fuso **del dispositivo connesso** (10-11-2026): gli script partono
 /// lì, e il fuso del PC di chi disegna non dice niente su quello del pannello.

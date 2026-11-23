@@ -1781,7 +1781,40 @@ export interface HostSource {
   metrics: HostMetricMapping[];
 }
 
-export type SourceDef = ModbusTcpSource | ModbusRtuSource | MqttSource | OpcUaSource | OpcUaServerSource | HomeAssistantSource | S7Source | EnIpSource | HostSource;
+/** A point of the PLX800-IO module (`/dev/shm/qmb800_registers`). Mirror of
+ *  `Plx800Point` in `sws-core/src/project.rs`. */
+export type Plx800Point =
+  | 'in0' | 'in1' | 'in2' | 'in3' | 'in4' | 'in5' | 'in6' | 'in7'
+  | 'dip1' | 'dip2' | 'dip3' | 'dip4' | 'dip5' | 'dip6'
+  | 'led_redundant_supply' | 'led_operative_state'
+  | 'out0' | 'out1' | 'out2' | 'out3' | 'out4' | 'out5' | 'out6' | 'out7'
+  | 'led_run_red' | 'led_run_green' | 'led_error' | 'led_a1_red' | 'led_a1_green' | 'led_a2_red' | 'led_a2_green'
+  | 'poe_en' | 'run_led_mode' | 'pwm_mask' | 'pwm_freq_g0' | 'pwm_freq_g1'
+  | 'pwm_duty_out0' | 'pwm_duty_out1' | 'pwm_duty_out2' | 'pwm_duty_out3'
+  | 'pwm_duty_out4' | 'pwm_duty_out5' | 'pwm_duty_out6' | 'pwm_duty_out7'
+  | 'vcap_mv' | 'vcap_switch_mv' | 'supply_cpu_mv' | 'supply_main_mv' | 'supply_sec_mv' | 'board_temp_c'
+  | 'diag_rx_total' | 'diag_rx_ok' | 'diag_rx_err' | 'diag_tx_total' | 'diag_tx_ok' | 'diag_tx_err'
+  | 'fresh' | 'update_count' | 'fail_count' | 'writer_active' | 'foreign_writer';
+
+export interface Plx800PointMapping {
+  tag: string;
+  point: Plx800Point;
+}
+
+/** Source `plx800_io`: the I/O module of a PLX800. Reads always; commands
+ *  outputs, LEDs, PWM and PoE only with `writes`. */
+export interface Plx800IoSource {
+  /** `false` = kept in the project but not started; absent = on. */
+  enabled?: boolean;
+  kind: 'plx800_io';
+  id: string;
+  poll_interval_ms: number;
+  /** Absent = read only. */
+  writes?: boolean;
+  points: Plx800PointMapping[];
+}
+
+export type SourceDef = ModbusTcpSource | ModbusRtuSource | MqttSource | OpcUaSource | OpcUaServerSource | HomeAssistantSource | S7Source | EnIpSource | HostSource | Plx800IoSource;
 
 // ── HomeAssistant entity browser ───────────────────────────────────────────
 

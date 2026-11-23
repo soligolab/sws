@@ -800,6 +800,47 @@ monta `/sys/firmware/devicetree/base` in sola lettura su `/host/devicetree`. Su 
 
 ---
 
+## PLX800 I/O — il modulo I/O del PLX800 (dal 23-11-2026)
+
+La sorgente `plx800_io` legge il modulo I/O di un Pixsys PLX800: 8 ingressi, 6 DIP, 8 uscite (ognuna fissa o in PWM),
+i LED comandabili, il PoE, cinque tensioni, la temperatura della scheda e i contatori diagnostici del collegamento.
+PixsysOS (dalla 2.0) pubblica il modulo come memoria condivisa, `/dev/shm/qmb800_registers`, aggiornata circa ogni
+millisecondo da un servizio di sistema: non c'è un protocollo né un indirizzo da configurare. Nel container
+`install-container.sh` monta `/dev/shm` dell'host quando il segmento c'è.
+
+```yaml
+sources:
+  - kind: plx800_io
+    id: io
+    poll_interval_ms: 100      # il modulo si aggiorna ogni ~1 ms
+    writes: true               # assente = sola lettura
+    points:
+      - { tag: io.in0, point: in0 }
+      - { tag: io.out0, point: out0 }
+      - { tag: io.temp, point: board_temp_c }
+```
+
+I punti: `in0..in7`, `dip1..dip6`, `out0..out7`, `led_run_red/green`, `led_error`, `led_a1_red/green`,
+`led_a2_red/green`, `led_redundant_supply`, `led_operative_state`, `poe_en`, `run_led_mode`, `pwm_mask`,
+`pwm_freq_g0/g1` (Hz), `pwm_duty_out0..7` (‰), `vcap_mv`, `vcap_switch_mv`, `supply_cpu_mv`, `supply_main_mv`,
+`supply_sec_mv`, `board_temp_c` (°C), `diag_rx_total/ok/err`, `diag_tx_total/ok/err`; più cinque punti che descrivono
+il segmento: `fresh`, `update_count`, `fail_count`, `writer_active`, `foreign_writer`. Nella card, «Aggiungi tutti i
+punti» li mappa su `<id sorgente>.<punto>` e dichiara i tag con tipo e unità.
+
+**Freschezza.** Un punto è Good solo se l'immagine del modulo si sta aggiornando (il suo contatore si è mosso negli
+ultimi 3 giri di lettura); altrimenti è Bad, e `<id>.disponibile` va a falso. Dopo 5 s senza aggiornamenti la sorgente
+riapre il segmento.
+
+**Comandi.** Con `writes: true` SWS diventa l'**unico scrittore** del modulo (un lock su
+`/dev/shm/qmb800_registers.lock`). Se un altro programma tiene già il lock, la sorgente resta in sola lettura e
+riprova ogni 5 s. Il comando è sempre lo stato completo: SWS parte da quello che il modulo fa in quel momento, e se
+qualcuno scrive senza lock (CODESYS, forse LogicLab) se ne accorge (`foreign_writer`) e non ne cancella i comandi.
+Quando la sorgente si ferma, se aveva comandato qualcosa: uscite e PWM spenti, LED RUN restituito al sistema, PoE
+com'era. Sono comandabili le uscite, i LED A1/A2/ERROR/RUN, il PoE, `run_led_mode` (0–2), la maschera, le frequenze
+(0–20000 Hz) e i duty (0–1000) del PWM. Il template `plx800-io` è un punto di partenza.
+
+---
+
 ## Configurazione tramite UI
 
 Tutte le sorgenti possono essere configurate senza editare YAML:

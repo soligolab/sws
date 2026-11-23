@@ -631,6 +631,7 @@ MAPPINGS = {
     "HomeAssistantConfig": ["EntityMapping"],
     "S7Config":         ["S7TagMapping"],
     "EnIpConfig":       ["EnIpTagMapping"],
+    "Plx800IoConfig":   ["Plx800PointMapping"],
 }
 
 

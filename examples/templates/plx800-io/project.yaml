@@ -1,0 +1,372 @@
+# Banco di prova della sorgente plx800_io (23-11-2026): il modulo I/O di un PLX800.
+meta:
+  name: plx800-io
+  version: 0.1.0
+sources:
+- kind: plx800_io
+  id: io
+  poll_interval_ms: 100
+  writes: true
+  points:
+  - tag: io.in0
+    point: in0
+  - tag: io.in1
+    point: in1
+  - tag: io.in2
+    point: in2
+  - tag: io.in3
+    point: in3
+  - tag: io.in4
+    point: in4
+  - tag: io.in5
+    point: in5
+  - tag: io.in6
+    point: in6
+  - tag: io.in7
+    point: in7
+  - tag: io.dip1
+    point: dip1
+  - tag: io.dip2
+    point: dip2
+  - tag: io.dip3
+    point: dip3
+  - tag: io.dip4
+    point: dip4
+  - tag: io.dip5
+    point: dip5
+  - tag: io.dip6
+    point: dip6
+  - tag: io.out0
+    point: out0
+  - tag: io.out1
+    point: out1
+  - tag: io.out2
+    point: out2
+  - tag: io.out3
+    point: out3
+  - tag: io.out4
+    point: out4
+  - tag: io.out5
+    point: out5
+  - tag: io.out6
+    point: out6
+  - tag: io.out7
+    point: out7
+  - tag: io.led_a1_green
+    point: led_a1_green
+  - tag: io.board_temp_c
+    point: board_temp_c
+  - tag: io.supply_main_mv
+    point: supply_main_mv
+  - tag: io.supply_cpu_mv
+    point: supply_cpu_mv
+  - tag: io.vcap_mv
+    point: vcap_mv
+  - tag: io.fresh
+    point: fresh
+  - tag: io.writer_active
+    point: writer_active
+tags:
+- id: io.in0
+  data_type: bool
+  description: Ingresso IN0
+- id: io.in1
+  data_type: bool
+  description: Ingresso IN1
+- id: io.in2
+  data_type: bool
+  description: Ingresso IN2
+- id: io.in3
+  data_type: bool
+  description: Ingresso IN3
+- id: io.in4
+  data_type: bool
+  description: Ingresso IN4
+- id: io.in5
+  data_type: bool
+  description: Ingresso IN5
+- id: io.in6
+  data_type: bool
+  description: Ingresso IN6
+- id: io.in7
+  data_type: bool
+  description: Ingresso IN7
+- id: io.dip1
+  data_type: bool
+  description: DIP1 (ON = true)
+- id: io.dip2
+  data_type: bool
+  description: DIP2 (ON = true)
+- id: io.dip3
+  data_type: bool
+  description: DIP3 (ON = true)
+- id: io.dip4
+  data_type: bool
+  description: DIP4 (ON = true)
+- id: io.dip5
+  data_type: bool
+  description: DIP5 (ON = true)
+- id: io.dip6
+  data_type: bool
+  description: DIP6 (ON = true)
+- id: io.out0
+  data_type: bool
+  description: Uscita OUT0
+  write_min_role: Viewer
+- id: io.out1
+  data_type: bool
+  description: Uscita OUT1
+  write_min_role: Viewer
+- id: io.out2
+  data_type: bool
+  description: Uscita OUT2
+  write_min_role: Viewer
+- id: io.out3
+  data_type: bool
+  description: Uscita OUT3
+  write_min_role: Viewer
+- id: io.out4
+  data_type: bool
+  description: Uscita OUT4
+  write_min_role: Viewer
+- id: io.out5
+  data_type: bool
+  description: Uscita OUT5
+  write_min_role: Viewer
+- id: io.out6
+  data_type: bool
+  description: Uscita OUT6
+  write_min_role: Viewer
+- id: io.out7
+  data_type: bool
+  description: Uscita OUT7
+  write_min_role: Viewer
+- id: io.led_a1_green
+  data_type: bool
+  description: LED A1 verde
+  write_min_role: Viewer
+- id: io.board_temp_c
+  data_type: f64
+  description: Temperatura della scheda
+  unit: °C
+  history: true
+- id: io.supply_main_mv
+  data_type: u16
+  description: Alimentazione principale
+  unit: mV
+- id: io.supply_cpu_mv
+  data_type: u16
+  description: Alimentazione CPU
+  unit: mV
+- id: io.vcap_mv
+  data_type: u16
+  description: Tensione SuperCap
+  unit: mV
+- id: io.fresh
+  data_type: bool
+  description: Immagine del modulo aggiornata
+- id: io.writer_active
+  data_type: bool
+  description: SWS comanda il modulo
+alarms:
+- id: board_hot
+  tag: io.board_temp_c
+  levels:
+  - condition:
+      kind: above
+      threshold: 70.0
+    severity: Warning
+    message: '{{t0013}}'
+page_layout:
+  size_mode: fixed
+  home_page_id: io_page1
+  page_tree:
+  - id: io_page1
+  cornice_predefinita: cornice
+languages:
+  default: it
+  langs:
+  - it
+  - en
+  - es
+  entries:
+  - key: t0001
+    values:
+      it: Modulo I/O
+      en: I/O module
+      es: Módulo de E/S
+  - key: t0002
+    values:
+      it: 'Il modulo I/O del PLX800 letto dalla memoria condivisa del sistema: ingressi, DIP, uscite comandabili e lo stato della scheda. Le uscite si comandano solo se nessun altro programma (LogicLab, CODESYS, OpenPLC) pilota già il modulo.'
+      en: 'The PLX800 I/O module read from the system shared memory: inputs, DIP switches, commandable outputs and the board state. Outputs are commanded only if no other program (LogicLab, CODESYS, OpenPLC) is already driving the module.'
+      es: 'El módulo de E/S del PLX800 leído de la memoria compartida del sistema: entradas, DIP, salidas mandables y el estado de la tarjeta. Las salidas se mandan solo si ningún otro programa (LogicLab, CODESYS, OpenPLC) controla ya el módulo.'
+  - key: t0003
+    values:
+      it: Ingressi digitali
+      en: Digital inputs
+      es: Entradas digitales
+  - key: t0004
+    values:
+      it: DIP switch
+      en: DIP switches
+      es: Interruptores DIP
+  - key: t0005
+    values:
+      it: Uscite digitali
+      en: Digital outputs
+      es: Salidas digitales
+  - key: t0006
+    values:
+      it: Scheda
+      en: Board
+      es: Tarjeta
+  - key: t0007
+    values:
+      it: Temperatura della scheda
+      en: Board temperature
+      es: Temperatura de la tarjeta
+  - key: t0008
+    values:
+      it: Alimentazione principale [mV]
+      en: Main supply [mV]
+      es: Alimentación principal [mV]
+  - key: t0009
+    values:
+      it: Alimentazione CPU [mV]
+      en: CPU supply [mV]
+      es: Alimentación CPU [mV]
+  - key: t0010
+    values:
+      it: SuperCap [mV]
+      en: SuperCap [mV]
+      es: SuperCap [mV]
+  - key: t0011
+    values:
+      it: Immagine aggiornata
+      en: Image refreshed
+      es: Imagen actualizada
+  - key: t0012
+    values:
+      it: LED A1 verde
+      en: A1 LED green
+      es: LED A1 verde
+  - key: t0013
+    values:
+      it: Temperatura della scheda elevata
+      en: High board temperature
+      es: Temperatura de la tarjeta elevada
+  - key: t0014
+    values:
+      it: SWS comanda il modulo
+      en: SWS commands the module
+      es: SWS manda el módulo
+  - key: t0015
+    values:
+      it: IN0
+      en: IN0
+      es: IN0
+  - key: t0016
+    values:
+      it: IN1
+      en: IN1
+      es: IN1
+  - key: t0017
+    values:
+      it: IN2
+      en: IN2
+      es: IN2
+  - key: t0018
+    values:
+      it: IN3
+      en: IN3
+      es: IN3
+  - key: t0019
+    values:
+      it: IN4
+      en: IN4
+      es: IN4
+  - key: t0020
+    values:
+      it: IN5
+      en: IN5
+      es: IN5
+  - key: t0021
+    values:
+      it: IN6
+      en: IN6
+      es: IN6
+  - key: t0022
+    values:
+      it: IN7
+      en: IN7
+      es: IN7
+  - key: t0023
+    values:
+      it: DIP1
+      en: DIP1
+      es: DIP1
+  - key: t0024
+    values:
+      it: DIP2
+      en: DIP2
+      es: DIP2
+  - key: t0025
+    values:
+      it: DIP3
+      en: DIP3
+      es: DIP3
+  - key: t0026
+    values:
+      it: DIP4
+      en: DIP4
+      es: DIP4
+  - key: t0027
+    values:
+      it: DIP5
+      en: DIP5
+      es: DIP5
+  - key: t0028
+    values:
+      it: DIP6
+      en: DIP6
+      es: DIP6
+  - key: t0029
+    values:
+      it: OUT0
+      en: OUT0
+      es: OUT0
+  - key: t0030
+    values:
+      it: OUT1
+      en: OUT1
+      es: OUT1
+  - key: t0031
+    values:
+      it: OUT2
+      en: OUT2
+      es: OUT2
+  - key: t0032
+    values:
+      it: OUT3
+      en: OUT3
+      es: OUT3
+  - key: t0033
+    values:
+      it: OUT4
+      en: OUT4
+      es: OUT4
+  - key: t0034
+    values:
+      it: OUT5
+      en: OUT5
+      es: OUT5
+  - key: t0035
+    values:
+      it: OUT6
+      en: OUT6
+      es: OUT6
+  - key: t0036
+    values:
+      it: OUT7
+      en: OUT7
+      es: OUT7

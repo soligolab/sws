@@ -1,0 +1,3 @@
+id: plx800-io
+label: PLX800 I/O
+description: Il modulo I/O di un PLX800 (ingressi, DIP, uscite, temperatura e tensioni della scheda) letto dalla sorgente «plx800_io». Le uscite si comandano solo se nessun altro programma pilota già il modulo.

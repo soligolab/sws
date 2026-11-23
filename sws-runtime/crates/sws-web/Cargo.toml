@@ -43,6 +43,7 @@ sws-plugin-homeassistant  = { path = "../sws-plugin-homeassistant" }
 sws-plugin-s7             = { path = "../sws-plugin-s7" }
 sws-plugin-enip           = { path = "../sws-plugin-enip" }
 sws-plugin-host           = { path = "../sws-plugin-host" }
+sws-plugin-plx800         = { path = "../sws-plugin-plx800" }
 reqwest.workspace         = true
 mdns-sd.workspace         = true
 if-addrs.workspace        = true

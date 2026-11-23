@@ -92,7 +92,7 @@ echo "=== 1. le rotte che il deploy usa DEVONO esserci ==="
 # del PC di chi disegna non servono a niente sul pannello.
 for r in "GET /api/projects" "GET /api/system" "GET /api/project" \
          "GET /api/project/export" "GET /api/backups" "GET /api/auth/users" \
-         "GET /api/host/catalog"; do
+         "GET /api/host/catalog" "GET /api/plx800/status"; do
     m=${r% *}; u=${r#* }
     c=$(codice "$m" 8597 "$u")
     [ "$c" != "404" ] && esito ok "$u risponde ($c), non 404" \

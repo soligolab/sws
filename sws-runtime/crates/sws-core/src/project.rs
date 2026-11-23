@@ -529,6 +529,8 @@ pub enum SourceDef {
     EnIp(EnIpConfig),
     #[serde(rename = "host")]
     Host(HostConfig),
+    #[serde(rename = "plx800_io")]
+    Plx800Io(Plx800IoConfig),
 }
 
 /// Home Assistant integration source.
@@ -1689,6 +1691,173 @@ pub struct HostConfig {
     pub poll_interval_ms: u64,
     #[serde(default)]
     pub metrics: Vec<HostMetricMapping>,
+}
+
+// ── PLX800 I/O module (plan 2026-11-23-plx800-sws-e-modulo-io) ───────────────
+
+fn default_plx800_poll_ms() -> u64 {
+    100
+}
+
+/// A point of the PLX800-IO module, as PixsysOS exposes it in the shared
+/// segment `/dev/shm/qmb800_registers` (interface version 1).
+///
+/// The names follow the public reference of the interface
+/// (`/home/ut1/Git/openplc/docs/interface/points.md`): coils, discrete inputs,
+/// input and holding registers, plus five points that describe the segment
+/// itself and are not on the module.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[serde(rename_all = "snake_case")]
+pub enum Plx800Point {
+    // Discrete inputs.
+    In0,
+    In1,
+    In2,
+    In3,
+    In4,
+    In5,
+    In6,
+    In7,
+    /// `true` = switch ON. Pixsys convention: DIP1 OFF is RUN.
+    Dip1,
+    Dip2,
+    Dip3,
+    Dip4,
+    Dip5,
+    Dip6,
+    /// State of the redundant-supply LED (green), read only.
+    LedRedundantSupply,
+    /// State of the operative-state LED (red), read only.
+    LedOperativeState,
+    // Coils.
+    Out0,
+    Out1,
+    Out2,
+    Out3,
+    Out4,
+    Out5,
+    Out6,
+    Out7,
+    /// Effective only with `run_led_mode = 2`.
+    LedRunRed,
+    /// Effective only with `run_led_mode = 2`.
+    LedRunGreen,
+    LedError,
+    LedA1Red,
+    LedA1Green,
+    LedA2Red,
+    LedA2Green,
+    /// PoE power enable: powered devices depend on it.
+    PoeEn,
+    // Holding registers.
+    /// 0 or 1: the RUN LED belongs to the system; 2: to the application.
+    RunLedMode,
+    /// Bit n = 1: OUTn is in PWM.
+    PwmMask,
+    /// Frequency shared by OUT0..OUT3, Hz; 0 = PWM off.
+    PwmFreqG0,
+    /// Frequency shared by OUT4..OUT7, Hz; 0 = PWM off.
+    PwmFreqG1,
+    /// Duty cycle 0..1000 (0.1 % steps).
+    PwmDutyOut0,
+    PwmDutyOut1,
+    PwmDutyOut2,
+    PwmDutyOut3,
+    PwmDutyOut4,
+    PwmDutyOut5,
+    PwmDutyOut6,
+    PwmDutyOut7,
+    // Input registers.
+    VcapMv,
+    VcapSwitchMv,
+    SupplyCpuMv,
+    SupplyMainMv,
+    SupplySecMv,
+    /// Board temperature in °C (the module gives kelvin).
+    BoardTempC,
+    /// Cumulative diagnostic counters of the I/O link (32 bit).
+    DiagRxTotal,
+    DiagRxOk,
+    DiagRxErr,
+    DiagTxTotal,
+    DiagTxOk,
+    DiagTxErr,
+    // The segment itself.
+    /// The image is being refreshed (its counter moved recently).
+    Fresh,
+    /// Successful image refreshes since the system started.
+    UpdateCount,
+    /// Failed image refreshes since the system started.
+    FailCount,
+    /// This source holds the writer lock.
+    WriterActive,
+    /// Someone else wrote the command after this source's last write.
+    ForeignWriter,
+}
+
+impl Plx800Point {
+    /// Whether the point can be commanded. Everything else is read only.
+    pub fn writable(self) -> bool {
+        use Plx800Point::*;
+        matches!(
+            self,
+            Out0 | Out1
+                | Out2
+                | Out3
+                | Out4
+                | Out5
+                | Out6
+                | Out7
+                | LedRunRed
+                | LedRunGreen
+                | LedError
+                | LedA1Red
+                | LedA1Green
+                | LedA2Red
+                | LedA2Green
+                | PoeEn
+                | RunLedMode
+                | PwmMask
+                | PwmFreqG0
+                | PwmFreqG1
+                | PwmDutyOut0
+                | PwmDutyOut1
+                | PwmDutyOut2
+                | PwmDutyOut3
+                | PwmDutyOut4
+                | PwmDutyOut5
+                | PwmDutyOut6
+                | PwmDutyOut7
+        )
+    }
+}
+
+/// Binds a point of the module to a tag.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Plx800PointMapping {
+    /// SWS tag that receives the value.
+    pub tag: String,
+    pub point: Plx800Point,
+}
+
+/// Source `plx800_io`: the I/O module of a PLX800, read from the shared
+/// segment the system publishes. Reads always; commands only with `writes`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Plx800IoConfig {
+    pub id: String,
+    /// `false` = kept in the project but not started (see `HostConfig`).
+    #[serde(default = "bool_true", skip_serializing_if = "is_true")]
+    pub enabled: bool,
+    /// Read interval in milliseconds. The module refreshes every ~1 ms.
+    #[serde(default = "default_plx800_poll_ms")]
+    pub poll_interval_ms: u64,
+    /// `true` = this source may command outputs, LEDs, PWM and PoE. It then
+    /// takes the single-writer lock of the segment, and puts the outputs in
+    /// their safe state when it stops. Default `false`: read only.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub writes: bool,
+    #[serde(default)]
+    pub points: Vec<Plx800PointMapping>,
 }
 
 // ── EtherNet/IP (Allen-Bradley / CIP) config ─────────────────────────────────
@@ -3578,6 +3747,7 @@ impl SourceDef {
             SourceDef::S7(c) => c.enabled,
             SourceDef::EnIp(c) => c.enabled,
             SourceDef::Host(c) => c.enabled,
+            SourceDef::Plx800Io(c) => c.enabled,
         }
     }
 
@@ -3611,6 +3781,9 @@ impl SourceDef {
             }
             // Host: sola lettura per costruzione, non ha campi di scrittura.
             SourceDef::Host(_) => {}
+            // PLX800: one switch for the whole source; without it the source
+            // does not even take the writer lock.
+            SourceDef::Plx800Io(c) => c.writes = false,
             // Modbus e OPC-UA: la scrittura non passa da un campo della
             // sorgente ma dal registro/nodo mappato, e il divieto vero sta a
             // valle in `write_tag`. Dichiarato qui perché un `_ => {}` muto

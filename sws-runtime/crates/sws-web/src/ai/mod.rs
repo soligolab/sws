@@ -81,6 +81,7 @@ pub fn mapping_di(kind: &str) -> &'static [sch::Field] {
         "homeassistant" => sch::SOURCE_HOMEASSISTANT_ENTITYMAPPING_FIELDS,
         "s7" => sch::SOURCE_S7_S7TAGMAPPING_FIELDS,
         "enip" => sch::SOURCE_ENIP_ENIPTAGMAPPING_FIELDS,
+        "plx800_io" => sch::SOURCE_PLX800_IO_PLX800POINTMAPPING_FIELDS,
         _ => &[],
     }
 }

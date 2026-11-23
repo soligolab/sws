@@ -43,11 +43,11 @@ pub use project::{
     ModbusTcpConfig, ModoTesti, MqttConfig, MqttLastWill, MqttTlsConfig, NotificationConfig,
     OpcUaAuth, OpcUaClientConfig, OpcUaNodeMapping, OpcUaServerConfig, OpcUaServerNodeMapping,
     OrdineModbus, PageLayoutConfig, PageSizeMode, PageTreeNode, ParametroSetup, PeriodoReport,
-    Project, ProjectMeta, ProjectTarget, ProjectTargetKind, PubblicazioneMqtt, RandomClientId,
-    RegisterMapping, Reperibile, ReportDef, RichiestaStato, S7Config, S7DataType, S7TagMapping,
-    ScriptTrigger, SmtpConfig, SourceDef, SparkplugConfig, SparkplugMetricMapping, TabellaEventi,
-    TagDef, TelegramConfig, TestiRegistro, TopicMapping, TrasportoTcp, TwilioConfig, TypeDef,
-    MAX_FUNCTION_CODE_BYTES,
+    Plx800IoConfig, Plx800Point, Plx800PointMapping, Project, ProjectMeta, ProjectTarget,
+    ProjectTargetKind, PubblicazioneMqtt, RandomClientId, RegisterMapping, Reperibile, ReportDef,
+    RichiestaStato, S7Config, S7DataType, S7TagMapping, ScriptTrigger, SmtpConfig, SourceDef,
+    SparkplugConfig, SparkplugMetricMapping, TabellaEventi, TagDef, TelegramConfig, TestiRegistro,
+    TopicMapping, TrasportoTcp, TwilioConfig, TypeDef, MAX_FUNCTION_CODE_BYTES,
 };
 pub use tag::{
     LinearScale, Tag, TagDb, TagId, TagQuality, TagState, TagUpdate, TagValue, TagWriteBus,

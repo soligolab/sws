@@ -1236,6 +1236,7 @@ pub const SOURCE_KINDS: &[&str] = &[
     "s7",
     "enip",
     "host",
+    "plx800_io",
 ];
 
 pub const SOURCE_FIELDS: &[(&str, &[Field])] = &[
@@ -1248,6 +1249,7 @@ pub const SOURCE_FIELDS: &[(&str, &[Field])] = &[
     ("s7", SOURCE_S7_FIELDS),
     ("enip", SOURCE_ENIP_FIELDS),
     ("host", SOURCE_HOST_FIELDS),
+    ("plx800_io", SOURCE_PLX800_IO_FIELDS),
 ];
 
 /// Campi della sorgente `modbus_tcp` (ModbusTcpConfig).
@@ -1559,6 +1561,33 @@ pub const SOURCE_HOST_FIELDS: &[Field] = &[
     Field { name: "enabled", ty: "bool", required: false, group: "", doc: "`false` = the source is kept in the project but not started; its tags are `Bad` and `<id>.disponibile` is false (21-11-2026). Default `true`: projects written before the field do not change." },
     Field { name: "poll_interval_ms", ty: "number", required: false, group: "", doc: "Intervallo di lettura in millisecondi." },
     Field { name: "metrics", ty: "HostMetricMapping[]", required: false, group: "", doc: "" },
+];
+
+/// Campi della sorgente `plx800_io` (Plx800IoConfig).
+pub const SOURCE_PLX800_IO_FIELDS: &[Field] = &[
+    Field { name: "id", ty: "string", required: true, group: "", doc: "" },
+    Field { name: "enabled", ty: "bool", required: false, group: "", doc: "`false` = kept in the project but not started (see `HostConfig`)." },
+    Field { name: "poll_interval_ms", ty: "number", required: false, group: "", doc: "Read interval in milliseconds. The module refreshes every ~1 ms." },
+    Field { name: "writes", ty: "bool", required: false, group: "", doc: "`true` = this source may command outputs, LEDs, PWM and PoE. It then takes the single-writer lock of the segment, and puts the outputs in their safe state when it stops. Default `false`: read only." },
+    Field { name: "points", ty: "Plx800PointMapping[]", required: false, group: "", doc: "" },
+];
+
+/// Campi di `Plx800PointMapping`, usato dentro la sorgente `plx800_io`.
+pub const SOURCE_PLX800_IO_PLX800POINTMAPPING_FIELDS: &[Field] = &[
+    Field {
+        name: "tag",
+        ty: "string",
+        required: true,
+        group: "",
+        doc: "SWS tag that receives the value.",
+    },
+    Field {
+        name: "point",
+        ty: "Plx800Point",
+        required: true,
+        group: "",
+        doc: "",
+    },
 ];
 
 /// Campi effettivamente usati per tipo, misurati sui template.
@@ -2286,5 +2315,6 @@ pub const SOURCE_EXAMPLES: &[(&str, &str)] = &[
     ("modbus_tcp", "kind: modbus_tcp\nid: openplc\nhost: 127.0.0.1\nport: 1502\npoll_interval_ms: 1000\ndevices:\n- unit_id: 1\n  nome: impianto\n  registers:\n  - tag: pompa1.comando\n    address: 0\n    scale: 1.0\n    area: coil\n  - tag: pompa1.in_marcia\n    address: 1\n    scale: 1.0\n    area: coil\n  - tag: allarme_livello\n    address: 2\n    scale: 1.0\n    area: coil\n  - tag: livello\n    address: 0\n    scale: 1.0\n  - tag: soglia_alta\n    address: 1\n    scale: 1.0\n  - tag: pompa1.portata\n    address: 2\n    scale: 1.0"),
     ("mqtt", "kind: mqtt\nid: mqtt-sandokan\nhost: mqtt.example.invalid\nport: 1883\nclient_id: sws-sandokan\ntopics:\n- tag: sandokan.state\n  topic: zigbee2mqtt/presa.sandokan\n  json_path: state\n  publish_topic: zigbee2mqtt/presa.sandokan/set/state\n- tag: sandokan.power\n  topic: zigbee2mqtt/presa.sandokan\n  json_path: power\n- tag: sandokan.current\n  topic: zigbee2mqtt/presa.sandokan\n  json_path: current"),
     ("opcua_client", "kind: opcua_client\nid: openplc-opcua\nendpoint_url: opc.tcp://127.0.0.1:14840/openplc/opcua\nsecurity_policy: Basic256Sha256\nauth:\n  kind: username_password\n  username: sws\nsubscription_interval_ms: 500\nnodes:\n- tag: livello_opcua\n  node_id: ns=2;s=impianto.livello\n  description: livello\ntrust_all_certs: false"),
+    ("plx800_io", "kind: plx800_io\nid: io\npoll_interval_ms: 100\nwrites: true\npoints:\n- tag: io.in0\n  point: in0\n- tag: io.in1\n  point: in1\n- tag: io.in2\n  point: in2\n- tag: io.in3\n  point: in3\n- tag: io.in4\n  point: in4\n- tag: io.in5\n  point: in5\n- tag: io.in6\n  point: in6\n- tag: io.in7\n  point: in7\n- tag: io.dip1\n  point: dip1\n- tag: io.dip2\n  point: dip2\n- tag: io.dip3\n  point: dip3\n- tag: io.dip4\n  point: dip4\n- tag: io.dip5\n  point: dip5\n- tag: io.dip6\n  point: dip6\n- tag: io.out0\n  point: out0\n- tag: io.out1\n  point: out1\n- tag: io.out2\n  point: out2\n- tag: io.out3\n  point: out3\n- tag: io.out4\n  point: out4\n- tag: io.out5\n  point: out5\n- tag: io.out6\n  point: out6\n- tag: io.out7\n  point: out7\n- tag: io.led_a1_green\n  point: led_a1_green\n- tag: io.board_temp_c\n  point: board_temp_c\n- tag: io.supply_main_mv\n  point: supply_main_mv\n- tag: io.supply_cpu_mv\n  point: supply_cpu_mv\n- tag: io.vcap_mv\n  point: vcap_mv\n- tag: io.fresh\n  point: fresh\n- tag: io.writer_active\n  point: writer_active"),
     ("s7", "kind: s7\nid: openplc-s7\nip: 127.0.0.1\nport: 10102\nrack: 0\nslot: 1\npoll_interval_ms: 500\ntags:\n- tag: livello_s7\n  area: db\n  db_num: 1\n  byte_offset: 0\n  bit_offset: 0\n  data_type: int\n  writable: false"),
 ];

@@ -2,6 +2,7 @@ import { Fragment, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { emptyHost } from "@/config/sorgenteHost";
+import { emptyPlx800Io } from "@/config/sourcePlx800";
 import type { SourceDef } from "@/types";
 import { useAppStore } from "@/store";
 import { prefissoGateway } from "@/api/prefisso";
@@ -11,6 +12,7 @@ import { TRANS_COMP, BarraConflittoSezione, S, SaveBar } from "@/config/comuni";
 import { emptyModbus, emptyModbusRtu, sorgentiSenzaRigheVuote, emptyMqtt, emptyOpcUa, emptyOpcUaServer, emptyHomeAssistant, emptyS7 } from "@/config/sorgenti/vuote";
 import { S7SourceCard } from "@/config/sorgenti/S7SourceCard";
 import { HostSourceCard } from "@/config/sorgenti/HostSourceCard";
+import { Plx800IoSourceCard } from "@/config/sorgenti/Plx800IoSourceCard";
 import { emptyEnIp, EnIpSourceCard } from "@/config/sorgenti/EnIpSourceCard";
 import { HomeAssistantSourceCard } from "@/config/sorgenti/HomeAssistantSourceCard";
 import { OpcUaSourceCard } from "@/config/sorgenti/OpcUaSourceCard";
@@ -71,6 +73,8 @@ export function ProtocolsTab() {
   const addEnIp = () => aggiungi(emptyEnIp());
 
   const addHost = () => aggiungi(emptyHost());
+
+  const addPlx800Io = () => aggiungi(emptyPlx800Io());
 
   // Il secondo livello dell'albero ⚙ (24-09-2026): una foglia per sorgente.
   // Con una sorgente scelta si vede solo la sua card; dal primo livello, tutte.
@@ -257,6 +261,17 @@ export function ProtocolsTab() {
         />
       );
     }
+    if (src.kind === "plx800_io") {
+      return (
+        <Plx800IoSourceCard
+          key={i}
+          source={src}
+          onChange={(updated) => updateSource(i, updated)}
+          onDelete={() => removeSource(i)}
+          onCreateTag={handleCreateTag}
+        />
+      );
+    }
     return null;
   };
 
@@ -353,6 +368,9 @@ export function ProtocolsTab() {
         </button>
         <button style={S.btn("ghost")} onClick={addHost}>
           {t("cfgUi.addHost")}
+        </button>
+        <button style={S.btn("ghost")} onClick={addPlx800Io}>
+          {t("plx800.add")}
         </button>
       </div>
 

@@ -489,6 +489,12 @@ impl SourceSupervisor {
                     sws_plugin_host::run(cfg, db, cancel_for_task).await;
                 })
             }
+            SourceDef::Plx800Io(cfg) => {
+                info!(source = %id_for_log, writes = cfg.writes, "starting PLX800 I/O task");
+                motore.spawn(async move {
+                    sws_plugin_plx800::run(cfg, db, bus, cancel_for_task, stato).await;
+                })
+            }
         };
 
         let previous = self.sources.lock().await.insert(
@@ -563,6 +569,7 @@ pub(crate) fn source_id(s: &SourceDef) -> &str {
         SourceDef::S7(c) => &c.id,
         SourceDef::EnIp(c) => &c.id,
         SourceDef::Host(c) => &c.id,
+        SourceDef::Plx800Io(c) => &c.id,
     }
 }
 
@@ -598,6 +605,7 @@ fn tags_of(s: &SourceDef) -> Vec<String> {
         SourceDef::S7(c) => c.tags.iter().map(|t| t.tag.clone()).collect(),
         SourceDef::EnIp(c) => c.tags.iter().map(|t| t.tag.clone()).collect(),
         SourceDef::Host(c) => c.metrics.iter().map(|m| m.tag.clone()).collect(),
+        SourceDef::Plx800Io(c) => c.points.iter().map(|m| m.tag.clone()).collect(),
     }
 }
 
@@ -996,5 +1004,6 @@ fn nome_motore(def: &SourceDef) -> &'static str {
         SourceDef::S7(_) => "sws-s7",
         SourceDef::EnIp(_) => "sws-enip",
         SourceDef::Host(_) => "sws-host",
+        SourceDef::Plx800Io(_) => "sws-plx800",
     }
 }

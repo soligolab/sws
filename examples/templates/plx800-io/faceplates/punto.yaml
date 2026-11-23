@@ -1,0 +1,38 @@
+# Un punto acceso/spento del modulo con il suo nome accanto (R8): gli ingressi,
+# i DIP e lo stato del segmento. Il tag è un parametro perché i punti sono
+# variabili piatte, una per punto della sorgente.
+id: punto
+label: Punto con etichetta
+width: 144
+height: 36
+params:
+- name: etichetta
+  type: string
+  default: '{{t0015}}'
+- name: tag
+  type: tag
+  default: io.in0
+  required: true
+objects:
+- id: led
+  type: led
+  x: 4
+  y: 6
+  width: 24
+  height: 24
+  tag: '{tag}'
+  on_color: '#22c55e'
+  off_color: '#334155'
+  on_value: 'true'
+- id: etichetta
+  type: text
+  x: 36
+  y: 0
+  width: 108
+  height: 36
+  text_wrap: true
+  text_valign: middle
+  text: '{etichetta}'
+  font_size: 14
+  text_anchor: start
+  color: '#e2e8f0'

@@ -22,8 +22,9 @@
 import { buildTagUsage } from "@/search/tagUsage";
 import { sourceTagIds } from "@/tagCatalog";
 import { definizioneMetrica } from "@/config/sorgenteHost";
+import { plx800Point } from "@/config/sourcePlx800";
 import type {
-  EnIpDataType, FaceplateDef, HostMetric, ProjectInfo, S7DataType, SynopticObject, SynopticPage, TagDataType, TagDef,
+  EnIpDataType, FaceplateDef, HostMetric, Plx800Point, ProjectInfo, S7DataType, SynopticObject, SynopticPage, TagDataType, TagDef,
 } from "@/types";
 
 /** Un segnaposto di faceplate (`{tag_prefix}.temp`) non è un tag: si risolve
@@ -111,6 +112,10 @@ export function deduciTipo(id: string, project: ProjectInfo, pages: readonly Syn
     if (s.kind === "host") {
       const m = (s.metrics as { tag: string; metric: HostMetric }[] | undefined)?.find((x) => x.tag === id);
       if (m) return definizioneMetrica(m.metric)?.testo ? "string" : "f64";
+    }
+    if (s.kind === "plx800_io") {
+      const m = (s.points as { tag: string; point: Plx800Point }[] | undefined)?.find((x) => x.tag === id);
+      if (m) return plx800Point(m.point)?.type ?? "f64";
     }
   }
   for (const pg of pages) {

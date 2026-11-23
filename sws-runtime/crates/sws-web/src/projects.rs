@@ -3666,7 +3666,10 @@ pub(crate) fn lingua_iniziale(lang: Option<&str>) -> sws_core::LanguageTable {
 /// gira il runtime. Un template fatto solo di queste (03-10-2026, `tc620-sistema`)
 /// non deve partire con le sorgenti ferme: non c'è niente dell'esempio da
 /// correggere, e il pannello mostrava tutto «Uncertain» senza dire perché.
-const SORGENTI_LOCALI: &[&str] = &["host"];
+/// `plx800_io` reads the PLX800 I/O module of the same machine through its
+/// fixed shared-memory segment: there is no address to review (23-11-2026,
+/// found on the PLX800 with the `plx800-io` template).
+const SORGENTI_LOCALI: &[&str] = &["host", "plx800_io"];
 
 /// Il progetto ha almeno una sorgente che parla con qualcun altro (un PLC, un
 /// broker, un server): solo allora gli indirizzi dell'esempio vanno rivisti.
@@ -4093,6 +4096,10 @@ mod tests {
             "sources:\n- kind: host\n  id: h\n"
         )));
         assert!(!ha_sorgenti_con_indirizzi(&y("meta: {name: x}\n")));
+        // The PLX800 I/O module is on the same machine too (23-11-2026).
+        assert!(!ha_sorgenti_con_indirizzi(&y(
+            "sources:\n- kind: plx800_io\n  id: io\n- kind: host\n  id: h\n"
+        )));
         assert!(ha_sorgenti_con_indirizzi(&y(
             "sources:\n- kind: host\n  id: h\n- kind: modbus\n  id: m\n"
         )));

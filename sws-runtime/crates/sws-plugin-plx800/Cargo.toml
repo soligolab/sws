@@ -1,0 +1,18 @@
+[package]
+name    = "sws-plugin-plx800"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+tokio.workspace   = true
+tracing.workspace = true
+anyhow.workspace  = true
+tokio-util.workspace = true
+serde.workspace   = true
+libc = "0.2"
+sws-core = { path = "../sws-core" }
+
+[dev-dependencies]
+serde_json.workspace = true
+serde_yaml.workspace = true

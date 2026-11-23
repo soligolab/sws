@@ -90,6 +90,7 @@ export function sourceTagIds(project: ProjectInfo | null | undefined): Map<strin
     for (const n of s.nodes     ?? []) push(n?.tag);   // OPC-UA
     for (const t of s.topics    ?? []) push(t?.tag);   // MQTT
     for (const m of s.metrics   ?? []) push(m?.tag);   // Sparkplug B
+    for (const p of s.points    ?? []) push(p?.tag);   // PLX800 I/O
   }
   return out;
 }

@@ -873,6 +873,18 @@ pub async fn get_host_catalog() -> Json<HostCatalog> {
     })
 }
 
+/// `GET /api/plx800/status` — the I/O module segment of a PLX800 **on this
+/// machine** (23-11-2026): present, valid, refreshed, and whether a writer
+/// holds its lock. The editor asks the connected device
+/// (`/api/remote/plx800/status`): the PC of whoever designs has no module.
+pub async fn get_plx800_status() -> Json<sws_plugin_plx800::Status> {
+    Json(
+        tokio::task::spawn_blocking(sws_plugin_plx800::probe)
+            .await
+            .unwrap_or_default(),
+    )
+}
+
 /// Una porta seriale vista da questo runtime (04-10-2026).
 #[derive(serde::Serialize, Debug, PartialEq)]
 pub struct PortaSeriale {

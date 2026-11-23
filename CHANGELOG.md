@@ -14,6 +14,22 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 Il lavoro della **2.27.0** (versioni `2.27.0-dev.N`). Dal 22-11-2026 `main` porta la release successiva, e la 2.26.0
 si stabilizza su `release/2.26` (piano `docs/plans/2026-11-22-dev-rc-release-e-portale-di-sviluppo.md`).
 
+### Aggiunto — la sorgente `plx800_io`, il modulo I/O del PLX800 (23-11-2026, ramo `feat/plx800-io`)
+- Crate `sws-plugin-plx800` sul segmento `/dev/shm/qmb800_registers` di PixsysOS (interfaccia versione 1, 176 byte):
+  lettura coerente con `status_seq`, freschezza da `update_count` col clock monotono, 61 punti (ingressi, DIP, uscite,
+  LED, PoE, PWM, tensioni, temperatura, diagnostica, stato del segmento). Con `writes: true`: `flock` da scrittore
+  unico, comando completo con `cmd_seq` per ultimo, coil 15 sempre come letto, scrittore estraneo riconosciuto e non
+  sovrascritto, stato di riposo allo stop (uscite e PWM spenti, `RUN_LED_MODE` restituito, PoE intatto).
+- `GET /api/plx800/status` (anche sulla porta `--no-admin`) e `/api/remote/plx800/status`; la card nell'IDE con
+  «Aggiungi tutti i punti»; il template `plx800-io`; `install-container.sh` monta `/dev/shm` dell'host quando il
+  segmento esiste. Provato contro il simulatore del progetto di riferimento (`qmb800_sim.py --loopback`, test
+  `#[ignore]`). Piano `docs/plans/2026-11-23-plx800-sws-e-modulo-io.md`.
+- Dal collaudo sul PLX800 dello stesso giorno: un progetto nato dal template parte con le sorgenti accese
+  (`plx800_io` è fra le sorgenti senza indirizzi, come `host`); quando il servizio di sistema riparte i punti tornano
+  Good entro un secondo (il segmento mancante si cerca ogni mezzo secondo dentro la sessione, invece della
+  riconnessione generica che arrivava a 30 s: misurati 24 s); il «lock occupato» nella card è giallo, non verde.
+  Il template a 1920×1080 con le pagine SystemInfo è rimandato (`docs/plans/2026-11-23-template-plx800-systeminfo.md`).
+
 ### Sicurezza — tokio 1.54.1 e url 2.5.9 (23-11-2026, ramo `chore/ci-lint`)
 - `cargo audit` della CI: RUSTSEC-2026-0386 (`AsyncFd::new` di tokio) e RUSTSEC-2026-0592 (`Url::origin()` su URL
   `blob:` annidati), con gli aggiornamenti compatibili. Nello stesso giro `cargo fmt` (31 file, commit a parte) e

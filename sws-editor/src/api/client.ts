@@ -3570,6 +3570,13 @@ export const api = {
   remoteHostCatalog: () =>
     request<{ temperature: string[]; mount: string[]; interfacce: string[]; core: number }>("/api/remote/host/catalog"),
 
+  /** GET /api/plx800/status — the PLX800 I/O segment of **this** machine. */
+  plx800Status: () => request<import("@/config/sourcePlx800").Plx800Status>("/api/plx800/status"),
+
+  /** GET /api/remote/plx800/status — the same, of the **connected device**.
+   *  Fails without a device, or with a runtime older than 23-11-2026. */
+  remotePlx800Status: () => request<import("@/config/sourcePlx800").Plx800Status>("/api/remote/plx800/status"),
+
   /** GET /api/cron/prossime — le prossime esecuzioni di un cron nel fuso di
    *  **questa** macchina (10-11-2026). Un'espressione non valida è un 400 col
    *  perché nel testo. */

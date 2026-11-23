@@ -4177,6 +4177,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "sws-plugin-plx800"
+version = "2.27.0"
+dependencies = [
+ "anyhow",
+ "libc",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "sws-core",
+ "tokio",
+ "tokio-util",
+ "tracing",
+]
+
+[[package]]
 name = "sws-plugin-s7"
 version = "2.27.0"
 dependencies = [
@@ -4279,6 +4294,7 @@ dependencies = [
  "sws-plugin-modbus",
  "sws-plugin-mqtt",
  "sws-plugin-opcua",
+ "sws-plugin-plx800",
  "sws-plugin-s7",
  "sws-pyscript",
  "sysinfo",

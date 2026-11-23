@@ -35,6 +35,8 @@ export function haDisponibilita(src: SourceDef): boolean {
     case "homeassistant":
     case "s7":
     case "enip":
+    // PLX800: «available» = the I/O image is being refreshed.
+    case "plx800_io":
       return true;
     case "mqtt":
       return !src.sparkplug;
