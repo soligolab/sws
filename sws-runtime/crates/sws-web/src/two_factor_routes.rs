@@ -21,6 +21,9 @@ use sws_identita::{ChallengeKind, Identita, Rifiuto};
 
 use crate::router::{AppState, AuthUser};
 
+// `result_large_err`: the error is the HTTP answer already made, as in
+// `amministrazione.rs`.
+#[allow(clippy::result_large_err)]
 fn store(s: &AppState) -> Result<&Identita, Response> {
     s.identita
         .as_ref()

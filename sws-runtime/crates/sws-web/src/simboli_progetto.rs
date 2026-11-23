@@ -119,10 +119,11 @@ pub fn esito_con(v: &Value, trace: bool) -> Value {
         // `errori` is not empty. Every other caller reads `ok` and is not
         // affected. Without a drawing (a material that does not exist) only the
         // errors, as before.
-        Err(e) => match trace
-            .then(|| simboli_prj::compila_con_traccia(&d))
-            .unwrap_or_else(|| simboli_prj::compila(&d))
-        {
+        Err(e) => match if trace {
+            simboli_prj::compila_con_traccia(&d)
+        } else {
+            simboli_prj::compila(&d)
+        } {
             Ok(c) => {
                 json!({ "slug": d.slug, "ok": false, "svg": c.svg, "voce": c.voce, "errori": e })
             }

@@ -15513,12 +15513,10 @@ fn render_simbolo_lib(
                                 h.dove,
                                 &mut h.buf,
                             )?;
-                            unsafe {
-                                lvgl_sys::lv_obj_add_flag(
-                                    c.as_ptr(),
-                                    lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t,
-                                )
-                            };
+                            lvgl_sys::lv_obj_add_flag(
+                                c.as_ptr(),
+                                lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t,
+                            );
                             bufs.push(h.buf);
                             Some(c)
                         }

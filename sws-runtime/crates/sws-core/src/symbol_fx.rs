@@ -84,7 +84,7 @@ pub struct Puff {
 }
 
 pub fn puff(i: usize, x: f64, y: f64, w: f64, h: f64) -> Puff {
-    let side = if i % 2 == 0 { 1.0 } else { -1.0 };
+    let side = if i.is_multiple_of(2) { 1.0 } else { -1.0 };
     let mid = x + w * 0.5;
     let r0 = w * 0.12;
     Puff {

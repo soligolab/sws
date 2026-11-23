@@ -554,7 +554,7 @@ pub fn path_box(d: &str) -> Option<(f64, f64, f64, f64)> {
                     let (ox, oy) = if rel { (x, y) } else { (0.0, 0.0) };
                     x = ox + p[0];
                     y = oy + p[1];
-                    if i == 0 && c.to_ascii_uppercase() == 'M' {
+                    if i == 0 && c.eq_ignore_ascii_case(&'M') {
                         sx = x;
                         sy = y;
                     }
@@ -1579,12 +1579,12 @@ fn compila_con(d: &Descrizione, traccia: bool) -> Result<Compilato, String> {
         .collect();
     for (k, (_, op)) in effetti.iter().enumerate() {
         if let Op::Effetto { kind, group, .. } = op {
-            if matches!(kind.as_str(), "glow" | "flame") {
-                if c.fx_dest.insert(group.clone(), k).is_some() {
-                    return Err(format!(
-                        "il gruppo «{group}» ha due effetti fra bagliore e fiamma: al più uno"
-                    ));
-                }
+            if matches!(kind.as_str(), "glow" | "flame")
+                && c.fx_dest.insert(group.clone(), k).is_some()
+            {
+                return Err(format!(
+                    "il gruppo «{group}» ha due effetti fra bagliore e fiamma: al più uno"
+                ));
             }
         }
         c.fx_layers.push(Strato {

@@ -781,6 +781,8 @@ pub fn with_layer_fill(markup: &str, colour: &str) -> String {
 }
 
 /// Prepara tutti gli strati di `s` a `q`, con lo stile dato (vedi `stile_effettivo`).
+/// Only the tests call it: the panel always passes its photos.
+#[cfg(test)]
 pub fn prepara(s: &SimboloLib, svg: &str, q: Quadro, stile: &StileSimbolo) -> Preparato {
     prepara_con_foto(s, svg, q, stile, &Foto::new())
 }
