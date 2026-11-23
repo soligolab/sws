@@ -51,7 +51,7 @@ pusha, non tagga e non corregge codice da sola.
   privilegiato, solo di prova. Con un utente diverso da `user`, dillo nello stesso messaggio: per
   leggere va bene lo stesso, per installare serve `user@<host>`.
 - **Conta la macchina, non il maintainer.** `docs/TEST_SETUPS.md` §0 dice cosa raggiunge la
-  macchina su cui gira la sessione (`hostname`): da `theobroma` il WP630, da `ufficio` il TC620. Un
+  macchina su cui gira la sessione (`hostname`): da `elitedesk` (o `theobroma`, il ripiego) il WP630, da `ufficio` il TC620. Un
   pannello che da qui non si raggiunge si collauda dal cloud.
 
 ## 1. Il perimetro: cosa va provato
