@@ -173,7 +173,16 @@ resta 404: così un bundle che manca non torna come HTML con stato 200.
 (`10.89.0.x`): il limite di 20 richieste/s vale per tutti insieme finché non c'è l'indirizzo vero (seme «indirizzo vero
 dietro Traefik»). Si aggiorna con `scripts/manuale/pubblica.sh`.
 
-**Versione in esecuzione: `02f6de07-amd64` (2.26.0-rc.29)** dal 23-11-2026, notte: le correzioni del collaudo della
+**Versione in esecuzione: `a0bff2eb-amd64` (2.26.0-rc.30)** dal 23-11-2026, 22:55: le correzioni dei collaudi del 23-11
+(WP630: qualità dei tag calcolati, trend con il Bad, barra «progetto cambiato», doppio deploy, editor dei simboli;
+PLX800: la rotazione e la sessione del progetto chieste prima del deploy, pagina Utenti, registro delle scritture dal
+viewer). Chiesto dal maintainer: «se fai una rc30 aggiorna anche sws.soligo.net». Sequenza solita da elitedesk: `diff`
+fra la copia maestra e la macchina (uguali), `podman pull`, copia `sws-gateway.container.prima-rc30`, `sed` del commit in
+`Image=` e `--gateway-immagine`, `daemon-reload`, `restart sws-gateway`. Verificato: gateway `healthy`, `SWS_VERSION` =
+2.26.0-rc.30, radice 200, `/health` «ok», nessun errore nel journal. Tolte la rc.28 (`2976b407-amd64`) e la rc.27
+(`f863349f-amd64`); ripiego la rc.29. Tiny TY: `latest.txt` = rc.30 (sha256 `0163012e…`).
+
+Prima: **Versione in esecuzione: `02f6de07-amd64` (2.26.0-rc.29)** dal 23-11-2026, notte: le correzioni del collaudo della
 rc.28, l'utente corrente, gli effetti dei simboli rifatti, l'editor dei simboli in una finestra sua. Sequenza solita,
 copia `sws-gateway.container.prima-rc29`; gateway `healthy`, `SWS_VERSION` = 2.26.0-rc.29, radice 200, `/health` «ok».
 Ripiego la rc.28. **CasaDomotica modificata a mano** (benvenuto nella cornice, ruolo della funzione delle tapparelle, la

@@ -12,28 +12,33 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — rc.30 in preparazione, PLX800 in `main` (2026-11-23 sera, `elitedesk`)
+## ▶ Riprendere da qui — la 2.26.0-rc.30 pubblicata, da collaudare; PLX800 in `main` (2026-11-23 sera, `elitedesk`)
 
-**Cosa c'è su origin adesso** (push delle 21 circa, `/finalizza-giornata` mentre il maintainer tornava a casa):
-- `main`: la sorgente **`plx800_io`** (squash di `feat/plx800-io`, `ae62396f`), i piani della giornata, i collaudi.
-- **`fix/rc30-collaudo`** (ramo da `release/2.26`, pushato **come copia di sicurezza**: è ancora aperto su elitedesk):
-  le correzioni dei due collaudi del 23-11 — piano
-  [`docs/plans/2026-11-23-correzioni-collaudo-rc30.md`](docs/plans/2026-11-23-correzioni-collaudo-rc30.md). Sessione
-  WP630: **E** «Togli ritaglio», **A** qualità dei tag calcolati, **B** trend con il Bad, **C** barra «progetto
-  cambiato», **2** doppio deploy, **D** ingressi degli effetti. Sessione PLX800: **1** la rotazione si chiede prima del
-  deploy, **3** il deploy dalla rete locale non lascia più il pannello senza progetto, **4** pagina Utenti, **5** testi
-  «no-auth», **7** le scritture dal viewer nel registro (raggruppate per tag, massimo 20 righe/s per socket).
-  Definition of done verde su `be0642e2`: cargo test 2220/0, vitest 3017, pnpm build, check_static 58/58.
-- Una **revisione a più agenti** con verifica avversaria ha rivisto la parte PLX800 prima della rc e ha trovato due
-  difetti veri, corretti (vedi il piano, «La revisione prima della rc.30»); la stessa revisione sulla parte WP630 era
-  ancora in corso al push.
-
-**Cosa sta facendo elitedesk dopo il push** (se la sessione regge): squash di `fix/rc30-collaudo` in `release/2.26`,
-versione e tag **2.26.0-rc.30**, push di `release/2.26` e del tag, riporto in `main` con `cherry-pick -x`,
-`build_rc.sh --push` (arm64, amd64, Tiny TY; su 4 core più di un'ora) e il pacchetto del Tiny TY sul VPS. **Il gateway
-del VPS resta sulla rc.29**: si aggiorna col sì del maintainer, e finché non si aggiorna i due 428 nuovi (rotazione,
-sessione del progetto) non valgono per i deploy dal cloud. **Prima di lavorare su `main` da casa**: `session_start.sh`,
-per vedere se il riporto della rc.30 è arrivato.
+**rc.30** (`a0bff2eb` su `release/2.26`, tag `2.26.0-rc.30` su origin) col piano
+[`docs/plans/2026-11-23-correzioni-collaudo-rc30.md`](docs/plans/2026-11-23-correzioni-collaudo-rc30.md): le correzioni
+dei due collaudi del 23-11, fatte da due sessioni su un ramo solo. Sessione WP630: **E** «Togli ritaglio», **A** qualità
+dei tag calcolati, **B** trend con il Bad, **C** barra «progetto cambiato», **2** doppio deploy, **D** ingressi degli
+effetti. Sessione PLX800: **1** la rotazione si chiede prima del deploy (428 `rotate-screen`), **3** il deploy dalla rete
+locale che lascerebbe il pannello senza progetto si ferma prima (`close_locks_out` in `/api/system`, 428
+`project-session`), **4** pagina Utenti, **5** testi «no-auth», **7** le scritture dal viewer nel registro (raggruppate
+per tag, al massimo 20 righe/s per socket, `ws_audit.rs`).
+- **Due revisioni a più agenti con verifica avversaria** prima del tag, una per sessione: sei difetti veri corretti
+  (whoami assente sulla porta di gestione, deploy dal cloud fermato per sbaglio, il ciclo dei derivati dopo un
+  `Lagged`, «Espandi» senza qualità viva, il secondo salvataggio durante un Deploy, i legami persi rinominando due
+  ingressi); i residui per dopo la rc sono nel piano.
+- Definition of done su `release/2.26`: cargo test 2222/0, vitest 3021, pnpm build, check_static 58/58. Su `main` dopo il
+  riporto (`cherry-pick -x`, `08b0f3fd` e `899b3877`, più `917e3049` di sola formattazione): cargo test 2242/0, clippy,
+  fmt, lint, type-check, check_static 58/58; vitest 3031/3032 col test `avvisoAggiornamento` («richiede finché l'esito
+  arriva») rosso una volta sotto il carico della build e verde tre volte su tre da solo.
+- **Immagini** `a0bff2eb-arm64` e `-amd64` con `rc-*` e `dev-*` spostati (la rc.30 è la versione più alta pubblicata
+  anche per il canale dev: nessuna 2.27 è mai stata pubblicata). La gamba arm64 del push è fallita al primo giro su una
+  corsa di podman fra le due build che scaricavano `ubuntu:24.04`; rifatta da sola, verde. Build su elitedesk (4 core):
+  53 minuti, con le dipendenze compilate prima.
+- **Gateway di sws.soligo.net sulla rc.30** (`a0bff2eb-amd64`, copia `sws-gateway.container.prima-rc30`, `healthy`,
+  ripiego la rc.29); **Tiny TY** `latest` = rc.30.
+- **Da collaudare**: le voci A-E sul WP630 (poi i test 7-12 della rc.29), le voci 1, 3, 4, 5, 7 su un pannello Pixsys (la
+  rotazione chiesta al deploy, il deploy dalla rete locale con un utente del progetto, la pagina Utenti, il registro
+  delle scritture dal viewer). CasaDomotica: le funzioni nuove sono correzioni, niente da aggiungere.
 
 **Collaudi del 23-11** (in [`docs/COLLAUDI_IN_SOSPESO.md`](docs/COLLAUDI_IN_SOSPESO.md)):
 - **PLX800** (`pixsys@plx800-a-p3-l2-a2-0891bc.local`, 2.27.0-dev.0 da archivio): test 1-7 passati, l'8 a metà — Bad
