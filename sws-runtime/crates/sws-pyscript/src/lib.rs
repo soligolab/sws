@@ -1096,7 +1096,10 @@ impl Engine {
                 }
                 Ok(out)
             }
-            Ok(Ok(Err(RunFailure { message: msg, stdout }))) => {
+            Ok(Ok(Err(RunFailure {
+                message: msg,
+                stdout,
+            }))) => {
                 // What the script printed before failing goes to the log like
                 // the `print` of a clean run, with the same name: it is the
                 // diagnosis someone put there for this very case.
@@ -2675,7 +2678,9 @@ def calcola(x):
     return doppio(x) * SCALA
 tags.write('r', calcola(3))
 ";
-        e.execute(codice.into(), "s").await.expect("the script must run");
+        e.execute(codice.into(), "s")
+            .await
+            .expect("the script must run");
         assert_eq!(valore(&db, "r").await, Some(TagValue::Int(60)));
     }
 
@@ -2684,10 +2689,16 @@ tags.write('r', calcola(3))
     #[tokio::test]
     async fn top_level_names_do_not_survive_the_run() {
         let (e, db) = motore();
-        e.execute("vista = 1\n".into(), "s").await.expect("first run");
-        e.execute("try:\n    vista\n    tags.write('c', 1)\nexcept NameError:\n    tags.write('c', 2)\n".into(), "s")
+        e.execute("vista = 1\n".into(), "s")
             .await
-            .expect("second run");
+            .expect("first run");
+        e.execute(
+            "try:\n    vista\n    tags.write('c', 1)\nexcept NameError:\n    tags.write('c', 2)\n"
+                .into(),
+            "s",
+        )
+        .await
+        .expect("second run");
         assert_eq!(valore(&db, "c").await, Some(TagValue::Int(2)));
     }
 
@@ -2703,7 +2714,9 @@ v = [1, 2]
 k = {'c': 4}
 tags.write('s', somma(*v, **k))
 ";
-        e.execute(codice.into(), "s").await.expect("f(*a, **k) must run");
+        e.execute(codice.into(), "s")
+            .await
+            .expect("f(*a, **k) must run");
         assert_eq!(valore(&db, "s").await, Some(TagValue::Int(7)));
     }
 

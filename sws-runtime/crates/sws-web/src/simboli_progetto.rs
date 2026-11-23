@@ -123,7 +123,9 @@ pub fn esito_con(v: &Value, trace: bool) -> Value {
             .then(|| simboli_prj::compila_con_traccia(&d))
             .unwrap_or_else(|| simboli_prj::compila(&d))
         {
-            Ok(c) => json!({ "slug": d.slug, "ok": false, "svg": c.svg, "voce": c.voce, "errori": e }),
+            Ok(c) => {
+                json!({ "slug": d.slug, "ok": false, "svg": c.svg, "voce": c.voce, "errori": e })
+            }
             Err(_) => json!({ "slug": d.slug, "ok": false, "errori": e }),
         },
     }
@@ -404,7 +406,10 @@ const PHOTO_SIDE: u32 = 1024;
 pub fn photo_size(w: u32, h: u32) -> (u32, u32) {
     let (w, h) = (w.max(1) as f64, h.max(1) as f64);
     let k = PHOTO_SIDE as f64 / w.max(h);
-    (((w * k).round() as u32).max(64), ((h * k).round() as u32).max(64))
+    (
+        ((w * k).round() as u32).max(64),
+        ((h * k).round() as u32).max(64),
+    )
 }
 
 /// The name of a generated photo: from its content, so the same bytes are
@@ -432,7 +437,12 @@ pub fn trim_border(bytes: &[u8], png: bool) -> Option<(Vec<u8>, u32, u32)> {
     if w < 8 || h < 8 {
         return None;
     }
-    let corners = [img.get_pixel(0, 0), img.get_pixel(w - 1, 0), img.get_pixel(0, h - 1), img.get_pixel(w - 1, h - 1)];
+    let corners = [
+        img.get_pixel(0, 0),
+        img.get_pixel(w - 1, 0),
+        img.get_pixel(0, h - 1),
+        img.get_pixel(w - 1, h - 1),
+    ];
     let close = |a: &image::Rgba<u8>, b: &image::Rgba<u8>| {
         (0..3).all(|i| (a[i] as i32 - b[i] as i32).abs() <= TOLERANCE)
     };
@@ -442,7 +452,13 @@ pub fn trim_border(bytes: &[u8], png: bool) -> Option<(Vec<u8>, u32, u32)> {
         return None;
     }
     let bg = *corners[0];
-    let is_bg = |p: &image::Rgba<u8>| if transparent { p[3] < 16 } else { close(p, &bg) };
+    let is_bg = |p: &image::Rgba<u8>| {
+        if transparent {
+            p[3] < 16
+        } else {
+            close(p, &bg)
+        }
+    };
     let (mut x0, mut y0, mut x1, mut y1) = (w, h, 0u32, 0u32);
     for (x, y, p) in img.enumerate_pixels() {
         if !is_bg(p) {
@@ -468,7 +484,8 @@ pub fn trim_border(bytes: &[u8], png: bool) -> Option<(Vec<u8>, u32, u32)> {
     let cut = image::imageops::crop_imm(&img, x0, y0, cw, ch).to_image();
     let mut buf = Vec::new();
     if png {
-        cut.write_to(&mut std::io::Cursor::new(&mut buf), image::ImageFormat::Png).ok()?;
+        cut.write_to(&mut std::io::Cursor::new(&mut buf), image::ImageFormat::Png)
+            .ok()?;
     } else {
         image::codecs::jpeg::JpegEncoder::new_with_quality(&mut buf, 88)
             .encode_image(&image::DynamicImage::ImageRgba8(cut).into_rgb8())
@@ -488,7 +505,10 @@ pub async fn ai_photo(
 ) -> Response {
     use crate::ai::{bfl, scopi, strumenti_scopi, user_keys};
     if !s.ide_only {
-        return (StatusCode::NOT_FOUND, "the AI on symbols runs on the IDE instance only")
+        return (
+            StatusCode::NOT_FOUND,
+            "the AI on symbols runs on the IDE instance only",
+        )
             .into_response();
     }
     let description = req.description.trim();
@@ -553,7 +573,11 @@ pub async fn ai_photo(
     })
     .await;
     if !matches!(written, Ok(Ok(()))) {
-        return (StatusCode::INTERNAL_SERVER_ERROR, "the photo could not be saved").into_response();
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "the photo could not be saved",
+        )
+            .into_response();
     }
     Json(json!({
         "ok": true, "name": name, "width": width, "height": height, "cost_usd": cost,
@@ -691,7 +715,8 @@ mod photo_tests {
             }
         }
         let mut buf = Vec::new();
-        img.write_to(&mut std::io::Cursor::new(&mut buf), image::ImageFormat::Png).unwrap();
+        img.write_to(&mut std::io::Cursor::new(&mut buf), image::ImageFormat::Png)
+            .unwrap();
         buf
     }
 
@@ -704,11 +729,20 @@ mod photo_tests {
         let clear = png_with_object(100, 140, (10, 10, 30, 30), [0, 0, 0, 0]);
         let (cut, w, h) = trim_border(&clear, true).expect("transparent border trimmed");
         assert_eq!((w, h), (34, 34));
-        assert!(image::load_from_memory(&cut).unwrap().color().has_alpha(), "stays a PNG with alpha");
+        assert!(
+            image::load_from_memory(&cut).unwrap().color().has_alpha(),
+            "stays a PNG with alpha"
+        );
         let full = png_with_object(100, 140, (1, 1, 98, 138), [210, 210, 210, 255]);
-        assert!(trim_border(&full, true).is_none(), "already filling the frame");
+        assert!(
+            trim_border(&full, true).is_none(),
+            "already filling the frame"
+        );
         let busy = png_with_object(100, 140, (0, 0, 10, 10), [210, 210, 210, 255]);
-        assert!(trim_border(&busy, true).is_none(), "corners that disagree: no background to trust");
+        assert!(
+            trim_border(&busy, true).is_none(),
+            "corners that disagree: no background to trust"
+        );
     }
 }
 
@@ -730,12 +764,18 @@ mod tests {
         let mut v = serde_json::to_value(gabbia()).unwrap();
         // Out of the drawing: a rule, not a compile error.
         let ops = v["ops"].as_array_mut().unwrap();
-        let i = ops.iter().position(|o| o.get("geo").and_then(|g| g.get("cx")).is_some()).unwrap();
+        let i = ops
+            .iter()
+            .position(|o| o.get("geo").and_then(|g| g.get("cx")).is_some())
+            .unwrap();
         ops[i]["geo"]["cx"] = json!(1000);
         let e = esito_con(&v, true);
         assert_eq!(e["ok"], json!(false), "{e}");
         assert!(!e["errori"].as_array().unwrap().is_empty(), "{e}");
-        assert!(e["svg"].as_str().is_some_and(|s| s.contains("data-op=")), "{e}");
+        assert!(
+            e["svg"].as_str().is_some_and(|s| s.contains("data-op=")),
+            "{e}"
+        );
         // A description that does not read: no drawing, only the error.
         let e = esito_con(&json!({ "slug": "x", "ops": "no" }), true);
         assert!(e.get("svg").is_none(), "{e}");

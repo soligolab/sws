@@ -1646,7 +1646,12 @@ pub fn symbol_photo_findings(project: &Project, images: &HashSet<String>) -> Vec
         let Ok(c) = sws_core::simboli_prj::compila(d) else {
             continue;
         };
-        for name in c.voce["images"].as_array().into_iter().flatten().filter_map(Value::as_str) {
+        for name in c.voce["images"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_str)
+        {
             if !images.contains(name) {
                 out.push(Finding::warn(
                     format!("project.simboli[{}]", d.slug),
@@ -3042,7 +3047,10 @@ mod symbol_photo_tests {
 
     #[test]
     fn a_symbol_photo_not_among_the_images_is_a_warning() {
-        let mut p: Project = serde_yaml::from_str("meta: { name: p, version: '1' }\ntags: []\nsources: []\nalarms: []\n").unwrap();
+        let mut p: Project = serde_yaml::from_str(
+            "meta: { name: p, version: '1' }\ntags: []\nsources: []\nalarms: []\n",
+        )
+        .unwrap();
         p.simboli.push(
             serde_json::from_str(include_str!(
                 "../../../../tests/fixtures/simboli-prj/photo-boiler.json"

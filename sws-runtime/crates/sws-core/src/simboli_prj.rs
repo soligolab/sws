@@ -574,7 +574,10 @@ pub fn path_box(d: &str) -> Option<(f64, f64, f64, f64)> {
                 }
             }
             'C' | 'S' | 'Q' => {
-                let k = match c.to_ascii_uppercase() { 'C' => 6, _ => 4 };
+                let k = match c.to_ascii_uppercase() {
+                    'C' => 6,
+                    _ => 4,
+                };
                 for seg in v.chunks(k).filter(|s| s.len() == k) {
                     let (ox, oy) = if rel { (x, y) } else { (0.0, 0.0) };
                     for p in seg.chunks(2) {
@@ -892,7 +895,12 @@ impl<'a> Costruzione<'a> {
             },
             None => e,
         };
-        if let Some(k) = self.gruppo.as_ref().and_then(|g| self.fx_dest.get(g)).copied() {
+        if let Some(k) = self
+            .gruppo
+            .as_ref()
+            .and_then(|g| self.fx_dest.get(g))
+            .copied()
+        {
             // Its shapes leave the layer they are in: from a part's layer
             // they would take the part's own behaviour away (a signal that
             // hides them, a lamp's colour). The body is fine.
@@ -928,7 +936,15 @@ impl<'a> Costruzione<'a> {
         let (dw, dh) = (self.d.w as f64, self.d.h as f64);
         for (k, (_, op)) in effetti.iter().enumerate() {
             let Op::Effetto {
-                kind, group, input, when, level, color, period_ms, count, radius,
+                kind,
+                group,
+                input,
+                when,
+                level,
+                color,
+                period_ms,
+                count,
+                radius,
             } = op
             else {
                 continue;
@@ -939,7 +955,9 @@ impl<'a> Costruzione<'a> {
             };
             if let Some(c) = color {
                 if !colore_esadecimale(c) {
-                    return Err(format!("effetto {kind}: il colore «{c}» non è #rgb o #rrggbb"));
+                    return Err(format!(
+                        "effetto {kind}: il colore «{c}» non è #rgb o #rrggbb"
+                    ));
                 }
             }
             let mut p = serde_json::Map::new();
@@ -958,15 +976,19 @@ impl<'a> Costruzione<'a> {
             if let Some(ms) = period_ms {
                 p.insert("period_ms".into(), json!(ms.clamp(400.0, 10_000.0)));
             }
-            let riquadro = |x: f64, y: f64, w: f64, h: f64, p: &mut serde_json::Map<String, Value>| {
-                p.insert("x".into(), json!(r2(x)));
-                p.insert("y".into(), json!(r2(y)));
-                p.insert("w".into(), json!(r2(w.max(2.0))));
-                p.insert("h".into(), json!(r2(h.max(2.0))));
-            };
+            let riquadro =
+                |x: f64, y: f64, w: f64, h: f64, p: &mut serde_json::Map<String, Value>| {
+                    p.insert("x".into(), json!(r2(x)));
+                    p.insert("y".into(), json!(r2(y)));
+                    p.insert("w".into(), json!(r2(w.max(2.0))));
+                    p.insert("h".into(), json!(r2(h.max(2.0))));
+                };
             match kind.as_str() {
                 "glow" => {
-                    p.insert("radius".into(), json!(radius.unwrap_or(4.0).clamp(0.5, 20.0)));
+                    p.insert(
+                        "radius".into(),
+                        json!(radius.unwrap_or(4.0).clamp(0.5, 20.0)),
+                    );
                 }
                 "flame" => riquadro(bx, by, bw, bh, &mut p),
                 "smoke" => {
@@ -985,11 +1007,21 @@ impl<'a> Costruzione<'a> {
                     riquadro(bx, by, bw, bh.min(dh - by), &mut p);
                     p.insert("count".into(), json!(count.unwrap_or(6).clamp(1, 12)));
                     let clip = format!("{}-fxclip{}", self.d.slug, k + 1);
-                    let forme = self.clip_gruppi.get(group).cloned().unwrap_or_default().join("");
-                    self.defs.push(format!("<clipPath id=\"{clip}\">{forme}</clipPath>"));
+                    let forme = self
+                        .clip_gruppi
+                        .get(group)
+                        .cloned()
+                        .unwrap_or_default()
+                        .join("");
+                    self.defs
+                        .push(format!("<clipPath id=\"{clip}\">{forme}</clipPath>"));
                     p.insert("clip".into(), json!(clip));
                 }
-                altro => return Err(format!("effetto «{altro}» sconosciuto (sono glow, flame, smoke, bubbles)")),
+                altro => {
+                    return Err(format!(
+                        "effetto «{altro}» sconosciuto (sono glow, flame, smoke, bubbles)"
+                    ))
+                }
             }
             // Smoke and bubbles draw themselves: their layer holds an invisible
             // box, so it exists and can be picked.
@@ -1057,7 +1089,9 @@ impl<'a> Costruzione<'a> {
             Op::Effetto { .. } => {}
             // The effect parts of the rc.22-rc.28 (plan fase 8), dropped on
             // 22-11-2026 for effects of shapes: their layer is drawn still.
-            Op::Parte { kind, .. } if matches!(kind.as_str(), "glow" | "bubbles" | "smoke" | "flame") => {
+            Op::Parte { kind, .. }
+                if matches!(kind.as_str(), "glow" | "bubbles" | "smoke" | "flame") =>
+            {
                 self.statico();
             }
             Op::Parte { id, kind, geo } => {
@@ -1091,7 +1125,9 @@ impl<'a> Costruzione<'a> {
                 if matches!(kind.as_str(), "glow" | "bubbles" | "smoke" | "flame") {
                     if let Some(c) = geo.get("color").and_then(Value::as_str) {
                         if !colore_esadecimale(c) {
-                            return Err(format!("part «{id}»: colour «{c}» is not #rgb or #rrggbb"));
+                            return Err(format!(
+                                "part «{id}»: colour «{c}» is not #rgb or #rrggbb"
+                            ));
                         }
                     }
                 }
@@ -1135,10 +1171,13 @@ impl<'a> Costruzione<'a> {
                 ..
             } => {
                 let b = if tag == "path" {
-                    geo.0.iter().find(|(k, _)| k == "d").and_then(|(_, v)| match v {
-                        Valore::Testo(d) => path_box(d),
-                        _ => None,
-                    })
+                    geo.0
+                        .iter()
+                        .find(|(k, _)| k == "d")
+                        .and_then(|(_, v)| match v {
+                            Valore::Testo(d) => path_box(d),
+                            _ => None,
+                        })
                 } else {
                     riquadro(tag, geo)
                 };
@@ -1201,7 +1240,11 @@ impl<'a> Costruzione<'a> {
                 self.metti(e);
             }
             Op::Image {
-                src, geo, opacity, clip, ..
+                src,
+                geo,
+                opacity,
+                clip,
+                ..
             } => {
                 self.usa_immagine(src)?;
                 self.segna_gruppo(riquadro("rect", geo), format!("<rect{}/>", attrs(&geo.0)));
@@ -1220,7 +1263,10 @@ impl<'a> Costruzione<'a> {
                 // both engines carry into every layer.
                 if let Some(c) = clip {
                     if !FORME.contains(&c.tag.as_str()) {
-                        return Err(format!("image «{src}»: «{}» is not a shape to cut with", c.tag));
+                        return Err(format!(
+                            "image «{src}»: «{}» is not a shape to cut with",
+                            c.tag
+                        ));
                     }
                     self.n += 1;
                     let id = format!("{}-clip{}", self.d.slug, self.n);
@@ -1755,7 +1801,9 @@ fn fx_box_rules(x: f64, y: f64, bw: f64, bh: f64, w: f64, h: f64) -> Result<(), 
     if ok {
         Ok(())
     } else {
-        Err(format!("the effect's box must be inside the drawing {w}×{h}, at least 2×2"))
+        Err(format!(
+            "the effect's box must be inside the drawing {w}×{h}, at least 2×2"
+        ))
     }
 }
 
@@ -2017,7 +2065,9 @@ pub fn regole(d: &Descrizione, c: &Compilato) -> Vec<String> {
                     male.push(format!("{dove}: opacità {opacita} fuori da 0–1"));
                 }
             }
-            Op::Tratto { d: dd, mat, extra, .. } => {
+            Op::Tratto {
+                d: dd, mat, extra, ..
+            } => {
                 if !path_ammesso(dd) {
                     male.push(format!(
                         "{dove}: la «d» del tratto ammette solo comandi SVG e numeri"
@@ -2035,7 +2085,11 @@ pub fn regole(d: &Descrizione, c: &Compilato) -> Vec<String> {
                 }
             }
             Op::Ingresso { id } | Op::Parte { id, .. } => {
-                if !nome_ammesso(id, 2, 30) || id == "body" || id.starts_with("layer-") || id.starts_with("fx-") {
+                if !nome_ammesso(id, 2, 30)
+                    || id == "body"
+                    || id.starts_with("layer-")
+                    || id.starts_with("fx-")
+                {
                     male.push(format!("{dove}: id di parte «{id}» non valido (a-z, 0-9, «-»; non body, layer-N né fx-N)"));
                 }
                 if del_progetto && ids_parti.contains(&id.as_str()) {
@@ -2044,11 +2098,18 @@ pub fn regole(d: &Descrizione, c: &Compilato) -> Vec<String> {
                 ids_parti.push(id);
             }
             Op::Image {
-                src, geo, opacity, clip, ..
+                src,
+                geo,
+                opacity,
+                clip,
+                ..
             } => {
                 if let Some(c) = clip {
                     if !FORME.contains(&c.tag.as_str()) {
-                        male.push(format!("{dove}: la foto è ritagliata da «{}», che non è una forma", c.tag));
+                        male.push(format!(
+                            "{dove}: la foto è ritagliata da «{}», che non è una forma",
+                            c.tag
+                        ));
                     }
                 }
                 if !image_name_ok(src) {
@@ -2095,7 +2156,10 @@ pub fn regole(d: &Descrizione, c: &Compilato) -> Vec<String> {
 
     // ── the effects of the groups (22-11-2026) ──
     for (i, op) in d.ops.iter().enumerate() {
-        if let Op::Effetto { kind, group, input, .. } = op {
+        if let Op::Effetto {
+            kind, group, input, ..
+        } = op
+        {
             let dove = format!("operazione {}", i + 1);
             if !ids_parti.contains(&input.as_str()) {
                 male.push(format!(
@@ -2103,7 +2167,9 @@ pub fn regole(d: &Descrizione, c: &Compilato) -> Vec<String> {
                 ));
             }
             if !d.ops.iter().any(|o| o.group() == Some(group.as_str())) {
-                male.push(format!("{dove}: l'effetto {kind} è del gruppo «{group}», che non ha forme"));
+                male.push(format!(
+                    "{dove}: l'effetto {kind} è del gruppo «{group}», che non ha forme"
+                ));
             }
         }
         if let Op::Parte { kind, .. } = op {
@@ -2530,23 +2596,37 @@ mod tests {
         let c = compila_e_controlla(&photo_boiler()).unwrap_or_else(|e| panic!("{e:?}"));
         let svg = &c.svg;
         let layer_of = |needle: &str| {
-            let at = svg.find(needle).unwrap_or_else(|| panic!("{needle} in {svg}"));
-            svg[..at].rfind("<g id=\"").map(|g| &svg[g + 7..g + 7 + svg[g + 7..].find('"').unwrap()])
+            let at = svg
+                .find(needle)
+                .unwrap_or_else(|| panic!("{needle} in {svg}"));
+            svg[..at]
+                .rfind("<g id=\"")
+                .map(|g| &svg[g + 7..g + 7 + svg[g + 7..].find('"').unwrap()])
         };
         assert_eq!(
-            layer_of("<image data-src=\"boiler.jpg\" x=\"0\" y=\"0\" width=\"100\" height=\"120\"/>"),
+            layer_of(
+                "<image data-src=\"boiler.jpg\" x=\"0\" y=\"0\" width=\"100\" height=\"120\"/>"
+            ),
             Some("layer-0")
         );
         assert_eq!(layer_of("data-src=\"fan-cutout.png\""), Some("fan"));
         assert!(svg.contains("height=\"32\" opacity=\"0.9\"/>"));
         assert_eq!(layer_of("data-src=\"flame-off.png\""), Some("flame"));
         assert!(
-            svg.lines().filter(|l| l.contains("<image")).all(|l| !l.contains("href")),
+            svg.lines()
+                .filter(|l| l.contains("<image"))
+                .all(|l| !l.contains("href")),
             "a saved symbol never points anywhere"
         );
         assert_eq!(
             c.voce["images"],
-            json!(["boiler.jpg", "fan-cutout.png", "flame-off.png", "flame-low.png", "flame-high.png"])
+            json!([
+                "boiler.jpg",
+                "fan-cutout.png",
+                "flame-off.png",
+                "flame-low.png",
+                "flame-high.png"
+            ])
         );
         let s = c.simbolo().unwrap();
         assert_eq!(s.images.len(), 5);
@@ -2556,7 +2636,9 @@ mod tests {
         assert_eq!(entries[2].image.as_deref(), Some("flame-high.png"));
         // With the trace the editor knows which operation drew the photo.
         let t = compila_con_traccia(&photo_boiler()).unwrap();
-        assert!(t.svg.contains("data-src=\"boiler.jpg\" x=\"0\" y=\"0\" width=\"100\" height=\"120\" data-op=\"0\"/>"));
+        assert!(t.svg.contains(
+            "data-src=\"boiler.jpg\" x=\"0\" y=\"0\" width=\"100\" height=\"120\" data-op=\"0\"/>"
+        ));
     }
 
     /// The effects (plan 2026-11-21-simboli-fase-8-effetti): a glow compiles
@@ -2578,11 +2660,20 @@ mod tests {
             P::Bubbles { x, y, w, h, clip: Some(cl), .. } if *x == 74.0 && *y == 14.0 && *w == 32.0 && *h == 40.0 && cl == "effects-fxclip2"));
         assert!(c.svg.contains("<clipPath id=\"effects-fxclip2\">"));
         // Smoke above the chimney (top at 40): 20 tall at least, a bit wider.
-        assert!(matches!(&s.parts[3], P::Smoke { y, h, when: Some(_), level: Some(_), .. } if *y == 20.0 && *h == 20.0));
+        assert!(
+            matches!(&s.parts[3], P::Smoke { y, h, when: Some(_), level: Some(_), .. } if *y == 20.0 && *h == 20.0)
+        );
         // The flame's box is its shape's, and its shape is drawn in its layer.
         assert!(matches!(&s.parts[4], P::Flame { x, y, .. } if *x == 38.0 && *y == 32.0));
-        let fx4 = c.svg.split("id=\"fx-4\"").nth(1).expect("the flame's layer");
-        assert!(fx4.split("</g>").next().unwrap().contains("M42 58"), "the flame's shape moved into its layer");
+        let fx4 = c
+            .svg
+            .split("id=\"fx-4\"")
+            .nth(1)
+            .expect("the flame's layer");
+        assert!(
+            fx4.split("</g>").next().unwrap().contains("M42 58"),
+            "the flame's shape moved into its layer"
+        );
         // The neon moved into the glow's layer, out of the static one.
         let fx1 = c.svg.split("id=\"fx-1\"").nth(1).unwrap();
         assert!(fx1.split("</g>").next().unwrap().contains("#a5f3fc"));
@@ -2591,7 +2682,10 @@ mod tests {
         if let Op::Effetto { input, .. } = &mut bad.ops[8] {
             *input = "nessuno".into();
         }
-        assert!(compila_e_controlla(&bad).unwrap_err().join(" ").contains("«nessuno»"));
+        assert!(compila_e_controlla(&bad)
+            .unwrap_err()
+            .join(" ")
+            .contains("«nessuno»"));
         // Two of glow and flame on one group: no.
         let mut two = d.clone();
         if let Op::Effetto { group, .. } = &mut two.ops[11] {
@@ -2616,13 +2710,22 @@ mod tests {
                     { "op": "parte", "id": "neon", "kind": "glow", "geo": {} }]
         })).unwrap();
         assert!(compila(&old).is_ok());
-        assert!(compila_e_controlla(&old).unwrap_err().join(" ").contains("non esistono più"));
+        assert!(compila_e_controlla(&old)
+            .unwrap_err()
+            .join(" ")
+            .contains("non esistono più"));
     }
 
     #[test]
     fn a_path_has_a_box() {
-        assert_eq!(path_box("M42 58 C38 48 44 40 50 32 C56 40 62 48 58 58 Z"), Some((38.0, 32.0, 24.0, 26.0)));
-        assert_eq!(path_box("m10 10 h20 v5 h-20 z"), Some((10.0, 10.0, 20.0, 5.0)));
+        assert_eq!(
+            path_box("M42 58 C38 48 44 40 50 32 C56 40 62 48 58 58 Z"),
+            Some((38.0, 32.0, 24.0, 26.0))
+        );
+        assert_eq!(
+            path_box("m10 10 h20 v5 h-20 z"),
+            Some((10.0, 10.0, 20.0, 5.0))
+        );
         assert_eq!(path_box(""), None);
     }
 
@@ -2636,7 +2739,11 @@ mod tests {
             });
         }
         let c = compila_e_controlla(&d).unwrap_or_else(|e| panic!("{e:?}"));
-        assert!(c.svg.contains("<clipPath id=\"photo-boiler-clip"), "{}", c.svg);
+        assert!(
+            c.svg.contains("<clipPath id=\"photo-boiler-clip"),
+            "{}",
+            c.svg
+        );
         assert!(c.svg.contains("clip-path=\"url(#photo-boiler-clip"));
     }
 
@@ -2662,7 +2769,10 @@ mod tests {
             if let Op::Image { src: s, .. } = &mut d.ops[0] {
                 *s = src.into();
             }
-            compila_e_controlla(&d).err().unwrap_or_default().join(" | ")
+            compila_e_controlla(&d)
+                .err()
+                .unwrap_or_default()
+                .join(" | ")
         };
         for bad in [
             "https://example.com/x.png",
@@ -2678,7 +2788,10 @@ mod tests {
         // A signal entry's photo is checked the same way: it goes to the manifest.
         let mut d = photo_boiler();
         if let Op::Parte { geo, .. } = &mut d.ops[5] {
-            geo.insert("entries".into(), json!([{ "value": 0, "image": "/etc/passwd" }]));
+            geo.insert(
+                "entries".into(),
+                json!([{ "value": 0, "image": "/etc/passwd" }]),
+            );
         }
         assert!(compila(&d).is_err());
         // Out of the drawing, empty, too many.
@@ -2695,12 +2808,18 @@ mod tests {
             json!({ "op": "image", "src": "a.png", "geo": { "x": 500, "y": 0, "width": 100, "height": 10 } }),
         )
         .unwrap();
-        assert!(compila_e_controlla(&d).unwrap_err().join(" ").contains("tutta fuori"));
+        assert!(compila_e_controlla(&d)
+            .unwrap_err()
+            .join(" ")
+            .contains("tutta fuori"));
         d.ops[0] = serde_json::from_value(
             json!({ "op": "image", "src": "a.png", "geo": { "x": 0, "y": 0, "width": 0, "height": 10 } }),
         )
         .unwrap();
-        assert!(compila_e_controlla(&d).unwrap_err().join(" ").contains("positive"));
+        assert!(compila_e_controlla(&d)
+            .unwrap_err()
+            .join(" ")
+            .contains("positive"));
         let mut d = photo_boiler();
         for i in 0..5 {
             d.ops.push(
@@ -2711,7 +2830,10 @@ mod tests {
                 .unwrap(),
             );
         }
-        assert!(compila_e_controlla(&d).unwrap_err().join(" ").contains("at most 8"));
+        assert!(compila_e_controlla(&d)
+            .unwrap_err()
+            .join(" ")
+            .contains("at most 8"));
     }
 
     #[test]

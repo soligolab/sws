@@ -434,7 +434,16 @@ pub(crate) async fn symbol_photo(
         .await
     {
         Ok(img) => img,
-        Err(failed) => return Err(failed_background(s, &mut banco, &mut misure, sc, failed, t0)),
+        Err(failed) => {
+            return Err(failed_background(
+                s,
+                &mut banco,
+                &mut misure,
+                sc,
+                failed,
+                t0,
+            ))
+        }
     };
     pay_background(s, &mut banco, &mut misure, sc, &img, estimate, t0);
     Ok((img.jpg, banco.spesa_sfondi))

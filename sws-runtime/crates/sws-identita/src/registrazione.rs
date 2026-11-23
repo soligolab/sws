@@ -522,7 +522,9 @@ mod test {
     async fn a_fresh_pin_login_stands_in_for_the_current_password() {
         let (id, _d) = archivio().await;
         assert!(
-            id.cambia_password_propria("admin@sws.it", "", "nuova-password-1", None).await.is_err(),
+            id.cambia_password_propria("admin@sws.it", "", "nuova-password-1", None)
+                .await
+                .is_err(),
             "without a PIN the current password is asked"
         );
         assert!(!id.pin_proof_fresh_for("admin@sws.it").await);
@@ -537,9 +539,10 @@ mod test {
             !id.pin_proof_fresh_for("admin@sws.it").await,
             "used once: the next change asks again"
         );
-        assert!(
-            id.cambia_password_propria("admin@sws.it", "", "nuova-password-2", None).await.is_err()
-        );
+        assert!(id
+            .cambia_password_propria("admin@sws.it", "", "nuova-password-2", None)
+            .await
+            .is_err());
     }
 
     #[tokio::test]

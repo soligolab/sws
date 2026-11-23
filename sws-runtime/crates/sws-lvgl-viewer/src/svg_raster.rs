@@ -284,7 +284,12 @@ fn riquadro_con_immagini(g: &resvg::usvg::Group) -> Option<resvg::tiny_skia::Rec
     let mut acc: Option<(f32, f32, f32, f32)> = None;
     let mut add = |r: resvg::tiny_skia::Rect| {
         acc = Some(match acc {
-            Some((l, t, rr, b)) => (l.min(r.left()), t.min(r.top()), rr.max(r.right()), b.max(r.bottom())),
+            Some((l, t, rr, b)) => (
+                l.min(r.left()),
+                t.min(r.top()),
+                rr.max(r.right()),
+                b.max(r.bottom()),
+            ),
             None => (r.left(), r.top(), r.right(), r.bottom()),
         });
     };

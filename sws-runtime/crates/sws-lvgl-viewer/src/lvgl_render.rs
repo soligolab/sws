@@ -16123,7 +16123,12 @@ fn user_field(field: &str, lang: &str) -> Option<String> {
         let u = u.as_ref();
         Some(match field {
             "name" => u
-                .map(|u| u.name.clone().filter(|n| !n.trim().is_empty()).unwrap_or_else(|| u.username.clone()))
+                .map(|u| {
+                    u.name
+                        .clone()
+                        .filter(|n| !n.trim().is_empty())
+                        .unwrap_or_else(|| u.username.clone())
+                })
                 .unwrap_or_default(),
             "username" => u.map(|u| u.username.clone()).unwrap_or_default(),
             "role" => match u.and_then(|u| u.role) {
@@ -16267,7 +16272,12 @@ fn localize_object(obj: &SynopticObject, lang: &str, table: &LanguageTable) -> S
         // Without a language table only `{{user.*}}` resolves (22-11-2026),
         // in the plain text fields, as on the web.
         let mut out = obj.clone();
-        for f in [&mut out.label, &mut out.text, &mut out.unit, &mut out.format] {
+        for f in [
+            &mut out.label,
+            &mut out.text,
+            &mut out.unit,
+            &mut out.format,
+        ] {
             if let Some(v) = f.as_ref().filter(|v| v.contains("{{user.")) {
                 *f = Some(resolve_user_tokens(v, lang));
             }
@@ -17588,16 +17598,13 @@ fn rendi_oggetti_in(
         Some(Role::Admin)
     };
     // Le soglie servono solo se qualcosa sulla pagina comanda.
-    let comanda = page
-        .objects
-        .iter()
-        .any(|o| {
-            !tag_scritti(o).is_empty()
+    let comanda = page.objects.iter().any(|o| {
+        !tag_scritti(o).is_empty()
                 || o.obj_type.as_deref() == Some("faceplate")
                 // A function has a threshold of its own (22-11-2026).
                 || o.on_press_fn.as_deref().is_some_and(|n| !n.trim().is_empty())
                 || o.on_release_fn.as_deref().is_some_and(|n| !n.trim().is_empty())
-        });
+    });
     let soglie = if auth_required && comanda {
         rt_handle.block_on(client::fetch_soglie_scrittura(base_url))
     } else {
@@ -22779,7 +22786,10 @@ mod formattazione_valori_tests {
             }));
             let avuto = resolve_msg(&c.testo, &c.lang, &f.tabella);
             if avuto != c.atteso {
-                rotti.push(format!("«{}»: atteso {:?}, avuto {:?}", c.nome, c.atteso, avuto));
+                rotti.push(format!(
+                    "«{}»: atteso {:?}, avuto {:?}",
+                    c.nome, c.atteso, avuto
+                ));
             }
         }
         set_user_of_texts(None);
@@ -23124,8 +23134,14 @@ mod faceplate_tests {
         // A function's own threshold (22-11-2026): `fn:<name>` in the same map.
         let mut con_funzioni = soglie.clone();
         con_funzioni.insert("fn:tapparelle_tutte".into(), "Viewer".into());
-        let chiudi = o(serde_json::json!({ "id": "f", "type": "button", "on_press_fn": "tapparelle_tutte" }));
-        assert_eq!(ruolo_che_serve(&chiudi, &con_funzioni, None), None, "open to all");
+        let chiudi = o(
+            serde_json::json!({ "id": "f", "type": "button", "on_press_fn": "tapparelle_tutte" }),
+        );
+        assert_eq!(
+            ruolo_che_serve(&chiudi, &con_funzioni, None),
+            None,
+            "open to all"
+        );
         let altra = o(serde_json::json!({ "id": "g", "type": "button", "on_press_fn": "reset" }));
         assert_eq!(
             ruolo_che_serve(&altra, &con_funzioni, None).as_deref(),

@@ -517,10 +517,7 @@ pub async fn ask_shaped(
         req.header("x-api-key", &scelta.chiave)
             .header("anthropic-version", VERSIONE)
     };
-    let resp = req
-        .send()
-        .await
-        .map_err(|e| errore_di_invio(scelta, &e))?;
+    let resp = req.send().await.map_err(|e| errore_di_invio(scelta, &e))?;
     let stato = resp.status();
     let v: serde_json::Value = resp
         .json()
@@ -574,7 +571,11 @@ fn senza_testo(scelta: &Scelta, max_tokens: u32, v: &Value) -> anyhow::Error {
     let blocchi: Vec<&str> = v
         .get("content")
         .and_then(Value::as_array)
-        .map(|a| a.iter().filter_map(|b| b.get("type").and_then(Value::as_str)).collect())
+        .map(|a| {
+            a.iter()
+                .filter_map(|b| b.get("type").and_then(Value::as_str))
+                .collect()
+        })
         .unwrap_or_default();
     tracing::warn!(
         fornitore = scelta.fornitore.nome(),
@@ -589,7 +590,11 @@ fn senza_testo(scelta: &Scelta, max_tokens: u32, v: &Value) -> anyhow::Error {
         anyhow::anyhow!(
             "{nome} ({}) ha finito i token ({max_tokens}) prima di scrivere la risposta{}",
             scelta.modello,
-            if blocchi.contains(&"thinking") { ", ragionando" } else { "" }
+            if blocchi.contains(&"thinking") {
+                ", ragionando"
+            } else {
+                ""
+            }
         )
     } else {
         anyhow::anyhow!(
@@ -1482,12 +1487,26 @@ mod answer_without_text_tests {
 
     #[test]
     fn an_answer_without_text_says_why() {
-        let e = senza_testo(&kimi(), 16000, &serde_json::json!({
-            "stop_reason": "max_tokens", "content": [{ "type": "thinking", "thinking": "…" }]
-        }));
+        let e = senza_testo(
+            &kimi(),
+            16000,
+            &serde_json::json!({
+                "stop_reason": "max_tokens", "content": [{ "type": "thinking", "thinking": "…" }]
+            }),
+        );
         let m = e.to_string();
-        assert!(m.contains("finito i token (16000)") && m.contains("ragionando") && m.contains("kimi-k2.7-code"), "{m}");
-        let m = senza_testo(&kimi(), 16000, &serde_json::json!({ "stop_reason": "end_turn", "content": [] })).to_string();
+        assert!(
+            m.contains("finito i token (16000)")
+                && m.contains("ragionando")
+                && m.contains("kimi-k2.7-code"),
+            "{m}"
+        );
+        let m = senza_testo(
+            &kimi(),
+            16000,
+            &serde_json::json!({ "stop_reason": "end_turn", "content": [] }),
+        )
+        .to_string();
         assert!(m.contains("end_turn"), "{m}");
     }
 }

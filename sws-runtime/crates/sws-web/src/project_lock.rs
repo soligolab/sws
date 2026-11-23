@@ -84,7 +84,10 @@ impl ProjectLock {
         match map.get_mut(project) {
             Some(h) if h.tab == tab => {
                 h.beat = now;
-                return Claim { held: true, holder: None };
+                return Claim {
+                    held: true,
+                    holder: None,
+                };
             }
             Some(h) if !take && now.duration_since(h.beat) < EXPIRY => {
                 return Claim {
@@ -107,7 +110,10 @@ impl ProjectLock {
                 beat: now,
             },
         );
-        Claim { held: true, holder: None }
+        Claim {
+            held: true,
+            holder: None,
+        }
     }
 
     /// The tab lets the lock go (closing the project, logging out).
@@ -156,7 +162,11 @@ mod tests {
         assert!(!c.held);
         assert_eq!(
             c.holder,
-            Some(HolderView { user: Some("mauro".into()), since_ms: 1000, same_user: false })
+            Some(HolderView {
+                user: Some("mauro".into()),
+                since_ms: 1000,
+                same_user: false
+            })
         );
         // The same user in another tab is told so.
         let c = l.claim(P, "c", Some("mauro"), false, t0, 2000);
@@ -164,7 +174,12 @@ mod tests {
         // Without users nobody is «the same user».
         let l = ProjectLock::new();
         l.claim(P, "a", None, false, t0, 0);
-        assert!(!l.claim(P, "b", None, false, t0, 0).holder.unwrap().same_user);
+        assert!(
+            !l.claim(P, "b", None, false, t0, 0)
+                .holder
+                .unwrap()
+                .same_user
+        );
     }
 
     #[test]
@@ -175,12 +190,18 @@ mod tests {
         let t1 = t0 + Duration::from_secs(50);
         assert!(l.claim(P, "a", None, false, t1, 0).held, "heartbeat");
         let t2 = t1 + Duration::from_secs(50);
-        assert!(!l.claim(P, "b", None, false, t2, 0).held, "beaten 50 s ago: still held");
+        assert!(
+            !l.claim(P, "b", None, false, t2, 0).held,
+            "beaten 50 s ago: still held"
+        );
         assert!(!l.may_write(P, "b", t2));
         let t3 = t1 + EXPIRY;
         assert!(l.may_write(P, "b", t3), "expired: anyone may write");
         assert!(l.claim(P, "b", None, false, t3, 0).held, "expired: free");
-        assert!(!l.claim(P, "a", None, false, t3, 0).held, "the old holder learns it");
+        assert!(
+            !l.claim(P, "a", None, false, t3, 0).held,
+            "the old holder learns it"
+        );
     }
 
     #[test]

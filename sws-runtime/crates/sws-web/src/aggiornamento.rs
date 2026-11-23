@@ -577,7 +577,9 @@ async fn novita_di_questa() -> Option<NovitaVersione> {
     let immagine = std::env::var("SWS_IMAGE").ok()?;
     let (_, arch) = canale(Some(&immagine));
     let r = scomponi(&immagine)?;
-    let e = etichette(&r, &format!("{}-{}", version(), arch?)).await.ok()?;
+    let e = etichette(&r, &format!("{}-{}", version(), arch?))
+        .await
+        .ok()?;
     novita_da_etichette(version(), &e)
 }
 
@@ -1015,7 +1017,13 @@ mod tests {
             Some("tags/list?last=x&n=1000".into())
         );
         assert_eq!(pagina_dopo("", "soligolab/sws-runtime"), None);
-        assert_eq!(pagina_dopo(r#"</v2/altro/tags/list?last=x>; rel="next""#, "soligolab/sws-runtime"), None);
+        assert_eq!(
+            pagina_dopo(
+                r#"</v2/altro/tags/list?last=x>; rel="next""#,
+                "soligolab/sws-runtime"
+            ),
+            None
+        );
     }
 
     #[test]
@@ -1126,7 +1134,11 @@ mod tests {
             n("2.12.0", "C"),
         ]);
         let nomi: Vec<_> = fuori.iter().map(|x| x.versione.as_str()).collect();
-        assert_eq!(nomi, ["2.12.0"], "same text, then the same release: one entry");
+        assert_eq!(
+            nomi,
+            ["2.12.0"],
+            "same text, then the same release: one entry"
+        );
         assert_eq!(fuori[0].testo, "C", "the newest block wins");
     }
 

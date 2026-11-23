@@ -736,11 +736,20 @@ impl AuthState {
         let (username, external, previous) = {
             let sessions = self.sessions.read().await;
             let sess = sessions.get(token)?;
-            (sess.username.clone(), sess.external_name.clone(), sess.previous_login_ms)
+            (
+                sess.username.clone(),
+                sess.external_name.clone(),
+                sess.previous_login_ms,
+            )
         };
         let name = match external {
             Some(n) => Some(n),
-            None => self.users.read().await.get(&username).and_then(|u| u.display_name.clone()),
+            None => self
+                .users
+                .read()
+                .await
+                .get(&username)
+                .and_then(|u| u.display_name.clone()),
         };
         Some((name, previous))
     }
@@ -1290,9 +1299,17 @@ mod tests {
             Duration::from_secs(60),
         )
         .unwrap();
-        assert!(a.issue_external_session("admin", Role::Viewer, vec![], None).await.is_none());
+        assert!(a
+            .issue_external_session("admin", Role::Viewer, vec![], None)
+            .await
+            .is_none());
         let ok = a
-            .issue_external_session("mario.rossi", Role::Operator, vec!["caldaia".into()], Some("Mario Rossi".into()))
+            .issue_external_session(
+                "mario.rossi",
+                Role::Operator,
+                vec!["caldaia".into()],
+                Some("Mario Rossi".into()),
+            )
             .await
             .unwrap();
         let info = a.validate(&ok.token).await.unwrap();

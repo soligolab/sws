@@ -1851,7 +1851,11 @@ mod tests_argomenti {
         g.min_role = Some("Viewer".into());
         assert_eq!(g.role_needed(), "Viewer");
         g.min_role = Some("Qualcuno".into());
-        assert_eq!(g.role_needed(), "Operator", "an unknown name is not a way in");
+        assert_eq!(
+            g.role_needed(),
+            "Operator",
+            "an unknown name is not a way in"
+        );
         let passati = serde_json::Map::from_iter([
             ("volte".to_string(), 5.into()),
             ("chi".to_string(), serde_json::Value::Null),
@@ -3250,7 +3254,10 @@ mod version_tests {
         assert_eq!(version_from(Some("2.27.0-dev.3".into())), "2.27.0-dev.3");
         assert_eq!(version_from(Some("2.26.0-rc.27".into())), "2.26.0-rc.27");
         // The Tiny TY package's file says `2.26.0-rc.25 (abc1234)`.
-        assert_eq!(version_from(Some("2.26.0-rc.25 (abc1234)".into())), "2.26.0-rc.25");
+        assert_eq!(
+            version_from(Some("2.26.0-rc.25 (abc1234)".into())),
+            "2.26.0-rc.25"
+        );
     }
 
     #[test]

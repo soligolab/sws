@@ -334,8 +334,8 @@ pub const PIN_PROOF_TTL: Duration = Duration::from_secs(10 * 60);
 
 mod ai_keys;
 pub mod two_factor;
-pub use two_factor::{ChallengeKind, TwoFactorSetup, TwoFactorStatus};
 pub use ai_keys::{AiKeyInfo, AI_PREFERENCE_KINDS, MASTER_KEY_FILE};
+pub use two_factor::{ChallengeKind, TwoFactorSetup, TwoFactorStatus};
 mod registrazione;
 pub use registrazione::{Registrato, Scopo, VERSIONE_CONDIZIONI};
 mod ciclo_di_vita;
@@ -1313,10 +1313,12 @@ impl Identita {
         let e = email.trim().to_lowercase();
         let id: Option<i64> = task::spawn_blocking(move || {
             let c = conn.lock().unwrap();
-            c.query_row("SELECT id FROM utenti WHERE email = ?1", params![e], |r| r.get(0))
-                .optional()
-                .ok()
-                .flatten()
+            c.query_row("SELECT id FROM utenti WHERE email = ?1", params![e], |r| {
+                r.get(0)
+            })
+            .optional()
+            .ok()
+            .flatten()
         })
         .await
         .ok()

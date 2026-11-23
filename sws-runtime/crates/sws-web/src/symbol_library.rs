@@ -159,7 +159,9 @@ pub fn write(
     now_ms: u64,
 ) -> Result<Entry, String> {
     if !slug_ok(slug) {
-        return Err(format!("«{slug}»: 3 to 40 characters among a-z, 0-9 and «-»"));
+        return Err(format!(
+            "«{slug}»: 3 to 40 characters among a-z, 0-9 and «-»"
+        ));
     }
     // The library's own record of where a copy came from has no meaning here.
     symbol.library = None;
@@ -217,10 +219,13 @@ async fn company_dir(s: &AppState, user: &AuthUser, company: &str) -> Result<Pat
     let not_yours = || (StatusCode::FORBIDDEN, "not a member of this company").into_response();
     let companies = id.elenca_aziende().await.unwrap_or_default();
     let implicit = company == crate::project_registry::AZIENDA_IMPLICITA;
-    let Some(a) = companies
-        .iter()
-        .find(|a| if implicit { a.implicita } else { !a.implicita && a.cartella == company })
-    else {
+    let Some(a) = companies.iter().find(|a| {
+        if implicit {
+            a.implicita
+        } else {
+            !a.implicita && a.cartella == company
+        }
+    }) else {
         // A local IDE whose database has no implicit company yet: still the
         // installation's library.
         if implicit && s.regia.is_none() {
@@ -262,8 +267,12 @@ pub async fn get_list(
     UrlPath(company): UrlPath<String>,
 ) -> Response {
     match company_dir(&s, &user, &company).await {
-        Ok(dir) => Json(tokio::task::spawn_blocking(move || list(&dir)).await.unwrap_or_default())
-            .into_response(),
+        Ok(dir) => Json(
+            tokio::task::spawn_blocking(move || list(&dir))
+                .await
+                .unwrap_or_default(),
+        )
+        .into_response(),
         Err(r) => r,
     }
 }
@@ -294,7 +303,12 @@ pub async fn get_image(
         Ok(d) => d,
         Err(r) => return r,
     };
-    let ctype = match name.rsplit('.').next().map(str::to_ascii_lowercase).as_deref() {
+    let ctype = match name
+        .rsplit('.')
+        .next()
+        .map(str::to_ascii_lowercase)
+        .as_deref()
+    {
         Some("png") => "image/png",
         Some("webp") => "image/webp",
         _ => "image/jpeg",
@@ -331,11 +345,19 @@ pub async fn put_one(
         }
         match base64::engine::general_purpose::STANDARD.decode(b64.trim()) {
             Ok(b) => images.insert(name, b),
-            Err(_) => return (StatusCode::BAD_REQUEST, format!("photo «{name}»: not base64")).into_response(),
+            Err(_) => {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    format!("photo «{name}»: not base64"),
+                )
+                    .into_response()
+            }
         };
     }
     let by = user.username.clone();
-    let done = tokio::task::spawn_blocking(move || write(&dir, &slug, body.symbol, images, &by, now_ms())).await;
+    let done =
+        tokio::task::spawn_blocking(move || write(&dir, &slug, body.symbol, images, &by, now_ms()))
+            .await;
     match done {
         Ok(Ok(e)) => {
             s.audit.log(
@@ -387,11 +409,17 @@ mod tests {
     }
 
     fn photos() -> BTreeMap<String, Vec<u8>> {
-        ["boiler.jpg", "fan-cutout.png", "flame-off.png", "flame-low.png", "flame-high.png"]
-            .iter()
-            .enumerate()
-            .map(|(i, n)| (n.to_string(), vec![i as u8; 10]))
-            .collect()
+        [
+            "boiler.jpg",
+            "fan-cutout.png",
+            "flame-off.png",
+            "flame-low.png",
+            "flame-high.png",
+        ]
+        .iter()
+        .enumerate()
+        .map(|(i, n)| (n.to_string(), vec![i as u8; 10]))
+        .collect()
     }
 
     fn user(email: &str, platform: bool) -> AuthUser {
@@ -410,23 +438,53 @@ mod tests {
     async fn the_library_is_the_members_own() {
         let dir = tempfile::tempdir().unwrap();
         let mut s = crate::router::stato_di_prova(dir.path()).await;
-        let id = sws_identita::Identita::apri(dir.path().join("identita.db")).await.unwrap();
+        let id = sws_identita::Identita::apri(dir.path().join("identita.db"))
+            .await
+            .unwrap();
         let u = id
-            .crea_utente("m@x.it", "M", "unapassword", sws_identita::Ruolo::Sviluppatore, false)
+            .crea_utente(
+                "m@x.it",
+                "M",
+                "unapassword",
+                sws_identita::Ruolo::Sviluppatore,
+                false,
+            )
             .await
             .unwrap();
         let acme = id.crea_azienda("Acme").await.unwrap();
         s.identita = Some(id.clone());
         let status = |r: Response| r.status();
         let ask = |who: AuthUser, company: &str| {
-            get_list(State(s.clone()), Extension(who), UrlPath(company.to_string()))
+            get_list(
+                State(s.clone()),
+                Extension(who),
+                UrlPath(company.to_string()),
+            )
         };
-        assert_eq!(status(ask(user("m@x.it", false), &acme.cartella).await), StatusCode::FORBIDDEN);
-        assert_eq!(status(ask(user("m@x.it", true), &acme.cartella).await), StatusCode::OK);
-        assert_eq!(status(ask(user("m@x.it", false), "nessuna").await), StatusCode::NOT_FOUND);
-        assert_eq!(status(ask(user("m@x.it", false), "-").await), StatusCode::OK, "local IDE");
-        id.iscrivi(acme.id, u.id, sws_identita::Ruolo::Sviluppatore).await.unwrap();
-        assert_eq!(status(ask(user("m@x.it", false), &acme.cartella).await), StatusCode::OK);
+        assert_eq!(
+            status(ask(user("m@x.it", false), &acme.cartella).await),
+            StatusCode::FORBIDDEN
+        );
+        assert_eq!(
+            status(ask(user("m@x.it", true), &acme.cartella).await),
+            StatusCode::OK
+        );
+        assert_eq!(
+            status(ask(user("m@x.it", false), "nessuna").await),
+            StatusCode::NOT_FOUND
+        );
+        assert_eq!(
+            status(ask(user("m@x.it", false), "-").await),
+            StatusCode::OK,
+            "local IDE"
+        );
+        id.iscrivi(acme.id, u.id, sws_identita::Ruolo::Sviluppatore)
+            .await
+            .unwrap();
+        assert_eq!(
+            status(ask(user("m@x.it", false), &acme.cartella).await),
+            StatusCode::OK
+        );
         // A member writes, and the entry lands next to the company's projects.
         let body = PutBody { symbol: serde_json::from_value(serde_json::json!({
             "slug": "box", "w": 40, "h": 40, "body": "body-pump", "it": "Scatola", "en": "Box",
@@ -440,14 +498,22 @@ mod tests {
         )
         .await;
         assert_eq!(r.status(), StatusCode::OK);
-        assert!(library_dir(&s.projects_root, &acme.cartella).join("box/symbol.json").exists());
+        assert!(library_dir(&s.projects_root, &acme.cartella)
+            .join("box/symbol.json")
+            .exists());
     }
 
     #[test]
     fn the_folder_is_next_to_the_companys_projects() {
         let r = Path::new("/srv/progetti");
-        assert_eq!(library_dir(r, ""), Path::new("/srv/progetti/.ambiente/symbols"));
-        assert_eq!(library_dir(r, "pixsys"), Path::new("/srv/progetti/pixsys/.ambiente/symbols"));
+        assert_eq!(
+            library_dir(r, ""),
+            Path::new("/srv/progetti/.ambiente/symbols")
+        );
+        assert_eq!(
+            library_dir(r, "pixsys"),
+            Path::new("/srv/progetti/pixsys/.ambiente/symbols")
+        );
     }
 
     #[test]
@@ -455,11 +521,17 @@ mod tests {
         let d = tempfile::tempdir().unwrap();
         let dir = d.path().join("lib");
         let mut sym = boiler();
-        sym.library = Some(simboli_prj::LibraryRef { slug: "x".into(), version: "y".into() });
+        sym.library = Some(simboli_prj::LibraryRef {
+            slug: "x".into(),
+            version: "y".into(),
+        });
         let e = write(&dir, "caldaia", sym, photos(), "mario@x.it", 42).unwrap();
         assert_eq!(e.images.len(), 5);
         assert_eq!(e.updated_by, "mario@x.it");
-        assert!(e.symbol.library.is_none(), "the library doesn't keep a copy's record");
+        assert!(
+            e.symbol.library.is_none(),
+            "the library doesn't keep a copy's record"
+        );
         assert_eq!(image(&dir, "caldaia", "boiler.jpg"), Some(vec![0; 10]));
         let listed = list(&dir);
         assert_eq!(listed, vec![e.clone()]);
@@ -480,7 +552,9 @@ mod tests {
         let dir = d.path().join("lib");
         let mut missing = photos();
         missing.remove("flame-high.png");
-        assert!(write(&dir, "caldaia", boiler(), missing, "a", 0).unwrap_err().contains("flame-high.png"));
+        assert!(write(&dir, "caldaia", boiler(), missing, "a", 0)
+            .unwrap_err()
+            .contains("flame-high.png"));
         assert!(write(&dir, "../x", boiler(), photos(), "a", 0).is_err());
         let mut bad = boiler();
         bad.body = "unobtainium".into();

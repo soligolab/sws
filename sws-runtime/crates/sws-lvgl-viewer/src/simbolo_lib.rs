@@ -294,7 +294,9 @@ fn metti_href(riga: &str, uri: &str) -> String {
     let (prima, resto) = riga.split_at(i + "<image".len());
     let resto = match resto.find(" href=\"") {
         Some(a) => {
-            let b = resto[a + 7..].find('"').map_or(resto.len(), |k| a + 7 + k + 1);
+            let b = resto[a + 7..]
+                .find('"')
+                .map_or(resto.len(), |k| a + 7 + k + 1);
             format!("{}{}", &resto[..a], &resto[b..])
         }
         None => resto.to_string(),
@@ -651,7 +653,13 @@ pub enum PezzoStrato {
 /// The SVG of a layer's halo: its shapes blurred by `radius` (viewBox units),
 /// in `color` or in their own. The filter covers the whole drawing, so the
 /// blur is never cut at the shapes' box. Twin of the filter in `SimboloLib.tsx`.
-pub fn svg_alone(testa: &str, markup: &str, view_box: [f64; 2], radius: f64, color: Option<&str>) -> String {
+pub fn svg_alone(
+    testa: &str,
+    markup: &str,
+    view_box: [f64; 2],
+    radius: f64,
+    color: Option<&str>,
+) -> String {
     let r = sws_core::simboli_prj::fmt(radius);
     let effetto = match color {
         Some(c) => format!(
@@ -673,7 +681,12 @@ fn allarga(r: Ritaglio, m: u32, q: Quadro) -> Ritaglio {
     let y0 = r.y.saturating_sub(m);
     let x1 = (r.x + r.w + m).min(q.w);
     let y1 = (r.y + r.h + m).min(q.h);
-    Ritaglio { x: x0, y: y0, w: x1.saturating_sub(x0).max(1), h: y1.saturating_sub(y0).max(1) }
+    Ritaglio {
+        x: x0,
+        y: y0,
+        w: x1.saturating_sub(x0).max(1),
+        h: y1.saturating_sub(y0).max(1),
+    }
 }
 
 // ── the animation budget of a page ─────────────────────────────────────────
@@ -799,7 +812,10 @@ pub fn prepara_con_foto(
                     // of the maintainer, 23-11-2026): its shapes hide like a
                     // lamp's. The other effects draw over shapes that stay.
                     out.push(if fiamma {
-                        PezzoStrato::Spia { id: id.clone(), bitmap: b }
+                        PezzoStrato::Spia {
+                            id: id.clone(),
+                            bitmap: b,
+                        }
                     } else {
                         PezzoStrato::Fermo(b)
                     });
@@ -1103,7 +1119,8 @@ mod tests {
     fn photo_boiler_snapshot() {
         use base64::Engine as _;
         use resvg::tiny_skia::{Color, FillRule, Paint, PathBuilder, Pixmap, Transform};
-        let dir = std::path::PathBuf::from(std::env::var("SWS_SNAPSHOT_DIR").expect("SWS_SNAPSHOT_DIR"));
+        let dir =
+            std::path::PathBuf::from(std::env::var("SWS_SNAPSHOT_DIR").expect("SWS_SNAPSHOT_DIR"));
         let uri = |p: &Pixmap| {
             format!(
                 "data:image/png;base64,{}",
@@ -1119,9 +1136,23 @@ mod tests {
         // The "photo" of the boiler: a white casing with a darker panel.
         let mut bg = Pixmap::new(200, 240).unwrap();
         bg.fill(Color::from_rgba8(0, 0, 0, 0));
-        let rect = |x, y, w, h| PathBuilder::from_rect(resvg::tiny_skia::Rect::from_xywh(x, y, w, h).unwrap());
-        bg.fill_path(&rect(10.0, 4.0, 180.0, 232.0), &paint(232, 234, 236, 255), FillRule::Winding, Transform::identity(), None);
-        bg.fill_path(&rect(20.0, 120.0, 160.0, 100.0), &paint(70, 78, 88, 255), FillRule::Winding, Transform::identity(), None);
+        let rect = |x, y, w, h| {
+            PathBuilder::from_rect(resvg::tiny_skia::Rect::from_xywh(x, y, w, h).unwrap())
+        };
+        bg.fill_path(
+            &rect(10.0, 4.0, 180.0, 232.0),
+            &paint(232, 234, 236, 255),
+            FillRule::Winding,
+            Transform::identity(),
+            None,
+        );
+        bg.fill_path(
+            &rect(20.0, 120.0, 160.0, 100.0),
+            &paint(70, 78, 88, 255),
+            FillRule::Winding,
+            Transform::identity(),
+            None,
+        );
         // A fan with three blades, transparent around.
         let mut fan = Pixmap::new(64, 64).unwrap();
         for k in 0..3 {
@@ -1131,8 +1162,13 @@ mod tests {
             pb.line_to(28.0, 4.0);
             pb.line_to(38.0, 6.0);
             pb.close();
-            fan.fill_path(&pb.finish().unwrap(), &paint(60, 200, 90, 255), FillRule::Winding,
-                Transform::from_rotate_at(a, 32.0, 32.0), None);
+            fan.fill_path(
+                &pb.finish().unwrap(),
+                &paint(60, 200, 90, 255),
+                FillRule::Winding,
+                Transform::from_rotate_at(a, 32.0, 32.0),
+                None,
+            );
         }
         // Three flames: none, low, high.
         let flame = |h: f32, r, g| {
@@ -1143,9 +1179,21 @@ mod tests {
                 pb.quad_to(64.0, 80.0, 36.0, 94.0);
                 pb.quad_to(8.0, 80.0, 36.0, 96.0 - h);
                 pb.close();
-                p.fill_path(&pb.finish().unwrap(), &paint(r, g, 20, 255), FillRule::Winding, Transform::identity(), None);
+                p.fill_path(
+                    &pb.finish().unwrap(),
+                    &paint(r, g, 20, 255),
+                    FillRule::Winding,
+                    Transform::identity(),
+                    None,
+                );
             } else {
-                p.fill_path(&rect(30.0, 88.0, 12.0, 6.0), &paint(120, 120, 120, 255), FillRule::Winding, Transform::identity(), None);
+                p.fill_path(
+                    &rect(30.0, 88.0, 12.0, 6.0),
+                    &paint(120, 120, 120, 255),
+                    FillRule::Winding,
+                    Transform::identity(),
+                    None,
+                );
             }
             p
         };
@@ -1162,20 +1210,42 @@ mod tests {
         let c = sws_core::simboli_prj::compila_e_controlla(&d).unwrap();
         let svg = con_foto(&c.svg, &foto);
         let parts = dividi(&svg);
-        for (state, img) in [("0-off", "flame-off.png"), ("1-low", "flame-low.png"), ("2-high", "flame-high.png")] {
+        for (state, img) in [
+            ("0-off", "flame-off.png"),
+            ("1-low", "flame-low.png"),
+            ("2-high", "flame-high.png"),
+        ] {
             let layers: String = parts
                 .strati
                 .iter()
-                .map(|(id, _, mk)| if id == "flame" { con_foto_al_posto(mk, &foto[img]) } else { mk.clone() })
+                .map(|(id, _, mk)| {
+                    if id == "flame" {
+                        con_foto_al_posto(mk, &foto[img])
+                    } else {
+                        mk.clone()
+                    }
+                })
                 .collect();
             let whole = format!("{}{layers}</svg>\n", parts.testa);
             let (w, h) = (300, 360);
             let r = svg_raster::rasterize(whole.as_bytes(), w, h, false, false).expect("raster");
             let mut out = Pixmap::new(w, h).unwrap();
             out.fill(Color::from_rgba8(30, 35, 41, 255));
-            let pm = Pixmap::from_vec(r.pixels.clone(), resvg::tiny_skia::IntSize::from_wh(w, h).unwrap()).unwrap();
-            out.draw_pixmap(0, 0, pm.as_ref(), &resvg::tiny_skia::PixmapPaint::default(), Transform::identity(), None);
-            out.save_png(dir.join(format!("photo-boiler-{state}.png"))).unwrap();
+            let pm = Pixmap::from_vec(
+                r.pixels.clone(),
+                resvg::tiny_skia::IntSize::from_wh(w, h).unwrap(),
+            )
+            .unwrap();
+            out.draw_pixmap(
+                0,
+                0,
+                pm.as_ref(),
+                &resvg::tiny_skia::PixmapPaint::default(),
+                Transform::identity(),
+                None,
+            );
+            out.save_png(dir.join(format!("photo-boiler-{state}.png")))
+                .unwrap();
         }
     }
 
@@ -1190,21 +1260,38 @@ mod tests {
         let c = sws_core::simboli_prj::compila_e_controlla(&d).unwrap_or_else(|e| panic!("{e:?}"));
         let s = c.simbolo().unwrap();
         let m = manifesto_incluso();
-        let q = Quadro { w: 240, h: 200, flip_h: false, flip_v: false };
+        let q = Quadro {
+            w: 240,
+            h: 200,
+            flip_h: false,
+            flip_v: false,
+        };
         let p = prepara(&s, &c.svg, q, &stile_del_disegno(&m, None));
-        let Some(PezzoStrato::Glow { bitmap, halo: Some(halo), .. }) =
-            p.strati.iter().find(|x| matches!(x, PezzoStrato::Glow { .. }))
+        let Some(PezzoStrato::Glow {
+            bitmap,
+            halo: Some(halo),
+            ..
+        }) = p
+            .strati
+            .iter()
+            .find(|x| matches!(x, PezzoStrato::Glow { .. }))
         else {
             panic!("a glow with its halo")
         };
-        assert!(halo.dove.w > bitmap.dove.w + 20 && halo.dove.h > bitmap.dove.h + 20, "{:?} {:?}", halo.dove, bitmap.dove);
+        assert!(
+            halo.dove.w > bitmap.dove.w + 20 && halo.dove.h > bitmap.dove.h + 20,
+            "{:?} {:?}",
+            halo.dove,
+            bitmap.dove
+        );
         // Some colour in the halo's top-left corner area, outside the shape.
         let bpp = halo.buf.len() / (halo.dove.w * halo.dove.h) as usize;
         let alpha_at = |x: u32, y: u32| halo.buf[((y * halo.dove.w + x) as usize) * bpp + bpp - 1];
         let y = (bitmap.dove.y - halo.dove.y) / 2;
         let x = halo.dove.w / 2;
         assert!(alpha_at(x, y) > 0, "the halo spreads above the shape");
-        assert!(svg_alone("<svg>", "<g/>", [120.0, 100.0], 5.0, None).contains("in=\"SourceGraphic\" stdDeviation=\"5\""));
+        assert!(svg_alone("<svg>", "<g/>", [120.0, 100.0], 5.0, None)
+            .contains("in=\"SourceGraphic\" stdDeviation=\"5\""));
     }
 
     /// A picture of the effects, as the panel's engine draws them: the glow's
@@ -1214,7 +1301,8 @@ mod tests {
     #[ignore]
     fn effects_snapshot() {
         use resvg::tiny_skia::{Color, Pixmap, PixmapPaint, Transform};
-        let dir = std::path::PathBuf::from(std::env::var("SWS_SNAPSHOT_DIR").expect("SWS_SNAPSHOT_DIR"));
+        let dir =
+            std::path::PathBuf::from(std::env::var("SWS_SNAPSHOT_DIR").expect("SWS_SNAPSHOT_DIR"));
         let d: sws_core::simboli_prj::Descrizione = serde_json::from_str(include_str!(
             "../../../../tests/fixtures/simboli-prj/effects.json"
         ))
@@ -1225,7 +1313,9 @@ mod tests {
         for (name, t) in [("a", 0.1), ("b", 0.45), ("c", 0.8)] {
             let mut body = String::new();
             for (id, _, mk) in &parts.strati {
-                if let Some(ParteLib::Glow { radius, color, .. }) = s.parts.iter().find(|p| p.id() == id) {
+                if let Some(ParteLib::Glow { radius, color, .. }) =
+                    s.parts.iter().find(|p| p.id() == id)
+                {
                     let halo = svg_alone("", mk, s.view_box, *radius, color.as_deref());
                     body.push_str(halo.trim_end_matches("</svg>\n"));
                 }
@@ -1235,7 +1325,8 @@ mod tests {
                     Some(f) => body.push_str(&f),
                     None => {
                         body.push_str(mk);
-                        if let Some(el) = parte.and_then(|p| sws_core::symbol_fx::fx_elements(p, t)) {
+                        if let Some(el) = parte.and_then(|p| sws_core::symbol_fx::fx_elements(p, t))
+                        {
                             body.push_str(&format!("<g>{el}</g>\n"));
                         }
                     }
@@ -1246,9 +1337,21 @@ mod tests {
             let r = svg_raster::rasterize(svg.as_bytes(), w, h, false, false).expect("raster");
             let mut out = Pixmap::new(w, h).unwrap();
             out.fill(Color::from_rgba8(30, 35, 41, 255));
-            let pm = Pixmap::from_vec(r.pixels.clone(), resvg::tiny_skia::IntSize::from_wh(w, h).unwrap()).unwrap();
-            out.draw_pixmap(0, 0, pm.as_ref(), &PixmapPaint::default(), Transform::identity(), None);
-            out.save_png(dir.join(format!("effects-{name}.png"))).unwrap();
+            let pm = Pixmap::from_vec(
+                r.pixels.clone(),
+                resvg::tiny_skia::IntSize::from_wh(w, h).unwrap(),
+            )
+            .unwrap();
+            out.draw_pixmap(
+                0,
+                0,
+                pm.as_ref(),
+                &PixmapPaint::default(),
+                Transform::identity(),
+                None,
+            );
+            out.save_png(dir.join(format!("effects-{name}.png")))
+                .unwrap();
         }
     }
 
@@ -1263,10 +1366,22 @@ mod tests {
         let c = sws_core::simboli_prj::compila_e_controlla(&d).unwrap_or_else(|e| panic!("{e:?}"));
         let s = c.simbolo().unwrap();
         let m = manifesto_incluso();
-        let q = Quadro { w: 240, h: 200, flip_h: false, flip_v: false };
+        let q = Quadro {
+            w: 240,
+            h: 200,
+            flip_h: false,
+            flip_v: false,
+        };
         let p = prepara(&s, &c.svg, q, &stile_del_disegno(&m, None));
-        let Some(PezzoStrato::Effetto { fotogrammi, dove, period_ms, id }) =
-            p.strati.iter().find(|x| matches!(x, PezzoStrato::Effetto { .. }))
+        let Some(PezzoStrato::Effetto {
+            fotogrammi,
+            dove,
+            period_ms,
+            id,
+        }) = p
+            .strati
+            .iter()
+            .find(|x| matches!(x, PezzoStrato::Effetto { .. }))
         else {
             panic!("the bubbles")
         };
@@ -1274,7 +1389,10 @@ mod tests {
         assert_eq!(id, "fx-2");
         assert_eq!(*period_ms, 1800.0);
         assert_eq!(fotogrammi.len(), sws_core::symbol_fx::FX_FRAMES);
-        assert!((62..=68).contains(&dove.w) && (78..=84).contains(&dove.h), "{dove:?}");
+        assert!(
+            (62..=68).contains(&dove.w) && (78..=84).contains(&dove.h),
+            "{dove:?}"
+        );
         assert_ne!(fotogrammi[0], fotogrammi[4]);
         assert!(fotogrammi.iter().all(|f| f.iter().any(|b| *b != 0)));
         // The smoke too, in a box wider than its part (the puffs grow).
@@ -1286,7 +1404,11 @@ mod tests {
             panic!("the smoke")
         };
         assert!(dove.w > 40, "{dove:?}");
-        let Some(PezzoStrato::Effetto { fotogrammi, period_ms, .. }) = p
+        let Some(PezzoStrato::Effetto {
+            fotogrammi,
+            period_ms,
+            ..
+        }) = p
             .strati
             .iter()
             .find(|x| matches!(x, PezzoStrato::Effetto { id, .. } if id == "fx-4"))
@@ -1297,7 +1419,9 @@ mod tests {
         assert_ne!(fotogrammi[0], fotogrammi[4], "it flickers");
         // Its still shapes hide when its input is off (23-11-2026), as a lamp's.
         assert!(
-            p.strati.iter().any(|x| matches!(x, PezzoStrato::Spia { id, .. } if id == "fx-4")),
+            p.strati
+                .iter()
+                .any(|x| matches!(x, PezzoStrato::Spia { id, .. } if id == "fx-4")),
             "the flame's shapes can hide"
         );
     }
@@ -1363,7 +1487,10 @@ mod tests {
             variants,
             entry_variant,
             ..
-        }) = p.strati.iter().find(|x| matches!(x, PezzoStrato::Signal { .. }))
+        }) = p
+            .strati
+            .iter()
+            .find(|x| matches!(x, PezzoStrato::Signal { .. }))
         else {
             panic!("the flame is a signal")
         };

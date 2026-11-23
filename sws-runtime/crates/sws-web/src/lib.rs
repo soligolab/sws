@@ -27,7 +27,9 @@ pub mod git_deploy;
 pub mod global_scripts;
 pub mod istantanea;
 pub mod istantanea_dati;
+pub mod last_logins;
 pub mod launcher_dbus;
+pub mod ldap_auth;
 pub mod limiti;
 pub mod logica_plc;
 pub mod marchi;
@@ -58,13 +60,11 @@ pub mod segreti;
 pub mod sicurezza_http;
 pub mod simboli_progetto;
 pub mod sized_image;
-pub mod symbol_library;
-pub mod two_factor_routes;
-pub mod last_logins;
-pub mod ldap_auth;
 pub mod sonda;
 pub mod source_supervisor;
+pub mod symbol_library;
 pub mod synoptic;
+pub mod two_factor_routes;
 // Generato da `scripts/gen_synoptic_schema.py` e confrontato byte per byte da
 // `check_synoptic_schema.sh`: rustfmt non lo tocca, o le due fonti litigano.
 #[rustfmt::skip]

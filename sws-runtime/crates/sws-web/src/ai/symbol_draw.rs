@@ -839,8 +839,16 @@ mod photo_tests {
             .unwrap(),
         );
         let compiled = sws_core::simboli_prj::compila(&d).unwrap();
-        let drawn = Drawn { description: d, compiled, attempts: 1 };
-        let known = vec!["boiler.jpg".to_string(), "fan-cutout.png".to_string(), "flame-off.png".to_string()];
+        let drawn = Drawn {
+            description: d,
+            compiled,
+            attempts: 1,
+        };
+        let known = vec![
+            "boiler.jpg".to_string(),
+            "fan-cutout.png".to_string(),
+            "flame-off.png".to_string(),
+        ];
         let kept = keep_known_photos(drawn, &known);
         assert!(!kept.compiled.svg.contains("invented.png"));
         assert!(kept.compiled.svg.contains("boiler.jpg"));

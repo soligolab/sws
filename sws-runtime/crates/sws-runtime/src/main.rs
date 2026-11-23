@@ -2479,7 +2479,10 @@ fn is_normal_close(e: &(dyn std::error::Error + 'static)) -> bool {
         }
         if let Some(io) = err.downcast_ref::<std::io::Error>() {
             use std::io::ErrorKind::*;
-            if matches!(io.kind(), ConnectionReset | BrokenPipe | ConnectionAborted | UnexpectedEof) {
+            if matches!(
+                io.kind(),
+                ConnectionReset | BrokenPipe | ConnectionAborted | UnexpectedEof
+            ) {
                 return true;
             }
         }

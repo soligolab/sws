@@ -2229,8 +2229,15 @@ mod tests {
             .unwrap();
         assert!(git_out(&d, &["remote"]).unwrap().is_empty(), "no origin");
         assert!(git_out(&d, &["config", "--get", "core.sshCommand"]).is_err());
-        assert!(!cartella_chiave_progetto(&dst).exists(), "the key stays with the original");
-        assert_eq!(GitDeploy::new(dst).log(10, 0).unwrap().len(), 1, "the history stays");
+        assert!(
+            !cartella_chiave_progetto(&dst).exists(),
+            "the key stays with the original"
+        );
+        assert_eq!(
+            GitDeploy::new(dst).log(10, 0).unwrap().len(),
+            1,
+            "the history stays"
+        );
     }
 
     #[test]
@@ -2239,23 +2246,46 @@ mod tests {
         let d = dst.to_string_lossy().to_string();
         let copia = GitDeploy::new(dst.clone());
         copia
-            .adapt_copy(&CopyRepository::Branch { name: "impianto-due".into() }, true)
+            .adapt_copy(
+                &CopyRepository::Branch {
+                    name: "impianto-due".into(),
+                },
+                true,
+            )
             .unwrap();
-        assert_eq!(git_out(&d, &["symbolic-ref", "--short", "HEAD"]).unwrap(), "impianto-due");
-        assert_eq!(git_out(&d, &["remote", "get-url", "origin"]).unwrap(), "git@example.org:a/b.git");
-        assert_eq!(copia.chiave_ssh().as_deref(), Some(CHIAVE_PROGETTO), "its own key file");
+        assert_eq!(
+            git_out(&d, &["symbolic-ref", "--short", "HEAD"]).unwrap(),
+            "impianto-due"
+        );
+        assert_eq!(
+            git_out(&d, &["remote", "get-url", "origin"]).unwrap(),
+            "git@example.org:a/b.git"
+        );
+        assert_eq!(
+            copia.chiave_ssh().as_deref(),
+            Some(CHIAVE_PROGETTO),
+            "its own key file"
+        );
         let cmd = git_out(&d, &["config", "--get", "core.sshCommand"]).unwrap();
         assert!(!cmd.contains(&*orig.path().to_string_lossy()), "{cmd}");
         // The original did not move.
         let o = orig.path().to_string_lossy().to_string();
-        assert_ne!(git_out(&o, &["symbolic-ref", "--short", "HEAD"]).unwrap(), "impianto-due");
+        assert_ne!(
+            git_out(&o, &["symbolic-ref", "--short", "HEAD"]).unwrap(),
+            "impianto-due"
+        );
     }
 
     #[test]
     fn a_branch_name_that_is_not_safe_is_refused() {
         let (_orig, _altrove, dst) = copia_di_un_repository();
         let err = GitDeploy::new(dst)
-            .adapt_copy(&CopyRepository::Branch { name: "--force".into() }, false)
+            .adapt_copy(
+                &CopyRepository::Branch {
+                    name: "--force".into(),
+                },
+                false,
+            )
             .unwrap_err()
             .to_string();
         assert!(err.contains("non valido"), "{err}");

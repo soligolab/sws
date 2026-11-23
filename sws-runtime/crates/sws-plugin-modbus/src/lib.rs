@@ -103,7 +103,9 @@ impl Errori {
     /// valore fuori dai limiti): `true` la prima volta.
     pub fn errore(&mut self, k: impl Into<String>) -> bool {
         let k = k.into();
-        self.errori_dal.entry(k.clone()).or_insert_with(Instant::now);
+        self.errori_dal
+            .entry(k.clone())
+            .or_insert_with(Instant::now);
         self.detti.insert(k)
     }
 
@@ -131,7 +133,9 @@ impl Errori {
             (Some(a), Some(b)) => Some(a.min(b)),
             (a, b) => a.or(b),
         };
-        self.detti.remove(k).then(|| da.map(|d| d.elapsed()).unwrap_or_default())
+        self.detti
+            .remove(k)
+            .then(|| da.map(|d| d.elapsed()).unwrap_or_default())
     }
 
     /// Detto, cioè nel registro come guasto.
@@ -315,14 +319,21 @@ pub struct Tolerance {
 
 impl Tolerance {
     pub fn new(rounds: u32) -> Self {
-        Self { rounds, missed: HashMap::new() }
+        Self {
+            rounds,
+            missed: HashMap::new(),
+        }
     }
 
     /// The mapping did not answer this round.
     async fn missed(&mut self, db: &TagDb, m: &Mappatura) {
         let n = self.missed.entry(m.tag.clone()).or_insert(0);
         *n += 1;
-        let quality = if *n <= self.rounds { TagQuality::Uncertain } else { TagQuality::Bad };
+        let quality = if *n <= self.rounds {
+            TagQuality::Uncertain
+        } else {
+            TagQuality::Bad
+        };
         for s in &m.slots {
             db.marca_qualita(&s.percorso, quality.clone()).await;
         }

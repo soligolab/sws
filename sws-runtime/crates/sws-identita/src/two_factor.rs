@@ -52,7 +52,10 @@ CREATE TABLE IF NOT EXISTS platform_settings (
 
 pub(crate) const COLUMNS_V9: &[(&str, &str)] = &[
     ("utenti", "ALTER TABLE utenti ADD COLUMN totp_nonce BLOB"),
-    ("utenti", "ALTER TABLE utenti ADD COLUMN totp_last_step INTEGER"),
+    (
+        "utenti",
+        "ALTER TABLE utenti ADD COLUMN totp_last_step INTEGER",
+    ),
     (
         "aziende",
         "ALTER TABLE aziende ADD COLUMN require_2fa INTEGER NOT NULL DEFAULT 0",
@@ -86,7 +89,9 @@ pub fn base32_decode(s: &str) -> Option<Vec<u8>> {
     let mut out = Vec::new();
     let (mut buf, mut bits) = (0u32, 0u32);
     for c in s.chars().filter(|c| !matches!(c, ' ' | '-' | '=')) {
-        let v = B32.iter().position(|&x| x as char == c.to_ascii_uppercase())? as u32;
+        let v = B32
+            .iter()
+            .position(|&x| x as char == c.to_ascii_uppercase())? as u32;
         buf = (buf << 5) | v;
         bits += 5;
         if bits >= 8 {
@@ -125,7 +130,9 @@ pub fn otpauth_uri(email: &str, secret_b32: &str) -> String {
     let enc = |s: &str| -> String {
         s.bytes()
             .map(|b| match b {
-                b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~' => (b as char).to_string(),
+                b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~' => {
+                    (b as char).to_string()
+                }
                 _ => format!("%{b:02X}"),
             })
             .collect()
@@ -143,7 +150,10 @@ fn new_recovery_code() -> String {
     const CROCKFORD: &[u8; 32] = b"0123456789ABCDEFGHJKMNPQRSTVWXYZ";
     let mut b = [0u8; 8];
     OsRng.fill_bytes(&mut b);
-    let s: String = b.iter().map(|x| CROCKFORD[(*x & 31) as usize] as char).collect();
+    let s: String = b
+        .iter()
+        .map(|x| CROCKFORD[(*x & 31) as usize] as char)
+        .collect();
     format!("{}-{}", &s[..4], &s[4..])
 }
 
@@ -382,7 +392,11 @@ impl Identita {
     }
 
     /// The secret of `user_id`, decrypted, and the last step used.
-    fn secret_of(c: &Connection, master_path: &Path, user_id: i64) -> Option<(Vec<u8>, Option<i64>)> {
+    fn secret_of(
+        c: &Connection,
+        master_path: &Path,
+        user_id: i64,
+    ) -> Option<(Vec<u8>, Option<i64>)> {
         let (ct, nonce, last): (Option<String>, Option<Vec<u8>>, Option<i64>) = c
             .query_row(
                 "SELECT totp_segreto, totp_nonce, totp_last_step FROM utenti WHERE id = ?1",
@@ -396,7 +410,11 @@ impl Identita {
     }
 
     /// The first code from the app: 2FA on, and ten new recovery codes.
-    pub async fn two_factor_confirm(&self, user_id: i64, code: &str) -> anyhow::Result<Vec<String>> {
+    pub async fn two_factor_confirm(
+        &self,
+        user_id: i64,
+        code: &str,
+    ) -> anyhow::Result<Vec<String>> {
         let (conn, master_path) = (self.conn.clone(), self.master_path());
         let code = code.to_string();
         task::spawn_blocking(move || -> anyhow::Result<Vec<String>> {
@@ -418,7 +436,10 @@ impl Identita {
     }
 
     fn write_recovery_codes(c: &Connection, user_id: i64) -> anyhow::Result<Vec<String>> {
-        c.execute("DELETE FROM recovery_codes WHERE user_id = ?1", params![user_id])?;
+        c.execute(
+            "DELETE FROM recovery_codes WHERE user_id = ?1",
+            params![user_id],
+        )?;
         let codes: Vec<String> = (0..RECOVERY_CODES).map(|_| new_recovery_code()).collect();
         for code in &codes {
             c.execute(
@@ -437,7 +458,11 @@ impl Identita {
         task::spawn_blocking(move || -> Option<bool> {
             let c = conn.lock().unwrap();
             let on: i64 = c
-                .query_row("SELECT totp_attivo FROM utenti WHERE id = ?1", params![user_id], |r| r.get(0))
+                .query_row(
+                    "SELECT totp_attivo FROM utenti WHERE id = ?1",
+                    params![user_id],
+                    |r| r.get(0),
+                )
                 .ok()?;
             if on == 0 {
                 return None;
@@ -468,17 +493,38 @@ impl Identita {
 
     /// Off, by the person: their password and a code. Refused while a company
     /// of theirs or the platform requires it.
-    pub async fn two_factor_disable(&self, user_id: i64, password: &str, code: &str) -> anyhow::Result<()> {
+    pub async fn two_factor_disable(
+        &self,
+        user_id: i64,
+        password: &str,
+        code: &str,
+    ) -> anyhow::Result<()> {
         let status = self.two_factor_status(user_id).await?;
-        anyhow::ensure!(!status.required, "two-factor authentication is required for this account");
-        anyhow::ensure!(self.password_ok(user_id, password).await, "the password is wrong");
-        anyhow::ensure!(self.check_second_factor(user_id, code).await.is_some(), "the code is wrong");
+        anyhow::ensure!(
+            !status.required,
+            "two-factor authentication is required for this account"
+        );
+        anyhow::ensure!(
+            self.password_ok(user_id, password).await,
+            "the password is wrong"
+        );
+        anyhow::ensure!(
+            self.check_second_factor(user_id, code).await.is_some(),
+            "the code is wrong"
+        );
         self.two_factor_reset(user_id).await
     }
 
     /// Ten new recovery codes (the old ones stop working), with a code.
-    pub async fn two_factor_new_codes(&self, user_id: i64, code: &str) -> anyhow::Result<Vec<String>> {
-        anyhow::ensure!(self.check_second_factor(user_id, code).await.is_some(), "the code is wrong");
+    pub async fn two_factor_new_codes(
+        &self,
+        user_id: i64,
+        code: &str,
+    ) -> anyhow::Result<Vec<String>> {
+        anyhow::ensure!(
+            self.check_second_factor(user_id, code).await.is_some(),
+            "the code is wrong"
+        );
         let conn = self.conn.clone();
         task::spawn_blocking(move || -> anyhow::Result<Vec<String>> {
             let c = conn.lock().unwrap();
@@ -498,7 +544,10 @@ impl Identita {
                         totp_last_step = NULL, aggiornato_ms = ?1 WHERE id = ?2",
                 params![ora_ms() as i64, user_id],
             )?;
-            c.execute("DELETE FROM recovery_codes WHERE user_id = ?1", params![user_id])?;
+            c.execute(
+                "DELETE FROM recovery_codes WHERE user_id = ?1",
+                params![user_id],
+            )?;
             Ok(())
         })
         .await?
@@ -508,8 +557,12 @@ impl Identita {
         let conn = self.conn.clone();
         let hash = task::spawn_blocking(move || -> Option<String> {
             let c = conn.lock().unwrap();
-            c.query_row("SELECT hash_password FROM utenti WHERE id = ?1", params![user_id], |r| r.get(0))
-                .ok()
+            c.query_row(
+                "SELECT hash_password FROM utenti WHERE id = ?1",
+                params![user_id],
+                |r| r.get(0),
+            )
+            .ok()
         })
         .await
         .ok()
@@ -581,14 +634,13 @@ impl Identita {
         let conn = self.conn.clone();
         task::spawn_blocking(move || -> anyhow::Result<bool> {
             let c = conn.lock().unwrap();
-            Ok(c
-                .query_row(
-                    "SELECT value FROM platform_settings WHERE key = 'require_2fa'",
-                    [],
-                    |r| r.get::<_, String>(0),
-                )
-                .optional()?
-                .is_some_and(|v| v == "1"))
+            Ok(c.query_row(
+                "SELECT value FROM platform_settings WHERE key = 'require_2fa'",
+                [],
+                |r| r.get::<_, String>(0),
+            )
+            .optional()?
+            .is_some_and(|v| v == "1"))
         })
         .await?
     }
@@ -643,7 +695,11 @@ mod tests {
         assert_eq!(totp_match(s, &code(step), now, None), Some(step));
         assert_eq!(totp_match(s, &code(step - 1), now, None), Some(step - 1));
         assert_eq!(totp_match(s, &code(step + 2), now, None), None);
-        assert_eq!(totp_match(s, &code(step), now, Some(step)), None, "already used");
+        assert_eq!(
+            totp_match(s, &code(step), now, Some(step)),
+            None,
+            "already used"
+        );
         assert_eq!(totp_match(s, "12345", now, None), None);
         assert_eq!(totp_match(s, "abcdef", now, None), None);
     }
@@ -658,7 +714,9 @@ mod tests {
 
     async fn store() -> (Identita, tempfile::TempDir, i64) {
         let dir = tempfile::tempdir().unwrap();
-        let id = Identita::apri(dir.path().join("identita.db")).await.unwrap();
+        let id = Identita::apri(dir.path().join("identita.db"))
+            .await
+            .unwrap();
         let u = id
             .crea_utente("m@x.it", "M", "password-lunga", Ruolo::Sviluppatore, false)
             .await
@@ -676,7 +734,12 @@ mod tests {
     #[tokio::test]
     async fn on_login_code_recovery_off() {
         let (id, _d, uid) = store().await;
-        assert!(id.accedi_per("m@x.it", "password-lunga", None).await.is_ok(), "no 2FA yet");
+        assert!(
+            id.accedi_per("m@x.it", "password-lunga", None)
+                .await
+                .is_ok(),
+            "no 2FA yet"
+        );
         let setup = id.two_factor_start(uid).await.unwrap();
         let first = code_now(&setup.secret);
         if first != "000000" {
@@ -686,7 +749,10 @@ mod tests {
         assert_eq!(codes.len(), RECOVERY_CODES);
         assert!(id.two_factor_start(uid).await.is_err(), "already on");
         let st = id.two_factor_status(uid).await.unwrap();
-        assert_eq!((st.enabled, st.recovery_left, st.required), (true, 10, false));
+        assert_eq!(
+            (st.enabled, st.recovery_left, st.required),
+            (true, 10, false)
+        );
 
         // The password alone gives a challenge, not a session.
         let Err(Rifiuto::SecondFactor { challenge, kind }) =
@@ -697,29 +763,48 @@ mod tests {
         assert_eq!(kind, ChallengeKind::Code);
         // The code confirmed a moment ago is spent: the next one is a recovery code.
         assert!(id.second_factor(&challenge, &first).await.is_err());
-        let (a, recovery) = id.second_factor(&challenge, &codes[0].to_lowercase()).await.unwrap();
+        let (a, recovery) = id
+            .second_factor(&challenge, &codes[0].to_lowercase())
+            .await
+            .unwrap();
         assert!(recovery);
         assert!(id.valida(&a.token).await.is_some());
-        assert!(id.second_factor(&challenge, &codes[1]).await.is_err(), "a challenge works once");
+        assert!(
+            id.second_factor(&challenge, &codes[1]).await.is_err(),
+            "a challenge works once"
+        );
         let Err(Rifiuto::SecondFactor { challenge, .. }) =
             id.accedi_per("m@x.it", "password-lunga", None).await
         else {
             panic!()
         };
-        assert!(id.second_factor(&challenge, &codes[0]).await.is_err(), "a recovery code works once");
+        assert!(
+            id.second_factor(&challenge, &codes[0]).await.is_err(),
+            "a recovery code works once"
+        );
         assert_eq!(id.two_factor_status(uid).await.unwrap().recovery_left, 9);
 
         // Off needs the password and a code.
-        assert!(id.two_factor_disable(uid, "sbagliata", &codes[2]).await.is_err());
-        id.two_factor_disable(uid, "password-lunga", &codes[2]).await.unwrap();
-        assert!(id.accedi_per("m@x.it", "password-lunga", None).await.is_ok());
+        assert!(id
+            .two_factor_disable(uid, "sbagliata", &codes[2])
+            .await
+            .is_err());
+        id.two_factor_disable(uid, "password-lunga", &codes[2])
+            .await
+            .unwrap();
+        assert!(id
+            .accedi_per("m@x.it", "password-lunga", None)
+            .await
+            .is_ok());
     }
 
     #[tokio::test]
     async fn wrong_codes_count_with_wrong_passwords() {
         let (id, _d, uid) = store().await;
         let setup = id.two_factor_start(uid).await.unwrap();
-        id.two_factor_confirm(uid, &code_now(&setup.secret)).await.unwrap();
+        id.two_factor_confirm(uid, &code_now(&setup.secret))
+            .await
+            .unwrap();
         let Err(Rifiuto::SecondFactor { challenge, .. }) =
             id.accedi_per("m@x.it", "password-lunga", None).await
         else {
@@ -741,9 +826,15 @@ mod tests {
         let (id, _d, uid) = store().await;
         let acme = id.crea_azienda("Acme").await.unwrap();
         id.iscrivi(acme.id, uid, Ruolo::Sviluppatore).await.unwrap();
-        let a = id.accedi_per("m@x.it", "password-lunga", None).await.unwrap();
+        let a = id
+            .accedi_per("m@x.it", "password-lunga", None)
+            .await
+            .unwrap();
         id.set_company_require_2fa(acme.id, true).await.unwrap();
-        assert!(id.valida(&a.token).await.is_none(), "the session without 2FA is closed");
+        assert!(
+            id.valida(&a.token).await.is_none(),
+            "the session without 2FA is closed"
+        );
         assert!(id.company_requires_2fa(acme.id).await.unwrap());
         let Err(Rifiuto::SecondFactor { challenge, kind }) =
             id.accedi_per("m@x.it", "password-lunga", None).await
@@ -751,7 +842,10 @@ mod tests {
             panic!()
         };
         assert_eq!(kind, ChallengeKind::Setup);
-        assert!(id.second_factor(&challenge, "123456").await.is_err(), "not a code challenge");
+        assert!(
+            id.second_factor(&challenge, "123456").await.is_err(),
+            "not a code challenge"
+        );
         let setup = id.second_factor_setup(&challenge).await.unwrap();
         let (a, codes) = id
             .second_factor_setup_confirm(&challenge, &code_now(&setup.secret))
@@ -759,25 +853,43 @@ mod tests {
             .unwrap();
         assert!(id.valida(&a.token).await.is_some());
         assert_eq!(codes.len(), RECOVERY_CODES);
-        assert!(id.two_factor_disable(uid, "password-lunga", &codes[0]).await.is_err());
+        assert!(id
+            .two_factor_disable(uid, "password-lunga", &codes[0])
+            .await
+            .is_err());
         // An administrator resets it (a phone lost): the next login sets it up again.
         id.two_factor_reset(uid).await.unwrap();
         assert!(matches!(
             id.accedi_per("m@x.it", "password-lunga", None).await,
-            Err(Rifiuto::SecondFactor { kind: ChallengeKind::Setup, .. })
+            Err(Rifiuto::SecondFactor {
+                kind: ChallengeKind::Setup,
+                ..
+            })
         ));
         // The platform's switch, for everyone.
         id.set_company_require_2fa(acme.id, false).await.unwrap();
-        assert!(id.accedi_per("m@x.it", "password-lunga", None).await.is_ok());
+        assert!(id
+            .accedi_per("m@x.it", "password-lunga", None)
+            .await
+            .is_ok());
         id.set_platform_require_2fa(true).await.unwrap();
         assert!(id.platform_requires_2fa().await.unwrap());
-        assert!(id.accedi_per("m@x.it", "password-lunga", None).await.is_err());
+        assert!(id
+            .accedi_per("m@x.it", "password-lunga", None)
+            .await
+            .is_err());
     }
 
     #[test]
     fn recovery_codes_read_as_typed() {
-        assert_eq!(recovery_fingerprint("ABCD-EF01"), recovery_fingerprint("abcdef0l"));
-        assert_eq!(recovery_fingerprint("O0O0-1111"), recovery_fingerprint("0000 IIII"));
+        assert_eq!(
+            recovery_fingerprint("ABCD-EF01"),
+            recovery_fingerprint("abcdef0l")
+        );
+        assert_eq!(
+            recovery_fingerprint("O0O0-1111"),
+            recovery_fingerprint("0000 IIII")
+        );
         let c = new_recovery_code();
         assert_eq!(c.len(), 9);
         assert_eq!(&c[4..5], "-");

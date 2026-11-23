@@ -258,12 +258,18 @@ mod tests {
         std::fs::write(&first, b"cached").unwrap();
         assert_eq!(sized(&cache, &src, 60, 40, Fit::Cover).unwrap(), b"cached");
         // Another size, another variant.
-        assert_ne!(variant_path(&cache, &src, 61, 40, Fit::Cover).unwrap(), first);
+        assert_ne!(
+            variant_path(&cache, &src, 61, 40, Fit::Cover).unwrap(),
+            first
+        );
         // A replaced original (another length): another variant.
         image::RgbImage::from_pixel(10, 10, image::Rgb([0, 255, 0]))
             .save(&src)
             .unwrap();
-        assert_ne!(variant_path(&cache, &src, 60, 40, Fit::Cover).unwrap(), first);
+        assert_ne!(
+            variant_path(&cache, &src, 60, 40, Fit::Cover).unwrap(),
+            first
+        );
     }
 
     #[test]
@@ -329,7 +335,9 @@ mod tests {
         );
         // A JPEG stays a JPEG.
         let jpg = d.path().join("photo.jpg");
-        image::RgbImage::from_pixel(300, 150, image::Rgb([10, 20, 30])).save(&jpg).unwrap();
+        image::RgbImage::from_pixel(300, 150, image::Rgb([10, 20, 30]))
+            .save(&jpg)
+            .unwrap();
         let out = sized(&cache, &jpg, 60, 60, Fit::Contain).unwrap();
         assert_eq!(image::guess_format(&out).unwrap(), image::ImageFormat::Jpeg);
         assert_eq!(image::load_from_memory(&out).unwrap().height(), 30);

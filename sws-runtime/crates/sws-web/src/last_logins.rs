@@ -73,10 +73,18 @@ mod tests {
     #[test]
     fn the_previous_login_comes_back_and_the_new_one_is_kept() {
         let d = tempfile::tempdir().unwrap();
-        assert_eq!(record(d.path(), "mario", 1_000), None, "first login: nothing before");
+        assert_eq!(
+            record(d.path(), "mario", 1_000),
+            None,
+            "first login: nothing before"
+        );
         assert_eq!(record(d.path(), "mario", 2_000), Some(1_000));
         assert_eq!(record(d.path(), "anna", 2_500), None, "one line per user");
         assert_eq!(record(d.path(), "mario", 3_000), Some(2_000));
-        assert_eq!(record(d.path(), "", 4_000), None, "anonymous: nothing recorded");
+        assert_eq!(
+            record(d.path(), "", 4_000),
+            None,
+            "anonymous: nothing recorded"
+        );
     }
 }

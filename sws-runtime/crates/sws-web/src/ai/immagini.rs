@@ -225,7 +225,8 @@ pub async fn genera(
 /// The object fills the frame edge to edge (22-11-2026: photos came back with
 /// air above and below, and the symbol showed empty bands); the background left
 /// around it is trimmed anyway when the photo is saved (`trim_border`).
-const DA_SIMBOLO: &str = " A photograph of one single industrial object, to be used as a symbol on a \
+const DA_SIMBOLO: &str =
+    " A photograph of one single industrial object, to be used as a symbol on a \
     supervision screen: the whole object, centred, nothing cut off, filling the frame edge to edge \
     with only a hair of margin, seen from the front, even soft light, no shadow on the ground. No \
     text, no labels, no logos, no people, no watermark.";
@@ -524,7 +525,9 @@ mod tests {
             "OpenAI ha rifiutato (400): Transparent background is not supported for this model.";
         assert!(refuses_transparency(refused));
         assert!(!refuses_size(refused), "not mistaken for a refused size");
-        assert!(!refuses_transparency("OpenAI ha rifiutato (400): Invalid size"));
+        assert!(!refuses_transparency(
+            "OpenAI ha rifiutato (400): Invalid size"
+        ));
     }
 
     #[test]

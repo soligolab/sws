@@ -307,7 +307,13 @@ mod tests {
             let b = bubble(c.i, c.n, x, y, w, h);
             let got = [b.cx, b.cy0, b.r, b.travel];
             for (g, e) in got.iter().zip(c.expected) {
-                assert!((g - e).abs() < 1e-6, "bubble {} of {}: {got:?} vs {:?}", c.i, c.n, c.expected);
+                assert!(
+                    (g - e).abs() < 1e-6,
+                    "bubble {} of {}: {got:?} vs {:?}",
+                    c.i,
+                    c.n,
+                    c.expected
+                );
             }
         }
         for (p, want) in fixture().bubble_opacity {
@@ -322,14 +328,22 @@ mod tests {
             let p = puff(c.i, x, y, w, h);
             let got = [p.cx0, p.cx1, p.cy0, p.cy1, p.r0, p.r1];
             for (g, e) in got.iter().zip(c.expected) {
-                assert!((g - e).abs() < 1e-6, "puff {}: {got:?} vs {:?}", c.i, c.expected);
+                assert!(
+                    (g - e).abs() < 1e-6,
+                    "puff {}: {got:?} vs {:?}",
+                    c.i,
+                    c.expected
+                );
             }
         }
         let p: ParteLib = serde_json::from_value(serde_json::json!({
             "kind": "smoke", "id": "s", "x": 40, "y": 0, "w": 20, "h": 50
         }))
         .unwrap();
-        assert_eq!(fx_elements(&p, 0.3).unwrap().matches("<circle").count(), SMOKE_PUFFS);
+        assert_eq!(
+            fx_elements(&p, 0.3).unwrap().matches("<circle").count(),
+            SMOKE_PUFFS
+        );
         assert_eq!(fx_box(&p), Some((34.0, -5.0, 32.0, 55.00000000000001)));
     }
 
@@ -338,7 +352,10 @@ mod tests {
         let f = fixture();
         for (t, sx, sy) in f.flame_scale {
             let (gx, gy) = flame_scale(t);
-            assert!((gx - sx).abs() < 1e-9 && (gy - sy).abs() < 1e-9, "{t}: {gx} {gy}");
+            assert!(
+                (gx - sx).abs() < 1e-9 && (gy - sy).abs() < 1e-9,
+                "{t}: {gx} {gy}"
+            );
         }
         for c in f.flame_path {
             assert_eq!(flame_path(c.a, c.hh), c.d);

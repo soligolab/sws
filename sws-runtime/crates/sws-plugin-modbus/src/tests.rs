@@ -1169,20 +1169,51 @@ async fn a_lost_reply_within_the_tolerance_keeps_the_last_value() {
     let mut tol = Tolerance::new(2);
     let mut giro = async |dev: &mut Finto, tol: &mut Tolerance| {
         let m = prepara(&db, &regs).await;
-        leggi_giro(dev, &db, &m, OrdineModbus::Abcd, T, &mut Errori::default(), "prova", &[], 0, tol)
-            .await
-            .unwrap();
+        leggi_giro(
+            dev,
+            &db,
+            &m,
+            OrdineModbus::Abcd,
+            T,
+            &mut Errori::default(),
+            "prova",
+            &[],
+            0,
+            tol,
+        )
+        .await
+        .unwrap();
         val(&db, "a").await
     };
-    assert_eq!(giro(&mut dev, &mut tol).await, (TagValue::Int(7), TagQuality::Good));
+    assert_eq!(
+        giro(&mut dev, &mut tol).await,
+        (TagValue::Int(7), TagQuality::Good)
+    );
     dev.mute.insert(0);
-    assert_eq!(giro(&mut dev, &mut tol).await, (TagValue::Int(7), TagQuality::Uncertain));
-    assert_eq!(giro(&mut dev, &mut tol).await, (TagValue::Int(7), TagQuality::Uncertain));
-    assert_eq!(giro(&mut dev, &mut tol).await.1, TagQuality::Bad, "past the tolerance");
+    assert_eq!(
+        giro(&mut dev, &mut tol).await,
+        (TagValue::Int(7), TagQuality::Uncertain)
+    );
+    assert_eq!(
+        giro(&mut dev, &mut tol).await,
+        (TagValue::Int(7), TagQuality::Uncertain)
+    );
+    assert_eq!(
+        giro(&mut dev, &mut tol).await.1,
+        TagQuality::Bad,
+        "past the tolerance"
+    );
     dev.mute.clear();
-    assert_eq!(giro(&mut dev, &mut tol).await, (TagValue::Int(7), TagQuality::Good));
+    assert_eq!(
+        giro(&mut dev, &mut tol).await,
+        (TagValue::Int(7), TagQuality::Good)
+    );
     dev.mute.insert(0);
-    assert_eq!(giro(&mut dev, &mut tol).await.1, TagQuality::Uncertain, "the count starts again");
+    assert_eq!(
+        giro(&mut dev, &mut tol).await.1,
+        TagQuality::Uncertain,
+        "the count starts again"
+    );
 }
 
 /// Zero tolerance is the behaviour before the field: one lost reply, `Bad`.
@@ -1194,13 +1225,35 @@ async fn without_tolerance_a_lost_reply_is_bad_at_once() {
     dev.registri.insert(0, 7);
     let mut tol = Tolerance::default();
     let m = prepara(&db, &regs).await;
-    leggi_giro(&mut dev, &db, &m, OrdineModbus::Abcd, T, &mut Errori::default(), "prova", &[], 0, &mut tol)
-        .await
-        .unwrap();
+    leggi_giro(
+        &mut dev,
+        &db,
+        &m,
+        OrdineModbus::Abcd,
+        T,
+        &mut Errori::default(),
+        "prova",
+        &[],
+        0,
+        &mut tol,
+    )
+    .await
+    .unwrap();
     dev.mute.insert(0);
-    leggi_giro(&mut dev, &db, &m, OrdineModbus::Abcd, T, &mut Errori::default(), "prova", &[], 0, &mut tol)
-        .await
-        .unwrap();
+    leggi_giro(
+        &mut dev,
+        &db,
+        &m,
+        OrdineModbus::Abcd,
+        T,
+        &mut Errori::default(),
+        "prova",
+        &[],
+        0,
+        &mut tol,
+    )
+    .await
+    .unwrap();
     assert_eq!(val(&db, "a").await.1, TagQuality::Bad);
 }
 
@@ -1213,14 +1266,32 @@ async fn a_dropped_session_is_one_round_of_the_tolerance() {
     let regs = vec![mappa("a", 0, AreaModbus::Holding)];
     let mut dev = Finto::default();
     dev.registri.insert(0, 7);
-    let mut u = vec![Unita { tolerance: Tolerance::new(2), ..Unita::da(&disp(1, regs.clone()), 1000) }];
+    let mut u = vec![Unita {
+        tolerance: Tolerance::new(2),
+        ..Unita::da(&disp(1, regs.clone()), 1000)
+    }];
     let m = prepara(&db, &regs).await;
-    leggi_giro(&mut dev, &db, &m, OrdineModbus::Abcd, T, &mut Errori::default(), "prova", &[], 0, &mut u[0].tolerance)
-        .await
-        .unwrap();
+    leggi_giro(
+        &mut dev,
+        &db,
+        &m,
+        OrdineModbus::Abcd,
+        T,
+        &mut Errori::default(),
+        "prova",
+        &[],
+        0,
+        &mut u[0].tolerance,
+    )
+    .await
+    .unwrap();
     assert_eq!(val(&db, "a").await, (TagValue::Int(7), TagQuality::Good));
     caduta_con_tolleranza(&db, &mut u).await;
-    assert_eq!(val(&db, "a").await, (TagValue::Int(7), TagQuality::Uncertain), "one drop: uncertain");
+    assert_eq!(
+        val(&db, "a").await,
+        (TagValue::Int(7), TagQuality::Uncertain),
+        "one drop: uncertain"
+    );
     caduta_con_tolleranza(&db, &mut u).await;
     caduta_con_tolleranza(&db, &mut u).await;
     assert_eq!(val(&db, "a").await.1, TagQuality::Bad, "past the tolerance");
@@ -1228,11 +1299,26 @@ async fn a_dropped_session_is_one_round_of_the_tolerance() {
     let mut senza = vec![Unita::da(&disp(1, regs.clone()), 1000)];
     let db2 = db_con(&[tag("a", "u16")], &[]).await;
     let m2 = prepara(&db2, &regs).await;
-    leggi_giro(&mut dev, &db2, &m2, OrdineModbus::Abcd, T, &mut Errori::default(), "prova", &[], 0, &mut senza[0].tolerance)
-        .await
-        .unwrap();
+    leggi_giro(
+        &mut dev,
+        &db2,
+        &m2,
+        OrdineModbus::Abcd,
+        T,
+        &mut Errori::default(),
+        "prova",
+        &[],
+        0,
+        &mut senza[0].tolerance,
+    )
+    .await
+    .unwrap();
     caduta_con_tolleranza(&db2, &mut senza).await;
-    assert_eq!(val(&db2, "a").await.1, TagQuality::Bad, "zero tolerance: Bad at once, as before");
+    assert_eq!(
+        val(&db2, "a").await.1,
+        TagQuality::Bad,
+        "zero tolerance: Bad at once, as before"
+    );
 }
 
 /// The recovery line says how long an error answer lasted, not «0 s»

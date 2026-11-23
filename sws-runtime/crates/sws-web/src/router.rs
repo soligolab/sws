@@ -1391,7 +1391,10 @@ pub fn build(
         .route("/api/identita/mie-aziende", get(mie_aziende))
         // The account's own two-factor authentication.
         .route("/api/identity/2fa", get(crate::two_factor_routes::status))
-        .route("/api/identity/2fa/start", post(crate::two_factor_routes::start))
+        .route(
+            "/api/identity/2fa/start",
+            post(crate::two_factor_routes::start),
+        )
         .route(
             "/api/identity/2fa/confirm",
             post(crate::two_factor_routes::confirm),
@@ -3519,7 +3522,9 @@ async fn with_previous_login(s: &AppState, mut ok: sws_auth::LoginOk) -> sws_aut
     .ok()
     .flatten();
     s.auth.set_previous_login(&ok.token, previous).await;
-    s.auth_dispositivo.set_previous_login(&ok.token, previous).await;
+    s.auth_dispositivo
+        .set_previous_login(&ok.token, previous)
+        .await;
     ok.previous_login_ms = previous;
     ok
 }
@@ -5020,7 +5025,10 @@ async fn aggiornamento_avvia(
 ) -> Response {
     use crate::aggiornamento::Canale;
     let st = crate::aggiornamento::stato().await;
-    if !matches!(st.canale, Canale::Stabile | Canale::Prova | Canale::Sviluppo) {
+    if !matches!(
+        st.canale,
+        Canale::Stabile | Canale::Prova | Canale::Sviluppo
+    ) {
         return (
             StatusCode::CONFLICT,
             "Questo runtime non segue un canale del registry (installato da archivio, o con una \
@@ -7063,7 +7071,11 @@ async fn update_project_functions(
                     .into_response();
             }
             if let Some(why) = param_name_shadows(&p.name) {
-                let code = if p.name.starts_with('_') { "function_param_underscore" } else { "function_param_reserved" };
+                let code = if p.name.starts_with('_') {
+                    "function_param_underscore"
+                } else {
+                    "function_param_reserved"
+                };
                 return (
                     StatusCode::UNPROCESSABLE_ENTITY,
                     Json(serde_json::json!({
@@ -8139,7 +8151,11 @@ async fn run_function(
     {
         Some(t) => match s.auth.session_profile(t).await {
             Some((n, _)) => n,
-            None => s.auth_dispositivo.session_profile(t).await.and_then(|(n, _)| n),
+            None => s
+                .auth_dispositivo
+                .session_profile(t)
+                .await
+                .and_then(|(n, _)| n),
         },
         None => None,
     };
@@ -8263,7 +8279,15 @@ mod tests_param_names {
 
     #[test]
     fn a_param_cannot_cover_a_guard_or_a_provided_name() {
-        for bad in ["_print_", "__builtins__", "_x", "state", "tags", "print", "functions"] {
+        for bad in [
+            "_print_",
+            "__builtins__",
+            "_x",
+            "state",
+            "tags",
+            "print",
+            "functions",
+        ] {
             assert!(param_name_shadows(bad).is_some(), "{bad}");
         }
         for good in ["chi", "valore", "x_1", "states", "tag"] {
@@ -12514,7 +12538,10 @@ async fn guard_project_lock(State(s): State<AppState>, req: Request, next: Next)
             .and_then(|v| v.to_str().ok())
             .map(str::to_string);
         if let (Some(tab), Some(key)) = (tab, lock_key(&s).await) {
-            if !s.project_lock.may_write(&key, &tab, std::time::Instant::now()) {
+            if !s
+                .project_lock
+                .may_write(&key, &tab, std::time::Instant::now())
+            {
                 let mut r = (
                     StatusCode::LOCKED,
                     "the project is being edited in another IDE tab: this one is read-only",
@@ -15854,7 +15881,12 @@ mod prove_finestre_staccate {
         let _ = std::fs::remove_dir_all(&dir);
         let www = dir.join("www");
         std::fs::create_dir_all(&www).unwrap();
-        for f in ["index-admin.html", "index-chat.html", "index-log.html", "index-symbols.html"] {
+        for f in [
+            "index-admin.html",
+            "index-chat.html",
+            "index-log.html",
+            "index-symbols.html",
+        ] {
             std::fs::write(www.join(f), f).unwrap();
         }
         // La regia non tocca podman finché nessuno apre un progetto.
@@ -15968,12 +16000,19 @@ mod prove_run_function {
             id: name.into(),
             name: name.into(),
             description: None,
-            code: "print(user.username if user else 'nessuno', user.role if user else '-')\n".into(),
+            code: "print(user.username if user else 'nessuno', user.role if user else '-')\n"
+                .into(),
             params: vec![],
             min_role: role.map(str::to_string),
         };
-        s.functions.write().await.insert("chiudi".into(), def("chiudi", Some("Viewer")));
-        s.functions.write().await.insert("reset".into(), def("reset", None));
+        s.functions
+            .write()
+            .await
+            .insert("chiudi".into(), def("chiudi", Some("Viewer")));
+        s.functions
+            .write()
+            .await
+            .insert("reset".into(), def("reset", None));
         let chi = |name: &str, role: Role| AuthUser {
             username: name.into(),
             role,
@@ -15985,20 +16024,30 @@ mod prove_run_function {
             let s = s.clone();
             let f = f.to_string();
             async move {
-                let body: RunBody = serde_json::from_value(serde_json::json!({ "args": args })).unwrap();
-                run_function(State(s), Extension(u), Path(f), axum::http::HeaderMap::new(), Some(Json(body))).await
+                let body: RunBody =
+                    serde_json::from_value(serde_json::json!({ "args": args })).unwrap();
+                run_function(
+                    State(s),
+                    Extension(u),
+                    Path(f),
+                    axum::http::HeaderMap::new(),
+                    Some(Json(body)),
+                )
+                .await
             }
         };
         // Nobody signed in, a function open to Viewers: it runs, `user` is None.
         let r = run(chi("", Role::Viewer), "chiudi", serde_json::json!({})).await;
         let v: serde_json::Value =
-            serde_json::from_slice(&axum::body::to_bytes(r.into_body(), 1 << 16).await.unwrap()).unwrap();
+            serde_json::from_slice(&axum::body::to_bytes(r.into_body(), 1 << 16).await.unwrap())
+                .unwrap();
         assert_eq!(v["stdout"], "nessuno -\n", "{v}");
         // The default threshold stays Operator: 403 with a code the IDE translates.
         let r = run(chi("", Role::Viewer), "reset", serde_json::json!({})).await;
         assert_eq!(r.status(), StatusCode::FORBIDDEN);
         let v: serde_json::Value =
-            serde_json::from_slice(&axum::body::to_bytes(r.into_body(), 1 << 16).await.unwrap()).unwrap();
+            serde_json::from_slice(&axum::body::to_bytes(r.into_body(), 1 << 16).await.unwrap())
+                .unwrap();
         assert_eq!(v["code"], "function_role");
         assert_eq!(v["role"], "Operator");
         // An operator runs it, and the function knows who; a forged caller is dropped.
@@ -16009,7 +16058,8 @@ mod prove_run_function {
         )
         .await;
         let v: serde_json::Value =
-            serde_json::from_slice(&axum::body::to_bytes(r.into_body(), 1 << 16).await.unwrap()).unwrap();
+            serde_json::from_slice(&axum::body::to_bytes(r.into_body(), 1 << 16).await.unwrap())
+                .unwrap();
         assert_eq!(v["stdout"], "mario Operator\n", "{v}");
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -16343,7 +16393,8 @@ mod project_lock_on_the_router {
 
         let r = claim("tab-a", false).await.unwrap();
         let st = r.status();
-        let a: serde_json::Value = serde_json::from_str(&r.text().await.unwrap()).unwrap_or_else(|e| panic!("{st}: {e}"));
+        let a: serde_json::Value =
+            serde_json::from_str(&r.text().await.unwrap()).unwrap_or_else(|e| panic!("{st}: {e}"));
         assert_eq!(a["held"], true, "{st}: {a}");
         let b: serde_json::Value = claim("tab-b", false).await.unwrap().json().await.unwrap();
         assert_eq!(b["held"], false);
@@ -16353,12 +16404,21 @@ mod project_lock_on_the_router {
         assert_eq!(refused.status(), StatusCode::LOCKED);
         assert_eq!(refused.headers()["x-sws-conflitto"], "lock");
         assert!(save(Some("tab-a")).await.unwrap().status().is_success());
-        assert!(save(None).await.unwrap().status().is_success(), "no tab header: as before");
+        assert!(
+            save(None).await.unwrap().status().is_success(),
+            "no tab header: as before"
+        );
 
         let taken: serde_json::Value = claim("tab-b", true).await.unwrap().json().await.unwrap();
         assert_eq!(taken["held"], true);
-        assert_eq!(save(Some("tab-a")).await.unwrap().status(), StatusCode::LOCKED);
+        assert_eq!(
+            save(Some("tab-a")).await.unwrap().status(),
+            StatusCode::LOCKED
+        );
         let a: serde_json::Value = claim("tab-a", false).await.unwrap().json().await.unwrap();
-        assert_eq!(a["held"], false, "the old holder learns it at its heartbeat");
+        assert_eq!(
+            a["held"], false,
+            "the old holder learns it at its heartbeat"
+        );
     }
 }

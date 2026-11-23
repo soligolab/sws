@@ -28,7 +28,12 @@ fn store(s: &AppState) -> Result<&Identita, Response> {
 }
 
 /// What the login answers when the second factor is next.
-pub(crate) fn challenge_response(s: &AppState, email: &str, challenge: &str, kind: ChallengeKind) -> Response {
+pub(crate) fn challenge_response(
+    s: &AppState,
+    email: &str,
+    challenge: &str,
+    kind: ChallengeKind,
+) -> Response {
     s.audit.log(
         "auth.second_factor_asked",
         Some(email.to_string()),
@@ -41,7 +46,10 @@ fn refused(r: Rifiuto) -> Response {
     match r {
         Rifiuto::Bloccato { riprova_fra } => (
             StatusCode::TOO_MANY_REQUESTS,
-            [(axum::http::header::RETRY_AFTER, riprova_fra.as_secs().to_string())],
+            [(
+                axum::http::header::RETRY_AFTER,
+                riprova_fra.as_secs().to_string(),
+            )],
         )
             .into_response(),
         _ => StatusCode::UNAUTHORIZED.into_response(),
@@ -68,9 +76,19 @@ pub async fn second_factor(State(s): State<AppState>, Json(b): Json<CodeBody>) -
     match id.second_factor(&b.challenge, &b.code).await {
         Ok((a, recovery)) => {
             if recovery {
-                s.audit.log("auth.recovery_code_used", Some(a.utente.email.clone()), json!({}));
+                s.audit.log(
+                    "auth.recovery_code_used",
+                    Some(a.utente.email.clone()),
+                    json!({}),
+                );
             }
-            crate::router::entra(&s, a, if recovery { "recovery_code" } else { "totp" }, b.riautentica).await
+            crate::router::entra(
+                &s,
+                a,
+                if recovery { "recovery_code" } else { "totp" },
+                b.riautentica,
+            )
+            .await
         }
         Err(r) => {
             s.audit.log("auth.second_factor_failed", None, json!({}));
@@ -101,11 +119,23 @@ pub async fn setup_confirm(State(s): State<AppState>, Json(b): Json<CodeBody>) -
     };
     match id.second_factor_setup_confirm(&b.challenge, &b.code).await {
         Ok((a, codes)) => {
-            s.audit.log("auth.2fa_on", Some(a.utente.email.clone()), json!({ "at_login": true }));
-            crate::router::entra_with(&s, a, "totp", b.riautentica, Some(json!({ "recovery_codes": codes }))).await
+            s.audit.log(
+                "auth.2fa_on",
+                Some(a.utente.email.clone()),
+                json!({ "at_login": true }),
+            );
+            crate::router::entra_with(
+                &s,
+                a,
+                "totp",
+                b.riautentica,
+                Some(json!({ "recovery_codes": codes })),
+            )
+            .await
         }
         Err(r) => {
-            s.audit.log("auth.second_factor_failed", None, json!({ "setup": true }));
+            s.audit
+                .log("auth.second_factor_failed", None, json!({ "setup": true }));
             refused(r)
         }
     }
@@ -124,7 +154,11 @@ async fn me(s: &AppState, user: &AuthUser) -> Result<(Identita, i64), Response> 
 }
 
 fn bad(e: anyhow::Error) -> Response {
-    (StatusCode::UNPROCESSABLE_ENTITY, Json(json!({ "error": e.to_string() }))).into_response()
+    (
+        StatusCode::UNPROCESSABLE_ENTITY,
+        Json(json!({ "error": e.to_string() })),
+    )
+        .into_response()
 }
 
 /// `GET /api/identity/2fa`
@@ -158,11 +192,16 @@ pub struct OwnBody {
 }
 
 /// `POST /api/identity/2fa/confirm` — the first code: on, and the recovery codes.
-pub async fn confirm(State(s): State<AppState>, Extension(user): Extension<AuthUser>, Json(b): Json<OwnBody>) -> Response {
+pub async fn confirm(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Json(b): Json<OwnBody>,
+) -> Response {
     match me(&s, &user).await {
         Ok((id, uid)) => match id.two_factor_confirm(uid, &b.code).await {
             Ok(codes) => {
-                s.audit.log("auth.2fa_on", Some(user.username.clone()), json!({}));
+                s.audit
+                    .log("auth.2fa_on", Some(user.username.clone()), json!({}));
                 Json(json!({ "recovery_codes": codes })).into_response()
             }
             Err(e) => bad(e),
@@ -172,11 +211,16 @@ pub async fn confirm(State(s): State<AppState>, Extension(user): Extension<AuthU
 }
 
 /// `POST /api/identity/2fa/disable` — password and a code.
-pub async fn disable(State(s): State<AppState>, Extension(user): Extension<AuthUser>, Json(b): Json<OwnBody>) -> Response {
+pub async fn disable(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Json(b): Json<OwnBody>,
+) -> Response {
     match me(&s, &user).await {
         Ok((id, uid)) => match id.two_factor_disable(uid, &b.password, &b.code).await {
             Ok(()) => {
-                s.audit.log("auth.2fa_off", Some(user.username.clone()), json!({}));
+                s.audit
+                    .log("auth.2fa_off", Some(user.username.clone()), json!({}));
                 StatusCode::NO_CONTENT.into_response()
             }
             Err(e) => bad(e),
@@ -186,11 +230,16 @@ pub async fn disable(State(s): State<AppState>, Extension(user): Extension<AuthU
 }
 
 /// `POST /api/identity/2fa/recovery-codes` — ten new ones, with a code.
-pub async fn new_codes(State(s): State<AppState>, Extension(user): Extension<AuthUser>, Json(b): Json<OwnBody>) -> Response {
+pub async fn new_codes(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Json(b): Json<OwnBody>,
+) -> Response {
     match me(&s, &user).await {
         Ok((id, uid)) => match id.two_factor_new_codes(uid, &b.code).await {
             Ok(codes) => {
-                s.audit.log("auth.2fa_new_codes", Some(user.username.clone()), json!({}));
+                s.audit
+                    .log("auth.2fa_new_codes", Some(user.username.clone()), json!({}));
                 Json(json!({ "recovery_codes": codes })).into_response()
             }
             Err(e) => bad(e),
@@ -334,13 +383,23 @@ mod tests {
     async fn required_2fa_is_set_up_at_login() {
         let dir = tempfile::tempdir().unwrap();
         let mut s = crate::router::stato_di_prova(dir.path()).await;
-        let id = Identita::apri(dir.path().join("identita.db")).await.unwrap();
+        let id = Identita::apri(dir.path().join("identita.db"))
+            .await
+            .unwrap();
         let u = id
-            .crea_utente("m@x.it", "M", "password-lunga", sws_identita::Ruolo::Sviluppatore, false)
+            .crea_utente(
+                "m@x.it",
+                "M",
+                "password-lunga",
+                sws_identita::Ruolo::Sviluppatore,
+                false,
+            )
             .await
             .unwrap();
         let acme = id.crea_azienda("Acme").await.unwrap();
-        id.iscrivi(acme.id, u.id, sws_identita::Ruolo::Sviluppatore).await.unwrap();
+        id.iscrivi(acme.id, u.id, sws_identita::Ruolo::Sviluppatore)
+            .await
+            .unwrap();
         id.set_company_require_2fa(acme.id, true).await.unwrap();
         s.identita = Some(id.clone());
 
@@ -350,16 +409,33 @@ mod tests {
             panic!("a challenge")
         };
         let (st, v) = body(challenge_response(&s, "m@x.it", &challenge, kind)).await;
-        assert_eq!((st, v["second_factor"].as_str()), (StatusCode::OK, Some("setup")));
+        assert_eq!(
+            (st, v["second_factor"].as_str()),
+            (StatusCode::OK, Some("setup"))
+        );
         assert!(v.get("token").is_none(), "no session yet");
 
-        let cb = |code: &str| CodeBody { challenge: challenge.clone(), code: code.into(), riautentica: false };
+        let cb = |code: &str| CodeBody {
+            challenge: challenge.clone(),
+            code: code.into(),
+            riautentica: false,
+        };
         let (st, v) = body(setup(State(s.clone()), Json(cb(""))).await).await;
         assert_eq!(st, StatusCode::OK);
-        let secret = sws_identita::two_factor::base32_decode(v["secret"].as_str().unwrap()).unwrap();
-        assert!(v["uri"].as_str().unwrap().starts_with("otpauth://totp/SWS:"));
-        let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
-        let code = format!("{:06}", sws_identita::two_factor::totp_code(&secret, now / 30));
+        let secret =
+            sws_identita::two_factor::base32_decode(v["secret"].as_str().unwrap()).unwrap();
+        assert!(v["uri"]
+            .as_str()
+            .unwrap()
+            .starts_with("otpauth://totp/SWS:"));
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let code = format!(
+            "{:06}",
+            sws_identita::two_factor::totp_code(&secret, now / 30)
+        );
         let (st, v) = body(setup_confirm(State(s.clone()), Json(cb(&code))).await).await;
         assert_eq!(st, StatusCode::OK, "{v}");
         assert!(v["token"].is_string());

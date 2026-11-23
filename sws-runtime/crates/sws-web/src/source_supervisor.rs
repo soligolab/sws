@@ -146,7 +146,9 @@ impl SourceSupervisor {
                 scritti.remove(&tag);
             }
             let spente = self.disabled.lock().map(|g| g.clone()).unwrap_or_default();
-            for (tag, vivo) in disponibilita_da_scrivere(&self.stato.istantanea(), &spente, &mut scritti) {
+            for (tag, vivo) in
+                disponibilita_da_scrivere(&self.stato.istantanea(), &spente, &mut scritti)
+            {
                 self.db
                     .set(
                         tag,
