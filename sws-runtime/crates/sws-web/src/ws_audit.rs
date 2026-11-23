@@ -247,8 +247,14 @@ mod tests {
         settle().await;
         tokio::time::sleep(Duration::from_secs(3)).await;
         let rows = rows.lock().unwrap();
-        let single = rows.iter().filter(|r| r.2.get("summarized").is_none()).count();
-        let summary: Vec<_> = rows.iter().filter(|r| r.2.get("summarized").is_some()).collect();
+        let single = rows
+            .iter()
+            .filter(|r| r.2.get("summarized").is_none())
+            .count();
+        let summary: Vec<_> = rows
+            .iter()
+            .filter(|r| r.2.get("summarized").is_some())
+            .collect();
         assert_eq!(single, ROWS_PER_SECOND as usize);
         assert_eq!(summary.len(), 1);
         assert_eq!(summary[0].2["summarized"], 100 - ROWS_PER_SECOND as u64);
