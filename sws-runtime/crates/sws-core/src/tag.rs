@@ -393,20 +393,59 @@ impl TagDb {
     /// dell'utente: la regola giusta è quella del campo, che arrotonda invece
     /// di rifiutare. Un tag senza tipo dichiarato passa com'era.
     pub async fn set_tipizzato(&self, id: TagId, scaled: TagValue, quality: TagQuality) {
+        if let Some((v, q)) = self.converti_tipizzato(&id, scaled, quality).await {
+            self.set(id, v, q).await;
+        }
+    }
+
+    /// [`set_tipizzato`](Self::set_tipizzato), but nothing is written — and
+    /// nothing is broadcast — when the tag already holds that value with that
+    /// quality (and has been received). For the full rounds of the
+    /// derived-tag evaluator: a full round rewrote every derived tag, past the
+    /// channel's capacity the evaluator lagged, and a lag asks for another
+    /// full round — a loop that never stopped (review of the rc.30,
+    /// 23-11-2026). The comparison is on the converted value, so an `i32`
+    /// fed 29.8 settles too. Returns whether it wrote.
+    pub async fn set_tipizzato_if_changed(
+        &self,
+        id: TagId,
+        scaled: TagValue,
+        quality: TagQuality,
+    ) -> bool {
+        let Some((v, q)) = self.converti_tipizzato(&id, scaled, quality).await else {
+            return false;
+        };
+        if let Some(cur) = self.get(&id).await {
+            if cur.timestamp_ms != 0 && cur.quality == q && cur.value == v {
+                return false;
+            }
+        }
+        self.set(id, v, q).await;
+        true
+    }
+
+    /// The value of `set_tipizzato` after the declared type, with its
+    /// quality; `None` when the type refuses it (then the tag keeps its last
+    /// value, marked Bad, as before).
+    async fn converti_tipizzato(
+        &self,
+        id: &str,
+        scaled: TagValue,
+        quality: TagQuality,
+    ) -> Option<(TagValue, TagQuality)> {
         let tipo = self
             .data_types
             .read()
             .await
-            .get(&id)
+            .get(id)
             .and_then(|n| crate::tipo::TipoScalare::parse(n).map(|t| (n.clone(), t)));
         let Some((nome, tipo)) = tipo else {
-            self.set(id, scaled, quality).await;
-            return;
+            return Some((scaled, quality));
         };
         match tipo.converti_lettura(scaled.clone()) {
-            crate::tipo::Lettura::Ok(v) => self.set(id, v, quality).await,
+            crate::tipo::Lettura::Ok(v) => Some((v, quality)),
             crate::tipo::Lettura::Saturato(v) => {
-                self.segnala_conversione(&id, || {
+                self.segnala_conversione(id, || {
                     format!(
                         "il tag «{id}» è dichiarato {nome}: {} saturato a {}",
                         crate::tipo::descrivi(&scaled),
@@ -418,13 +457,14 @@ impl TagDb {
                 } else {
                     TagQuality::Uncertain
                 };
-                self.set(id, v, q).await;
+                Some((v, q))
             }
             crate::tipo::Lettura::Rifiutato(ricevuto) => {
-                self.segnala_conversione(&id, || {
+                self.segnala_conversione(id, || {
                     format!("il tag «{id}» è dichiarato {nome}, dal protocollo arriva {ricevuto}: resta l'ultimo valore, marcato Bad")
                 });
-                self.marca_qualita(&id, TagQuality::Bad).await;
+                self.marca_qualita(id, TagQuality::Bad).await;
+                None
             }
         }
     }

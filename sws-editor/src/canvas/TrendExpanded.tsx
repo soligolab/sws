@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { TrendCanvas, resolveSeriesColor, type TrendDateTimeConfig } from "./TrendCanvas";
 import { api } from "@/api/client";
-import type { TrendSeriesStyle } from "@/types";
+import type { TagQuality, TrendSeriesStyle } from "@/types";
 
 interface TrendExpandedProps {
   tags: string[];
@@ -37,6 +37,9 @@ interface TrendExpandedProps {
   bgImage?: string;
   axisColor?: string;
   gridColor?: string;
+  /** The live quality of each trace, as the trend in the page has it: a Bad
+   *  tag says «Dato non valido» here too, in every range (rc.30). */
+  liveQualities?: (TagQuality | undefined)[];
   onClose: () => void;
 }
 
@@ -84,6 +87,7 @@ export function TrendExpandedModal({
   bgImage,
   axisColor,
   gridColor,
+  liveQualities,
   onClose,
 }: TrendExpandedProps) {
   const { t } = useTranslation();
@@ -391,6 +395,7 @@ export function TrendExpandedModal({
         <div ref={containerRef} style={{ flex: 1, overflow: "hidden" }}>
           <TrendCanvas
             tags={tags}
+            liveQualities={liveQualities}
             windowS={windowS}
             width={canvasSize.w}
             height={canvasSize.h}

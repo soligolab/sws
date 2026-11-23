@@ -34,6 +34,7 @@ vi.mock("@/api/client", async () => {
 import "../src/i18n/index";
 import { BAD_QUALITY_COLOR, PALETTE, TrendCanvas, buildRuns, hasDrawableData, traceIsBad } from "@/canvas/TrendCanvas";
 import { SvgCanvas } from "@/canvas/SvgCanvas";
+import { TrendExpandedModal } from "@/canvas/TrendExpanded";
 import { LinguaContenutiProvider } from "@/i18n/linguaContenuti";
 
 /** A 2D context that records what is drawn: every method call with the
@@ -181,6 +182,21 @@ describe("TrendCanvas with a Bad trace", () => {
     // The bucket line is untouched in the rc (the buckets have no quality to break on),
     // and the badge no longer prints the number.
     expect(strokes(lastDraw())).toContain(PALETTE[0]);
+    expect(texts(lastDraw()).filter((t) => t.color === BADGE_COLOR)).toEqual([]);
+  });
+
+  it("the «Espandi» modal gets the live quality too: a bucketed window with a Bad tag says so (review of the rc.30)", async () => {
+    const windowS = 3600;
+    history.buckets.set("t", Array.from({ length: 5 }, (_, i) => ({
+      ts_ms: NOW - windowS * 1000 + i * 600_000, min: 0, max: 0, avg: 0, first: 0, last: 0, count: 10,
+    })));
+    render(
+      <LinguaContenutiProvider value={it_}>
+        <TrendExpandedModal tags={["t"]} windowS={windowS} liveQualities={["Bad"]} onClose={() => {}} />
+      </LinguaContenutiProvider>,
+    );
+    await historyDrawn();
+    expect(texts(lastDraw())).toContainEqual({ text: INVALID, color: BAD_QUALITY_COLOR });
     expect(texts(lastDraw()).filter((t) => t.color === BADGE_COLOR)).toEqual([]);
   });
 

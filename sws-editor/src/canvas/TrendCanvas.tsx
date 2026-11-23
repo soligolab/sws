@@ -90,9 +90,10 @@ export function drawableNumber(p: Sample): number | null {
 }
 
 /** Whether trace `points` shows invalid data now. The live quality decides
- *  when it is known (it is what the operator would read on a value display);
- *  without it — a tag not yet in the snapshot, the "Espandi" modal — the last
- *  raw sample does. Buckets carry no quality and count as Good. */
+ *  when it is known (it is what the operator would read on a value display:
+ *  the trend in the page and the "Espandi" modal both pass it); without it —
+ *  a tag not yet in the snapshot — the last raw sample does. Buckets carry no
+ *  quality and count as Good. */
 export function traceIsBad(points: Sample[] | undefined, live: TagQuality | undefined): boolean {
   if (live !== undefined) return live === "Bad";
   const last = points?.[points.length - 1];

@@ -610,6 +610,36 @@ describe("animating a symbol in the editor", () => {
     expect(r.asked).toHaveLength(1);
     expect(r.parts).toEqual({ door: { tag: "porta" } });
   });
+
+  const rename = (from: string, to: string) => {
+    const id = screen.getByTestId(`symbol-input-name-${from}`) as HTMLInputElement;
+    fireEvent.change(id, { target: { value: to } });
+    fireEvent.blur(id);
+  };
+
+  it("two inputs of one object renamed together keep both bindings (review of the rc.30)", async () => {
+    bound("stufa2", { acceso: { tag: "s.on" }, ventola: { tag: "s.fan" } });
+    open([{ op: "ingresso", id: "acceso" }, { op: "ingresso", id: "ventola" }, { op: "corpo" }, newRect({ x: 0, y: 0, w: 10, h: 10 })], "stufa2");
+    render(<SymbolEditorHost />);
+    fireEvent.click(screen.getByTestId("symbol-tab-structure"));
+    rename("acceso", "fuoco");
+    rename("ventola", "aria");
+    const r = await savedParts();
+    expect(r.asked).toHaveLength(1);
+    expect(r.parts).toEqual({ fuoco: { tag: "s.on" }, aria: { tag: "s.fan" } });
+  });
+
+  it("two inputs swapped (a↔b) swap their bindings, none lost (review of the rc.30)", async () => {
+    bound("stufa3", { acceso: { tag: "s.on" }, ventola: { tag: "s.fan" } });
+    open([{ op: "ingresso", id: "acceso" }, { op: "ingresso", id: "ventola" }, { op: "corpo" }, newRect({ x: 0, y: 0, w: 10, h: 10 })], "stufa3");
+    render(<SymbolEditorHost />);
+    fireEvent.click(screen.getByTestId("symbol-tab-structure"));
+    rename("acceso", "tmp");
+    rename("ventola", "acceso");
+    rename("tmp", "ventola");
+    const r = await savedParts();
+    expect(r.parts).toEqual({ ventola: { tag: "s.on" }, acceso: { tag: "s.fan" } });
+  });
 });
 
 /** The editor's keys and the questions (test of the rc.29, 23-11-2026): with

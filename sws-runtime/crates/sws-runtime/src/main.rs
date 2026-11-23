@@ -1006,6 +1006,9 @@ async fn main() -> anyhow::Result<()> {
             let mut registry: Option<Vec<(String, String)>> = None;
             let mut changed: std::collections::HashSet<String> = std::collections::HashSet::new();
             let mut lagged = false;
+            // A derived tag seeded again: a deploy reopened the project with
+            // the same expressions, which the registry comparison can't see.
+            let mut reseeded = false;
             loop {
                 let registry_changed = {
                     let now = derived.read().await;
@@ -1019,13 +1022,15 @@ async fn main() -> anyhow::Result<()> {
                     state.registry_changed();
                 }
                 if let Some(pairs) = registry.as_deref().filter(|p| !p.is_empty()) {
-                    let full = registry_changed || lagged;
+                    let full = registry_changed || lagged || reseeded;
                     sws_pyscript::run_derived_round(&db, pairs, &changed, full, &mut state).await;
                 }
                 changed.clear();
                 lagged = false;
+                reseeded = false;
                 match tag_rx.recv().await {
                     Ok(first) => {
+                        reseeded |= sws_pyscript::reseeds_a_derived(&first, registry.as_deref());
                         changed.insert(first.id);
                     }
                     Err(RecvError::Lagged(n)) => {
@@ -1037,6 +1042,7 @@ async fn main() -> anyhow::Result<()> {
                 loop {
                     match tag_rx.try_recv() {
                         Ok(u) => {
+                            reseeded |= sws_pyscript::reseeds_a_derived(&u, registry.as_deref());
                             changed.insert(u.id);
                         }
                         Err(TryRecvError::Lagged(_)) => lagged = true,
