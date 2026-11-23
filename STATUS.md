@@ -61,6 +61,12 @@ quindi è stata una **reinstallazione** — nessuna istantanea dei dati, «Torna
 Servizio `active`, `/health` ok. Il deploy di CasaDomotica sul TC620 (benvenuto, stufa, ruolo) si fa dall'IDE del cloud.
 Il piano notturno resta vivo («verifica») fino al collaudo, poi va in archivio.
 
+**Chiusura (`/finalizza-giornata`, 23-11 mattina)**: i controlli della CI erano rossi su `main` da giorni, non per il
+lavoro di stanotte soltanto — `cargo fmt` (31 file), clippy (7 errori), `cargo audit` (tokio e url). Corretti sul ramo
+`chore/ci-lint`, entrati in `main` come due commit (`40e4fa59` solo formattazione, `df33352d` clippy e audit), ramo
+eliminato. **Da fare prima della release 2.26.0**: riportare in `release/2.26` almeno gli aggiornamenti di tokio e url
+(`df33352d`; la formattazione è facoltativa ma evita conflitti nei riporti successivi).
+
 ## Prima — la 2.26.0-rc.28 da collaudare (2026-11-22 sera, `ufficio`)
 
 **rc.28** (`2976b407`, da `release/2.26`, tag e ramo **pushati**): le anomalie piccole del collaudo della rc.23 che

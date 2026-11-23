@@ -14,6 +14,12 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 Il lavoro della **2.27.0** (versioni `2.27.0-dev.N`). Dal 22-11-2026 `main` porta la release successiva, e la 2.26.0
 si stabilizza su `release/2.26` (piano `docs/plans/2026-11-22-dev-rc-release-e-portale-di-sviluppo.md`).
 
+### Sicurezza — tokio 1.54.1 e url 2.5.9 (23-11-2026, ramo `chore/ci-lint`)
+- `cargo audit` della CI: RUSTSEC-2026-0386 (`AsyncFd::new` di tokio) e RUSTSEC-2026-0592 (`Url::origin()` su URL
+  `blob:` annidati), con gli aggiornamenti compatibili. Nello stesso giro `cargo fmt` (31 file, commit a parte) e
+  clippy con `-D warnings` verdi: la CI di `main` era rossa da giorni. Solo in `main`: in `release/2.26` va riportato
+  prima della release.
+
 ### Cambiato
 - **Tre livelli di versione: dev, rc e release.** Le rc servono solo a finalizzare una release (correzioni e
   prestazioni); il lavoro nuovo esce come `X.Y.Z-dev.N`. La 2.26.0 entra in stabilizzazione sul ramo `release/2.26`,
