@@ -12,7 +12,52 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — la 2.26.0-rc.28 da collaudare (2026-11-22 sera, `ufficio`)
+## ▶ Riprendere da qui — la 2.26.0-rc.29 pubblicata, da collaudare (2026-11-23 notte, `ufficio`)
+
+**rc.29** (`02f6de07`, da `release/2.26`, tag **locale**) col piano notturno
+[`docs/plans/2026-11-22-rc29-collaudo-utente-editor-simboli.md`](docs/plans/2026-11-22-rc29-collaudo-utente-editor-simboli.md),
+tutti i blocchi dentro: **A** le correzioni del collaudo della rc.28 (avvisi raggruppati, foto e disegno che riempiono
+il riquadro + «Riempi il riquadro», foto oltre il riquadro tagliata, simboli dopo il deploy, ruolo minimo per funzione,
+anteprime della libreria aziendale, cambio password dopo il PIN); **B** l'utente corrente (`{{user.name}}`,
+`{{user.username}}`, `{{user.role}}`, `{{user.last_login}}` nei testi, `user` negli script, nome dall'LDAP); **C** gruppi,
+effetti come proprietà, foto ritagliata su una forma; **D** la colonna destra che segue la selezione; **E** l'editor in
+una finestra sua; più **una correzione trovata stanotte**: una fiamma con l'ingresso spento non si disegna (decisione del
+maintainer, 23-11), e il compilatore rifiuta una fiamma o un bagliore dentro una parte. Tutto riportato in `main` con
+`cherry-pick -x`. Build `build_rc.sh --push`: 36 minuti. **Gateway del VPS sulla rc.29** (`02f6de07-amd64`, copia
+`sws-gateway.container.prima-rc29`, `healthy`, `SWS_VERSION` 2.26.0-rc.29), **Tiny TY** `latest` = rc.29.
+
+**La sessione si era fermata** alle 23:14 del 22-11 (limite delle 5 ore, poi il riavvio del PC) col blocco E finito ma
+non committato e una guardia rossa (`check_i18n_ui` su `ponteSimboli.ts`, due parametri in italiano). Ripresa dalla
+trascrizione. La scelta del blocco E diversa dal piano — **la finestra salva i simboli da sé**, con la sessione e il
+blocco dell'IDE, chiedendogli la versione prima e dicendogli cosa ha scritto dopo — è approvata dal maintainer (23-11).
+Provata nel browser su un runtime di prova (8661): apertura staccata col titolo «Simbolo Stufa», salvataggio dalla
+finestra e poi dall'IDE senza conflitti di versione, «Riporta nell'IDE», «Finestra a parte», «Chiudi» (istantanee in
+`tmp/editor-simboli-finestra/`).
+
+**CasaDomotica sul VPS** (backup in `~/sws-vps/backup-prima-di-rc29/`, script `tmp/rc29/casadomotica/applica.py`):
+- **il benvenuto nella cornice** «Benvenuto {{user.name}} — ultimo accesso {{user.last_login}}», al posto dell'hostname
+  rosso (scelta del maintainer: la pagina «Home» non esiste, `home_page_id` punta a una pagina cancellata);
+- `tapparelle_tutte` col **ruolo minimo Viewer**;
+- **la stufa** (`prj:stufa`) con la fiamma e il fumo come proprietà, la fiamma su `fiamma` che ora è un ingresso;
+  messa nella pagina **Test-RC23** collegata a `heat_pump.switch`. Nota per la regola di CasaDomotica: in casa non c'è
+  una stufa vera, c'è la pompa di calore — la fiamma qui è una dimostrazione su un dato vero, non un impianto.
+- **Manca il deploy sul TC620**, che si fa dall'IDE del cloud (non c'è un modo da riga di comando).
+
+**Il collaudo, cosa guardare** (per `/test-changes`, sulla rc.29):
+1. l'aggiornamento del TC620: gli avvisi della 2.26.0 una volta sola, non uno per rc;
+2. l'editor dei simboli: si apre in una finestra sua; salvando, la pagina aperta nell'IDE si aggiorna; «Riporta
+   nell'IDE» / «Finestra a parte»; la colonna destra che segue la selezione; gruppi (Ctrl+G), effetti come proprietà
+   (bagliore, fiamma, fumo, bollicine) visibili in «Prova»; foto ritagliata su una forma; «Riempi il riquadro»;
+3. la stufa di CasaDomotica nella pagina Test-RC23: fiamma e fumo con la pompa di calore accesa, niente fiamma da spenta;
+4. il benvenuto nella cornice, con un utente locale e da anonimo; il PIN e il cambio password senza la password attuale;
+5. «Chiudi tutto» delle tapparelle da Viewer;
+6. **test 10, l'LDAP** (`ldap.soligo.net`): la configurazione la mette il maintainer, è il test; il nome visualizzato
+   arriva da `displayName`/`givenName`;
+7. la libreria aziendale con le anteprime; i simboli che si aggiornano dopo un deploy.
+
+**Push**: niente ancora. Da pushare col via del maintainer: `release/2.26`, `main` e il tag `2.26.0-rc.29`.
+
+## Prima — la 2.26.0-rc.28 da collaudare (2026-11-22 sera, `ufficio`)
 
 **rc.28** (`2976b407`, da `release/2.26`, tag e ramo **pushati**): le anomalie piccole del collaudo della rc.23 che
 erano rimaste fuori dalla rc.27 (il maintainer: «se ci sono piccole attività di cui eri a conoscenza, prima di fare

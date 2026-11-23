@@ -173,7 +173,13 @@ resta 404: così un bundle che manca non torna come HTML con stato 200.
 (`10.89.0.x`): il limite di 20 richieste/s vale per tutti insieme finché non c'è l'indirizzo vero (seme «indirizzo vero
 dietro Traefik»). Si aggiorna con `scripts/manuale/pubblica.sh`.
 
-**Versione in esecuzione: `2976b407-amd64` (2.26.0-rc.28)** dal 22-11-2026, sera: le anomalie piccole del collaudo
+**Versione in esecuzione: `02f6de07-amd64` (2.26.0-rc.29)** dal 23-11-2026, notte: le correzioni del collaudo della
+rc.28, l'utente corrente, gli effetti dei simboli rifatti, l'editor dei simboli in una finestra sua. Sequenza solita,
+copia `sws-gateway.container.prima-rc29`; gateway `healthy`, `SWS_VERSION` = 2.26.0-rc.29, radice 200, `/health` «ok».
+Ripiego la rc.28. **CasaDomotica modificata a mano** (benvenuto nella cornice, ruolo della funzione delle tapparelle, la
+stufa con fiamma e fumo): copie in `~/sws-vps/backup-prima-di-rc29/`. Tiny TY: `latest.txt` = rc.29 (sha256 `f1d26a87…`).
+
+Prima: **Versione in esecuzione: `2976b407-amd64` (2.26.0-rc.28)** dal 22-11-2026, sera: le anomalie piccole del collaudo
 della rc.23 (Modbus e la sessione che cade, il registro, il parametro `state` tradotto, la scadenza dell'IA nel cloud).
 Copia `sws-gateway.container.prima-rc28`; gateway e CasaDomotica `healthy`, `SWS_VERSION` = 2.26.0-rc.28, radice 200,
 `/health` «ok». Tolta la rc.26 (`c3180ab9-amd64`); ripiego la rc.27. Tiny TY: `latest.txt` = rc.28 (sha256 `aa19cfdf…`).
