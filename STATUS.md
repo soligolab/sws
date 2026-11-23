@@ -55,7 +55,11 @@ finestra e poi dall'IDE senza conflitti di versione, «Riporta nell'IDE», «Fin
    arriva da `displayName`/`givenName`;
 7. la libreria aziendale con le anteprime; i simboli che si aggiornano dopo un deploy.
 
-**Push**: niente ancora. Da pushare col via del maintainer: `release/2.26`, `main` e il tag `2.26.0-rc.29`.
+**Push**: fatti col via del maintainer («Fai il push e aggiorna il pannello»): `release/2.26`, `main`, il tag
+`2.26.0-rc.29`. **TC620 sulla rc.29** con `ricarica.sh --canale rc`: «Aggiorna ora» vuole l'accesso Admin al pannello,
+quindi è stata una **reinstallazione** — nessuna istantanea dei dati, «Torna alla rc.28» non ha niente a cui tornare.
+Servizio `active`, `/health` ok. Il deploy di CasaDomotica sul TC620 (benvenuto, stufa, ruolo) si fa dall'IDE del cloud.
+Il piano notturno resta vivo («verifica») fino al collaudo, poi va in archivio.
 
 ## Prima — la 2.26.0-rc.28 da collaudare (2026-11-22 sera, `ufficio`)
 
