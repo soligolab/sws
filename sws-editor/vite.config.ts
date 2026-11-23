@@ -108,6 +108,9 @@ export default defineConfig({
         // l'URL deve essere esattamente `/index-chat.html`, perché `/chat`
         // cadrebbe nel fallback SPA e restituirebbe l'IDE.
         chat:  "index-chat.html",
+        // L'editor dei simboli in una finestra sua (22-11-2026): stesso vincolo
+        // sull'URL, `/index-symbols.html` esatto.
+        symbols: "index-symbols.html",
         // La console di amministrazione (06-10-2026). **Applicazione a sé**,
         // non una schermata dell'IDE: da lì si decide su quale versione gira
         // ogni azienda, e lo strumento che governa le versioni non può essere

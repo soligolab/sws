@@ -48,6 +48,20 @@ si stabilizza su `release/2.26` (piano `docs/plans/2026-11-22-dev-rc-release-e-p
 Il lavoro dalla 2.25.2 alla 2.26.0-rc.26. Le correzioni della stabilizzazione si fanno su `release/2.26` e si
 riportano qui con `cherry-pick`; la data arriva con la release.
 
+### Aggiunto — l'editor dei simboli in una finestra sua (22-11-2026, ramo `feat/symbol-editor-window`)
+- Il maintainer: «deve diventare un pop-up perché è utile poter lavorare al progetto ed avere l'editor dei simboli
+  aperto». Una pagina nuova, `index-symbols.html` (`symbols-main.tsx`, `FinestraSimboli.tsx`), servita come la chat e il
+  registro anche sotto il prefisso del gateway (`guscio_di`, rotta in `router.rs`).
+- **Il ponte** (`ponteSimboli.ts`, `BroadcastChannel("sws.simboli.ponte.v1")`, messaggi indirizzati come quelli della
+  chat): la finestra chiede all'IDE il simbolo, il progetto e le pagine; salva i simboli lei stessa con la stessa
+  sessione e lo stesso `X-SWS-Tab` del blocco del progetto, chiedendo all'IDE la versione appena prima (`writeHooks`
+  in `open.ts`), e gli dice cosa ha scritto, così le pagine aperte si aggiornano e la versione resta allineata; le
+  modifiche agli oggetti della pagina (bocche rinominate, «Salva come») le applica l'IDE.
+- Si apre **staccato di default**; «Riporta nell'IDE» lo rimette dentro col disegno com'è (e se ne ricorda), «Finestra
+  a parte» lo stacca di nuovo; una finestra bloccata dal browser lo apre dentro, come prima.
+- Non provato in un browser vero stanotte: i test coprono il ponte (`tests/ponteSimboli.test.ts`), il collaudo la
+  finestra.
+
 ### Cambiato — la colonna destra dell'editor dei simboli segue la selezione (22-11-2026, ramo `feat/symbol-inspector`)
 - Il maintainer: «sono una serie di sezioni che si accodano una sotto l'altra e non è collegata all'oggetto
   selezionato». Le schede Pezzo / Struttura / Prova / IA diventano **Simbolo / Selezione / Prova**: senza selezione la

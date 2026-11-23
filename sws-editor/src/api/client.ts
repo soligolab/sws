@@ -804,6 +804,12 @@ export type CopyRepository =
 
 let VERSIONE_PROGETTO: string | null = null;
 
+/** The version of `project.yaml` this window works on, for the symbol
+ *  editor's own window (22-11-2026): the IDE and that window save into the
+ *  same project, and pass the version to each other. */
+export function versioneProgetto(): string | null { return VERSIONE_PROGETTO; }
+export function impostaVersioneProgetto(v: string | null): void { VERSIONE_PROGETTO = v; }
+
 /** I percorsi la cui risposta porta la versione del progetto. Non tutti: un
  *  `ETag` di un'immagine o di un sinottico non c'entra niente con
  *  `project.yaml`, e prenderlo per buono farebbe fallire il salvataggio

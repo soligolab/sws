@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { avviaProfiloUtente } from "@/auth/profiloUtente";
+import { avviaPonteSimboliIde } from "@/symbols/editor/ponteSimboli";
 import { useTranslation } from "react-i18next";
 import { azioneDi } from "@/scorciatoie/registro";
 import { api, AuthError, NoProjectError, PasswordChangeRequiredError } from "@/api/client";
@@ -144,6 +145,8 @@ export function App() {
   useEffect(() => avviaSincroniaSimboli(), []);
   // Who is signed in, for the `{{user.*}}` of the pages (22-11-2026).
   useEffect(() => avviaProfiloUtente(), []);
+  // The symbol editor's own windows talk to this IDE (22-11-2026).
+  useEffect(() => avviaPonteSimboliIde(), []);
   // Each project remembers its panel; opening one asks to reconnect (20-11-2026).
   useDeviceMemory();
   // Log drawer: state stays here (App owns <LogPanel>), the toggle moved into

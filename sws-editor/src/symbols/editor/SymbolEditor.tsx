@@ -39,6 +39,7 @@ import { predefinito } from "@/coloriPredefiniti";
 import { valoriParti, type ValoreParte } from "@/symbols/lib/libreria";
 import { AnimateBlock, AnimationProps } from "./AnimationProps";
 import { FxProps } from "./FxProps";
+import { apriInFinestra, inFinestraSimboli, ricordaStaccato, riportaNellIde, staccatoPreferito } from "./ponteSimboli";
 import { AiPanel } from "./AiPanel";
 import { AiPhoto } from "./AiPhoto";
 import { bindingsOnParts, pipesOnPorts, svgWarningLines, takenSlugs, usage, withSymbol, withoutSymbol, writeSymbols, type SymbolEditorTarget } from "./open";
@@ -98,7 +99,15 @@ const PAD = 24;
 /** Mounted once by the editor shell: shows the editor while the store says so. */
 export function SymbolEditorHost() {
   const target = useAppStore((s) => s.symbolEditor);
-  if (!target) return null;
+  // In a window of its own (22-11-2026), unless asked otherwise: the IDE stays
+  // usable while a symbol is drawn. A blocked window opens it here.
+  const detach = !!target && !target.inline && !inFinestraSimboli && staccatoPreferito();
+  useEffect(() => {
+    if (!detach || !target) return;
+    if (apriInFinestra(target)) useAppStore.getState().closeSymbolEditor();
+    else useAppStore.getState().openSymbolEditor({ ...target, inline: true });
+  }, [detach, target]);
+  if (!target || detach) return null;
   return <SymbolEditorBoundary><SymbolEditor key={target.draft.slug} target={target} /></SymbolEditorBoundary>;
 }
 
@@ -1090,6 +1099,22 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
             ? { ...HDR_BTN, background: C.accent, borderColor: C.accent, color: "var(--brand-on-primary, #fff)", ...dim(busy || !!compiled.errors.length) }
             : { ...HDR_BTN, ...dim(true) }}
           onClick={() => void save()}>{t("symbolEditor.save")}</button>
+        {/* Its own window, or back into the IDE (22-11-2026): the drawing as
+            it is now goes along, saved or not. */}
+        {inFinestraSimboli ? (
+          <button type="button" style={HDR_BTN} data-testid="symbol-editor-bring-back" title={t("symbolEditor.window.backTitle")}
+            onClick={() => { riportaNellIde({ ...target, draft: d, isNew: target.isNew && !saved }); window.close(); }}>
+            {t("symbolEditor.window.back")}
+          </button>
+        ) : typeof BroadcastChannel !== "undefined" && (
+          <button type="button" style={HDR_BTN} data-testid="symbol-editor-detach" title={t("symbolEditor.window.detachTitle")}
+            onClick={() => {
+              ricordaStaccato(true);
+              if (apriInFinestra({ ...target, draft: d, isNew: target.isNew && !saved, inline: false })) close();
+            }}>
+            {t("symbolEditor.window.detach")}
+          </button>
+        )}
         <button type="button" data-testid="symbol-editor-close" style={HDR_BTN} onClick={() => void doClose()}>{t("symbolEditor.close")}</button>
       </div>
 

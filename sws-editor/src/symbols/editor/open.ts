@@ -22,6 +22,9 @@ import { uploadEmbeddedPhotos } from "./photoUpload";
 
 export interface SymbolEditorTarget {
   draft: DescrizioneSimbolo;
+  /** Open it inside the IDE even when the editor goes in a window of its own
+   *  (22-11-2026): «Bring back into the IDE», or a blocked window. */
+  inline?: boolean;
   /** The draft is not in the project yet (a new symbol, a first variant). */
   isNew: boolean;
   /** The object the editor was opened from: «save as» moves it to the copy. */
@@ -156,11 +159,20 @@ export async function openSymbolFile(file: File): Promise<void> {
 
 /** Writes the project symbols, in memory and on the runtime. The errors of the
  *  compiler come back as the message. */
+/** What the symbol editor's own window does around a write (22-11-2026):
+ *  ask the IDE for the project's version first, tell it what was written after. */
+export const writeHooks: {
+  before: (() => Promise<void>) | null;
+  after: ((simboli: DescrizioneSimbolo[]) => void) | null;
+} = { before: null, after: null };
+
 export async function writeSymbols(simboli: DescrizioneSimbolo[]): Promise<string | null> {
   const before = useAppStore.getState().project?.simboli;
   useAppStore.getState().updateProjectSimboli(simboli);
   try {
+    if (writeHooks.before) await writeHooks.before();
     await api.updateSimboli(simboli);
+    writeHooks.after?.(simboli);
     return null;
   } catch (e) {
     useAppStore.getState().updateProjectSimboli(before ?? []);

@@ -5941,6 +5941,15 @@
       "unclip": "Remove the cut",
       "maskNote": "The photo shows only inside the shape's outline, and moves and turns with it.",
       "oldRemoved": "This symbol had {{n}} effects in the old format: they were removed. An effect is now given to a shape or a group (Effects section of the Piece panel)."
+    },
+    "window": {
+      "back": "Back into the IDE",
+      "backTitle": "Closes this window and reopens the editor inside the IDE, with the drawing as it is now",
+      "detach": "Own window",
+      "detachTitle": "Opens the editor in a window of its own, so you can work on the pages meanwhile (remembered for next time)",
+      "noIde": "The IDE that opened this window doesn't answer: reopen the editor from the IDE.",
+      "connecting": "Connecting to the IDE…",
+      "docTitle": "Symbol {{name}}"
     }
   },
   "images": {
