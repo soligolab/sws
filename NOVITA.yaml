@@ -66,6 +66,8 @@ versioni:
       - it: "Le installazioni native non hanno più admin/admin: partono col codice di abbinamento. Un admin/admin rimasto va cambiato al primo accesso."
         en: "Native installations no longer have admin/admin: they start with the pairing code. An admin/admin left over must be changed at the next login."
     voci:
+      - it: "L'editor dei simboli si apre in una finestra sua: intanto si lavora alle pagine, e salvando le pagine aperte si aggiornano. «Riporta nell'IDE» lo rimette dentro."
+        en: "The symbol editor opens in a window of its own: meanwhile you work on the pages, and saving updates the open pages. «Back into the IDE» puts it back inside."
       - it: "Editor dei simboli: la colonna destra segue la selezione; senza selezione mostra il simbolo, gli ingressi e l'IA, e «Prova» è un interruttore."
         en: "Symbol editor: the right column follows the selection; with nothing selected it shows the symbol, the inputs and the AI, and «Try» is a switch."
       - it: "Editor dei simboli: su una foto «Cambia questa foto con un ingresso» la trasforma in un segnale con una foto per valore."

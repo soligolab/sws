@@ -1715,7 +1715,9 @@ pub fn build(
                 .route("/p/:azienda/:progetto", any(al_progetto))
                 .route("/p/:azienda/:progetto/", any(al_progetto))
                 .route("/p/:azienda/:progetto/index-chat.html", any(al_progetto))
-                .route("/p/:azienda/:progetto/index-log.html", any(al_progetto)),
+                .route("/p/:azienda/:progetto/index-log.html", any(al_progetto))
+                // The symbol editor in a window of its own (22-11-2026).
+                .route("/p/:azienda/:progetto/index-symbols.html", any(al_progetto)),
             Router::new()
                 .route("/p/:azienda/:progetto/*resto", any(al_progetto))
                 .route_layer(middleware::from_fn_with_state(state.clone(), require_auth)),
@@ -15852,7 +15854,7 @@ mod prove_finestre_staccate {
         let _ = std::fs::remove_dir_all(&dir);
         let www = dir.join("www");
         std::fs::create_dir_all(&www).unwrap();
-        for f in ["index-admin.html", "index-chat.html", "index-log.html"] {
+        for f in ["index-admin.html", "index-chat.html", "index-log.html", "index-symbols.html"] {
             std::fs::write(www.join(f), f).unwrap();
         }
         // La regia non tocca podman finché nessuno apre un progetto.
@@ -15882,6 +15884,10 @@ mod prove_finestre_staccate {
         assert_eq!(
             chiedi("/p/-/Prova/index-log.html").await,
             (200, "index-log.html".into())
+        );
+        assert_eq!(
+            chiedi("/p/-/Prova/index-symbols.html").await,
+            (200, "index-symbols.html".into())
         );
         assert_eq!(
             chiedi("/p/-/Prova/").await,

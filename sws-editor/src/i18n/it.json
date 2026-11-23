@@ -5941,6 +5941,15 @@
       "unclip": "Togli ritaglio",
       "maskNote": "La foto si vede solo dentro il contorno della forma, e si sposta e gira con lei.",
       "oldRemoved": "Questo simbolo aveva {{n}} effetti nel formato di prima: sono stati tolti. Ora un effetto si assegna a una forma o a un gruppo (sezione Effetti del pannello Pezzo)."
+    },
+    "window": {
+      "back": "Riporta nell'IDE",
+      "backTitle": "Chiude questa finestra e riapre l'editor dentro l'IDE, col disegno com'è adesso",
+      "detach": "Finestra a parte",
+      "detachTitle": "Apre l'editor in una finestra sua, così puoi lavorare alle pagine intanto (lo ricorda per le prossime volte)",
+      "noIde": "L'IDE che ha aperto questa finestra non risponde: riapri l'editor dall'IDE.",
+      "connecting": "Collegamento all'IDE…",
+      "docTitle": "Simbolo {{name}}"
     }
   },
   "images": {

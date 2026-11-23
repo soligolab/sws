@@ -57,6 +57,8 @@ pub fn guscio_di(resto: &str) -> Option<&'static str> {
         "" | "/" => Some("index-admin.html"),
         "/index-chat.html" => Some("index-chat.html"),
         "/index-log.html" => Some("index-log.html"),
+        // The symbol editor in a window of its own (22-11-2026).
+        "/index-symbols.html" => Some("index-symbols.html"),
         _ => None,
     }
 }
@@ -275,6 +277,7 @@ mod tests {
         assert_eq!(guscio_di(""), Some("index-admin.html"));
         assert_eq!(guscio_di("/index-chat.html"), Some("index-chat.html"));
         assert_eq!(guscio_di("/index-log.html"), Some("index-log.html"));
+        assert_eq!(guscio_di("/index-symbols.html"), Some("index-symbols.html"));
         assert_eq!(guscio_di("/api/project"), None);
         assert_eq!(guscio_di("/ws/tags"), None);
         // Il documento dell'IDE si serve solo alla radice, e un altro .html
