@@ -51,6 +51,29 @@ pub enum TagQuality {
     Uncertain,
 }
 
+impl TagQuality {
+    /// How bad a quality is: Good 0 < Uncertain 1 < Bad 2. Explicit weights,
+    /// not `derive(Ord)`: the declaration order (Good, Bad, Uncertain) would
+    /// put Uncertain above Bad.
+    pub fn severity(&self) -> u8 {
+        match self {
+            TagQuality::Good => 0,
+            TagQuality::Uncertain => 1,
+            TagQuality::Bad => 2,
+        }
+    }
+
+    /// The worse of two qualities: a root's from its leaves (D6), a derived
+    /// tag's from its inputs (rc.30, test of the rc.29, 23-11-2026).
+    pub fn worst(self, other: Self) -> Self {
+        if other.severity() > self.severity() {
+            other
+        } else {
+            self
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TagState {
     pub value: TagValue,
@@ -302,12 +325,7 @@ impl TagDb {
 
     /// La peggiore fra le qualità delle foglie, e il timestamp più recente.
     fn riepiloga(foglie: &QualitaFoglie) -> Option<(TagQuality, u64)> {
-        let peso = |q: &TagQuality| match q {
-            TagQuality::Good => 0,
-            TagQuality::Uncertain => 1,
-            TagQuality::Bad => 2,
-        };
-        let peggiore = foglie.values().max_by_key(|(q, _)| peso(q))?.0.clone();
+        let peggiore = foglie.values().max_by_key(|(q, _)| q.severity())?.0.clone();
         let ts = foglie.values().map(|(_, t)| *t).max().unwrap_or(0);
         Some((peggiore, ts))
     }
@@ -1108,6 +1126,21 @@ mod percorsi_tests {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Bad beats Uncertain in both orders (rc.30): a `derive(Ord)` on the
+    /// declaration order would give Uncertain.
+    #[test]
+    fn tag_quality_worst_bad_beats_uncertain() {
+        use TagQuality::*;
+        assert_eq!(Uncertain.worst(Bad), Bad);
+        assert_eq!(Bad.worst(Uncertain), Bad);
+        assert_eq!(Good.worst(Uncertain), Uncertain);
+        assert_eq!(Uncertain.worst(Good), Uncertain);
+        assert_eq!(Good.worst(Bad), Bad);
+        assert_eq!(Good.worst(Good), Good);
+        assert!(Good.severity() < Uncertain.severity());
+        assert!(Uncertain.severity() < Bad.severity());
+    }
 
     /// Q27 — le conversioni senza perdita passano, il resto no.
     #[test]

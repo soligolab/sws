@@ -160,9 +160,12 @@ export async function openSymbolFile(file: File): Promise<void> {
 /** Writes the project symbols, in memory and on the runtime. The errors of the
  *  compiler come back as the message. */
 /** What the symbol editor's own window does around a write (22-11-2026):
- *  ask the IDE for the project's version first, tell it what was written after. */
+ *  ask the IDE for the project's version first, tell it what was written after.
+ *  `before` gets the window's list before (`base`) and after (`next`) the
+ *  change and returns the list to write — the change applied on the IDE's
+ *  symbols (`rebaseSymbols`, rc.30) — or throws to refuse the write. */
 export const writeHooks: {
-  before: (() => Promise<void>) | null;
+  before: ((base: DescrizioneSimbolo[], next: DescrizioneSimbolo[]) => Promise<DescrizioneSimbolo[]>) | null;
   after: ((simboli: DescrizioneSimbolo[]) => void) | null;
 } = { before: null, after: null };
 
@@ -170,9 +173,13 @@ export async function writeSymbols(simboli: DescrizioneSimbolo[]): Promise<strin
   const before = useAppStore.getState().project?.simboli;
   useAppStore.getState().updateProjectSimboli(simboli);
   try {
-    if (writeHooks.before) await writeHooks.before();
-    await api.updateSimboli(simboli);
-    writeHooks.after?.(simboli);
+    let written = simboli;
+    if (writeHooks.before) {
+      written = await writeHooks.before(before ?? [], simboli);
+      if (written !== simboli) useAppStore.getState().updateProjectSimboli(written);
+    }
+    await api.updateSimboli(written);
+    writeHooks.after?.(written);
     return null;
   } catch (e) {
     useAppStore.getState().updateProjectSimboli(before ?? []);

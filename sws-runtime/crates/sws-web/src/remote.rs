@@ -1351,6 +1351,33 @@ async fn device_capability(
     }
 }
 
+/// Whether closing the project would leave this deploy's session without
+/// access (`close_locks_out` of the panel's `/api/system`, rc.30). The panel
+/// decides, because only it knows whether it has a device Admin and whether
+/// the request came through the gateway. `false` without a session, on a
+/// panel that does not say, or when it doesn't answer.
+async fn close_locks_out_on_device(
+    client: &reqwest::Client,
+    base: &str,
+    auth_hdr: &Option<String>,
+) -> bool {
+    let Some(h) = auth_hdr else {
+        return false;
+    };
+    match client
+        .get(format!("{base}/api/system"))
+        .header("Authorization", h)
+        .send()
+        .await
+    {
+        Ok(resp) if resp.status().is_success() => resp
+            .json::<serde_json::Value>()
+            .await
+            .is_ok_and(|v| v["close_locks_out"].as_bool() == Some(true)),
+        _ => false,
+    }
+}
+
 /// Whether a project symbol of `dir` has a photo.
 pub(crate) fn project_uses_symbol_photos(dir: &std::path::Path) -> bool {
     sws_core::Project::load(dir).is_ok_and(|p| {
@@ -2914,6 +2941,11 @@ pub struct DeployBody {
     /// caso si ferma con un 428 `utenti-da-cambiare`.
     #[serde(default)]
     pub confirm_users_change: bool,
+    /// The editor said «the device restarts to turn the screen» and the user
+    /// said yes (rc.30, collaudo on the PLX800). Without, the case stops with a
+    /// 428 `rotate-screen`.
+    #[serde(default)]
+    pub confirm_rotation: bool,
 }
 
 /// Il deploy che sostituisce gli utenti chiede conferma (07-11-2026): quando il
@@ -3145,8 +3177,26 @@ impl Default for DeployBody {
             confirm_replace: false,
             confirm_missing_symbols: false,
             confirm_users_change: false,
+            confirm_rotation: false,
         }
     }
+}
+
+/// The rotation a deploy would bring, when it restarts the device: `(current,
+/// wanted)` from the panel's `/api/system` (`screen_rotation`, present only
+/// where the system turns the screen by restarting) and the project's
+/// orientation. `None` = nothing to ask: same rotation, or a panel that does
+/// not say (older runtime, or one that turns the picture itself).
+///
+/// Collaudo of 23-11-2026: the deploy of a portrait project restarted a PLX800
+/// — a controller with LogicLab running and no screen — without a word, and
+/// again for the next landscape project.
+pub fn rotation_to_confirm(system: &serde_json::Value, portrait: bool) -> Option<(u32, u32)> {
+    let r = system.get("screen_rotation")?;
+    let current = u32::try_from(r.get("current")?.as_u64()?).ok()?;
+    let flipped = r.get("flipped").and_then(|f| f.as_bool()).unwrap_or(false);
+    let wanted = crate::control_panel::wanted_rotation(portrait, flipped);
+    (current != wanted).then_some((current, wanted))
 }
 
 /// Serve la conferma esplicita dell'editor?
@@ -3253,6 +3303,21 @@ pub async fn remote_deploy(
                 return (StatusCode::UNAUTHORIZED, motivo).into_response();
             }
         };
+    // **A project user's session ends with the close** (rc.30, collaudo on
+    // the PLX800): the deploy closes the project first, then DELETE and upload
+    // answer 401 and the panel stays without a project — on a panel paired
+    // from the cloud, which has no device Admin, closed on the LAN until a
+    // deploy from the cloud. Stopped here, before touching anything. The panel
+    // decides (`close_locks_out` in its `/api/system`): through the gateway,
+    // on a panel without a device Admin, the deploy goes on as before. A panel
+    // that doesn't say goes on as before too.
+    if close_locks_out_on_device(&client, &base, &auth_hdr).await {
+        return (
+            StatusCode::PRECONDITION_REQUIRED,
+            Json(serde_json::json!({ "conferma": "project-session" })),
+        )
+            .into_response();
+    }
     // Come il precedente, va letta ORA: dopo `open_project` sul target ogni
     // sessione è decaduta e la GET risponderebbe 401.
     let target_legge_i_segreti = dispositivo_legge_i_segreti(&client, &base, &auth_hdr).await;
@@ -3427,6 +3492,37 @@ pub async fn remote_deploy(
                 )
                     .into_response();
             }
+        }
+    }
+
+    // **The screen turns, and the device restarts** (rc.30): PixsysOS applies
+    // a rotation by restarting, and on a controller that stops its PLCs too.
+    // Said before, the last question, so that «yes» sends right away.
+    if !opz.confirm_rotation {
+        let portrait = sws_core::Project::load(&proj_dir)
+            .ok()
+            .and_then(|p| p.page_layout)
+            .and_then(|l| l.orientation)
+            == Some(sws_core::project::Orientation::Portrait);
+        let mut r = client.get(format!("{base}/api/system?screen_rotation=1"));
+        if let Some(h) = &auth_hdr {
+            r = r.header("Authorization", h);
+        }
+        let system = match r.send().await {
+            Ok(resp) if resp.status().is_success() => resp.json().await.unwrap_or_default(),
+            _ => serde_json::Value::Null,
+        };
+        if let Some((current, wanted)) = rotation_to_confirm(&system, portrait) {
+            return (
+                StatusCode::PRECONDITION_REQUIRED,
+                Json(serde_json::json!({
+                    "conferma": "rotate-screen",
+                    "current": current,
+                    "wanted": wanted,
+                    "portrait": portrait,
+                })),
+            )
+                .into_response();
         }
     }
 
@@ -4032,6 +4128,31 @@ pub async fn remote_status(State(s): State<AppState>) -> Json<RemoteStatus> {
 
 #[cfg(test)]
 mod tests {
+    /// rc.30 (collaudo on the PLX800): a deploy that would turn the screen
+    /// asks first; nothing to ask when the rotation is already there, or when
+    /// the panel doesn't say (older runtime, or no system rotation).
+    #[test]
+    fn a_deploy_that_turns_the_screen_asks_first() {
+        use serde_json::json;
+        let landscape = json!({"screen_rotation": {"current": 0, "flipped": false}});
+        assert_eq!(super::rotation_to_confirm(&landscape, true), Some((0, 1)));
+        assert_eq!(super::rotation_to_confirm(&landscape, false), None);
+        let portrait = json!({"screen_rotation": {"current": 1, "flipped": false}});
+        assert_eq!(super::rotation_to_confirm(&portrait, false), Some((1, 0)));
+        // Upside down: a landscape project wants two quarter turns.
+        let flipped = json!({"screen_rotation": {"current": 2, "flipped": true}});
+        assert_eq!(super::rotation_to_confirm(&flipped, false), None);
+        assert_eq!(super::rotation_to_confirm(&flipped, true), Some((2, 3)));
+        assert_eq!(
+            super::rotation_to_confirm(&json!({"runtime_version": "2.26.0-rc.29"}), true),
+            None
+        );
+        assert_eq!(
+            super::rotation_to_confirm(&serde_json::Value::Null, true),
+            None
+        );
+    }
+
     /// Opening or closing a project outside the cloud drops the panel: no
     /// project inherits the one before (plan of 20-11-2026).
     #[tokio::test]

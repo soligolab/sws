@@ -132,6 +132,7 @@
     "deployAlSalvataggio": "on save",
     "deployAlSalvataggioTitle": "Send the project after every successful save (without users or secrets). Off: it is sent only with «Send now».",
     "deployErrore": "Last send failed: {{motivo}}",
+    "deployOnSaveNeedsConfirm": "Send on save stopped: the panel asks for a confirmation. Press «Send now» to see it.",
     "deployConfigTitle": "Click to configure the connection to the remote runtime",
     "deployReconnectTitle": "Click to reconnect to {{url}}",
     "dispositivoCollegatoTitle": "Connected to {{dispositivo}} — this is the panel that runs deploys and discoveries. Click for the Connection tab.",
@@ -1320,7 +1321,8 @@
       "slide": "Slide {{id}} (tag)",
       "vibrate": "Vibration {{id}} (tag)",
       "pulse": "Pulse {{id}} (tag)",
-      "signal": "Signal {{id}} (tag)"
+      "signal": "Signal {{id}} (tag)",
+      "input": "Input {{id}} (tag)"
     },
     "colorDaProgetto": "from project",
     "colorDaProgettoHint": "This colour comes from the project style (Configuration → Project → Style). Choosing one here applies only to this object.",
@@ -1881,8 +1883,11 @@
       "changed": "Users changed since they were last sent.",
       "same": "Same users as last sent: no need to send them."
     },
+    "deployProjectSession": "You are connected to the panel with a project user. The deploy closes the project, and your session ends with it: the panel would stay without a project half way, and nothing has been touched.\n\nConnect with the device Admin (the one created with the pairing code) or, if the panel is paired to the cloud, deploy from the IDE in the cloud.",
+    "deployRotateScreenPortrait": "This project is portrait and the panel's screen is landscape now. To turn it the system restarts the device (about a minute); on a controller the PLCs (LogicLab, CODESYS, OpenPLC) stop too: after the restart check that they are running again.\n\nGo on with the deploy and the restart?",
+    "deployRotateScreenLandscape": "This project is landscape and the panel's screen is turned now. To put it back the system restarts the device (about a minute); on a controller the PLCs (LogicLab, CODESYS, OpenPLC) stop too: after the restart check that they are running again.\n\nGo on with the deploy and the restart?",
     "deployNoUsersTitolo": "This project has no users",
-    "deployNoUsersConfirm": "The existing accounts on the device ({{utenti}}) will be removed and the panel will be reachable WITHOUT A PASSWORD by anyone on its network.\n\nProceed?",
+    "deployNoUsersConfirm": "The project's accounts on the device ({{utenti}}) will be removed. If the panel has no device Admin, it will stay closed to everyone until it is paired again (code on its screen) or a deploy brings it users.\n\nProceed?",
     "deployNoUsersUnknown": "list not readable from here",
     "connecting": "Connecting…",
     "connectOk": "Connected.",
@@ -5479,6 +5484,19 @@
   },
   "symbolEditor": {
     "scaleDrawing": "A new size scales the drawing, the parts and the ports",
+    "id": {
+      "rule": "2 to 30 characters: lowercase letters, digits and «-», but not at the start or the end.",
+      "reserved": "This name belongs to the symbol: body, state, layer-… and fx-… can't be used.",
+      "taken": "A part or an input already has this name."
+    },
+    "ask": {
+      "inputTitle": "Name of the new input",
+      "inputText": "Effects follow it, and on a page a tag is bound to it from «Links».",
+      "partTitle": "Name of the new input: {{kind}}",
+      "partText": "On a page a tag is bound to it from «Links».",
+      "portTitle": "Name of the new port",
+      "portText": "On the page, pipes attach to this name."
+    },
     "port": {
       "one": "Port",
       "title": "Pipe ports",
@@ -5487,7 +5505,7 @@
       "pipes": "Pipes attached: {{n}}",
       "id": "Name",
       "idTaken": "Another port has this name.",
-      "idRule": "2 to 30 characters: lowercase letters, digits, «-».",
+      "idRule": "2 to 30 characters: lowercase letters, digits and «-», but not at the start or the end.",
       "sideLabel": "Side",
       "diameter": "Diameter",
       "side": {
@@ -5642,6 +5660,7 @@
     "turnCcw": "Turn 90° anticlockwise",
     "flipH": "Mirror left and right",
     "flipV": "Mirror top and bottom",
+    "turnPhoto": "A photo can't be turned or mirrored: turn or mirror the picture before uploading it.",
     "align": {
       "left": "Align left",
       "hcenter": "Align centres (horizontal)",
@@ -5940,7 +5959,21 @@
       "clip": "Cut to the shape",
       "unclip": "Remove the cut",
       "maskNote": "The photo shows only inside the shape's outline, and moves and turns with it.",
-      "oldRemoved": "This symbol had {{n}} effects in the old format: they were removed. An effect is now given to a shape or a group (Effects section of the Piece panel)."
+      "oldRemoved": "This symbol had {{n}} effects in the old format: they were removed. An effect is now given to a shape or a group (Effects section of the Selection tab).",
+      "inputName": "on",
+      "groupName": {
+        "glow": "glow",
+        "flame": "flame",
+        "smoke": "smoke",
+        "bubbles": "bubbles"
+      },
+      "pickInput": "Input of the effect",
+      "pickInputText": "{{kind}} on the shapes selected: which input turns it on?",
+      "wholeGroupFirst": "The shapes selected are only part of a group: select the whole group to add an effect.",
+      "effectLine": "{{kind}} of group «{{group}}», follows «{{input}}»",
+      "goTitle": "Some effects go",
+      "goMerge": "A group has at most one glow or flame: these go. Continue?",
+      "goInput": "They follow an input that goes: without it the symbol could not be saved, so they go too. Continue?"
     },
     "window": {
       "back": "Back into the IDE",
@@ -5949,7 +5982,9 @@
       "detachTitle": "Opens the editor in a window of its own, so you can work on the pages meanwhile (remembered for next time)",
       "noIde": "The IDE that opened this window doesn't answer: reopen the editor from the IDE.",
       "connecting": "Connecting to the IDE…",
-      "docTitle": "Symbol {{name}}"
+      "docTitle": "Symbol {{name}}",
+      "otherProject": "The IDE no longer has this window's project open: the symbol was not saved. Export it if you want to keep it, then reopen the editor from the IDE.",
+      "conflict": "«{{slugs}}» also changed in the IDE after this window was opened: the symbol was not saved, so as not to erase that change. Export it if you want to keep it, then reopen the editor from the IDE."
     }
   },
   "images": {

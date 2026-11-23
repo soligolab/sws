@@ -1,6 +1,14 @@
 import { useEffect, useRef } from "react";
 import { api, AuthError, PasswordChangeRequiredError, RuntimeUnavailableError } from "@/api/client";
 
+/** A write of ours that did not go through this page's API client — the symbol
+ *  editor's own window saves from another page (test of the rc.29, 23-11-2026):
+ *  the next change of the fingerprint is ours, not an external one. Same event
+ *  the client emits after each of its writes; `source` only says who asked. */
+export function rebaselineProjectWatcher(source: string): void {
+  try { window.dispatchEvent(new CustomEvent("sws:project-switched", { detail: { source } })); } catch { /* SSR/test */ }
+}
+
 /**
  * Sorveglia il progetto attivo sul runtime e segnala quando cambia.
  *

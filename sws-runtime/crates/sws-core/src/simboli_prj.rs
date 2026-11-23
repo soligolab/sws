@@ -3030,4 +3030,38 @@ mod tests {
         assert!(file.contains_key("prj/gabbia-laminazione.svg"));
         assert_eq!(m["version"].as_str().unwrap().len(), 12);
     }
+
+    /// The names the editor of the symbols asks (test of the rc.29,
+    /// 23-11-2026) follow the compiler's rule: the cases are shared with
+    /// vitest in `tests/fixtures/symbol-ids.json`. An input and a port named
+    /// each way, in a symbol that compiles otherwise.
+    #[test]
+    fn symbol_ids_follow_the_shared_fixture() {
+        let f: Value = serde_json::from_str(include_str!("../../../../tests/fixtures/symbol-ids.json")).unwrap();
+        let refused = |ns: &str, id: &str| -> bool {
+            let mut v = serde_json::to_value(gabbia()).unwrap();
+            let ops = v["ops"].as_array_mut().unwrap();
+            let (op, says) = if ns == "input" {
+                (json!({ "op": "ingresso", "id": id }), format!("id di parte «{id}»"))
+            } else {
+                (json!({ "op": "bocca", "x": 60, "y": 0, "side": "top", "d": 10, "id": id }), format!("id di bocca «{id}»"))
+            };
+            ops.insert(0, op);
+            let d: Descrizione = serde_json::from_value(v).unwrap();
+            compila_e_controlla(&d).err().unwrap_or_default().iter().any(|m| m.contains(&says))
+        };
+        for ns in ["input", "port"] {
+            let cases = &f[ns];
+            for id in cases["accepted"].as_array().unwrap() {
+                let id = id.as_str().unwrap();
+                assert!(!refused(ns, id), "{ns} «{id}» should be accepted");
+            }
+            for id in cases["editorOnly"].as_object().unwrap().keys() {
+                assert!(!refused(ns, id), "{ns} «{id}»: the compiler accepts it, only the editor refuses it");
+            }
+            for id in cases["rejected"].as_object().unwrap().keys() {
+                assert!(refused(ns, id), "{ns} «{id}» should be refused");
+            }
+        }
+    }
 }

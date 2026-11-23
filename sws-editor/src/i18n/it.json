@@ -132,6 +132,7 @@
     "deployAlSalvataggio": "al salvataggio",
     "deployAlSalvataggioTitle": "Invia il progetto a ogni salvataggio andato a buon fine (senza utenti né segreti). Spento: si invia solo con «Invia ora».",
     "deployErrore": "Ultimo invio fallito: {{motivo}}",
+    "deployOnSaveNeedsConfirm": "Invio al salvataggio fermato: il pannello chiede una conferma. Premi «Invia ora» per vederla.",
     "deployConfigTitle": "Clicca per configurare la connessione al runtime remoto",
     "deployReconnectTitle": "Clicca per riconnetterti a {{url}}",
     "dispositivoCollegatoTitle": "Collegato a {{dispositivo}} — è questo il pannello che esegue deploy e scoperte. Clicca per la scheda Connessione.",
@@ -1320,7 +1321,8 @@
       "slide": "Movimento {{id}} (tag)",
       "vibrate": "Vibrazione {{id}} (tag)",
       "pulse": "Pulsazione {{id}} (tag)",
-      "signal": "Segnale {{id}} (tag)"
+      "signal": "Segnale {{id}} (tag)",
+      "input": "Ingresso {{id}} (tag)"
     },
     "colorDaProgetto": "da progetto",
     "colorDaProgettoHint": "Questo colore viene dallo stile del progetto (Configurazione → Progetto → Stile). Sceglierne uno qui vale solo per questo oggetto.",
@@ -1881,8 +1883,11 @@
       "changed": "Gli utenti sono cambiati dall'ultimo invio.",
       "same": "Utenti uguali all'ultimo invio: non serve mandarli."
     },
+    "deployProjectSession": "Sei collegato al pannello con un utente del progetto. Il deploy chiude il progetto, e con lui finisce la tua sessione: il pannello resterebbe senza progetto a metà strada, e non è stato toccato niente.\n\nCollegati con l'Admin del dispositivo (quello nato col codice di abbinamento) oppure, se il pannello è abbinato al cloud, fai il deploy dall'IDE nel cloud.",
+    "deployRotateScreenPortrait": "Questo progetto è verticale e lo schermo del pannello adesso è orizzontale. Per girarlo il sistema riavvia il dispositivo (circa un minuto); su un controllore si fermano anche i PLC (LogicLab, CODESYS, OpenPLC): dopo il riavvio controlla che siano ripartiti.\n\nProcedere col deploy e col riavvio?",
+    "deployRotateScreenLandscape": "Questo progetto è orizzontale e lo schermo del pannello adesso è girato. Per rimetterlo il sistema riavvia il dispositivo (circa un minuto); su un controllore si fermano anche i PLC (LogicLab, CODESYS, OpenPLC): dopo il riavvio controlla che siano ripartiti.\n\nProcedere col deploy e col riavvio?",
     "deployNoUsersTitolo": "Questo progetto non ha utenti",
-    "deployNoUsersConfirm": "Sul dispositivo verranno rimossi gli account esistenti ({{utenti}}) e il pannello resterà accessibile SENZA PASSWORD a chiunque raggiunga la sua rete.\n\nProcedere?",
+    "deployNoUsersConfirm": "Sul dispositivo verranno rimossi gli account del progetto ({{utenti}}). Se il pannello non ha un Admin del dispositivo, resterà chiuso a tutti finché non lo si abbina di nuovo (codice sul suo schermo) o un deploy non gli porta degli utenti.\n\nProcedere?",
     "deployNoUsersUnknown": "elenco non leggibile da qui",
     "connecting": "Connessione…",
     "connectOk": "Connesso.",
@@ -5479,6 +5484,19 @@
   },
   "symbolEditor": {
     "scaleDrawing": "Cambiando la misura, scala il disegno, i pezzi e le bocche",
+    "id": {
+      "rule": "Da 2 a 30 caratteri: lettere minuscole, cifre e «-», ma non all'inizio né alla fine.",
+      "reserved": "Questo nome è del simbolo: body, state, layer-… e fx-… non si possono usare.",
+      "taken": "C'è già una parte o un ingresso con questo nome."
+    },
+    "ask": {
+      "inputTitle": "Nome del nuovo ingresso",
+      "inputText": "Gli effetti lo seguono, e in pagina gli si collega un tag da «Collegamenti».",
+      "partTitle": "Nome del nuovo ingresso: {{kind}}",
+      "partText": "In pagina gli si collega un tag da «Collegamenti».",
+      "portTitle": "Nome della nuova bocca",
+      "portText": "In pagina i tubi si agganciano a questo nome."
+    },
     "port": {
       "one": "Bocca",
       "title": "Attacchi dei tubi",
@@ -5487,7 +5505,7 @@
       "pipes": "Tubi agganciati: {{n}}",
       "id": "Nome",
       "idTaken": "C'è già una bocca con questo nome.",
-      "idRule": "Da 2 a 30 caratteri: lettere minuscole, cifre, «-».",
+      "idRule": "Da 2 a 30 caratteri: lettere minuscole, cifre e «-», ma non all'inizio né alla fine.",
       "sideLabel": "Lato",
       "diameter": "Diametro",
       "side": {
@@ -5642,6 +5660,7 @@
     "turnCcw": "Ruota di 90° in senso antiorario",
     "flipH": "Specchia a destra e sinistra",
     "flipV": "Specchia in alto e in basso",
+    "turnPhoto": "Una foto non si ruota e non si specchia: ruota o specchia l'immagine prima di caricarla.",
     "align": {
       "left": "Allinea a sinistra",
       "hcenter": "Allinea al centro (orizzontale)",
@@ -5940,7 +5959,21 @@
       "clip": "Ritaglia con la forma",
       "unclip": "Togli ritaglio",
       "maskNote": "La foto si vede solo dentro il contorno della forma, e si sposta e gira con lei.",
-      "oldRemoved": "Questo simbolo aveva {{n}} effetti nel formato di prima: sono stati tolti. Ora un effetto si assegna a una forma o a un gruppo (sezione Effetti del pannello Pezzo)."
+      "oldRemoved": "Questo simbolo aveva {{n}} effetti nel formato di prima: sono stati tolti. Ora un effetto si assegna a una forma o a un gruppo (sezione Effetti della scheda Selezione).",
+      "inputName": "acceso",
+      "groupName": {
+        "glow": "bagliore",
+        "flame": "fiamma",
+        "smoke": "fumo",
+        "bubbles": "bollicine"
+      },
+      "pickInput": "Ingresso dell'effetto",
+      "pickInputText": "{{kind}} sulle forme scelte: quale ingresso lo accende?",
+      "wholeGroupFirst": "Le forme scelte sono solo una parte di un gruppo: seleziona tutto il gruppo per aggiungere un effetto.",
+      "effectLine": "{{kind}} del gruppo «{{group}}», segue «{{input}}»",
+      "goTitle": "Si tolgono degli effetti",
+      "goMerge": "Un gruppo ha al più un bagliore o una fiamma: questi si tolgono. Continuare?",
+      "goInput": "Seguono un ingresso che si toglie: senza di lui il simbolo non si salverebbe, quindi si tolgono anche loro. Continuare?"
     },
     "window": {
       "back": "Riporta nell'IDE",
@@ -5949,7 +5982,9 @@
       "detachTitle": "Apre l'editor in una finestra sua, così puoi lavorare alle pagine intanto (lo ricorda per le prossime volte)",
       "noIde": "L'IDE che ha aperto questa finestra non risponde: riapri l'editor dall'IDE.",
       "connecting": "Collegamento all'IDE…",
-      "docTitle": "Simbolo {{name}}"
+      "docTitle": "Simbolo {{name}}",
+      "otherProject": "Nell'IDE non è più aperto il progetto di questa finestra: il simbolo non è stato salvato. Esportalo se vuoi tenerlo, poi riapri l'editor dall'IDE.",
+      "conflict": "«{{slugs}}» è cambiato anche nell'IDE dopo l'apertura di questa finestra: il simbolo non è stato salvato, per non cancellare quella modifica. Esportalo se vuoi tenerlo, poi riapri l'editor dall'IDE."
     }
   },
   "images": {

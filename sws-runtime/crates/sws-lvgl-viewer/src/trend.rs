@@ -47,6 +47,12 @@ const CORNICE: Rgb = (0x33, 0x41, 0x55);
 const AMBRA: Rgb = (0xf5, 0x9e, 0x0b);
 const ROSSO: Rgb = (0xef, 0x44, 0x44);
 const BLU: Rgb = (0x3b, 0x82, 0xf6);
+/// `BAD_QUALITY_COLOR` of `TrendCanvas.tsx` (test of the rc.29, 23-11-2026):
+/// neutral, since red belongs to alarms, and brighter than the grey of «waiting
+/// for samples».
+pub const BAD_QUALITY_COLOR: Rgb = (0xe2, 0xe8, 0xf0);
+/// The grey of «waiting for samples» and «no tag configured».
+const MESSAGE_GREY: Rgb = (0x47, 0x55, 0x69);
 
 // ── Configurazione ──────────────────────────────────────────────────────────
 
@@ -208,6 +214,17 @@ pub struct Dati {
     /// La banda min/max per traccia, solo quando i dati arrivano a secchi.
     pub bande: Vec<Vec<Secchio>>,
     pub allarmi: Vec<Marcatore>,
+    /// Per trace: the LIVE quality is Bad (test of the rc.29, 23-11-2026). It
+    /// comes from the tag snapshot, not from the history: `ancora` prolongs a
+    /// Bad sample to now and buckets carry no quality, so the history alone
+    /// drew a Bad tag as a valid flat line.
+    pub live_bad: Vec<bool>,
+}
+
+impl Dati {
+    fn is_bad(&self, i: usize) -> bool {
+        self.live_bad.get(i).copied().unwrap_or(false)
+    }
 }
 
 // ── Stato dell'operatore ────────────────────────────────────────────────────
@@ -920,19 +937,31 @@ pub fn disegna_fondo(
     // I pulsanti del web (DOM sopra il canvas): qui li disegna il canvas.
     pulsanti(cfg, stato, px, &mut sc, w, h, pan);
 
-    let con_dati = dati.serie.iter().any(|s| s.len() >= 2);
+    // Counted on drawable samples (`v` is `None` for Bad ones, `dati_trend`),
+    // not on all of them: an all-Bad series anchored by `ancora` has two
+    // samples and nothing to draw (test of the rc.29, 23-11-2026).
+    let con_dati = dati
+        .serie
+        .iter()
+        .any(|s| s.iter().filter(|c| c.v.is_some()).nth(1).is_some());
     if !con_dati {
-        let voce = if cfg.tracce.is_empty() {
-            sws_core::testi_sistema::Testo::TrendNessunTag
+        let bad = (0..n).any(|i| dati.is_bad(i));
+        let (voce, c) = if cfg.tracce.is_empty() {
+            (sws_core::testi_sistema::Testo::TrendNessunTag, MESSAGE_GREY)
+        } else if bad {
+            (
+                sws_core::testi_sistema::Testo::TrendBadQuality,
+                BAD_QUALITY_COLOR,
+            )
         } else {
-            sws_core::testi_sistema::Testo::TrendInAttesa
+            (sws_core::testi_sistema::Testo::TrendInAttesa, MESSAGE_GREY)
         };
         testo(
             &mut sc,
             w / 2.0,
             h / 2.0,
             sws_core::testi_sistema::testo(voce, &cfg.lingua).into(),
-            (0x47, 0x55, 0x69),
+            c,
             11,
             Orizz::Centro,
             Vert::Basso,
@@ -1264,7 +1293,30 @@ pub fn disegna_fondo(
             // l'altra sia il rettangolo che riceve il dito. Era rimasta a 10
             // fisso: col corpo di oggi coincide, ma alzandolo le voci si
             // sovrapponevano e il tocco finiva sulla traccia sbagliata.
-            let lw = misura(&tr.nome, cfg.corpo);
+            let mut lw = misura(&tr.nome, cfg.corpo);
+            // A Bad trace says so next to its name; the other traces keep
+            // their colours (test of the rc.29, 23-11-2026).
+            if dati.is_bad(i) {
+                let mark = format!(
+                    "({})",
+                    sws_core::testi_sistema::testo(
+                        sws_core::testi_sistema::Testo::TrendBadQuality,
+                        &cfg.lingua
+                    )
+                );
+                let mw = misura(&mark, cfg.corpo);
+                testo(
+                    &mut sc,
+                    cx + 12.0 + lw + 4.0,
+                    cy,
+                    mark,
+                    BAD_QUALITY_COLOR,
+                    cfg.corpo,
+                    Orizz::Sx,
+                    Vert::Mezzo,
+                );
+                lw += 4.0 + mw;
+            }
             let riga = 14.0_f32.max(cfg.corpo as f32 + 3.0);
             sc.legenda.push((
                 Rett {
@@ -1354,13 +1406,31 @@ pub fn disegna_dito(
             cfg, dati, stato, px, sc, p.x, t_min, t_span, x_at, &scala_di, y_con, misura, fuso,
         );
     } else if stato.pressione.is_none() && n == 1 {
-        // Il valore corrente in alto a destra, con una traccia sola.
-        if let Some(v) = dati.serie.first().and_then(|s| s.last()).and_then(|c| c.v) {
+        // Il valore corrente in alto a destra, con una traccia sola. A Bad
+        // trace shows the warning in place of its number (test of the rc.29,
+        // 23-11-2026): with buckets the line is still drawn, and this is the sign.
+        let voce = if dati.is_bad(0) {
+            Some((
+                sws_core::testi_sistema::testo(
+                    sws_core::testi_sistema::Testo::TrendBadQuality,
+                    &cfg.lingua,
+                )
+                .to_string(),
+                BAD_QUALITY_COLOR,
+            ))
+        } else {
+            dati.serie
+                .first()
+                .and_then(|s| s.last())
+                .and_then(|c| c.v)
+                .map(|v| (fmt_valore(v), (0x94, 0xa3, 0xb8)))
+        };
+        if let Some((t, colore)) = voce {
             sc.testi.push(Testo {
                 x: sx + plot_w - 4.0,
                 y: alto + 4.0,
-                testo: fmt_valore(v),
-                colore: (0x94, 0xa3, 0xb8),
+                testo: t,
+                colore,
                 px: cfg.corpo + 1,
                 orizz: Orizz::Dx,
                 vert: Vert::Alto,
@@ -1963,6 +2033,159 @@ mod tests {
             &utc,
         );
         assert!(sc.testi.iter().any(|t| t.testo.starts_with("In attesa")));
+    }
+
+    // The trend and a Bad tag (test of the rc.29 on the WP630, 23-11-2026):
+    // `ancora` brings a Bad tag as two Bad samples, which `dati_trend` turns
+    // into `v: None`. Web twin: `sws-editor/tests/trendQuality.test.tsx`.
+    fn anchored_bad() -> Vec<Campione> {
+        vec![
+            Campione {
+                ts: ORA - 60_000,
+                v: None,
+            },
+            Campione { ts: ORA, v: None },
+        ]
+    }
+
+    #[test]
+    fn bad_quality_without_drawable_samples_says_so_not_waiting() {
+        let c = cfg(vec![traccia("a", BLU)]);
+        let mut px = Pixmap::new(360, 180).unwrap();
+        let mut dati = Dati {
+            serie: vec![anchored_bad()],
+            live_bad: vec![true],
+            ..Default::default()
+        };
+        let sc = disegna(
+            &c,
+            &dati,
+            &Stato::nuovo(&c),
+            ORA,
+            None,
+            &mut px,
+            &misura,
+            &utc,
+        );
+        assert!(
+            sc.dominio.is_none(),
+            "nothing to draw: the message, not an empty chart"
+        );
+        let t: Vec<_> = sc
+            .testi
+            .iter()
+            .map(|t| (t.testo.as_str(), t.colore))
+            .collect();
+        assert_eq!(t, vec![("Dato non valido", BAD_QUALITY_COLOR)]);
+        // Two samples, none drawable, live Good: still waiting.
+        dati.live_bad = vec![false];
+        let sc = disegna(
+            &c,
+            &dati,
+            &Stato::nuovo(&c),
+            ORA,
+            None,
+            &mut px,
+            &misura,
+            &utc,
+        );
+        assert!(sc.testi.iter().any(|t| t.testo.starts_with("In attesa")));
+    }
+
+    #[test]
+    fn bad_quality_with_data_replaces_the_number_in_the_badge() {
+        // Buckets: the line stays drawn (they carry no quality), the badge warns.
+        // Thick, so the antialiasing leaves pixels of the exact colour.
+        let c = cfg(vec![Traccia {
+            spessore: 4.0,
+            ..traccia("a", (255, 0, 0))
+        }]);
+        let mut px = Pixmap::new(360, 180).unwrap();
+        let dati = Dati {
+            serie: vec![rampa(ORA - 50_000, 10, 5000, 0.0)],
+            live_bad: vec![true],
+            ..Default::default()
+        };
+        let sc = disegna(
+            &c,
+            &dati,
+            &Stato::nuovo(&c),
+            ORA,
+            None,
+            &mut px,
+            &misura,
+            &utc,
+        );
+        assert!(sc.dominio.is_some());
+        let badge: Vec<_> = sc
+            .testi
+            .iter()
+            // The badge is one point above the axis labels.
+            .filter(|t| t.px == c.corpo + 1)
+            .map(|t| (t.testo.as_str(), t.colore))
+            .collect();
+        assert_eq!(badge, vec![("Dato non valido", BAD_QUALITY_COLOR)]);
+        let d = sc.dominio.unwrap();
+        let rossi = (d.sx as u32..(d.sx + d.plot_w) as u32)
+            .flat_map(|x| (d.alto as u32..(d.alto + d.plot_h) as u32).map(move |y| (x, y)))
+            .filter(|(x, y)| pixel(&px, *x, *y) == (255, 0, 0))
+            .count();
+        assert!(rossi > 0, "the line is still drawn");
+    }
+
+    #[test]
+    fn bad_quality_on_one_trace_leaves_the_others_drawn_and_coloured() {
+        let spessa = |tag: &str, c: Rgb| Traccia {
+            spessore: 4.0,
+            ..traccia(tag, c)
+        };
+        let c = cfg(vec![spessa("good", BLU), spessa("bad", (255, 0, 0))]);
+        let mut px = Pixmap::new(360, 180).unwrap();
+        let dati = Dati {
+            serie: vec![rampa(ORA - 50_000, 10, 5000, 0.0), anchored_bad()],
+            live_bad: vec![false, true],
+            ..Default::default()
+        };
+        let sc = disegna(
+            &c,
+            &dati,
+            &Stato::nuovo(&c),
+            ORA,
+            None,
+            &mut px,
+            &misura,
+            &utc,
+        );
+        let d = sc
+            .dominio
+            .expect("the Good trace is drawable: the chart is drawn");
+        let colore_di = |c: Rgb| {
+            (d.sx as u32..(d.sx + d.plot_w) as u32)
+                .flat_map(|x| (d.alto as u32..(d.alto + d.plot_h) as u32).map(move |y| (x, y)))
+                .filter(|(x, y)| pixel(&px, *x, *y) == c)
+                .count()
+        };
+        assert!(colore_di(BLU) > 0, "the Good trace keeps its colour");
+        assert_eq!(colore_di((255, 0, 0)), 0, "the Bad trace has no line");
+        // Only the Bad trace is marked, next to its name, inside its touch box.
+        let marks: Vec<_> = sc
+            .testi
+            .iter()
+            .filter(|t| t.testo == "(Dato non valido)")
+            .collect();
+        assert_eq!(marks.len(), 1);
+        assert_eq!(marks[0].colore, BAD_QUALITY_COLOR);
+        let (r, i) = sc.legenda[1];
+        assert_eq!(i, 1);
+        assert!(marks[0].x > r.x && marks[0].x < r.x + r.w);
+        assert!(sc
+            .testi
+            .iter()
+            .any(|t| t.testo == "good" && t.colore == (0xcb, 0xd5, 0xe1)));
+        assert!(
+            !sc.testi.iter().any(|t| t.testo == "Dato non valido"),
+            "no centre message"
+        );
     }
 
     #[test]

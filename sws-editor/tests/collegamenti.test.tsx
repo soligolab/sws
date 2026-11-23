@@ -8,6 +8,7 @@ import { useAppStore } from "../src/store";
 import { ObjectProps, PannelloDestro, gruppiPerTipo } from "../src/editor/EditorShell";
 import { Collegamenti } from "../src/editor/proprieta/Collegamenti";
 import { slotDi } from "../src/editor/proprieta/slotTag";
+import { sovrapponiSimboli } from "../src/symbols/lib/libreria";
 import type { SynopticObject } from "../src/types";
 
 const oggetto = (type: string, extra: Partial<SynopticObject> = {}) =>
@@ -74,6 +75,18 @@ describe("Collegamenti", () => {
     })} onChange={() => {}} stileCampo={{}} />);
     expect(screen.getByTestId("vai-trend_tags").textContent).toContain(i18n.t("props.slot.nTag", { count: 2 }));
     expect(screen.getByTestId("vai-opacity").textContent).toContain("c");
+  });
+
+  it("un ingresso del simbolo si legge col suo nome, non con la chiave grezza (collaudo della rc.29)", () => {
+    const via = sovrapponiSimboli([{ svg: "", voce: {
+      id: "prj:stufa", file: "prj/stufa.svg", family: "project", kind: "project", label: "Stufa", viewBox: [100, 100],
+      body: "body-pump", materials: [], parts: [{ id: "acceso", kind: "input" }], labels: { it: "Stufa", en: "Stove" },
+    } as never }]);
+    try {
+      render(<Collegamenti obj={oggetto("symbol", { symbol_id: "prj:stufa" })} onChange={() => {}} stileCampo={{}} />);
+      expect(screen.getByText(i18n.t("props.parte.input", { id: "acceso" }))).toBeTruthy();
+      expect(screen.queryByText(/props\.parte/)).toBeNull();
+    } finally { via(); }
   });
 
   it("gli slot che il disegno non ha non si offrono", () => {

@@ -3913,6 +3913,14 @@ function SvgObjectCorpo(p: ObjProps) {
     etichette: (tracceTrend ?? []).map((tr) => tr.label ?? tr.tag),
     stili: tracceTrend ?? [],
   }), [chiaveTracce]);
+  // The live quality of each trace (test of the rc.29, 23-11-2026: a Bad tag
+  // drew as a valid flat line). Same reference until a quality changes, so a
+  // value change alone doesn't redraw the canvas.
+  const traceQualityKey = tracceTrend ? serieTrend.tags.map((tag) => tagValues[tag]?.quality ?? "").join("|") : "";
+  const traceLiveQualities = useMemo(
+    () => (traceQualityKey ? traceQualityKey.split("|").map((q) => (q || undefined) as TagState["quality"] | undefined) : undefined),
+    [traceQualityKey],
+  );
   // Drag-to-zoom range for the "trend" object type (T-48). Declared
   // unconditionally (rules of hooks) even though only the trend branch uses
   // it — this component instance is keyed by obj.id, so the state persists
@@ -5823,6 +5831,9 @@ function SvgObjectCorpo(p: ObjProps) {
                 onResetZoom={() => setTrendZoom(null)}
                 panStepS={obj.pan_step_s}
                 editPreview={isEditMode}
+                // Also in edit: quality is data, like the quality dot, not a
+                // runtime effect behind «Anteprima effetti» (rc.30, B).
+                liveQualities={traceLiveQualities}
               />
             </foreignObject>
             {onExpandTrend && (

@@ -96,6 +96,9 @@ pub enum Testo {
     // sul web e sul pannello LVGL.
     TrendNessunTag,
     TrendInAttesa,
+    /// A trace whose live quality is Bad (test of the rc.29, 23-11-2026): before,
+    /// a Bad tag was drawn as a valid flat line.
+    TrendBadQuality,
     /// «Attuale:» nel setpoint (22-10-2026). Era in `viewer.currentValue` di
     /// `it.json`/`en.json`: **due lingue, e la lingua dell'IDE** invece di
     /// quella dei contenuti — un operatore tedesco leggeva «Current:». È lo
@@ -197,6 +200,7 @@ pub const TUTTI: &[Testo] = &[
     Testo::Conferma,
     Testo::TrendNessunTag,
     Testo::TrendInAttesa,
+    Testo::TrendBadQuality,
     Testo::SpAttuale,
     Testo::QuadletTitolo,
     Testo::QuadletSpiega,
@@ -282,6 +286,7 @@ pub fn da_nome(nome: &str) -> Option<Testo> {
         "conferma" => Testo::Conferma,
         "trend_nessun_tag" => Testo::TrendNessunTag,
         "trend_in_attesa" => Testo::TrendInAttesa,
+        "trend_bad_quality" => Testo::TrendBadQuality,
         "sp_attuale" => Testo::SpAttuale,
         "quadlet_titolo" => Testo::QuadletTitolo,
         "quadlet_spiega" => Testo::QuadletSpiega,
@@ -590,6 +595,12 @@ pub fn testo(t: Testo, lingua: &str) -> &'static str {
         (TrendInAttesa, "fr") => "En attente d'échantillons…",
         (TrendInAttesa, "es") => "Esperando muestras…",
         (TrendInAttesa, _) => "Waiting for samples…",
+
+        (TrendBadQuality, "it") => "Dato non valido",
+        (TrendBadQuality, "de") => "Ungültige Daten",
+        (TrendBadQuality, "fr") => "Donnée non valide",
+        (TrendBadQuality, "es") => "Dato no válido",
+        (TrendBadQuality, _) => "Invalid data",
 
         (QuadletTitolo, "it") => "Configurazione del servizio da aggiornare",
         (QuadletTitolo, "de") => "Dienstkonfiguration aktualisieren",

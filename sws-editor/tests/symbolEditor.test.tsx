@@ -8,7 +8,9 @@ import { resolve } from "node:path";
 import "../src/i18n/index";
 import { api } from "../src/api/client";
 import { useAppStore } from "../src/store";
-import { rispondi } from "../src/finestraAvviso/finestraAvviso";
+import i18n from "../src/i18n/index";
+import { rispondi, svuotaCoda } from "../src/finestraAvviso/finestraAvviso";
+import { FinestraAvviso } from "../src/finestraAvviso/FinestraAvviso";
 import { impostaLibreriaPerTest } from "../src/symbols/lib/libreria";
 import type { ManifestLib } from "../src/symbols/lib/manifest";
 import { SymbolEditorHost } from "../src/symbols/editor/SymbolEditor";
@@ -54,7 +56,13 @@ describe("symbol editor", () => {
       useAppStore.getState().closeSymbolEditor();
     });
   });
-  afterEach(() => { vi.restoreAllMocks(); act(() => useAppStore.getState().closeSymbolEditor()); });
+  afterEach(async () => {
+    vi.restoreAllMocks();
+    // A question left open must not take the keys of the next test.
+    await act(async () => { svuotaCoda(); });
+    fireEvent.keyUp(window, { key: "Enter" });
+    act(() => useAppStore.getState().closeSymbolEditor());
+  });
 
   it("compiles with the trace and saves a new symbol into the project", async () => {
     await openBlankSymbol();
@@ -230,9 +238,30 @@ describe("symbol editor", () => {
     // Nor PointerEvent: a MouseEvent carries `button` like the real one.
     const w = window as unknown as Record<string, unknown>;
     if (!w.PointerEvent) w.PointerEvent = w.MouseEvent;
-    fireEvent.click(screen.getByTestId("symbol-tool-port"));
-    fireEvent.pointerDown(screen.getByTestId("symbol-editor-canvas"), { button: 0, clientX: 0, clientY: 0, pointerId: 1 });
+    // The name is asked first (test of the rc.29): Cancel makes no port, and
+    // the tool goes back to «Select».
+    const portAt = async (answer: unknown) => {
+      fireEvent.click(screen.getByTestId("symbol-tool-port"));
+      const auto = rispondi(answer);
+      try {
+        await act(async () => {
+          fireEvent.pointerDown(screen.getByTestId("symbol-editor-canvas"), { button: 0, clientX: 0, clientY: 0, pointerId: 1 });
+        });
+      } finally { auto.ferma(); }
+      return auto.chiamate;
+    };
+    expect(await portAt(null)).toHaveLength(1);
+    expect(screen.queryByTestId("symbol-port-p1")).toBeNull();
+    expect(screen.getByTestId("symbol-tool-select").getAttribute("aria-pressed")).toBe("true");
+    const asked = await portAt(" P1 ");
+    expect(asked[0]).toMatchObject({ tipo: "chiedi", iniziale: "p1" });
     expect(screen.getByTestId("symbol-port-p1")).toBeTruthy();
+    // The rule of the compiler: no «-» at either end, no id of another port.
+    const valida = (asked[0] as { valida: (v: string) => string | null }).valida;
+    expect(valida("-in")).toBe(i18n.t("symbolEditor.port.idRule"));
+    expect(valida("in-")).toBe(i18n.t("symbolEditor.port.idRule"));
+    expect(valida("n-left")).toBe(i18n.t("symbolEditor.port.idTaken"));
+    expect(valida("inlet")).toBeNull();
     const id = screen.getByTestId("symbol-port-id") as HTMLInputElement;
     fireEvent.change(id, { target: { value: "Inlet" } });
     // Enter confirms the name (20-11-2026: the editor stopped the key before
@@ -435,23 +464,66 @@ describe("animating a symbol in the editor", () => {
     vi.spyOn(api, "symbolCatalog").mockResolvedValue({ materials: [{ name: "steel", color: "#9aa5af" }], veils: [] });
     vi.spyOn(api, "updateSimboli").mockResolvedValue(undefined);
   });
-  afterEach(() => { vi.restoreAllMocks(); act(() => useAppStore.getState().closeSymbolEditor()); });
+  afterEach(async () => {
+    vi.restoreAllMocks();
+    await act(async () => { svuotaCoda(); });
+    act(() => useAppStore.getState().closeSymbolEditor());
+  });
 
   const open = (ops: Record<string, unknown>[], slug = "anima") => act(() => useAppStore.getState().openSymbolEditor({
     draft: { slug, w: 100, h: 100, body: "body-pump", it: "A", en: "A", ops: ops as never }, isNew: false,
   }));
 
-  it("«Anima…» makes a piece of the chosen shape; its parameters show; «Togli animazione» undoes it", async () => {
+  /** `answer` to every question `action` asks; the questions. */
+  const answering = async (answer: unknown, action: () => void) => {
+    const auto = rispondi(answer);
+    try { await act(async () => { action(); }); } finally { auto.ferma(); }
+    return auto.chiamate;
+  };
+  const animate = (kind: string) => fireEvent.change(screen.getByTestId("symbol-animate"), { target: { value: kind } });
+
+  it("«Anima…» asks the name of the new piece; its parameters show; on the piece only the kind changes; «Togli animazione» undoes it", async () => {
     open([{ op: "corpo" }, newRect({ x: 0, y: 0, w: 10, h: 10 }), newRect({ x: 50, y: 50, w: 20, h: 20 })]);
     render(<SymbolEditorHost />);
     fireEvent.click(screen.getByTestId("symbol-op-row-2"));
-    fireEvent.change(screen.getByTestId("symbol-animate"), { target: { value: "slide" } });
+    // Cancel: nothing changes.
+    expect(await answering(null, () => animate("slide"))).toHaveLength(1);
+    expect(screen.queryByTestId("symbol-op-row-3")).toBeNull();
+    expect((screen.getByTestId("symbol-animate") as HTMLSelectElement).value).toBe("");
+    const asked = await answering("cassetto", () => animate("slide"));
+    expect(asked[0]).toMatchObject({ tipo: "chiedi", iniziale: "slide" });
     // The shape is now in a slide layer, which the layer list shows, with its parameters.
     await waitFor(() => expect(screen.getByTestId("symbol-op-row-3")).toBeTruthy());
+    expect(screen.getByTestId("symbol-layer-cassetto")).toBeTruthy();
     expect((screen.getByTestId("symbol-animate") as HTMLSelectElement).value).toBe("slide");
     expect(screen.getByText(/spostamento y|move y/)).toBeTruthy();
-    fireEvent.click(screen.getByTestId("symbol-animate-remove"));
+    // On the shapes of the piece only the kind changes: no question, the name stays.
+    expect(await answering("altro", () => animate("pulse"))).toHaveLength(0);
+    expect((screen.getByTestId("symbol-animate") as HTMLSelectElement).value).toBe("pulse");
+    expect(screen.getByTestId("symbol-layer-cassetto")).toBeTruthy();
+    // No effect follows it: removed without a question.
+    expect(await answering(true, () => fireEvent.click(screen.getByTestId("symbol-animate-remove")))).toHaveLength(0);
     expect((screen.getByTestId("symbol-animate") as HTMLSelectElement).value).toBe("");
+  });
+
+  it("«Togli animazione» on a piece that effects follow lists them first, and they go with it", async () => {
+    open([{ op: "corpo" }, newRect({ x: 0, y: 0, w: 10, h: 10 }),
+      { op: "parte", id: "fan", kind: "rotor", geo: { cx: 60, cy: 60 } }, { ...newRect({ x: 50, y: 50, w: 20, h: 20 }), group: "neon" },
+      { op: "effetto", kind: "glow", group: "neon", input: "fan" }]);
+    render(<SymbolEditorHost />);
+    fireEvent.click(screen.getByTestId("symbol-op-row-3"));
+    // Cancelled: the piece and its glow stay.
+    expect(await answering(false, () => fireEvent.click(screen.getByTestId("symbol-animate-remove")))).toHaveLength(1);
+    expect((screen.getByTestId("symbol-animate") as HTMLSelectElement).value).toBe("rotor");
+    const asked = await answering(true, () => fireEvent.click(screen.getByTestId("symbol-animate-remove")));
+    expect(asked[0].tipo).toBe("conferma");
+    expect((asked[0] as { testo: string }).testo).toContain("«neon»");
+    expect((screen.getByTestId("symbol-animate") as HTMLSelectElement).value).toBe("");
+    // One step: Ctrl+Z gives back the piece and its glow together.
+    act(() => { fireEvent.keyDown(window, { key: "z", ctrlKey: true }); });
+    fireEvent.click(screen.getByTestId("symbol-op-row-3"));
+    expect((screen.getByTestId("symbol-animate") as HTMLSelectElement).value).toBe("rotor");
+    expect(screen.getByTestId("symbol-fx-glow")).toBeTruthy();
   });
 
   it("a signal's entries: added, and «Prova» shows them; «Anima» turns the timed effects on", async () => {
@@ -480,7 +552,9 @@ describe("animating a symbol in the editor", () => {
     render(<SymbolEditorHost />);
     fireEvent.click(screen.getByTestId("symbol-tab-structure"));
     const id = screen.getAllByRole("textbox").find((e) => (e as HTMLInputElement).value === "gate") as HTMLInputElement;
+    // The name is applied when it leaves the field (rc.30: not at every letter).
     fireEvent.change(id, { target: { value: "door" } });
+    fireEvent.blur(id);
     await waitFor(() => expect(screen.getByTestId("symbol-editor-save").hasAttribute("disabled")).toBe(false));
     // The question about the bound part is answered «yes».
     const auto = rispondi(true);
@@ -494,5 +568,110 @@ describe("animating a symbol in the editor", () => {
     });
     const written = vi.mocked(api.updateSimboli).mock.calls.at(-1)![0];
     expect(written.find((x) => x.slug === "legata")!.ops.some((o) => o.op === "parte" && o.id === "door")).toBe(true);
+  });
+
+  /** A page with one object of `slug` bound to `parts`. */
+  const bound = (slug: string, parts: Record<string, { tag: string }>) => act(() => useAppStore.getState().setPages([{ id: "p1", name: "P", objects: [
+    { id: "s1", type: "symbol", x: 0, y: 0, width: 50, height: 50, symbol_id: `prj:${slug}`, symbol_parts: parts },
+  ] }] as never, "p1"));
+  const savedParts = async () => {
+    await waitFor(() => expect(screen.getByTestId("symbol-editor-save").hasAttribute("disabled")).toBe(false));
+    const asked = await answering(true, () => fireEvent.click(screen.getByTestId("symbol-editor-save")));
+    return { asked, parts: (useAppStore.getState().pages[0].objects[0] as SynopticObject).symbol_parts };
+  };
+
+  it("an input bound in the page, renamed, asks at saving and the object follows (rc.29: an `ingresso` could not be renamed)", async () => {
+    bound("acceso", { acceso: { tag: "stufa.on" } });
+    open([{ op: "ingresso", id: "acceso" }, { op: "corpo" }, newRect({ x: 0, y: 0, w: 10, h: 10 })], "acceso");
+    render(<SymbolEditorHost />);
+    fireEvent.click(screen.getByTestId("symbol-tab-structure"));
+    const id = screen.getByTestId("symbol-input-name-acceso") as HTMLInputElement;
+    fireEvent.change(id, { target: { value: "fuoco" } });
+    fireEvent.blur(id);
+    const r = await savedParts();
+    expect(r.asked).toHaveLength(1);
+    expect(r.parts).toEqual({ fuoco: { tag: "stufa.on" } });
+  });
+
+  it("a new input named like a part just renamed doesn't take the page's bindings of that part", async () => {
+    bound("cancello", { gate: { tag: "porta" } });
+    open([{ op: "corpo" }, newRect({ x: 0, y: 0, w: 10, h: 10 }),
+      { op: "parte", id: "gate", kind: "slide", geo: { dx: 0, dy: -10 } }, newRect({ x: 50, y: 50, w: 20, h: 20 })], "cancello");
+    render(<SymbolEditorHost />);
+    fireEvent.click(screen.getByTestId("symbol-tab-structure"));
+    const id = screen.getByTestId("symbol-input-name-gate") as HTMLInputElement;
+    fireEvent.change(id, { target: { value: "door" } });
+    fireEvent.blur(id);
+    fireEvent.change(screen.getByTestId("symbol-input-kind"), { target: { value: "input" } });
+    await answering("gate", () => fireEvent.click(screen.getByTestId("symbol-input-add")));
+    expect(screen.getByTestId("symbol-input-row-gate")).toBeTruthy();
+    // The binding of the page goes with the part, now «door».
+    const r = await savedParts();
+    expect(r.asked).toHaveLength(1);
+    expect(r.parts).toEqual({ door: { tag: "porta" } });
+  });
+});
+
+/** The editor's keys and the questions (test of the rc.29, 23-11-2026): with
+ *  a question open, its keys are its own. */
+describe("the symbol editor under a question", () => {
+  beforeEach(() => {
+    impostaLibreriaPerTest(manifest, {});
+    vi.spyOn(api, "compilaSimboli").mockImplementation(async (ds) => ds.map(compiled));
+    vi.spyOn(api, "symbolCatalog").mockResolvedValue({ materials: [{ name: "steel", color: "#9aa5af" }], veils: [] });
+    vi.spyOn(api, "updateSimboli").mockResolvedValue(undefined);
+    act(() => {
+      useAppStore.getState().setProject({ name: "p", tags: [], simboli: [] } as never);
+      useAppStore.getState().setPages([{ id: "p1", name: "P", objects: [] }] as never, "p1");
+    });
+  });
+  afterEach(async () => {
+    vi.restoreAllMocks();
+    await act(async () => { svuotaCoda(); });
+    fireEvent.keyUp(window, { key: "Enter" });
+    act(() => useAppStore.getState().closeSymbolEditor());
+  });
+
+  const openWithShape = async () => {
+    act(() => useAppStore.getState().openSymbolEditor({
+      draft: { slug: "tasti", w: 100, h: 100, body: "body-pump", it: "T", en: "T", ops: [{ op: "corpo" }, newRect({ x: 20, y: 20, w: 60, h: 60 })] },
+      isNew: true,
+    }));
+    render(<><SymbolEditorHost /><FinestraAvviso /></>);
+    await waitFor(() => expect(api.compilaSimboli).toHaveBeenCalled());
+  };
+
+  it("Enter in the field of «Salva come» confirms, Esc cancels", async () => {
+    await openWithShape();
+    await act(async () => { fireEvent.click(screen.getByText(/Salva come|Save as/)); });
+    const field = screen.getByTestId("finestra-avviso-campo") as HTMLInputElement;
+    fireEvent.keyDown(field, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByTestId("finestra-avviso")).toBeNull());
+    expect(api.updateSimboli).not.toHaveBeenCalled();
+    await act(async () => { fireEvent.click(screen.getByText(/Salva come|Save as/)); });
+    const again = screen.getByTestId("finestra-avviso-campo") as HTMLInputElement;
+    fireEvent.change(again, { target: { value: "Stufa a legna" } });
+    await act(async () => { fireEvent.keyDown(again, { key: "Enter" }); });
+    await waitFor(() => expect(api.updateSimboli).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(api.updateSimboli).mock.calls[0][0].some((s) => s.slug === "stufa-a-legna")).toBe(true);
+  });
+
+  it("Esc on «Close the editor?» closes that question only; Delete under it deletes nothing", async () => {
+    await openWithShape();
+    fireEvent.click(screen.getByTestId("symbol-op-row-1"));
+    await act(async () => { fireEvent.click(screen.getByTestId("symbol-editor-close")); });
+    expect(screen.getByTestId("finestra-avviso").getAttribute("data-tipo")).toBe("scegli");
+    // The focus is on a button of the question (Cancel, the default).
+    const focused = document.activeElement as HTMLElement;
+    expect(screen.getByTestId("finestra-avviso").contains(focused)).toBe(true);
+    fireEvent.keyDown(focused, { key: "Delete" });
+    expect(screen.getByTestId("symbol-op-row-1")).toBeTruthy();
+    fireEvent.keyDown(focused, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByTestId("finestra-avviso")).toBeNull());
+    // Not a second question in its place, and the editor is still there.
+    await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    expect(screen.queryByTestId("finestra-avviso")).toBeNull();
+    expect(useAppStore.getState().symbolEditor).not.toBeNull();
+    expect(screen.getByTestId("symbol-op-row-1").getAttribute("aria-selected")).toBe("true");
   });
 });

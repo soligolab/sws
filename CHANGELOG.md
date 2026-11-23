@@ -70,6 +70,80 @@ si stabilizza su `release/2.26` (piano `docs/plans/2026-11-22-dev-rc-release-e-p
 Il lavoro dalla 2.25.2 alla 2.26.0-rc.26. Le correzioni della stabilizzazione si fanno su `release/2.26` e si
 riportano qui con `cherry-pick`; la data arriva con la release.
 
+### Corretto — le anomalie del collaudo della rc.29 sul WP630 (23-11-2026, ramo `fix/rc30-collaudo`)
+- **«Togli ritaglio» non ferma più l'editor dei simboli** (E). Rimetteva la forma con gli attributi scritti come
+  oggetto, e l'editor si fermava («e.find is not a function») appena la si selezionava da sola. Ora la forma torna come
+  coppie, e gli attributi scritti come oggetto (che il compilatore accetta) diventano coppie all'apertura, dai file
+  `.swsym` e dalle proposte dell'IA. Ruota/Specchia su una sola foto: pulsanti spenti con il perché.
+- **Un tag calcolato prende la qualità peggiore dei tag che la sua espressione nomina** (A); prima era sempre Good se
+  la valutazione riusciva. All'avvio un derivato con un ingresso mai arrivato resta «mai ricevuto»; un ingresso Bad lo
+  fa comunque Bad. I commenti `#` non contano come ingressi. Le espressioni costanti ora si valutano. Un'espressione
+  modificata vale dal primo risveglio dopo il salvataggio o il deploy.
+- **Il trend dice quando un tag è Bad**, sul web e sul pannello LVGL (B, parte rc.30): traccia segnata nella legenda,
+  «Dato non valido» nel badge del valore o al centro al posto di «In attesa di campioni…», linea interrotta sui
+  campioni Bad (finestre fino a 15 minuti). Prima un tag Bad compariva come una linea piatta valida. Il Bad di default
+  su tutti gli oggetti è per la 2.27 (decisione B1 del maintainer).
+- **Salvare dalla finestra dei simboli non fa più comparire la barra «il progetto sul runtime è cambiato»** (C); lo
+  stesso per le foto caricate dall'IDE e per «Genera foto». Con la finestra dei simboli aperta, un simbolo cambiato
+  intanto nell'IDE (seconda finestra, aggiornamento dalla libreria, proposta dell'IA) non si perde più al Salva della
+  finestra; se nell'IDE si è aperto un altro progetto, la finestra rifiuta il salvataggio e lo dice. «Rinomina» non c'è
+  più nella libreria immagini dentro la finestra dei simboli.
+- **Un deploy solo** (2): con il deploy al salvataggio acceso, «Deploy» con modifiche non salvate non fa più partire due
+  deploy (uno prendeva 409); un deploy partito da un salvataggio non apre conferme: si ferma e il badge dice di usare il
+  Deploy esplicito. Il pulsante di Connessione è spento mentre un deploy è in corso (`saveBeforeDeploy` nello store).
+- **Nell'editor dei simboli un ingresso nuovo chiede il nome** (D): anche da «Aggiungi effetto», da «Ingressi →
+  Aggiungi», da «Anima…» quando nasce una parte, dallo strumento Bocca; Annulla non crea niente. Gli effetti non si
+  scambiano più gli ingressi. Un ingresso si rinomina e si toglie da «Ingressi»; togliere un ingresso che degli effetti
+  seguono chiede conferma e li toglie insieme. Invio ed Esc funzionano nelle finestre di domanda dell'editor, e Esc/Canc
+  non agiscono più sul disegno sotto. Duplicare un gruppo intero fa un gruppo nuovo senza effetti. In «Collegamenti»
+  l'ingresso si legge («Ingresso acceso (tag)»).
+
+### Da sapere — le correzioni del collaudo sul WP630
+- Tag calcolati (A): gli allarmi sui tag calcolati si fermano durante il guasto di un ingresso; MQTT pubblica `null`; le
+  variabili di memoria usate come parametri, dopo un riavvio, rendono non Good i derivati finché non si riscrivono;
+  `'offline' if not tags['x'] else …` esce Bad se `x` è Bad (lettura statica). Due derivati che si leggono a vicenda
+  possono restare «mai ricevuti».
+- Trend (B): un trend su un tag di testo mostra «In attesa di campioni…» invece degli assi vuoti; nella finestra
+  «Espandi» del web, con finestre lunghe, l'avviso non compare (manca la qualità viva).
+- Barra «progetto cambiato» (C): le scritture nostre che non passano da un segnale ora danno la barra sempre (prima
+  circa 4 volte su 5), per esempio dopo il ripristino di un backup, ed è giusto.
+- Editor dei simboli (D): i nomi delle bocche che cominciano o finiscono con un trattino ora sono rifiutati.
+
+### Corretto — le anomalie del collaudo sul PLX800 (23-11-2026, ramo `fix/rc30-collaudo`)
+- **La rotazione dello schermo si chiede prima** (anomalia 1). Il deploy di un progetto verticale ha riavviato un PLX800
+  (un controllore con LogicLab acceso e senza schermo) senza una parola, e di nuovo al progetto orizzontale dopo. Il
+  pannello dice in `/api/system` (`screen_rotation`) come è girato lo schermo quando lo gira il sistema riavviando
+  (PixsysOS); il deploy, se il progetto lo farebbe girare, si ferma con un 428 `rotate-screen` e l'IDE chiede, dicendo
+  del riavvio e dei PLC; «no» non tocca niente (`rotation_to_confirm` in `remote.rs`, `conferme428.ts`). Il resto del
+  comportamento non cambia: le scelte (b) «mai con un PLC acceso» e (c) «mai senza schermo» restano nel piano.
+- **Un deploy dalla rete locale non lascia più il pannello senza progetto** (anomalia 3). Con un utente del progetto
+  il deploy chiudeva il progetto, la sessione finiva con lui, DELETE e upload rispondevano 401 e il pannello restava
+  chiuso e vuoto (su un pannello abbinato dal cloud, senza Admin del dispositivo, chiuso in rete locale fino a un
+  deploy dal cloud). Decide il pannello: `/api/system` dice `close_locks_out` quando la chiusura lascerebbe senza
+  accesso chi chiama (sessione di un utente del progetto, e né un Admin del dispositivo né la firma del gateway a
+  portare le richieste dopo, né `--senza-autenticazione`); il deploy si ferma prima di toccare niente con un 428
+  `project-session` e l'IDE spiega di collegarsi con l'Admin del dispositivo o di fare il deploy dal cloud. Il deploy
+  dal cloud di un pannello abbinato dal cloud continua come prima. (Nella prima versione del ramo la domanda andava a
+  `/api/auth/whoami`, che sulla porta di gestione dei pannelli non c'è: l'ha trovato la revisione, insieme al
+  deploy dal cloud che sarebbe stato fermato.)
+- **La pagina Utenti dice «✓ Salvato»** sulla riga appena salvata, e il campo Zone si scrive: salvava a ogni tasto,
+  si disabilitava e la virgola spariva appena scritta; ora salva all'uscita dal campo o con Invio (anomalia 4,
+  `UsersTab.tsx`, `tests/usersTabSave.test.tsx`).
+- **Testi superati** (anomalia 5): il log «no users defined — starting in no-auth mode (all routes open)», stampato
+  da un PLX800 che rispondeva 401, ora dice solo `user store empty` col percorso; all'avvio una riga dice chi entra
+  (e, per un pannello abbinato dal cloud senza utenti, che è chiuso in rete locale); la conferma del deploy di un
+  progetto senza utenti non promette più un pannello «accessibile SENZA PASSWORD a chiunque».
+- **Le scritture dal viewer finiscono nel registro delle azioni** (anomalia 7): il socket dei tag non scriveva nessuna
+  riga, mentre il manuale dice il contrario. Ora `tag.write`, `tag.write_denied` e `tag.write_rejected_type` come la
+  scrittura REST, con l'utente e `via: ws` (`writer_now` in `router.rs`), passando da un piccolo task per socket
+  (`ws_audit.rs`): la prima scrittura di un tag è una riga subito; quelle dello stesso tag nel secondo dopo diventano
+  una riga sola con l'ultimo valore e quante erano (`coalesced`), così uno slider trascinato non riempie il registro;
+  al massimo 20 righe al secondo per socket, oltre una riga al secondo dice quante non sono elencate (`summarized`).
+  Il banco delle prestazioni (`sws-banco`, che scrive dal socket) resta così entro poche righe al secondo.
+- Il testo della conferma di rotazione non promette che i PLC ripartano: dopo il riavvio va controllato (anomalia 6).
+- Resta nel piano la 6 (il launcher del PLX800 non è ripartito dopo il riavvio da rotazione: serve una prova sul
+  dispositivo).
+
 ### Corretto — una fiamma spenta non si disegna (23-11-2026, ramo `fix/flame-off-hidden`)
 - Trovato preparando la stufa di CasaDomotica. Una forma con l'effetto fiamma, a ingresso spento, restava disegnata
   ferma: la fiamma si vedeva a stufa spenta. Messa invece dentro un segnale che la nasconde a 0, il compilatore la

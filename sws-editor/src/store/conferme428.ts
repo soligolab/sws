@@ -16,6 +16,8 @@ export interface ConfermeDeploy {
   confirmReplace: boolean;
   confirmMissingSymbols: boolean;
   confirmUsersChange: boolean;
+  /** The device restarts to turn the screen (rc.30). */
+  confirmRotation: boolean;
 }
 
 export const NESSUNA_CONFERMA: ConfermeDeploy = {
@@ -23,6 +25,7 @@ export const NESSUNA_CONFERMA: ConfermeDeploy = {
   confirmReplace: false,
   confirmMissingSymbols: false,
   confirmUsersChange: false,
+  confirmRotation: false,
 };
 
 /** Il corpo di un 428 di `/api/remote/deploy` (`remote.rs`). */
@@ -36,6 +39,10 @@ export interface Dati428 {
   versione_pannello?: string | null;
   utenti?: string[];
   utenti_progetto?: string[];
+  /** `rotate-screen`: quarter turns now and after the deploy. */
+  current?: number;
+  wanted?: number;
+  portrait?: boolean;
 }
 
 /** - `riprova`: chi guarda ha confermato, si rifà la richiesta con `conferme`;
@@ -99,6 +106,23 @@ export async function confermaDopo428(d: Dati428, gia: ConfermeDeploy): Promise<
     await avviso({ livello: "errore", testo: i18n.t("cfg.deploySymbolPhotos") });
     return { tipo: "annullato" };
   }
+  // The session held for the panel is a project user's: the deploy closes
+  // the project, the session ends with it, and the panel would stay without a
+  // project half way (rc.30, collaudo on the PLX800). Not a confirmation.
+  if (d.conferma === "project-session") {
+    await avviso({ livello: "errore", testo: i18n.t("cfg.deployProjectSession") });
+    return { tipo: "annullato" };
+  }
+  // The project turns the screen, and the system does it by restarting the
+  // device — on a controller its PLCs stop too (rc.30, collaudo on the PLX800:
+  // two restarts nobody had been told about).
+  if (d.conferma === "rotate-screen" && !gia.confirmRotation) {
+    const si = await conferma({
+      testo: i18n.t(d.portrait ? "cfg.deployRotateScreenPortrait" : "cfg.deployRotateScreenLandscape"),
+      pericolo: true,
+    });
+    return si ? { tipo: "riprova", conferme: { ...gia, confirmRotation: true } } : { tipo: "annullato" };
+  }
   // Il pannello non ha utenti e il progetto non porta un Admin (fetta E,
   // 11-10-2026): non si conferma, si corregge il progetto.
   if (d.conferma === "serve-admin") {
@@ -121,8 +145,10 @@ export async function confermaDopo428(d: Dati428, gia: ConfermeDeploy): Promise<
     const si = await conferma({ testo: testoSostituzione(d.progetto, d.progetti ?? []), pericolo: true });
     return si ? { tipo: "riprova", conferme: { ...gia, confirmReplace: true } } : { tipo: "annullato" };
   }
-  // Il progetto non ha utenti e il dispositivo ne ha: dopo, il pannello resta
-  // aperto a chiunque. `conferma` assente: un server di prima che la mettesse.
+  // Il progetto non ha utenti e il dispositivo ne ha: dopo, senza un Admin del
+  // dispositivo, il pannello resta chiuso finché non lo si abbina di nuovo
+  // (da 11-10-2026 non è più aperto a chiunque). `conferma` assente: un server
+  // di prima che la mettesse.
   if ((d.conferma === "utenti-vuoti" || d.conferma === undefined) && !gia.confirmNoUsers) {
     const elenco = d.utenti_dispositivo?.length ? d.utenti_dispositivo.join(", ") : i18n.t("cfg.deployNoUsersUnknown");
     const si = await conferma({

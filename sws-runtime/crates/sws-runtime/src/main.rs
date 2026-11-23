@@ -981,135 +981,67 @@ async fn main() -> anyhow::Result<()> {
         });
     }
 
-    // Derived tag evaluator: on every TagDb update, re-evaluate all expressions
-    // whose result may have changed.  Each expression runs in spawn_blocking
-    // (PyO3 requires a non-async context) and updates the tag with Good/Bad
-    // quality depending on whether the Python eval succeeds.
-    //
-    // Design notes:
-    // - We batch-drain the broadcast channel after the first wake-up so that a
-    //   burst of N source updates (e.g. populate_tags) causes only ONE Python
-    //   eval round instead of N.
-    // - We skip evaluation when every changed tag in the batch is itself a
-    //   derived tag.  This breaks the feedback loop: db.set() on a derived tag
-    //   emits a broadcast that would otherwise re-trigger evaluation endlessly.
-    //   Limitation: a derived tag that reads another derived tag won't chain
-    //   automatically — acceptable for the PoC (no current use case).
+    // Derived tag evaluator. The round — which expressions, the quality of
+    // each result (the worst of its inputs since the rc.30, test of the
+    // rc.29, 23-11-2026), the writes — is `sws_pyscript::run_derived_round`;
+    // here stay the wake-ups.
+    // - A burst of updates is drained into one batch: N source updates (e.g.
+    //   populate_tags) cost one Python round, not N.
+    // - A normal round evaluates the expressions that read a tag of the
+    //   batch. Derived tags chain (17-11-2026); the round is skipped when
+    //   every change is a derived tag it would write itself.
+    // - A full round evaluates every expression, constants included: at
+    //   start (the project opened, and its sources wrote, before this
+    //   subscription), when the registry differs from the previous round
+    //   (deploy, save, an edited expression) and after a `Lagged`, which loses
+    //   transitions without saying which.
     {
         let db = tag_db.clone();
         let derived = derived_tags.clone();
         let mut tag_rx = tag_db.subscribe();
         tokio::spawn(async move {
-            // The tags each expression reads, by its text: scanned once.
-            let mut reads_of: std::collections::HashMap<String, Option<Vec<String>>> =
-                std::collections::HashMap::new();
-            // The last error logged for each derived tag: an expression that
-            // fails fails at every change of the tags it reads, and the log
-            // would say the same thing many times a second.
-            let mut failing: std::collections::HashMap<String, String> =
-                std::collections::HashMap::new();
+            use tokio::sync::broadcast::error::{RecvError, TryRecvError};
+            let mut state = sws_pyscript::DerivedState::default();
+            // The registry of the previous round; `None` makes the first full.
+            let mut registry: Option<Vec<(String, String)>> = None;
+            let mut changed: std::collections::HashSet<String> = std::collections::HashSet::new();
+            let mut lagged = false;
             loop {
+                let registry_changed = {
+                    let now = derived.read().await;
+                    let differs = registry.as_deref() != Some(now.as_slice());
+                    if differs {
+                        registry = Some(now.clone());
+                    }
+                    differs
+                };
+                if registry_changed {
+                    state.registry_changed();
+                }
+                if let Some(pairs) = registry.as_deref().filter(|p| !p.is_empty()) {
+                    let full = registry_changed || lagged;
+                    sws_pyscript::run_derived_round(&db, pairs, &changed, full, &mut state).await;
+                }
+                changed.clear();
+                lagged = false;
                 match tag_rx.recv().await {
                     Ok(first) => {
-                        // Collect the first changed id, then drain all pending
-                        // messages without blocking to collapse bursts.
-                        let mut changed: std::collections::HashSet<String> =
-                            std::collections::HashSet::new();
                         changed.insert(first.id);
-                        while let Ok(u) = tag_rx.try_recv() {
+                    }
+                    Err(RecvError::Lagged(n)) => {
+                        debug!("derived tag evaluator lagged by {n}: full round");
+                        lagged = true;
+                    }
+                    Err(RecvError::Closed) => break,
+                }
+                loop {
+                    match tag_rx.try_recv() {
+                        Ok(u) => {
                             changed.insert(u.id);
                         }
-
-                        let pairs = derived.read().await.clone();
-                        if pairs.is_empty() {
-                            continue;
-                        }
-                        // Only the expressions that read a tag of this batch
-                        // (17-11-2026): the others would give the same value.
-                        // One that reads tags in a way the scan cannot see is
-                        // always evaluated, as before.
-                        let pairs: Vec<(String, String)> = pairs
-                            .into_iter()
-                            .filter(|(_, expr)| {
-                                if reads_of.len() > 2000 {
-                                    reads_of.clear();
-                                }
-                                let reads = reads_of
-                                    .entry(expr.clone())
-                                    .or_insert_with(|| sws_pyscript::expression_reads(expr));
-                                match reads {
-                                    Some(r) => {
-                                        changed.iter().any(|c| sws_pyscript::reads_changed(r, c))
-                                    }
-                                    None => true,
-                                }
-                            })
-                            .collect();
-                        if pairs.is_empty() {
-                            continue;
-                        }
-
-                        // Skip if every trigger is itself a derived tag — prevents
-                        // the db.set() → broadcast → re-eval feedback loop.
-                        let derived_ids: std::collections::HashSet<&str> =
-                            pairs.iter().map(|(id, _)| id.as_str()).collect();
-                        if changed.iter().all(|id| derived_ids.contains(id.as_str())) {
-                            continue;
-                        }
-
-                        let t0 = std::time::Instant::now();
-                        // Fase 1e: le **foglie** più le **radici**. Uno script
-                        // può scrivere `tags["motore1.velocita"]` oppure
-                        // `tags["motore1"]["velocita"]` — in Python il dict è
-                        // piatto e non parsa percorsi, quindi ci devono essere
-                        // tutte e due le chiavi.
-                        let mut snapshot: std::collections::HashMap<String, sws_core::TagValue> =
-                            db.snapshot_foglie()
-                                .await
-                                .into_iter()
-                                .map(|(k, v)| (k, v.value))
-                                .collect();
-                        for (k, v) in db.snapshot().await {
-                            snapshot.entry(k).or_insert(v.value);
-                        }
-                        // One Python round for all of them (17-11-2026): one
-                        // expression at a time, each with its own thread, its
-                        // own dict of every tag and its own compile, kept a
-                        // Tiny TY at 67 % with eight bits of one counter.
-                        let (ids, exprs): (Vec<String>, Vec<String>) = pairs.into_iter().unzip();
-                        let results = sws_pyscript::eval_expressions(exprs, snapshot).await;
-                        for (id, result) in ids.into_iter().zip(results) {
-                            match result {
-                                Ok(value) => {
-                                    // `set_tipizzato` e non `set`: un tag
-                                    // derivato dichiarato `i32` non deve
-                                    // tenere il 29,8 che l'espressione ha
-                                    // prodotto. Non `ingest`, che
-                                    // applicherebbe anche la scala raw→eng:
-                                    // qui il valore e gia ingegneristico.
-                                    failing.remove(&id);
-                                    db.set_tipizzato(id, value, TagQuality::Good).await;
-                                }
-                                Err(e) => {
-                                    // The last good value stays, marked Bad
-                                    // (18-11-2026): an expression the sandbox
-                                    // refuses must not look like a live value.
-                                    if failing.get(&id) != Some(&e) {
-                                        warn!(tag = %id, "derived tag eval error: {e}");
-                                        failing.insert(id.clone(), e);
-                                    }
-                                    db.marca_qualita(&id, TagQuality::Bad).await;
-                                }
-                            }
-                        }
-                        sws_core::prestazioni::registra("derivati", t0.elapsed());
+                        Err(TryRecvError::Lagged(_)) => lagged = true,
+                        Err(_) => break,
                     }
-                    Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
-                        // Log at debug: with the feedback-loop guard this should
-                        // never happen in normal operation.
-                        debug!("derived tag evaluator lagged by {n}");
-                    }
-                    Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
                 }
             }
         });
@@ -1574,9 +1506,8 @@ async fn main() -> anyhow::Result<()> {
     // Il codice di abbinamento (11-10-2026): un pannello senza nessun utente
     // non lascia entrare nessuno, e questa riga è il primo posto in cui chi lo
     // ha appena installato lo trova (`journalctl`, `podman logs`, l'installer).
-    if sws_web::router::fonte_auth_corrente(&app_state).await
-        == sws_web::router::FonteAutenticazione::InAttesa
-    {
+    let access = sws_web::router::fonte_auth_corrente(&app_state).await;
+    if access == sws_web::router::FonteAutenticazione::InAttesa {
         if let Some(c) = app_state.abbinamento.codice() {
             warn!(
                 codice = %c,
@@ -1584,7 +1515,17 @@ async fn main() -> anyhow::Result<()> {
                  Codice di abbinamento: {c} — inseriscilo nell'IDE («Connetti») o nella pagina \
                  di questo pannello per creare l'amministratore"
             );
+        } else if app_state.abbinamento.tunnel().is_some() {
+            // Paired from the cloud, no project with users yet (rc.30: the
+            // PLX800 said only «no-auth mode (all routes open)», which was false).
+            warn!(
+                "paired to the cloud and without users: closed on the local network, \
+                 open to the cloud gateway until a project brings its users"
+            );
         }
+    } else {
+        // The state that decides who gets in, said once at start (rc.30).
+        info!(source = ?access, "access: who gets in is decided by this source");
     }
 
     if let Some((notifications, global_scripts, languages)) = boot_services {

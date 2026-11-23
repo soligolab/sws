@@ -17,7 +17,7 @@ import { SimboloLibSvg } from "@/symbols/lib/SimboloLib";
 import type { ManifestLib, SimboloLib } from "@/symbols/lib/manifest";
 import type { StileSimboliProgetto } from "@/symbols/stileProgetto";
 import { pictureForModel } from "@/images/optimize";
-import { draws, type Op } from "./model";
+import { draws, normalizeOps, type Op } from "./model";
 import { C, button as plainButton, input } from "./ui";
 
 type Proposal = Extract<SymbolAiResult, { ok: true }> & { instruction: string };
@@ -52,7 +52,9 @@ const button = (primary: boolean, enabled = true): React.CSSProperties => ({
 /** The fields the editor owns: whatever the proposal says, accepting it keeps
  *  them as they are now (they may have changed while the model was drawing). */
 function withOwnNames(p: DescrizioneSimbolo, d: DescrizioneSimbolo): DescrizioneSimbolo {
-  const out: DescrizioneSimbolo = { ...p, slug: d.slug, it: d.it, en: d.en, tipo: d.tipo };
+  // The model may write attributes as objects (the compiler accepts them):
+  // the editor reads pairs (test of the rc.29, 23-11-2026).
+  const out: DescrizioneSimbolo = { ...normalizeOps(p), slug: d.slug, it: d.it, en: d.en, tipo: d.tipo };
   if (d.overrides) out.overrides = d.overrides;
   else delete out.overrides;
   if (d.library) out.library = d.library;

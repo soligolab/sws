@@ -31,6 +31,10 @@ export function UsersTab() {
 
   // Per-row "reset password" buffer keyed by username.
   const [resetBuf, setResetBuf] = useState<Record<string, string>>({});
+  // Every field saves by itself, and nothing said so (rc.30, collaudo on the
+  // PLX800: «non ho nessuna opzione per fare salva»): the row that has just
+  // been saved shows «✓ Saved» for a moment.
+  const [savedRow, setSavedRow] = useState<string | null>(null);
 
   const refresh = async () => {
     setError(null);
@@ -105,6 +109,8 @@ export function UsersTab() {
     try {
       await api.updateUser(username, patch);
       await refresh();
+      setSavedRow(username);
+      setTimeout(() => setSavedRow((r) => (r === username ? null : r)), 2500);
     } catch (e: any) {
       const msg = String(e?.message ?? "");
       if (msg.includes("409") || msg.includes("last_admin")) {
@@ -255,20 +261,30 @@ export function UsersTab() {
                       </select>
                     </td>
                     <td style={S.td}>
+                      {/* Saved on leaving the field or on Enter, like the name: saving at
+                          every key disabled the field and the comma vanished as soon as it
+                          was typed, so «zone1, zone2» could only be pasted (rc.30). */}
                       <input
+                        key={`${u.username}:${(u.allowed_zones ?? []).join(",")}`}
                         style={{ ...S.inputSm, fontSize: 11, minWidth: 120 }}
                         placeholder={t("cfg.zonesPlaceholder")}
                         title={t("cfg.accessibleZonesHint")}
-                        value={(u.allowed_zones ?? []).join(", ")}
+                        defaultValue={(u.allowed_zones ?? []).join(", ")}
                         disabled={busy}
-                        onChange={(e) => {
-                          const zones = e.target.value ? e.target.value.split(",").map((z) => z.trim()).filter(Boolean) : [];
-                          onPatch(u.username, { allowed_zones: zones });
+                        data-testid={`utente-zone-${u.username}`}
+                        onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+                        onBlur={(e) => {
+                          const zones = e.target.value.split(",").map((z) => z.trim()).filter(Boolean);
+                          if (zones.join(",") !== (u.allowed_zones ?? []).join(",")) onPatch(u.username, { allowed_zones: zones });
                         }}
                       />
                     </td>
                     <td style={S.td}>
                       <span style={{ color: "var(--brand-text-muted, #94a3b8)", fontSize: 12 }}>{fmtDate(u.updated_at_ms)}</span>
+                      {savedRow === u.username && (
+                        <span data-testid={`utente-salvato-${u.username}`}
+                          style={{ display: "block", color: "var(--brand-success-soft, #4ade80)", fontSize: 11 }}>{t("cfgUi.saved2")}</span>
+                      )}
                     </td>
                     <td style={S.td}>
                       <div style={{ display: "flex", gap: 6 }}>

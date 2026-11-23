@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook } from "@testing-library/react";
-import { useProjectWatcher } from "../src/ws/projectWatcher";
+import { rebaselineProjectWatcher, useProjectWatcher } from "../src/ws/projectWatcher";
 import { api, AuthError, NoProjectError, PasswordChangeRequiredError, RuntimeUnavailableError } from "../src/api/client";
 
 // Il sorvegliante del progetto, e il falso allarme che rendeva rumoroso l'IDE.
@@ -255,5 +255,21 @@ describe("sorvegliante del progetto — runtime che non risponde", () => {
     expect(avvisato).toHaveBeenCalledTimes(2);
     await tick(3_000);
     expect(avvisato).toHaveBeenCalledTimes(2);
+  });
+
+  // rc.30: a write of ours made from another page (the symbol editor's own
+  // window), announced through the bridge (test of the rc.29, 23-11-2026).
+  it("rebaselineProjectWatcher(): the change that follows is ours, a later one is external", async () => {
+    const spia = impronta("aaa");
+    const avvisato = vi.fn();
+    renderHook(() => useProjectWatcher(avvisato, 3_000));
+    await tick(0);
+    rebaselineProjectWatcher("symbol-window");
+    spia.mockResolvedValue({ sha256: "nostro", computed_at_ms: 0 } as never);
+    await tick(3_000);
+    expect(avvisato).not.toHaveBeenCalled();
+    spia.mockResolvedValue({ sha256: "altrui", computed_at_ms: 0 } as never);
+    await tick(3_000);
+    expect(avvisato).toHaveBeenCalledWith("altrui");
   });
 });

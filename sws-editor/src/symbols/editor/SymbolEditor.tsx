@@ -21,7 +21,7 @@ import { EditorIcon, opIcon } from "./icons";
 import { SymbolEditorBoundary } from "./SymbolEditorBoundary";
 import { useAppStore } from "@/store";
 import type { DescrizioneSimbolo } from "@/types";
-import { avviso, chiedi, conferma, scegli } from "@/finestraAvviso/finestraAvviso";
+import { avviso, chiedi, conferma, richiestaAperta, scegli } from "@/finestraAvviso/finestraAvviso";
 import { SimboloLibSvg } from "@/symbols/lib/SimboloLib";
 import { trovaSimboloOriginale, useManifestoLib } from "@/symbols/lib/libreria";
 import type { SignalEntry, SimboloLib } from "@/symbols/lib/manifest";
@@ -29,16 +29,17 @@ import { useStileProgetto } from "@/symbols/stileProgetto";
 import {
   addInput, addPort, align, boxToBox, fillFrame, deleteOps, distribute, duplicateOps, explodedOffsets, extraOf, fillOf, inputs,
   insertInLayer, layers, mapBox, matrixOps, moveLayer, movePort, moveToLayer, moveToNewLayer, NEW_LAYER, newCircle, newEllipse, newLine, newPath, newRect, ports, r2,
-  removeInput, renamePart, reorderOp, resizeSymbol, saveAsCopy, setExtra, setFill, setGeo, setPartGeo, setPathD,
-  setPort, setVeil, transformOps, turnMatrix, union, validPathD, validPortId, validSize, INPUT_KINDS, SIDES,
+  removeInput, renameInput, reorderOp, resizeSymbol, saveAsCopy, setExtra, setFill, setGeo, setPartGeo, setPathD,
+  setPort, setVeil, transformOps, turnMatrix, union, validPathD, validSize, INPUT_KINDS, SIDES,
   animateSelection, setPartParam, newImage, setImageOpacity, nothingDrawn, draws,
-  groupOf, groupOps, membersOf, stripOldEffects, ungroupOps,
-  type Affine, type AlignMode, type Box, type InputKind, type Layer, type Op, type Port, type Side,
+  groupOf, membersOf, normalizeOps, stripOldEffects, turns, ungroupOps,
+  animateCreatesPart, copyOps, effectsFollowing, freeInputId, freePartId, freePortId, idProblem, inputIds, normalizeId, regroupCopies,
+  type Affine, type AlignMode, type Box, type InputKind, type Layer, type Op, type Port, type Side, type SymbolInput,
 } from "./model";
 import { predefinito } from "@/coloriPredefiniti";
 import { valoriParti, type ValoreParte } from "@/symbols/lib/libreria";
 import { AnimateBlock, AnimationProps } from "./AnimationProps";
-import { FxProps } from "./FxProps";
+import { FxProps, askId, confirmEffectsGo, groupAsking, idMessage } from "./FxProps";
 import { apriInFinestra, inFinestraSimboli, ricordaStaccato, riportaNellIde, staccatoPreferito } from "./ponteSimboli";
 import { AiPanel } from "./AiPanel";
 import { AiPhoto } from "./AiPhoto";
@@ -91,6 +92,10 @@ type Drag =
   | { kind: "pan"; client: [number, number]; centre: [number, number]; scale: number };
 
 
+/** The origin of an id made in this session (`partOrigin`, `origin`): it
+ *  matches no id of the saved symbol. */
+const NEW_ID = "\u0000new";
+
 /** Where a port's pipe leaves, as a unit vector. */
 const OUT: Record<Side, [number, number]> = { left: [-1, 0], right: [1, 0], top: [0, -1], bottom: [0, 1] };
 
@@ -109,6 +114,13 @@ export function SymbolEditorHost() {
   }, [detach, target]);
   if (!target || detach) return null;
   return <SymbolEditorBoundary><SymbolEditor key={target.draft.slug} target={target} /></SymbolEditorBoundary>;
+}
+
+/** Which id of `now` is the saved one `id`: the one renamed from it first,
+ *  then itself if it has no other origin. An id made in this session
+ *  (`NEW_ID`) is none of them, also with the same letters. */
+function sameAs(now: string[], from: Map<string, string>, id: string): string | undefined {
+  return now.find((x) => from.get(x) === id) ?? now.find((x) => x === id && !from.has(x));
 }
 
 /** Half units, or the grid when it snaps. */
@@ -144,7 +156,9 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
 
   // The effect parts of the rc.22-rc.28 are gone (22-11-2026): taken out at
   // the opening, and said once.
-  const [cleaned] = useState(() => stripOldEffects(target.draft));
+  // Attributes written as objects (the compiler accepts them) become pairs
+  // here, the form every reader of the editor expects (test of the rc.29).
+  const [cleaned] = useState(() => stripOldEffects(normalizeOps(target.draft)));
   const [hist, setHist] = useState<History>({ past: [], present: cleaned.d, future: [] });
   const [oldFx, setOldFx] = useState(cleaned.removed);
   const d = hist.present;
@@ -378,6 +392,17 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
     o.set(to, o.get(from) ?? from);
     o.delete(from);
   }, []);
+  // A part, an input or a port made now is never one of the symbol as it was
+  // saved: a new input named like a part just renamed took the page's bindings
+  // of that part, in silence (test of the rc.29, 23-11-2026).
+  const partCreated = useCallback((id: string) => { partOrigin.current.set(id, NEW_ID); }, []);
+  const portCreated = useCallback((id: string) => { origin.current.set(id, NEW_ID); }, []);
+  // The drawing now, for what is done after a question: if it changed while
+  // the question was open (the AI commits on its own), the indexes taken
+  // before are of another drawing, and nothing is made.
+  const dRef = useRef(d);
+  useLayoutEffect(() => { dRef.current = d; }, [d]);
+  const latest = useCallback(() => dRef.current, []);
 
   // ── the view ──
   const baseW = d.w + 2 * PAD, baseH = d.h + 2 * PAD;
@@ -494,12 +519,23 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
       return;
     }
     if (tool === "port") {
+      // The name first (test of the rc.29): Cancel makes no port. No default:
+      // the mouse down that follows would take the focus from the question.
+      e.preventDefault();
       const q = magnetPoint([sn(p[0]), sn(p[1])]);
       setGuides({});
-      const r = addPort(d, q[0], q[1]);
-      commit(r.d);
-      setSel([r.at]);
       setTool("select");
+      void (async () => {
+        const id = await askId(t, {
+          ns: "port", title: t("symbolEditor.ask.portTitle"), text: t("symbolEditor.ask.portText"),
+          proposed: freePortId(d), taken: ports(d).map((x) => x.id),
+        });
+        if (!id || latest() !== d) return;
+        const r = addPort(d, q[0], q[1], id);
+        portCreated(id);
+        commit(r.d);
+        setSel([r.at]);
+      })();
       return;
     }
     if (tool === "poly") {
@@ -683,7 +719,8 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
   const copy = useCallback((cut: boolean) => {
     const which = drawing(sel);
     if (!which.length) return;
-    clipboard = which.sort((a, b) => a - b).map((i) => structuredClone(d.ops[i] as Op));
+    // A whole group keeps being one, a shape of a group leaves it (`copyOps`).
+    clipboard = copyOps(d, which);
     pastes.current = 0;
     if (cut) { commit(deleteOps(d, which)); setSel([]); }
   }, [commit, d, sel, drawing]);
@@ -694,7 +731,9 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
     const layer = drawInto;
     let out = d;
     const at: number[] = [];
-    for (const op of clipboard) {
+    // A pasted group is a new group, without effects, also in another symbol
+    // with a group of the same name (test of the rc.29).
+    for (const op of regroupCopies(d, clipboard)) {
       const r = insertInLayer(out, layer.id, transformOps({ ...out, ops: [op] }, [0], { sx: 1, sy: 1, tx: off, ty: off }).ops[0] as Op);
       out = r.d;
       at.push(r.at);
@@ -835,6 +874,12 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
   // Keys stay inside the editor: Delete must not delete an object of the page.
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
+      // A question is open (`chiedi`, `conferma`…, in a portal outside the
+      // editor): its keys are its own. Stopped here, Enter and Esc never reached
+      // its field — «Salva come» too — and Esc or Delete worked on the drawing
+      // under it (test of the rc.29, 23-11-2026). The question's host stops
+      // what starts outside it.
+      if (richiestaAperta()) return;
       const el = e.target as HTMLElement | null;
       const field = !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable);
       // A field of the editor gets its keys (Enter in a port's name, Ctrl+Enter
@@ -851,7 +896,7 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
       else if (mod && k === "d") { e.preventDefault(); dup(); }
       else if (mod && k === "a") { e.preventDefault(); selectAll(); }
       else if (mod && k === "g" && e.shiftKey) { e.preventDefault(); if (sel.length) commit(ungroupOps(d, sel)); }
-      else if (mod && k === "g") { e.preventDefault(); if (drawing(sel).length > 1) commit(groupOps(d, drawing(sel)).d); }
+      else if (mod && k === "g") { e.preventDefault(); if (drawing(sel).length > 1) void groupAsking(t, d, drawing(sel), latest, commit); }
       else if (mod && k === "c") { e.preventDefault(); copy(false); }
       else if (mod && k === "x") { e.preventDefault(); copy(true); }
       else if (mod && k === "v") {
@@ -888,9 +933,9 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
     for (const id of basePorts.current) {
       const n = pipes.get(id)?.total ?? 0;
       if (!n) continue;
-      const cur = now.find((p) => (origin.current.get(p.id) ?? p.id) === id);
+      const cur = sameAs(now.map((p) => p.id), origin.current, id);
       if (!cur) removed.push({ id, n });
-      else if (cur.id !== id) renamed.push({ from: id, to: cur.id, n });
+      else if (cur !== id) renamed.push({ from: id, to: cur, n });
     }
     if (!renamed.length && !removed.length) return true;
     const righe = [
@@ -913,7 +958,7 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
     for (const id of baseParts.current) {
       const n = bound.get(id)?.total ?? 0;
       if (!n) continue;
-      const cur = now.find((p) => (partOrigin.current.get(p) ?? p) === id);
+      const cur = sameAs(now, partOrigin.current, id);
       if (!cur) removed.push({ id, n });
       else if (cur !== id) renamed.push({ from: id, to: cur, n });
     }
@@ -1022,6 +1067,39 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
     if ("color" in f) return f.color;
     if ("mat" in f) return catalog?.materials.find((m) => m.name === f.mat)?.color;
     return undefined;
+  };
+  /** «Anima…» and «Change with an input»: the name is asked only when a part
+   *  is really made — on the shapes of one part only its kind changes — and
+   *  the effects of a part left empty are listed before they go (test of the
+   *  rc.29, decision D2 of the maintainer). One step of the history. */
+  const animate = async (which: number[], kind: InputKind) => {
+    const colour = firstColour();
+    let id: string | undefined;
+    if (animateCreatesPart(d, which)) {
+      const asked = await askId(t, {
+        ns: "input", title: t("symbolEditor.ask.partTitle", { kind: t(`symbolEditor.input.${kind}`) }),
+        text: t("symbolEditor.ask.partText"), proposed: freePartId(d, kind), taken: inputIds(d),
+      });
+      if (!asked || latest() !== d) return;
+      id = asked;
+    }
+    const r = animateSelection(d, which, kind, boxes, colour, id);
+    if (!r) return;
+    if (r.lost.length && (!(await confirmEffectsGo(t, r.lost, "input")) || latest() !== d)) return;
+    if (id) partCreated(id);
+    commit(r.d);
+    setSel(r.shapes);
+  };
+  /** An input removed (the list of inputs, «Togli animazione»): the effects
+   *  that follow it go too, listed and asked first (decision D2). */
+  const removeAsking = async (opIndex: number) => {
+    const op = d.ops[opIndex] as Op | undefined;
+    if (!op) return;
+    const fx = op.op === "corpo" ? [] : effectsFollowing(d, [String(op.id)]);
+    if (fx.length && (!(await confirmEffectsGo(t, fx.map((f) => f.fx), "input")) || latest() !== d)) return;
+    const gone = [...fx.map((f) => f.at), ...(op.op === "ingresso" ? [opIndex] : [])];
+    commit(removeInput(d, opIndex));
+    if (gone.length) setSel((s) => s.filter((i) => !gone.includes(i)).map((i) => i - gone.filter((g) => g < i).length));
   };
   const one = sel.length === 1 ? (d.ops[sel[0]] as Op) : undefined;
   const oneLayer = sel.length === 1 ? layerOf(sel[0]) : undefined;
@@ -1441,11 +1519,8 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
                 </Section>
               ) : (
                 <PieceProps d={d} sel={sel} one={one} layer={oneLayer} layers={ls} catalog={catalog} commit={commit}
-                  fx={<FxProps d={d} sel={sel} commit={commit} setSel={setSel} />}
-                  onPhotoSignal={() => {
-                    const r = animateSelection(d, drawing(sel), "signal", boxes, firstColour());
-                    if (r) { commit(r.d); setSel(r.shapes); }
-                  }}
+                  fx={<FxProps d={d} sel={sel} commit={commit} setSel={setSel} latest={latest} onCreated={partCreated} />}
+                  onPhotoSignal={() => void animate(drawing(sel), "signal")}
                   onDup={dup} onDel={del} onReorder={(dir) => { const r = reorderOp(d, sel[0], dir); commit(r.d); setSel([r.at]); }}
                   onMoveToLayer={(id) => {
                     const r = id === NEW_LAYER ? moveToNewLayer(d, drawing(sel)) : moveToLayer(d, drawing(sel), id);
@@ -1453,23 +1528,23 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
                     setSel(r.at);
                   }}
                   transform={(
-                    <TransformBlock canTurn={sel.length > 0} canAlign={nDrawing > 1} canDistribute={nDrawing > 2}
+                    <TransformBlock canTurn={sel.some((i) => turns(d.ops[i] as Op))}
+                      turnHint={sel.some((i) => (d.ops[i] as Op)?.op === "image") ? t("symbolEditor.turnPhoto") : undefined}
+                      canAlign={nDrawing > 1} canDistribute={nDrawing > 2}
                       onTurn={turn} onAlign={doAlign} onDistribute={doDistribute} onFill={doFill} />
                   )}
                   animation={nDrawing > 0 ? (
                     <AnimateBlock d={d} partOp={selPart?.start} commit={commit}
-                      onAnimate={(k) => {
-                        const r = animateSelection(d, selPart ? selPart.ops : drawing(sel), k, boxes, firstColour());
-                        if (r) { commit(r.d); setSel(r.shapes); }
-                      }}
-                      onRemove={() => { if (selPart) commit(removeInput(d, selPart.start)); }} />
+                      onAnimate={(k) => void animate(selPart ? selPart.ops : drawing(sel), k)}
+                      onRemove={() => { if (selPart) void removeAsking(selPart.start); }} />
                   ) : undefined} />
               )
             ) : tab === "inspect" ? (
               <>
                 <StructureProps d={d} catalog={catalog} commit={commit} isVariant={!!d.overrides}
                   ports={portList} pipes={pipes} onSelectPort={(op) => setSel([op])}
-                  onRenamePart={renamePartTracked} />
+                  onRenamePart={renamePartTracked} onCreated={partCreated} latest={latest}
+                  onRemoveInput={(op) => void removeAsking(op)} />
                 {!nothingDrawn(d) && (
                   <Section id="frame" title={t("symbolEditor.transform.frame")}>
                     <button type="button" style={button} title={t("symbolEditor.fillFrameHint")} onClick={doFill}
@@ -1757,8 +1832,10 @@ function PieceProps({ d, sel, one, layer, layers: ls, catalog, commit, onDup, on
 /** Turn, flip, align and distribute the selection: in the panel, as the IDE's
  *  alignment of several objects (`MultiSelectionProps`), and no longer in a
  *  second canvas toolbar (22-11-2026). */
-function TransformBlock({ canTurn, canAlign, canDistribute, onTurn, onAlign, onDistribute, onFill }: {
+function TransformBlock({ canTurn, turnHint, canAlign, canDistribute, onTurn, onAlign, onDistribute, onFill }: {
   canTurn: boolean; canAlign: boolean; canDistribute: boolean;
+  /** Why a photo in the selection doesn't turn: said, not done in silence. */
+  turnHint?: string;
   onTurn: (how: "cw" | "ccw" | "flipH" | "flipV") => void;
   onAlign: (m: AlignMode) => void;
   onDistribute: (axis: "h" | "v") => void;
@@ -1778,11 +1855,14 @@ function TransformBlock({ canTurn, canAlign, canDistribute, onTurn, onAlign, onD
   return (
     <>
       {row(t("symbolEditor.transform.turn"), <>
-        <button type="button" style={b(canTurn)} disabled={!canTurn} title={t("symbolEditor.turnCw")} onClick={() => onTurn("cw")} data-testid="symbol-turn-cw">⟳</button>
-        <button type="button" style={b(canTurn)} disabled={!canTurn} title={t("symbolEditor.turnCcw")} onClick={() => onTurn("ccw")}>⟲</button>
-        <button type="button" style={b(canTurn)} disabled={!canTurn} title={t("symbolEditor.flipH")} onClick={() => onTurn("flipH")}>⇋</button>
-        <button type="button" style={b(canTurn)} disabled={!canTurn} title={t("symbolEditor.flipV")} onClick={() => onTurn("flipV")}>⇵</button>
+        <button type="button" style={b(canTurn)} disabled={!canTurn} title={turnHint ?? t("symbolEditor.turnCw")} onClick={() => onTurn("cw")} data-testid="symbol-turn-cw">⟳</button>
+        <button type="button" style={b(canTurn)} disabled={!canTurn} title={turnHint ?? t("symbolEditor.turnCcw")} onClick={() => onTurn("ccw")}>⟲</button>
+        <button type="button" style={b(canTurn)} disabled={!canTurn} title={turnHint ?? t("symbolEditor.flipH")} onClick={() => onTurn("flipH")}>⇋</button>
+        <button type="button" style={b(canTurn)} disabled={!canTurn} title={turnHint ?? t("symbolEditor.flipV")} onClick={() => onTurn("flipV")}>⇵</button>
       </>)}
+      {turnHint && (
+        <span data-testid="symbol-turn-photo" style={{ color: C.muted, fontSize: TESTO.etichetta }}>{turnHint}</span>
+      )}
       {row(t("symbolEditor.transform.align"), (
         ([["left", "⇤"], ["hcenter", "↔"], ["right", "⇥"], ["top", "⤒"], ["vcenter", "↕"], ["bottom", "⤓"]] as [AlignMode, string][]).map(([m, g]) => (
           <button key={m} type="button" style={b(canAlign)} disabled={!canAlign} title={t(`symbolEditor.align.${m}`)}
@@ -1941,14 +2021,37 @@ export function CategorySelect({ value, onChange }: { value: string; onChange: (
   );
 }
 
-function StructureProps({ d, catalog, commit, isVariant, ports: portList, pipes, onSelectPort, onRenamePart }: {
+function StructureProps({ d, catalog, commit, isVariant, ports: portList, pipes, onSelectPort, onRenamePart, onCreated, latest, onRemoveInput }: {
   d: DescrizioneSimbolo; catalog: Catalog | null; commit: (d: DescrizioneSimbolo) => void; isVariant: boolean;
   ports: Port[]; pipes: Map<string, { total: number }>; onSelectPort: (op: number) => void;
   onRenamePart: (from: string, to: string) => void;
+  /** A new input was made with this name. */
+  onCreated: (id: string) => void;
+  /** The drawing now (a question answered after it changed makes nothing). */
+  latest: () => DescrizioneSimbolo;
+  /** Removes the input of operation `op`, asking about its effects. */
+  onRemoveInput: (op: number) => void;
 }) {
   const { t } = useTranslation();
   const ins = inputs(d);
   const [adding, setAdding] = useState<InputKind | "">("");
+  // Every input but the body has a name, asked first (test of the rc.29); an
+  // «Ingresso» is an input with no layer, that effects follow.
+  const add = async (kind: InputKind) => {
+    if (kind === "state") { const r = addInput(d, kind); if (r) commit(r.d); return; }
+    const plain = kind === "input";
+    const id = await askId(t, {
+      ns: "input",
+      title: plain ? t("symbolEditor.ask.inputTitle") : t("symbolEditor.ask.partTitle", { kind: t(`symbolEditor.input.${kind}`) }),
+      text: t(plain ? "symbolEditor.ask.inputText" : "symbolEditor.ask.partText"),
+      proposed: plain ? freeInputId(d, t("symbolEditor.fx.inputName")) : freePartId(d, kind), taken: inputIds(d),
+    });
+    if (!id || latest() !== d) return;
+    const r = addInput(d, kind, id);
+    if (!r) return;
+    onCreated(id);
+    commit(r.d);
+  };
   // A new size scales the drawing, its parts and its ports with it (19-11-2026):
   // before, only the box changed and the ports on the right and bottom fell off.
   const [scale, setScale] = useState(true);
@@ -1977,37 +2080,30 @@ function StructureProps({ d, catalog, commit, isVariant, ports: portList, pipes,
         <p style={note}>{t("symbolEditor.inputsNote")}</p>
         {ins.map((inp) => {
           return (
-            <div key={`${inp.id}-${inp.op}`} style={{ border: `1px solid ${C.surface2}`, borderRadius: 4, padding: 6, display: "flex", flexDirection: "column", gap: 4, background: C.bg }}>
+            // By operation, not by name: with the name in the key the row was
+            // made again at every letter, and the field lost the focus.
+            <div key={inp.op} data-testid={`symbol-input-row-${inp.id}`} style={{ border: `1px solid ${C.surface2}`, borderRadius: 4, padding: 6, display: "flex", flexDirection: "column", gap: 4, background: C.bg }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <strong style={{ flex: 1, fontSize: TESTO.riga }}>{t(`symbolEditor.input.${inp.kind}`)}</strong>
-                <button type="button" style={{ ...button, color: C.danger }} onClick={() => commit(removeInput(d, inp.op))}>
+                <button type="button" style={{ ...button, color: C.danger }} data-testid={`symbol-input-remove-${inp.id}`}
+                  onClick={() => onRemoveInput(inp.op)}>
                   {t("symbolEditor.delete")}
                 </button>
               </div>
-              {inp.kind !== "state" && (
-                <Field label={t("symbolEditor.inputId")}>
-                  <input style={input} value={inp.id} maxLength={30}
-                    onChange={(e) => {
-                      const to = e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-");
-                      onRenamePart(inp.id, to);
-                      commit(renamePart(d, inp.op, to));
-                    }} />
-                </Field>
-              )}
+              {inp.kind !== "state" && <InputName d={d} inp={inp} commit={commit} onRename={onRenamePart} />}
               <AnimationProps d={d} op={inp.op} commit={commit} />
             </div>
           );
         })}
         <Field label={t("symbolEditor.addInput")}>
-          <select style={input} value={adding} onChange={(e) => setAdding(e.target.value as InputKind)}>
+          <select style={input} value={adding} data-testid="symbol-input-kind" onChange={(e) => setAdding(e.target.value as InputKind)}>
             <option value="" />
             {INPUT_KINDS.filter((k) => k !== "state" || !ins.some((i) => i.kind === "state")).map((k) => (
               <option key={k} value={k}>{t(`symbolEditor.input.${k}`)}</option>
             ))}
           </select>
-          <button type="button" style={button} disabled={!adding} onClick={() => {
-            const r = adding ? addInput(d, adding) : null;
-            if (r) commit(r.d);
+          <button type="button" style={button} disabled={!adding} data-testid="symbol-input-add" onClick={() => {
+            if (adding) void add(adding);
             setAdding("");
           }}>+</button>
         </Field>
@@ -2031,6 +2127,36 @@ function StructureProps({ d, catalog, commit, isVariant, ports: portList, pipes,
   );
 }
 
+/** The name of a part or an input, in «Inputs»: applied when it leaves the
+ *  field or with Enter, if it can be, with the reason under it otherwise.
+ *  Before the rc.30 every letter was a rename (and a step of the history),
+ *  unchecked, and an `ingresso` did not change at all (test of the rc.29). */
+function InputName({ d, inp, commit, onRename }: {
+  d: DescrizioneSimbolo; inp: SymbolInput; commit: (d: DescrizioneSimbolo) => void;
+  onRename: (from: string, to: string) => void;
+}) {
+  const { t } = useTranslation();
+  const [v, setV] = useState(inp.id);
+  useEffect(() => setV(inp.id), [inp.id, inp.op]);
+  const id = normalizeId(v);
+  const problem = idProblem(id, "input", inputIds(d).filter((x) => x !== inp.id));
+  const apply = () => {
+    if (problem || id === inp.id) { setV(inp.id); return; }
+    onRename(inp.id, id);
+    commit(renameInput(d, inp.op, id));
+  };
+  return (
+    <>
+      <Field label={t("symbolEditor.inputId")}>
+        <input style={{ ...input, borderColor: problem ? C.danger : undefined }} value={v} maxLength={30} data-testid={`symbol-input-name-${inp.id}`}
+          onChange={(e) => setV(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-"))}
+          onBlur={apply} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} />
+      </Field>
+      {problem && <p style={{ margin: 0, color: C.danger, fontSize: 11 }} data-testid="symbol-input-name-error">{idMessage(t, "input", problem)}</p>}
+    </>
+  );
+}
+
 /** One pipe port: its id (what the pipes attach to), side, diameter, position. */
 function PortProps({ d, port, pipes, commit, onRename, onDel }: {
   d: DescrizioneSimbolo; port: Port; pipes: number; commit: (d: DescrizioneSimbolo) => void;
@@ -2039,8 +2165,8 @@ function PortProps({ d, port, pipes, commit, onRename, onDel }: {
   const { t } = useTranslation();
   const [id, setId] = useState(port.id);
   useEffect(() => setId(port.id), [port.id, port.op]);
-  const taken = ports(d).some((q) => q.id === id && q.op !== port.op);
-  const ok = validPortId(id) && !taken;
+  const problem = idProblem(id, "port", ports(d).filter((q) => q.op !== port.op).map((q) => q.id));
+  const ok = !problem;
   return (
     <>
       <p style={{ ...note, color: pipes ? C.port : C.subtle }}>{t("symbolEditor.port.pipes", { n: pipes })}</p>
@@ -2050,7 +2176,7 @@ function PortProps({ d, port, pipes, commit, onRename, onDel }: {
           onBlur={() => { if (ok && id !== port.id) { onRename(port.id, id); commit(setPort(d, port.op, { id })); } else setId(port.id); }}
           onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} />
       </Field>
-      {!ok && <p style={{ margin: 0, color: C.danger, fontSize: 11 }}>{t(taken ? "symbolEditor.port.idTaken" : "symbolEditor.port.idRule")}</p>}
+      {problem && <p style={{ margin: 0, color: C.danger, fontSize: 11 }}>{idMessage(t, "port", problem)}</p>}
       <Field label={t("symbolEditor.port.sideLabel")}>
         <select style={input} value={port.side} onChange={(e) => commit(setPort(d, port.op, { side: e.target.value as Side }))}>
           {SIDES.map((s) => <option key={s} value={s}>{t(`symbolEditor.port.side.${s}`)}</option>)}

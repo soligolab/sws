@@ -1,0 +1,44 @@
+{
+  "_doc": [
+    "The names of a project symbol (test of the rc.29, 23-11-2026): what the editor of the symbols accepts",
+    "(`idProblem` in sws-editor/src/symbols/editor/model.ts) and what the compiler accepts (`nome_ammesso` and",
+    "the part rules in sws-runtime/crates/sws-core/src/simboli_prj.rs). Read by sws-editor/tests/symbolEditorModel.test.ts",
+    "and by the cargo test `symbol_ids_follow_the_shared_fixture`: the two rules can't drift apart.",
+    "`input` = parts and inputs (`parte`, `ingresso`), `port` = pipe ports (`bocca`). `rejected` maps a name to the",
+    "editor's reason; `editorOnly` are names the compiler accepts and the editor refuses (`state` is the body's",
+    "input in the editor). Uniqueness is not here: it depends on the symbol."
+  ],
+  "input": {
+    "accepted": ["acceso", "fiamma-2", "on", "a1", "x-y", "body-2", "layer", "fx", "statex", "abcdefghijklmnopqrstuvwxyz0123"],
+    "rejected": {
+      "a": "length",
+      "abcdefghijklmnopqrstuvwxyz01234": "length",
+      "Acceso": "chars",
+      "con spazio": "chars",
+      "fiamma_2": "chars",
+      "acceso!": "chars",
+      "è-on": "chars",
+      "-in": "dash",
+      "in-": "dash",
+      "body": "reserved",
+      "layer-1": "reserved",
+      "layer-x": "reserved",
+      "fx-1": "reserved"
+    },
+    "editorOnly": {
+      "state": "reserved"
+    }
+  },
+  "port": {
+    "accepted": ["inlet", "n-left-2", "p1", "body", "state", "layer-1", "fx-1", "abcdefghijklmnopqrstuvwxyz0123"],
+    "rejected": {
+      "p": "length",
+      "abcdefghijklmnopqrstuvwxyz01234": "length",
+      "Inlet": "chars",
+      "con spazio": "chars",
+      "-in": "dash",
+      "in-": "dash"
+    },
+    "editorOnly": {}
+  }
+}

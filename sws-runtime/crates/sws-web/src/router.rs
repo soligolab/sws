@@ -816,7 +816,7 @@ pub fn build(
         // Stato delle sorgenti e dei loro dispositivi (04-10-2026).
         .route("/api/sources/stato", get(stato_sorgenti_handler))
         .route("/api/simboli-lib", get(simboli_lib_noti))
-        .route("/api/system", get(crate::system::get_system_status))
+        .route("/api/system", get(crate::system::get_system_status_route))
         .route_layer(middleware::from_fn(require_operator));
 
     let system_ctrl_routes = Router::new()
@@ -2031,7 +2031,7 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
         .route("/api/project/export", get(export_project_zip))
         // ── Stato, che l'IDE legge per dire com'è il dispositivo ───────────
         .route("/api/project", get(get_project))
-        .route("/api/system", get(crate::system::get_system_status))
+        .route("/api/system", get(crate::system::get_system_status_route))
         // I simboli di libreria che questa immagine sa disegnare (02-11-2026):
         // il deploy li confronta con quelli del progetto. Lo leggeva come file
         // statico, che questa porta non serve — e ogni deploy diceva «il pannello
@@ -3783,6 +3783,33 @@ struct Whoami {
     /// The login before this one on this device (`{{user.last_login}}`).
     #[serde(skip_serializing_if = "Option::is_none")]
     previous_login_ms: Option<u64>,
+}
+
+/// Would closing the project leave the caller of this request without access?
+/// (rc.30, collaudo on the PLX800.) A deploy closes the project first, then
+/// deletes, uploads and opens with the same session: if the session is a
+/// project user's it ends with the close, and the deploy stopped half way.
+///
+/// Not when something else carries the requests after the close:
+/// - the development shortcut (`--senza-autenticazione`): open to all;
+/// - no device Admin **and** the gateway's signature on the request: the panel
+///   goes back to waiting, and there the signature lets the gateway in. This is
+///   the cloud deploy, the way back for a panel paired from the cloud.
+///
+/// With a device Admin the source stays the device's users after the close,
+/// and a project user's token is worth nothing there.
+pub async fn close_locks_out(s: &AppState, headers: &axum::http::HeaderMap) -> bool {
+    let Some(token) = headers
+        .get(header::AUTHORIZATION)
+        .and_then(|h| h.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+    else {
+        return false;
+    };
+    if s.senza_auth_sviluppo || s.auth.session_profile(token).await.is_none() {
+        return false;
+    }
+    s.auth_dispositivo.has_users().await || !s.abbinamento.firma_valida(headers)
 }
 
 async fn whoami(State(s): State<AppState>, req: Request) -> Json<Whoami> {
@@ -9955,7 +9982,19 @@ async fn ws_tags_handler(
         user.role
     };
     let stato = s.clone();
-    ws.on_upgrade(move |socket| handle_ws(socket, s.db, s.bus, handshake, epoch_rx, stato, token))
+    let handshake_user = user.username;
+    ws.on_upgrade(move |socket| {
+        handle_ws(
+            socket,
+            s.db,
+            s.bus,
+            handshake,
+            epoch_rx,
+            stato,
+            token,
+            handshake_user,
+        )
+    })
 }
 
 /// Il ruolo **adesso**, non quello catturato all'handshake (22-10-2026, piano
@@ -9971,19 +10010,35 @@ async fn ws_tags_handler(
 /// Costa una lettura da una mappa in memoria per messaggio: niente, rispetto
 /// alla scrittura del tag che segue. Senza token si ripiega sul ruolo
 /// dell'handshake, che è il caso del runtime senza utenti.
+#[cfg(test)]
 async fn ruolo_adesso(s: &AppState, token: Option<&String>, handshake: Role) -> Role {
+    writer_now(s, token, handshake, "").await.0
+}
+
+/// The role **and the name** of whoever writes on the tag socket, re-read at
+/// every write like [`ruolo_adesso`]. The name goes to the audit log: until
+/// rc.30 the socket wrote no row at all, while the manual says every tag write
+/// ends up there (collaudo on the PLX800, 23-11-2026). Without a token the
+/// handshake's name is kept (`handshake_user`); with a token that is no longer
+/// valid the writer is anonymous.
+async fn writer_now(
+    s: &AppState,
+    token: Option<&String>,
+    handshake: Role,
+    handshake_user: &str,
+) -> (Role, String) {
     let Some(tok) = token else {
-        return handshake;
+        return (handshake, handshake_user.to_string());
     };
     match valida_utente_dispositivo(s, tok).await {
         // Chi deve ancora cambiare la password vede ma non comanda (03-11-2026,
         // tutorial T11): le API REST lo fermano con `require_password_changed`,
         // ma il socket dei tag lasciava scrivere un Operator al primo accesso.
-        Some(u) if u.must_change_password => Role::Viewer,
-        Some(u) => u.role,
+        Some(u) if u.must_change_password => (Role::Viewer, u.username),
+        Some(u) => (u.role, u.username),
         // Token non più valido: anonimo, come fa `optional_auth` sulle rotte
         // HTTP. Non è un errore di protocollo, è una sessione finita.
-        None => Role::Viewer,
+        None => (Role::Viewer, String::new()),
     }
 }
 
@@ -9996,12 +10051,16 @@ async fn handle_ws(
     mut epoch_rx: tokio::sync::watch::Receiver<u64>,
     stato: AppState,
     token: Option<String>,
+    handshake_user: String,
 ) {
     use futures_util::{SinkExt, StreamExt};
     use std::collections::{HashMap, HashSet};
 
     let (mut ws_tx, mut ws_rx) = socket.split();
     let (out_tx, mut out_rx) = tokio::sync::mpsc::channel::<Message>(64);
+    // The audit rows of this socket's writes (rc.30): one per write, gathered
+    // per tag and bounded per socket — see `ws_audit.rs`.
+    let ws_audit = crate::ws_audit::WsAudit::start(stato.audit.clone());
 
     // Sequence counter (per-connection monotonic).
     let mut seq: u64 = 0;
@@ -10205,12 +10264,23 @@ async fn handle_ws(
                         // Il ruolo si rilegge dal token a OGNI scrittura: fidarsi
                         // di quello dell'handshake vuol dire che una sessione
                         // finita continua a comandare finché il socket regge.
-                        let role = ruolo_adesso(&stato, token.as_ref(), role).await;
+                        let (role, who) =
+                            writer_now(&stato, token.as_ref(), role, &handshake_user).await;
+                        // The audit row of the REST write, with `via: ws`: the
+                        // viewer writes from here (rc.30, collaudo on the PLX800),
+                        // gathered per tag and bounded by `ws_audit`.
+                        let who = (!who.is_empty()).then_some(who);
                         // F3.1: soglia per-tag (TagDef.write_min_role), default Operator+.
                         // Dal 25-10-2026 è l'unico controllo, come sulla PUT: prima un
                         // `role < Operator` lo precedeva, e un tag aperto a «Chiunque»
                         // restava chiuso all'anonimo.
                         if !tag_write_allowed(&db, &tag, role).await {
+                            ws_audit.record(crate::ws_audit::WsWrite {
+                                action: "tag.write_denied",
+                                who,
+                                tag: tag.clone(),
+                                detail: serde_json::json!({"tag": tag.clone(), "role": role.as_str(), "via": "ws"}),
+                            });
                             let ack = WriteAck {
                                 ty: "ack",
                                 req_id,
@@ -10229,6 +10299,12 @@ async fn handle_ws(
                         let value = match db.coerce_for_write(&tag, value).await {
                             Ok(v) => v,
                             Err(msg) => {
+                                ws_audit.record(crate::ws_audit::WsWrite {
+                                    action: "tag.write_rejected_type",
+                                    who,
+                                    tag: tag.clone(),
+                                    detail: serde_json::json!({"tag": tag.clone(), "error": msg.clone(), "via": "ws"}),
+                                });
                                 let ack = WriteAck {
                                     ty: "ack",
                                     req_id,
@@ -10244,6 +10320,12 @@ async fn handle_ws(
                                 continue;
                             }
                         };
+                        ws_audit.record(crate::ws_audit::WsWrite {
+                            action: "tag.write",
+                            who,
+                            tag: tag.clone(),
+                            detail: serde_json::json!({"tag": tag.clone(), "value": value.clone(), "via": "ws"}),
+                        });
                         let raw = db.scale_to_raw(&tag, value.clone()).await;
                         let (ok, err) = match bus.write(&tag, raw).await {
                             Ok(()) => (true, None),
@@ -15472,6 +15554,128 @@ pub(crate) async fn build_di_prova(
 #[cfg(test)]
 mod password_change_on_the_viewer {
     use super::*;
+
+    /// rc.30 (collaudo on the PLX800): a project user's session ends with the
+    /// close a deploy starts with, so the deploy must stop before it; not with
+    /// the development shortcut, nor without a session.
+    #[tokio::test]
+    async fn closing_the_project_locks_out_a_project_users_session() {
+        let dir = tempfile::tempdir().unwrap();
+        let (_, _, s) = build_di_prova(dir.path(), None, None).await;
+        s.auth
+            .swap_store(dir.path().join("users.yaml"), Vec::new())
+            .await
+            .unwrap();
+        s.auth
+            .create_user(sws_auth::CreateUser {
+                username: "admin".into(),
+                password: "a-password-1".into(),
+                role: sws_auth::Role::Admin,
+                must_change_password: false,
+                allowed_zones: vec![],
+                display_name: None,
+            })
+            .await
+            .unwrap();
+        let ok = s
+            .auth
+            .login(&sws_auth::Credentials {
+                username: "admin".into(),
+                password: "a-password-1".into(),
+            })
+            .await
+            .unwrap();
+        let mut h = axum::http::HeaderMap::new();
+        h.insert(
+            header::AUTHORIZATION,
+            format!("Bearer {}", ok.token).parse().unwrap(),
+        );
+        assert!(close_locks_out(&s, &h).await);
+        assert!(!close_locks_out(&s, &axum::http::HeaderMap::new()).await);
+        let mut open = s.clone();
+        open.senza_auth_sviluppo = true;
+        assert!(!close_locks_out(&open, &h).await);
+    }
+
+    /// rc.30 (collaudo on the PLX800, 23-11-2026): a write from the viewer's
+    /// tag socket ends up in the audit log like the REST one, with the user's
+    /// name and `via: ws`. Until rc.29 only the REST write wrote a row.
+    #[tokio::test]
+    async fn a_write_from_the_tag_socket_is_in_the_audit_log() {
+        use futures_util::{SinkExt, StreamExt};
+        let dir = tempfile::tempdir().unwrap();
+        let (viewer, _, s) = build_di_prova(dir.path(), None, None).await;
+        s.auth
+            .swap_store(dir.path().join("users.yaml"), Vec::new())
+            .await
+            .unwrap();
+        s.auth
+            .create_user(sws_auth::CreateUser {
+                username: "op".into(),
+                password: "a-password-1".into(),
+                role: sws_auth::Role::Operator,
+                must_change_password: false,
+                allowed_zones: vec![],
+                display_name: None,
+            })
+            .await
+            .unwrap();
+        let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = l.local_addr().unwrap().port();
+        tokio::spawn(async move { axum::serve(l, viewer).await.unwrap() });
+        let login: serde_json::Value = reqwest::Client::new()
+            .post(format!("http://127.0.0.1:{port}/api/auth/login"))
+            .json(&serde_json::json!({"username": "op", "password": "a-password-1"}))
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        let token = login["token"].as_str().unwrap().to_string();
+        let (mut ws, _) = tokio_tungstenite::connect_async(format!(
+            "ws://127.0.0.1:{port}/ws/tags?token={token}"
+        ))
+        .await
+        .expect("socket");
+        use tokio_tungstenite::tungstenite::Message as T;
+        ws.send(T::Text(
+            r#"{"type":"write","tag":"light","value":true,"req_id":"1"}"#.into(),
+        ))
+        .await
+        .unwrap();
+        // The ack comes after the audit row is asked for.
+        let ack = loop {
+            let m = tokio::time::timeout(std::time::Duration::from_secs(5), ws.next())
+                .await
+                .expect("an answer within 5 s")
+                .unwrap()
+                .unwrap();
+            let v: serde_json::Value =
+                serde_json::from_str(&m.into_text().unwrap_or_default()).unwrap_or_default();
+            if v["type"] == "ack" {
+                break v;
+            }
+        };
+        assert_eq!(ack["ok"], true);
+        let log = dir.path().join("audit.jsonl");
+        let mut row = None;
+        for _ in 0..50 {
+            let text = std::fs::read_to_string(&log).unwrap_or_default();
+            row = text
+                .lines()
+                .filter_map(|l| serde_json::from_str::<serde_json::Value>(l).ok())
+                .find(|v| v["action"] == "tag.write");
+            if row.is_some() {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        }
+        let row = row.expect("a tag.write row in the audit log");
+        assert_eq!(row["actor"], "op");
+        assert_eq!(row["detail"]["tag"], "light");
+        assert_eq!(row["detail"]["via"], "ws");
+    }
 
     /// D17 (18-11-2026): on the viewer port a user who must change the
     /// password reads, but writes nothing until the change or «Later».

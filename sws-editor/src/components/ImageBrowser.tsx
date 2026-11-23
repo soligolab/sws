@@ -14,6 +14,7 @@ import { safeImageName } from "@/images/optimize";
 import { dimenticaImmagine } from "@/canvas/ImmagineSvg";
 import { useAppStore } from "@/store";
 import { avviso, chiedi, conferma } from "@/finestraAvviso/finestraAvviso";
+import { inFinestraSimboli } from "@/symbols/editor/ponteSimboli";
 
 interface CatalogItem { id: string; path: string; label: string; }
 interface CatalogCat  { id: string; label: string; license: string; items: CatalogItem[]; }
@@ -288,7 +289,13 @@ export function ImageBrowser({ mode = "choose", onSelect, onClose }: Props) {
             display: "flex", flexDirection: "column", gap: 4, fontSize: 11, color: "var(--brand-text-muted, #94a3b8)" }}>
             <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
               <strong style={{ color: "var(--brand-text, #e2e8f0)", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{selectedName}</strong>
-              <button type="button" style={SMALL} data-testid="image-rename" onClick={() => void rename(selectedName)}>{t("imageBrowser.rename")}</button>
+              {/* Not in the symbol editor's own window: a rename rewrites the
+                  pages it got from the IDE when it opened, unsaved changes
+                  included, without a version check (test of the rc.29,
+                  23-11-2026). It stays in the IDE's library. */}
+              {!inFinestraSimboli && (
+                <button type="button" style={SMALL} data-testid="image-rename" onClick={() => void rename(selectedName)}>{t("imageBrowser.rename")}</button>
+              )}
               <button type="button" style={SMALL} data-testid="image-replace" onClick={() => { setReplacing(selectedName); replaceRef.current?.click(); }}>{t("imageBrowser.replace")}</button>
               <button type="button" style={{ ...SMALL, color: "var(--brand-danger, #ef4444)" }} data-testid="image-delete" onClick={() => void remove(selectedName)}>{t("common.delete")}</button>
             </div>

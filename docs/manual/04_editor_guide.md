@@ -374,6 +374,26 @@ Quando imposti un tag:
    Uncertain, ognuna col suo colore configurabile
 3. I widget di controllo (button, slider, checkbox) scrivono sul tag quando l'operatore interagisce
 
+**La qualità di un tag calcolato** (con un'espressione, dalla 2.26.0-rc.30) è la **peggiore** fra quelle dei tag che
+l'espressione nomina, con Bad sopra Uncertain sopra Good: `round(tags['ty.eth0_rx_bps'] / 1024, 1)` con l'ingresso Bad
+esce Bad, non 0.0 Good. Come per ogni tag, un valore non Good non fa né scattare né rientrare gli allarmi, e le
+pubblicazioni MQTT mandano `null`.
+- **All'avvio**: finché il tag calcolato e almeno uno dei suoi ingressi non sono mai arrivati, il tag calcolato resta
+  «mai ricevuto» invece di valere il conto fatto sugli zeri iniziali; un ingresso Bad lo fa comunque Bad. Una variabile
+  senza sorgente usata come parametro (un prezzo, una soglia) torna «mai ricevuta» a ogni riavvio: finché qualcuno non
+  la riscrive, anche i tag calcolati che la leggono non sono Good.
+- **Un errore dell'espressione** lascia l'ultimo valore, marcato Bad.
+- **Un nome che non è un tag** (per esempio in `tags.get('x', 0)`) non conta per la qualità; il runtime lo scrive una
+  volta nel log. I commenti (`# …`) non contano.
+
+Tre limiti:
+- contano **tutti** i tag scritti nell'espressione, anche quelli di un ramo `if` non preso: `'offline' if not
+  tags['plc.disponibile'] else …` esce Bad quando `plc.disponibile` è Bad, anche se dice il vero;
+- `tags['sala']['temperatura']` prende la qualità di tutta `sala` (la peggiore dei membri già arrivati): per la
+  qualità del solo membro scrivi `tags['sala.temperatura']`;
+- un'espressione che legge i tag in modo indiretto (`tags[k]` con il nome in una variabile, `tags.values()`) resta Good
+  come prima, perché il runtime non sa quali legge.
+
 **Formato visualizzazione**: il campo **Formato** è un testo con il segnaposto `{value}`, uguale sul web e su
 LVGL (`formatValue`, `canvas/SvgCanvas.tsx`; casi in `tests/fixtures/formattazione-valori.json`):
 
