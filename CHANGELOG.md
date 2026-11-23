@@ -48,6 +48,16 @@ si stabilizza su `release/2.26` (piano `docs/plans/2026-11-22-dev-rc-release-e-p
 Il lavoro dalla 2.25.2 alla 2.26.0-rc.26. Le correzioni della stabilizzazione si fanno su `release/2.26` e si
 riportano qui con `cherry-pick`; la data arriva con la release.
 
+### Corretto — una fiamma spenta non si disegna (23-11-2026, ramo `fix/flame-off-hidden`)
+- Trovato preparando la stufa di CasaDomotica. Una forma con l'effetto fiamma, a ingresso spento, restava disegnata
+  ferma: la fiamma si vedeva a stufa spenta. Messa invece dentro un segnale che la nasconde a 0, il compilatore la
+  spostava nello strato dell'effetto, la parte restava vuota e il simbolo non si salvava più («la parte fiamma non ha
+  forme»). **Decisione del maintainer**: spenta = nascosta.
+- Web (`SimboloLib.tsx`) e LVGL (lo strato fermo della fiamma diventa una spia, `simbolo_lib.rs` + `lvgl_render.rs`):
+  con l'ingresso spento la fiamma non si disegna; senza un valore (l'editor, una parte non collegata) resta ferma.
+- Il compilatore (`simboli_prj.rs`) rifiuta con parole chiare una fiamma o un bagliore su forme dentro una parte:
+  vanno in uno strato fisso o nel corpo. Le regole per l'IA dicono lo stesso.
+
 ### Aggiunto — l'editor dei simboli in una finestra sua (22-11-2026, ramo `feat/symbol-editor-window`)
 - Il maintainer: «deve diventare un pop-up perché è utile poter lavorare al progetto ed avere l'editor dei simboli
   aperto». Una pagina nuova, `index-symbols.html` (`symbols-main.tsx`, `FinestraSimboli.tsx`), servita come la chat e il

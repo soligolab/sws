@@ -240,6 +240,10 @@ export function SimboloLibSvg({ sim, svg, manifesto, prefisso, x, y, w, h, valor
             transform: `rotate(${gradi}deg)`, transition: "transform 300ms ease-out" };
         } else if (parte?.kind === "lamp" && v && "accesa" in v && v.accesa === false) {
           opacita = 0;
+        } else if (parte?.kind === "flame" && v && "active" in v && v.active === false) {
+          // A flame whose input is off is not drawn (23-11-2026); with no
+          // value yet (the editor, a part not bound) it stays, still.
+          opacita = 0;
         }
         const glow = parte?.kind === "glow" && active === true;
         // A moving effect (bubbles, smoke) over its layer: only while its
