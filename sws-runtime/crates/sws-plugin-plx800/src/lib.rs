@@ -843,7 +843,10 @@ mod tests {
             }
         }
         let good_after = good_after.expect("the points never came back");
-        assert!(good_after < Duration::from_secs(1), "Good again after {good_after:?}");
+        assert!(
+            good_after < Duration::from_secs(1),
+            "Good again after {good_after:?}"
+        );
         cancel.cancel();
         task.await.unwrap();
     }
