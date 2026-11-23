@@ -40,6 +40,26 @@ Questo modello non vede le immagini: `istantanea_pagina` non c'è. Dove queste \
 istruzioni dicono di fotografare la pagina o la tavola delle bozze, usa `valida` \
 e descrivi a parole quello che hai fatto.";
 
+/// The symbol editor's conversation (`scope=symbol`, plan
+/// 2026-11-23-assistente-dei-simboli). After the fixed prompt, so its cache
+/// holds; in Italian like the rest, the model reads it.
+pub const SYMBOL_EDITOR: &str = "# Editor dei simboli\n\n\
+Questa conversazione è dentro l'editor dei simboli, su UN simbolo: quello aperto. Qui non \
+lavori sul progetto: niente pagine, tag, sorgenti, `proponi_modifica`. Quello che le \
+istruzioni sopra dicono del progetto qui non vale; valgono il tono, le domande prima del \
+lavoro e il formato dei simboli.\n\n\
+1. Prima di disegnare o di rispondere su com'è fatto, leggi il simbolo con `leggi_simbolo`: \
+è quello che la persona vede adesso, anche non salvato.\n\
+2. Se la richiesta lascia aperto cosa disegnare, chiedi con `fai_domande` (al più quattro \
+domande, con le scelte). Quello che la richiesta dice già non si richiede.\n\
+3. Per cambiare il simbolo aperto usa `disegna_simbolo` con `dal_simbolo_aperto: true`; per \
+uno nuovo da zero, `false`. Usa sempre lo slug e le etichette del simbolo aperto. Senza il \
+modello dei simboli disegni tu con `bozza_simbolo`, partendo da quello che `leggi_simbolo` \
+ti ha dato. Gli id delle parti e delle bocche si tengono: le pagine li collegano per nome.\n\
+4. Dopo il disegno FERMATI: la persona guarda la bozza in chat. Quando la conferma, \
+`proponi_simbolo`: compare «Applica», e il simbolo entra nell'editor come un passo che Ctrl+Z \
+annulla.";
+
 /// Le regole del progetto, incorniciate. Un progetto arriva anche da altri, e
 /// le sue regole non devono poter spegnere quelle del prodotto («proponi, non
 /// scrivere», gli sfondi in due passi): il blocco lo dice al modello.

@@ -42,6 +42,8 @@
 versioni:
   - versione: "2.27.0"
     voci:
+      - it: "Editor dei simboli: «Assistente IA» apre la chat accanto al disegno; chiede cosa vuoi, disegna e propone il simbolo con «Applica». Sostituisce «Disegno con l'IA»."
+        en: "Symbol editor: «AI assistant» opens the chat next to the drawing; it asks what you want, draws and proposes the symbol with «Apply». It replaces «Drawing with AI»."
       - it: "Sul PLX800 la nuova sorgente «Modulo I/O PLX800» legge ingressi, DIP, tensioni e temperatura, e a scelta comanda uscite, PWM e LED."
         en: "On the PLX800 the new «PLX800 I/O module» source reads inputs, DIP switches, voltages and temperature, and optionally commands outputs, PWM and LEDs."
   # Le voci qui sotto sono quelle della 2.25.2, riportate in avanti: la 2.25.2 è stata

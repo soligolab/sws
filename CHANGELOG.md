@@ -14,6 +14,24 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 Il lavoro della **2.27.0** (versioni `2.27.0-dev.N`). Dal 22-11-2026 `main` porta la release successiva, e la 2.26.0
 si stabilizza su `release/2.26` (piano `docs/plans/2026-11-22-dev-rc-release-e-portale-di-sviluppo.md`).
 
+### Aggiunto — l'assistente dei simboli, sessione 1: la chat dentro l'editor (23-11-2026, ramo `feat/symbol-assistant-chat`)
+- Piano `docs/plans/2026-11-23-assistente-dei-simboli.md`. Il pulsante **«Assistente IA»** nella barra dell'editor dei
+  simboli apre accanto al disegno la chat dell'IDE (`ChatPanel`) su una **conversazione del simbolo**, separata da
+  quella del progetto: una per simbolo, ritrovata riaprendolo nella stessa sessione del browser. La chat sta dove sta
+  l'editor, dentro l'IDE o nella sua finestra (decisione del maintainer, 23-11).
+- `ws/aiStream.ts`: il canale diventa la classe `AiChannel`, un'istanza per conversazione; le funzioni di prima parlano
+  a quella del progetto. `symbolChannel(slug)` apre `/ws/ai?conv=…&scope=symbol`.
+- Server: con `scope=symbol` gli strumenti sono solo `fai_domande`, `leggi_simbolo` (nuovo: il simbolo com'è, con
+  errori, parti e bocche), `disegna_simbolo` (che con `dal_simbolo_aperto` parte dal simbolo aperto e tiene solo le sue
+  foto) o `bozza_simbolo`, e `proponi_simbolo` (nuovo: la bozza all'editor, con «Applica»; non nello stesso turno del
+  disegno). Il blocco di prompt «Editor dei simboli» va dopo quello fisso, così la cache regge. Ogni domanda porta il
+  simbolo aperto (`chiedi.simbolo`).
+- «Applica» mette il disegno nell'editor come **un passo che Ctrl+Z annulla**, con nome, etichette e variante
+  dell'editor (`withOwnNames`, spostata in `model.ts`).
+- **Tolti** «Disegno con l'IA» (`AiPanel.tsx`) e l'intervista `/api/symbols/ai/interview` (`INTERVIEW_SYSTEM`).
+  **Restano** «Genera foto» fino alla sessione 3 (decisione del maintainer) e la rotta `/api/symbols/ai`, senza più
+  interfaccia: i test di `draw()` passano da lì, e la foto di riferimento oggi c'è solo lì. Si toglie nella sessione 2.
+
 ### Aggiunto — la sorgente `plx800_io`, il modulo I/O del PLX800 (23-11-2026, ramo `feat/plx800-io`)
 - Crate `sws-plugin-plx800` sul segmento `/dev/shm/qmb800_registers` di PixsysOS (interfaccia versione 1, 176 byte):
   lettura coerente con `status_seq`, freschezza da `update_count` col clock monotono, 61 punti (ingressi, DIP, uscite,

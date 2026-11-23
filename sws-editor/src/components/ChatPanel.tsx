@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import i18n from "i18next";
 import { editorLocale, NESSUNA_CONFERMA, type EditorAi } from "@/ai/editor";
 import { useAppStore } from "@/store";
-import { approvaSfondo, ascolta, chiedi, mandaFoto, nuovaConversazione, suConversazioneNuova } from "@/ws/aiStream";
+import { approvaSfondo, ascolta, chiedi, mandaFoto, nuovaConversazione, suConversazioneNuova, type AiChannelApi } from "@/ws/aiStream";
 import { blobInBase64 } from "@/ai/fotoDalBrowser";
 import { aiErrorText } from "@/ai/errorCodes";
 import type { MsgIn, Riga } from "@/types/ai";
@@ -49,9 +49,14 @@ function kTok(n: number): string {
        : String(n);
 }
 
-export function ChatPanel({ open, onClose, editor = editorLocale, avviso, bloccaInvio, variant = "drawer" }: {
+export function ChatPanel({ open, onClose, editor = editorLocale, avviso, bloccaInvio, variant = "drawer", channel, title }: {
   open: boolean;
+  /** The heading, when it is not the project's assistant. */
+  title?: string;
   onClose: () => void;
+  /** The conversation (23-11-2026): the project's by default; the symbol
+   *  editor passes the one of its symbol. */
+  channel?: AiChannelApi;
   /** Chi calcola il diff e chi applica. Default: lo store di questa finestra. */
   editor?: EditorAi;
   /** Riga di avviso extra in testa alla lista (la usa la finestra staccata per
@@ -72,6 +77,18 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
   variant?: "drawer" | "window";
 }) {
   const { t } = useTranslation();
+  // The project's conversation through the module's functions, as before,
+  // each read only when called.
+  const ch: AiChannelApi = useMemo(() => channel ?? {
+    chiedi: (testo) => chiedi(testo),
+    approvaSfondo: (id) => approvaSfondo(id),
+    mandaFoto: (id, esito) => mandaFoto(id, esito),
+    ascolta: (fn) => ascolta(fn),
+    nuovaConversazione: () => nuovaConversazione(),
+    suConversazioneNuova: (fn) => suConversazioneNuova(fn),
+  }, [channel]);
+  /** A question, with the open symbol when the editor is the symbol editor. */
+  const domanda = (testo: string) => ch.chiedi(testo, editor.simbolo?.leggi());
   // Lo store restituisce chiavi `storeErr.*`, non frasi: si traducono qui, nella lingua di adesso.
   const traduciEsito = (m?: string) => (m && m.startsWith("storeErr.") ? t(m) : m);
   const remoteConnected = useAppStore((s) => s.remoteConnected);
@@ -124,14 +141,14 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
 
   /** Approva la base e chiede le varianti: due messaggi, nell'ordine. */
   function mandaBase(id: string) {
-    const okApprova = approvaSfondo(id);
+    const okApprova = ch.approvaSfondo(id);
     traccia("approva_sfondo", id, okApprova);
     if (!okApprova) {
       setRighe((x) => [...x, { tipo: "errore", testo: t("chat.noConnection") }]);
       return;
     }
     const testo = t("chat.sfondoScelto", { id });
-    if (chiedi(testo)) {
+    if (domanda(testo)) {
       setRighe((x) => [...x, { tipo: "utente", testo }]);
       setAttesa(true);
     }
@@ -139,18 +156,18 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
 
   // Uscita o utente diverso (10-11-2026): conversazione nuova, e quello che
   // era sullo schermo non resta a chi entra dopo. Anche a cassetto chiuso.
-  useEffect(() => suConversazioneNuova(() => {
+  useEffect(() => ch.suConversazioneNuova(() => {
     setRighe([]);
     setAttesa(false);
     baseInCodaRef.current = null;
     setBaseInCoda(null);
     setRisorse({ input: 0, output: 0, cache: 0 });
     setSpesa(null);
-  }), []);
+  }), [ch]);
 
   useEffect(() => {
     if (!open) return;
-    return ascolta((m: MsgIn) => {
+    return ch.ascolta((m: MsgIn) => {
       switch (m.t) {
         case "pronto":
           setStato({ attivo: m.attivo, modello: m.modello, motivo: m.motivo });
@@ -237,6 +254,9 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
           setRighe((r) => [...r, { tipo: "domande", domande: m.domande, piano: m.piano,
             risposte: Array.from({ length: m.domande.length + (m.piano.length ? 1 : 0) }, () => ""), inviate: false }]);
           break;
+        case "proposta_simbolo":
+          setRighe((r) => [...r, { tipo: "proposta_simbolo", msg: m }]);
+          break;
         case "simbolo":
           // Ridisegnato con lo stesso slug: la miniatura nuova prende il posto
           // della vecchia, così la chat non diventa un album di prove.
@@ -256,8 +276,8 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
           // canvas dell'editor. Nella finestra staccata la chiede all'editor.
           traccia("fotografa", m.id);
           void editor.fotografa(m)
-            .then(async (f) => mandaFoto(m.id, { png: await blobInBase64(f.png), avvisi: f.avvisi }))
-            .catch((e: unknown) => mandaFoto(m.id, { errore: String((e as Error)?.message ?? e) }));
+            .then(async (f) => ch.mandaFoto(m.id, { png: await blobInBase64(f.png), avvisi: f.avvisi }))
+            .catch((e: unknown) => ch.mandaFoto(m.id, { errore: String((e as Error)?.message ?? e) }));
           break;
         case "sfondo":
           // Una variante rifatta con la stessa luce prende il posto della vecchia.
@@ -289,7 +309,7 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
         }
       }
     });
-  }, [open, editor]);
+  }, [open, editor, ch]);
 
   useEffect(() => {
     fondo.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -300,7 +320,7 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
   /** Sends a message as the person's: what they typed, or their answers. */
   const manda = (testo: string): boolean => {
     if (!testo || attesa) return false;
-    if (!chiedi(testo)) {
+    if (!domanda(testo)) {
       setRighe((r) => [...r, { tipo: "errore", testo: t("chat.noConnection") }]);
       return false;
     }
@@ -350,6 +370,24 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
     }));
   };
 
+  /** «Apply» on a drawing proposed for the open symbol: the symbol editor
+   *  takes it as one undoable step. */
+  const applicaSimbolo = (indice: number) => {
+    const riga = righe[indice];
+    if (riga?.tipo !== "proposta_simbolo") return;
+    const esito = editor.simbolo
+      ? editor.simbolo.applica(riga.msg.simbolo)
+      : { ok: false as const, motivo: t("chat.symbolNoEditor") };
+    setRighe((r) => r.map((x, i) => i !== indice || x.tipo !== "proposta_simbolo" ? x : {
+      ...x, esito: esito.ok ? "applicata" : "rifiutata", nota: esito.ok ? undefined : esito.motivo,
+    }));
+  };
+
+  const scartaSimbolo = (indice: number) => {
+    setRighe((r) => r.map((x, i) =>
+      i !== indice || x.tipo !== "proposta_simbolo" ? x : { ...x, esito: "scartata" }));
+  };
+
   const scarta = (indice: number) => {
     setRighe((r) => r.map((x, i) =>
       i !== indice || x.tipo !== "proposta" ? x : { ...x, esito: "scartata" }));
@@ -361,7 +399,7 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
                   : PANNELLO}>
       <div style={INTESTAZIONE}>
         <strong style={{ fontSize: 12, letterSpacing: 0.5, color: "var(--brand-text, #e2e8f0)" }}>
-          {t("chat.title")}
+          {title ?? t("chat.title")}
         </strong>
         <span style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>
           {stato?.modello ?? "…"}
@@ -369,7 +407,7 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
         <div style={{ flex: 1 }} />
         <button style={BTN} onClick={toggleRisorse}
                 title={mostraRisorse ? t("chat.risorseHide") : t("chat.risorseShow")}>◔</button>
-        <button style={BTN} onClick={() => { setRighe([]); setAttesa(false); nuovaConversazione(); }} title={t("chat.clear")}>⌫</button>
+        <button style={BTN} onClick={() => { setRighe([]); setAttesa(false); ch.nuovaConversazione(); }} title={t("chat.clear")}>⌫</button>
         <button style={BTN} onClick={onClose} title={t("chat.close")}>✕</button>
       </div>
 
@@ -452,6 +490,33 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
           }
           if (r.tipo === "errore") {
             return <div key={i} style={BOLLA_ERRORE}>{r.testo}</div>;
+          }
+          if (r.tipo === "proposta_simbolo") {
+            return (
+              <div key={i} style={CARTA} data-testid="chat-proposta-simbolo">
+                <div style={{ fontSize: 12, fontWeight: 600, color: "var(--brand-text, #e2e8f0)", marginBottom: 6 }}>
+                  {r.msg.motivo}
+                </div>
+                <img src={svgComeImmagine(r.msg.svg)} alt="" style={{ width: "100%", maxHeight: 160, objectFit: "contain", marginBottom: 8 }} />
+                {r.esito ? (
+                  <div style={{ fontSize: 11, color: r.esito === "applicata"
+                                    ? "var(--brand-success, #22c55e)" : "var(--brand-text-subtle, #64748b)" }}>
+                    {t(`chat.outcome.${r.esito}`)}
+                    {r.nota ? <div style={{ marginTop: 4, color: "var(--brand-warning, #f59e0b)" }}>{r.nota}</div> : null}
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                    <button style={{ ...BTN_PRIMARIO, opacity: avviso ? 0.5 : 1 }} disabled={!!avviso}
+                            data-testid="chat-applica-simbolo"
+                            onClick={() => applicaSimbolo(i)}>{t("chat.apply")}</button>
+                    <button style={BTN} onClick={() => scartaSimbolo(i)}>{t("chat.discard")}</button>
+                  </div>
+                )}
+                <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #64748b)", marginTop: 6 }}>
+                  {t("chat.symbolApplyNote")}
+                </div>
+              </div>
+            );
           }
           if (r.tipo === "simbolo") {
             return (

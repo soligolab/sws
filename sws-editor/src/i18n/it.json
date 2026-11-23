@@ -461,6 +461,8 @@
     "apply": "Applica",
     "discard": "Scarta",
     "applyNote": "Applica non salva: la modifica va nell'editor, Ctrl+Z la annulla e il disco aspetta Salva.",
+    "symbolNoEditor": "L'editor dei simboli non è aperto: la proposta non si può applicare.",
+    "symbolApplyNote": "«Applica» mette il disegno nell'editor: nome ed etichette restano i tuoi, e Ctrl+Z lo toglie. Si salva col «Salva» dell'editor.",
     "noChanges": "La proposta non cambia niente.",
     "noConnection": "Non sono connesso al runtime: il messaggio non è partito.",
     "outcome": {
@@ -5773,46 +5775,6 @@
       "ownColour": "Un colore suo",
       "fxNote": "L'effetto sta nel riquadro x, y, w, h e si muove mentre l'ingresso è vero; nell'editor si vede con «Anteprima effetti» o nella scheda Prova."
     },
-    "ai": {
-      "note": "Descrivi cosa disegnare o cosa cambiare: risponde il modello dello scopo «Disegno dei simboli». La proposta compare qui sotto; con «Accetta» entra nel simbolo, e Ctrl+Z la toglie. Prima di disegnare l'IA ti fa qualche domanda e ti mostra la richiesta come la disegnerà.",
-      "placeholder": "Es. «aggiungi un agitatore sopra», «un serbatoio con due bocche laterali»",
-      "placeholderRetouch": "Un altro ritocco, partendo dalla proposta",
-      "addPhoto": "Aggiungi una foto",
-      "photoAdded": "La foto va al modello insieme alla richiesta",
-      "removePhoto": "Togli la foto",
-      "photoUnreadable": "Questa immagine non si legge: usa un PNG, un JPEG o un WebP.",
-      "edit": "Modifica questo",
-      "editProposal": "Ritocca la proposta",
-      "new": "Disegna nuovo",
-      "drawing": "L'IA sta disegnando… {{s}} s",
-      "stop": "Interrompi",
-      "now": "Adesso",
-      "proposal": "Proposta",
-      "figures": "{{model}} · tentativi: {{n}} · {{cost}}",
-      "free": "nessun costo",
-      "accept": "Accetta",
-      "discard": "Scarta",
-      "err": {
-        "no_model": "Nessun modello IA configurato. Sceglilo in Configurazione → IA → Un modello per scopo, alla voce «Disegno dei simboli».",
-        "blind_model": "Il modello {{model}} non vede le immagini. Per disegnare da una foto scegline uno che le veda, in Configurazione → IA → Un modello per scopo.",
-        "cap_reached": "Tetto di spesa del disegno dei simboli raggiunto ({{detail}}). Si alza in Configurazione → IA → Un modello per scopo.",
-        "provider": "Il modello non ha risposto: {{detail}}",
-        "invalid": "Dopo {{n}} tentativi il disegno non è ancora valido. Prova a chiederlo in un altro modo. Gli ultimi errori:",
-        "bad_request": "Richiesta non valida: {{detail}}",
-        "error": "Errore: {{detail}}"
-      },
-      "interview": {
-        "title": "Prima di disegnare, qualche domanda",
-        "thinking": "L'IA prepara le domande… {{s}} s",
-        "yourAnswer": "La tua risposta (vuota: decide l'IA)",
-        "continue": "Continua",
-        "skip": "Salta, disegna subito",
-        "cancel": "Annulla",
-        "brief": "La richiesta come la disegnerà l'IA: correggila se serve",
-        "draw": "Disegna",
-        "unreadable": "Il modello non ha risposto con domande leggibili: riprova, o scrivi una richiesta più precisa."
-      }
-    },
     "svg": {
       "import": "Importa SVG…",
       "importTitle": "Aggiunge al simbolo un disegno SVG, una forma per volta, con i suoi colori. Si può anche trascinare il file qui, o incollare il codice SVG con Ctrl+V",
@@ -5905,7 +5867,6 @@
       "outline": "Contorno",
       "symbol": "Simbolo",
       "try": "Valori di prova",
-      "aiDraw": "Disegno con l'IA",
       "transform": "Ruota e allinea"
     },
     "layerSelect": "Seleziona le forme dello strato",
@@ -5985,6 +5946,11 @@
       "docTitle": "Simbolo {{name}}",
       "otherProject": "Nell'IDE non è più aperto il progetto di questa finestra: il simbolo non è stato salvato. Esportalo se vuoi tenerlo, poi riapri l'editor dall'IDE.",
       "conflict": "«{{slugs}}» è cambiato anche nell'IDE dopo l'apertura di questa finestra: il simbolo non è stato salvato, per non cancellare quella modifica. Esportalo se vuoi tenerlo, poi riapri l'editor dall'IDE."
+    },
+    "assistant": {
+      "button": "Assistente IA",
+      "title": "Apre la chat dell'assistente accanto al disegno: chiede cosa vuoi, disegna il simbolo e te lo propone con «Applica»",
+      "close": "Chiudi l'assistente"
     }
   },
   "images": {

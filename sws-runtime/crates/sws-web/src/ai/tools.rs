@@ -394,6 +394,10 @@ pub struct Opzioni {
     /// The model does not read images (a local one, unless told otherwise):
     /// no `istantanea_pagina`. Negative, so that the default is today's list.
     pub no_snapshot: bool,
+    /// The conversation of the symbol editor (`/ws/ai?scope=symbol`, plan
+    /// 2026-11-23-assistente-dei-simboli): its own short list of tools, on the
+    /// one symbol that is open, never the project.
+    pub simbolo: bool,
 }
 
 /// The questions of `fai_domande`, cleaned, as the chat frame that shows
@@ -442,31 +446,16 @@ pub fn domande(input: &Value) -> Result<Value, String> {
 /// Gli strumenti di questa conversazione: quelli di sempre, più quelli degli
 /// scopi configurati **in coda** (per non spostare il prefisso in cache).
 pub fn definizioni_per(o: Opzioni) -> Vec<Value> {
+    if o.simbolo {
+        return definizioni_simbolo(o);
+    }
     let mut v = definizioni();
     if o.no_snapshot {
         v.retain(|d| d["name"] != "istantanea_pagina");
     }
     if o.disegna_simboli {
         v.retain(|d| d["name"] != "bozza_simbolo");
-        v.push(strumento(
-            "disegna_simbolo",
-            "Fa disegnare un simbolo nuovo dal MODELLO DEI SIMBOLI di questa installazione (un \
-             modello diverso da te, scelto per disegnare). Tu dici cosa disegnare, a parole: \
-             la macchina, la forma, dove stanno le bocche dei tubi, le parti vive (rotore, \
-             livello, lancetta, leva, spia), la proporzione. Lui scrive la descrizione, SWS la \
-             compila e la tiene come BOZZA di questa conversazione, come faceva bozza_simbolo. \
-             Restituisce l'id (prj:<slug>), le bocche e le parti. Ridisegnarlo = richiamarlo con \
-             lo stesso slug e cosa cambiare. Dopo le bozze fermati e fai scegliere la persona.",
-            json!({ "type": "object", "required": ["slug", "it", "en", "cosa"],
-                    "additionalProperties": false,
-                    "properties": {
-                        "slug": { "type": "string", "description": "a-z, 0-9 e «-», 3–40 caratteri" },
-                        "it": { "type": "string", "description": "etichetta italiana" },
-                        "en": { "type": "string", "description": "etichetta inglese" },
-                        "w": { "type": "integer", "description": "larghezza del disegno, multiplo di 10 (tipico 60–160)" },
-                        "h": { "type": "integer", "description": "altezza del disegno, multiplo di 10" },
-                        "cosa": { "type": "string", "description": "cosa disegnare, a parole, con bocche e parti vive" } } }),
-        ));
+        v.push(disegna_simbolo_def(false));
     }
     if o.sfondi {
         v.push(strumento(
@@ -515,6 +504,75 @@ pub fn definizioni_per(o: Opzioni) -> Vec<Value> {
     v
 }
 
+/// `disegna_simbolo`. In the symbol editor (`editor`) it can also start from
+/// the symbol that is open, to change it rather than draw a new one.
+fn disegna_simbolo_def(editor: bool) -> Value {
+    let mut properties = json!({
+        "slug": { "type": "string", "description": "a-z, 0-9 e «-», 3–40 caratteri" },
+        "it": { "type": "string", "description": "etichetta italiana" },
+        "en": { "type": "string", "description": "etichetta inglese" },
+        "w": { "type": "integer", "description": "larghezza del disegno, multiplo di 10 (tipico 60–160)" },
+        "h": { "type": "integer", "description": "altezza del disegno, multiplo di 10" },
+        "cosa": { "type": "string", "description": "cosa disegnare, a parole, con bocche e parti vive" } });
+    let mut descrizione =
+        "Fa disegnare un simbolo nuovo dal MODELLO DEI SIMBOLI di questa installazione (un \
+             modello diverso da te, scelto per disegnare). Tu dici cosa disegnare, a parole: \
+             la macchina, la forma, dove stanno le bocche dei tubi, le parti vive (rotore, \
+             livello, lancetta, leva, spia), la proporzione. Lui scrive la descrizione, SWS la \
+             compila e la tiene come BOZZA di questa conversazione, come faceva bozza_simbolo. \
+             Restituisce l'id (prj:<slug>), le bocche e le parti. Ridisegnarlo = richiamarlo con \
+             lo stesso slug e cosa cambiare. Dopo le bozze fermati e fai scegliere la persona."
+            .to_string();
+    if editor {
+        properties["dal_simbolo_aperto"] = json!({ "type": "boolean",
+            "description": "true = parte dal simbolo aperto nell'editor e lo cambia come dice `cosa` \
+                            (tiene gli id di parti e bocche); false = un disegno nuovo da zero" });
+        descrizione.push_str(
+            " Nell'editor dei simboli usa sempre lo slug e le etichette del simbolo aperto \
+             (leggi_simbolo).",
+        );
+    }
+    strumento(
+        "disegna_simbolo",
+        &descrizione,
+        json!({ "type": "object", "required": ["slug", "it", "en", "cosa"],
+                "additionalProperties": false, "properties": properties }),
+    )
+}
+
+/// The tools of the symbol editor's conversation: ask, read the open symbol,
+/// draw (with the symbol model, or by itself), propose. Nothing that reads
+/// or changes the project.
+fn definizioni_simbolo(o: Opzioni) -> Vec<Value> {
+    let base = definizioni();
+    let una = |n: &str| base.iter().find(|d| d["name"] == n).cloned();
+    let mut v: Vec<Value> = Vec::new();
+    v.extend(una("fai_domande"));
+    v.push(strumento(
+        "leggi_simbolo",
+        "Il simbolo aperto nell'editor, com'è adesso (anche non salvato): la descrizione, gli \
+         errori del compilatore, le parti e le bocche. Leggilo prima di cambiarlo.",
+        json!({ "type": "object", "additionalProperties": false, "properties": {} }),
+    ));
+    if o.disegna_simboli {
+        v.push(disegna_simbolo_def(true));
+    } else {
+        v.extend(una("bozza_simbolo"));
+    }
+    v.push(strumento(
+        "proponi_simbolo",
+        "Propone alla persona una bozza di questa conversazione al posto del simbolo aperto: in \
+         chat compare «Applica», e il simbolo entra nell'editor come un passo che Ctrl+Z annulla \
+         (nome ed etichette restano quelli dell'editor). Non nello stesso turno del disegno: \
+         prima la persona guarda la bozza. Chiude il turno.",
+        json!({ "type": "object", "required": ["motivo"], "additionalProperties": false,
+                "properties": {
+                    "slug": { "type": "string", "description": "la bozza da proporre; omesso = l'ultima disegnata" },
+                    "motivo": { "type": "string", "description": "in una riga, cosa cambia" } } }),
+    ));
+    v
+}
+
 fn strumento(nome: &str, descrizione: &str, schema: Value) -> Value {
     json!({ "name": nome, "description": descrizione, "input_schema": schema })
 }
@@ -557,7 +615,7 @@ pub const SOLA_LETTURA: [&str; 14] = [
 ///
 /// `bozza_simbolo` scrive nel **banco della conversazione**, che vive nel ciclo
 /// della chat e non altrove: fuori da lì una bozza non avrebbe dove stare.
-pub const FUORI_DA_ESEGUI: [&str; 8] = [
+pub const FUORI_DA_ESEGUI: [&str; 10] = [
     "proponi_modifica",
     // Asks the person in the chat (20-11-2026): an MCP client has no card to show it.
     "fai_domande",
@@ -570,6 +628,10 @@ pub const FUORI_DA_ESEGUI: [&str; 8] = [
     "disegna_simbolo",
     "genera_sfondo",
     "varia_sfondo",
+    // The symbol editor's conversation (23-11-2026): they read and propose the
+    // symbol open in that browser window.
+    "leggi_simbolo",
+    "proponi_simbolo",
 ];
 
 /// Le definizioni dei soli strumenti di sola lettura.
@@ -1815,6 +1877,17 @@ mod tests {
                 disegna_simboli: true,
                 sfondi: true,
                 no_snapshot: false,
+                simbolo: false,
+            })
+            .iter()
+            .map(|d| d["name"].as_str().unwrap().to_string()),
+        );
+        // And the symbol editor's own (23-11-2026).
+        tutti.extend(
+            definizioni_per(Opzioni {
+                simbolo: true,
+                disegna_simboli: true,
+                ..Default::default()
             })
             .iter()
             .map(|d| d["name"].as_str().unwrap().to_string()),
@@ -2276,6 +2349,7 @@ mod tests_opzioni {
         assert!(base.contains(&"istantanea_pagina".to_string()));
         let blind = nomi(Opzioni {
             no_snapshot: true,
+            simbolo: false,
             ..Default::default()
         });
         let expected: Vec<String> = base
@@ -2292,6 +2366,7 @@ mod tests_opzioni {
             disegna_simboli: true,
             sfondi: true,
             no_snapshot: false,
+            simbolo: false,
         });
         assert!(!tutti.contains(&"bozza_simbolo".to_string()));
         let fine = &tutti[tutti.len() - 3..];
@@ -2299,6 +2374,59 @@ mod tests_opzioni {
         // Il prefisso resta quello di sempre (tolto bozza_simbolo, che è l'ultimo).
         assert_eq!(base.last().map(String::as_str), Some("bozza_simbolo"));
         assert_eq!(&tutti[..base.len() - 1], &base[..base.len() - 1]);
+    }
+
+    /// The symbol editor's conversation (23-11-2026): its own short list,
+    /// nothing that reads or changes the project; the symbol model, when
+    /// there is one, takes the place of `bozza_simbolo`, and can start from
+    /// the open symbol.
+    #[test]
+    fn the_symbol_scope_has_its_own_tools() {
+        let senza = nomi(Opzioni {
+            simbolo: true,
+            ..Default::default()
+        });
+        assert_eq!(
+            senza,
+            [
+                "fai_domande",
+                "leggi_simbolo",
+                "bozza_simbolo",
+                "proponi_simbolo"
+            ]
+        );
+        let o = Opzioni {
+            simbolo: true,
+            disegna_simboli: true,
+            sfondi: true,
+            ..Default::default()
+        };
+        assert_eq!(
+            nomi(o),
+            [
+                "fai_domande",
+                "leggi_simbolo",
+                "disegna_simbolo",
+                "proponi_simbolo"
+            ]
+        );
+        let disegna = definizioni_per(o)
+            .into_iter()
+            .find(|d| d["name"] == "disegna_simbolo")
+            .unwrap();
+        assert!(disegna["input_schema"]["properties"]["dal_simbolo_aperto"].is_object());
+        // Outside the editor the same tool has no such field.
+        let fuori = definizioni_per(Opzioni {
+            disegna_simboli: true,
+            ..Default::default()
+        });
+        let d = fuori
+            .into_iter()
+            .find(|d| d["name"] == "disegna_simbolo")
+            .unwrap();
+        assert!(d["input_schema"]["properties"]
+            .get("dal_simbolo_aperto")
+            .is_none());
     }
 
     #[test]

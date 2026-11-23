@@ -461,6 +461,8 @@
     "apply": "Apply",
     "discard": "Discard",
     "applyNote": "Apply does not save: the change lands in the editor, Ctrl+Z undoes it, and the disk waits for Save.",
+    "symbolNoEditor": "The symbol editor is not open: the proposal cannot be applied.",
+    "symbolApplyNote": "«Apply» puts the drawing in the editor: name and labels stay yours, and Ctrl+Z takes it away. It is saved with the editor's «Save».",
     "noChanges": "The proposal changes nothing.",
     "noConnection": "Not connected to the runtime: the message was not sent.",
     "outcome": {
@@ -5773,46 +5775,6 @@
       "ownColour": "A colour of its own",
       "fxNote": "The effect lives in the box x, y, w, h and moves while the input is true; in the editor it shows with «Preview effects» or in the Try tab."
     },
-    "ai": {
-      "note": "Describe what to draw or what to change: the model of the «Symbol drawing» purpose answers. The proposal appears below; «Accept» puts it in the symbol, and Ctrl+Z takes it back. Before drawing, the AI asks you a few questions and shows you the request as it will draw it.",
-      "placeholder": "E.g. «add a stirrer on top», «a tank with two side ports»",
-      "placeholderRetouch": "Another retouch, starting from the proposal",
-      "addPhoto": "Add a photo",
-      "photoAdded": "The photo goes to the model with the request",
-      "removePhoto": "Remove the photo",
-      "photoUnreadable": "This image can't be read: use a PNG, a JPEG or a WebP.",
-      "edit": "Change this",
-      "editProposal": "Retouch the proposal",
-      "new": "Draw new",
-      "drawing": "The AI is drawing… {{s}} s",
-      "stop": "Stop",
-      "now": "Now",
-      "proposal": "Proposal",
-      "figures": "{{model}} · attempts: {{n}} · {{cost}}",
-      "free": "no cost",
-      "accept": "Accept",
-      "discard": "Discard",
-      "err": {
-        "no_model": "No AI model is configured. Choose one in Configuration → AI → A model per purpose, under «Symbol drawing».",
-        "blind_model": "The model {{model}} does not see images. To draw from a photo choose one that does, in Configuration → AI → A model per purpose.",
-        "cap_reached": "Spending cap of symbol drawing reached ({{detail}}). Raise it in Configuration → AI → A model per purpose.",
-        "provider": "The model did not answer: {{detail}}",
-        "invalid": "After {{n}} attempts the drawing is still not valid. Try asking in another way. The last errors:",
-        "bad_request": "Invalid request: {{detail}}",
-        "error": "Error: {{detail}}"
-      },
-      "interview": {
-        "title": "A few questions before drawing",
-        "thinking": "The AI is preparing its questions… {{s}} s",
-        "yourAnswer": "Your answer (empty: the AI decides)",
-        "continue": "Continue",
-        "skip": "Skip, draw now",
-        "cancel": "Cancel",
-        "brief": "The request as the AI will draw it: correct it if needed",
-        "draw": "Draw",
-        "unreadable": "The model did not answer with readable questions: try again, or write a more precise request."
-      }
-    },
     "svg": {
       "import": "Import SVG…",
       "importTitle": "Adds an SVG drawing to the symbol, one shape at a time, with its colours. You can also drop the file here, or paste the SVG code with Ctrl+V",
@@ -5905,7 +5867,6 @@
       "outline": "Outline",
       "symbol": "Symbol",
       "try": "Trial values",
-      "aiDraw": "Drawing with AI",
       "transform": "Turn and align"
     },
     "layerSelect": "Select the layer's shapes",
@@ -5985,6 +5946,11 @@
       "docTitle": "Symbol {{name}}",
       "otherProject": "The IDE no longer has this window's project open: the symbol was not saved. Export it if you want to keep it, then reopen the editor from the IDE.",
       "conflict": "«{{slugs}}» also changed in the IDE after this window was opened: the symbol was not saved, so as not to erase that change. Export it if you want to keep it, then reopen the editor from the IDE."
+    },
+    "assistant": {
+      "button": "AI assistant",
+      "title": "Opens the assistant's chat next to the drawing: it asks what you want, draws the symbol and proposes it with «Apply»",
+      "close": "Close the assistant"
     }
   },
   "images": {

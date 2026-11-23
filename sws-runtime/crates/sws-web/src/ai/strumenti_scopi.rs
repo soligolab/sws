@@ -64,6 +64,7 @@ impl Contesto {
                 disegna_simboli: simboli.is_some(),
                 sfondi: sfondi.is_some(),
                 no_snapshot: assistant.is_some_and(|a| !a.sees_images),
+                simbolo: false,
             },
             simboli,
             sfondi,
@@ -146,8 +147,29 @@ pub(crate) async fn disegna(
         }
     }
     let istruzioni = symbol_draw::system(s).await?;
-    let messaggi = vec![json!({ "role": "user", "content": format!(
-        "Disegna questo simbolo.\nslug: {slug}\nit: {it}\nen: {en}\n{misure_dette}\n{cosa}") })];
+    // In the symbol editor the drawing can start from the open symbol
+    // (23-11-2026): the same request as the editor's AI tab made, and only the
+    // photos it already had may stay.
+    let aperto: Option<sws_core::simboli_prj::Descrizione> =
+        if input.get("dal_simbolo_aperto").and_then(Value::as_bool) == Some(true) {
+            let v = banco
+                .simbolo_aperto
+                .as_ref()
+                .ok_or("l'editor non ha mandato il simbolo aperto: disegna da zero")?;
+            Some(
+                serde_json::from_value(v.clone())
+                    .map_err(|e| format!("il simbolo aperto non si legge: {e}"))?,
+            )
+        } else {
+            None
+        };
+    let richiesta = match &aperto {
+        Some(d) => format!("{}\n{misure_dette}\n{cosa}", symbol_draw::edit_text(d)),
+        None => format!(
+            "Disegna questo simbolo.\nslug: {slug}\nit: {it}\nen: {en}\n{misure_dette}\n{cosa}"
+        ),
+    };
+    let messaggi = vec![json!({ "role": "user", "content": richiesta })];
     // Slug ed etichette sono quelli chiesti dall'assistente: il modello dei
     // simboli disegna, non rinomina.
     let mut fissi = serde_json::Map::new();
@@ -174,6 +196,10 @@ pub(crate) async fn disegna(
     .await
     {
         Ok(fatto) => {
+            let fatto = match &aperto {
+                Some(a) => symbol_draw::keep_known_photos(fatto, &symbol_draw::photos_of(a)),
+                None => fatto,
+            };
             let (d, c) = (fatto.description, fatto.compiled);
             invia(
                 tx,
@@ -892,6 +918,7 @@ mod tests {
                 disegna_simboli: false,
                 sfondi: true,
                 no_snapshot: false,
+                simbolo: false,
             },
             simboli: None,
             sfondi: Some(openai_choice()),
@@ -1022,6 +1049,7 @@ mod tests {
                 disegna_simboli: false,
                 sfondi: true,
                 no_snapshot: false,
+                simbolo: false,
             },
             simboli: None,
             sfondi: Some(scopi::SceltaImmagini {

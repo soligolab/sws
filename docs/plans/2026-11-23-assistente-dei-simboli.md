@@ -221,6 +221,12 @@ l'archivio `2026-11-19-assistente-ia-simboli.md`).
 - **«Genera foto» resta fino alla sessione 3**: la sessione 1 toglie solo «Disegno con l'IA» (la sezione `ai-draw`,
   `AiPanel.tsx`, e l'intervista `/api/symbols/ai/interview` se nessun altro la usa).
 - **La regola UI 3** è in `CLAUDE.md`.
+- **Sessione 1 fatta** (ramo `feat/symbol-assistant-chat`, 23-11 notte). Una scelta presa durante il lavoro: la rotta
+  `/api/symbols/ai` **resta**, senza interfaccia, perché tutti i test di `draw()` (errori rimandati, tre tentativi,
+  tetto, modello locale) passano da `editor()`, e la foto di riferimento oggi c'è solo lì. **Nella sessione 2**: la
+  foto di riferimento entra nella chat (blocco 0 dell'intervista), i test passano a chiamare `draw()` direttamente, e la
+  rotta si toglie. L'intervista vecchia (`/api/symbols/ai/interview`) è già tolta. Il parametro del socket, che il piano chiama
+  `ambito=simbolo`, nel codice è **`scope=symbol`** (regola del codice in inglese).
 
 ### Sessioni (un ramo per sessione, annidati se il collaudo arriva dopo)
 1. **`feat/symbol-assistant-chat`**:

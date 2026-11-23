@@ -193,6 +193,20 @@ const PAIRED = new Set(["forma", "luce", "riflesso", "tratto", "image"]);
 /** A description with every attribute list written as pairs, the form the
  *  editor reads: applied where a description enters the editor (opening, a
  *  symbol file, a proposal of the AI). The same description if nothing changes. */
+/** The fields the editor owns: whatever a proposal of the assistant says,
+ *  applying it keeps them as they are now (they may have changed while the
+ *  model was drawing). Moved here from the AI tab, 23-11-2026. */
+export function withOwnNames(p: DescrizioneSimbolo, d: DescrizioneSimbolo): DescrizioneSimbolo {
+  // The model may write attributes as objects (the compiler accepts them):
+  // the editor reads pairs (test of the rc.29, 23-11-2026).
+  const out: DescrizioneSimbolo = { ...normalizeOps(p), slug: d.slug, it: d.it, en: d.en, tipo: d.tipo };
+  if (d.overrides) out.overrides = d.overrides;
+  else delete out.overrides;
+  if (d.library) out.library = d.library;
+  else delete out.library;
+  return out;
+}
+
 export function normalizeOps(d: DescrizioneSimbolo): DescrizioneSimbolo {
   let changed = false;
   const ops = (d.ops as Op[]).map((op) => {

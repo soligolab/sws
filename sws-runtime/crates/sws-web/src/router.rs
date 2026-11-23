@@ -539,10 +539,6 @@ pub fn build(
         .route("/api/symbols/ai", post(crate::simboli_progetto::ai))
         // The AI on one IDE field (plan of 20-11-2026).
         .route("/api/ai/field", post(crate::simboli_progetto::ai_field))
-        .route(
-            "/api/symbols/ai/interview",
-            post(crate::simboli_progetto::ai_interview),
-        )
         // «Genera foto» (plan 2026-11-21-simboli-fase-3-foto).
         .route(
             "/api/symbols/ai/photo",

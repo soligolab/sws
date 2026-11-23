@@ -86,7 +86,8 @@ pub fn mapping_di(kind: &str) -> &'static [sch::Field] {
     }
 }
 
-/// `GET /ws/ai?conv=<id>` — Admin.
+/// `GET /ws/ai?conv=<id>&scope=symbol` — Admin. `scope=symbol` is the
+/// symbol editor's conversation (23-11-2026): tools on the open symbol only.
 ///
 /// L'id lega storia, spesa e banco alla conversazione invece che al socket
 /// (10-11-2026, vedi `conversazioni`): una finestra che si ricollega ritrova
@@ -103,6 +104,7 @@ pub async fn ws_ai_handler(
         return axum::http::StatusCode::NOT_FOUND.into_response();
     }
     let id = q.get("conv").cloned();
+    let symbol_scope = q.get("scope").map(String::as_str) == Some("symbol");
     // Di chi è la conversazione (`conversazioni`, «Di chi è»): l'utente della
     // sessione, o «nessuno» senza autenticazione — dove c'è solo l'admin
     // sintetico, che non è una persona.
@@ -115,11 +117,17 @@ pub async fn ws_ai_handler(
             .map(|axum::Extension(u)| u.username)
             .unwrap_or_else(|| conversazioni::NESSUNO.to_string())
     };
-    ws.on_upgrade(move |socket| sessione(socket, s, id, di))
+    ws.on_upgrade(move |socket| sessione(socket, s, id, di, symbol_scope))
         .into_response()
 }
 
-async fn sessione(socket: WebSocket, s: AppState, id_conversazione: Option<String>, di: String) {
+async fn sessione(
+    socket: WebSocket,
+    s: AppState,
+    id_conversazione: Option<String>,
+    di: String,
+    symbol_scope: bool,
+) {
     let (mut ws_tx, mut ws_rx) = socket.split();
     let (tx, mut rx) = mpsc::unbounded_channel::<String>();
 
@@ -241,8 +249,9 @@ async fn sessione(socket: WebSocket, s: AppState, id_conversazione: Option<Strin
 
     // Gli scopi configurati decidono gli strumenti in più: una volta, qui, così
     // l'elenco resta lo stesso per tutta la conversazione (la cache regge).
-    let ctx =
+    let mut ctx =
         strumenti_scopi::Contesto::da_con(&s.config_dir, &user_keys, s.in_cloud(), scelta.as_ref());
+    ctx.opzioni.simbolo = symbol_scope;
 
     // Il socket lo legge un compito a parte: la foto di un progetto web
     // (`foto_ide`) torna dal browser mentre il turno è in corso, cioè mentre
@@ -291,6 +300,15 @@ async fn sessione(socket: WebSocket, s: AppState, id_conversazione: Option<Strin
 
         // Il lucchetto per tutto il turno: storia, spesa e banco cambiano insieme.
         let mut g = conv.lock().await;
+        // The symbol editor sends the symbol as it is with every question:
+        // `leggi_simbolo` reads the latest. Only in that scope, and not a huge one.
+        if symbol_scope {
+            if let Some(d) = v.get("simbolo").filter(|d| d.is_object()) {
+                if d.to_string().len() <= OPEN_SYMBOL_MAX_BYTES {
+                    g.banco.simbolo_aperto = Some(d.clone());
+                }
+            }
+        }
         let conversazioni::Conversazione {
             messaggi,
             misure,
@@ -567,6 +585,11 @@ async fn vero_giro(
     if ctx.opzioni.no_snapshot {
         sistema.push(json!({ "type": "text", "text": prompt::NO_SNAPSHOT }));
     }
+    // The symbol editor: one more block after the fixed prompt, so the cached
+    // prefix stays the same for every conversation.
+    if ctx.opzioni.simbolo {
+        sistema.push(json!({ "type": "text", "text": prompt::SYMBOL_EDITOR }));
+    }
     let impronta_iniziale = impronta(s).await;
     let mut correzioni = 0usize;
     // Dopo una bozza di simbolo il giro si ferma e la persona guarda la tavola
@@ -804,6 +827,33 @@ async fn vero_giro(
                 rimanda(tx, nome, "rimandata: prima scegli tu lo sfondo");
                 continue;
             }
+            if nome == "proponi_simbolo" {
+                if bozze_in_questo_turno {
+                    risultati.push(risultato(
+                        id,
+                        &json!({
+                            "inviata": false,
+                            "motivo": "in questo turno hai disegnato: fermati. La persona guarda la \
+                                       bozza in chat; la proposta si manda nel turno dopo, quando \
+                                       la conferma.",
+                        }),
+                        true,
+                    ));
+                    rimanda(tx, nome, "rimandata: prima guarda la bozza");
+                    continue;
+                }
+                match proponi_simbolo(tx, input, banco) {
+                    Ok(()) => return Ok(()),
+                    Err(e) => {
+                        risultati.push(risultato(
+                            id,
+                            &json!({ "inviata": false, "motivo": e }),
+                            true,
+                        ));
+                    }
+                }
+                continue;
+            }
             if nome == "proponi_modifica" {
                 match proponi(
                     s,
@@ -872,6 +922,7 @@ async fn vero_giro(
             // Le bozze di simbolo vivono qui, nel banco della conversazione:
             // `bozza_simbolo` ci scrive, e `valida` le deve vedere.
             let esito = match nome {
+                "leggi_simbolo" => Ok(leggi_simbolo(banco.simbolo_aperto.as_ref())),
                 "fai_domande" => tools::domande(input).map(|frame| {
                     invia(tx, frame);
                     json!({ "mostrate": true, "nota": "Le domande sono sullo schermo. FERMATI qui, \
@@ -1222,6 +1273,68 @@ async fn proponi(
     Proposta::Inviata
 }
 
+/// The largest open symbol the editor may send with a question: the photos
+/// travel as names, so a real one is a few kB.
+const OPEN_SYMBOL_MAX_BYTES: usize = 512 * 1024;
+
+/// `leggi_simbolo`: the symbol open in the editor, readable (`geo` as
+/// objects), with what the compiler says of it.
+fn leggi_simbolo(aperto: Option<&Value>) -> Value {
+    let Some(v) = aperto else {
+        return json!({ "aperto": false,
+                       "motivo": "l'editor non ha mandato il simbolo: chiedi alla persona di riprovare" });
+    };
+    let d: sws_core::simboli_prj::Descrizione = match serde_json::from_value(v.clone()) {
+        Ok(d) => d,
+        Err(e) => {
+            return json!({ "aperto": true, "simbolo": v, "errori": [format!("descrizione: {e}")] })
+        }
+    };
+    let (errori, parti, bocche) = match sws_core::simboli_prj::compila_e_controlla(&d) {
+        Ok(c) => (
+            Vec::new(),
+            c.voce.get("parts").cloned().unwrap_or(json!([])),
+            c.voce.get("ports").cloned().unwrap_or(json!([])),
+        ),
+        Err(e) => (e, json!([]), json!([])),
+    };
+    json!({
+        "aperto": true,
+        "simbolo": symbol_draw::readable(&d),
+        "errori": errori,
+        "parti": parti,
+        "bocche": bocche,
+    })
+}
+
+/// `proponi_simbolo`: a draft of this conversation, compiled, to the editor
+/// with «Apply». An error goes back to the model.
+fn proponi_simbolo(
+    tx: &mpsc::UnboundedSender<String>,
+    input: &Value,
+    banco: &Banco,
+) -> Result<(), String> {
+    let slug = input.get("slug").and_then(Value::as_str).map(str::trim);
+    let d = match slug.filter(|s| !s.is_empty()) {
+        Some(s) => banco.simboli.iter().find(|d| d.slug == s),
+        None => banco.simboli.last(),
+    }
+    .ok_or("nessuna bozza da proporre: disegnala prima con disegna_simbolo o bozza_simbolo")?;
+    let c = sws_core::simboli_prj::compila_e_controlla(d)
+        .map_err(|e| format!("la bozza non compila: {}", e.join("; ")))?;
+    invia(
+        tx,
+        json!({
+            "t": "proposta_simbolo",
+            "id": uuid_breve(),
+            "motivo": input.get("motivo").and_then(Value::as_str).unwrap_or("modifica"),
+            "simbolo": d,
+            "svg": c.svg,
+        }),
+    );
+    Ok(())
+}
+
 /// I simboli che la proposta porta nel progetto, compilati: la chat ne mostra
 /// la miniatura nel diff senza dover chiedere niente al server.
 fn simboli_della_proposta(
@@ -1268,6 +1381,10 @@ pub(crate) struct Banco {
     /// The symbols drawn as free SVG in this conversation (`bozza_simbolo`
     /// with `svg`, G3): custom symbols with ports, not descriptions.
     pub free_symbols: Vec<free_symbol_tool::FreeSymbolDraft>,
+    /// The symbol open in the symbol editor, as the last question brought it
+    /// (`scope=symbol`): what `leggi_simbolo` answers and what
+    /// `disegna_simbolo` changes with `dal_simbolo_aperto`.
+    pub simbolo_aperto: Option<Value>,
 }
 
 impl Banco {
@@ -1444,6 +1561,12 @@ async fn finto_giro(
         {
             let nome = st.get("nome").and_then(Value::as_str).unwrap_or("");
             let input = st.get("input").cloned().unwrap_or(json!({}));
+            // The symbol editor's proposal (23-11-2026): it ends the turn, as
+            // in the real round.
+            if nome == "proponi_simbolo" {
+                return proponi_simbolo(tx, &input, banco)
+                    .map_err(|e| format!("il copione propone un simbolo che non va: {e}"));
+            }
             if nome == "proponi_modifica" {
                 // Il copione descrive la modifica come **toppa**, non come
                 // progetto intero: il progetto intero dipende da quale progetto
@@ -1481,6 +1604,7 @@ async fn finto_giro(
                         Value::Null
                     }),
                     "bozza_simbolo" => bozza(tx, banco, &input),
+                    "leggi_simbolo" => Ok(leggi_simbolo(banco.simbolo_aperto.as_ref())),
                     // La foto, come nel giro vero: serve all'e2e della chat e a
                     // provare dal vivo la foto dal browser (10-11-2026).
                     "istantanea_pagina" => istantanea_per_il_modello(s, tx, &input, banco)
@@ -1795,6 +1919,46 @@ mod tests_bozze {
             super::bozza(&tx, &mut b, &json!({ "descrizione": { "slug": "rotta" } })).unwrap_err();
         assert!(male.contains("errori"), "{male}");
         assert_eq!(b.simboli.len(), 1);
+    }
+
+    /// The symbol editor's chat (23-11-2026): `leggi_simbolo` gives the open
+    /// symbol readable, with parts and ports; without one it says so.
+    #[test]
+    fn the_open_symbol_is_read_with_its_parts() {
+        let aperto = serde_json::to_value(bozza_di_prova("gabbia")).unwrap();
+        let r = super::leggi_simbolo(Some(&aperto));
+        assert_eq!(r["aperto"], true);
+        assert_eq!(r["simbolo"]["slug"], "gabbia");
+        assert!(r["errori"].as_array().unwrap().is_empty());
+        assert!(!r["bocche"].as_array().unwrap().is_empty());
+        assert_eq!(super::leggi_simbolo(None)["aperto"], false);
+    }
+
+    /// `proponi_simbolo` sends the draft to the editor, compiled; with no
+    /// draft the model is told to draw first.
+    #[test]
+    fn a_draft_is_proposed_to_the_symbol_editor() {
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        let mut b = super::Banco::default();
+        let nulla = super::proponi_simbolo(&tx, &json!({ "motivo": "x" }), &b).unwrap_err();
+        assert!(nulla.contains("disegnala prima"), "{nulla}");
+        b.metti(bozza_di_prova("gabbia"));
+        b.metti(bozza_di_prova("rulliera"));
+        super::proponi_simbolo(
+            &tx,
+            &json!({ "motivo": "più grande", "slug": "gabbia" }),
+            &b,
+        )
+        .unwrap();
+        let frame: Value = serde_json::from_str(&rx.try_recv().unwrap()).unwrap();
+        assert_eq!(frame["t"], "proposta_simbolo");
+        assert_eq!(frame["motivo"], "più grande");
+        assert_eq!(frame["simbolo"]["slug"], "gabbia");
+        assert!(frame["svg"].as_str().unwrap().starts_with("<svg"));
+        // No slug: the last one drawn.
+        super::proponi_simbolo(&tx, &json!({ "motivo": "y" }), &b).unwrap();
+        let frame: Value = serde_json::from_str(&rx.try_recv().unwrap()).unwrap();
+        assert_eq!(frame["simbolo"]["slug"], "rulliera");
     }
 
     /// La tavola delle bozze: un simbolo e il suo nome per bozza, nelle

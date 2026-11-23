@@ -19,8 +19,8 @@ vi.mock("@/ws/wsUrl", () => ({ buildWsUrl: () => "wss://ide.example/ws/ai?token=
 vi.mock("@/api/client", () => ({ getAuthToken: () => "tok" }));
 vi.mock("@/store", () => ({ useAppStore: { subscribe: () => () => {} } }));
 
-import { aiStream, chiudiAiStream, idConversazione, nuovaConversazione, urlConConversazione }
-  from "../src/ws/aiStream";
+import { aiStream, chiudiAiStream, idConversazione, nuovaConversazione, releaseSymbolChannel, symbolChannel,
+  urlConConversazione } from "../src/ws/aiStream";
 
 afterEach(() => { chiudiAiStream(); istanze.length = 0; });
 
@@ -47,5 +47,32 @@ describe("id della conversazione nel socket della chat", () => {
     expect(idConversazione()).not.toBe(prima);
     expect(ws.riaperture).toBe(1);
     expect(ws.costruisciUrl()).toContain(`conv=${encodeURIComponent(idConversazione())}`);
+  });
+});
+
+describe("the symbol editor's conversations (23-11-2026)", () => {
+  afterEach(() => { releaseSymbolChannel("stufa"); releaseSymbolChannel("pompa"); sessionStorage.clear(); });
+
+  it("have their own socket, with the scope, apart from the project's", () => {
+    aiStream();
+    const c = symbolChannel("stufa");
+    c.socket();
+    const [progetto, simbolo] = istanze;
+    expect(progetto.costruisciUrl()).not.toContain("ambito");
+    expect(simbolo.costruisciUrl()).toContain(`conv=${encodeURIComponent(c.id())}&scope=symbol`);
+    expect(c.id()).not.toBe(idConversazione());
+  });
+
+  it("one per symbol, found again when the same symbol opens again", () => {
+    const stufa = symbolChannel("stufa").id();
+    expect(symbolChannel("pompa").id()).not.toBe(stufa);
+    releaseSymbolChannel("stufa");
+    expect(symbolChannel("stufa").id()).toBe(stufa);
+    // «Svuota» chooses a new id, and the symbol keeps that one.
+    symbolChannel("stufa").nuovaConversazione();
+    const nuovo = symbolChannel("stufa").id();
+    expect(nuovo).not.toBe(stufa);
+    releaseSymbolChannel("stufa");
+    expect(symbolChannel("stufa").id()).toBe(nuovo);
   });
 });

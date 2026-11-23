@@ -82,7 +82,7 @@ describe("the inspector of the symbol editor", () => {
     render(<SymbolEditorHost />);
     await waitFor(() => expect(api.compilaSimboli).toHaveBeenCalled());
     expect(screen.getByTestId("symbol-section-inputs")).toBeTruthy();
-    expect(screen.getByTestId("symbol-section-ai-draw")).toBeTruthy();
+    expect(screen.getByTestId("symbol-section-ai-photo")).toBeTruthy();
     fireEvent.click(screen.getByTestId("symbol-op-row-1"));
     expect(screen.queryByTestId("symbol-section-inputs")).toBeNull();
     // No input yet: its name is asked, «acceso» offered (test of the rc.29:

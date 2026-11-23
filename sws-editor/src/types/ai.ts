@@ -3,7 +3,7 @@
 // devono restare d'accordo, e non c'è una guardia che lo verifichi.
 
 import type { AiErrorCode } from "@/ai/errorCodes";
-import type { FaceplateDef, ProjectInfo, SynopticPage } from "@/types";
+import type { DescrizioneSimbolo, FaceplateDef, ProjectInfo, SynopticPage } from "@/types";
 import type { RichiestaFoto } from "@/ai/fotoDalBrowser";
 import type { ProposalImage } from "@/ai/proposalImages";
 import type { Planimetria } from "@/planimetrie/modello";
@@ -39,6 +39,9 @@ export type MsgIn =
   | { t: "strumento"; nome: string; stato: "inizio" | "scrivo" | "eseguo" | "fatto" | "errore"; messaggio?: string;
       /** Con `scrivo`: quanto input ha scritto finora il modello, e da quanti secondi. */
       byte?: number; secondi?: number }
+  /** The symbol editor's assistant proposes a drawing for the open symbol
+   *  (23-11-2026): the description, compiled, with «Apply». */
+  | { t: "proposta_simbolo"; id: string; motivo: string; simbolo: DescrizioneSimbolo; svg: string }
   | { t: "proposta"; id: string; motivo: string;
       project?: ProjectInfo | null; pages?: SynopticPage[] | null;
       impronta?: string | null; giudizio: Giudizio;
@@ -89,7 +92,9 @@ export type MsgIn =
 
 /** Quello che si manda. */
 export type MsgOut =
-  | { t: "chiedi"; testo: string }
+  /** `simbolo`: the symbol open in the symbol editor, with every question of
+   *  its conversation (23-11-2026). */
+  | { t: "chiedi"; testo: string; simbolo?: DescrizioneSimbolo }
   | { t: "approva_sfondo"; id: string }
   /** La risposta a `fotografa`: il PNG in base64, o l'errore. */
   | { t: "foto"; id: string; png?: string; avvisi?: string[]; errore?: string };
@@ -142,5 +147,8 @@ export type Riga =
       motivoRifiuto?: string }
   | { tipo: "errore"; testo: string }
   | { tipo: "simbolo"; slug: string; nome: string; svg: string }
+  /** A drawing proposed for the open symbol, and what became of it. */
+  | { tipo: "proposta_simbolo"; msg: Extract<MsgIn, { t: "proposta_simbolo" }>;
+      esito?: "applicata" | "scartata" | "rifiutata"; nota?: string }
   | { tipo: "floor_plan"; id: string; name: string; svg: string }
   | { tipo: "immagine"; png: string; testo?: string };
