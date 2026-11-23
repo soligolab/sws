@@ -211,6 +211,17 @@ l'archivio `2026-11-19-assistente-ia-simboli.md`).
   portare `image`;
 - `keep_known_photos` (`symbol_draw.rs:571`) controlla solo gli `Op::Image`, non le foto dentro le voci.
 
+### Decisioni del maintainer prima della sessione 1 (23-11-2026, sera)
+- **La chat sta dove sta l'editor.** Nella finestra a parte ha il suo collegamento a `/ws/ai` con la stessa sessione;
+  dentro l'IDE sta dentro l'IDE. L'adattatore è sempre quello locale (lo store della finestra in cui gira): **il ponte
+  dei simboli non serve all'assistente**, e il punto «Nella finestra a parte passa dal ponte» qui sopra è superato.
+- **Una conversazione per simbolo**: riaprendo lo stesso simbolo nella stessa sessione del browser la si ritrova;
+  «Svuota» ricomincia; un altro simbolo ha la sua. Il canale verso `/ws/ai` diventa quindi un'istanza per
+  conversazione, non più un singleton per finestra (`ws/aiStream.ts`): quella del progetto resta com'è.
+- **«Genera foto» resta fino alla sessione 3**: la sessione 1 toglie solo «Disegno con l'IA» (la sezione `ai-draw`,
+  `AiPanel.tsx`, e l'intervista `/api/symbols/ai/interview` se nessun altro la usa).
+- **La regola UI 3** è in `CLAUDE.md`.
+
 ### Sessioni (un ramo per sessione, annidati se il collaudo arriva dopo)
 1. **`feat/symbol-assistant-chat`**:
    - il pulsante e la colonna con `ChatPanel`;
