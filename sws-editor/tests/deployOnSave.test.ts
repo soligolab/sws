@@ -73,6 +73,34 @@ describe("deploy on save and the explicit deploy", () => {
     expect(deploys).toHaveLength(1);
   });
 
+  it("a running save whose sections call markSaveOk: the flush waits for the whole save, no second one starts (review of the rc.30)", async () => {
+    let calls = 0, inside = 0, overlap = false;
+    // Two dirty sections, each saving like a SaveBar: «ok» as soon as it's done,
+    // while saveAll is still in its loop.
+    const section = async () => {
+      calls++;
+      inside++;
+      if (inside > 1) overlap = true;
+      await wait(15);
+      useAppStore.getState().markSaveOk();
+      await wait(15);
+      inside--;
+    };
+    useAppStore.setState({ pendingSections: { tags: section, sources: section } });
+    const running = useAppStore.getState().saveAll(); // Ctrl+S a moment before
+    await wait(20); // the first section has said «ok»
+    const ok = await flushBeforeDeploy(() => {});
+    expect(ok).toBe(true);
+    await running;
+    expect(overlap).toBe(false);
+    // The flush waited for the first save to the end: the two sections ran in it,
+    // and at most once more after it (they are still registered), never alongside.
+    expect(calls % 2).toBe(0);
+    await api.deployToRuntime({ replaceUsers: false });
+    await wait(30);
+    expect(deploys).toHaveLength(1);
+  });
+
   it("a deploy started by a save never asks: on a 428 it stops and says where to confirm", async () => {
     deployAnswer = () => new Response(JSON.stringify({ conferma: "sostituisce-progetti", progetto: "p", progetti: [{ nome: "tiny-ty" }] }),
       { status: 428, headers: { "content-type": "application/json" } });

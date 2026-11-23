@@ -968,16 +968,22 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
       ...removed.map((r) => t("symbolEditor.anim.boundRemoved", { id: r.id, n: r.n })),
     ].join("\n");
     if (!(await conferma({ titolo: t("symbolEditor.anim.boundTitle"), testo: `${righe}\n\n${t("symbolEditor.anim.boundText")}` }))) return false;
+    // Each object rewritten once, every rename applied together from its old
+    // map: one rename at a time, each from the same old copy, lost a binding
+    // when one object bound two renamed inputs, and a swap (a↔b) kept only
+    // one (review of the rc.30, 23-11-2026).
     const objects = useAppStore.getState().pages.find((p) => p.id === useAppStore.getState().currentPageId)?.objects ?? [];
-    for (const r of renamed) {
-      for (const objId of bound.get(r.from)?.here ?? []) {
-        const o = objects.find((x) => x.id === objId);
-        const parts = { ...(o?.symbol_parts ?? {}) };
-        if (!(r.from in parts)) continue;
-        parts[r.to] = parts[r.from];
-        delete parts[r.from];
-        updateObject(objId, { symbol_parts: parts });
+    const moves = new Map(renamed.map((r) => [r.from, r.to]));
+    const touched = new Set(renamed.flatMap((r) => bound.get(r.from)?.here ?? []));
+    for (const objId of touched) {
+      const old = objects.find((x) => x.id === objId)?.symbol_parts ?? {};
+      const parts: typeof old = {};
+      for (const [k, v] of Object.entries(old)) if (!moves.has(k)) parts[k] = v;
+      for (const [k, v] of Object.entries(old)) {
+        const to = moves.get(k);
+        if (to) parts[to] = v;
       }
+      updateObject(objId, { symbol_parts: parts });
     }
     return true;
   };

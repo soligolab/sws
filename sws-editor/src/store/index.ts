@@ -960,9 +960,20 @@ const CHIAVE_DEPLOY_AL_SALVATAGGIO = "sws.deploy.alSalvataggio";
  *  don't release each other. */
 let saltaDeployAutomatico = 0;
 
-/** Resolves when no save is running; `true` if it had to wait for one. */
-function saveSettled(): Promise<boolean> {
-  if (useAppStore.getState().saveStatus !== "saving") return Promise.resolve(false);
+/** The `saveAll` running now, if any: a second caller waits for it instead of
+ *  starting another save alongside. */
+let saveInFlight: Promise<void> | null = null;
+
+/** Resolves when no save is running; `true` if it had to wait for one. The
+ *  running `saveAll` itself is awaited — its sections call `markSaveOk` one by
+ *  one, so `saveStatus` leaves "saving" before the save is over; the status is
+ *  only the fallback for the other writers (tag and image renames). */
+async function saveSettled(): Promise<boolean> {
+  if (saveInFlight) {
+    await saveInFlight;
+    return true;
+  }
+  if (useAppStore.getState().saveStatus !== "saving") return false;
   return new Promise((resolve) => {
     const stop = useAppStore.subscribe((s) => {
       if (s.saveStatus !== "saving") { stop(); resolve(true); }
@@ -3370,226 +3381,238 @@ export const useAppStore = create<AppState>((set, get) => {
     resetDirty: () => set((s) => ({ savedPagesRev: s.pagesRev, pendingSections: {} })),
 
     saveAll: async () => {
-      if (get().saveStatus === "saving") return;
-      // Read-only (another tab holds the lock): nothing would be accepted.
-      if (get().lockReadOnly) {
-        set({ saveStatus: "error", saveError: i18n.t("projectLock.writeRefused") });
-        return;
-      }
-      if (saveOkTimer !== null) { window.clearTimeout(saveOkTimer); saveOkTimer = null; }
-      set({ saveStatus: "saving", saveError: null, saveConflict: false, ultimiTagCreati: [] });
+      // One save at a time: who asks while one runs waits for that one,
+      // pending sections included. Waiting on `saveStatus` ended at the first
+      // section's `markSaveOk`, and a second save started alongside — its PUT
+      // left with an old If-Match: 409 (review of the rc.30, 23-11-2026).
+      if (saveInFlight) return saveInFlight;
+      let finish!: () => void;
+      saveInFlight = new Promise<void>((resolve) => { finish = resolve; });
+      try {
+        if (get().saveStatus === "saving") return;
+        // Read-only (another tab holds the lock): nothing would be accepted.
+        if (get().lockReadOnly) {
+          set({ saveStatus: "error", saveError: i18n.t("projectLock.writeRefused") });
+          return;
+        }
+        if (saveOkTimer !== null) { window.clearTimeout(saveOkTimer); saveOkTimer = null; }
+        set({ saveStatus: "saving", saveError: null, saveConflict: false, ultimiTagCreati: [] });
 
-      const failures: string[] = [];
+        const failures: string[] = [];
 
-      // 1. Flush section drafts owned by ConfigView tabs / the function
-      //    editor. Each PUTs to its own endpoint and refreshes the store.
-      //
-      //    **Una per volta, non in parallelo.** Tags, sources e alarms
-      //    finiscono tutti in `project.yaml` attraverso `patch_project`, che è
-      //    un leggi-modifica-scrivi senza lock (`router.rs:1963`): due PUT in
-      //    volo insieme leggono lo stesso file di partenza e l'ultimo che
-      //    scrive cancella l'altro, in silenzio.
-      //
-      //    Misurato il 2026-08-31 con l'assistente: una proposta che creava un
-      //    tag *e* una sorgente salvava la sorgente e perdeva il tag. Non è un
-      //    difetto dell'assistente — bastano due tab di Configurazione
-      //    modificate insieme, ed è così da sempre.
-      //
-      //    Questo mette al sicuro il salvataggio dell'editor. La corsa lato
-      //    server resta possibile da altre strade (due schede, uno script,
-      //    l'API): è Q30 in `docs/OPEN_QUESTIONS.md`.
-      // Q30: un rifiuto per versione non è un fallimento fra i tanti — ha un
-      // rimedio suo (ricaricare, non ritentare) e va riconosciuto qui, dove si
-      // sa che stiamo salvando. Si ferma il ciclo: le sezioni successive
-      // partono dagli stessi dati vecchi e prenderebbero lo stesso rifiuto,
-      // riempiendo l'elenco degli errori di righe che dicono la stessa cosa.
-      // **Allarmi per primi** (26-09-2026). Finché su disco c'è un allarme nel
-      // formato vecchio il server rifiuta il salvataggio di *ogni* sezione di
-      // project.yaml; chi l'ha appena convertito nella scheda Allarmi e salva
-      // tutto insieme vedeva rifiutate variabili e funzioni solo perché
-      // partivano prima. `sort` è stabile: le altre restano nel loro ordine.
-      const pending = Object.entries(get().pendingSections)
-        .sort(([a], [b]) => Number(b === "alarms") - Number(a === "alarms"));
-      let conflitto = false;
-      for (const [key, save] of pending) {
+        // 1. Flush section drafts owned by ConfigView tabs / the function
+        //    editor. Each PUTs to its own endpoint and refreshes the store.
+        //
+        //    **Una per volta, non in parallelo.** Tags, sources e alarms
+        //    finiscono tutti in `project.yaml` attraverso `patch_project`, che è
+        //    un leggi-modifica-scrivi senza lock (`router.rs:1963`): due PUT in
+        //    volo insieme leggono lo stesso file di partenza e l'ultimo che
+        //    scrive cancella l'altro, in silenzio.
+        //
+        //    Misurato il 2026-08-31 con l'assistente: una proposta che creava un
+        //    tag *e* una sorgente salvava la sorgente e perdeva il tag. Non è un
+        //    difetto dell'assistente — bastano due tab di Configurazione
+        //    modificate insieme, ed è così da sempre.
+        //
+        //    Questo mette al sicuro il salvataggio dell'editor. La corsa lato
+        //    server resta possibile da altre strade (due schede, uno script,
+        //    l'API): è Q30 in `docs/OPEN_QUESTIONS.md`.
+        // Q30: un rifiuto per versione non è un fallimento fra i tanti — ha un
+        // rimedio suo (ricaricare, non ritentare) e va riconosciuto qui, dove si
+        // sa che stiamo salvando. Si ferma il ciclo: le sezioni successive
+        // partono dagli stessi dati vecchi e prenderebbero lo stesso rifiuto,
+        // riempiendo l'elenco degli errori di righe che dicono la stessa cosa.
+        // **Allarmi per primi** (26-09-2026). Finché su disco c'è un allarme nel
+        // formato vecchio il server rifiuta il salvataggio di *ogni* sezione di
+        // project.yaml; chi l'ha appena convertito nella scheda Allarmi e salva
+        // tutto insieme vedeva rifiutate variabili e funzioni solo perché
+        // partivano prima. `sort` è stabile: le altre restano nel loro ordine.
+        const pending = Object.entries(get().pendingSections)
+          .sort(([a], [b]) => Number(b === "alarms") - Number(a === "alarms"));
+        let conflitto = false;
+        for (const [key, save] of pending) {
+          try {
+            await save();
+          } catch (e) {
+            if (e instanceof ProjectChangedError) {
+              conflitto = true;
+              failures.push(errText(e));
+              break;
+            }
+            failures.push(`${key}: ${errText(e)}`);
+          }
+        }
+        if (conflitto) {
+          set({ saveStatus: "error", saveError: failures.join("; "), saveConflict: true });
+          return;
+        }
+
+        // 1b. Le variabili che il progetto cita e nessuno ha dichiarato (Fase
+        //     0b): DOPO il flush delle bozze, così vede le sorgenti e i tag
+        //     finali, e PRIMA delle pagine — nella stessa catena seriale dei
+        //     PUT su `project.yaml`, per la ragione del punto 1.
+        let tagCreati: string[] = [];
         try {
-          await save();
+          tagCreati = await get().riconciliaTag();
         } catch (e) {
           if (e instanceof ProjectChangedError) {
-            conflitto = true;
-            failures.push(errText(e));
-            break;
+            set({ saveStatus: "error", saveError: errText(e), saveConflict: true });
+            return;
           }
-          failures.push(`${key}: ${errText(e)}`);
+          failures.push(`tags: ${errText(e)}`);
         }
-      }
-      if (conflitto) {
-        set({ saveStatus: "error", saveError: failures.join("; "), saveConflict: true });
-        return;
-      }
 
-      // 1b. Le variabili che il progetto cita e nessuno ha dichiarato (Fase
-      //     0b): DOPO il flush delle bozze, così vede le sorgenti e i tag
-      //     finali, e PRIMA delle pagine — nella stessa catena seriale dei
-      //     PUT su `project.yaml`, per la ragione del punto 1.
-      let tagCreati: string[] = [];
-      try {
-        tagCreati = await get().riconciliaTag();
-      } catch (e) {
-        if (e instanceof ProjectChangedError) {
-          set({ saveStatus: "error", saveError: errText(e), saveConflict: true });
-          return;
-        }
-        failures.push(`tags: ${errText(e)}`);
-      }
+        // Re-read: the flush above mutated `project`.
+        const state = get();
+        const isAdmin = state.authRole === "Admin";
 
-      // Re-read: the flush above mutated `project`.
-      const state = get();
-      const isAdmin = state.authRole === "Admin";
-
-      // 2. Le pagine (tutte, non solo quella corrente) più le sole collezioni
-      //    di cui l'editor è proprietario.
-      //
-      //    Tags, sources e alarms NON si scrivono più da qui, ed è una
-      //    correzione, non una semplificazione: questa funzione spingeva la
-      //    copia in memoria sopra quella su disco, e un momento in cui la
-      //    copia è più povera del disco cancella dati. È successo davvero —
-      //    audit log del 2026-07-28, `{"count": 0, "what": "tags"}` su un
-      //    progetto che sul disco aveva 16 variabili. Quelle tre collezioni
-      //    appartengono alle tab di Configurazione, che si salvano da sole
-      //    attraverso i propri endpoint; `pendingSections` copre il caso in
-      //    cui l'utente abbia una bozza aperta.
-      //
-      //    Restano functions e custom_symbols: si modificano dall'editor
-      //    (FunctionEditor, symbol picker) e non hanno altro percorso di
-      //    salvataggio.
-      // I faceplate solo se cambiati (29-10-2026): un predefinito risalvato
-      // identico diventerebbe un file del progetto.
-      const faceplateDaScrivere = pagineFaceplate(state.pages).filter((p) => state.faceplateFirme[p.id] !== firmaFaceplate(p));
-      const tasks: Promise<unknown>[] = state.pages.filter((p) => !eFaceplateDef(p)).map((p) =>
-        eBoot(p) ? api.saveBootPage(p) : eCornice(p) ? api.saveCornice(paginaACornice(p)) : api.saveSynoptic(p));
-      tasks.push(...faceplateDaScrivere.map((p) => api.saveFaceplate(paginaAFaceplate(p))));
-      if (isAdmin && state.project) {
-        // Anche questi due passano da `patch_project` sullo stesso
-        // `project.yaml`: incatenati, non affiancati, per la stessa ragione
-        // spiegata al punto 1. Le pagine invece sono file distinti e restano
-        // in parallelo.
-        tasks.push((async () => {
-          await api.updateFunctions(state.project?.functions ?? []);
-          await api.updateCustomSymbols(state.customSymbols ?? []);
-          // Gli script solo se cambiati (08-11-2026): riscritti uguali
-          // ripartirebbero sul runtime.
-          if (scriptCambiati(state)) {
-            const scritti = state.project?.global_scripts ?? [];
-            await api.saveGlobalScripts(scritti);
-            set({ savedGlobalScripts: JSON.stringify(scritti) });
-          }
-        })());
-      }
-      // Names present when pages were last loaded but missing from the
-      // current array: deleted, or renamed (old name orphaned, new name
-      // already covered by the upsert above). Their files never disappear
-      // from disk on their own — list_synoptics just enumerates *.yaml, so
-      // a page "deleted" only in memory silently reappears on next load.
-      // Le chiavi distinguono le pagine di boot (`boot/<nome>`) dalle sinottiche.
-      const currentNames = new Set(state.pages.map(chiavePagina));
-      const namesToDelete = state.persistedPageNames.filter((n) => !currentNames.has(n));
-      tasks.push(...namesToDelete.map((n) =>
-        n.startsWith("boot/") ? api.deleteBootPage(n.slice("boot/".length))
-          : n.startsWith("cornice/") ? api.deleteCornice(n.slice("cornice/".length))
-          : n.startsWith("faceplate/") ? api.deleteFaceplate(n.slice("faceplate/".length))
-          : api.deleteSynoptic(n)));
-      const results = await Promise.allSettled(tasks);
-      results.forEach((r) => {
-        if (r.status === "rejected") {
-          if (r.reason instanceof ProjectChangedError) conflitto = true;
-          failures.push(errText(r.reason));
-        }
-      });
-
-      if (failures.length > 0) {
-        set({ saveStatus: "error", saveError: failures.join("; "), saveConflict: conflitto });
-        return;
-      }
-
-      // All-or-nothing: only a fully successful save clears the dirty flag.
-      // On a partial failure some pages are on disk and some are not, so
-      // "modified" is the only honest answer; a retry re-PUTs everything
-      // (the endpoints are idempotent).
-      set((st) => ({
-        persistedPageNames: state.pages.map(chiavePagina),
-        // Quello che è stato scritto ora è su disco: le firme lo seguono, e un
-        // predefinito appena scritto è diventato personalizzato.
-        faceplateFirme: { ...st.faceplateFirme, ...Object.fromEntries(faceplateDaScrivere.map((p) => [p.id, firmaFaceplate(p)])) },
-        pages: faceplateDaScrivere.some((p) => p.faceplate_predefinito === "intatto")
-          ? st.pages.map((p) => (faceplateDaScrivere.some((q) => q.id === p.id) && p.faceplate_predefinito === "intatto"
-            ? { ...p, faceplate_predefinito: "personalizzato" as const } : p))
-          : st.pages,
-      }));
-
-      // L'albero delle pagine, DOPO le pagine (Passo 4). L'ordine conta: se
-      // arrivasse prima, il viewer potrebbe leggere un ordine che nomina una
-      // pagina che su disco non c'è ancora — ed è metà del motivo per cui
-      // l'albero non si scrive più da solo.
-      const layoutOra = get().project?.page_layout;
-      if (layoutOra && alberoCambiato(get())) {
-        try {
-          // Dalla coda delle scritture di `page_layout` (08-11-2026): il layout
-          // si rilegge quando tocca a lui, così una scrittura della finestra
-          // «Impostazioni progetto» partita prima non va persa.
-          const scritto = await inCodaLayout(async () => {
-            const l = get().project?.page_layout ?? layoutOra;
-            await api.updatePageLayout(l);
-            return l;
-          });
-          set({ savedPageTree: scritto.page_tree ?? [] });
-        } catch (e) {
-          set({
-            saveStatus: "error",
-            saveError: errText(e),
-            saveConflict: e instanceof ProjectChangedError,
-          });
-          return;
-        }
-      }
-
-      // T-72 F4 — il PNG delle pagine di boot cambiate. Un errore qui **non**
-      // blocca il salvataggio (le pagine sono già su disco): resta nello stato,
-      // e l'anteprima dice «PNG non aggiornato».
-      const bootDaFotografare = state.pages.filter(
-        (p) => eBoot(p) && get().bootPngFirme[p.id] !== JSON.stringify(p));
-      if (bootDaFotografare.length > 0) {
-        try {
-          const { rasterizzaPagina, MAX_PNG_BYTES } = await import("@/boot/rasterizza");
-          for (const p of bootDaFotografare) {
-            try {
-              const { png, avvisi } = await rasterizzaPagina(p, state.customSymbols ?? []);
-              if (png.size > MAX_PNG_BYTES) throw new Error(i18n.t("boot.pngTooLarge", { kb: Math.round(png.size / 1024) }));
-              await api.putBootPng(p.name, png);
-              get().setBootPng(p.id, { ok: true, byte: png.size, messaggio: avvisi.join(" ") || undefined }, JSON.stringify(p));
-            } catch (e) {
-              get().setBootPng(p.id, { ok: false, messaggio: errText(e) });
+        // 2. Le pagine (tutte, non solo quella corrente) più le sole collezioni
+        //    di cui l'editor è proprietario.
+        //
+        //    Tags, sources e alarms NON si scrivono più da qui, ed è una
+        //    correzione, non una semplificazione: questa funzione spingeva la
+        //    copia in memoria sopra quella su disco, e un momento in cui la
+        //    copia è più povera del disco cancella dati. È successo davvero —
+        //    audit log del 2026-07-28, `{"count": 0, "what": "tags"}` su un
+        //    progetto che sul disco aveva 16 variabili. Quelle tre collezioni
+        //    appartengono alle tab di Configurazione, che si salvano da sole
+        //    attraverso i propri endpoint; `pendingSections` copre il caso in
+        //    cui l'utente abbia una bozza aperta.
+        //
+        //    Restano functions e custom_symbols: si modificano dall'editor
+        //    (FunctionEditor, symbol picker) e non hanno altro percorso di
+        //    salvataggio.
+        // I faceplate solo se cambiati (29-10-2026): un predefinito risalvato
+        // identico diventerebbe un file del progetto.
+        const faceplateDaScrivere = pagineFaceplate(state.pages).filter((p) => state.faceplateFirme[p.id] !== firmaFaceplate(p));
+        const tasks: Promise<unknown>[] = state.pages.filter((p) => !eFaceplateDef(p)).map((p) =>
+          eBoot(p) ? api.saveBootPage(p) : eCornice(p) ? api.saveCornice(paginaACornice(p)) : api.saveSynoptic(p));
+        tasks.push(...faceplateDaScrivere.map((p) => api.saveFaceplate(paginaAFaceplate(p))));
+        if (isAdmin && state.project) {
+          // Anche questi due passano da `patch_project` sullo stesso
+          // `project.yaml`: incatenati, non affiancati, per la stessa ragione
+          // spiegata al punto 1. Le pagine invece sono file distinti e restano
+          // in parallelo.
+          tasks.push((async () => {
+            await api.updateFunctions(state.project?.functions ?? []);
+            await api.updateCustomSymbols(state.customSymbols ?? []);
+            // Gli script solo se cambiati (08-11-2026): riscritti uguali
+            // ripartirebbero sul runtime.
+            if (scriptCambiati(state)) {
+              const scritti = state.project?.global_scripts ?? [];
+              await api.saveGlobalScripts(scritti);
+              set({ savedGlobalScripts: JSON.stringify(scritti) });
             }
-          }
-        } catch (e) {
-          for (const p of bootDaFotografare) get().setBootPng(p.id, { ok: false, messaggio: errText(e) });
+          })());
         }
-      }
-      set({ saveStatus: "ok", ultimiTagCreati: tagCreati });
-      get().markPagesSaved();
-      // La miniatura della pagina iniziale per l'elenco dei progetti
-      // (29-10-2026). Non si aspetta e non fa fallire il salvataggio: senza,
-      // l'elenco mostra l'icona come prima.
-      void aggiornaAnteprima(get, set);
-      // Fase 0d: dopo aver scritto, cosa dice il validatore del progetto su
-      // disco. Non si aspetta: la testata si aggiorna quando arriva.
-      void get().aggiornaRilievi();
-      saveOkTimer = window.setTimeout(() => {
-        saveOkTimer = null;
-        if (get().saveStatus === "ok") set({ saveStatus: "idle" });
-      }, 2000);
+        // Names present when pages were last loaded but missing from the
+        // current array: deleted, or renamed (old name orphaned, new name
+        // already covered by the upsert above). Their files never disappear
+        // from disk on their own — list_synoptics just enumerates *.yaml, so
+        // a page "deleted" only in memory silently reappears on next load.
+        // Le chiavi distinguono le pagine di boot (`boot/<nome>`) dalle sinottiche.
+        const currentNames = new Set(state.pages.map(chiavePagina));
+        const namesToDelete = state.persistedPageNames.filter((n) => !currentNames.has(n));
+        tasks.push(...namesToDelete.map((n) =>
+          n.startsWith("boot/") ? api.deleteBootPage(n.slice("boot/".length))
+            : n.startsWith("cornice/") ? api.deleteCornice(n.slice("cornice/".length))
+            : n.startsWith("faceplate/") ? api.deleteFaceplate(n.slice("faceplate/".length))
+            : api.deleteSynoptic(n)));
+        const results = await Promise.allSettled(tasks);
+        results.forEach((r) => {
+          if (r.status === "rejected") {
+            if (r.reason instanceof ProjectChangedError) conflitto = true;
+            failures.push(errText(r.reason));
+          }
+        });
 
-      autoDeployIfConnected();
+        if (failures.length > 0) {
+          set({ saveStatus: "error", saveError: failures.join("; "), saveConflict: conflitto });
+          return;
+        }
+
+        // All-or-nothing: only a fully successful save clears the dirty flag.
+        // On a partial failure some pages are on disk and some are not, so
+        // "modified" is the only honest answer; a retry re-PUTs everything
+        // (the endpoints are idempotent).
+        set((st) => ({
+          persistedPageNames: state.pages.map(chiavePagina),
+          // Quello che è stato scritto ora è su disco: le firme lo seguono, e un
+          // predefinito appena scritto è diventato personalizzato.
+          faceplateFirme: { ...st.faceplateFirme, ...Object.fromEntries(faceplateDaScrivere.map((p) => [p.id, firmaFaceplate(p)])) },
+          pages: faceplateDaScrivere.some((p) => p.faceplate_predefinito === "intatto")
+            ? st.pages.map((p) => (faceplateDaScrivere.some((q) => q.id === p.id) && p.faceplate_predefinito === "intatto"
+              ? { ...p, faceplate_predefinito: "personalizzato" as const } : p))
+            : st.pages,
+        }));
+
+        // L'albero delle pagine, DOPO le pagine (Passo 4). L'ordine conta: se
+        // arrivasse prima, il viewer potrebbe leggere un ordine che nomina una
+        // pagina che su disco non c'è ancora — ed è metà del motivo per cui
+        // l'albero non si scrive più da solo.
+        const layoutOra = get().project?.page_layout;
+        if (layoutOra && alberoCambiato(get())) {
+          try {
+            // Dalla coda delle scritture di `page_layout` (08-11-2026): il layout
+            // si rilegge quando tocca a lui, così una scrittura della finestra
+            // «Impostazioni progetto» partita prima non va persa.
+            const scritto = await inCodaLayout(async () => {
+              const l = get().project?.page_layout ?? layoutOra;
+              await api.updatePageLayout(l);
+              return l;
+            });
+            set({ savedPageTree: scritto.page_tree ?? [] });
+          } catch (e) {
+            set({
+              saveStatus: "error",
+              saveError: errText(e),
+              saveConflict: e instanceof ProjectChangedError,
+            });
+            return;
+          }
+        }
+
+        // T-72 F4 — il PNG delle pagine di boot cambiate. Un errore qui **non**
+        // blocca il salvataggio (le pagine sono già su disco): resta nello stato,
+        // e l'anteprima dice «PNG non aggiornato».
+        const bootDaFotografare = state.pages.filter(
+          (p) => eBoot(p) && get().bootPngFirme[p.id] !== JSON.stringify(p));
+        if (bootDaFotografare.length > 0) {
+          try {
+            const { rasterizzaPagina, MAX_PNG_BYTES } = await import("@/boot/rasterizza");
+            for (const p of bootDaFotografare) {
+              try {
+                const { png, avvisi } = await rasterizzaPagina(p, state.customSymbols ?? []);
+                if (png.size > MAX_PNG_BYTES) throw new Error(i18n.t("boot.pngTooLarge", { kb: Math.round(png.size / 1024) }));
+                await api.putBootPng(p.name, png);
+                get().setBootPng(p.id, { ok: true, byte: png.size, messaggio: avvisi.join(" ") || undefined }, JSON.stringify(p));
+              } catch (e) {
+                get().setBootPng(p.id, { ok: false, messaggio: errText(e) });
+              }
+            }
+          } catch (e) {
+            for (const p of bootDaFotografare) get().setBootPng(p.id, { ok: false, messaggio: errText(e) });
+          }
+        }
+        set({ saveStatus: "ok", ultimiTagCreati: tagCreati });
+        get().markPagesSaved();
+        // La miniatura della pagina iniziale per l'elenco dei progetti
+        // (29-10-2026). Non si aspetta e non fa fallire il salvataggio: senza,
+        // l'elenco mostra l'icona come prima.
+        void aggiornaAnteprima(get, set);
+        // Fase 0d: dopo aver scritto, cosa dice il validatore del progetto su
+        // disco. Non si aspetta: la testata si aggiorna quando arriva.
+        void get().aggiornaRilievi();
+        saveOkTimer = window.setTimeout(() => {
+          saveOkTimer = null;
+          if (get().saveStatus === "ok") set({ saveStatus: "idle" });
+        }, 2000);
+
+        autoDeployIfConnected();
+      } finally {
+        saveInFlight = null;
+        finish();
+      }
     },
 
     groupObjects: (ids, name) => {

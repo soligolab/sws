@@ -49,6 +49,28 @@ Restano, piccoli, per dopo la rc:
 - di prima: il socket dei tag non rifiuta le scritture sui tag calcolati come fa la REST (T-69); sul pannello
   `audit.jsonl` non si pota e si legge intero all'avvio.
 
+### La revisione della parte WP630
+
+La stessa revisione sui cinque commit della sessione del WP630 ha trovato quattro difetti veri e importanti, corretti
+prima della rc (`fix/rc30-revisione`): il giro completo dei derivati che dopo un `Lagged` poteva non fermarsi più, la
+finestra «Espandi» del web senza la qualità viva, il secondo salvataggio in parallelo durante un Deploy (ancora 409), e
+due ingressi rinominati insieme che perdevano un legame in pagina. Con loro una minore della A: le espressioni costanti
+non rivalutate dopo un deploy in un progetto piccolo.
+
+Restano, per dopo la rc (dettaglio, scenari e correzioni proposte nel registro della revisione di quella sera):
+- E: «Togli ritaglio» non rende colore, materiale, gruppo della forma (il punto 3 della correzione E): `ClipShape` in
+  `simboli_prj.rs` ha solo `tag` e `geo`, serve un campo nuovo nel formato; e ritagliare una forma che ha un effetto
+  lascia l'effetto senza forme (Salva bloccato, si esce con Annulla) — `clipPhoto` deve togliere gli effetti rimasti
+  orfani come fa `deleteOps`;
+- E, di prima: Ruota/Specchia su una selezione mista con una foto sposta le forme attorno al centro comune e lascia la
+  foto ferma (`matrixOp` non tratta `image`);
+- B: la qualità viva vale anche sulle finestre spostate o storiche; i cursori di misura saltano i campioni Bad e
+  mostrano il valore buono più vicino; di prima: un tag mai ricevuto è disegnato come una linea a 0;
+- C+2: un 428 durante un deploy partito da un salvataggio ferma sempre il deploy (anche per la rotazione o la sessione
+  del progetto): è una scelta da confermare col maintainer; di prima: un salvataggio durante un deploy esplicito già
+  in corso fa partire un deploy automatico che prende 409, e la testata copre l'errore;
+- D: ciò che si crea è marcato come nuovo e non si riconosce in un salvataggio successivo nella stessa sessione (nit).
+
 ## Pezzo 1 — Correzioni della rc.30 — la parte del collaudo sul WP630 (A, B, C, D, E)
 
 > Pezzo del piano comune `docs/plans/2026-11-23-correzioni-collaudo-rc30.md`, ramo unico `fix/rc30-collaudo` da

@@ -1002,6 +1002,15 @@ export function SvgCanvas({
     const tracce = expandedTrendObj ? trendTraces(expandedTrendObj).filter((tr) => tr.tag) : [];
     return { tags: tracce.map((tr) => tr.tag), etichette: tracce.map((tr) => tr.label ?? tr.tag), stili: tracce };
   }, [expandedTrendObj]);
+  // The live quality of each trace of the expanded trend too: over 15
+  // minutes the buckets carry no quality, and a Bad tag was again a flat line
+  // with its number (review of the rc.30, 23-11-2026). Same reference until a
+  // quality changes, like the trend in the page.
+  const expandedQualityKey = expandedTrendObj ? serieEspanse.tags.map((tag) => tagValues[tag]?.quality ?? "").join("|") : "";
+  const expandedLiveQualities = useMemo(
+    () => (expandedQualityKey ? expandedQualityKey.split("|").map((q) => (q || undefined) as TagState["quality"] | undefined) : undefined),
+    [expandedQualityKey],
+  );
   // F6.3: popup faceplate aperto da un'azione open_faceplate (uno alla volta).
   const [popupFaceplate, setPopupFaceplate] = useState<{ id: string; params: Record<string, string> } | null>(null);
   // Set to true when a rect-selection just completed so the SVG onClick
@@ -1937,6 +1946,7 @@ export function SvgCanvas({
         bgImage={expandedTrendObj.bg_image}
         axisColor={expandedTrendObj.axis_color}
         gridColor={expandedTrendObj.grid_color}
+        liveQualities={expandedLiveQualities}
         onClose={() => setExpandedTrendObj(null)}
       />
     )}

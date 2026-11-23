@@ -98,6 +98,13 @@ riportano qui con `cherry-pick`; la data arriva con la release.
   non agiscono più sul disegno sotto. Duplicare un gruppo intero fa un gruppo nuovo senza effetti. In «Collegamenti»
   l'ingresso si legge («Ingresso acceso (tag)»).
 
+- **Dalla revisione prima della rc** (una revisione a più agenti, ogni rilievo verificato da un secondo agente): un giro
+  completo dei tag calcolati scrive solo ciò che cambia (`TagDb::set_tipizzato_if_changed`; prima, oltre 256 derivati,
+  dopo un `Lagged` poteva girare all'infinito); dopo un deploy le espressioni costanti si valutano (`reseeded`); la
+  finestra «Espandi» del trend dice anche lei «Dato non valido»; un Deploy durante un salvataggio aspetta il salvataggio
+  intero (`saveInFlight`, niente secondo `saveAll` in parallelo né 409); due ingressi di un simbolo rinominati insieme
+  non perdono i legami in pagina (anche lo scambio a↔b).
+
 ### Da sapere — le correzioni del collaudo sul WP630
 - Tag calcolati (A): gli allarmi sui tag calcolati si fermano durante il guasto di un ingresso; MQTT pubblica `null`; le
   variabili di memoria usate come parametri, dopo un riavvio, rendono non Good i derivati finché non si riscrivono;

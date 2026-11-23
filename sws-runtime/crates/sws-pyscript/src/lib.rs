@@ -38,7 +38,9 @@ use tokio::runtime::Handle;
 use tokio::sync::mpsc;
 
 mod derived;
-pub use derived::{derived_quality, run_derived_round, DerivedOutcome, DerivedState};
+pub use derived::{
+    derived_quality, reseeds_a_derived, run_derived_round, DerivedOutcome, DerivedState,
+};
 
 /// T-69 fase C: stesso tipo concreto di `FunctionsRegistry` in
 /// `sws-web/src/router.rs` (`Arc<tokio::sync::RwLock<HashMap<String,

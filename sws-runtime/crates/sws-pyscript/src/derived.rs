@@ -11,7 +11,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use sws_core::{TagDb, TagQuality, TagState};
+use sws_core::{TagDb, TagQuality, TagState, TagUpdate};
 use tracing::warn;
 
 use crate::{eval_expressions_with, expression_reads, reads_changed};
@@ -99,6 +99,17 @@ impl DerivedState {
     pub fn registry_changed(&mut self) {
         self.undeclared.clear();
     }
+}
+
+/// Whether `update` is a derived tag of `pairs` seeded again («never
+/// received»: timestamp 0). A deploy closes and reopens the project with the
+/// same expressions, so the registry compares equal and asks for no full
+/// round: a constant, and a derived tag reading it, stayed «never received»
+/// (review of the rc.30, 23-11-2026). Only a seeding broadcasts that state —
+/// `LeaveNeverReceived` writes nothing — so this can't loop.
+pub fn reseeds_a_derived(update: &TagUpdate, pairs: Option<&[(String, String)]>) -> bool {
+    update.state.timestamp_ms == 0
+        && pairs.is_some_and(|p| p.iter().any(|(id, _)| *id == update.id))
 }
 
 /// One round of the derived-tag evaluator over the registry `pairs`
@@ -190,8 +201,17 @@ pub async fn run_derived_round(
                 // whose raw→eng scale is for the field: this value is already
                 // in engineering units. A saturated value becomes Uncertain,
                 // a Bad stays Bad.
+                // A full round writes only what changes: rewriting every
+                // derived tag broadcast them all, past the channel's
+                // capacity the evaluator lagged, and a lag asks for another
+                // full round — a loop that never stopped (review of the
+                // rc.30, 23-11-2026).
                 if let DerivedOutcome::Write(q) = outcome {
-                    db.set_tipizzato(id.to_string(), value, q).await;
+                    if full {
+                        db.set_tipizzato_if_changed(id.to_string(), value, q).await;
+                    } else {
+                        db.set_tipizzato(id.to_string(), value, q).await;
+                    }
                 }
             }
             Err(e) => {
@@ -664,6 +684,62 @@ mod tests {
         );
         run_derived_round(&db, &p, &changed, true, &mut st).await;
         assert_eq!(get(&db, "d").await.quality, Bad);
+    }
+
+    /// More derived tags than the channel holds: the first full round lags
+    /// the receiver, and a lag asks for another full round. That round
+    /// rewrote every derived tag and lagged again, for ever (review of the
+    /// rc.30, 23-11-2026). A full round writes only what changes, so the
+    /// second one is silent.
+    #[tokio::test]
+    async fn a_full_round_writes_only_what_changes_and_the_loop_settles() {
+        let db = TagDb::new(4);
+        let names: Vec<String> = (0..6).map(|k| format!("d{k}")).collect();
+        let mut all: Vec<&str> = vec!["a"];
+        all.extend(names.iter().map(String::as_str));
+        seeded(&db, &all).await;
+        db.set("a".into(), TagValue::Float(1.0), Good).await;
+        let exprs: Vec<String> = (0..6).map(|k| format!("tags['a'] * {}", k + 1)).collect();
+        let p: Vec<(String, String)> = names.iter().cloned().zip(exprs).collect();
+        let mut st = DerivedState::default();
+        let mut rx = db.subscribe();
+        run_derived_round(&db, &p, &HashSet::new(), true, &mut st).await;
+        assert!(
+            matches!(rx.try_recv(), Err(TryRecvError::Lagged(_))),
+            "six writes on four slots"
+        );
+        while rx.try_recv().is_ok() {}
+        run_derived_round(&db, &p, &HashSet::new(), true, &mut st).await;
+        assert!(
+            matches!(rx.try_recv(), Err(TryRecvError::Empty)),
+            "nothing changed, nothing sent"
+        );
+        // A change still gets through.
+        db.set("a".into(), TagValue::Float(2.0), Good).await;
+        while rx.try_recv().is_ok() {}
+        run_derived_round(&db, &p, &HashSet::new(), true, &mut st).await;
+        assert_eq!(get(&db, "d5").await.value, TagValue::Float(12.0));
+    }
+
+    /// A deploy reopens the project with the same expressions: the registry
+    /// compares equal, so the loop looks at the seeding instead.
+    #[test]
+    fn a_seeded_derived_tag_asks_for_a_full_round() {
+        let p = pairs(&[("k", "25.0")]);
+        let update = |id: &str, ts: u64| TagUpdate {
+            id: id.into(),
+            state: state(Good, ts),
+        };
+        assert!(reseeds_a_derived(&update("k", 0), Some(&p)));
+        assert!(
+            !reseeds_a_derived(&update("k", 5), Some(&p)),
+            "a written value"
+        );
+        assert!(
+            !reseeds_a_derived(&update("a", 0), Some(&p)),
+            "not a derived tag"
+        );
+        assert!(!reseeds_a_derived(&update("k", 0), None));
     }
 
     /// Woken up only by the write of a derived tag, a normal round is skipped
