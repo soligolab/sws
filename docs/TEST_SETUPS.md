@@ -217,6 +217,21 @@ cose da guardare, dove non doveva stare.
 
 Vale solo per il WP630. Il **TC620** di casa sta acceso, ed è quello che risponde fuori orario.
 
+### Il PLX800 di prova (dal 2026-11-23)
+
+Il controllore compatto della LAN ufficio, raggiungibile da `elitedesk`. È il dispositivo con **LogicLab acceso** e col
+**modulo I/O**: ci girano i piani [SWS sul PLX800](plans/2026-11-23-plx800-sws-e-modulo-io.md) e
+[LogicLab a memoria diretta](plans/2026-11-23-logiclab-memoria-diretta.md).
+
+| | |
+|---|---|
+| Host | `plx800-a-p3-l2-a2-0891bc.local` |
+| Utenti | **`pixsys@`** (indicato dal maintainer il 23-11, sudoer senza password); `user` uid 1000 per i container rootless |
+| Sistema | PLX800-A-P3-L2-A2, RK3399 aarch64, **PixsysOS 2.1.3**, kernel 6.12 PREEMPT_RT, glibc 2.39, 2 GB, 6 core, podman 5.0.2 |
+| PLC | LogicLab: `logiclab.service` (LLExec **3.2.29** da root, `/data/logiclab`) e `logiclab-opcua.service`; anche atvise (`PlcEngine` di `user`) |
+| Modulo I/O | `/dev/shm/qmb800_registers` (176 B, 0666), servizio `qmb800-shm-bridge`; riferimento in `/home/ut1/Git/openplc` |
+| SWS | non installato il 23-11-2026 |
+
 ### Il broker MQTT di prova (dal 2026-10-26)
 
 | | |
