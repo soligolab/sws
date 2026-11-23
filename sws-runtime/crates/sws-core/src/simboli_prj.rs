@@ -835,6 +835,9 @@ struct Costruzione<'a> {
     /// Each group's box and its shapes' geometry (for the bubbles' clip).
     box_gruppi: std::collections::HashMap<String, (f64, f64, f64, f64)>,
     clip_gruppi: std::collections::HashMap<String, Vec<String>>,
+    /// The first glow or flame group found with shapes inside a part's layer
+    /// (23-11-2026): the group and the part. Refused once everything is drawn.
+    fx_in_parte: Option<(String, String)>,
 }
 
 impl<'a> Costruzione<'a> {
@@ -845,6 +848,7 @@ impl<'a> Costruzione<'a> {
             fx_layers: vec![],
             box_gruppi: Default::default(),
             clip_gruppi: Default::default(),
+            fx_in_parte: None,
             d,
             defs: vec![],
             veli_usati: vec![],
@@ -889,6 +893,16 @@ impl<'a> Costruzione<'a> {
             None => e,
         };
         if let Some(k) = self.gruppo.as_ref().and_then(|g| self.fx_dest.get(g)).copied() {
+            // Its shapes leave the layer they are in: from a part's layer
+            // they would take the part's own behaviour away (a signal that
+            // hides them, a lamp's colour). The body is fine.
+            if self.fx_in_parte.is_none() {
+                if let (Some(g), Some(st)) = (self.gruppo.as_ref(), self.strati.last()) {
+                    if st.nome != "body" && self.parti.iter().any(|p| p["id"] == st.nome.as_str()) {
+                        self.fx_in_parte = Some((g.clone(), st.nome.clone()));
+                    }
+                }
+            }
             self.fx_layers[k].corpo.push(e);
             return;
         }
@@ -1543,6 +1557,13 @@ fn compila_con(d: &Descrizione, traccia: bool) -> Result<Compilato, String> {
         }
     }
     c.gruppo = None;
+    if let Some((group, part)) = &c.fx_in_parte {
+        return Err(format!(
+            "il gruppo «{group}» ha una fiamma o un bagliore ma sta nella parte «{part}»: \
+             mettilo in uno strato fisso o nel corpo (una fiamma con l'ingresso spento \
+             non si disegna da sé)"
+        ));
+    }
     c.chiudi_effetti(&effetti)?;
     let svg = c.svg();
     let voce = c.voce(&svg);
@@ -2577,6 +2598,17 @@ mod tests {
             *group = "neon".into();
         }
         assert!(compila(&two).is_err());
+        // A flame on shapes inside a part's layer (the stove of CasaDomotica,
+        // 23-11-2026): refused with words, not an empty part.
+        let mut in_part = d.clone();
+        in_part.ops.insert(
+            7,
+            serde_json::from_value(json!({ "op": "parte", "id": "segnale", "kind": "signal",
+                "geo": { "entries": [{ "value": 1, "color": "#ff8c1a" }, { "value": 0, "hidden": true }] } }))
+            .unwrap(),
+        );
+        let e = compila(&in_part).unwrap_err();
+        assert!(e.contains("«fiamma»") && e.contains("«segnale»"), "{e}");
         // The effect parts of before are refused by the rules, drawn still by the compiler.
         let old: Descrizione = serde_json::from_value(json!({
             "slug": "old", "w": 40, "h": 40, "tipo": "project", "body": "body-pump", "it": "V", "en": "O",

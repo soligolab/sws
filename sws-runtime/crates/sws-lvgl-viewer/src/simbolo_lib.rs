@@ -795,7 +795,14 @@ pub fn prepara_con_foto(
                 // and its frames are the same shapes flickering over them.
                 let fiamma = matches!(p, ParteLib::Flame { .. });
                 if let Some(b) = rasterizza(&svg1, q, None) {
-                    out.push(PezzoStrato::Fermo(b));
+                    // A flame with its input off is not drawn at all (decision
+                    // of the maintainer, 23-11-2026): its shapes hide like a
+                    // lamp's. The other effects draw over shapes that stay.
+                    out.push(if fiamma {
+                        PezzoStrato::Spia { id: id.clone(), bitmap: b }
+                    } else {
+                        PezzoStrato::Fermo(b)
+                    });
                 }
                 let (x, y, w, h) = sws_core::symbol_fx::fx_box(p).expect("checked");
                 let a = in_pixel(s.view_box, q, x, y);
@@ -1288,6 +1295,11 @@ mod tests {
         };
         assert_eq!(*period_ms, 800.0);
         assert_ne!(fotogrammi[0], fotogrammi[4], "it flickers");
+        // Its still shapes hide when its input is off (23-11-2026), as a lamp's.
+        assert!(
+            p.strati.iter().any(|x| matches!(x, PezzoStrato::Spia { id, .. } if id == "fx-4")),
+            "the flame's shapes can hide"
+        );
     }
 
     #[test]

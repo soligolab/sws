@@ -94,4 +94,16 @@ describe("the flame", () => {
     }
     for (const c of fx.flame_path) expect(flamePath(c.a, c.hh)).toBe(c.d);
   });
+
+  it("is not drawn while its input is off, and stays still without a value (23-11-2026)", () => {
+    const withFlame: SimboloLib = { ...sim, parts: [{ id: "neon", kind: "flame", x: 10, y: 10, w: 20, h: 60 }] };
+    const opacity = (parti: Record<string, { active: boolean | null }>) => render(
+      <svg><SimboloLibSvg sim={withFlame} svg={SVG} manifesto={manifesto} prefisso="f" x={0} y={0} w={120} h={100}
+        valori={{ corpo: null, gira: false, periodoS: 2, animate: true, parti }} /></svg>,
+    ).container.querySelector('[data-strato="neon"]')?.getAttribute("opacity");
+    expect(opacity({ neon: { active: false } })).toBe("0");
+    expect(opacity({ neon: { active: true } })).not.toBe("0");
+    expect(opacity({ neon: { active: null } })).not.toBe("0");
+    expect(opacity({})).not.toBe("0");
+  });
 });

@@ -15782,7 +15782,11 @@ fn aggiorna_simbolo_lib(v: &mut VivoLib, tags: &TagSnapshot) {
         }
     }
     for sp in &mut v.spie {
-        let accesa = !matches!(val(&sp.id), Some(ValoreParte::Accesa(Some(false))));
+        // A lamp off, or a flame whose input is off (23-11-2026): hidden.
+        let accesa = !matches!(
+            val(&sp.id),
+            Some(ValoreParte::Accesa(Some(false))) | Some(ValoreParte::Active(Some(false)))
+        );
         if accesa != sp.accesa {
             unsafe {
                 if accesa {
