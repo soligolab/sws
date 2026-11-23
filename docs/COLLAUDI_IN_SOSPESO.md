@@ -27,6 +27,41 @@
 
 ---
 
+## Collaudo 2.27.0-dev.0 sul PLX800 (23-11-2026) — la sorgente `plx800_io`
+
+Ramo `feat/plx800-io` (squashato in `main` il 23-11-2026 sera, `ae62396f`), immagine costruita in locale e installata da
+archivio sul PLX800 `pixsys@plx800-a-p3-l2-a2-0891bc.local` (PixsysOS 2.1.3, LogicLab acceso, nessuno schermo),
+abbinato dal cloud. Gateway 2.26.0-rc.29, IDE locale 8460 dal ramo. Progetto `PLX800` dal template `plx800-io`.
+
+1. [x] Installazione da archivio, abbinamento al cloud, primo deploy dal cloud — confermato dal maintainer il 23-11-2026
+       (col riavvio da rotazione non annunciato: anomalia 1 della rc.30).
+2. [x] Il progetto dal template si apre e la sorgente parte — confermato dal maintainer il 23-11-2026.
+3. [x] Sorgente `host` sul PLX800: nome, modello, seriale, temperature (uguali a sysfs), `ethernet0`, disco, uptime —
+       confermato dal maintainer il 23-11-2026.
+4. [x] DIP, tensioni e temperatura della scheda vivi e Good — confermato dal maintainer il 23-11-2026.
+5. [x] Con `writes: true` le uscite e i LED si comandano; gli ingressi in loopback seguono — confermato dal maintainer il
+       23-11-2026.
+6. [x] Stop del servizio: uscite a riposo, PoE e coil 15 intatti, RUN LED com'era; al riavvio il lock si riprende —
+       confermato dal maintainer il 23-11-2026.
+7. [x] Un altro scrittore tiene il lock: sorgente in sola lettura, card dell'IDE «lock occupato», OUT0 bloccato nel
+       viewer; il lock si riprende 2,9 s dopo il rilascio — confermato dal maintainer il 23-11-2026.
+8. [ ] Fermando il bridge (`qmb800-shm-bridge.service`) i punti vanno Bad entro un secondo e la pagina diventa rossa
+       (**passato**); alla ripartenza tornavano Good dopo 24 s. Corretto (il segmento si ricerca ogni 500 ms e un
+       segmento ricreato si riconosce dall'inode): **da rifare** su un'immagine con la correzione (una dev da `main`).
+
+## Collaudo 2.26.0-rc.29 sul WP630 (23-11-2026) — fermo al test 7/12
+
+`user@wp630-a-p3-07a077.local`, progetto `tiny-ty`, IDE nel cloud. Test 1-6 superati; dal test 5 e dal 6 le anomalie
+A-E, corrette nella rc.30 ([piano](plans/2026-11-23-correzioni-collaudo-rc30.md), registro del collaudo in
+[allegati](plans/allegati/2026-11-23-collaudo-rc29-wp630-anomalie.md)). La registrazione voce per voce la fa la
+sessione del WP630 col sì del maintainer.
+
+1. [ ] Sulla rc.30: ricollaudo di A (tag calcolato Bad da un ingresso Bad), B (trend con «Dato non valido» e linea
+       interrotta, web e LVGL), C (niente barra «progetto cambiato» salvando dalla finestra dei simboli), D (un ingresso
+       nuovo chiede il nome, gli effetti non si scambiano gli ingressi), E («Togli ritaglio» e poi selezionare la forma).
+2. [ ] Test 7-12: deploy con un simbolo aggiornato senza ricaricare, benvenuto `{{user.name}}`, PIN e cambio password,
+       ruolo minimo di una funzione, LDAP, libreria aziendale.
+
 ## Collaudo 2.26.0-rc.23 (22-11-2026) — i sedici rami del 20-22-11
 
 Squash in `main` prima del collaudo (regola «rc prima del collaudo»), tag `2.26.0-rc.23`, immagini `3e9e1d6c-*` e

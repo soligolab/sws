@@ -12,6 +12,57 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — rc.30 in preparazione, PLX800 in `main` (2026-11-23 sera, `elitedesk`)
+
+**Cosa c'è su origin adesso** (push delle 21 circa, `/finalizza-giornata` mentre il maintainer tornava a casa):
+- `main`: la sorgente **`plx800_io`** (squash di `feat/plx800-io`, `ae62396f`), i piani della giornata, i collaudi.
+- **`fix/rc30-collaudo`** (ramo da `release/2.26`, pushato **come copia di sicurezza**: è ancora aperto su elitedesk):
+  le correzioni dei due collaudi del 23-11 — piano
+  [`docs/plans/2026-11-23-correzioni-collaudo-rc30.md`](docs/plans/2026-11-23-correzioni-collaudo-rc30.md). Sessione
+  WP630: **E** «Togli ritaglio», **A** qualità dei tag calcolati, **B** trend con il Bad, **C** barra «progetto
+  cambiato», **2** doppio deploy, **D** ingressi degli effetti. Sessione PLX800: **1** la rotazione si chiede prima del
+  deploy, **3** il deploy dalla rete locale non lascia più il pannello senza progetto, **4** pagina Utenti, **5** testi
+  «no-auth», **7** le scritture dal viewer nel registro (raggruppate per tag, massimo 20 righe/s per socket).
+  Definition of done verde su `be0642e2`: cargo test 2220/0, vitest 3017, pnpm build, check_static 58/58.
+- Una **revisione a più agenti** con verifica avversaria ha rivisto la parte PLX800 prima della rc e ha trovato due
+  difetti veri, corretti (vedi il piano, «La revisione prima della rc.30»); la stessa revisione sulla parte WP630 era
+  ancora in corso al push.
+
+**Cosa sta facendo elitedesk dopo il push** (se la sessione regge): squash di `fix/rc30-collaudo` in `release/2.26`,
+versione e tag **2.26.0-rc.30**, push di `release/2.26` e del tag, riporto in `main` con `cherry-pick -x`,
+`build_rc.sh --push` (arm64, amd64, Tiny TY; su 4 core più di un'ora) e il pacchetto del Tiny TY sul VPS. **Il gateway
+del VPS resta sulla rc.29**: si aggiorna col sì del maintainer, e finché non si aggiorna i due 428 nuovi (rotazione,
+sessione del progetto) non valgono per i deploy dal cloud. **Prima di lavorare su `main` da casa**: `session_start.sh`,
+per vedere se il riporto della rc.30 è arrivato.
+
+**Collaudi del 23-11** (in [`docs/COLLAUDI_IN_SOSPESO.md`](docs/COLLAUDI_IN_SOSPESO.md)):
+- **PLX800** (`pixsys@plx800-a-p3-l2-a2-0891bc.local`, 2.27.0-dev.0 da archivio): test 1-7 passati, l'8 a metà — Bad
+  entro un secondo, ma il ritorno a Good dopo 24 s: corretto in `plx800_io`, **da rifare su una dev nuova**
+  (l'archivio con la correzione era `dist/sws-runtime-2.27.0-dev.0-aarch64-image.tar.gz` su elitedesk; il PLX800 alle
+  17:36 è sparito dalla rete e non è stato reinstallato). Anomalia **6** aperta: dopo il riavvio da rotazione
+  `pixsys-launcher` è uscito con 1 e `plc.target` (LogicLab, atvise, il bridge del modulo I/O) non è partito — serve una
+  prova sul PLX800 in una finestra di manutenzione.
+- **WP630** (rc.29, `tiny-ty`, IDE nel cloud): fermo al **test 7/12**, 1-6 passati; si riprende sulla rc.30 col
+  ricollaudo di A-E, poi 7-12.
+
+**In attesa del sì del maintainer** (dalla sessione del WP630):
+- il piano dell'**assistente dei simboli**, approvato il 23-11, ora in
+  [`docs/plans/2026-11-23-assistente-dei-simboli.md`](docs/plans/2026-11-23-assistente-dei-simboli.md) — 2.27.0-dev,
+  dopo la rc.30;
+- la **regola UI 3** in `CLAUDE.md`: «ciò che si crea chiede prima il nome»;
+- i semi elencati in fondo a
+  [`allegati/2026-11-23-collaudo-rc29-wp630-righe-rilascio.md`](docs/plans/allegati/2026-11-23-collaudo-rc29-wp630-righe-rilascio.md)
+  («Per i semi»), e il piano della 2.27 per il **Bad visibile di default** su tutti gli oggetti (decisione B1, domande
+  B2-B4 nel piano della rc.30).
+
+**Decisioni prese senza il maintainer** (tabella in testa al piano della rc.30, da rivedere): rotazione solo chiesta al
+deploy (le opzioni «mai con un PLC acceso» e «mai senza schermo» restano), nessun Admin del dispositivo nuovo per i
+pannelli abbinati dal cloud, registro delle scritture raggruppato.
+
+**Rimandati**: il template `plx800-io` a 1920×1080 con le pagine SystemInfo
+([piano](docs/plans/2026-11-23-template-plx800-systeminfo.md)); LogicLab a memoria diretta, fase 0
+([piano](docs/plans/2026-11-23-logiclab-memoria-diretta.md)).
+
 ## ▶ Riprendere da qui — la 2.26.0-rc.29 pubblicata, da collaudare (2026-11-23 notte, `ufficio`)
 
 **rc.29** (`02f6de07`, da `release/2.26`, tag **locale**) col piano notturno
