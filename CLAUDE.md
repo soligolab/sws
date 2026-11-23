@@ -25,6 +25,11 @@
    campo; se esistono variante semplice e avanzata, sopravvive solo quella completa. Il campo
    `tag` generico compare solo sui tipi che lo usano come dato primario; per gli altri vive
    nella sezione qualità come "Tag di stato (allarme/stale/qualità)".
+3. **Ciò che si crea chiede prima il nome** (2026-11-23), quando quel nome si usa altrove: id, tag,
+   collegamenti (ingressi, parti, gruppi, bocche, simboli; non i rettangoli e le ellissi, che si
+   nominano raggruppandoli). Annulla non crea niente. Il resto dell'IDE si allinea man mano.
+   Nato dal collaudo della rc.29 sul WP630: «+ nuovo ingresso…» creava un ingresso senza nome, e
+   gli ingressi «si scambiavano» fra gli effetti.
 
 ## CasaDomotica, il progetto di riferimento (decisione del maintainer, 2026-10-16)
 
