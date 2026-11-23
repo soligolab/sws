@@ -34,11 +34,15 @@ export async function registraDispositivo(nuovo: SavedDevice): Promise<SavedDevi
  * invece di pubblicare qualcosa di diverso da ciò che l'autore vede.
  */
 export async function flushBeforeDeploy(onLog: (msg: string) => void): Promise<boolean> {
-  if (!selectIsDirty(useAppStore.getState())) return true;
+  const st0 = useAppStore.getState();
+  if (!selectIsDirty(st0) && st0.saveStatus !== "saving") return true;
   onLog(i18n.t("cfgUi.savingUnsavedChanges"));
-  await useAppStore.getState().saveAll();
+  // Not `saveAll()`: with «deploy on save» on, that save started a deploy of
+  // its own, and the explicit one got 409 (test of the rc.29, 23-11-2026).
+  // This one also waits for a save already running.
+  const ok = await useAppStore.getState().saveBeforeDeploy();
   const st = useAppStore.getState();
-  if (st.saveStatus === "error") {
+  if (!ok) {
     onLog(i18n.t("cfgUi.saveFailedDeployCancelled", { reason: st.saveError ?? i18n.t("cfgUi.unknownError") }));
     return false;
   }

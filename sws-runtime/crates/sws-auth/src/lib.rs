@@ -344,8 +344,8 @@ impl std::fmt::Display for UserError {
 /// 18-11-2026 (D18 of the CRA sessions: since then only if set by hand).
 ///
 /// Ora entra **solo se il risultato sarebbe zero utenti**, cioè quando è l'unica
-/// cosa che tiene il pannello raggiungibile. Senza seed, zero utenti significa
-/// no-auth: tutto aperto.
+/// cosa che tiene il pannello raggiungibile. Without a seed, zero users means
+/// a device waiting for pairing (since 11-10-2026), not an open one.
 ///
 /// Ritorna `true` se ha aggiunto qualcosa — solo allora il file va riscritto.
 fn applica_seed_di_recupero(
@@ -460,7 +460,12 @@ impl AuthState {
         let seminati = flag_factory_passwords(&mut users) | seminati;
 
         if users.is_empty() {
-            info!("no users defined — starting in no-auth mode (all routes open)");
+            // Only a fact about this store: who gets in is decided by the
+            // router (`fonte_auth_corrente`), and since 11-10-2026 a device
+            // without users is waiting for pairing, not open (rc.30: the old
+            // «no-auth mode (all routes open)» line was printed on a PLX800
+            // that was answering 401).
+            info!(store = %store_path.display(), "user store empty");
         } else if seminati {
             // Si scrive SOLO se il seed ha aggiunto qualcosa. Prima si riscriveva
             // a ogni avvio anche senza cambiamenti: `users` è una HashMap, quindi
@@ -571,7 +576,8 @@ impl AuthState {
         let seminati = applica_seed_di_recupero(&mut new_users, seed)?;
         let seminati = flag_factory_passwords(&mut new_users) | seminati;
         if new_users.is_empty() {
-            info!("no users defined — starting in no-auth mode (all routes open)");
+            // See `new_persistent`: a fact about this store, not who gets in.
+            info!(store = %new_path.display(), "user store empty");
         } else if seminati {
             // Come in `new_persistent`: si scrive solo se il seed ha aggiunto
             // qualcosa. Un progetto appena arrivato col deploy non si vede
@@ -622,8 +628,9 @@ impl AuthState {
         Ok(())
     }
 
-    /// True when at least one user is defined. When false, `require_auth`
-    /// passes all requests through (no-auth / open mode).
+    /// True when at least one user is defined. Who gets in when false is
+    /// decided by the router (`fonte_auth_corrente`): a device without any
+    /// user is waiting for pairing, not open (since 11-10-2026).
     pub async fn has_users(&self) -> bool {
         !self.users.read().await.is_empty()
     }

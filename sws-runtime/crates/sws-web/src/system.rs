@@ -197,6 +197,20 @@ pub struct SystemStatus {
     /// lo stato si legge da qui, non più da un file). `None` = nessuna ancora.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub display: Option<crate::display_target::StatoDisplay>,
+    /// Where the system turns the screen (PixsysOS, which restarts the device
+    /// to do it): the rotation now and whether the device is mounted upside
+    /// down. Absent elsewhere. The deploy reads it to ask before sending a
+    /// project that would restart the device (rc.30, collaudo on the PLX800).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub screen_rotation: Option<crate::control_panel::ScreenRotation>,
+    /// Closing the project would leave **the caller** without access (rc.30):
+    /// its session is a project user's, and nothing else carries the requests
+    /// after the close (no device Admin, no gateway signature, not the
+    /// development shortcut). A deploy closes the project before sending the
+    /// new one, and with such a session it stopped half way, leaving the panel
+    /// without a project (collaudo on the PLX800, 23-11-2026).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub close_locks_out: bool,
     /// La configurazione del servizio (i quadlet) rispetto a quella che questa
     /// immagine si aspetta (02-10-2026). `None` fuori da un container.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -420,6 +434,8 @@ pub async fn compute_system_status(
         container: detect_container_engine(),
         boot_image: None,
         display: None,
+        screen_rotation: None,
+        close_locks_out: false,
         quadlet: None,
         openplc: None,
         conferma_aggiornamento: None,
@@ -627,6 +643,31 @@ impl From<SystemStatus> for SystemStatusViewer {
             conferma_aggiornamento: s.conferma_aggiornamento,
         }
     }
+}
+
+#[derive(Deserialize, Default)]
+pub struct SystemQuery {
+    /// `?screen_rotation=1`: also ask the system how the screen is turned. A
+    /// question to D-Bus, so only the deploy asks it, not the IDE's polling.
+    #[serde(default)]
+    screen_rotation: Option<String>,
+}
+
+/// `GET /api/system` on the management and IDE ports: the status, plus what
+/// only a deploy needs to know about **this** caller and this device (rc.30).
+pub async fn get_system_status_route(
+    State(state): State<AppState>,
+    utente: Option<axum::Extension<crate::router::AuthUser>>,
+    headers: axum::http::HeaderMap,
+    axum::extract::Query(q): axum::extract::Query<SystemQuery>,
+) -> Json<SystemStatus> {
+    let s = state.clone();
+    let Json(mut status) = get_system_status(State(state), utente).await;
+    if q.screen_rotation.is_some() && !s.ide_only {
+        status.screen_rotation = crate::control_panel::screen_rotation(&s.config_dir).await;
+    }
+    status.close_locks_out = crate::router::close_locks_out(&s, &headers).await;
+    Json(status)
 }
 
 /// `GET /api/system` sulla porta del viewer: intero per un Operator o più, ridotto ai

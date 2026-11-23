@@ -219,15 +219,23 @@ export class RuntimeUnavailableError extends Error {
  *
  *  Qui invece non si puo' dimenticare: chiunque cambi progetto passa da questo
  *  client, quindi passa da questa funzione. */
-function segnalaCambioProgettoNostro(): void {
-  try { window.dispatchEvent(new CustomEvent("sws:project-switched")); } catch { /* SSR/test */ }
+function segnalaCambioProgettoNostro(path?: string): void {
+  // `detail.path`: the symbol editor's own window forwards some of its writes
+  // to the IDE by path (test of the rc.29, 23-11-2026).
+  try { window.dispatchEvent(new CustomEvent("sws:project-switched", path ? { detail: { path } } : undefined)); } catch { /* SSR/test */ }
 }
 
 /** Le scritture che questo client fa sul progetto attivo: `project.yaml`
  *  (`/api/project/…`), le pagine, le pagine di boot, i faceplate, le ricette.
  *  Non `/api/projects/…` (plurale): quelle cambiano progetto e hanno il loro
- *  segnale. */
-const SCRITTURE_SUL_PROGETTO = /^\/api\/(project\/|synoptics|boot-pages|faceplates|cornici|planimetrie|recipes)/;
+ *  segnale.
+ *
+ *  Not the lock's heartbeat (`/api/project/lock`, `/lock/release`): it writes
+ *  nothing in the project, as the server knows (`project_lock.rs`), and every
+ *  15 s it re-fixed the baseline, hiding a real external change for up to one
+ *  polling period. «Genera foto» (`/api/symbols/ai/photo`) writes in `images/`
+ *  (test of the rc.29, 23-11-2026). */
+const SCRITTURE_SUL_PROGETTO = /^\/api\/(project\/(?!lock(?:\/|$|\?))|synoptics|boot-pages|faceplates|cornici|planimetrie|recipes|symbols\/ai\/photo(?:$|\?))/;
 
 /** Ogni scrittura riuscita sul progetto fatta **da questo client** rifissa la
  *  baseline del sorvegliante, qui e non nei punti di chiamata.
@@ -242,7 +250,7 @@ const SCRITTURE_SUL_PROGETTO = /^\/api\/(project\/|synoptics|boot-pages|faceplat
 function segnalaScritturaNostra(path: string, metodo: string | undefined): void {
   if (!metodo || metodo.toUpperCase() === "GET") return;
   if (!SCRITTURE_SUL_PROGETTO.test(path)) return;
-  segnalaCambioProgettoNostro();
+  segnalaCambioProgettoNostro(path);
 }
 
 /** Server signals an authenticated user must change their password before
@@ -2186,6 +2194,9 @@ export const api = {
       try { body = await res.text(); } catch { /* ignore */ }
       throw new Error(`API ${path}: ${res.status} ${res.statusText}${body ? ` — ${body}` : ""}`);
     }
+    // A raw fetch, so not seen by `request`: `images/` is in the fingerprint,
+    // and an upload gave the «project changed» bar (test of the rc.29, 23-11-2026).
+    segnalaScritturaNostra(path, "POST");
     return res.json();
   },
 
@@ -3214,15 +3225,14 @@ export const api = {
    *  connesso. Restituisce la `Response` **grezza**: il corpo è un registro in
    *  streaming che il chiamante legge riga per riga.
    *
-   *  Non lancia sul 428: quello non è un errore ma «serve una conferma» — il
-   *  progetto non ha utenti e il dispositivo ne ha, quindi il deploy lo
-   *  lascerebbe accessibile senza password. Il corpo porta l'elenco che
-   *  sparirebbe. Vedi `cfg.deployNoUsersConfirm`.
+   *  Non lancia sul 428: quello non è un errore ma «serve una conferma» (vedi
+   *  `store/conferme428.ts`) — per esempio il progetto non ha utenti e il
+   *  dispositivo ne ha. Il corpo dice quale. Vedi `cfg.deployNoUsersConfirm`.
    *
    *  Unico punto in cui si compone il corpo: prima la `fetch` era scritta due
    *  volte (qui e nell'auto-deploy dello store), ed è così che i due percorsi
    *  divergono senza che nessuno se ne accorga. */
-  deployToRuntime: async (opts: { replaceUsers: boolean; confirmNoUsers?: boolean; conSegreti?: boolean; confirmReplace?: boolean; confirmMissingSymbols?: boolean; confirmUsersChange?: boolean }): Promise<Response> => {
+  deployToRuntime: async (opts: { replaceUsers: boolean; confirmNoUsers?: boolean; conSegreti?: boolean; confirmReplace?: boolean; confirmMissingSymbols?: boolean; confirmUsersChange?: boolean; confirmRotation?: boolean }): Promise<Response> => {
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (TOKEN) headers["Authorization"] = `Bearer ${TOKEN}`;
     return fetch(`${getBaseUrl()}/api/remote/deploy`, {
@@ -3241,6 +3251,8 @@ export const api = {
         confirm_missing_symbols: opts.confirmMissingSymbols ?? false,
         // Arrivano utenti col cambio password obbligatorio (07-11-2026).
         confirm_users_change: opts.confirmUsersChange ?? false,
+        // The device restarts to turn the screen, and the user knows (rc.30).
+        confirm_rotation: opts.confirmRotation ?? false,
       }),
     });
   },

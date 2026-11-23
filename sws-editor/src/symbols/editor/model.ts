@@ -82,6 +82,42 @@ export function inputs(d: DescrizioneSimbolo): SymbolInput[] {
   return out;
 }
 
+// ── names (test of the rc.29, 23-11-2026) ───────────────────────────────────
+//
+// What is created and then called by name asks the name first. One rule for
+// every field that names an input, a part or a port: the compiler's
+// (`nome_ammesso` and the part rules in `simboli_prj.rs`), with the cases in
+// `tests/fixtures/symbol-ids.json`, read by vitest and by cargo test.
+
+/** `input` = parts and inputs (one namespace: effects and pages bind by id);
+ *  `port` = pipe ports. */
+export type IdNamespace = "input" | "port";
+export type IdProblem = "length" | "chars" | "dash" | "reserved" | "taken";
+
+/** What is typed, as a name: no spaces around, lowercase. */
+export function normalizeId(v: string): string {
+  return v.trim().toLowerCase();
+}
+
+/** Why `id` can't be used, or `null`. An input can't be `body`, `layer-N` or
+ *  `fx-N` (the compiler's layers) nor `state` (the body's input in the editor). */
+export function idProblem(id: string, ns: IdNamespace, taken: Iterable<string> = []): IdProblem | null {
+  if (id.length < 2 || id.length > 30) return "length";
+  if (!/^[a-z0-9-]+$/.test(id)) return "chars";
+  if (id.startsWith("-") || id.endsWith("-")) return "dash";
+  if (ns === "input" && (id === "body" || id === "state" || id.startsWith("layer-") || id.startsWith("fx-"))) return "reserved";
+  for (const x of taken) if (x === id) return "taken";
+  return null;
+}
+
+/** `base`, or `base-2`, `base-3`… : the first one not in `taken`. */
+function freeId(base: string, taken: Iterable<string>): string {
+  const used = new Set(taken);
+  let id = base;
+  for (let n = 2; used.has(id); n++) id = `${base}-${n}`;
+  return id;
+}
+
 // ── numbers and paths ──────────────────────────────────────────────────────
 
 /** Two decimals, like the compiler writes them. */
@@ -131,8 +167,53 @@ export function transformPath(d: string, a: Affine): string {
   return out.join(" ");
 }
 
+/** The canonical order of the attributes written as an object
+ *  (`ORDINE_CANONICO` in `simboli_prj.rs`); the others follow, alphabetical. */
+const CANONICAL_ORDER = ["x", "y", "width", "height", "cx", "cy", "r", "rx", "ry", "d"];
+
+/** Attributes as pairs, whatever form they came in. The compiler also accepts
+ *  an object (`{ "fill": "none" }`, then in canonical order): one reaching the
+ *  editor stopped it with «e.find is not a function» (test of the rc.29,
+ *  23-11-2026). Anything else is no attributes. */
+export function asPairs(v: unknown): Pairs {
+  if (Array.isArray(v)) return v as Pairs;
+  if (!v || typeof v !== "object") return [];
+  const rank = (k: string) => {
+    const i = CANONICAL_ORDER.indexOf(k);
+    return i < 0 ? CANONICAL_ORDER.length : i;
+  };
+  return (Object.entries(v as Record<string, number | string>) as Pairs)
+    .sort(([a], [b]) => rank(a) - rank(b) || (a < b ? -1 : a > b ? 1 : 0));
+}
+
+/** The operations whose `geo` and `extra` are attribute lists (a `parte` has
+ *  its own `geo`, an object: not these). */
+const PAIRED = new Set(["forma", "luce", "riflesso", "tratto", "image"]);
+
+/** A description with every attribute list written as pairs, the form the
+ *  editor reads: applied where a description enters the editor (opening, a
+ *  symbol file, a proposal of the AI). The same description if nothing changes. */
+export function normalizeOps(d: DescrizioneSimbolo): DescrizioneSimbolo {
+  let changed = false;
+  const ops = (d.ops as Op[]).map((op) => {
+    if (!PAIRED.has(op.op)) return op;
+    let o = op;
+    for (const k of ["geo", "extra"]) {
+      const v = o[k];
+      if (v != null && !Array.isArray(v)) { o = { ...o, [k]: asPairs(v) }; changed = true; }
+    }
+    const clip = o.clip as { tag: string; geo: unknown } | undefined;
+    if (clip && clip.geo != null && !Array.isArray(clip.geo)) {
+      o = { ...o, clip: { ...clip, geo: asPairs(clip.geo) } };
+      changed = true;
+    }
+    return o;
+  });
+  return changed ? { ...d, ops } : d;
+}
+
 function getPair(p: Pairs, k: string): number | undefined {
-  const v = p.find(([n]) => n === k)?.[1];
+  const v = asPairs(p).find(([n]) => n === k)?.[1];
   return typeof v === "number" ? v : typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v)) ? Number(v) : undefined;
 }
 
@@ -166,14 +247,14 @@ function transformGeo(tag: string, geo: Pairs, a: Affine): Pairs {
 export function transformOp(op: Op, a: Affine): Op {
   switch (op.op) {
     case "forma": case "luce": case "riflesso":
-      return { ...op, geo: transformGeo(String(op.tag), op.geo as Pairs, a) };
+      return { ...op, geo: transformGeo(String(op.tag), asPairs(op.geo), a) };
     // A photo moves and resizes like a rectangle (plan 2026-11-21-simboli-fase-3-foto),
     // and the shape it is cut to with it (22-11-2026).
     case "image": {
-      const clip = op.clip as { tag: string; geo: Pairs } | undefined;
+      const clip = op.clip as { tag: string; geo: unknown } | undefined;
       return {
-        ...op, geo: transformGeo("rect", op.geo as Pairs, a),
-        ...(clip ? { clip: { ...clip, geo: transformGeo(clip.tag, clip.geo, a) } } : {}),
+        ...op, geo: transformGeo("rect", asPairs(op.geo), a),
+        ...(clip ? { clip: { ...clip, geo: transformGeo(clip.tag, asPairs(clip.geo), a) } } : {}),
       };
     }
     case "tratto":
@@ -242,14 +323,48 @@ export function deleteOps(d: DescrizioneSimbolo, which: number[]): DescrizioneSi
   return withOps(d, left.filter((op) => op.op !== "effetto" || groups.has(String(op.group))));
 }
 
-/** Copies of `which`, right after the last of them, moved by `offset`. */
+/** Copies of `which`, right after the last of them, moved by `offset`. A
+ *  whole group copied is a new group, without its effects; a shape copied
+ *  from a group is out of it (`copyOps`, `regroupCopies`). */
 export function duplicateOps(d: DescrizioneSimbolo, which: number[], offset = 4): { d: DescrizioneSimbolo; added: number[] } {
   const ops = [...(d.ops as Op[])];
   const sorted = [...which].sort((a, b) => a - b);
   const at = sorted[sorted.length - 1] + 1;
-  const copies = sorted.map((i) => transformOp(structuredClone(ops[i]), { sx: 1, sy: 1, tx: offset, ty: offset }));
+  const copies = regroupCopies(d, copyOps(d, sorted)).map((op) => transformOp(op, { sx: 1, sy: 1, tx: offset, ty: offset }));
   ops.splice(at, 0, ...copies);
   return { d: withOps(d, ops), added: copies.map((_, k) => at + k) };
+}
+
+/** Copies of the operations `which`, for duplicating or the clipboard. A
+ *  copy keeps its group only when the whole group is copied: a shape copied
+ *  from a group went into it, and into its effects, also when pasted into
+ *  another symbol with a group of the same name (test of the rc.29). */
+export function copyOps(d: DescrizioneSimbolo, which: number[]): Op[] {
+  const set = new Set(which);
+  return [...which].sort((a, b) => a - b).map((i) => {
+    const op = structuredClone(d.ops[i] as Op);
+    const g = groupOf(op);
+    if (g && !membersOf(d, g).every((j) => set.has(j))) delete op.group;
+    return op;
+  });
+}
+
+/** The copies' groups renamed to groups `d` doesn't have yet: a copied group
+ *  is a new group, with an automatic name and without effects (copying the
+ *  effects too is for 2.27). */
+export function regroupCopies(d: DescrizioneSimbolo, copies: Op[]): Op[] {
+  const taken = new Set((d.ops as Op[]).map(groupOf).filter((g): g is string => !!g));
+  const renamed = new Map<string, string>();
+  return copies.map((op) => {
+    const g = groupOf(op);
+    if (!g) return op;
+    if (!renamed.has(g)) {
+      const id = /^g\d+$/.test(g) ? freeGroupIn(taken) : freeId(g.replace(/-\d+$/, "") || g, taken);
+      taken.add(id);
+      renamed.set(g, id);
+    }
+    return { ...op, group: renamed.get(g) };
+  });
 }
 
 /** Moves operation `i` one step up (later = drawn above) or down, inside its
@@ -351,14 +466,14 @@ export function setPathD(d: DescrizioneSimbolo, i: number, path: string): Descri
 export function setExtra(d: DescrizioneSimbolo, i: number, key: string, value: number | string | undefined): DescrizioneSimbolo {
   const ops = [...(d.ops as Op[])];
   const op = { ...ops[i] };
-  const extra = ((op.extra as Pairs | undefined) ?? []).filter(([k]) => k !== key);
+  const extra = asPairs(op.extra).filter(([k]) => k !== key);
   op.extra = value === undefined ? extra : [...extra, [key, typeof value === "number" ? r2(value) : value]];
   ops[i] = op;
   return withOps(d, ops);
 }
 
 export function extraOf(op: Op, key: string): number | string | undefined {
-  return (op.extra as Pairs | undefined)?.find(([k]) => k === key)?.[1];
+  return asPairs(op.extra).find(([k]) => k === key)?.[1];
 }
 
 /** A straight path from (x1, y1) to (x2, y2): a line with the outline. */
@@ -372,7 +487,7 @@ export type Fill = { mat: string } | { color: string } | { body: true } | { none
 export function fillOf(op: Op): Fill | undefined {
   if (op.op === "forma") {
     if (typeof op.mat === "string") return { mat: op.mat };
-    const c = (op.extra as Pairs | undefined)?.find(([k]) => k === "fill")?.[1];
+    const c = extraOf(op, "fill");
     if (typeof c === "string" && c.startsWith("#")) return { color: c };
     // `fill: none` (17 library shapes: rims, outlines) is no fill, not the
     // colour of the state: choosing it filled them (phase 1).
@@ -381,7 +496,7 @@ export function fillOf(op: Op): Fill | undefined {
   }
   if (op.op === "tratto") {
     if (typeof op.mat === "string") return { mat: op.mat };
-    const c = (op.extra as Pairs | undefined)?.find(([k]) => k === "stroke")?.[1];
+    const c = extraOf(op, "stroke");
     if (typeof c === "string" && c.startsWith("#")) return { color: c };
   }
   return undefined;
@@ -393,7 +508,7 @@ export function setFill(d: DescrizioneSimbolo, i: number, f: Fill): DescrizioneS
   const ops = [...(d.ops as Op[])];
   const op = { ...ops[i] };
   const key = op.op === "tratto" ? "stroke" : "fill";
-  const extra = ((op.extra as Pairs | undefined) ?? []).filter(([k]) => k !== key);
+  const extra = asPairs(op.extra).filter(([k]) => k !== key);
   if ("mat" in f) { op.mat = f.mat; op.extra = extra; }
   else if ("color" in f) { op.mat = null; op.extra = [...extra, [key, f.color]]; }
   else if ("none" in f) { op.mat = null; op.extra = [...extra, [key, "none"]]; }
@@ -413,11 +528,11 @@ export function setVeil(d: DescrizioneSimbolo, i: number, veil: string | null): 
 export function setGeo(d: DescrizioneSimbolo, i: number, key: string, value: number): DescrizioneSimbolo {
   const ops = [...(d.ops as Op[])];
   const op = { ...ops[i] };
-  const geo = (op.geo as Pairs | undefined) ?? [];
-  if (Array.isArray(op.geo) && geo.some(([k]) => k === key)) {
+  const geo = asPairs(op.geo);
+  if (op.geo != null && typeof op.geo === "object" && geo.some(([k]) => k === key)) {
     op.geo = geo.map(([k, v]) => (k === key ? [k, r2(value)] : [k, v]));
   } else {
-    const extra = ((op.extra as Pairs | undefined) ?? []).filter(([k]) => k !== key);
+    const extra = asPairs(op.extra).filter(([k]) => k !== key);
     op.extra = [...extra, [key, r2(value)]];
   }
   ops[i] = op;
@@ -426,10 +541,12 @@ export function setGeo(d: DescrizioneSimbolo, i: number, key: string, value: num
 
 // ── inputs (the live parts) ────────────────────────────────────────────────
 
-/** A new input of `kind`, with the geometry its part needs and one shape to
- *  start from, at the end of the drawing (above everything). The `state`
- *  input is the body: there is at most one. */
-export function addInput(d: DescrizioneSimbolo, kind: InputKind): { d: DescrizioneSimbolo; at: number } | null {
+/** A new input of `kind`, named `id`, with the geometry its part needs and one
+ *  shape to start from, at the end of the drawing (above everything). The
+ *  `state` input is the body: there is at most one, and it has no name. An
+ *  `input` is an `ingresso`, with no layer: a part of kind «input» is one the
+ *  compiler refuses (test of the rc.29). `null` for a name that can't be. */
+export function addInput(d: DescrizioneSimbolo, kind: InputKind, id?: string): { d: DescrizioneSimbolo; at: number } | null {
   const ops = [...(d.ops as Op[])];
   const { w, h } = d;
   const cx = r2(w / 2), cy = r2(h / 2), m = Math.min(w, h);
@@ -439,7 +556,12 @@ export function addInput(d: DescrizioneSimbolo, kind: InputKind): { d: Descrizio
     ops.push({ op: "corpo" }, { ...newRect({ x: w * 0.2, y: h * 0.2, w: w * 0.6, h: h * 0.6 }), mat: null, velo: "paint-h" });
     return { d: withOps(d, ops), at };
   }
-  const id = freePartId(d, kind);
+  if (kind === "input") {
+    const r = addIngresso(d, id ?? freeInputId(d, "input"));
+    return r && { d: r.d, at: r.at };
+  }
+  if (id === undefined) id = freePartId(d, kind);
+  if (idProblem(id, "input", inputIds(d))) return null;
   const geo: Record<string, unknown> =
     kind === "rotor" ? { cx, cy, symmetry: 120 }
     : partDefaults(kind, { x: r2(w * 0.3), y: r2(h * 0.2), w: r2(w * 0.4), h: r2(h * 0.6) });
@@ -460,13 +582,18 @@ export function addInput(d: DescrizioneSimbolo, kind: InputKind): { d: Descrizio
 }
 
 /** Removes an input. Its shapes stay, drawn in the layer before it: removing
- *  the rotation of a fan does not remove the fan. */
+ *  the rotation of a fan does not remove the fan. An `ingresso` has no shapes:
+ *  it goes. The effects that followed it go with it, in the same step (asked
+ *  first by the editor, `effectsFollowing`): left behind, the symbol did not
+ *  compile (test of the rc.29). */
 export function removeInput(d: DescrizioneSimbolo, opIndex: number): DescrizioneSimbolo {
   const ops = [...(d.ops as Op[])];
   const op = ops[opIndex];
-  if (op?.op !== "corpo" && op?.op !== "parte") return d;
-  ops.splice(opIndex, 1, { op: "statico" });
-  return withOps(d, ops);
+  if (op?.op === "ingresso") ops.splice(opIndex, 1);
+  else if (op?.op === "corpo" || op?.op === "parte") ops.splice(opIndex, 1, { op: "statico" });
+  else return d;
+  const out = withOps(d, ops);
+  return op.op === "corpo" ? out : dropFollowers(out, [String(op.id)]);
 }
 
 /** Sets a number of a part's geometry (`cx`, `cy`, `symmetry`, `a0`…). */
@@ -478,12 +605,10 @@ export function setPartGeo(d: DescrizioneSimbolo, opIndex: number, key: string, 
   return withOps(d, ops);
 }
 
-/** A part id not used yet: the kind, then `kind-2`, `kind-3`… */
+/** A part id not used yet by a part or an input: the kind, then `kind-2`,
+ *  `kind-3`… */
 export function freePartId(d: DescrizioneSimbolo, kind: string): string {
-  const used = new Set((d.ops as Op[]).filter((o) => o.op === "parte").map((o) => String(o.id)));
-  let id = kind;
-  for (let n = 2; used.has(id); n++) id = `${kind}-${n}`;
-  return id;
+  return freeId(kind, inputIds(d));
 }
 
 /** The parameters a new piece of `kind` starts with, from the box of its
@@ -546,42 +671,72 @@ function shapesTakeLayerColour(d: DescrizioneSimbolo, which: number[]): Descrizi
 /** «Anima…»: the shapes `which` become a piece of `kind` (plan
  *  2026-11-19-animazioni-dei-simboli, decision 1: a piece is a layer). The new
  *  layer goes at the end of the layer holding the topmost of them, so every
- *  other shape stays in its layer; a part layer left empty goes. When `which`
- *  is exactly the shapes of one part, that part changes kind instead. */
+ *  other shape stays in its layer; a part layer left empty goes, and the
+ *  effects that followed it (`lost`, asked first by the editor). When `which`
+ *  is exactly the shapes of one part, that part changes kind instead. The new
+ *  part is named `id` (`null` for a name that can't be). */
 export function animateSelection(
-  d: DescrizioneSimbolo, which: number[], kind: InputKind, boxes: Map<number, Box>, colour?: string,
-): { d: DescrizioneSimbolo; part: number; shapes: number[] } | null {
+  d: DescrizioneSimbolo, which: number[], kind: InputKind, boxes: Map<number, Box>, colour?: string, id?: string,
+): { d: DescrizioneSimbolo; part: number; shapes: number[]; lost: FxOp[] } | null {
   const shapes = [...new Set(which)].filter((i) => draws(d.ops[i] as Op)).sort((a, b) => a - b);
   if (!shapes.length || kind === "state") return null;
   const box = union(shapes.map((i) => boxes.get(i)).filter((b): b is Box => !!b)) ?? { x: 0, y: 0, w: d.w, h: d.h };
   const ls = layers(d);
-  const whole = ls.find((l) => l.start >= 0 && (d.ops[l.start] as Op).op === "parte"
-    && l.ops.length === shapes.length && l.ops.every((i) => shapes.includes(i)));
+  const whole = wholePart(d, shapes);
   if (whole) {
     const out = setPartKind(d, whole.start, kind, box, colour);
-    return { d: out, part: whole.start, shapes: layers(out).find((l) => l.start === whole.start)?.ops ?? shapes };
+    return { d: out, part: whole.start, shapes: layers(out).find((l) => l.start === whole.start)?.ops ?? shapes, lost: [] };
   }
   const top = shapes[shapes.length - 1];
   const host = ls.find((l) => l.ops.includes(top)) ?? ls[ls.length - 1];
-  const id = freePartId(d, kind);
-  const r = insertInLayer(d, host.id, { op: "parte", id, kind, geo: partDefaults(kind, box, colour) });
+  const name = id ?? freePartId(d, kind);
+  if (idProblem(name, "input", inputIds(d))) return null;
+  const r = insertInLayer(d, host.id, { op: "parte", id: name, kind, geo: partDefaults(kind, box, colour) });
   // The shapes are all before the new opener: their indexes stay.
-  let out = moveToLayer(r.d, shapes, id).d;
-  // A part layer left with no shape would not compile: it goes.
-  const empty = layers(out).filter((l) => l.start >= 0 && (out.ops[l.start] as Op).op === "parte" && l.ops.length === 0 && l.id !== id);
-  if (empty.length) out = withOps(out, (out.ops as Op[]).filter((_, i) => !empty.some((l) => l.start === i)));
-  const mine = layers(out).find((l) => l.id === id)!;
+  let out = moveToLayer(r.d, shapes, name).d;
+  // A part layer left with no shape would not compile: it goes, with the
+  // effects that followed it.
+  const empty = layers(out).filter((l) => l.start >= 0 && (out.ops[l.start] as Op).op === "parte" && l.ops.length === 0 && l.id !== name);
+  const lost = effectsFollowing(out, empty.map((l) => l.id)).map((e) => e.fx);
+  if (empty.length) {
+    out = withOps(out, (out.ops as Op[]).filter((_, i) => !empty.some((l) => l.start === i)));
+    out = dropFollowers(out, empty.map((l) => l.id));
+  }
+  const mine = layers(out).find((l) => l.id === name)!;
   if (kind === "signal") out = shapesTakeLayerColour(out, mine.ops);
-  return { d: out, part: mine.start, shapes: mine.ops };
+  return { d: out, part: mine.start, shapes: mine.ops, lost };
+}
+
+/** The part layer whose shapes are exactly `shapes`, if there is one. */
+function wholePart(d: DescrizioneSimbolo, shapes: number[]): Layer | undefined {
+  return layers(d).find((l) => l.start >= 0 && (d.ops[l.start] as Op).op === "parte"
+    && l.ops.length === shapes.length && l.ops.every((i) => shapes.includes(i)));
+}
+
+/** Whether «Anima…» on `which` makes a new part (its name is asked then), or
+ *  only changes the kind of the part they are (the name stays). */
+export function animateCreatesPart(d: DescrizioneSimbolo, which: number[]): boolean {
+  const shapes = [...new Set(which)].filter((i) => draws(d.ops[i] as Op));
+  return shapes.length > 0 && !wholePart(d, shapes);
 }
 
 /** Renames a part (its layer id). Objects bind tags by this id. */
 export function renamePart(d: DescrizioneSimbolo, opIndex: number, id: string): DescrizioneSimbolo {
+  return renameInput(d, opIndex, id);
+}
+
+/** Renames a part or an input: the effects that follow it follow the new
+ *  name. Before the rc.30 a renamed input left its effects on the old name,
+ *  and an `ingresso` could not be renamed (test of the rc.29). `d` as it is
+ *  for a name that can't be. */
+export function renameInput(d: DescrizioneSimbolo, opIndex: number, to: string): DescrizioneSimbolo {
   const ops = [...(d.ops as Op[])];
   const op = ops[opIndex];
-  if (op?.op !== "parte") return d;
-  ops[opIndex] = { ...op, id };
-  return withOps(d, ops);
+  if (op?.op !== "parte" && op?.op !== "ingresso") return d;
+  const from = String(op.id);
+  if (from === to || idProblem(to, "input", inputIds(d).filter((x) => x !== from))) return d;
+  return withOps(d, ops.map((o, i) => (i === opIndex ? { ...o, id: to }
+    : o.op === "effetto" && o.input === from ? { ...o, input: to } : o)));
 }
 
 // ── quarter turns and mirrors ──────────────────────────────────────────────
@@ -664,7 +819,8 @@ export function matrixPath(d: string, m: Matrix): string {
   return out.join(" ");
 }
 
-function matrixGeo(tag: string, geo: Pairs, m: Matrix): Pairs {
+function matrixGeo(tag: string, raw: unknown, m: Matrix): Pairs {
+  const geo = asPairs(raw);
   const get = (k: string) => getPair(geo, k);
   const set = (vals: Record<string, number | string>): Pairs => geo.map(([k, v]) => [k, k in vals ? vals[k] : v]);
   switch (tag) {
@@ -696,7 +852,7 @@ const TURN_SIDE: Record<string, [number, number]> = { left: [-1, 0], right: [1, 
 export function matrixOp(op: Op, m: Matrix): Op {
   switch (op.op) {
     case "forma": case "luce": case "riflesso":
-      return { ...op, geo: matrixGeo(String(op.tag), op.geo as Pairs, m) };
+      return { ...op, geo: matrixGeo(String(op.tag), op.geo, m) };
     case "tratto":
       return { ...op, d: matrixPath(String(op.d), m) };
     case "bocca": {
@@ -709,6 +865,13 @@ export function matrixOp(op: Op, m: Matrix): Op {
     default:
       return op;
   }
+}
+
+/** What «Ruota e allinea» can turn or mirror. A photo can't: the format has
+ *  no rotation for it, and turning its box would stretch it (test of the
+ *  rc.29, 23-11-2026: the buttons did nothing on a photo, and said nothing). */
+export function turns(op: Op | undefined): boolean {
+  return !!op && ["forma", "luce", "riflesso", "tratto", "bocca"].includes(op.op);
 }
 
 export function matrixOps(d: DescrizioneSimbolo, which: number[], m: Matrix): DescrizioneSimbolo {
@@ -936,12 +1099,12 @@ export function freePortId(d: DescrizioneSimbolo): string {
   return `p${n}`;
 }
 
-/** A new port on the border nearest to (x, y), with the diameter of the last
- *  one (or 10), at the end of the operations. */
-export function addPort(d: DescrizioneSimbolo, x: number, y: number): { d: DescrizioneSimbolo; at: number } {
+/** A new port named `id` (`pN` if none) on the border nearest to (x, y), with
+ *  the diameter of the last one (or 10), at the end of the operations. */
+export function addPort(d: DescrizioneSimbolo, x: number, y: number, id: string = freePortId(d)): { d: DescrizioneSimbolo; at: number } {
   const e = nearestEdge(d.w, d.h, x, y);
   const last = ports(d).at(-1);
-  const ops = [...(d.ops as Op[]), { op: "bocca", x: e.x, y: e.y, side: e.side, d: last?.d ?? 10, id: freePortId(d) }];
+  const ops = [...(d.ops as Op[]), { op: "bocca", x: e.x, y: e.y, side: e.side, d: last?.d ?? 10, id }];
   return { d: withOps(d, ops), at: ops.length - 1 };
 }
 
@@ -982,9 +1145,10 @@ export function setPort(d: DescrizioneSimbolo, i: number, patch: Partial<{ id: s
   return withOps(d, ops);
 }
 
-/** A port id the compiler accepts: 2–30 characters a-z, 0-9, «-». */
+/** A port id the compiler accepts: 2–30 characters a-z, 0-9, «-», not at
+ *  either end (`idProblem`; the old rule let «-in» through). */
 export function validPortId(id: string): boolean {
-  return /^[a-z0-9-]{2,30}$/.test(id);
+  return idProblem(id, "port") === null;
 }
 
 /** The symbol at a new size: with `scale` every shape, part and port goes with
@@ -1084,19 +1248,34 @@ export function membersOf(d: DescrizioneSimbolo, g: string): number[] {
 }
 
 export function freeGroupId(d: DescrizioneSimbolo): string {
-  const used = new Set((d.ops as Op[]).map(groupOf));
+  return freeGroupIn((d.ops as Op[]).map(groupOf).filter((g): g is string => !!g));
+}
+
+function freeGroupIn(taken: Iterable<string>): string {
+  const used = new Set(taken);
   let n = 1;
   while (used.has(`g${n}`)) n++;
   return `g${n}`;
 }
 
-/** The drawings of `which` in one new group; the effects of the groups they
- *  came from follow the first of them. */
-export function groupOps(d: DescrizioneSimbolo, which: number[]): { d: DescrizioneSimbolo; group: string } {
+/** A group name from a word (the name of an effect, from the language
+ *  files): lowercase, a-z 0-9 «-», not used yet in `d` (`fiamma`, `fiamma-2`…). */
+export function freeGroupFrom(d: DescrizioneSimbolo, word: string): string {
+  const base = word.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 24);
+  const taken = (d.ops as Op[]).map(groupOf).filter((g): g is string => !!g);
+  return base.length >= 2 ? freeId(base, taken) : freeGroupIn(taken);
+}
+
+/** The drawings of `which` in one new group (named `id`, when none of them was
+ *  in a group already, or `gN`); the effects of the groups they came from
+ *  follow the first of them. `lost`: the glows and flames that go, since a
+ *  group has at most one of them. */
+export function groupOps(d: DescrizioneSimbolo, which: number[], id?: string): { d: DescrizioneSimbolo; group: string; lost: FxOp[] } {
   const ops = d.ops as Op[];
   const drawn = which.filter((i) => draws(ops[i]));
   const before = [...new Set(drawn.map((i) => groupOf(ops[i])).filter((g): g is string => !!g))];
-  const group = before[0] ?? freeGroupId(d);
+  const group = before[0] ?? id ?? freeGroupId(d);
   const set = new Set(drawn);
   const out = ops.map((op, i) => {
     if (set.has(i)) return { ...op, group };
@@ -1105,13 +1284,22 @@ export function groupOps(d: DescrizioneSimbolo, which: number[]): { d: Descrizio
   });
   // Two glows (or a glow and a flame) on one group are refused: keep the first.
   let shaped = false;
-  const dedup = out.filter((op) => {
+  const lost: FxOp[] = [];
+  const dedup = out.filter((op, i) => {
     if (op.op !== "effetto" || op.group !== group || (op.kind !== "glow" && op.kind !== "flame")) return true;
-    if (shaped) return false;
-    shaped = true;
-    return true;
+    if (!shaped) { shaped = true; return true; }
+    lost.push(ops[i] as unknown as FxOp);
+    return false;
   });
-  return { d: withOps(d, dedup), group };
+  return { d: withOps(d, dedup), group, lost };
+}
+
+/** Before grouping: whether a new group is made, and the effects it would
+ *  drop (asked first: they went in silence, test of the rc.29). */
+export function groupPlan(d: DescrizioneSimbolo, which: number[]): { createsGroup: boolean; lost: FxOp[] } {
+  const ops = d.ops as Op[];
+  const createsGroup = !which.some((i) => draws(ops[i]) && groupOf(ops[i]));
+  return { createsGroup, lost: groupOps(d, which).lost };
 }
 
 /** The drawings of `which` out of their group; effects left without shapes go. */
@@ -1137,25 +1325,59 @@ export function inputIds(d: DescrizioneSimbolo): string[] {
   return inputs(d).filter((i) => i.kind !== "state").map((i) => i.id);
 }
 
-/** A new input with no layer, at the start (it opens nothing). */
-export function addIngresso(d: DescrizioneSimbolo, wanted?: string): { d: DescrizioneSimbolo; id: string } {
-  const taken = new Set(inputIds(d));
-  let id = wanted && /^[a-z0-9-]{2,30}$/.test(wanted) && !taken.has(wanted) && !wanted.startsWith("fx-") ? wanted : "";
-  for (let n = 1; !id; n++) if (!taken.has(`input-${n}`)) id = `input-${n}`;
-  return { d: withOps(d, [{ op: "ingresso", id }, ...(d.ops as Op[])]), id };
+/** A new input with no layer, named `id`, at the end of the inputs that open
+ *  the description: in the order they were made. Before the rc.30 it went
+ *  first, and «Add effect» gave the new effect the newest input, the one of
+ *  the effect before (test of the rc.29, 23-11-2026). `at` = its index: the
+ *  operations from there on move by one. `null` for a name that can't be. */
+export function addIngresso(d: DescrizioneSimbolo, id: string): { d: DescrizioneSimbolo; id: string; at: number } | null {
+  if (idProblem(id, "input", inputIds(d))) return null;
+  const ops = [...(d.ops as Op[])];
+  let at = 0;
+  while (ops[at]?.op === "ingresso") at++;
+  ops.splice(at, 0, { op: "ingresso", id });
+  return { d: withOps(d, ops), id, at };
 }
 
-/** An effect for the drawings of `which`: they become a group if they aren't
- *  one already. A glow or a flame replaces the other on the same group. */
-export function addEffect(d: DescrizioneSimbolo, which: number[], kind: FxKind, input: string): { d: DescrizioneSimbolo; group: string } {
+/** The name a new input is offered: `base` (from the language files,
+ *  «acceso»), then `base-2`, `base-3`… */
+export function freeInputId(d: DescrizioneSimbolo, base: string): string {
+  const b = normalizeId(base);
+  return freeId(idProblem(b, "input") ? "input" : b, inputIds(d));
+}
+
+/** The effects that follow one of the inputs `ids`, with where they are. */
+export function effectsFollowing(d: DescrizioneSimbolo, ids: string[]): { at: number; fx: FxOp }[] {
+  return (d.ops as Op[]).flatMap((op, at) => (op.op === "effetto" && ids.includes(String(op.input)) ? [{ at, fx: op as unknown as FxOp }] : []));
+}
+
+/** The effects that follow one of `ids` taken out: without their input the
+ *  symbol would not compile. */
+function dropFollowers(d: DescrizioneSimbolo, ids: string[]): DescrizioneSimbolo {
+  const gone = new Set(effectsFollowing(d, ids).map((e) => e.at));
+  return gone.size ? withOps(d, (d.ops as Op[]).filter((_, i) => !gone.has(i))) : d;
+}
+
+/** Where an effect for the drawings of `which` goes: their group, when they
+ *  are exactly one; otherwise they become a group. */
+function effectTarget(d: DescrizioneSimbolo, which: number[]): string | undefined {
   const ops = d.ops as Op[];
   const drawn = which.filter((i) => draws(ops[i]));
   const groups = [...new Set(drawn.map((i) => groupOf(ops[i])))];
-  let cur = d, group: string;
-  if (groups.length === 1 && groups[0] && membersOf(d, groups[0]).every((i) => drawn.includes(i))) {
-    group = groups[0];
-  } else {
-    const r = groupOps(d, drawn);
+  return groups.length === 1 && groups[0] && membersOf(d, groups[0]).every((i) => drawn.includes(i)) ? groups[0] : undefined;
+}
+
+/** An effect for the drawings of `which`: they become a group if they aren't
+ *  one already, named `groupName` when it is a new one (the effect's name, not
+ *  `g1`). A glow or a flame replaces the other on the same group. */
+export function addEffect(
+  d: DescrizioneSimbolo, which: number[], kind: FxKind, input: string, groupName?: string,
+): { d: DescrizioneSimbolo; group: string } {
+  const drawn = which.filter((i) => draws((d.ops as Op[])[i]));
+  let cur = d;
+  let group = effectTarget(d, drawn);
+  if (!group) {
+    const r = groupOps(d, drawn, freeGroupFrom(d, groupName ?? kind));
     cur = r.d;
     group = r.group;
   }
@@ -1167,6 +1389,37 @@ export function addEffect(d: DescrizioneSimbolo, which: number[], kind: FxKind, 
   if (kind === "glow") { fx.color = "#22d3ee"; fx.radius = 4; }
   if (kind === "bubbles") fx.count = 6;
   return { d: withOps(cur, [...list, fx as unknown as Op]), group };
+}
+
+/** Before «Add effect»: the effects that would go — the glows and flames of
+ *  groups merged, or the one a new glow or flame replaces. Said and asked,
+ *  not done in silence (test of the rc.29). */
+export function effectPlan(d: DescrizioneSimbolo, which: number[], kind: FxKind): { lost: FxOp[] } {
+  const drawn = which.filter((i) => draws((d.ops as Op[])[i]));
+  let cur = d;
+  let group = effectTarget(d, drawn);
+  const lost: FxOp[] = [];
+  if (!group) {
+    const r = groupOps(d, drawn);
+    lost.push(...r.lost);
+    cur = r.d;
+    group = r.group;
+  }
+  if (kind === "glow" || kind === "flame") {
+    for (const op of cur.ops as Op[]) {
+      if (op.op === "effetto" && op.group === group && (op.kind === "glow" || op.kind === "flame")) lost.push(op as unknown as FxOp);
+    }
+  }
+  return { lost };
+}
+
+/** A selection with only some shapes of a group: an effect would go on the
+ *  whole group, and the panel would not show it (test of the rc.29). */
+export function partOfAGroup(d: DescrizioneSimbolo, which: number[]): boolean {
+  const ops = d.ops as Op[];
+  const drawn = which.filter((i) => draws(ops[i]));
+  const groups = new Set(drawn.map((i) => groupOf(ops[i])).filter((g): g is string => !!g));
+  return [...groups].some((g) => membersOf(d, g).some((i) => !drawn.includes(i)));
 }
 
 export function setEffect(d: DescrizioneSimbolo, at: number, patch: Partial<FxOp>): DescrizioneSimbolo {
@@ -1188,12 +1441,15 @@ export function clipPhoto(d: DescrizioneSimbolo, photo: number, shape: number): 
   const ops = [...(d.ops as Op[])];
   const p = ops[photo], s = ops[shape];
   if (p?.op !== "image" || s?.op !== "forma") return d;
-  ops[photo] = { ...p, clip: { tag: s.tag, geo: s.geo } };
+  ops[photo] = { ...p, clip: { tag: s.tag, geo: asPairs(s.geo) } };
   ops.splice(shape, 1);
   return withOps(d, ops);
 }
 
-/** «Togli ritaglio»: the shape comes back, right after the photo, outlined. */
+/** «Togli ritaglio»: the shape comes back, right after the photo, outlined
+ *  (filled, it would cover the photo). Its attributes as pairs, like every
+ *  other shape: written as an object they stopped the editor as soon as the
+ *  shape was selected alone (test of the rc.29, 23-11-2026). */
 export function unclipPhoto(d: DescrizioneSimbolo, photo: number): DescrizioneSimbolo {
   const ops = [...(d.ops as Op[])];
   const p = ops[photo];
@@ -1201,7 +1457,7 @@ export function unclipPhoto(d: DescrizioneSimbolo, photo: number): DescrizioneSi
   if (p?.op !== "image" || !clip) return d;
   const { clip: _c, ...rest } = p;
   ops[photo] = rest as Op;
-  ops.splice(photo + 1, 0, { op: "forma", tag: clip.tag, geo: clip.geo, extra: { fill: "none" } });
+  ops.splice(photo + 1, 0, { op: "forma", tag: clip.tag, geo: asPairs(clip.geo), mat: null, velo: null, extra: [["fill", "none"]] });
   return withOps(d, ops);
 }
 

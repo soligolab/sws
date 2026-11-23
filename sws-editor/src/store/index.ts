@@ -536,6 +536,10 @@ interface AppState {
   /** Persist everything: pending section drafts first, then all pages and
    *  (for Admins) the project-level collections. Callable from any mode. */
   saveAll: () => Promise<void>;
+  /** The save before an explicit deploy (Connessione, Dispositivi, pull,
+   *  «Send now»): waits for a save already running, saves what is unsaved,
+   *  and holds back the deploy on save meanwhile. `false` when the save failed. */
+  saveBeforeDeploy: () => Promise<boolean>;
 
   /** True when the session token expired mid-session. Shows ReAuthModal overlay. */
   reAuthNeeded: boolean;
@@ -943,15 +947,28 @@ const errText = (e: unknown) => (e instanceof Error ? e.message : String(e));
  */
 function autoDeployIfConnected() {
   const { remoteConnected, deployAlSalvataggio } = useAppStore.getState();
-  if (!remoteConnected || !deployAlSalvataggio || saltaDeployAutomatico) return;
-  void eseguiDeploy(false);
+  if (!remoteConnected || !deployAlSalvataggio || saltaDeployAutomatico > 0) return;
+  void eseguiDeploy(false, true);
 }
 
 /** Dove si ricorda l'interruttore «deploy al salvataggio». */
 const CHIAVE_DEPLOY_AL_SALVATAGGIO = "sws.deploy.alSalvataggio";
-/** Vero mentre `deployOra` salva prima di inviare: quel salvataggio non deve
- *  far partire anche il deploy automatico. */
-let saltaDeployAutomatico = false;
+/** Non-zero while an explicit deploy saves first (`saveBeforeDeploy`): that
+ *  save, and one already running, must not start the deploy on save too — two
+ *  deploys started, the explicit one got 409 and the automatic one opened its
+ *  confirmations (test of the rc.29, 23-11-2026). A counter, so two holders
+ *  don't release each other. */
+let saltaDeployAutomatico = 0;
+
+/** Resolves when no save is running; `true` if it had to wait for one. */
+function saveSettled(): Promise<boolean> {
+  if (useAppStore.getState().saveStatus !== "saving") return Promise.resolve(false);
+  return new Promise((resolve) => {
+    const stop = useAppStore.subscribe((s) => {
+      if (s.saveStatus !== "saving") { stop(); resolve(true); }
+    });
+  });
+}
 
 // I testi e la catena delle conferme dopo un 428 stanno in `conferme428.ts`,
 // un posto solo per i tre percorsi di deploy (F2, 05-11-2026).
@@ -964,7 +981,7 @@ export { testoSostituzione, testoSimboliMancanti } from "./conferme428";
  *    progetto non ha utenti il server risponde 428 e chi guarda decide.
  *  Il registro in streaming si legge fino in fondo: l'ultima riga che inizia
  *  con ✗ è il motivo, e finisce nel tooltip della testata. */
-async function eseguiDeploy(completo: boolean): Promise<void> {
+async function eseguiDeploy(completo: boolean, fromSave = false): Promise<void> {
   useAppStore.setState({ remoteDeployStatus: "syncing", remoteDeployErrore: null });
   let errore: string | null = null;
   try {
@@ -975,6 +992,13 @@ async function eseguiDeploy(completo: boolean): Promise<void> {
     for (;;) {
       res = await api.deployToRuntime({ replaceUsers: completo, conSegreti: completo, ...conferme });
       if (res.status !== 428) break;
+      // A deploy started by a save never asks: nobody pressed Deploy, and its
+      // question looked like the answer to the one who did (test of the rc.29,
+      // 23-11-2026). It stops, nothing touched, and says where to confirm.
+      if (fromSave) {
+        useAppStore.setState({ remoteDeployStatus: "error", remoteDeployErrore: i18n.t("header.deployOnSaveNeedsConfirm") });
+        return;
+      }
       const esito = await confermaDopo428(await res.clone().json().catch(() => ({})), conferme);
       if (esito.tipo === "riprova") { conferme = esito.conferme; continue; }
       if (esito.tipo === "annullato") { useAppStore.setState({ remoteDeployStatus: "idle" }); return; }
@@ -3155,12 +3179,26 @@ export const useAppStore = create<AppState>((set, get) => {
       if (!get().remoteConnected || get().remoteDeployStatus === "syncing") return;
       // Prima si salva ciò che è in sospeso, così parte quello che si vede — e
       // il salvataggio non deve far partire il deploy automatico: ne partirebbero due.
-      if (selectIsDirty(get())) {
-        saltaDeployAutomatico = true;
-        try { await get().saveAll(); } finally { saltaDeployAutomatico = false; }
-        if (get().saveStatus === "error") return;
-      }
+      if (!(await get().saveBeforeDeploy())) return;
       await eseguiDeploy(completo);
+    },
+
+    saveBeforeDeploy: async () => {
+      saltaDeployAutomatico += 1;
+      try {
+        // A save already running (Ctrl+S a moment before): `saveAll` would
+        // return at once and the deploy would ship the old files, and that
+        // save's own deploy on save would start too (test of the rc.29, 23-11-2026).
+        const waited = await saveSettled();
+        let ok = !waited || get().saveStatus !== "error";
+        if (selectIsDirty(get())) {
+          await get().saveAll();
+          ok = get().saveStatus !== "error";
+        }
+        return ok;
+      } finally {
+        saltaDeployAutomatico -= 1;
+      }
     },
 
     setSaveStatus: (saveStatus, saveError = null) => set({ saveStatus, saveError }),

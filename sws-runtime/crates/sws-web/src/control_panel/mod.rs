@@ -38,7 +38,7 @@ use backend::{
     Backend, Hotspot, Ipv4Change, PanelCornerOptions, RebootCorner, RebootCornerOptions,
     TimeChange, WifiConnect, CONFIRM_WITHIN_SECS,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
@@ -453,6 +453,27 @@ fn now_ms() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |d| d.as_millis() as u64)
+}
+
+/// The system's rotation as the deploy needs it (rc.30): `None` where the
+/// system does not turn the screen, or does not answer.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ScreenRotation {
+    /// Quarter turns clockwise, as the system has it now.
+    pub current: u32,
+    /// The device is mounted upside down (the control panel's «Flipped»).
+    pub flipped: bool,
+}
+
+pub async fn screen_rotation(config_dir: &std::path::Path) -> Option<ScreenRotation> {
+    if !backend().rotation_by_system().await {
+        return None;
+    }
+    let current = backend().system_rotation().await.ok()?;
+    Some(ScreenRotation {
+        current,
+        flipped: DeviceSettings::load(config_dir).flipped,
+    })
 }
 
 /// Brings PixsysOS' rotation to what the project and the device ask. Writes only

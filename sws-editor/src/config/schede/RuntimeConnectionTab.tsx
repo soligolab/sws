@@ -152,6 +152,9 @@ export function RuntimeConnectionTab() {
   const { t } = useTranslation();
   const setRemoteConnected = useAppStore((s) => s.setRemoteConnected);
   const remoteConnectedStore = useAppStore((s) => s.remoteConnected);
+  // A deploy of the header or of a save is running: this one would get 409,
+  // as the header's buttons know (test of the rc.29, 23-11-2026).
+  const otherDeployRunning = useAppStore((s) => s.remoteDeployStatus === "syncing");
   // Rientro nell'editor dopo il pull: stesse due azioni che App.tsx usa in
   // `onProjectOpened`, prese dallo store invece che passate giù per props.
   const resetProjectState = useAppStore((s) => s.resetProjectState);
@@ -932,8 +935,8 @@ export function RuntimeConnectionTab() {
             </span>
           </label>
           {!deployDone && (
-            <button style={{ ...BTN_PRIMARY, opacity: deploying ? 0.6 : 1 }}
-              onClick={handleDeploy} disabled={deploying}>
+            <button style={{ ...BTN_PRIMARY, opacity: deploying || otherDeployRunning ? 0.6 : 1 }}
+              onClick={handleDeploy} disabled={deploying || otherDeployRunning}>
               {deploying ? t("cfgUi.deployInCorso") : t("cfgUi.deployActiveProject")}
             </button>
           )}

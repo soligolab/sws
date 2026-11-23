@@ -37,6 +37,9 @@ use sws_core::{FunctionDef, TagDb, TagQuality, TagValue, TagWriteBus};
 use tokio::runtime::Handle;
 use tokio::sync::mpsc;
 
+mod derived;
+pub use derived::{derived_quality, run_derived_round, DerivedOutcome, DerivedState};
+
 /// T-69 fase C: stesso tipo concreto di `FunctionsRegistry` in
 /// `sws-web/src/router.rs` (`Arc<tokio::sync::RwLock<HashMap<String,
 /// FunctionDef>>>`) — un alias qui, non un tipo nuovo, così `sws-web` passa
@@ -1526,6 +1529,17 @@ pub async fn eval_expressions(
     exprs: Vec<String>,
     snapshot: std::collections::HashMap<String, TagValue>,
 ) -> Vec<Result<TagValue, String>> {
+    eval_expressions_with(exprs, snapshot, |v| v).await
+}
+
+/// [`eval_expressions`] on a snapshot of anything that holds a value: the
+/// derived round hands over its `TagState`s as they are, without copying the
+/// values out (rc.30; the TY570 runs this every 100 ms).
+pub(crate) async fn eval_expressions_with<V: Send + 'static>(
+    exprs: Vec<String>,
+    snapshot: std::collections::HashMap<String, V>,
+    value_of: fn(&V) -> &TagValue,
+) -> Vec<Result<TagValue, String>> {
     let n = exprs.len();
     // Read here, on the caller's thread: the rule is the process's.
     let mandatory = sandbox_obbligatoria();
@@ -1554,7 +1568,7 @@ pub async fn eval_expressions(
                 .ok_or_else(|| "harness without __sws_run".to_string())?;
             let tags_dict = PyDict::new(py);
             for (k, v) in &snapshot {
-                let py_v: Py<PyAny> = tag_value_to_py(py, v);
+                let py_v: Py<PyAny> = tag_value_to_py(py, value_of(v));
                 tags_dict.set_item(k, py_v).map_err(|e| e.to_string())?;
             }
             let tags_dict = ns
@@ -1595,7 +1609,13 @@ pub async fn eval_expressions(
 /// `tags.get("x")`. `None` when it also reads them in another way (a name in
 /// a variable, a loop over `tags`): such an expression is evaluated at every
 /// change, as before.
+///
+/// `#` comments are not read (rc.30, test of the rc.29, 23-11-2026): these
+/// names also decide the quality of the derived tag, and a `tags['old']`
+/// left in a comment would keep it Bad for ever.
 pub fn expression_reads(expr: &str) -> Option<Vec<String>> {
+    let text = without_comments(expr);
+    let expr: &str = &text;
     let b = expr.as_bytes();
     let mut reads = Vec::new();
     let mut uses = 0usize;
@@ -1627,6 +1647,60 @@ pub fn expression_reads(expr: &str) -> Option<Vec<String>> {
         reads.push(rest[1..1 + end].to_string());
     }
     (reads.len() == uses).then_some(reads)
+}
+
+/// The text of an expression with its `#` comments blanked out, byte for
+/// byte. Strings are kept whole — an f-string reads tags too — and a `#`
+/// inside one is not a comment.
+fn without_comments(expr: &str) -> std::borrow::Cow<'_, str> {
+    if !expr.contains('#') {
+        return std::borrow::Cow::Borrowed(expr);
+    }
+    let b = expr.as_bytes();
+    let mut out = b.to_vec();
+    // The quote that closes the string we are in, and whether it is triple.
+    let mut quote: Option<(u8, bool)> = None;
+    let mut i = 0usize;
+    while i < b.len() {
+        let c = b[i];
+        match quote {
+            Some((q, triple)) => {
+                if c == b'\\' {
+                    i += 2;
+                    continue;
+                }
+                if c == b'\n' && !triple {
+                    // An unclosed one-line string: Python refuses it anyway.
+                    quote = None;
+                } else if c == q && (!triple || b[i..].starts_with(&[q, q, q])) {
+                    quote = None;
+                    if triple {
+                        i += 3;
+                        continue;
+                    }
+                }
+                i += 1;
+            }
+            None if c == b'#' => {
+                // A newline is never inside a multi-byte character: the
+                // blanked text stays valid UTF-8.
+                while i < b.len() && b[i] != b'\n' {
+                    out[i] = b' ';
+                    i += 1;
+                }
+            }
+            None if c == b'\'' || c == b'"' => {
+                let triple = b[i..].starts_with(&[c, c, c]);
+                quote = Some((c, triple));
+                i += if triple { 3 } else { 1 };
+            }
+            None => i += 1,
+        }
+    }
+    match String::from_utf8(out) {
+        Ok(s) => std::borrow::Cow::Owned(s),
+        Err(_) => std::borrow::Cow::Borrowed(expr),
+    }
 }
 
 /// Whether a change of tag `changed` can change what an expression reads.
@@ -3473,6 +3547,43 @@ mod tests_expressions {
         assert_eq!(
             expression_reads("mytags = 1\ntags_x = 2\nmytags"),
             Some(vec![])
+        );
+    }
+
+    /// A `tags['x']` in a comment is not a read, and a comment that says
+    /// «tags» does not make the scan give up (rc.30). A `#` in a string is
+    /// not a comment, and an f-string still reads.
+    #[test]
+    fn expression_reads_ignores_comments() {
+        let s = |v: &[&str]| Some(v.iter().map(|s| s.to_string()).collect::<Vec<_>>());
+        assert_eq!(
+            expression_reads("# tags['old']\nround(tags['a'], 1)"),
+            s(&["a"])
+        );
+        assert_eq!(
+            expression_reads("# the tags of the rooms\ntags['a']"),
+            s(&["a"])
+        );
+        assert_eq!(
+            expression_reads("tags['a']  # was tags['b'] + tags.get('c')"),
+            s(&["a"])
+        );
+        assert_eq!(
+            expression_reads("'#' + str(tags['a']) + \"#\" + str(tags['b'])"),
+            s(&["a", "b"])
+        );
+        assert_eq!(
+            expression_reads("f\"{tags['a']:.1f} # °C\" + '''#\n''' + str(tags['b'])"),
+            s(&["a", "b"])
+        );
+        assert_eq!(
+            expression_reads("'it\\'s # not' + str(tags['a']) # tags['z']"),
+            s(&["a"])
+        );
+        // A comment with any character keeps the text intact around it.
+        assert_eq!(
+            expression_reads("x = tags['a'] # è già «tags»\nx + tags['b']"),
+            s(&["a", "b"])
         );
     }
 

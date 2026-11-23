@@ -10086,7 +10086,14 @@ fn dati_trend(
                         .iter()
                         .map(|s| Campione {
                             ts: s.ts_ms,
-                            v: valore_trend(&s.value),
+                            // A Bad sample lifts the pen like a non-number
+                            // (test of the rc.29, 23-11-2026: it was drawn as
+                            // a valid point). Uncertain stays drawn.
+                            v: if s.quality == Some(TagQuality::Bad) {
+                                None
+                            } else {
+                                valore_trend(&s.value)
+                            },
                         })
                         .collect(),
                 );
@@ -10199,11 +10206,166 @@ fn scrivi_testi(
     }
 }
 
+/// Copies the live quality of each trace from the snapshot into `dati`, and
+/// says whether it changed (test of the rc.29, 23-11-2026: a Bad tag drew as a
+/// valid flat line). Runs every frame: no allocation, and the trend redraws only
+/// when a quality actually changes.
+fn update_trend_live_quality(
+    dati: &mut crate::trend::Dati,
+    cfg: &crate::trend::Config,
+    tags: &TagSnapshot,
+) -> bool {
+    let mut changed = false;
+    if dati.live_bad.len() != cfg.tracce.len() {
+        dati.live_bad = vec![false; cfg.tracce.len()];
+        changed = true;
+    }
+    for (slot, tr) in dati.live_bad.iter_mut().zip(&cfg.tracce) {
+        let bad = tags
+            .get(tr.tag.as_str())
+            .is_some_and(|v| v.quality == TagQuality::Bad);
+        if *slot != bad {
+            *slot = bad;
+            changed = true;
+        }
+    }
+    changed
+}
+
+/// The trend and a Bad tag (test of the rc.29 on the WP630, 23-11-2026): the
+/// web twin is `sws-editor/tests/trendQuality.test.tsx`.
+#[cfg(test)]
+mod trend_quality_tests {
+    use super::*;
+
+    const NOW: u64 = 1_790_000_000_000;
+
+    fn sample(ts_ms: u64, v: f64, q: Option<TagQuality>) -> client::HistorySample {
+        client::HistorySample {
+            ts_ms,
+            value: TagValue::Float(v),
+            quality: q,
+        }
+    }
+
+    fn snapshot(tag: &str, quality: TagQuality) -> TagSnapshot {
+        let mut s = TagSnapshot::new();
+        s.insert(
+            tag.to_string(),
+            TagSnapshotValue {
+                value: TagValue::Float(0.0),
+                quality,
+                ts: NOW,
+            },
+        );
+        s
+    }
+
+    fn response(
+        serie: Vec<Vec<client::HistorySample>>,
+        secchi: Vec<Option<(u64, Vec<client::HistoryBucket>)>>,
+    ) -> client::TrendRisposta {
+        client::TrendRisposta {
+            versione: 1,
+            serie,
+            secchi,
+            allarmi: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn raw_bad_samples_lift_the_pen_and_uncertain_stays() {
+        let r = response(
+            vec![vec![
+                sample(NOW - 3000, 1.0, Some(TagQuality::Good)),
+                sample(NOW - 2000, 0.0, Some(TagQuality::Bad)),
+                sample(NOW - 1000, 3.0, Some(TagQuality::Uncertain)),
+                sample(NOW, 4.0, None),
+            ]],
+            vec![None],
+        );
+        let d = dati_trend(&r, "it", &LanguageTable::default());
+        let v: Vec<Option<f64>> = d.serie[0].iter().map(|c| c.v).collect();
+        assert_eq!(v, vec![Some(1.0), None, Some(3.0), Some(4.0)]);
+    }
+
+    #[test]
+    fn the_live_quality_comes_from_the_snapshot_and_redraws_only_on_change() {
+        let obj: SynopticObject = serde_json::from_value(serde_json::json!({
+            "id": "tr", "type": "trend", "x": 0, "y": 0, "width": 360, "height": 180,
+            "trend_tags": [{ "tag": "good" }, { "tag": "bad" }]
+        }))
+        .unwrap();
+        let cfg = config_trend(&obj, 360, 180);
+        let mut d = crate::trend::Dati::default();
+        let mut tags = snapshot("bad", TagQuality::Bad);
+        tags.extend(snapshot("good", TagQuality::Good));
+        assert!(update_trend_live_quality(&mut d, &cfg, &tags));
+        assert_eq!(d.live_bad, vec![false, true]);
+        assert!(
+            !update_trend_live_quality(&mut d, &cfg, &tags),
+            "same quality: no redraw"
+        );
+        tags.extend(snapshot("bad", TagQuality::Uncertain));
+        assert!(update_trend_live_quality(&mut d, &cfg, &tags));
+        assert_eq!(d.live_bad, vec![false, false], "Uncertain is not Bad");
+    }
+
+    #[test]
+    fn a_bad_trace_in_the_snapshot_shows_the_warning_even_with_bucket_data() {
+        // `andamento` of host-monitor: a one-hour window, so buckets without
+        // quality, and the line drawn as valid until today.
+        let obj: SynopticObject = serde_json::from_value(serde_json::json!({
+            "id": "tr", "type": "trend", "x": 0, "y": 0, "width": 360, "height": 180,
+            "window_s": 3600, "trend_tags": [{ "tag": "temp" }]
+        }))
+        .unwrap();
+        let mut cfg = config_trend(&obj, 360, 180);
+        cfg.lingua = "it".into();
+        let secchi = (0..5)
+            .map(|i| client::HistoryBucket {
+                ts_ms: NOW - 3_600_000 + i * 600_000,
+                min: 0.0,
+                max: 0.0,
+                avg: 0.0,
+                first: 0.0,
+                last: 0.0,
+            })
+            .collect();
+        let r = response(vec![Vec::new()], vec![Some((600_000, secchi))]);
+        let mut d = dati_trend(&r, "it", &LanguageTable::default());
+        update_trend_live_quality(&mut d, &cfg, &snapshot("temp", TagQuality::Bad));
+        let mut px = resvg::tiny_skia::Pixmap::new(360, 180).unwrap();
+        let misura = |t: &str, _: u16| t.chars().count() as f32 * 6.0;
+        let utc = |ts: u64| crate::trend::OraLocale {
+            anno: 2026,
+            mese: 11,
+            giorno: 23,
+            ora: ((ts / 3_600_000) % 24) as u32,
+            minuto: ((ts / 60_000) % 60) as u32,
+            secondo: ((ts / 1000) % 60) as u32,
+        };
+        let st = crate::trend::Stato::nuovo(&cfg);
+        let sc = crate::trend::disegna(&cfg, &d, &st, NOW, None, &mut px, &misura, &utc);
+        assert!(sc.dominio.is_some(), "there is data: the chart is drawn");
+        let warning = sc
+            .testi
+            .iter()
+            .find(|t| t.testo == "Dato non valido")
+            .expect("the warning is in the scene");
+        assert_eq!(warning.colore, crate::trend::BAD_QUALITY_COLOR);
+        assert!(
+            !sc.testi.iter().any(|t| t.colore == (0x94, 0xa3, 0xb8)),
+            "no number in the current-value badge"
+        );
+    }
+}
+
 /// Un frame del trend: tocchi, dati nuovi, e il ridisegno solo se qualcosa è
 /// cambiato — il poller risponde ogni 2 s, il ciclo gira a `pannello.fps`.
 /// Quando cambia solo il dito si rifà solo il dito, sopra il fondo tenuto da
 /// parte (`TrendVivo::fondo`).
-fn aggiorna_trend(t: &mut TrendVivo, lingua: &str, table: &LanguageTable) {
+fn aggiorna_trend(t: &mut TrendVivo, tags: &TagSnapshot, lingua: &str, table: &LanguageTable) {
     use crate::trend::Esito;
     let ora = client::now_unix_ms();
     if t.cfg.lingua != lingua {
@@ -10260,9 +10422,14 @@ fn aggiorna_trend(t: &mut TrendVivo, lingua: &str, table: &LanguageTable) {
         let g = t.feed.risposta.lock().unwrap_or_else(|e| e.into_inner());
         if g.versione != t.versione_vista {
             t.versione_vista = g.versione;
+            let live_bad = std::mem::take(&mut t.dati.live_bad);
             t.dati = dati_trend(&g, lingua, table);
+            t.dati.live_bad = live_bad;
             t.sporco = true;
         }
+    }
+    if update_trend_live_quality(&mut t.dati, &t.cfg, tags) {
+        t.sporco = true;
     }
     let misura = |s: &str, px: u16| misura_trend(s, px).0;
     let (w, h) = (t.cfg.w, t.cfg.h);
@@ -18817,7 +18984,7 @@ pub fn update_bindings(
                 }
             }
             LiveKind::Tabella(t) => aggiorna_tabella(t, tags),
-            LiveKind::Trend(t) => aggiorna_trend(t, &lingua, lang_table),
+            LiveKind::Trend(t) => aggiorna_trend(t, tags, &lingua, lang_table),
             LiveKind::AlarmViewer {
                 shared,
                 empty_ptr,

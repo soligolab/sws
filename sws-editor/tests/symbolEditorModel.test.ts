@@ -11,6 +11,8 @@ import {
   absolutePath, align, distribute, explodedOffsets, mapBox, matrixOp, matrixPath, moveLayer, moveToLayer, moveToNewLayer, newCircle, newPath,
   setExtra, turnMatrix, validPathD, type Box,
   animateSelection, partDefaults, setPartKind, setPartParam, freePartId, nothingDrawn,
+  addEffect, addIngresso, animateCreatesPart, copyOps, effectPlan, effectsFollowing, freeInputId, groupOps, groupPlan,
+  idProblem, inputIds, normalizeId, partOfAGroup, regroupCopies, renameInput, type IdNamespace,
 } from "../src/symbols/editor/model";
 
 const gabbia: DescrizioneSimbolo = JSON.parse(
@@ -371,5 +373,156 @@ describe("animating a selection", () => {
     expect(e.ops[0].geo).toEqual({ dx: 0, dy: -5, transition_ms: 500 });
     expect(setPartParam(e, 0, "transition_ms", undefined).ops[0].geo).toEqual({ dx: 0, dy: -5 });
     expect(setPartKind(d, 0, "pulse", { x: 0, y: 0, w: 10, h: 10 }).ops[0]).toMatchObject({ id: "slide", kind: "pulse", geo: { depth: 0.6 } });
+  });
+});
+
+/** Names, inputs and effects (test of the rc.29, 23-11-2026, anomaly D of
+ *  docs/plans/2026-11-23-correzioni-collaudo-rc30.md): what is made and then
+ *  called by name has the name asked; inputs keep the order they were made in;
+ *  a renamed or removed input takes its effects along. */
+describe("names, inputs and effects (rc.30)", () => {
+  const sym = (ops: Op[]): DescrizioneSimbolo => ({ slug: "s", w: 100, h: 100, body: "body-pump", it: "S", en: "S", ops });
+  const rect = (x: number, group?: string): Op =>
+    ({ op: "forma", tag: "rect", geo: [["x", x], ["y", 0], ["width", 10], ["height", 10]], mat: "steel", extra: [], ...(group ? { group } : {}) });
+  const fx = (kind: string, group: string, input: string): Op => ({ op: "effetto", kind, group, input });
+  const effects = (d: DescrizioneSimbolo) => (d.ops as Op[]).filter((o) => o.op === "effetto");
+  const shared = JSON.parse(readFileSync(resolve(__dirname, "../../tests/fixtures/symbol-ids.json"), "utf8")) as Record<IdNamespace, {
+    accepted: string[]; rejected: Record<string, string>; editorOnly: Record<string, string>;
+  }>;
+
+  it("one rule for the names, the compiler's (cases shared with cargo test)", () => {
+    for (const ns of ["input", "port"] as const) {
+      for (const id of shared[ns].accepted) expect(idProblem(id, ns), `${ns} ${id}`).toBeNull();
+      for (const [id, why] of Object.entries({ ...shared[ns].rejected, ...shared[ns].editorOnly })) {
+        expect(idProblem(id, ns), `${ns} ${id}`).toBe(why);
+      }
+    }
+    // `state` is the body's input in the editor; a port may be called so.
+    expect(idProblem("state", "input")).toBe("reserved");
+    expect(idProblem("state", "port")).toBeNull();
+    // What is typed is trimmed and lowercased first.
+    expect(normalizeId(" Acceso ")).toBe("acceso");
+    expect(idProblem(normalizeId(" Acceso "), "input")).toBeNull();
+    expect(idProblem("acceso", "input", ["acceso"])).toBe("taken");
+    expect(validPortId("-in")).toBe(false);
+  });
+
+  it("a new input goes after the inputs that open the description, in the order they were made", () => {
+    const d = sym([{ op: "ingresso", id: "aa" }, { op: "corpo" }, rect(0)]);
+    const r = addIngresso(d, "bb")!;
+    expect(r.at).toBe(1);
+    expect((r.d.ops as Op[]).map((o) => o.op)).toEqual(["ingresso", "ingresso", "corpo", "forma"]);
+    // Three in a row stay in that order: the newest is not the first any more.
+    const three = addIngresso(addIngresso(r.d, "cc")!.d, "dd")!.d;
+    expect(inputIds(three)).toEqual(["aa", "bb", "cc", "dd"]);
+    // An input the AI put at the end: the new one goes first, not after it.
+    const late = addIngresso(sym([{ op: "corpo" }, rect(0), { op: "ingresso", id: "zz" }]), "yy")!;
+    expect(late.at).toBe(0);
+    expect((late.d.ops as Op[])[1].op).toBe("corpo");
+    // A name that can't be makes nothing.
+    expect(addIngresso(d, "aa")).toBeNull();
+    expect(addIngresso(d, "body")).toBeNull();
+  });
+
+  it("the names offered don't clash with parts nor inputs", () => {
+    const d = sym([{ op: "ingresso", id: "slide" }, { op: "ingresso", id: "acceso" }, { op: "corpo" }, rect(0)]);
+    expect(freePartId(d, "slide")).toBe("slide-2");
+    expect(freeInputId(d, "acceso")).toBe("acceso-2");
+    expect(freeInputId(d, "On")).toBe("on");
+    expect(freeInputId(d, "?")).toBe("input");
+  });
+
+  it("«Add → Input» makes an `ingresso`, the name given; a part takes its name too", () => {
+    const d = sym([{ op: "corpo" }, rect(0)]);
+    const r = addInput(d, "input", "fiamma")!;
+    expect((r.d.ops as Op[])[r.at]).toEqual({ op: "ingresso", id: "fiamma" });
+    expect((r.d.ops as Op[]).some((o) => o.op === "parte")).toBe(false);
+    expect(addInput(r.d, "input", "fiamma")).toBeNull();
+    const p = addInput(r.d, "rotor", "fan")!;
+    expect((p.d.ops as Op[])[p.at]).toMatchObject({ op: "parte", id: "fan", kind: "rotor" });
+    expect(addInput(r.d, "rotor", "fiamma")).toBeNull();
+    expect(addPort(d, 0, 50, "mandata").d.ops.at(-1)).toMatchObject({ op: "bocca", id: "mandata" });
+  });
+
+  it("a renamed input or part takes its effects along, and only its own", () => {
+    const d = sym([{ op: "ingresso", id: "acceso" }, { op: "ingresso", id: "fumo" }, { op: "corpo" }, rect(0, "a"), rect(20, "b"),
+      { op: "parte", id: "fan", kind: "rotor", geo: { cx: 5, cy: 5 } }, rect(40, "c"),
+      fx("flame", "a", "acceso"), fx("smoke", "b", "fumo"), fx("glow", "c", "fan")]);
+    const a = renameInput(d, 0, "fuoco");
+    expect((a.ops as Op[])[0].id).toBe("fuoco");
+    expect(effects(a).map((o) => o.input)).toEqual(["fuoco", "fumo", "fan"]);
+    const b = renameInput(d, 5, "ventola");
+    expect(effects(b).map((o) => o.input)).toEqual(["acceso", "fumo", "ventola"]);
+    // A name that can't be, or one already taken: nothing changes.
+    expect(renameInput(d, 0, "fumo")).toBe(d);
+    expect(renameInput(d, 0, "-x")).toBe(d);
+  });
+
+  it("a removed input takes its effects with it, in one step; the body still becomes still", () => {
+    const d = sym([{ op: "ingresso", id: "acceso" }, { op: "corpo" }, rect(0, "a"),
+      { op: "parte", id: "fan", kind: "rotor", geo: { cx: 5, cy: 5 } }, rect(40, "c"),
+      fx("flame", "a", "acceso"), fx("glow", "c", "fan"), fx("smoke", "a", "fan")]);
+    expect(effectsFollowing(d, ["fan"]).map((e) => e.at)).toEqual([6, 7]);
+    const a = removeInput(d, 0);
+    expect((a.ops as Op[]).map((o) => o.op)).toEqual(["corpo", "forma", "parte", "forma", "effetto", "effetto"]);
+    expect(effects(a).map((o) => o.input)).toEqual(["fan", "fan"]);
+    const b = removeInput(d, 3);
+    expect((b.ops as Op[])[3]).toEqual({ op: "statico" });
+    expect(effects(b).map((o) => o.input)).toEqual(["acceso"]);
+    expect((removeInput(d, 1).ops as Op[])[1]).toEqual({ op: "statico" });
+  });
+
+  it("«Anima…» asks a name only when a part is made, and an empty part left behind takes its effects", () => {
+    const boxes = new Map([[2, { x: 0, y: 0, w: 10, h: 10 }], [4, { x: 40, y: 0, w: 10, h: 10 }]]);
+    const d = sym([{ op: "corpo" }, { op: "statico" }, rect(0, "a"),
+      { op: "parte", id: "fan", kind: "rotor", geo: { cx: 45, cy: 5 } }, rect(40, "c"), fx("glow", "c", "fan")]);
+    expect(animateCreatesPart(d, [4])).toBe(false); // the shapes of `fan`: only its kind changes
+    expect(animateCreatesPart(d, [2])).toBe(true);
+    expect(animateCreatesPart(d, [2, 4])).toBe(true);
+    const r = animateSelection(d, [2], "slide", boxes, undefined, "cassetto")!;
+    expect(inputIds(r.d)).toEqual(["cassetto", "fan"]);
+    expect(r.lost).toEqual([]);
+    expect(animateSelection(d, [2], "slide", boxes, undefined, "fan")).toBeNull();
+    // Both shapes into a new part: `fan` is left empty and goes, with its glow.
+    const both = animateSelection(d, [2, 4], "pulse", boxes, undefined, "battito")!;
+    expect(inputIds(both.d)).toEqual(["battito"]);
+    expect(both.lost.map((f) => f.kind)).toEqual(["glow"]);
+    expect(effects(both.d)).toEqual([]);
+  });
+
+  it("grouping says the glows and flames it would drop; an effect group is named after the effect", () => {
+    const d = sym([{ op: "corpo" }, rect(0, "a"), rect(20, "b"), rect(40), fx("glow", "a", "x"), fx("flame", "b", "x")]);
+    expect(groupPlan(d, [1, 2])).toMatchObject({ createsGroup: false, lost: [{ kind: "flame", group: "b" }] });
+    expect(groupPlan(d, [3])).toMatchObject({ createsGroup: true, lost: [] });
+    // An existing group keeps its name; the one asked is for a new group only.
+    expect(groupOps(d, [1, 3], "nuovo").group).toBe("a");
+    expect(groupOps(d, [3], "nuovo").group).toBe("nuovo");
+    // A flame on a group with a glow replaces it: said first.
+    expect(effectPlan(d, [1], "flame").lost.map((f) => f.kind)).toEqual(["glow"]);
+    expect(effectPlan(d, [1], "smoke").lost).toEqual([]);
+    const one = addEffect(d, [3], "flame", "x", "Fiamma");
+    expect(one.group).toBe("fiamma");
+    const loose = sym([...(one.d.ops as Op[]), rect(60)]);
+    expect(addEffect(loose, [loose.ops.length - 1], "flame", "x", "fiamma").group).toBe("fiamma-2");
+    // Some shapes of a group, not all: the effect would go on the whole group.
+    const g = sym([{ op: "corpo" }, rect(0, "a"), rect(20, "a")]);
+    expect(partOfAGroup(g, [1])).toBe(true);
+    expect(partOfAGroup(g, [1, 2])).toBe(false);
+  });
+
+  it("a whole group copied is a new group without effects; a shape of a group copied leaves it", () => {
+    const d = sym([{ op: "corpo" }, rect(0, "fiamma"), rect(20, "fiamma"), rect(40, "neon"), rect(60, "neon"), fx("flame", "fiamma", "x")]);
+    const whole = duplicateOps(d, [1, 2]);
+    const copies = whole.added.map((i) => (whole.d.ops as Op[])[i]);
+    expect(copies.map((o) => o.group)).toEqual(["fiamma-2", "fiamma-2"]);
+    expect(effects(whole.d)).toHaveLength(1);
+    const part = duplicateOps(d, [3]);
+    expect((part.d.ops as Op[])[part.added[0]].group).toBeUndefined();
+    // Pasted into another symbol that has a group of the same name: a new group there too.
+    const clip = copyOps(d, [1, 2, 3]);
+    expect(clip.map((o) => o.group)).toEqual(["fiamma", "fiamma", undefined]);
+    const other = sym([{ op: "corpo" }, rect(0, "fiamma"), fx("glow", "fiamma", "y")]);
+    expect(regroupCopies(other, clip).map((o) => o.group)).toEqual(["fiamma-2", "fiamma-2", undefined]);
+    expect(regroupCopies(sym([]), clip).map((o) => o.group)).toEqual(["fiamma", "fiamma", undefined]);
   });
 });

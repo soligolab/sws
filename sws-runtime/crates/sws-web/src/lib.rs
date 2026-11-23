@@ -78,6 +78,7 @@ pub mod trash;
 pub mod tunnel;
 pub mod users_sent;
 pub mod validate;
+pub mod ws_audit;
 pub mod zip_limits;
 
 pub use global_scripts::GlobalScriptSupervisor;

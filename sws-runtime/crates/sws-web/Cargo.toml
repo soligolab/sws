@@ -94,3 +94,5 @@ percent-encoding = "2.3.2"
 
 [dev-dependencies]
 rusqlite.workspace = true
+# The paused clock of the audit rows of the tag socket (`ws_audit.rs`).
+tokio = { workspace = true, features = ["test-util"] }

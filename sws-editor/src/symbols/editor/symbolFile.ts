@@ -8,7 +8,7 @@
 import { strFromU8, strToU8, unzipSync, zipSync, type Zippable } from "fflate";
 import type { DescrizioneSimbolo } from "@/types";
 import { symbolPhotos } from "@/images/usage";
-import { slugFrom, type Op } from "./model";
+import { normalizeOps, slugFrom, type Op } from "./model";
 
 export const SYMBOL_FILE_FORMAT = "sws-symbol";
 export const SYMBOL_FILE_VERSION = 1;
@@ -56,7 +56,9 @@ export function readSymbolFile(text: string, taken: readonly string[]):
   for (let n = 2, base = slug.slice(0, 36); taken.includes(slug); n++) slug = `${base}-${n}`;
   const d: DescrizioneSimbolo = { slug, w: s.w, h: s.h, body: s.body, it, en, ops: s.ops as Op[] };
   if (typeof s.tipo === "string") d.tipo = s.tipo;
-  return { ok: true, d };
+  // A file may write attributes as objects, as the compiler allows (or as the
+  // rc.29 exported a shape given back by «Togli ritaglio»).
+  return { ok: true, d: normalizeOps(d) };
 }
 
 /** A zip, by its first bytes. */

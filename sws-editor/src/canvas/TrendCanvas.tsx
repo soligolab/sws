@@ -3,7 +3,7 @@ import { scaricaImmagine, serveScaricare } from "@/canvas/ImmagineSvg";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { predefinito } from "@/coloriPredefiniti";
-import type { AlarmEvent, BucketSample, Sample, TrendSeriesStyle } from "@/types";
+import type { AlarmEvent, BucketSample, Sample, TagQuality, TrendSeriesStyle } from "@/types";
 import { useLinguaContenuti } from "@/i18n/linguaContenuti";
 import { resolveMsg } from "@/i18n/projectI18n";
 import { testoSistema } from "@/i18n/testiSistema";
@@ -74,14 +74,53 @@ const DASH_MAP: Record<NonNullable<TrendSeriesStyle["dash"]>, number[]> = {
   dotted: [1, 3],
 };
 
+/** The text colour of the Bad-quality warning (test of the rc.29, 23-11-2026):
+ *  neutral, because red belongs to alarms, and brighter than the #475569 of
+ *  «waiting for samples», which on the WP630 was barely readable. Same value
+ *  as `BAD_QUALITY_COLOR` in the LVGL `trend.rs`. */
+export const BAD_QUALITY_COLOR = "#e2e8f0";
+
+/** The value a sample contributes to the chart, or null when it has none: not
+ *  a number, or recorded with quality Bad (test of the rc.29, 23-11-2026). A
+ *  Bad sample used to be drawn as a valid point — `ancora` repeats and extends
+ *  it, so a Bad tag looked like a flat line at 0.0. Uncertain stays drawn. */
+export function drawableNumber(p: Sample): number | null {
+  if (p.quality === "Bad") return null;
+  return sampleToNumber(p.value);
+}
+
+/** Whether trace `points` shows invalid data now. The live quality decides
+ *  when it is known (it is what the operator would read on a value display);
+ *  without it — a tag not yet in the snapshot, the "Espandi" modal — the last
+ *  raw sample does. Buckets carry no quality and count as Good. */
+export function traceIsBad(points: Sample[] | undefined, live: TagQuality | undefined): boolean {
+  if (live !== undefined) return live === "Bad";
+  const last = points?.[points.length - 1];
+  return last?.quality === "Bad";
+}
+
+/** True when at least one series has two samples the chart can draw: the
+ *  «waiting» / «invalid data» message replaces the chart otherwise. Counted on
+ *  drawable samples, not on all of them: an all-Bad series anchored by
+ *  `ancora` has two samples and nothing to draw. */
+export function hasDrawableData(series: Sample[][]): boolean {
+  return series.some((s) => {
+    let n = 0;
+    for (const p of s) {
+      if (drawableNumber(p) !== null && ++n >= 2) return true;
+    }
+    return false;
+  });
+}
+
 /** Splits a series into contiguous runs of plottable {x,y} points, breaking
- *  wherever a sample can't be coerced to a number (mirrors the old
+ *  wherever a sample can't be coerced to a number or is Bad (mirrors the old
  *  "pen lifts on null" stroke logic, now shared with fill). */
-function buildRuns(points: Sample[], xAt: (ts: number) => number, yAt: (v: number) => number): { x: number; y: number }[][] {
+export function buildRuns(points: Sample[], xAt: (ts: number) => number, yAt: (v: number) => number): { x: number; y: number }[][] {
   const runs: { x: number; y: number }[][] = [];
   let current: { x: number; y: number }[] = [];
   for (const p of points) {
-    const n = sampleToNumber(p.value);
+    const n = drawableNumber(p);
     if (n === null) {
       if (current.length) { runs.push(current); current = []; }
       continue;
@@ -206,6 +245,11 @@ interface TrendCanvasProps {
   axisColor?: string;
   /** Grid-lines color. */
   gridColor?: string;
+  /** Live quality of each trace, parallel to tags (test of the rc.29,
+   *  23-11-2026). A Bad trace is marked in the legend and its current-value
+   *  badge reads «Invalid data»; with nothing drawable the centre says so.
+   *  Pass a stable array: it is a dependency of the draw pass. */
+  liveQualities?: (TagQuality | undefined)[];
 }
 
 const SMALL_BTN: React.CSSProperties = {
@@ -358,6 +402,7 @@ export function TrendCanvas({
   bgImage,
   axisColor,
   gridColor,
+  liveQualities,
 }: TrendCanvasProps) {
   const { t } = useTranslation();
   const lingua = useLinguaContenuti();
@@ -682,16 +727,24 @@ export function TrendCanvas({
     const fontLegenda = `${corpo}px system-ui, sans-serif, 'SWS Emoji'`;
     const fontLettura = `${corpo + 1}px ui-monospace, monospace`;
 
-    const hasAnyData = series.some((s) => s.length >= 2);
+    // Which traces show invalid data now (test of the rc.29, 23-11-2026): the
+    // live quality, not the history — buckets carry no quality, and `ancora`
+    // prolongs a Bad sample to now.
+    const badTrace = tags.map((_, i) => traceIsBad(series[i], liveQualities?.[i]));
+    const badText = testoSistema("trend_bad_quality", lingua.lang);
+
+    const hasAnyData = hasDrawableData(series);
     if (!hasAnyData) {
-      ctx.fillStyle = "#475569";
+      const noTag = tags.length === 0 || tags.every((tag) => !tag);
+      const bad = !noTag && badTrace.some(Boolean);
+      ctx.fillStyle = bad ? BAD_QUALITY_COLOR : "#475569";
       ctx.font = "11px system-ui, sans-serif, 'SWS Emoji'";
       ctx.textAlign = "center";
       // Testo di sistema (30-09-2026): lo scrive il motore dentro la pagina,
       // quindi nella lingua dei contenuti — lo stesso che scrive il pannello LVGL.
-      const msg = tags.length === 0 || tags.every((tag) => !tag)
+      const msg = noTag
         ? testoSistema("trend_nessun_tag", lingua.lang)
-        : testoSistema("trend_in_attesa", lingua.lang);
+        : bad ? badText : testoSistema("trend_in_attesa", lingua.lang);
       ctx.fillText(msg, width / 2, height / 2);
       return;
     }
@@ -704,10 +757,11 @@ export function TrendCanvas({
     // by a 230 one sharing the same range, or vice versa).
     let vMin = Number.POSITIVE_INFINITY;
     let vMax = Number.NEGATIVE_INFINITY;
+    // Bad samples are not drawn, so they don't stretch the scale either.
     series.forEach((s, idx) => {
       if (ownScaleIndices.includes(idx) || effHidden.has(idx)) return;
       for (const p of s) {
-        const n = sampleToNumber(p.value);
+        const n = drawableNumber(p);
         if (n !== null) {
           if (n < vMin) vMin = n;
           if (n > vMax) vMax = n;
@@ -737,7 +791,7 @@ export function TrendCanvas({
       let lo = Number.POSITIVE_INFINITY;
       let hi = Number.NEGATIVE_INFINITY;
       for (const p of series[idx] ?? []) {
-        const n = sampleToNumber(p.value);
+        const n = drawableNumber(p);
         if (n !== null) {
           if (n < lo) lo = n;
           if (n > hi) hi = n;
@@ -994,7 +1048,15 @@ export function TrendCanvas({
         ctx.fillRect(cx, cy - 4, 8, 8);
         ctx.fillStyle = hidden ? "#475569" : "#cbd5e1";
         ctx.fillText(name, cx + 12, cy);
-        const w = ctx.measureText(name).width;
+        let w = ctx.measureText(name).width;
+        // A Bad trace says so next to its name; the other traces keep their
+        // colours (test of the rc.29, 23-11-2026).
+        if (badTrace[idx]) {
+          const mark = `(${badText})`;
+          ctx.fillStyle = BAD_QUALITY_COLOR;
+          ctx.fillText(mark, cx + 12 + w + 4, cy);
+          w += 4 + ctx.measureText(mark).width;
+        }
         legendBoxesRef.current.push({ x0: cx, x1: cx + 12 + w, y0: cy - 7, y1: cy + 7, idx });
         cx += 12 + w + 12;
       });
@@ -1018,7 +1080,7 @@ export function TrendCanvas({
         for (const p of pts) {
           const d = Math.abs(p.ts_ms - ts);
           if (d < bestDist) {
-            const n = sampleToNumber(p.value);
+            const n = drawableNumber(p);
             if (n !== null) { best = n; bestDist = d; }
           } else if (d > bestDist) break; // ordinati per ts: oltre il minimo
         }
@@ -1127,7 +1189,8 @@ export function TrendCanvas({
           if (dt < bestDt) { bestDt = dt; best = p; }
         }
         if (!best) return;
-        const n = sampleToNumber(best.value);
+        // Over a Bad stretch the line is broken: no reading either.
+        const n = drawableNumber(best);
         if (n === null) return;
         const y = yAtFor(idx)(n);
         hits.push({ tag: seriesLabels?.[idx] ?? tags[idx] ?? "", color: colors[idx], value: n, y });
@@ -1175,18 +1238,20 @@ export function TrendCanvas({
     }
 
     // ── Current-value badge (top-right corner of plot area) ──
+    // A Bad trace shows the warning in place of its number (test of the rc.29,
+    // 23-11-2026): with buckets the line is still drawn, and this is the sign.
     if (hoverX === null) {
       const last = series.map((s) => s[s.length - 1]).filter(Boolean);
-      const lastN = last.length === 1 ? sampleToNumber(last[0].value) : null;
-      if (lastN !== null && tags.length === 1) {
-        ctx.fillStyle = "#94a3b8";
+      const lastN = last.length === 1 ? drawableNumber(last[0]) : null;
+      if (tags.length === 1 && (badTrace[0] || lastN !== null)) {
+        ctx.fillStyle = badTrace[0] ? BAD_QUALITY_COLOR : "#94a3b8";
         ctx.font = fontLettura;
         ctx.textAlign = "right";
         ctx.textBaseline = "top";
-        ctx.fillText(fmtValue(lastN), PAD_LEFT + plotW - 4, PAD_TOP + 4);
+        ctx.fillText(badTrace[0] ? badText : fmtValue(lastN!), PAD_LEFT + plotW - 4, PAD_TOP + 4);
       }
     }
-  }, [series, envelopes, width, height, colors, yMin, yMax, hoverX, tags.join(","), windowS, isHistorical, explicitFromMs, explicitToMs, offsetMs, effHidden, seriesStyles, dragStartX, dragCurX, dtDateOrder, dtSeparator, dtTimeFormat, dtShowSeconds, dtShowYear, dtTwoLines, dtAlwaysShowDate, showThresholds, warnLow, warnHigh, alarmLow, alarmHigh, showAlarmMarkers, alarmEvents, bgColor, bgImage, bgImgTick, axisColor, gridColor, logScale, yUnit, cursors, measureMode, seriesLabels, editPreview, lingua, t]);
+  }, [series, envelopes, width, height, colors, yMin, yMax, hoverX, tags.join(","), windowS, isHistorical, explicitFromMs, explicitToMs, offsetMs, effHidden, seriesStyles, dragStartX, dragCurX, dtDateOrder, dtSeparator, dtTimeFormat, dtShowSeconds, dtShowYear, dtTwoLines, dtAlwaysShowDate, showThresholds, warnLow, warnHigh, alarmLow, alarmHigh, showAlarmMarkers, alarmEvents, bgColor, bgImage, bgImgTick, axisColor, gridColor, logScale, yUnit, cursors, measureMode, seriesLabels, editPreview, liveQualities, lingua, t]);
 
   const hasSeries = series.some((s) => s.length > 0);
 

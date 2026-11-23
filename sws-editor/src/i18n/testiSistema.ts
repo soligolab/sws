@@ -58,6 +58,9 @@ export type VoceSistema =
   | "sp_attuale"
   | "trend_nessun_tag"
   | "trend_in_attesa"
+  // A trace whose live quality is Bad (test of the rc.29, 23-11-2026): before,
+  // a Bad tag was drawn as a valid flat line.
+  | "trend_bad_quality"
   // La configurazione del servizio da aggiornare (02-10-2026): `{da}`, `{a}`.
   | "quadlet_titolo"
   | "quadlet_spiega"
@@ -229,6 +232,7 @@ export const TESTI_SISTEMA: Record<VoceSistema, Record<LinguaSistema, string>> =
   sp_attuale: { it: "Attuale:", de: "Aktuell:", fr: "Actuel :", es: "Actual:", en: "Current:" },
   trend_nessun_tag: { it: "Tag non configurato", de: "Kein Tag konfiguriert", fr: "Aucun tag configuré", es: "Tag no configurado", en: "No tag configured" },
   trend_in_attesa: { it: "In attesa di campioni…", de: "Warte auf Messwerte…", fr: "En attente d'échantillons…", es: "Esperando muestras…", en: "Waiting for samples…" },
+  trend_bad_quality: { it: "Dato non valido", de: "Ungültige Daten", fr: "Donnée non valide", es: "Dato no válido", en: "Invalid data" },
   quadlet_titolo: { it: "Configurazione del servizio da aggiornare", de: "Dienstkonfiguration aktualisieren", fr: "Configuration du service à mettre à jour", es: "Configuración del servicio por actualizar", en: "Service configuration needs updating" },
   quadlet_spiega: { it: "Il pannello ha la configurazione {da}, questa versione vuole la {a}. Aggiornandola il pannello si riavvia.", de: "Das Panel hat die Konfiguration {da}, diese Version erwartet {a}. Beim Aktualisieren startet das Panel neu.", fr: "Le panneau a la configuration {da}, cette version attend la {a}. La mise à jour redémarre le panneau.", es: "El panel tiene la configuración {da}, esta versión espera la {a}. Al actualizarla, el panel se reinicia.", en: "The panel has configuration {da}, this version expects {a}. Updating it restarts the panel." },
   conf_titolo: { it: "Confermare l'aggiornamento?", de: "Aktualisierung bestätigen?", fr: "Confirmer la mise à jour ?", es: "¿Confirmar la actualización?", en: "Confirm the update?" },

@@ -830,8 +830,10 @@ export function App() {
 
   // I salvataggi dell'autore cambiano il fingerprint tanto quanto un deploy
   // esterno: senza questa guardia l'avviso comparirebbe dopo ogni Ctrl+S.
-  // Il polling è a 10 s e un salvataggio dura meno di 1 s, quindi 20 s di
-  // finestra bastano per attribuire il cambio a noi.
+  // Polling every 3 s (projectWatcher.ts). Our writes are recognised one by
+  // one — the client's signal after each write, and the symbol window's
+  // `saved`/`wrote` through the bridge (rc.30) — so these 20 s are only a
+  // safety net; removing them is in the seed «due editor sullo stesso progetto».
   const lastLocalSaveAt = useRef(0);
   useEffect(() => {
     if (saveStatus === "ok") lastLocalSaveAt.current = Date.now();

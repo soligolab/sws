@@ -364,6 +364,13 @@
       "es": "Esperando muestras…",
       "en": "Waiting for samples…"
     },
+    "trend_bad_quality": {
+      "it": "Dato non valido",
+      "de": "Ungültige Daten",
+      "fr": "Donnée non valide",
+      "es": "Dato no válido",
+      "en": "Invalid data"
+    },
     "sp_attuale": {
       "it": "Attuale:",
       "de": "Aktuell:",
