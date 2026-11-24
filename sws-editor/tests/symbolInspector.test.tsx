@@ -311,6 +311,31 @@ describe("groups, effects and masks in the model", () => {
     expect(fillOf(shape)).toEqual({ none: true });
     expect(() => setFill(back, 4, { color: "#ff0000" })).not.toThrow();
   });
+  it("keeps the look of the shape in the cut, and gives it back; an effect left without shapes goes (review of the rc.30)", () => {
+    const look: Op[] = [{ op: "corpo" },
+      { op: "image", src: "a.png", geo: [["x", 0], ["y", 0], ["width", 50], ["height", 50]] },
+      { op: "forma", tag: "circle", geo: [["cx", 25], ["cy", 25], ["r", 20]], mat: "glass", velo: "glass-r",
+        extra: [["stroke_width", 2]], group: "vetro" },
+      { op: "effetto", kind: "glow", group: "vetro", input: "on" }];
+    const cut = clipPhoto(draft(look), 1, 2);
+    expect((cut.ops as Op[])[1].clip).toEqual({ tag: "circle", geo: [["cx", 25], ["cy", 25], ["r", 20]],
+      mat: "glass", velo: "glass-r", extra: [["stroke_width", 2]], group: "vetro" });
+    expect((cut.ops as Op[]).some((o) => o.op === "effetto")).toBe(false);
+    const back = unclipPhoto(cut, 1);
+    expect((back.ops as Op[])[2]).toEqual({ op: "forma", tag: "circle", geo: [["cx", 25], ["cy", 25], ["r", 20]],
+      mat: "glass", velo: "glass-r", extra: [["stroke_width", 2]], group: "vetro" });
+  });
+  it("turns a photo with the shapes around the common centre, at its size (review of the rc.30)", () => {
+    const mixed: Op[] = [{ op: "corpo" }, newRect({ x: 0, y: 0, w: 20, h: 10 }),
+      { op: "image", src: "a.png", geo: [["x", 60], ["y", 0], ["width", 40], ["height", 20]],
+        clip: { tag: "circle", geo: [["cx", 80], ["cy", 10], ["r", 10]] } }];
+    const t = matrixOps(draft(mixed), [1, 2], turnMatrix("cw", 50, 50));
+    const img = (t.ops as Op[])[2];
+    const geo = Object.fromEntries(img.geo as [string, number][]);
+    // Centre (80, 10) turned clockwise around (50, 50) is (90, 80).
+    expect(geo).toEqual({ x: 70, y: 70, width: 40, height: 20 });
+    expect(Object.fromEntries((img.clip as { geo: [string, number][] }).geo)).toEqual({ cx: 90, cy: 80, r: 10 });
+  });
   it("writes attributes given as objects as pairs, in the compiler's order", () => {
     expect(asPairs({ ry: 10, cx: 25, fill: "none", cy: 25, rx: 20 }))
       .toEqual([["cx", 25], ["cy", 25], ["rx", 20], ["ry", 10], ["fill", "none"]]);
