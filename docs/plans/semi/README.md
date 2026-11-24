@@ -29,6 +29,7 @@
 <!-- RIGHE-NUOVI-SEMI -->
 | Seme | Origine | Cosa resta |
 |---|---|---|
+| [2026-11-24-navigatore-su-piu-righe.md](2026-11-24-navigatore-su-piu-righe.md) | il maintainer, 24-11-2026: la copia verticale di CasaDomotica «con il menù in basso su due righe» | **seme — decisione** — un'opzione righe (o a capo) per `page_navigator`, web e LVGL; per ora un navigatore unico |
 | [2026-11-23-codesys-memoria-diretta.md](2026-11-23-codesys-memoria-diretta.md) | sessione di plan del driver LogicLab, 23-11-2026: il maintainer, «Dopo, solo LogicLab ora» | **seme — decisione** — lo stesso accesso diretto alle variabili per CODESYS: meccanismo ufficiale, formato dei simboli, licenza; quanto del lato SWS del driver LogicLab si riusa |
 | [2026-11-23-vpn-nei-pannelli.md](2026-11-23-vpn-nei-pannelli.md) | il maintainer, 23-11-2026: «nei pannelli prevedere più servizi vpn, uno è zerotier che uso a casa, uno è openvpn che i pannelli pixsys con PixsysOS già supportano» | **seme — decisione** — la VPN del cliente (non di SWS: la decisione 38 resta), ZeroTier e OpenVPN dal pannello di controllo; dove sta il servizio, chi installa ZeroTier, dove vivono i segreti |
 | [2026-11-22-repository-su-server-locale.md](2026-11-22-repository-su-server-locale.md) | il maintainer, 22-11-2026: il repository fuori da GitHub per la privacy, con un backup di sicurezza | **seme — decisione** — Forgejo sul Proxmox di casa con WireGuard dall'ufficio; backup restic cifrato fuori casa, specchio `git-remote-gcrypt`, `git bundle` offline; CI e registry da spostare (immagini sul VPS col C7) |
