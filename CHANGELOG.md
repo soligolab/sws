@@ -65,7 +65,10 @@ si stabilizza su `release/2.26` (piano `docs/plans/2026-11-22-dev-rc-release-e-p
   Corretto anche `build_container.sh --no-rust`, che saltava la SPA. Il runtime legge i tag del registry **pagina per
   pagina** (376 oggi, con le dev presto oltre i 1000 che leggeva).
 
-## [2.26.0] — in stabilizzazione (ramo `release/2.26`)
+### La 2.26, mai rilasciata: il suo lavoro esce con la 2.27.0
+La 2.26 si è fermata alla **2.26.0-rc.30** senza versione ufficiale (decisione del maintainer, 24-11-2026: «la 26
+rc30 sia l'ultima e ora lavoriamo solo alla 27»); il ramo `release/2.26` è stato eliminato dopo aver verificato che
+tutte le sue correzioni erano in `main`. Quello che segue era la sezione `[2.26.0] — in stabilizzazione`.
 
 Il lavoro dalla 2.25.2 alla 2.26.0-rc.26. Le correzioni della stabilizzazione si fanno su `release/2.26` e si
 riportano qui con `cherry-pick`; la data arriva con la release.

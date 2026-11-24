@@ -35,6 +35,12 @@ decisioni del maintainer annotate nel piano):
 4. una foto della macchina vera col fermaglio, nella chat dei simboli (riferimento del disegno) e in quella del progetto;
 5. «Genera foto» ancora al suo posto; «Disegno con l'IA» sparito.
 
+**La 2.26 non esce** (decisione del maintainer, 24-11-2026): finisce alla `2.26.0-rc.30`. `release/2.26` eliminato
+(locale e origin; ogni sua correzione era già in `main`), la sua sezione del CHANGELOG sotto `[Unreleased]`, il suo
+blocco di NOVITA dentro quello della 2.27.0 (80 voci e 7 avvisi, da sintetizzare col maintainer prima della release).
+**Allo squash dei due rami dell'assistente** il loro `CHANGELOG.md` e `NOVITA.yaml` hanno ancora la 2.26 a parte:
+le loro voci vanno nella sezione e nel blocco della 2.27.0 di `main`.
+
 **Poi**: se il collaudo passa, squash delle due sessioni in `main` (rami da eliminare). La sessione 3 (le foto e la
 rimozione di `/api/symbols/ai`) può partire annidata anche prima. Mai provato con un modello vero: solo copioni.
 

@@ -238,6 +238,12 @@ maintainer: «le rc dovrebbero essere finalizzate alla release, quindi solo bugf
 come dev». Il come sta in `docs/HOWTO.md` §19 e nel piano
 [`docs/plans/2026-11-22-dev-rc-release-e-portale-di-sviluppo.md`](docs/plans/2026-11-22-dev-rc-release-e-portale-di-sviluppo.md).
 
+**La 2.26 non è mai uscita** (decisione del maintainer, 24-11-2026: «la 26 rc30 sia l'ultima e ora lavoriamo solo
+alla 27, non esisterà una versione ufficiale 2.26.0»). Si è fermata alla `2.26.0-rc.30`; il ramo `release/2.26` è
+stato eliminato dopo aver verificato che tutte le sue correzioni erano in `main`; la sua sezione del `CHANGELOG.md` e
+il suo blocco di `NOVITA.yaml` sono passati alla 2.27.0. Oggi non c'è nessun ramo di release: si lavora solo in
+`main`, come dev, fino alla prossima stabilizzazione.
+
 ## Un'anomalia che rovina l'uso passa davanti (regola del maintainer, 2026-11-09)
 
 **Quando salta fuori un'anomalia che pesa davvero sull'esperienza di chi usa il prodotto, non si
