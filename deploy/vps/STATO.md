@@ -173,7 +173,14 @@ resta 404: così un bundle che manca non torna come HTML con stato 200.
 (`10.89.0.x`): il limite di 20 richieste/s vale per tutti insieme finché non c'è l'indirizzo vero (seme «indirizzo vero
 dietro Traefik»). Si aggiorna con `scripts/manuale/pubblica.sh`.
 
-**Versione in esecuzione: `a0bff2eb-amd64` (2.26.0-rc.30)** dal 23-11-2026, 22:55: le correzioni dei collaudi del 23-11
+**Versione in esecuzione: `b6061e89-amd64` (2.27.0-dev.1)** dal 24-11-2026 mattina, su richiesta del maintainer
+(«fai il push e aggiorna sws.soligo.net»): la prima dev della 2.27, **costruita dal ramo
+`feat/symbol-assistant-interview` prima dello squash** (`SWS_BUILD_FUORI_RAMO=1`), per collaudare l'assistente dei
+simboli nell'IDE del cloud. Contiene tutta la rc.30 (riportata in `main`). Da qui il cloud **non segue più le rc
+della 2.26**, finché non lo si riporta. Sequenza solita, copia `sws-gateway.container.prima-dev1`; gateway `healthy`,
+`SWS_VERSION` = 2.27.0-dev.1, radice 200, `/health` «ok». Ripiego la rc.30 (`a0bff2eb-amd64`).
+
+Prima: **Versione in esecuzione: `a0bff2eb-amd64` (2.26.0-rc.30)** dal 23-11-2026, 22:55: le correzioni dei collaudi del 23-11
 (WP630: qualità dei tag calcolati, trend con il Bad, barra «progetto cambiato», doppio deploy, editor dei simboli;
 PLX800: la rotazione e la sessione del progetto chieste prima del deploy, pagina Utenti, registro delle scritture dal
 viewer). Chiesto dal maintainer: «se fai una rc30 aggiorna anche sws.soligo.net». Sequenza solita da elitedesk: `diff`

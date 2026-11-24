@@ -1455,7 +1455,11 @@ In semver una pre-release si ordina **prima** della release, e `dev` prima di `r
 ### Il ramo di release
 
 Quando una release entra in stabilizzazione si apre `release/X.Y` dal punto in cui è `main` (la 2.26 il 22-11-2026, dalla
-rc.26), e `main` passa alla `X.(Y+1).0-dev.0`. Da lì:
+rc.26), e `main` passa alla `X.(Y+1).0-dev.0`. (La 2.26 poi non è mai uscita: il 24-11-2026 il maintainer l'ha chiusa
+alla rc.30 senza versione ufficiale, il ramo è stato eliminato e il suo lavoro esce con la 2.27.0. Se una release in
+stabilizzazione si abbandona così: verificare che ogni correzione del ramo sia in `main`, spostare la sua sezione del
+`CHANGELOG.md` sotto `[Unreleased]` e il suo blocco di `NOVITA.yaml` in quello della versione dopo, eliminare il ramo.)
+Da lì:
 
 - una **correzione** si fa su un ramo `fix/…` **da `release/X.Y`**, si squasha in `release/X.Y`, poi si riporta in
   `main` con `git cherry-pick <commit>`; il messaggio del riporto dice da dove viene;

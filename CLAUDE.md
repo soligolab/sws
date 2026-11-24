@@ -71,6 +71,23 @@ Vale su **tutte** le macchine di sviluppo, ed e' per questo che sta qui e non in
 locale: `CLAUDE.md` viaggia con git, `~/.claude/` no — stesso motivo per cui i piani stanno in
 `docs/plans/`.
 
+## Si scrive con le regole di ASD-STE100 (regola del maintainer, 2026-11-24)
+
+**Le risposte in chat, i messaggi di commit, i documenti in `docs/`, `STATUS.md`, `CHANGELOG.md`, i commenti nel
+codice e i testi dei file di lingua seguono le regole di scrittura di ASD-STE100** (Simplified Technical English), con
+una coerenza di circa l'80%: è la regola di default, e cede solo a un termine tecnico, a un nome del codice o a una
+citazione. Parole del maintainer: «Puoi usarlo di default con una coerenza dell'80% per tutte le risposte?», poi
+esteso a documenti, commit, commenti e file di lingua.
+
+- **In inglese** (commenti, messaggi di log, testi `en` dei file di lingua): STE completo, regole e dizionario.
+- **In italiano** (chat, commit, `docs/`, testi `it`): le regole di scrittura; il dizionario di STE è solo inglese.
+- Le regole: frasi corte (al più 20 parole per un'istruzione, 25 per una descrizione); un'istruzione per frase; le
+  procedure in un elenco numerato nell'ordine dei passi; forma attiva con il soggetto esplicito; un termine per ogni
+  concetto, senza sinonimi; il numero preciso, non una parola vaga; paragrafi corti con un argomento; le avvertenze
+  prima del passo a cui si riferiscono.
+- **Si applica man mano**, come la regola del codice in inglese: il testo nuovo nasce così, quello esistente non si
+  riscrive di passaggio.
+
 ## Il codice si scrive in inglese, ovunque (regola del maintainer, 2026-11-13)
 
 **Tutto il codice è in inglese**: nomi di file e cartelle, moduli, tipi, funzioni, variabili, costanti, campi e chiavi
@@ -237,6 +254,12 @@ sono quelle che si collaudano. Il lavoro nuovo esce come **dev** (`X.Y.Z-dev.N`)
 maintainer: «le rc dovrebbero essere finalizzate alla release, quindi solo bugfix, noi ora le usiamo
 come dev». Il come sta in `docs/HOWTO.md` §19 e nel piano
 [`docs/plans/2026-11-22-dev-rc-release-e-portale-di-sviluppo.md`](docs/plans/2026-11-22-dev-rc-release-e-portale-di-sviluppo.md).
+
+**La 2.26 non è mai uscita** (decisione del maintainer, 24-11-2026: «la 26 rc30 sia l'ultima e ora lavoriamo solo
+alla 27, non esisterà una versione ufficiale 2.26.0»). Si è fermata alla `2.26.0-rc.30`; il ramo `release/2.26` è
+stato eliminato dopo aver verificato che tutte le sue correzioni erano in `main`; la sua sezione del `CHANGELOG.md` e
+il suo blocco di `NOVITA.yaml` sono passati alla 2.27.0. Oggi non c'è nessun ramo di release: si lavora solo in
+`main`, come dev, fino alla prossima stabilizzazione.
 
 ## Un'anomalia che rovina l'uso passa davanti (regola del maintainer, 2026-11-09)
 
