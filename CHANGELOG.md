@@ -14,6 +14,25 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 Il lavoro della **2.27.0** (versioni `2.27.0-dev.N`). Dal 22-11-2026 `main` porta la release successiva, e la 2.26.0
 si stabilizza su `release/2.26` (piano `docs/plans/2026-11-22-dev-rc-release-e-portale-di-sviluppo.md`).
 
+### Corretto — i residui della rc.30 e le sue scelte riviste (24-11-2026, ramo `fix/rc30-leftovers`)
+Piano `docs/plans/2026-11-24-residui-rc30-e-bad-di-default.md`, parti A e B.
+- **Rotazione**: `/api/system?screen_rotation=1` dice la rotazione già chiesta e in attesa (`pending`); un secondo
+  deploy in quei minuti non la richiede.
+- **Socket dei tag**: rifiuta le scritture sui tag calcolati, come la PUT (T-69).
+- **Registro audit sul pannello**: al più 16 MB, le voci più vecchie escono e la catena resta verificabile; l'avvio e
+  la pagina del registro leggono la fine del file. Il gateway pota ancora per età.
+- **Editor dei simboli**: il ritaglio conserva materiale, velo, attributi e gruppo della forma, e «Togli ritaglio» li
+  rende (`ClipShape`, campi facoltativi); ritagliare una forma con un effetto toglie l'effetto rimasto senza forme;
+  Ruota e Specchia spostano anche la foto col centro comune, senza deformarla; «Salva come» azzera anche l'origine
+  delle parti.
+- **Pagina Utenti**: un campo salvato all'uscita non blocca più la tabella; il fuoco va al campo dopo.
+- **Trend**: un tag mai ricevuto non è più una linea a 0 (la storia con `ancora` non lo ripete); una finestra storica
+  o spostata indietro si giudica dai suoi campioni; i cursori di misura su un tratto Bad non mostrano niente.
+- **Deploy**: un salvataggio durante un deploy aspetta e parte una volta, dopo (prima prendeva 409); il deploy partito
+  da un salvataggio, su un 428, fa la stessa domanda del deploy a mano (decisione del maintainer).
+- **Abbinamento dal cloud**: chiede sempre l'Admin del dispositivo (decisione del maintainer, supera la fetta E
+  dell'11-10-2026); il deploy dalla rete locale torna possibile.
+
 ### Aggiunto — l'assistente dei simboli, sessione 2: l'intervista, la scheda, la foto allegata (24-11-2026, ramo `feat/symbol-assistant-interview`)
 - Il blocco di prompt «Editor dei simboli» porta l'**intervista** del piano (blocchi 0-6: da dove si parte, che cos'è,
   ingressi, foto, parti e bocche, effetti, la scheda), con `fai_domande` e al più quattro domande per volta.

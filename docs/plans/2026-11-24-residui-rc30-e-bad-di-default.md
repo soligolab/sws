@@ -74,6 +74,14 @@ piano si **annida** sopra `feat/symbol-assistant-interview` (regola «un ramo al
 6. **Parità**: `check_lvgl_parity` e i gemelli `demo-items-*`; istantanee web e LVGL a confronto.
 7. **NOVITA**: un avviso di compatibilità («i valori Bad ora si vedono su tutti gli oggetti»).
 
+## Stato (24-11-2026)
+
+- **Parti A e B fatte** sul ramo `fix/rc30-leftovers` (sette commit, `615a3104`…). A12 si chiude con B1 per i
+  pannelli nuovi; per quelli abbinati dal cloud prima della 2.27 il messaggio del deploy locale lo dice.
+  Restano fuori: A8 nel trend LVGL (il pannello non ha cursori di misura né finestre spostate; da controllare al
+  collaudo).
+- **Parte C** da fare, sul ramo `feat/bad-by-default` annidato.
+
 ## Verifica (ogni ramo, prima dello squash)
 
 `cargo check`, `cargo test`, `pnpm build`, `pnpm exec vitest run`, `./scripts/check_static.sh`, più i controlli della

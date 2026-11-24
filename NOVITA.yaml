@@ -42,6 +42,14 @@
 versioni:
   - versione: "2.27.0"
     voci:
+      - it: "Abbinando un pannello dal cloud si crea anche il suo Admin del dispositivo: il deploy dalla rete locale torna possibile."
+        en: "Pairing a panel from the cloud also creates its device Admin: the deploy from the local network works again."
+      - it: "Un salvataggio durante un deploy aspetta che finisca; il deploy al salvataggio chiede la conferma come quello a mano."
+        en: "A save during a deploy waits for it to end; the deploy on save asks for confirmation like the manual one."
+      - it: "Trend: un tag mai ricevuto non è più disegnato a 0, e i cursori di misura non leggono i tratti con dati non validi."
+        en: "Trend: a tag never received is no longer drawn at 0, and the measure cursors do not read stretches of invalid data."
+      - it: "Editor dei simboli: «Togli ritaglio» rende la forma com'era, e una foto gira insieme alle forme selezionate."
+        en: "Symbol editor: «Remove cut» gives the shape back as it was, and a photo turns with the selected shapes."
       - it: "L'assistente dei simboli prima fa qualche domanda, poi mostra la scheda del simbolo da correggere e confermare, e disegna da quella."
         en: "The symbol assistant first asks a few questions, then shows the symbol's sheet to correct and confirm, and draws from it."
       - it: "Nella chat si può allegare una foto col fermaglio: la macchina da disegnare, un quadro da copiare."
