@@ -12,6 +12,17 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — tutto in `main`, la 2.27.0-dev.3 sul cloud; da qui si lavora solo come dev (2026-11-24, `ufficio`)
+
+- **Squash** in `main` (`b80fbb98`) di `feat/symbol-assistant-chat`, `feat/symbol-assistant-interview` e
+  `fix/rc30-leftovers`, su richiesta del maintainer prima del collaudo; alberi controllati, i tre rami eliminati qui e su
+  origin. **2.27.0-dev.3** (`8a257875`, tag pushato): tre gambe in 1 min 37 s (Rust riusato), **gateway del cloud sulla
+  dev.3** (ripiego la dev.2). Il pacchetto Tiny TY è solo in `dist/`.
+- **Il metodo, da qui** (il maintainer: «da qua in poi usare il dev»): un ramo breve da `main`, squash appena verde,
+  ramo eliminato, dev da `main`; niente rami annidati in attesa del collaudo. Le rc solo per stabilizzare una release.
+- **Il collaudo** resta quello scritto sotto: l'assistente dei simboli e i residui della rc.30, ora sulla dev.3.
+- **Prossimi passi**: il collaudo; la parte C (il Bad visibile di default); le sessioni 3 e 4 dell'assistente.
+
 ## ▶ Riprendere da qui — CasaDomotica riordinata e la sua copia verticale per il TC620 (2026-11-24, `ufficio`)
 
 **Il maintainer**: «Vorrei usare il tc620 in verticale, mi generi una copia di Casa Domotica orientato in verticale con

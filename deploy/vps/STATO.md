@@ -173,7 +173,11 @@ resta 404: così un bundle che manca non torna come HTML con stato 200.
 (`10.89.0.x`): il limite di 20 richieste/s vale per tutti insieme finché non c'è l'indirizzo vero (seme «indirizzo vero
 dietro Traefik»). Si aggiorna con `scripts/manuale/pubblica.sh`.
 
-**Versione in esecuzione: `c0c640ab-amd64` (2.27.0-dev.2)** dal 24-11-2026, su richiesta del maintainer («Fai push
+**Versione in esecuzione: `8a257875-amd64` (2.27.0-dev.3)** dal 24-11-2026: la prima dev costruita da `main` dopo lo
+squash dell'assistente dei simboli e dei residui della rc.30. Sequenza solita, copia `sws-gateway.container.prima-dev3`;
+gateway `healthy`, `SWS_VERSION` = 2.27.0-dev.3, radice 200, `/health` «ok». Ripiego la dev.2 (`c0c640ab-amd64`).
+
+Prima: **Versione in esecuzione: `c0c640ab-amd64` (2.27.0-dev.2)** dal 24-11-2026, su richiesta del maintainer («Fai push
 e dev2»): costruita dal ramo `fix/rc30-leftovers` (annidato sui due rami dell'assistente dei simboli) prima dello
 squash. Contiene i residui della rc.30, le scelte riviste e l'assistente dei simboli, sessioni 1 e 2. Sequenza solita,
 copia `sws-gateway.container.prima-dev2`; gateway `healthy`, `SWS_VERSION` = 2.27.0-dev.2, radice 200, `/health` «ok».
