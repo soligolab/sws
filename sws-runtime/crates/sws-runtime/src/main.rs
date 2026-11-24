@@ -1216,10 +1216,14 @@ async fn main() -> anyhow::Result<()> {
     if audit_key.is_none() {
         info!("SWS_AUDIT_KEY not set — audit log is hash-chained but unsigned (tamper-evident, not tamper-resistant)");
     }
-    let audit = Arc::new(sws_audit::AuditLog::open(
-        config_dir.join("audit.jsonl"),
-        audit_key,
-    ));
+    // A device keeps at most 16 MB of log (review of the rc.30: it was never
+    // pruned). The gateway prunes by age instead (12 months, `ciclo_account`).
+    let audit = sws_audit::AuditLog::open(config_dir.join("audit.jsonl"), audit_key);
+    let audit = Arc::new(if args.gateway {
+        audit
+    } else {
+        audit.with_size_cap(16 * 1024 * 1024)
+    });
 
     // Ritenzione automatica dei datastore (20-10-2026, piano
     // docs/archive/2026-10-20-ritenzione-automatica.md). Come i backup automatici:

@@ -33,7 +33,15 @@ pub struct AuditEntry {
 struct State {
     seq: u64,
     last_hash: String,
+    /// Appends since the process started: the size cap is checked every
+    /// [`CAP_CHECK_EVERY`] of them.
+    appends: u64,
 }
+
+/// How often an append looks at the size of the file, when there is a cap.
+const CAP_CHECK_EVERY: u64 = 256;
+/// How much of the end of the file the start-up and `tail` read first.
+const TAIL_CHUNK: u64 = 512 * 1024;
 
 /// A running audit log. Appends are serialized through an async mutex so the
 /// hash chain stays correct even under concurrent callers.
@@ -41,6 +49,9 @@ pub struct AuditLog {
     path: PathBuf,
     key: Option<Vec<u8>>,
     state: Mutex<State>,
+    /// The largest the file may grow (a panel, 24-11-2026: on a device the log
+    /// was never pruned). Past it the oldest entries go, down to 3/4 of it.
+    size_cap: Option<u64>,
 }
 
 impl AuditLog {
@@ -51,8 +62,20 @@ impl AuditLog {
         AuditLog {
             path,
             key,
-            state: Mutex::new(State { seq, last_hash }),
+            state: Mutex::new(State {
+                seq,
+                last_hash,
+                appends: 0,
+            }),
+            size_cap: None,
         }
+    }
+
+    /// The file never grows past `bytes`: the oldest entries go first, and
+    /// the chain stays verifiable as with [`AuditLog::pota`].
+    pub fn with_size_cap(mut self, bytes: u64) -> Self {
+        self.size_cap = Some(bytes);
+        self
     }
 
     /// Fire-and-forget append. Never blocks the caller beyond spawning a task;
@@ -105,14 +128,43 @@ impl AuditLog {
         f.flush().await?;
         st.seq = seq;
         st.last_hash = hash;
+        st.appends += 1;
+        if let Some(cap) = self.size_cap {
+            if st.appends % CAP_CHECK_EVERY == 0 {
+                let len = tokio::fs::metadata(&self.path)
+                    .await
+                    .map(|m| m.len())
+                    .unwrap_or(0);
+                if len > cap {
+                    let gone = prune_to_size(&self.path, cap / 4 * 3).await?;
+                    tracing::info!(
+                        gone,
+                        cap,
+                        "audit log over its size: the oldest entries pruned"
+                    );
+                }
+            }
+        }
         Ok(())
     }
 
     /// Most-recent `limit` entries (oldest first within the window).
     pub async fn tail(&self, limit: usize) -> Vec<AuditEntry> {
-        let content = tokio::fs::read_to_string(&self.path)
-            .await
-            .unwrap_or_default();
+        // The end of the file first: on a panel the whole log was read for a
+        // page of entries (review of the rc.30).
+        let path = self.path.clone();
+        let content = tokio::task::spawn_blocking(move || {
+            let end = read_end(&path, TAIL_CHUNK).unwrap_or_default();
+            if end.lines().count() > limit
+                || end.len() as u64 >= std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0)
+            {
+                end
+            } else {
+                std::fs::read_to_string(&path).unwrap_or_default()
+            }
+        })
+        .await
+        .unwrap_or_default();
         let mut all: Vec<AuditEntry> = content
             .lines()
             .filter_map(|l| serde_json::from_str(l).ok())
@@ -249,8 +301,52 @@ fn broken(count: u64, seq: u64, reason: &str) -> VerifyReport {
     }
 }
 
+/// The last `bytes` of the file, starting at a whole line.
+fn read_end(path: &Path, bytes: u64) -> std::io::Result<String> {
+    use std::io::{Read, Seek, SeekFrom};
+    let mut f = std::fs::File::open(path)?;
+    let len = f.metadata()?.len();
+    let from = len.saturating_sub(bytes);
+    f.seek(SeekFrom::Start(from))?;
+    let mut buf = Vec::new();
+    f.read_to_end(&mut buf)?;
+    let text = String::from_utf8_lossy(&buf).into_owned();
+    Ok(if from == 0 {
+        text
+    } else {
+        // The first line is cut: it starts after the first newline.
+        text.split_once('\n')
+            .map(|(_, rest)| rest.to_string())
+            .unwrap_or_default()
+    })
+}
+
+/// The oldest entries out until the file is at most `target` bytes; the last
+/// one always stays (the numbering goes on from it). Written to a copy and
+/// renamed, as [`AuditLog::pota`] does. How many went.
+async fn prune_to_size(path: &Path, target: u64) -> anyhow::Result<usize> {
+    let content = tokio::fs::read_to_string(path).await?;
+    let lines: Vec<&str> = content.lines().filter(|l| !l.trim().is_empty()).collect();
+    let mut size: u64 = lines.iter().map(|l| l.len() as u64 + 1).sum();
+    let mut gone = 0;
+    while size > target && gone + 1 < lines.len() {
+        size -= lines[gone].len() as u64 + 1;
+        gone += 1;
+    }
+    if gone == 0 {
+        return Ok(0);
+    }
+    let rest = lines[gone..].join("\n") + "\n";
+    let tmp = path.with_extension("jsonl.potatura");
+    tokio::fs::write(&tmp, rest).await?;
+    tokio::fs::rename(&tmp, path).await?;
+    Ok(gone)
+}
+
+/// The sequence and the hash of the last entry, from the end of the file: a
+/// panel read the whole log at every start (review of the rc.30).
 fn read_tail(path: &Path) -> Option<(u64, String)> {
-    let content = std::fs::read_to_string(path).ok()?;
+    let content = read_end(path, 64 * 1024).ok()?;
     let last = content.lines().rev().find(|l| !l.trim().is_empty())?;
     let e: AuditEntry = serde_json::from_str(last).ok()?;
     Some((e.seq, e.hash))
@@ -308,6 +404,35 @@ mod tests {
         assert_eq!(rep2.broken_at, Some(2));
 
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A panel's log has a size cap (review of the rc.30): past it the oldest
+    /// entries go, the chain still verifies, the numbering goes on, and the
+    /// start reads the last entry from the end of the file.
+    #[tokio::test]
+    async fn a_capped_log_prunes_itself_and_still_verifies() {
+        let dir = std::env::temp_dir().join(format!("sws-audit-cap-{}", now_ms()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("audit.jsonl");
+        let log = Arc::new(AuditLog::open(path.clone(), None).with_size_cap(20_000));
+        for i in 0..(CAP_CHECK_EVERY * 2) {
+            log.append(
+                format!("a{i}"),
+                Some("u".into()),
+                json!({ "pad": "x".repeat(100) }),
+            )
+            .await
+            .unwrap();
+        }
+        let len = std::fs::metadata(&path).unwrap().len();
+        assert!(len <= 20_000 + 512 * 300, "it was pruned: {len}");
+        let report = verify(&path, None);
+        assert!(report.ok, "{report:?}");
+        let again = AuditLog::open(path.clone(), None);
+        assert_eq!(again.state.lock().await.seq, CAP_CHECK_EVERY * 2);
+        let last = again.tail(3).await;
+        assert_eq!(last.len(), 3);
+        assert_eq!(last[2].action, format!("a{}", CAP_CHECK_EVERY * 2 - 1));
     }
 
     #[tokio::test]
