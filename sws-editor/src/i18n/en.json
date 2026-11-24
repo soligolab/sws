@@ -1890,7 +1890,7 @@
       "changed": "Users changed since they were last sent.",
       "same": "Same users as last sent: no need to send them."
     },
-    "deployProjectSession": "You are connected to the panel with a project user. The deploy closes the project, and your session ends with it: the panel would stay without a project half way, and nothing has been touched.\n\nConnect with the device Admin (the one created with the pairing code) or, if the panel is paired to the cloud, deploy from the IDE in the cloud.",
+    "deployProjectSession": "You are connected to the panel with a project user. The deploy closes the project, and your session ends with it: the panel would stay without a project half way, and nothing has been touched.\n\nConnect with the device Admin (the one created with the pairing code) or, if the panel is paired to the cloud, deploy from the IDE in the cloud. A panel paired from the cloud before 2.27 has no device Admin: for it, only the deploy from the cloud works.",
     "deployRotateScreenPortrait": "This project is portrait and the panel's screen is landscape now. To turn it the system restarts the device (about a minute); on a controller the PLCs (LogicLab, CODESYS, OpenPLC) stop too: after the restart check that they are running again.\n\nGo on with the deploy and the restart?",
     "deployRotateScreenLandscape": "This project is landscape and the panel's screen is turned now. To put it back the system restarts the device (about a minute); on a controller the PLCs (LogicLab, CODESYS, OpenPLC) stop too: after the restart check that they are running again.\n\nGo on with the deploy and the restart?",
     "deployNoUsersTitolo": "This project has no users",
@@ -3774,7 +3774,7 @@
     "serveAdmin": "The panel has no users yet: the first project must bring at least one with the Admin role, otherwise nobody could get in on site (screen included).\n\nOpen the project's Users tab?",
     "serveAdminApri": "Open Users",
     "serveAdminBreve": "deploy stopped: the project needs at least one Admin user (the panel has no users yet)",
-    "cloudUtentiDalProgetto": "The panel's users come with the first project you deploy to it: until then nobody can get in on site, and you reach it only from here.",
+    "cloudUtentiDalProgetto": "The project's users come with the first deploy.",
     "cloudCredenzialiEsistenti": "This panel already has users: pairing it needs the user and password of one of its administrators.",
     "passwordSemplice": "Password",
     "rNome": "Name in the cloud",
@@ -3790,7 +3790,8 @@
     "vaiConnetti": "Use in «Connect»",
     "abbinaAltro": "Pair another panel",
     "attesaTitolo": "Paired with the cloud as «{{nome}}»",
-    "attesaSpiegazione": "Waiting for the first project: it will bring the users. Until then the panel is managed only from the cloud IDE."
+    "attesaSpiegazione": "Waiting for the first project: it will bring the users. Until then the panel is managed only from the cloud IDE.",
+    "cloudAdminDispositivo": "The device Admin: it gets in on the panel and deploys from the local network. It stays on the panel when the project changes. Password of at least 8 characters."
   },
   "primoAccesso": {
     "titolo": "first access",

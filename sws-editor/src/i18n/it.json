@@ -1890,7 +1890,7 @@
       "changed": "Gli utenti sono cambiati dall'ultimo invio.",
       "same": "Utenti uguali all'ultimo invio: non serve mandarli."
     },
-    "deployProjectSession": "Sei collegato al pannello con un utente del progetto. Il deploy chiude il progetto, e con lui finisce la tua sessione: il pannello resterebbe senza progetto a metà strada, e non è stato toccato niente.\n\nCollegati con l'Admin del dispositivo (quello nato col codice di abbinamento) oppure, se il pannello è abbinato al cloud, fai il deploy dall'IDE nel cloud.",
+    "deployProjectSession": "Sei collegato al pannello con un utente del progetto. Il deploy chiude il progetto, e con lui finisce la tua sessione: il pannello resterebbe senza progetto a metà strada, e non è stato toccato niente.\n\nCollegati con l'Admin del dispositivo (quello nato col codice di abbinamento) oppure, se il pannello è abbinato al cloud, fai il deploy dall'IDE nel cloud. Un pannello abbinato dal cloud prima della 2.27 non ha l'Admin del dispositivo: per lui vale solo il deploy dal cloud.",
     "deployRotateScreenPortrait": "Questo progetto è verticale e lo schermo del pannello adesso è orizzontale. Per girarlo il sistema riavvia il dispositivo (circa un minuto); su un controllore si fermano anche i PLC (LogicLab, CODESYS, OpenPLC): dopo il riavvio controlla che siano ripartiti.\n\nProcedere col deploy e col riavvio?",
     "deployRotateScreenLandscape": "Questo progetto è orizzontale e lo schermo del pannello adesso è girato. Per rimetterlo il sistema riavvia il dispositivo (circa un minuto); su un controllore si fermano anche i PLC (LogicLab, CODESYS, OpenPLC): dopo il riavvio controlla che siano ripartiti.\n\nProcedere col deploy e col riavvio?",
     "deployNoUsersTitolo": "Questo progetto non ha utenti",
@@ -3774,7 +3774,7 @@
     "serveAdmin": "Il pannello non ha ancora utenti: il primo progetto deve portarne almeno uno con ruolo Admin, altrimenti in impianto non entrerebbe nessuno (schermo compreso).\n\nAprire la scheda Utenti del progetto?",
     "serveAdminApri": "Apri Utenti",
     "serveAdminBreve": "deploy fermato: il progetto deve avere almeno un utente Admin (il pannello non ha ancora utenti)",
-    "cloudUtentiDalProgetto": "Gli utenti del pannello li porta il primo progetto che gli distribuisci: fino ad allora in impianto non entra nessuno, e lo raggiungi solo da qui.",
+    "cloudUtentiDalProgetto": "Gli utenti del progetto arrivano col primo deploy.",
     "cloudCredenzialiEsistenti": "Questo pannello ha già degli utenti: per abbinarlo servono utente e password di un suo amministratore.",
     "passwordSemplice": "Password",
     "rNome": "Nome nel cloud",
@@ -3790,7 +3790,8 @@
     "vaiConnetti": "Usa in «Connetti»",
     "abbinaAltro": "Abbina un altro pannello",
     "attesaTitolo": "Abbinato al cloud come «{{nome}}»",
-    "attesaSpiegazione": "In attesa del primo progetto: gli utenti li porterà lui. Fino ad allora il pannello si gestisce solo dall'IDE nel cloud."
+    "attesaSpiegazione": "In attesa del primo progetto: gli utenti li porterà lui. Fino ad allora il pannello si gestisce solo dall'IDE nel cloud.",
+    "cloudAdminDispositivo": "L'Admin del dispositivo: entra dal pannello e fa il deploy dalla rete locale. Resta sul pannello anche quando cambi progetto. Password di almeno 8 caratteri."
   },
   "primoAccesso": {
     "titolo": "primo accesso",
