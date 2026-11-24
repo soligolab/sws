@@ -28,8 +28,17 @@ import { RigaTagLive } from "./RigaTagLive";
 import { PREFISSO_MEMORIA, TESTO, guideAlbero } from "./stilePannelli";
 
 /** Come si raggruppano le variabili nell'elenco. */
-export type Raggruppa = "nessuno" | "dato" | "tipo" | "sorgente";
-const CRITERI: readonly Raggruppa[] = ["nessuno", "dato", "tipo", "sorgente"];
+// `prefix` (24-11-2026): the part of the id before the first dot, i.e. the
+// area or the device when the names follow one (CasaDomotica: window.*,
+// shutter.*, host.*). Requested with the tidy-up of CasaDomotica's tags.
+export type Raggruppa = "nessuno" | "dato" | "tipo" | "sorgente" | "prefix";
+const CRITERI: readonly Raggruppa[] = ["nessuno", "dato", "tipo", "sorgente", "prefix"];
+
+/** The group of a tag by its name: what comes before the first dot. */
+export function prefixOf(id: string): string | null {
+  const i = id.indexOf(".");
+  return i > 0 ? id.slice(0, i) : null;
+}
 
 const MEMORIA = PREFISSO_MEMORIA + "albero.tagRaggruppa";
 
@@ -94,6 +103,7 @@ export function AlberoTagLive({ rientro = 20, puoAprire = true, esplora = false 
     if (criterio === "dato") return categoriaDi(tag.data_type ?? "") ?? t("editor.raggruppaAltro");
     if (criterio === "tipo") return tag.type_ref ?? t("editor.raggruppaSemplici");
     if (criterio === "sorgente") return sorgenteDi.get(tag.id) ?? t("editor.raggruppaInterne");
+    if (criterio === "prefix") return prefixOf(tag.id) ?? t("editor.raggruppaAltro");
     return "";
   };
 

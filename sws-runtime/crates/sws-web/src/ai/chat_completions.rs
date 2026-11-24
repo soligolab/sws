@@ -1333,6 +1333,7 @@ mod tests {
             disegna_simboli: true,
             sfondi: true,
             no_snapshot: false,
+            symbol_scope: false,
         });
         assert!(!all.is_empty());
         for t in &all {

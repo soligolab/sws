@@ -4,6 +4,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
+  scalaOggetto,
   CAMPI_FISSI, CAMPI_POSIZIONE, CAMPI_SCALATI, fattore, misuraDaProporre, misuraPiuFrequente, scalaCornice, scalaPagina,
 } from "../src/scala/scalaPagina";
 import type { SynopticObject, SynopticPage } from "../src/types";
@@ -107,3 +108,12 @@ describe("scala fra risoluzioni", () => {
     expect(numerici.length).toBeGreaterThan(60);
   });
 });
+
+describe("a scaled faceplate follows its box (24-11-2026)", () => {
+  it("sets faceplate_scale when the size changes, and not otherwise", () => {
+    const fp = { id: "f", type: "faceplate", x: 10, y: 10, width: 400, height: 200, faceplate_id: "t" } as never;
+    expect(scalaOggetto(fp, 0.5, (x, y) => ({ x, y })).faceplate_scale).toBe(true);
+    expect(scalaOggetto(fp, 1, (x, y) => ({ x, y })).faceplate_scale).toBeUndefined();
+  });
+});
+

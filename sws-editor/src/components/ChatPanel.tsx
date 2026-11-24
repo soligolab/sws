@@ -1,12 +1,14 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import i18n from "i18next";
 import { editorLocale, NESSUNA_CONFERMA, type EditorAi } from "@/ai/editor";
 import { useAppStore } from "@/store";
-import { approvaSfondo, ascolta, chiedi, mandaFoto, nuovaConversazione, suConversazioneNuova } from "@/ws/aiStream";
+import { approvaSfondo, ascolta, chiedi, mandaFoto, nuovaConversazione, suConversazioneNuova, type AiChannelApi, type QuestionExtras } from "@/ws/aiStream";
+import { pictureForModel } from "@/images/optimize";
+import { SymbolSheetCard } from "@/symbols/editor/SymbolSheetCard";
 import { blobInBase64 } from "@/ai/fotoDalBrowser";
 import { aiErrorText } from "@/ai/errorCodes";
-import type { MsgIn, Riga } from "@/types/ai";
+import type { AttachedPhoto, MsgIn, Riga } from "@/types/ai";
 import { Icona } from "@/components/Icona";
 import { Markdown } from "@/ai/Markdown";
 
@@ -49,9 +51,14 @@ function kTok(n: number): string {
        : String(n);
 }
 
-export function ChatPanel({ open, onClose, editor = editorLocale, avviso, bloccaInvio, variant = "drawer" }: {
+export function ChatPanel({ open, onClose, editor = editorLocale, avviso, bloccaInvio, variant = "drawer", channel, title }: {
   open: boolean;
+  /** The heading, when it is not the project's assistant. */
+  title?: string;
   onClose: () => void;
+  /** The conversation (23-11-2026): the project's by default; the symbol
+   *  editor passes the one of its symbol. */
+  channel?: AiChannelApi;
   /** Chi calcola il diff e chi applica. Default: lo store di questa finestra. */
   editor?: EditorAi;
   /** Riga di avviso extra in testa alla lista (la usa la finestra staccata per
@@ -72,6 +79,28 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
   variant?: "drawer" | "window";
 }) {
   const { t } = useTranslation();
+  // The project's conversation through the module's functions, as before,
+  // each read only when called.
+  const ch: AiChannelApi = useMemo(() => channel ?? {
+    chiedi: (testo, _symbol, extras) => chiedi(testo, extras),
+    approvaSfondo: (id) => approvaSfondo(id),
+    mandaFoto: (id, esito) => mandaFoto(id, esito),
+    ascolta: (fn) => ascolta(fn),
+    nuovaConversazione: () => nuovaConversazione(),
+    suConversazioneNuova: (fn) => suConversazioneNuova(fn),
+  }, [channel]);
+  /** A question, with the open symbol when the editor is the symbol editor. */
+  const domanda = (testo: string, extras?: QuestionExtras) => ch.chiedi(testo, editor.symbol?.read(), extras);
+  // A photo to send with the next question (23-11-2026, both chats): the
+  // machine to draw, a panel to copy. Reduced for the model before sending.
+  const [photo, setPhoto] = useState<AttachedPhoto | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const attach = async (f: File | undefined) => {
+    if (!f) return;
+    const p = await pictureForModel(f);
+    if (p) setPhoto(p);
+    else setRighe((r) => [...r, { tipo: "errore", testo: t("chat.photoUnreadable") }]);
+  };
   // Lo store restituisce chiavi `storeErr.*`, non frasi: si traducono qui, nella lingua di adesso.
   const traduciEsito = (m?: string) => (m && m.startsWith("storeErr.") ? t(m) : m);
   const remoteConnected = useAppStore((s) => s.remoteConnected);
@@ -124,14 +153,14 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
 
   /** Approva la base e chiede le varianti: due messaggi, nell'ordine. */
   function mandaBase(id: string) {
-    const okApprova = approvaSfondo(id);
+    const okApprova = ch.approvaSfondo(id);
     traccia("approva_sfondo", id, okApprova);
     if (!okApprova) {
       setRighe((x) => [...x, { tipo: "errore", testo: t("chat.noConnection") }]);
       return;
     }
     const testo = t("chat.sfondoScelto", { id });
-    if (chiedi(testo)) {
+    if (domanda(testo)) {
       setRighe((x) => [...x, { tipo: "utente", testo }]);
       setAttesa(true);
     }
@@ -139,18 +168,18 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
 
   // Uscita o utente diverso (10-11-2026): conversazione nuova, e quello che
   // era sullo schermo non resta a chi entra dopo. Anche a cassetto chiuso.
-  useEffect(() => suConversazioneNuova(() => {
+  useEffect(() => ch.suConversazioneNuova(() => {
     setRighe([]);
     setAttesa(false);
     baseInCodaRef.current = null;
     setBaseInCoda(null);
     setRisorse({ input: 0, output: 0, cache: 0 });
     setSpesa(null);
-  }), []);
+  }), [ch]);
 
   useEffect(() => {
     if (!open) return;
-    return ascolta((m: MsgIn) => {
+    return ch.ascolta((m: MsgIn) => {
       switch (m.t) {
         case "pronto":
           setStato({ attivo: m.attivo, modello: m.modello, motivo: m.motivo });
@@ -237,6 +266,12 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
           setRighe((r) => [...r, { tipo: "domande", domande: m.domande, piano: m.piano,
             risposte: Array.from({ length: m.domande.length + (m.piano.length ? 1 : 0) }, () => ""), inviate: false }]);
           break;
+        case "symbol_proposal":
+          setRighe((r) => [...r, { tipo: "symbol_proposal", msg: m }]);
+          break;
+        case "symbol_sheet":
+          setRighe((r) => [...r, { tipo: "symbol_sheet", id: m.id, sheet: m.sheet, confirmed: false }]);
+          break;
         case "simbolo":
           // Ridisegnato con lo stesso slug: la miniatura nuova prende il posto
           // della vecchia, così la chat non diventa un album di prove.
@@ -256,8 +291,8 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
           // canvas dell'editor. Nella finestra staccata la chiede all'editor.
           traccia("fotografa", m.id);
           void editor.fotografa(m)
-            .then(async (f) => mandaFoto(m.id, { png: await blobInBase64(f.png), avvisi: f.avvisi }))
-            .catch((e: unknown) => mandaFoto(m.id, { errore: String((e as Error)?.message ?? e) }));
+            .then(async (f) => ch.mandaFoto(m.id, { png: await blobInBase64(f.png), avvisi: f.avvisi }))
+            .catch((e: unknown) => ch.mandaFoto(m.id, { errore: String((e as Error)?.message ?? e) }));
           break;
         case "sfondo":
           // Una variante rifatta con la stessa luce prende il posto della vecchia.
@@ -289,7 +324,7 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
         }
       }
     });
-  }, [open, editor]);
+  }, [open, editor, ch]);
 
   useEffect(() => {
     fondo.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -297,19 +332,31 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
 
   if (!open) return null;
 
-  /** Sends a message as the person's: what they typed, or their answers. */
-  const manda = (testo: string): boolean => {
+  /** Sends a message as the person's: what they typed, or their answers;
+   *  with the photo waiting to go, and the extras asked. */
+  const manda = (testo: string, extras?: QuestionExtras): boolean => {
     if (!testo || attesa) return false;
-    if (!chiedi(testo)) {
+    const conFoto = photo ? { ...extras, photo } : extras;
+    if (!domanda(testo, conFoto)) {
       setRighe((r) => [...r, { tipo: "errore", testo: t("chat.noConnection") }]);
       return false;
     }
-    setRighe((r) => [...r, { tipo: "utente", testo }]);
+    const preview = photo ? `data:${photo.media_type};base64,${photo.data}` : undefined;
+    setPhoto(null);
+    setRighe((r) => [...r, { tipo: "utente", testo, photo: preview }]);
     setToccaATe(false);
     setAttesa(true);
     return true;
   };
-  const invia = () => { if (manda(bozza.trim())) setBozza(""); };
+  const invia = () => { if (manda(bozza.trim() || (photo ? t("chat.photoText") : ""))) setBozza(""); };
+  /** «Confirm» on the sheet: it goes with the question, as corrected. */
+  const confermaScheda = (indice: number) => {
+    const riga = righe[indice];
+    if (riga?.tipo !== "symbol_sheet" || riga.confirmed) return;
+    if (manda(t("chat.sheetConfirmed"), { sheet: riga.sheet })) {
+      setRighe((r) => r.map((x, k) => (k === indice && x.tipo === "symbol_sheet" ? { ...x, confirmed: true } : x)));
+    }
+  };
   const rispondi = (indice: number) => {
     const riga = righe[indice];
     if (riga?.tipo !== "domande" || riga.inviate) return;
@@ -350,6 +397,24 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
     }));
   };
 
+  /** «Apply» on a drawing proposed for the open symbol: the symbol editor
+   *  takes it as one undoable step. */
+  const applicaSimbolo = (indice: number) => {
+    const riga = righe[indice];
+    if (riga?.tipo !== "symbol_proposal") return;
+    const esito = editor.symbol
+      ? editor.symbol.apply(riga.msg.symbol)
+      : { ok: false as const, reason: t("chat.symbolNoEditor") };
+    setRighe((r) => r.map((x, i) => i !== indice || x.tipo !== "symbol_proposal" ? x : {
+      ...x, esito: esito.ok ? "applicata" : "rifiutata", nota: esito.ok ? undefined : esito.reason,
+    }));
+  };
+
+  const scartaSimbolo = (indice: number) => {
+    setRighe((r) => r.map((x, i) =>
+      i !== indice || x.tipo !== "symbol_proposal" ? x : { ...x, esito: "scartata" }));
+  };
+
   const scarta = (indice: number) => {
     setRighe((r) => r.map((x, i) =>
       i !== indice || x.tipo !== "proposta" ? x : { ...x, esito: "scartata" }));
@@ -361,7 +426,7 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
                   : PANNELLO}>
       <div style={INTESTAZIONE}>
         <strong style={{ fontSize: 12, letterSpacing: 0.5, color: "var(--brand-text, #e2e8f0)" }}>
-          {t("chat.title")}
+          {title ?? t("chat.title")}
         </strong>
         <span style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>
           {stato?.modello ?? "…"}
@@ -369,7 +434,7 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
         <div style={{ flex: 1 }} />
         <button style={BTN} onClick={toggleRisorse}
                 title={mostraRisorse ? t("chat.risorseHide") : t("chat.risorseShow")}>◔</button>
-        <button style={BTN} onClick={() => { setRighe([]); setAttesa(false); nuovaConversazione(); }} title={t("chat.clear")}>⌫</button>
+        <button style={BTN} onClick={() => { setRighe([]); setAttesa(false); ch.nuovaConversazione(); }} title={t("chat.clear")}>⌫</button>
         <button style={BTN} onClick={onClose} title={t("chat.close")}>✕</button>
       </div>
 
@@ -442,7 +507,20 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
 
         {righe.map((r, i) => {
           if (r.tipo === "utente") {
-            return <div key={i} style={BOLLA_UTENTE}>{r.testo}</div>;
+            return (
+              <div key={i} style={BOLLA_UTENTE}>
+                {r.photo && <img src={r.photo} alt="" data-testid="chat-user-photo"
+                  style={{ display: "block", maxWidth: 160, maxHeight: 120, borderRadius: 4, marginBottom: 4 }} />}
+                {r.testo}
+              </div>
+            );
+          }
+          if (r.tipo === "symbol_sheet") {
+            return (
+              <SymbolSheetCard key={i} sheet={r.sheet} confirmed={r.confirmed} disabled={attesa}
+                onChange={(sheet) => setRighe((x) => x.map((y, k) => (k === i && y.tipo === "symbol_sheet" ? { ...y, sheet } : y)))}
+                onConfirm={() => confermaScheda(i)} />
+            );
           }
           if (r.tipo === "assistente") {
             return <div key={i} style={BOLLA_ASSISTENTE} data-testid="chat-assistente"><Markdown text={r.testo} /></div>;
@@ -452,6 +530,33 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
           }
           if (r.tipo === "errore") {
             return <div key={i} style={BOLLA_ERRORE}>{r.testo}</div>;
+          }
+          if (r.tipo === "symbol_proposal") {
+            return (
+              <div key={i} style={CARTA} data-testid="chat-symbol-proposal">
+                <div style={{ fontSize: 12, fontWeight: 600, color: "var(--brand-text, #e2e8f0)", marginBottom: 6 }}>
+                  {r.msg.reason}
+                </div>
+                <img src={svgComeImmagine(r.msg.svg)} alt="" style={{ width: "100%", maxHeight: 160, objectFit: "contain", marginBottom: 8 }} />
+                {r.esito ? (
+                  <div style={{ fontSize: 11, color: r.esito === "applicata"
+                                    ? "var(--brand-success, #22c55e)" : "var(--brand-text-subtle, #64748b)" }}>
+                    {t(`chat.outcome.${r.esito}`)}
+                    {r.nota ? <div style={{ marginTop: 4, color: "var(--brand-warning, #f59e0b)" }}>{r.nota}</div> : null}
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                    <button style={{ ...BTN_PRIMARIO, opacity: avviso ? 0.5 : 1 }} disabled={!!avviso}
+                            data-testid="chat-apply-symbol"
+                            onClick={() => applicaSimbolo(i)}>{t("chat.apply")}</button>
+                    <button style={BTN} onClick={() => scartaSimbolo(i)}>{t("chat.discard")}</button>
+                  </div>
+                )}
+                <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #64748b)", marginTop: 6 }}>
+                  {t("chat.symbolApplyNote")}
+                </div>
+              </div>
+            );
           }
           if (r.tipo === "simbolo") {
             return (
@@ -585,6 +690,16 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
       </div>
 
       <div style={COMPOSITORE}>
+        {photo && (
+          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}
+               data-testid="chat-photo-waiting">
+            <img src={`data:${photo.media_type};base64,${photo.data}`} alt="" style={{ height: 36, borderRadius: 3 }} />
+            {t("chat.photoWaiting")}
+            <button style={{ ...BTN, marginLeft: "auto" }} onClick={() => setPhoto(null)} title={t("chat.photoRemove")}>✕</button>
+          </div>
+        )}
+        <input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp" hidden data-testid="chat-photo-input"
+          onChange={(e) => { void attach(e.target.files?.[0]); e.target.value = ""; }} />
         <textarea
           ref={compositore}
           value={bozza}
@@ -597,10 +712,14 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
           style={TESTO_INPUT}
           disabled={bloccaInvio || (stato != null && !stato.attivo)}
         />
-        <button style={{ ...BTN_PRIMARIO, opacity: attesa || bloccaInvio || !bozza.trim() ? 0.5 : 1 }}
-                disabled={attesa || bloccaInvio || !bozza.trim()} onClick={invia}>
-          {attesa ? t("chat.working") : t("chat.send")}
-        </button>
+        <div style={{ display: "flex", gap: 6 }}>
+          <button style={BTN} onClick={() => fileInput.current?.click()} title={t("chat.photoAttach")}
+                  disabled={attesa || bloccaInvio} data-testid="chat-photo-attach">📎</button>
+          <button style={{ ...BTN_PRIMARIO, flex: 1, opacity: attesa || bloccaInvio || !(bozza.trim() || photo) ? 0.5 : 1 }}
+                  disabled={attesa || bloccaInvio || !(bozza.trim() || photo)} onClick={invia}>
+            {attesa ? t("chat.working") : t("chat.send")}
+          </button>
+        </div>
       </div>
     </aside>
   );

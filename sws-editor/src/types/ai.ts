@@ -3,7 +3,7 @@
 // devono restare d'accordo, e non c'è una guardia che lo verifichi.
 
 import type { AiErrorCode } from "@/ai/errorCodes";
-import type { FaceplateDef, ProjectInfo, SynopticPage } from "@/types";
+import type { DescrizioneSimbolo, FaceplateDef, ProjectInfo, SynopticPage } from "@/types";
 import type { RichiestaFoto } from "@/ai/fotoDalBrowser";
 import type { ProposalImage } from "@/ai/proposalImages";
 import type { Planimetria } from "@/planimetrie/modello";
@@ -27,6 +27,28 @@ export interface Giudizio {
 }
 
 /** Quello che arriva dal runtime. */
+/** The sheet of a symbol (`symbol_sheet.rs`): what the interview of the
+ *  symbol editor's assistant decided, corrected and confirmed by the person. */
+export interface SymbolSheet {
+  name: string;
+  category?: string;
+  size: { w: number; h: number };
+  style: "vector" | "photo" | "mixed";
+  state_colors?: boolean;
+  inputs: { id: string; type: "bool" | "number" | "states"; min?: number; max?: number; unit?: string; states?: string[] }[];
+  photo?: {
+    description: string;
+    varies_with?: { input: string; mode: "on_off" | "states" | "steps"; steps?: { min: number; max: number; description: string }[] };
+  };
+  parts: { id: string; what: string; motion?: string; input?: string }[];
+  ports: { id: string; side: "left" | "right" | "top" | "bottom" }[];
+  effects: { kind: "flame" | "smoke" | "glow" | "bubbles"; part: string; input: string;
+    when?: { op: string; value: number }; level?: { min: number; max: number }; color?: string }[];
+}
+
+/** A photo attached to a question: JPEG reduced to 1024 px, base64. */
+export interface AttachedPhoto { media_type: string; data: string }
+
 export type MsgIn =
   | { t: "pronto"; modello: string; attivo: boolean; motivo?: string | null;
       /** Lo stesso id della conversazione ritrovata sul server dopo una
@@ -39,6 +61,11 @@ export type MsgIn =
   | { t: "strumento"; nome: string; stato: "inizio" | "scrivo" | "eseguo" | "fatto" | "errore"; messaggio?: string;
       /** Con `scrivo`: quanto input ha scritto finora il modello, e da quanti secondi. */
       byte?: number; secondi?: number }
+  /** The symbol editor's assistant proposes a drawing for the open symbol
+   *  (23-11-2026): the description, compiled, with «Apply». */
+  | { t: "symbol_proposal"; id: string; reason: string; symbol: DescrizioneSimbolo; svg: string }
+  /** The sheet the interview made, for the person to correct and confirm. */
+  | { t: "symbol_sheet"; id: string; sheet: SymbolSheet }
   | { t: "proposta"; id: string; motivo: string;
       project?: ProjectInfo | null; pages?: SynopticPage[] | null;
       impronta?: string | null; giudizio: Giudizio;
@@ -89,7 +116,9 @@ export type MsgIn =
 
 /** Quello che si manda. */
 export type MsgOut =
-  | { t: "chiedi"; testo: string }
+  /** `symbol`: the symbol open in the symbol editor, with every question of
+   *  its conversation (23-11-2026). */
+  | { t: "chiedi"; testo: string; symbol?: DescrizioneSimbolo; photo?: AttachedPhoto; sheet?: SymbolSheet }
   | { t: "approva_sfondo"; id: string }
   /** La risposta a `fotografa`: il PNG in base64, o l'errore. */
   | { t: "foto"; id: string; png?: string; avvisi?: string[]; errore?: string };
@@ -114,7 +143,9 @@ export interface RigaDiff { verso: "+" | "-" | " "; testo: string }
 
 /** Una riga della conversazione, come la mostra il pannello. */
 export type Riga =
-  | { tipo: "utente"; testo: string }
+  | { tipo: "utente"; testo: string; photo?: string }
+  /** The sheet in the chat, editable until it is confirmed. */
+  | { tipo: "symbol_sheet"; id: string; sheet: SymbolSheet; confirmed: boolean }
   /** The questions of the assistant, with the answers being written; `inviate`
    *  once sent, and then read only. */
   | { tipo: "domande"; domande: { testo: string; scelte: string[] }[]; piano: string[]; risposte: string[]; inviate: boolean }
@@ -142,5 +173,8 @@ export type Riga =
       motivoRifiuto?: string }
   | { tipo: "errore"; testo: string }
   | { tipo: "simbolo"; slug: string; nome: string; svg: string }
+  /** A drawing proposed for the open symbol, and what became of it. */
+  | { tipo: "symbol_proposal"; msg: Extract<MsgIn, { t: "symbol_proposal" }>;
+      esito?: "applicata" | "scartata" | "rifiutata"; nota?: string }
   | { tipo: "floor_plan"; id: string; name: string; svg: string }
   | { tipo: "immagine"; png: string; testo?: string };

@@ -11,14 +11,19 @@ import { api, type PannelloCloud } from "@/api/client";
  * aspetta col codice che mostra sullo schermo. Qui lo si inserisce: il pannello
  * entra nell'azienda di questo progetto e riceve il suo nome nel tunnel.
  *
- * **Nessun utente da creare** (fetta E, scelta del maintainer dell'11-10-2026):
- * gli utenti li porta il primo progetto distribuito; fino ad allora il pannello
- * è chiuso in LAN e lo raggiunge solo il gateway. Utente e password compaiono
- * solo se il pannello ha **già** utenti: lì il codice da solo non basta.
+ * **L'Admin del dispositivo nasce qui** (decisione del maintainer del 24-11-2026,
+ * che supera la fetta E dell'11-10-2026): utente e password si chiedono sempre.
+ * Senza, un pannello abbinato dal cloud non aveva nessun account suo, e il
+ * deploy dalla rete locale con un utente del progetto lo lasciava chiuso fuori.
+ * Gli utenti del progetto arrivano comunque col primo deploy. Se il pannello ha
+ * **già** utenti, gli stessi campi chiedono quelli di un suo amministratore.
  *
  * Dopo l'abbinamento la finestra mostra il riepilogo del pannello, con
  * «Rinomina» e «Connetti».
  */
+/** The shortest password of a device Admin, as the panel wants it. */
+const PASSWORD_MINIMA = 8;
+
 export function AbbinaPannelloCloud({ onAbbinato }: { onAbbinato: (url: string) => void }) {
   const { t } = useTranslation();
   const [cloud, setCloud] = useState(false);
@@ -38,7 +43,10 @@ export function AbbinaPannelloCloud({ onAbbinato }: { onAbbinato: (url: string) 
   }, []);
   if (!cloud) return null;
 
-  const pronto = codice.trim().length >= 16 && (!chiedeCredenziali || (utente.trim() !== "" && password !== ""));
+  // A new device Admin needs a password of 8 characters, as on the panel;
+  // an existing administrator's is checked by the panel.
+  const pronto = codice.trim().length >= 16 && utente.trim() !== ""
+    && (chiedeCredenziali ? password !== "" : password.length >= PASSWORD_MINIMA);
 
   // Subito dopo l'abbinamento il pannello deve ancora richiamare il gateway col
   // nome nuovo: il primo riepilogo diceva «collegato: no» anche quando dopo un
@@ -60,10 +68,7 @@ export function AbbinaPannelloCloud({ onAbbinato }: { onAbbinato: (url: string) 
     setInCorso(true);
     setErrore(null);
     try {
-      const r = await api.abbinaPannelloCloud(
-        codice.trim(), nome.trim() || undefined,
-        chiedeCredenziali ? utente.trim() : undefined, chiedeCredenziali ? password : undefined,
-      );
+      const r = await api.abbinaPannelloCloud(codice.trim(), nome.trim() || undefined, utente.trim(), password);
       setCodice(""); setPassword("");
       if (r.url) onAbbinato(r.url);
       void riepilogo(r.nome);
@@ -91,18 +96,14 @@ export function AbbinaPannelloCloud({ onAbbinato }: { onAbbinato: (url: string) 
               value={codice} spellCheck={false} onChange={(e) => setCodice(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && abbina()} />
             <input style={INPUT} placeholder={t("abbinamento.cloudNome")} value={nome} onChange={(e) => setNome(e.target.value)} />
-            {chiedeCredenziali && (
-              <>
-                <span style={NOTA}>{t("abbinamento.cloudCredenzialiEsistenti")}</span>
-                <div style={{ display: "flex", gap: 6 }}>
-                  <input style={{ ...INPUT, flex: 1 }} placeholder={t("abbinamento.utente")} value={utente}
-                    onChange={(e) => setUtente(e.target.value)} autoComplete="off" />
-                  <CampoPassword style={{ ...INPUT, flex: 1 }} placeholder={t("abbinamento.passwordSemplice")} value={password}
-                    onChange={(e) => setPassword(e.target.value)} autoComplete="off"
-                    onKeyDown={(e) => e.key === "Enter" && abbina()} />
-                </div>
-              </>
-            )}
+            <span style={NOTA}>{t(chiedeCredenziali ? "abbinamento.cloudCredenzialiEsistenti" : "abbinamento.cloudAdminDispositivo")}</span>
+            <div style={{ display: "flex", gap: 6 }}>
+              <input style={{ ...INPUT, flex: 1 }} placeholder={t("abbinamento.utente")} value={utente}
+                onChange={(e) => setUtente(e.target.value)} autoComplete="off" data-testid="abbina-cloud-utente" />
+              <CampoPassword style={{ ...INPUT, flex: 1 }} placeholder={t("abbinamento.passwordSemplice")} value={password}
+                onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" data-testid="abbina-cloud-password"
+                onKeyDown={(e) => e.key === "Enter" && abbina()} />
+            </div>
             <span style={NOTA}>{t("abbinamento.cloudUtentiDalProgetto")}</span>
             <div>
               <button onClick={abbina} disabled={!pronto || inCorso} style={bottone(pronto && !inCorso)}>

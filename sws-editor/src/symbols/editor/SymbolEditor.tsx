@@ -32,7 +32,7 @@ import {
   removeInput, renameInput, reorderOp, resizeSymbol, saveAsCopy, setExtra, setFill, setGeo, setPartGeo, setPathD,
   setPort, setVeil, transformOps, turnMatrix, union, validPathD, validSize, INPUT_KINDS, SIDES,
   animateSelection, setPartParam, newImage, setImageOpacity, nothingDrawn, draws,
-  groupOf, membersOf, normalizeOps, stripOldEffects, turns, ungroupOps,
+  groupOf, membersOf, normalizeOps, stripOldEffects, turns, ungroupOps, withOwnNames,
   animateCreatesPart, copyOps, effectsFollowing, freeInputId, freePartId, freePortId, idProblem, inputIds, normalizeId, regroupCopies,
   type Affine, type AlignMode, type Box, type InputKind, type Layer, type Op, type Port, type Side, type SymbolInput,
 } from "./model";
@@ -41,7 +41,9 @@ import { valoriParti, type ValoreParte } from "@/symbols/lib/libreria";
 import { AnimateBlock, AnimationProps } from "./AnimationProps";
 import { FxProps, askId, confirmEffectsGo, groupAsking, idMessage } from "./FxProps";
 import { apriInFinestra, inFinestraSimboli, ricordaStaccato, riportaNellIde, staccatoPreferito } from "./ponteSimboli";
-import { AiPanel } from "./AiPanel";
+import { ChatPanel } from "@/components/ChatPanel";
+import type { EditorAi } from "@/ai/editor";
+import { releaseSymbolChannel, symbolChannel } from "@/ws/aiStream";
 import { AiPhoto } from "./AiPhoto";
 import { bindingsOnParts, pipesOnPorts, svgWarningLines, takenSlugs, usage, withSymbol, withoutSymbol, writeSymbols, type SymbolEditorTarget } from "./open";
 import { importSvg, isBlank, looksLikeSvg, placeImport, roomFor, MAX_SVG_BYTES } from "./importSvg";
@@ -216,6 +218,7 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
   const commit = useCallback((next: DescrizioneSimbolo) => {
     setHist((h) => (next === h.present ? h : { past: [...h.past.slice(-99), h.present], present: next, future: [] }));
   }, []);
+
   // The selection is by index: after an undo it may point past the end, or at
   // other shapes (an undone import or duplicate crashed the editor, 20-11-2026).
   const undo = useCallback(() => {
@@ -403,6 +406,25 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
   const dRef = useRef(d);
   useLayoutEffect(() => { dRef.current = d; }, [d]);
   const latest = useCallback(() => dRef.current, []);
+
+  // The assistant (plan 2026-11-23-assistente-dei-simboli, session 1): the
+  // IDE's chat on a conversation of this symbol, in a column next to the
+  // drawing, wherever the editor is (in the IDE or in its own window).
+  const [assistant, setAssistant] = useState(false);
+  const slug = target.draft.slug;
+  const channel = useMemo(() => symbolChannel(slug), [slug]);
+  useEffect(() => () => releaseSymbolChannel(slug), [slug]);
+  const assistantEditor = useMemo<EditorAi>(() => ({
+    // Only symbols here: the project's proposals and page snapshots belong to
+    // the project's conversation.
+    diff: () => Promise.reject(new Error("the symbol editor proposes symbols only")),
+    applica: async () => ({ ok: false, motivo: "the symbol editor proposes symbols only" }),
+    fotografa: () => Promise.reject(new Error("the symbol editor takes no page snapshots")),
+    symbol: {
+      read: latest,
+      apply: (p) => { commit(withOwnNames(p, latest())); return { ok: true }; },
+    },
+  }), [commit, latest]);
 
   // ── the view ──
   const baseW = d.w + 2 * PAD, baseH = d.h + 2 * PAD;
@@ -1037,6 +1059,9 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
     setSaved(copy);
     setSavedSlug(copy.slug);
     portsSaved(copy);
+    // The parts too: made before «Save as», they stayed «new» on the copy, and
+    // the next save did not know them (review of the rc.30).
+    partsSaved(copy);
     setFromObject(undefined);
     setSel([]);
   };
@@ -1171,6 +1196,9 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
         <span style={{ color: C.subtle, fontSize: 13, whiteSpace: "nowrap" }}>{t("symbolEditor.usage", { n: use.objects, pages: use.pages })}</span>
         <span style={{ flex: 1 }} />
         {original && saved && <button type="button" style={HDR_BTN} onClick={() => void revert()}>{t("symbolEditor.revert")}</button>}
+        <button type="button" data-testid="symbol-editor-assistant" aria-pressed={assistant}
+          style={assistant ? { ...HDR_BTN, ...toggled } : HDR_BTN} title={t("symbolEditor.assistant.title")}
+          onClick={() => setAssistant((a) => !a)}>✦ {t("symbolEditor.assistant.button")}</button>
         <button type="button" style={{ ...HDR_BTN, ...dim(!!compiled.errors.length) }} disabled={!!compiled.errors.length} onClick={() => void exportFile()}
           data-testid="symbol-editor-export" title={t("symbolEditor.file.exportTitle")}>{t("symbolEditor.file.export")}</button>
         {library && (
@@ -1557,9 +1585,6 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
                       data-testid="symbol-fill-frame-symbol">⛶ {t("symbolEditor.fillFrame")}</button>
                   </Section>
                 )}
-                <Section id="ai-draw" title={t("symbolEditor.section.aiDraw")}>
-                  <AiPanel d={d} commit={commit} current={compiled} manifesto={manifesto} projectStyle={projectStyle} />
-                </Section>
                 <Section id="ai-photo" title={t("symbolEditor.aiPhoto.title")}>
                   <AiPhoto d={d} commit={commit} />
                 </Section>
@@ -1571,6 +1596,12 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
             )}
           </div>
         </div>
+        {assistant && (
+          <div data-testid="symbol-assistant-column" style={{ width: 380, flexShrink: 0, display: "flex", minHeight: 0, borderLeft: `1px solid ${C.surface2}` }}>
+            <ChatPanel open onClose={() => setAssistant(false)} editor={assistantEditor} channel={channel}
+              variant="window" title={t("symbolEditor.assistant.button")} />
+          </div>
+        )}
       </div>
     </div>
   );

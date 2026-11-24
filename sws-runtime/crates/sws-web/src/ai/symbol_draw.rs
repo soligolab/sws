@@ -356,7 +356,7 @@ pub enum Mode {
     Edit,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct Photo {
     pub media_type: String,
     /// Base64, without the `data:` prefix.
@@ -412,24 +412,10 @@ fn editor_messages(req: &EditorRequest, d: &Descrizione) -> Value {
             "Draw this symbol.\nslug: {}\nit: {}\nen: {}\n",
             d.slug, d.it, d.en
         ),
-        Mode::Edit => format!(
-            "This is the symbol as it is now:\n{}\n\nChange it as asked below. Answer with the \
-             whole description, not only what changes. Keep the ids of the ports and of the parts \
-             unless the request asks to change them: the pages bind them by id. Keep `w` and \
-             `h` too, unless the request asks for another size: every shape stays inside them. \
-             The operations `flangia` and `tronchetto` record a flange or a stub already drawn \
-             by the shapes before them: keep them as they are, next to their shapes. The \
-             operations `image` are photos of the project: keep them with their `src`; you may \
-             move, resize or put them in another layer, never invent a new one.\n",
-            serde_json::to_string_pretty(&readable(d)).unwrap_or_default()
-        ),
+        Mode::Edit => edit_text(d),
     };
     if req.photo.is_some() {
-        text.push_str(
-            "\nThe photo shows the machine: draw it seen from the front, in the style of the \
-             examples, with simple shapes. Leave out the background, the people and the text \
-             on it.\n",
-        );
+        text.push_str(PHOTO_NOTE);
     }
     if !req.instruction.trim().is_empty() {
         text.push('\n');
@@ -444,13 +430,42 @@ fn editor_messages(req: &EditorRequest, d: &Descrizione) -> Value {
     }
 }
 
+/// What the drawing model is told of a photo of the machine.
+pub(crate) const PHOTO_NOTE: &str =
+    "\nThe photo shows the machine: draw it seen from the front, in the style of the \
+     examples, with simple shapes. Leave out the background, the people and the text on it.\n";
+
+/// The request to change `d`: the symbol as it is, and how to keep what the
+/// pages bind. The editor's AI tab and the symbol editor's chat both use it.
+pub(crate) fn edit_text(d: &Descrizione) -> String {
+    format!(
+        "This is the symbol as it is now:\n{}\n\nChange it as asked below. Answer with the \
+         whole description, not only what changes. Keep the ids of the ports and of the parts \
+         unless the request asks to change them: the pages bind them by id. Keep `w` and \
+         `h` too, unless the request asks for another size: every shape stays inside them. \
+         The operations `flangia` and `tronchetto` record a flange or a stub already drawn \
+         by the shapes before them: keep them as they are, next to their shapes. The \
+         operations `image` are photos of the project: keep them with their `src`; you may \
+         move, resize or put them in another layer, never invent a new one.\n",
+        serde_json::to_string_pretty(&readable(d)).unwrap_or_default()
+    )
+}
+
+/// The photos `d` shows, by name: what a redrawing may keep.
+pub(crate) fn photos_of(d: &Descrizione) -> Vec<String> {
+    sws_core::simboli_prj::compila(d)
+        .ok()
+        .and_then(|c| serde_json::from_value(c.voce["images"].clone()).ok())
+        .unwrap_or_default()
+}
+
 /// A description as the format shows it: `geo` as an object. The library's
 /// descriptions keep it as pairs, to keep the order of the attributes
 /// (`genera.py`), and a model shown pairs answers in a shape of its own
 /// (qwen3.5:9b, 20-11-2026: `op` inside `geo`). The compiler reads both, and
 /// puts the keys of `geo` in the same canonical order; `extra` stays as it is,
 /// since an object would sort its keys and change the drawing's text.
-fn readable(d: &Descrizione) -> Value {
+pub(crate) fn readable(d: &Descrizione) -> Value {
     let mut v = serde_json::to_value(d).unwrap_or_default();
     // Not the model's to write: a library field, and the variant the caller
     // keeps (`fixed`). The answer schema has no place for them.
@@ -544,10 +559,7 @@ pub(crate) async fn editor(
     let result = draw(s, http, &choice, &system, messages, &fixed, &mut meter).await;
     // The photos are the project's (plan 2026-11-21-simboli-fase-3-foto): a
     // model can keep and move them, never name one the symbol didn't have.
-    let photos: Vec<String> = sws_core::simboli_prj::compila(&d)
-        .ok()
-        .and_then(|c| serde_json::from_value(c.voce["images"].clone()).ok())
-        .unwrap_or_default();
+    let photos = photos_of(&d);
     let result = result.map(|drawn| keep_known_photos(drawn, &photos));
     let mut out = match result {
         Ok(drawn) => json!({
@@ -570,7 +582,7 @@ pub(crate) async fn editor(
 
 /// `drawn` without the photos it names that are not in `known`, compiled
 /// again when something went.
-fn keep_known_photos(mut drawn: Drawn, known: &[String]) -> Drawn {
+pub(crate) fn keep_known_photos(mut drawn: Drawn, known: &[String]) -> Drawn {
     use sws_core::simboli_prj::Op;
     let before = drawn.description.ops.len();
     drawn
@@ -583,244 +595,6 @@ fn keep_known_photos(mut drawn: Drawn, known: &[String]) -> Drawn {
         }
     }
     drawn
-}
-
-// ── The interview before the drawing ───────────────────────────────────────
-//
-// The maintainer, 20-11-2026, after a vague request drawn badly: «vorrei che
-// fosse la chat, nel primo step, a fare una intervista all'utente per definire
-// veramente cosa vuole, l'equivalente della modalità plan». The model asks
-// what the request leaves open, at most [`MAX_ROUNDS`] rounds, then writes a
-// brief the user can correct; the drawing is asked from the brief.
-
-/// Rounds of questions before the brief is due.
-pub(crate) const MAX_ROUNDS: usize = 2;
-const MAX_QUESTIONS: usize = 4;
-const MAX_CHOICES: usize = 4;
-
-/// A round already answered: the questions, and the answers in their order
-/// (an empty answer = «decide yourself»).
-#[derive(Debug, Deserialize)]
-pub struct Round {
-    pub questions: Vec<String>,
-    #[serde(default)]
-    pub answers: Vec<String>,
-}
-
-/// `POST /api/symbols/ai/interview`.
-#[derive(Debug, Deserialize)]
-pub struct InterviewRequest {
-    pub mode: Mode,
-    #[serde(default)]
-    pub instruction: String,
-    pub description: Value,
-    #[serde(default)]
-    pub photo: Option<Photo>,
-    #[serde(default)]
-    pub rounds: Vec<Round>,
-}
-
-const INTERVIEW_SYSTEM: &str = "You prepare the drawing of a symbol for SWS, a SCADA: a machine or a \
-device seen from the front, for the synoptic pages of an industrial or home panel. Another model will \
-draw it from what you write, so the request must say what matters before anyone draws.\n\n\
-What a symbol can have:\n\
-- shapes in the materials of the library (steel, stainless steel, dark steel, glass, rubber, liquid, \
-paint…) or in colours of its own, inside a box of w×h units (multiples of 10, at most 510);\n\
-- a body, whose colour follows the state of the machine on the page (off, on, alarm);\n\
-- pipe ports on its borders: each has an id, a side (left, top, right, bottom) and a diameter; the \
-pipes of the page attach there;\n\
-- live parts, each driven by a tag of the page or by a fixed value: a rotor turns while a yes/no is \
-true; a needle turns to a number between a minimum and a maximum; a lever goes between two or more \
-positions (an index); a level fills from a side with a number; a signal changes colour, blinks or \
-hides by value or range (up to 8 entries, e.g. green at 1, red blinking from 2 to 9); a slide moves \
-between two positions; vibrate and pulse act while a yes/no is true.\n\
-- No text: the panel has no fonts in a symbol. Labels go on the page.\n\n\
-Read the request. Ask ONLY what it leaves open and what changes the drawing: what the thing is and \
-how it looks, the proportions, how many ports and on which side, which parts move or change and \
-with which value (yes/no, a number and its range, an index and how many positions), and whether \
-several parts follow the same value. At most 4 short questions, each with 2 to 4 likely answers. \
-Do not ask what you can decide well yourself.\n\n\
-When nothing that matters is open, write the brief instead: what the drawer must do, in order — \
-size, the shapes and where they are, the materials, each port with its id and side, each live part \
-with its kind, its id, its values and the tag it follows. At most 1500 characters, plain sentences.\n\n\
-Write the questions and the brief in the language of the request. Answer ONLY with JSON: \
-{\"questions\": [{\"text\": \"…\", \"choices\": [\"…\"]}]} or {\"brief\": \"…\"}.";
-
-/// What the answer may be, as JSON Schema (held to it on a local server).
-fn interview_schema() -> Value {
-    json!({ "type": "object", "additionalProperties": false, "properties": {
-        "questions": { "type": "array", "items": { "type": "object", "additionalProperties": false,
-            "required": ["text"], "properties": {
-                "text": { "type": "string" },
-                "choices": { "type": "array", "items": { "type": "string" } } } } },
-        "brief": { "type": "string" },
-    } })
-}
-
-/// The conversation of the interview so far.
-fn interview_messages(req: &InterviewRequest, d: &Descrizione) -> Vec<Value> {
-    let mut text = match req.mode {
-        Mode::New => "The user wants a new symbol.\n".to_string(),
-        Mode::Edit => format!(
-            "The user wants to change the symbol open in the editor ({} × {}), which is now:\n{}\n",
-            d.w,
-            d.h,
-            serde_json::to_string(&readable(d)).unwrap_or_default()
-        ),
-    };
-    if req.photo.is_some() {
-        text.push_str("The photo shows the machine to draw.\n");
-    }
-    text.push_str("\nThe request:\n");
-    text.push_str(req.instruction.trim());
-    let first = match &req.photo {
-        None => json!({ "role": "user", "content": text }),
-        Some(p) => json!({ "role": "user", "content": [
-            { "type": "image", "source": { "type": "base64", "media_type": p.media_type, "data": p.data } },
-            { "type": "text", "text": text },
-        ] }),
-    };
-    let mut out = vec![first];
-    for (n, r) in req.rounds.iter().enumerate() {
-        out.push(json!({ "role": "assistant", "content": json!({
-            "questions": r.questions.iter().map(|q| json!({ "text": q })).collect::<Vec<_>>() }).to_string() }));
-        let mut answers = String::from("The answers:\n");
-        for (i, q) in r.questions.iter().enumerate() {
-            let a = r.answers.get(i).map(|a| a.trim()).filter(|a| !a.is_empty());
-            answers.push_str(&format!("- {q} → {}\n", a.unwrap_or("(decide yourself)")));
-        }
-        if n + 1 >= MAX_ROUNDS {
-            answers.push_str("\nNo more questions now: write the brief.");
-        }
-        out.push(json!({ "role": "user", "content": answers }));
-    }
-    out
-}
-
-/// What the model answered, cleaned: at most four questions with four
-/// choices, or a brief no longer than an instruction may be.
-fn interview_answer(v: &Value) -> Option<Value> {
-    let brief = v
-        .get("brief")
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|b| !b.is_empty());
-    if let Some(b) = brief {
-        return Some(json!({ "brief": b.chars().take(INSTRUCTION_MAX_CHARS).collect::<String>() }));
-    }
-    let questions: Vec<Value> = v
-        .get("questions")
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
-        .filter_map(|q| {
-            let text = q.get("text").and_then(Value::as_str)?.trim();
-            (!text.is_empty()).then(|| {
-                let choices: Vec<&str> = q
-                    .get("choices")
-                    .and_then(Value::as_array)
-                    .into_iter()
-                    .flatten()
-                    .filter_map(Value::as_str)
-                    .map(str::trim)
-                    .filter(|c| !c.is_empty())
-                    .take(MAX_CHOICES)
-                    .collect();
-                json!({ "text": text, "choices": choices })
-            })
-        })
-        .take(MAX_QUESTIONS)
-        .collect();
-    (!questions.is_empty()).then(|| json!({ "questions": questions }))
-}
-
-/// One round of the interview: questions, or the brief. Codes as [`editor`]:
-/// `no_model`, `blind_model`, `bad_request`, `cap_reached`, `provider`, and
-/// `invalid` when the answer did not read twice.
-pub(crate) async fn interview(
-    s: &AppState,
-    choice: Option<client::Scelta>,
-    http: &reqwest::Client,
-    req: InterviewRequest,
-) -> Value {
-    let Some(choice) = choice else {
-        return refused("no_model", "no AI model is configured");
-    };
-    let d: Descrizione = match serde_json::from_value(req.description.clone()) {
-        Ok(d) => d,
-        Err(e) => return refused("bad_request", format!("description: {e}")),
-    };
-    if req.instruction.trim().is_empty() && req.photo.is_none() {
-        return refused("bad_request", "nothing asked");
-    }
-    if req.instruction.chars().count() > INSTRUCTION_MAX_CHARS || req.rounds.len() > MAX_ROUNDS {
-        return refused("bad_request", "instruction too long or too many rounds");
-    }
-    if let Some(p) = &req.photo {
-        if p.data.len() > PHOTO_MAX_BASE64 {
-            return refused("bad_request", "photo too big");
-        }
-        if !choice.sees_images {
-            return json!({ "ok": false, "code": "blind_model", "model": choice.modello });
-        }
-    }
-    let mut meter = RequestMeter {
-        cap_usd: choice.tetto_usd,
-        spent_usd: 0.0,
-        calls: 0,
-    };
-    let mut messages = interview_messages(&req, &d);
-    let shape = interview_schema();
-    let mut out = refused("invalid", "the answer did not read");
-    for _ in 0..2 {
-        if let Err(m) = meter.may_call() {
-            out = refused("cap_reached", m);
-            break;
-        }
-        let (answer, usage) = match client::ask_shaped(
-            http,
-            &choice,
-            INTERVIEW_SYSTEM,
-            &messages,
-            4000,
-            Some(&shape),
-        )
-        .await
-        {
-            Ok(a) => a,
-            Err(e) => {
-                out = refused("provider", format!("{e:#}"));
-                break;
-            }
-        };
-        let cost = price_list::cost_usd(
-            &s.config_dir,
-            choice.fornitore,
-            &choice.modello,
-            &usage,
-            s.in_cloud(),
-        );
-        spending::add(
-            &s.config_dir,
-            scopi::Scopo::Simboli.nome(),
-            choice.fornitore.nome(),
-            cost,
-        );
-        meter.paid(cost, &usage, 0.0);
-        let read = serde_json::from_str::<Value>(estrai_json(&answer)).ok();
-        if let Some(mut good) = read.as_ref().and_then(interview_answer) {
-            good["ok"] = json!(true);
-            out = good;
-            break;
-        }
-        tracing::info!(answer = %answer.chars().take(800).collect::<String>(), "symbol interview unreadable");
-        messages.push(json!({ "role": "assistant", "content": answer }));
-        messages.push(json!({ "role": "user", "content":
-            "That is not the JSON asked: answer only {\"questions\": [...]} or {\"brief\": \"...\"}." }));
-    }
-    out["cost_usd"] = json!(meter.spent_usd);
-    out["model"] = json!(choice.modello);
-    out
 }
 
 #[cfg(test)]
@@ -1168,105 +942,6 @@ mod tests {
             f["json_schema"]["schema"]["required"],
             json!(["w", "h", "body", "ops"])
         );
-    }
-
-    async fn interview_with(answers: Vec<String>, req: Value) -> (Value, Seen, tempfile::TempDir) {
-        let (url, seen) = fake_model(answers).await;
-        let dir = tempfile::tempdir().unwrap();
-        let s = crate::router::stato_di_prova(dir.path()).await;
-        let req: InterviewRequest = serde_json::from_value(req).unwrap();
-        let out = interview(&s, Some(local(&url, false)), &reqwest::Client::new(), req).await;
-        (out, seen, dir)
-    }
-
-    /// A vague request gets questions, at most four with four choices each,
-    /// asked with the interview's instructions and held to its schema.
-    #[tokio::test]
-    async fn a_vague_request_gets_questions() {
-        let qs: Vec<Value> = (1..=6)
-            .map(|n| json!({ "text": format!("domanda {n}?"), "choices": ["a", "b", "c", "d", "e"] }))
-            .collect();
-        let (out, seen, _dir) = interview_with(
-            vec![json!({ "questions": qs }).to_string()],
-            json!({ "mode": "new", "instruction": "un collettore a 5 ingressi", "description": open_symbol() }),
-        )
-        .await;
-        assert_eq!(out["ok"], true, "{out}");
-        assert_eq!(out["questions"].as_array().unwrap().len(), 4);
-        assert_eq!(out["questions"][0]["choices"].as_array().unwrap().len(), 4);
-        assert!(out.get("brief").is_none());
-        let seen = seen.lock().unwrap();
-        assert!(seen[0]["messages"][0]["content"]
-            .as_str()
-            .unwrap()
-            .contains("Ask ONLY what it leaves open"));
-        assert!(seen[0]["messages"][1]["content"]
-            .as_str()
-            .unwrap()
-            .contains("collettore a 5 ingressi"));
-        assert_eq!(seen[0]["response_format"]["type"], "json_schema");
-    }
-
-    /// The answers go back with the questions, an empty one as «decide
-    /// yourself»; after the last round the model is told to write the brief.
-    #[tokio::test]
-    async fn the_answers_go_back_and_the_last_round_asks_for_the_brief() {
-        let (out, seen, _dir) = interview_with(
-            vec![json!({ "brief": "  Un collettore orizzontale 160×100 in inox.  " }).to_string()],
-            json!({ "mode": "new", "instruction": "un collettore", "description": open_symbol(),
-                    "rounds": [
-                        { "questions": ["Gli ingressi dove?"], "answers": ["sopra"] },
-                        { "questions": ["Quanti LED?", "Che tag?"], "answers": ["5", ""] },
-                    ] }),
-        )
-        .await;
-        assert_eq!(out["ok"], true, "{out}");
-        assert_eq!(out["brief"], "Un collettore orizzontale 160×100 in inox.");
-        let seen = seen.lock().unwrap();
-        let m = seen[0]["messages"].as_array().unwrap();
-        // system, request, then question and answers for each round.
-        assert_eq!(m.len(), 6);
-        assert!(m[2]["content"]
-            .as_str()
-            .unwrap()
-            .contains("Gli ingressi dove?"));
-        let last = m[5]["content"].as_str().unwrap();
-        assert!(
-            last.contains("Quanti LED? → 5") && last.contains("Che tag? → (decide yourself)"),
-            "{last}"
-        );
-        assert!(last.contains("write the brief"), "{last}");
-        assert!(!m[3]["content"]
-            .as_str()
-            .unwrap()
-            .contains("write the brief"));
-    }
-
-    /// An answer that does not read is asked again once; twice, it is said.
-    #[tokio::test]
-    async fn an_unreadable_interview_is_asked_again_once() {
-        let req = json!({ "mode": "new", "instruction": "x", "description": open_symbol() });
-        let (out, seen, _dir) = interview_with(
-            vec![
-                "sure, here are my questions".into(),
-                json!({ "brief": "ok" }).to_string(),
-            ],
-            req.clone(),
-        )
-        .await;
-        assert_eq!(out["brief"], "ok", "{out}");
-        assert_eq!(seen.lock().unwrap().len(), 2);
-        let (out, _seen, _dir) = interview_with(vec!["no".into(), "{}".into()], req).await;
-        assert_eq!(out["code"], "invalid", "{out}");
-        // Too many rounds, and no model: said before calling anyone.
-        let (out, seen, _dir) = interview_with(
-            vec![],
-            json!({ "mode": "new", "instruction": "x", "description": open_symbol(),
-                    "rounds": [{ "questions": [] }, { "questions": [] }, { "questions": [] }] }),
-        )
-        .await;
-        assert_eq!(out["code"], "bad_request");
-        assert!(seen.lock().unwrap().is_empty());
     }
 
     /// A model that adds a variant on its own does not make one.

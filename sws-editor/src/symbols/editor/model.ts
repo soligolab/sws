@@ -193,6 +193,20 @@ const PAIRED = new Set(["forma", "luce", "riflesso", "tratto", "image"]);
 /** A description with every attribute list written as pairs, the form the
  *  editor reads: applied where a description enters the editor (opening, a
  *  symbol file, a proposal of the AI). The same description if nothing changes. */
+/** The fields the editor owns: whatever a proposal of the assistant says,
+ *  applying it keeps them as they are now (they may have changed while the
+ *  model was drawing). Moved here from the AI tab, 23-11-2026. */
+export function withOwnNames(p: DescrizioneSimbolo, d: DescrizioneSimbolo): DescrizioneSimbolo {
+  // The model may write attributes as objects (the compiler accepts them):
+  // the editor reads pairs (test of the rc.29, 23-11-2026).
+  const out: DescrizioneSimbolo = { ...normalizeOps(p), slug: d.slug, it: d.it, en: d.en, tipo: d.tipo };
+  if (d.overrides) out.overrides = d.overrides;
+  else delete out.overrides;
+  if (d.library) out.library = d.library;
+  else delete out.library;
+  return out;
+}
+
 export function normalizeOps(d: DescrizioneSimbolo): DescrizioneSimbolo {
   let changed = false;
   const ops = (d.ops as Op[]).map((op) => {
@@ -855,6 +869,16 @@ export function matrixOp(op: Op, m: Matrix): Op {
       return { ...op, geo: matrixGeo(String(op.tag), op.geo, m) };
     case "tratto":
       return { ...op, d: matrixPath(String(op.d), m) };
+    case "image": {
+      // The format has no rotation for a photo: turned with other shapes it
+      // moves with them, its centre around the common centre, and keeps its
+      // size and its cut (review of the rc.30: it stayed where it was).
+      const g = asPairs(op.geo);
+      const get = (k: string) => Number(g.find(([n]) => n === k)?.[1] ?? 0);
+      const cx = get("x") + get("width") / 2, cy = get("y") + get("height") / 2;
+      const [nx, ny] = apply(m, cx, cy);
+      return transformOp(op, { sx: 1, sy: 1, tx: r2(nx - cx), ty: r2(ny - cy) });
+    }
     case "bocca": {
       const [x, y] = apply(m, Number(op.x), Number(op.y));
       const v = TURN_SIDE[String(op.side)] ?? [-1, 0];
@@ -1441,9 +1465,18 @@ export function clipPhoto(d: DescrizioneSimbolo, photo: number, shape: number): 
   const ops = [...(d.ops as Op[])];
   const p = ops[photo], s = ops[shape];
   if (p?.op !== "image" || s?.op !== "forma") return d;
-  ops[photo] = { ...p, clip: { tag: s.tag, geo: asPairs(s.geo) } };
+  // The look of the shape stays in the clip, for «Togli ritaglio» (24-11-2026).
+  const look: Record<string, unknown> = {};
+  if (s.mat) look.mat = s.mat;
+  if (s.velo) look.velo = s.velo;
+  if (Array.isArray(s.extra) ? s.extra.length : s.extra && Object.keys(s.extra).length) look.extra = asPairs(s.extra);
+  if (groupOf(s)) look.group = groupOf(s);
+  ops[photo] = { ...p, clip: { tag: s.tag, geo: asPairs(s.geo), ...look } };
   ops.splice(shape, 1);
-  return withOps(d, ops);
+  // An effect whose group lost its last shape goes too, as with Delete: left
+  // alone it stopped «Save» (review of the rc.30).
+  const groups = new Set(ops.map(groupOf).filter((g): g is string => !!g));
+  return withOps(d, ops.filter((op) => op.op !== "effetto" || groups.has(String(op.group))));
 }
 
 /** «Togli ritaglio»: the shape comes back, right after the photo, outlined
@@ -1453,11 +1486,18 @@ export function clipPhoto(d: DescrizioneSimbolo, photo: number, shape: number): 
 export function unclipPhoto(d: DescrizioneSimbolo, photo: number): DescrizioneSimbolo {
   const ops = [...(d.ops as Op[])];
   const p = ops[photo];
-  const clip = p?.clip as { tag: string; geo: unknown } | undefined;
+  const clip = p?.clip as { tag: string; geo: unknown; mat?: string; velo?: string; extra?: unknown; group?: string } | undefined;
   if (p?.op !== "image" || !clip) return d;
   const { clip: _c, ...rest } = p;
   ops[photo] = rest as Op;
-  ops.splice(photo + 1, 0, { op: "forma", tag: clip.tag, geo: asPairs(clip.geo), mat: null, velo: null, extra: [["fill", "none"]] });
+  // The shape as it was, when the clip kept its look (24-11-2026); a clip of
+  // before has none, and comes back outlined (filled, it would cover the photo).
+  const kept = clip.mat !== undefined || clip.velo !== undefined || clip.extra !== undefined || clip.group !== undefined;
+  const shape: Op = kept
+    ? { op: "forma", tag: clip.tag, geo: asPairs(clip.geo), mat: clip.mat ?? null, velo: clip.velo ?? null,
+        extra: clip.extra ? asPairs(clip.extra) : [], ...(clip.group ? { group: clip.group } : {}) }
+    : { op: "forma", tag: clip.tag, geo: asPairs(clip.geo), mat: null, velo: null, extra: [["fill", "none"]] };
+  ops.splice(photo + 1, 0, shape);
   return withOps(d, ops);
 }
 

@@ -373,22 +373,6 @@ pub async fn ai(
     }
 }
 
-/// `POST /api/symbols/ai/interview` — before the drawing, the model asks what
-/// the request leaves open, then writes the brief the drawing starts from
-/// (`symbol_draw::interview`). IDE only, like `ai`.
-pub async fn ai_interview(
-    State(s): State<AppState>,
-    Extension(user): Extension<AuthUser>,
-    Json(req): Json<crate::ai::symbol_draw::InterviewRequest>,
-) -> Response {
-    match symbol_model(&s, &user).await {
-        Ok((choice, http)) => {
-            Json(crate::ai::symbol_draw::interview(&s, choice, &http, req).await).into_response()
-        }
-        Err(r) => r,
-    }
-}
-
 /// What «Genera foto» asks (plan `2026-11-21-simboli-fase-3-foto`): what to
 /// photograph, and the size of the symbol, whose proportions the photo takes.
 #[derive(serde::Deserialize)]

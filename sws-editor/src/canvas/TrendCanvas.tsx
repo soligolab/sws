@@ -731,7 +731,10 @@ export function TrendCanvas({
     // Which traces show invalid data now (test of the rc.29, 23-11-2026): the
     // live quality, not the history — buckets carry no quality, and `ancora`
     // prolongs a Bad sample to now.
-    const badTrace = tags.map((_, i) => traceIsBad(series[i], liveQualities?.[i]));
+    // A window in the past (historical, or panned back) is judged by its own
+    // samples, not by how the tag is now (review of the rc.30).
+    const inThePast = isHistorical || offsetMs !== 0;
+    const badTrace = tags.map((_, i) => traceIsBad(series[i], inThePast ? undefined : liveQualities?.[i]));
     const badText = testoSistema("trend_bad_quality", lingua.lang);
 
     const hasAnyData = hasDrawableData(series);
@@ -1074,18 +1077,19 @@ export function TrendCanvas({
 
     // ── F5.2x: cursori di misura ──
     if (cursors.length > 0) {
+      // The sample nearest the cursor, as the hover reads it: on a Bad
+      // stretch there is no reading. It skipped the Bad samples and showed
+      // the nearest good value, as if it were there (review of the rc.30).
       const nearestVal = (idx: number, ts: number): number | null => {
         const pts = series[idx] ?? [];
-        let best: number | null = null;
+        let best: Sample | null = null;
         let bestDist = Infinity;
         for (const p of pts) {
           const d = Math.abs(p.ts_ms - ts);
-          if (d < bestDist) {
-            const n = drawableNumber(p);
-            if (n !== null) { best = n; bestDist = d; }
-          } else if (d > bestDist) break; // ordinati per ts: oltre il minimo
+          if (d < bestDist) { best = p; bestDist = d; }
+          else if (d > bestDist) break; // ordinati per ts: oltre il minimo
         }
-        return best;
+        return best ? drawableNumber(best) : null;
       };
       // Linee verticali A/B
       cursors.forEach((ts, ci) => {

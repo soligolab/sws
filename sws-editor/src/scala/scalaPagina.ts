@@ -110,6 +110,10 @@ export function scalaOggetto(
   punto: (x: number, y: number) => { x: number; y: number },
 ): SynopticObject {
   const out = scalaMisure(obj, f);
+  // A faceplate draws its content at its own size unless `faceplate_scale`
+  // says to follow the box: scaled without it, the box shrank and the content
+  // did not (24-11-2026, the portrait copy of CasaDomotica).
+  if (obj.type === "faceplate" && f !== 1) out.faceplate_scale = true;
   const p = punto(obj.x ?? 0, obj.y ?? 0);
   out.x = arrotonda(p.x);
   out.y = arrotonda(p.y);

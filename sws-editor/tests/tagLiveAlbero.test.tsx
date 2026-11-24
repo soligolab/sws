@@ -10,7 +10,7 @@ vi.mock("@/api/client", async () => {
     buildStato: vi.fn().mockResolvedValue({ repo: false }) } };
 });
 
-import { AlberoTagLive } from "../src/editor/AlberoTagLive";
+import { AlberoTagLive, prefixOf } from "../src/editor/AlberoTagLive";
 import { TagsTab } from "../src/config/schede/TagsTab";
 import { useAppStore } from "../src/store";
 
@@ -44,6 +44,17 @@ describe("albero delle variabili live", () => {
     fireEvent.click(screen.getByText("host.Temeprature1"));
     expect(useAppStore.getState().configTab).toBe("tags");
     expect(useAppStore.getState().configFocus).toBe("host.Temeprature1");
+  });
+
+  it("groups by the part before the dot, the rest under «Others» (24-11-2026)", () => {
+    render(<AlberoTagLive />);
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "prefix" } });
+    // The group «host» holds host.Temeprature1; radio_option has no dot.
+    expect(screen.getByText("host (1)")).toBeTruthy();
+    expect(screen.getByText(/^(Altri|Other) \(1\)$/)).toBeTruthy();
+    expect(prefixOf("window.kitchen_left")).toBe("window");
+    expect(prefixOf("plain")).toBeNull();
+    expect(prefixOf(".odd")).toBeNull();
   });
 
   it("chi non può aprire la scheda non cambia niente cliccando", () => {

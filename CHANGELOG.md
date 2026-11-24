@@ -14,6 +14,71 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 Il lavoro della **2.27.0** (versioni `2.27.0-dev.N`). Dal 22-11-2026 `main` porta la release successiva, e la 2.26.0
 si stabilizza su `release/2.26` (piano `docs/plans/2026-11-22-dev-rc-release-e-portale-di-sviluppo.md`).
 
+### Corretto — «Cambia risoluzione» rimpicciolisce anche il contenuto dei faceplate (24-11-2026, ramo `fix/rc30-leftovers`)
+- Un faceplate disegna il suo contenuto alla sua misura se `faceplate_scale` non dice di seguire il riquadro: scalato,
+  il riquadro diventava più piccolo e il contenuto no, e le istanze vicine si sovrapponevano. `scalaOggetto` ora mette
+  `faceplate_scale` quando la misura cambia. Trovato facendo la copia verticale di CasaDomotica.
+
+### Aggiunto — l'albero dei tag raggruppa anche per prefisso (24-11-2026, ramo `fix/rc30-leftovers`)
+- «Raggruppa: zona o apparato (prima del punto)» nell'albero delle variabili: il gruppo è la parte dell'id prima del
+  primo punto (`window.*`, `shutter.*`, `host.*`); gli id senza punto vanno in «Altri». Chiesto col riordino dei tag
+  di CasaDomotica, che da oggi segue questi nomi.
+
+### Corretto — i residui della rc.30 e le sue scelte riviste (24-11-2026, ramo `fix/rc30-leftovers`)
+Piano `docs/plans/2026-11-24-residui-rc30-e-bad-di-default.md`, parti A e B.
+- **Rotazione**: `/api/system?screen_rotation=1` dice la rotazione già chiesta e in attesa (`pending`); un secondo
+  deploy in quei minuti non la richiede.
+- **Socket dei tag**: rifiuta le scritture sui tag calcolati, come la PUT (T-69).
+- **Registro audit sul pannello**: al più 16 MB, le voci più vecchie escono e la catena resta verificabile; l'avvio e
+  la pagina del registro leggono la fine del file. Il gateway pota ancora per età.
+- **Editor dei simboli**: il ritaglio conserva materiale, velo, attributi e gruppo della forma, e «Togli ritaglio» li
+  rende (`ClipShape`, campi facoltativi); ritagliare una forma con un effetto toglie l'effetto rimasto senza forme;
+  Ruota e Specchia spostano anche la foto col centro comune, senza deformarla; «Salva come» azzera anche l'origine
+  delle parti.
+- **Pagina Utenti**: un campo salvato all'uscita non blocca più la tabella; il fuoco va al campo dopo.
+- **Trend**: un tag mai ricevuto non è più una linea a 0 (la storia con `ancora` non lo ripete); una finestra storica
+  o spostata indietro si giudica dai suoi campioni; i cursori di misura su un tratto Bad non mostrano niente.
+- **Deploy**: un salvataggio durante un deploy aspetta e parte una volta, dopo (prima prendeva 409); il deploy partito
+  da un salvataggio, su un 428, fa la stessa domanda del deploy a mano (decisione del maintainer).
+- **Abbinamento dal cloud**: chiede sempre l'Admin del dispositivo (decisione del maintainer, supera la fetta E
+  dell'11-10-2026); il deploy dalla rete locale torna possibile.
+
+### Aggiunto — l'assistente dei simboli, sessione 2: l'intervista, la scheda, la foto allegata (24-11-2026, ramo `feat/symbol-assistant-interview`)
+- Il blocco di prompt «Editor dei simboli» porta l'**intervista** del piano (blocchi 0-6: da dove si parte, che cos'è,
+  ingressi, foto, parti e bocche, effetti, la scheda), con `fai_domande` e al più quattro domande per volta.
+- **La scheda del simbolo** (`ai/symbol_sheet.rs`, strumento `symbol_sheet`): nome, misura, stile, ingressi, parti coi
+  nomi e i movimenti, bocche, effetti, foto. Il server controlla nomi (la regola del compilatore) e riferimenti e
+  rimanda gli errori al modello. In chat è **modificabile** fino a «Conferma» (`SymbolSheetCard.tsx`, decisione del
+  maintainer); la versione confermata parte con la domanda (`chiedi.sheet`) e da lì vale quella.
+- **Il disegno dalla scheda**: `disegna_simbolo` con `from_sheet` chiede al modello che disegna le parti coi loro nomi
+  (gruppi, e uno strato `parte` per quelle che si muovono: i movimenti li fa lui, decisione del maintainer), le bocche,
+  la misura. Poi **il codice** (`complete`, T1 e T4 del piano) mette gli ingressi che nessuna parte porta, le bocche
+  mancanti a metà del loro lato, e gli effetti sui loro gruppi; quello che non riesce torna al modello come
+  `sheet_notes`. Vale anche per `bozza_simbolo`.
+- **La foto allegata**, in tutte e due le chat (decisione del maintainer): il fermaglio accanto a «Manda», ridotta a
+  1024 px nel browser, mostrata nella domanda; va al modello della chat se vede le immagini, altrimenti glielo si dice.
+  Nella chat dei simboli resta come riferimento per `disegna_simbolo` con `with_photo`.
+- La modalità copione (`SWS_AI_FAKE`) conosce `read_symbol`, `symbol_sheet` e `propose_symbol`.
+- `/api/symbols/ai` resta ancora: si toglie nella sessione 3, con i test di `draw()` spostati.
+
+### Aggiunto — l'assistente dei simboli, sessione 1: la chat dentro l'editor (23-11-2026, ramo `feat/symbol-assistant-chat`)
+- Piano `docs/plans/2026-11-23-assistente-dei-simboli.md`. Il pulsante **«Assistente IA»** nella barra dell'editor dei
+  simboli apre accanto al disegno la chat dell'IDE (`ChatPanel`) su una **conversazione del simbolo**, separata da
+  quella del progetto: una per simbolo, ritrovata riaprendolo nella stessa sessione del browser. La chat sta dove sta
+  l'editor, dentro l'IDE o nella sua finestra (decisione del maintainer, 23-11).
+- `ws/aiStream.ts`: il canale diventa la classe `AiChannel`, un'istanza per conversazione; le funzioni di prima parlano
+  a quella del progetto. `symbolChannel(slug)` apre `/ws/ai?conv=…&scope=symbol`.
+- Server: con `scope=symbol` gli strumenti sono solo `fai_domande`, `read_symbol` (nuovo: il simbolo com'è, con
+  errori, parti e bocche), `disegna_simbolo` (che con `from_open_symbol` parte dal simbolo aperto e tiene solo le sue
+  foto) o `bozza_simbolo`, e `propose_symbol` (nuovo: la bozza all'editor, con «Applica»; non nello stesso turno del
+  disegno). Il blocco di prompt «Editor dei simboli» va dopo quello fisso, così la cache regge. Ogni domanda porta il
+  simbolo aperto (`chiedi.simbolo`).
+- «Applica» mette il disegno nell'editor come **un passo che Ctrl+Z annulla**, con nome, etichette e variante
+  dell'editor (`withOwnNames`, spostata in `model.ts`).
+- **Tolti** «Disegno con l'IA» (`AiPanel.tsx`) e l'intervista `/api/symbols/ai/interview` (`INTERVIEW_SYSTEM`).
+  **Restano** «Genera foto» fino alla sessione 3 (decisione del maintainer) e la rotta `/api/symbols/ai`, senza più
+  interfaccia: i test di `draw()` passano da lì, e la foto di riferimento oggi c'è solo lì. Si toglie nella sessione 2.
+
 ### Aggiunto — la sorgente `plx800_io`, il modulo I/O del PLX800 (23-11-2026, ramo `feat/plx800-io`)
 - Crate `sws-plugin-plx800` sul segmento `/dev/shm/qmb800_registers` di PixsysOS (interfaccia versione 1, 176 byte):
   lettura coerente con `status_seq`, freschezza da `update_count` col clock monotono, 61 punti (ingressi, DIP, uscite,

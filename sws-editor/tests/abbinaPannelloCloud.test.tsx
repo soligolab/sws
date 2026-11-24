@@ -1,5 +1,6 @@
-/** «Abbina un pannello» nell'IDE nel cloud (fetta E, 11-10-2026): niente utente
- *  da creare, credenziali solo se il pannello ne ha già, poi riepilogo e Rinomina. */
+/** «Abbina un pannello» nell'IDE nel cloud: dal 24-11-2026 nasce anche l'Admin
+ *  del dispositivo (utente e password sempre); se il pannello ha già utenti, i
+ *  campi chiedono quelli di un suo amministratore; poi riepilogo e Rinomina. */
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, expect, it, beforeEach, vi } from "vitest";
 
@@ -32,18 +33,22 @@ describe("AbbinaPannelloCloud", () => {
     expect(screen.queryByTestId("abbina-pannello-cloud")).toBeNull();
   });
 
-  it("si abbina col solo codice, poi riepilogo e Rinomina", async () => {
+  it("si abbina col codice e l'Admin del dispositivo, poi riepilogo e Rinomina", async () => {
     const onAbbinato = vi.fn();
     abbinaPannelloCloud.mockResolvedValue({ nome: "tc620-casa-2", azienda: "-", url: "https://sws/dev/tc620-casa-2" });
     pannelloCloud.mockResolvedValue({ nome: "tc620-casa-2", url: "https://sws/dev/tc620-casa-2", collegato: true, senza_utenti: true, versione: "2.13.0", arch: "aarch64" });
     rinominaPannelloCloud.mockResolvedValue({ nome: "tc620-casa" });
     render(<AbbinaPannelloCloud onAbbinato={onAbbinato} />);
     await screen.findByTestId("abbina-pannello-cloud");
-    expect(document.querySelector('input[type="password"]')).toBeNull();
     fireEvent.change(screen.getByPlaceholderText("XXXX-XXXX-XXXX-XXXX"), { target: { value: CODICE } });
+    fireEvent.change(screen.getByTestId("abbina-cloud-utente"), { target: { value: "admin" } });
+    // A short password keeps «Pair» off.
+    fireEvent.change(screen.getByTestId("abbina-cloud-password"), { target: { value: "corta" } });
+    expect((screen.getByRole("button", { name: /abbina|pair/i }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(screen.getByTestId("abbina-cloud-password"), { target: { value: "una-password" } });
     fireEvent.keyDown(screen.getByPlaceholderText("XXXX-XXXX-XXXX-XXXX"), { key: "Enter" });
     const riepilogo = await screen.findByTestId("riepilogo-pannello");
-    expect(abbinaPannelloCloud).toHaveBeenCalledWith(CODICE, undefined, undefined, undefined);
+    expect(abbinaPannelloCloud).toHaveBeenCalledWith(CODICE, undefined, "admin", "una-password");
     expect(onAbbinato).toHaveBeenCalledWith("https://sws/dev/tc620-casa-2");
     expect(riepilogo.textContent).toContain("2.13.0");
     const campo = screen.getByLabelText(/Rinomina|Rename/);
@@ -51,15 +56,17 @@ describe("AbbinaPannelloCloud", () => {
     fireEvent.keyDown(campo, { key: "Enter" });
     await waitFor(() => expect(rinominaPannelloCloud).toHaveBeenCalledWith("tc620-casa-2", "tc620-casa"));
     await waitFor(() => expect(onAbbinato).toHaveBeenLastCalledWith("https://sws/dev/tc620-casa"));
-  });
+    // Many steps: under the full suite it went past the default 5 s once.
+  }, 15000);
 
-  it("le credenziali compaiono solo se il pannello ha già utenti", async () => {
+  it("se il pannello ha già utenti, i campi chiedono quelli di un suo amministratore", async () => {
     abbinaPannelloCloud.mockRejectedValueOnce(new Error('API x: 401 — {"error":"abbinamento","detail":"questo pannello ha già utenti: per abbinarlo al cloud servono utente e password di un suo amministratore"}'));
     render(<AbbinaPannelloCloud onAbbinato={() => {}} />);
     await screen.findByTestId("abbina-pannello-cloud");
     fireEvent.change(screen.getByPlaceholderText("XXXX-XXXX-XXXX-XXXX"), { target: { value: CODICE } });
+    fireEvent.change(screen.getByTestId("abbina-cloud-utente"), { target: { value: "admin" } });
+    fireEvent.change(screen.getByTestId("abbina-cloud-password"), { target: { value: "una-password" } });
     fireEvent.keyDown(screen.getByPlaceholderText("XXXX-XXXX-XXXX-XXXX"), { key: "Enter" });
-    await waitFor(() => expect(document.querySelector('input[type="password"]')).not.toBeNull());
     expect(await screen.findByText(/servono utente e password/)).toBeTruthy();
   });
 });
@@ -82,6 +89,8 @@ describe("AbbinaPannelloCloud: il riepilogo aspetta il pannello", () => {
       render(<AbbinaPannelloCloud onAbbinato={() => {}} />);
       const campo = await screen.findByPlaceholderText("XXXX-XXXX-XXXX-XXXX");
       fireEvent.change(campo, { target: { value: CODICE } });
+      fireEvent.change(screen.getByTestId("abbina-cloud-utente"), { target: { value: "admin" } });
+      fireEvent.change(screen.getByTestId("abbina-cloud-password"), { target: { value: "una-password" } });
       fireEvent.click(screen.getByRole("button", { name: /abbina|pair/i }));
       await waitFor(() => expect(pannelloCloud).toHaveBeenCalledTimes(1));
       await vi.advanceTimersByTimeAsync(2100);

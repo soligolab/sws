@@ -132,7 +132,6 @@
     "deployAlSalvataggio": "al salvataggio",
     "deployAlSalvataggioTitle": "Invia il progetto a ogni salvataggio andato a buon fine (senza utenti né segreti). Spento: si invia solo con «Invia ora».",
     "deployErrore": "Ultimo invio fallito: {{motivo}}",
-    "deployOnSaveNeedsConfirm": "Invio al salvataggio fermato: il pannello chiede una conferma. Premi «Invia ora» per vederla.",
     "deployConfigTitle": "Clicca per configurare la connessione al runtime remoto",
     "deployReconnectTitle": "Clicca per riconnetterti a {{url}}",
     "dispositivoCollegatoTitle": "Collegato a {{dispositivo}} — è questo il pannello che esegue deploy e scoperte. Clicca per la scheda Connessione.",
@@ -398,7 +397,8 @@
       "nessuno": "nessuno",
       "dato": "tipo di dato",
       "tipo": "tipo struttura",
-      "sorgente": "sorgente"
+      "sorgente": "sorgente",
+      "prefix": "zona o apparato (prima del punto)"
     },
     "tagUsageGroup": {
       "pagina": "Pagine",
@@ -461,6 +461,8 @@
     "apply": "Applica",
     "discard": "Scarta",
     "applyNote": "Applica non salva: la modifica va nell'editor, Ctrl+Z la annulla e il disco aspetta Salva.",
+    "symbolNoEditor": "L'editor dei simboli non è aperto: la proposta non si può applicare.",
+    "symbolApplyNote": "«Applica» mette il disegno nell'editor: nome ed etichette restano i tuoi, e Ctrl+Z lo toglie. Si salva col «Salva» dell'editor.",
     "noChanges": "La proposta non cambia niente.",
     "noConnection": "Non sono connesso al runtime: il messaggio non è partito.",
     "outcome": {
@@ -513,7 +515,13 @@
       "risposte": "Le risposte:",
       "decidiTu": "decidi tu",
       "inviate": "Risposte inviate"
-    }
+    },
+    "photoAttach": "Allega una foto (la macchina vera, un quadro da copiare): la vede il modello, se legge le immagini",
+    "photoWaiting": "Foto pronta: parte con il prossimo messaggio",
+    "photoRemove": "Togli la foto",
+    "photoUnreadable": "Questa foto non si legge: usa un JPEG, un PNG o un WebP.",
+    "photoText": "Ecco una foto.",
+    "sheetConfirmed": "Scheda confermata."
   },
   "viewer": {
     "maintenance": "Manutenzione",
@@ -1883,7 +1891,7 @@
       "changed": "Gli utenti sono cambiati dall'ultimo invio.",
       "same": "Utenti uguali all'ultimo invio: non serve mandarli."
     },
-    "deployProjectSession": "Sei collegato al pannello con un utente del progetto. Il deploy chiude il progetto, e con lui finisce la tua sessione: il pannello resterebbe senza progetto a metà strada, e non è stato toccato niente.\n\nCollegati con l'Admin del dispositivo (quello nato col codice di abbinamento) oppure, se il pannello è abbinato al cloud, fai il deploy dall'IDE nel cloud.",
+    "deployProjectSession": "Sei collegato al pannello con un utente del progetto. Il deploy chiude il progetto, e con lui finisce la tua sessione: il pannello resterebbe senza progetto a metà strada, e non è stato toccato niente.\n\nCollegati con l'Admin del dispositivo (quello nato col codice di abbinamento) oppure, se il pannello è abbinato al cloud, fai il deploy dall'IDE nel cloud. Un pannello abbinato dal cloud prima della 2.27 non ha l'Admin del dispositivo: per lui vale solo il deploy dal cloud.",
     "deployRotateScreenPortrait": "Questo progetto è verticale e lo schermo del pannello adesso è orizzontale. Per girarlo il sistema riavvia il dispositivo (circa un minuto); su un controllore si fermano anche i PLC (LogicLab, CODESYS, OpenPLC): dopo il riavvio controlla che siano ripartiti.\n\nProcedere col deploy e col riavvio?",
     "deployRotateScreenLandscape": "Questo progetto è orizzontale e lo schermo del pannello adesso è girato. Per rimetterlo il sistema riavvia il dispositivo (circa un minuto); su un controllore si fermano anche i PLC (LogicLab, CODESYS, OpenPLC): dopo il riavvio controlla che siano ripartiti.\n\nProcedere col deploy e col riavvio?",
     "deployNoUsersTitolo": "Questo progetto non ha utenti",
@@ -3767,7 +3775,7 @@
     "serveAdmin": "Il pannello non ha ancora utenti: il primo progetto deve portarne almeno uno con ruolo Admin, altrimenti in impianto non entrerebbe nessuno (schermo compreso).\n\nAprire la scheda Utenti del progetto?",
     "serveAdminApri": "Apri Utenti",
     "serveAdminBreve": "deploy fermato: il progetto deve avere almeno un utente Admin (il pannello non ha ancora utenti)",
-    "cloudUtentiDalProgetto": "Gli utenti del pannello li porta il primo progetto che gli distribuisci: fino ad allora in impianto non entra nessuno, e lo raggiungi solo da qui.",
+    "cloudUtentiDalProgetto": "Gli utenti del progetto arrivano col primo deploy.",
     "cloudCredenzialiEsistenti": "Questo pannello ha già degli utenti: per abbinarlo servono utente e password di un suo amministratore.",
     "passwordSemplice": "Password",
     "rNome": "Nome nel cloud",
@@ -3783,7 +3791,8 @@
     "vaiConnetti": "Usa in «Connetti»",
     "abbinaAltro": "Abbina un altro pannello",
     "attesaTitolo": "Abbinato al cloud come «{{nome}}»",
-    "attesaSpiegazione": "In attesa del primo progetto: gli utenti li porterà lui. Fino ad allora il pannello si gestisce solo dall'IDE nel cloud."
+    "attesaSpiegazione": "In attesa del primo progetto: gli utenti li porterà lui. Fino ad allora il pannello si gestisce solo dall'IDE nel cloud.",
+    "cloudAdminDispositivo": "L'Admin del dispositivo: entra dal pannello e fa il deploy dalla rete locale. Resta sul pannello anche quando cambi progetto. Password di almeno 8 caratteri."
   },
   "primoAccesso": {
     "titolo": "primo accesso",
@@ -5773,46 +5782,6 @@
       "ownColour": "Un colore suo",
       "fxNote": "L'effetto sta nel riquadro x, y, w, h e si muove mentre l'ingresso è vero; nell'editor si vede con «Anteprima effetti» o nella scheda Prova."
     },
-    "ai": {
-      "note": "Descrivi cosa disegnare o cosa cambiare: risponde il modello dello scopo «Disegno dei simboli». La proposta compare qui sotto; con «Accetta» entra nel simbolo, e Ctrl+Z la toglie. Prima di disegnare l'IA ti fa qualche domanda e ti mostra la richiesta come la disegnerà.",
-      "placeholder": "Es. «aggiungi un agitatore sopra», «un serbatoio con due bocche laterali»",
-      "placeholderRetouch": "Un altro ritocco, partendo dalla proposta",
-      "addPhoto": "Aggiungi una foto",
-      "photoAdded": "La foto va al modello insieme alla richiesta",
-      "removePhoto": "Togli la foto",
-      "photoUnreadable": "Questa immagine non si legge: usa un PNG, un JPEG o un WebP.",
-      "edit": "Modifica questo",
-      "editProposal": "Ritocca la proposta",
-      "new": "Disegna nuovo",
-      "drawing": "L'IA sta disegnando… {{s}} s",
-      "stop": "Interrompi",
-      "now": "Adesso",
-      "proposal": "Proposta",
-      "figures": "{{model}} · tentativi: {{n}} · {{cost}}",
-      "free": "nessun costo",
-      "accept": "Accetta",
-      "discard": "Scarta",
-      "err": {
-        "no_model": "Nessun modello IA configurato. Sceglilo in Configurazione → IA → Un modello per scopo, alla voce «Disegno dei simboli».",
-        "blind_model": "Il modello {{model}} non vede le immagini. Per disegnare da una foto scegline uno che le veda, in Configurazione → IA → Un modello per scopo.",
-        "cap_reached": "Tetto di spesa del disegno dei simboli raggiunto ({{detail}}). Si alza in Configurazione → IA → Un modello per scopo.",
-        "provider": "Il modello non ha risposto: {{detail}}",
-        "invalid": "Dopo {{n}} tentativi il disegno non è ancora valido. Prova a chiederlo in un altro modo. Gli ultimi errori:",
-        "bad_request": "Richiesta non valida: {{detail}}",
-        "error": "Errore: {{detail}}"
-      },
-      "interview": {
-        "title": "Prima di disegnare, qualche domanda",
-        "thinking": "L'IA prepara le domande… {{s}} s",
-        "yourAnswer": "La tua risposta (vuota: decide l'IA)",
-        "continue": "Continua",
-        "skip": "Salta, disegna subito",
-        "cancel": "Annulla",
-        "brief": "La richiesta come la disegnerà l'IA: correggila se serve",
-        "draw": "Disegna",
-        "unreadable": "Il modello non ha risposto con domande leggibili: riprova, o scrivi una richiesta più precisa."
-      }
-    },
     "svg": {
       "import": "Importa SVG…",
       "importTitle": "Aggiunge al simbolo un disegno SVG, una forma per volta, con i suoi colori. Si può anche trascinare il file qui, o incollare il codice SVG con Ctrl+V",
@@ -5905,7 +5874,6 @@
       "outline": "Contorno",
       "symbol": "Simbolo",
       "try": "Valori di prova",
-      "aiDraw": "Disegno con l'IA",
       "transform": "Ruota e allinea"
     },
     "layerSelect": "Seleziona le forme dello strato",
@@ -5985,6 +5953,11 @@
       "docTitle": "Simbolo {{name}}",
       "otherProject": "Nell'IDE non è più aperto il progetto di questa finestra: il simbolo non è stato salvato. Esportalo se vuoi tenerlo, poi riapri l'editor dall'IDE.",
       "conflict": "«{{slugs}}» è cambiato anche nell'IDE dopo l'apertura di questa finestra: il simbolo non è stato salvato, per non cancellare quella modifica. Esportalo se vuoi tenerlo, poi riapri l'editor dall'IDE."
+    },
+    "assistant": {
+      "button": "Assistente IA",
+      "title": "Apre la chat dell'assistente accanto al disegno: chiede cosa vuoi, disegna il simbolo e te lo propone con «Applica»",
+      "close": "Chiudi l'assistente"
     }
   },
   "images": {
@@ -6208,5 +6181,47 @@
       "writer_active": "SWS comanda il modulo",
       "foreign_writer": "Un altro programma ha scritto"
     }
+  },
+  "symbolSheet": {
+    "title": "La scheda del simbolo",
+    "name": "Nome",
+    "stateColors": "colori dallo stato",
+    "style": {
+      "vector": "Vettoriale",
+      "photo": "Fotorealistico",
+      "mixed": "Misto (foto e parti vive)"
+    },
+    "inputs": "Ingressi",
+    "id": "Nome",
+    "inputType": {
+      "bool": "sì/no",
+      "number": "numero",
+      "states": "stati"
+    },
+    "statesHint": "stati, separati da virgole",
+    "addInput": "ingresso",
+    "parts": "Parti",
+    "what": "Che cos'è",
+    "motion": "Movimento",
+    "still": "ferma",
+    "addPart": "parte",
+    "ports": "Bocche dei tubi",
+    "side": {
+      "left": "sinistra",
+      "right": "destra",
+      "top": "sopra",
+      "bottom": "sotto"
+    },
+    "addPort": "bocca",
+    "effects": "Effetti",
+    "on": "su",
+    "with": "con",
+    "addEffect": "effetto",
+    "photo": "La foto",
+    "photoVaries": "Cambia con «{{input}}»: {{n}} foto.",
+    "remove": "Togli",
+    "confirm": "Conferma",
+    "confirmed": "Confermata: l'assistente lavora su questa.",
+    "problems": "Da sistemare prima di confermare: {{names}} (nomi a-z, 0-9, «-»; ognuno una volta; effetti e movimenti su parti e ingressi che ci sono)."
   }
 }

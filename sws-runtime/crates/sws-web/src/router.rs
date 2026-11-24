@@ -539,10 +539,6 @@ pub fn build(
         .route("/api/symbols/ai", post(crate::simboli_progetto::ai))
         // The AI on one IDE field (plan of 20-11-2026).
         .route("/api/ai/field", post(crate::simboli_progetto::ai_field))
-        .route(
-            "/api/symbols/ai/interview",
-            post(crate::simboli_progetto::ai_interview),
-        )
         // «Genera foto» (plan 2026-11-21-simboli-fase-3-foto).
         .route(
             "/api/symbols/ai/photo",
@@ -4477,7 +4473,9 @@ async fn get_history(
             prima =
                 s.db.get(&tag)
                     .await
-                    .filter(|t| t.timestamp_ms <= da)
+                    // `timestamp_ms` 0 is «never received»: no value to
+                    // repeat (review of the rc.30: a flat line at 0).
+                    .filter(|t| t.timestamp_ms > 0 && t.timestamp_ms <= da)
                     .map(|t| sws_historian::Sample {
                         ts_ms: t.timestamp_ms,
                         value: t.value,
@@ -10295,6 +10293,31 @@ async fn handle_ws(
                                 .await;
                             continue;
                         }
+                        // T-69 on the socket too (review of the rc.30): a computed tag
+                        // takes no user write, as on the PUT.
+                        if db.is_computed(&tag).await {
+                            ws_audit.record(crate::ws_audit::WsWrite {
+                                action: "tag.write_rejected_computed",
+                                who,
+                                tag: tag.clone(),
+                                detail: serde_json::json!({"tag": tag.clone(), "via": "ws"}),
+                            });
+                            let ack = WriteAck {
+                                ty: "ack",
+                                req_id,
+                                error: Some(format!(
+                                    "il tag «{tag}» è calcolato (espressione o generatore): non è scrivibile"
+                                )),
+                                tag,
+                                ok: false,
+                            };
+                            let _ = out_tx
+                                .send(Message::Text(
+                                    serde_json::to_string(&ack).unwrap_or_default(),
+                                ))
+                                .await;
+                            continue;
+                        }
                         // Q27: stesso contratto del PUT — l'ack negativo porta il motivo.
                         let value = match db.coerce_for_write(&tag, value).await {
                             Ok(v) => v,
@@ -15597,6 +15620,25 @@ mod password_change_on_the_viewer {
         assert!(!close_locks_out(&open, &h).await);
     }
 
+    /// A tag never received is not repeated at the start of a trend window
+    /// (review of the rc.30): it was drawn as a flat line at 0.
+    #[tokio::test]
+    async fn a_never_received_tag_is_not_anchored() {
+        use axum::extract::{Path as P, Query as Q, State as St};
+        let dir = tempfile::tempdir().unwrap();
+        let (_, _, s) = build_di_prova(dir.path(), None, None).await;
+        s.db.semina("mai".into(), sws_core::TagValue::Float(0.0))
+            .await;
+        let now = sws_core::now_ms();
+        let q: HistoryQuery = serde_json::from_value(serde_json::json!({
+            "from": now - 60_000, "to": now, "ancora": true }))
+        .unwrap();
+        let r = get_history(St(s), P("mai".into()), Q(q)).await;
+        let body = axum::body::to_bytes(r.into_body(), 1 << 20).await.unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(v, serde_json::json!([]), "nothing to draw");
+    }
+
     /// rc.30 (collaudo on the PLX800, 23-11-2026): a write from the viewer's
     /// tag socket ends up in the audit log like the REST one, with the user's
     /// name and `via: ws`. Until rc.29 only the REST write wrote a row.
@@ -15675,6 +15717,32 @@ mod password_change_on_the_viewer {
         assert_eq!(row["actor"], "op");
         assert_eq!(row["detail"]["tag"], "light");
         assert_eq!(row["detail"]["via"], "ws");
+        // T-69 on the socket (review of the rc.30): a computed tag is refused,
+        // with the reason, as on the PUT.
+        s.db.set_computed_tags(["calc".to_string()].into_iter().collect())
+            .await;
+        ws.send(T::Text(
+            r#"{"type":"write","tag":"calc","value":1,"req_id":"2"}"#.into(),
+        ))
+        .await
+        .unwrap();
+        let ack = loop {
+            let m = tokio::time::timeout(std::time::Duration::from_secs(5), ws.next())
+                .await
+                .expect("an answer within 5 s")
+                .unwrap()
+                .unwrap();
+            let v: serde_json::Value =
+                serde_json::from_str(&m.into_text().unwrap_or_default()).unwrap_or_default();
+            if v["type"] == "ack" && v["req_id"] == "2" {
+                break v;
+            }
+        };
+        assert_eq!(ack["ok"], false);
+        assert!(
+            ack["error"].as_str().unwrap().contains("calcolato"),
+            "{ack}"
+        );
     }
 
     /// D17 (18-11-2026): on the viewer port a user who must change the

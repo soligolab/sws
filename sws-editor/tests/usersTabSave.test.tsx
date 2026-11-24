@@ -60,4 +60,19 @@ describe("the Users tab", () => {
     fireEvent.blur(field);
     expect(updateUser).not.toHaveBeenCalled();
   });
+
+  it("keeps the next field usable while the one just left saves (review of the rc.30)", async () => {
+    listUsers.mockResolvedValue([op]);
+    let finish: () => void = () => {};
+    updateUser.mockImplementation(() => new Promise<void>((r) => { finish = r; }));
+    render(<UsersTab />);
+    const name = await screen.findByTestId("utente-nome-op");
+    const zones = (await screen.findByTestId("utente-zone-op")) as HTMLInputElement;
+    fireEvent.change(name, { target: { value: "Operatore" } });
+    fireEvent.blur(name);
+    await waitFor(() => expect(updateUser).toHaveBeenCalledTimes(1));
+    // The save is still running: the next field is not disabled.
+    expect(zones.disabled).toBe(false);
+    finish();
+  });
 });

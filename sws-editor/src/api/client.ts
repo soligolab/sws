@@ -287,35 +287,6 @@ export class ImageExistsError extends Error {
   constructor(readonly imageName: string) { super(`image ${imageName} exists`); this.name = "ImageExistsError"; }
 }
 
-/** What the symbol editor asks the AI (`POST /api/symbols/ai`). */
-export interface SymbolAiRequest {
-  mode: "new" | "edit";
-  instruction: string;
-  description: DescrizioneSimbolo;
-  photo?: { media_type: string; data: string };
-}
-
-/** The AI's answer: a proposal, or why not (`code`, said by the editor in its language). */
-export type SymbolAiResult = { attempts: number; cost_usd: number; model?: string } & (
-  | { ok: true; description: DescrizioneSimbolo; svg: string; voce: import("@/symbols/lib/manifest").SimboloLib }
-  | { ok: false; code: "no_model" | "blind_model" | "bad_request" | "cap_reached" | "provider" | "invalid"; message?: string; errors?: string[] }
-);
-
-/** The interview before a drawing (`POST /api/symbols/ai/interview`): the
- *  rounds already answered go back each time. */
-export interface SymbolAiInterviewRequest extends SymbolAiRequest {
-  rounds: { questions: string[]; answers: string[] }[];
-}
-
-export interface SymbolAiQuestion { text: string; choices: string[] }
-
-/** Questions, or the brief the drawing starts from; or why not. */
-export type SymbolAiInterviewResult = { cost_usd: number; model?: string } & (
-  | { ok: true; questions: SymbolAiQuestion[]; brief?: undefined }
-  | { ok: true; brief: string; questions?: undefined }
-  | { ok: false; code: "no_model" | "blind_model" | "bad_request" | "cap_reached" | "provider" | "invalid"; message?: string }
-);
-
 /** An entry of the company's symbol library (`symbol_library.rs`). */
 export interface LibraryEntry {
   slug: string;
@@ -1807,9 +1778,6 @@ export const api = {
   symbolExplicitPorts: (d: DescrizioneSimbolo) =>
     request<DescrizioneSimbolo>("/api/symbols/explicit-ports", { method: "POST", body: JSON.stringify(d) }),
 
-  /** POST /api/symbols/ai — the model of the «Simboli» purpose draws the symbol, new or changed
-   *  from `description`, also from a photo. Nothing is saved; every outcome is a 200 with `ok`
-   *  (plan docs/archive/2026-11-19-assistente-ia-simboli.md). IDE instance only. */
   /** The AI on one IDE field (plan 2026-11-20-ia-sui-campi): a proposal for
    *  the field and its neighbours, or one question. Nothing is saved. */
   aiField: (req: {
@@ -1823,12 +1791,6 @@ export const api = {
       question?: string; choices?: string[];
       cost_usd?: number; model?: string;
     }>("/api/ai/field", { method: "POST", body: JSON.stringify(req) }),
-
-  symbolAi: (req: SymbolAiRequest, signal?: AbortSignal) =>
-    request<SymbolAiResult>("/api/symbols/ai", { method: "POST", body: JSON.stringify(req), signal }),
-
-  symbolAiInterview: (req: SymbolAiInterviewRequest, signal?: AbortSignal) =>
-    request<SymbolAiInterviewResult>("/api/symbols/ai/interview", { method: "POST", body: JSON.stringify(req), signal }),
 
   /** «Genera foto» (plan 2026-11-21-simboli-fase-3-foto): the photo is
    *  already saved in the project's images when it answers. */

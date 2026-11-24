@@ -269,6 +269,12 @@ pub enum Valore {
 #[derive(Debug, Clone, PartialEq, Default, Serialize)]
 pub struct Attributi(pub Vec<(String, Valore)>);
 
+impl Attributi {
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
 const ORDINE_CANONICO: &[&str] = &[
     "x", "y", "width", "height", "cx", "cy", "r", "rx", "ry", "d",
 ];
@@ -616,11 +622,21 @@ pub fn path_box(d: &str) -> Option<(f64, f64, f64, f64)> {
 }
 
 /// A shape used to cut a photo: a `rect`, `circle`, `ellipse` or `path`
-/// with its geometry, as a `forma` has it.
+/// with its geometry, as a `forma` has it. The other fields are not drawn:
+/// they keep the look of the shape, so «Togli ritaglio» gives it back as it
+/// was (24-11-2026).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ClipShape {
     pub tag: String,
     pub geo: Attributi,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mat: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub velo: Option<String>,
+    #[serde(default, skip_serializing_if = "Attributi::is_empty")]
+    pub extra: Attributi,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub group: Option<String>,
 }
 
 impl Op {
@@ -2111,6 +2127,17 @@ pub fn regole(d: &Descrizione, c: &Compilato) -> Vec<String> {
                             c.tag
                         ));
                     }
+                    // The look kept for «Togli ritaglio» follows the rules of a shape.
+                    if let Some(m) = &c.mat {
+                        if colore_materiale(m).is_none() {
+                            male.push(format!("{dove}: ritaglio, materiale «{m}» sconosciuto"));
+                        }
+                    }
+                    for (k, val) in &c.extra.0 {
+                        if let Err(e) = extra_ammesso(k, val) {
+                            male.push(format!("{dove}: ritaglio, {e}"));
+                        }
+                    }
                 }
                 if !image_name_ok(src) {
                     male.push(format!(
@@ -2736,6 +2763,10 @@ mod tests {
             *clip = Some(ClipShape {
                 tag: "circle".into(),
                 geo: serde_json::from_value(json!({ "cx": 50, "cy": 50, "r": 40 })).unwrap(),
+                mat: None,
+                velo: None,
+                extra: Attributi::default(),
+                group: None,
             });
         }
         let c = compila_e_controlla(&d).unwrap_or_else(|e| panic!("{e:?}"));
@@ -2745,6 +2776,30 @@ mod tests {
             c.svg
         );
         assert!(c.svg.contains("clip-path=\"url(#photo-boiler-clip"));
+    }
+
+    /// The clip keeps the look of its shape for «Togli ritaglio» (24-11-2026):
+    /// it is not drawn, and it follows the rules of a shape.
+    #[test]
+    fn a_clip_keeps_the_look_of_its_shape() {
+        let mut v: Value = serde_json::from_str(include_str!(
+            "../../../../tests/fixtures/simboli-prj/photo-boiler.json"
+        ))
+        .unwrap();
+        v["ops"][0]["clip"] = json!({ "tag": "circle", "geo": { "cx": 50, "cy": 50, "r": 40 },
+            "mat": "steel", "extra": { "stroke_width": 2 }, "group": "vetro" });
+        let d: Descrizione = serde_json::from_value(v.clone()).unwrap();
+        let c = compila_e_controlla(&d).unwrap_or_else(|e| panic!("{e:?}"));
+        assert!(!c.svg.contains("vetro"), "the kept group is not drawn");
+        let back = serde_json::to_value(&d).unwrap();
+        assert_eq!(back["ops"][0]["clip"]["mat"], "steel");
+        assert_eq!(back["ops"][0]["clip"]["group"], "vetro");
+        v["ops"][0]["clip"]["mat"] = json!("nessuno");
+        let d: Descrizione = serde_json::from_value(v).unwrap();
+        assert!(compila_e_controlla(&d)
+            .unwrap_err()
+            .join(" ")
+            .contains("ritaglio, materiale «nessuno»"));
     }
 
     #[test]

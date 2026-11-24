@@ -1,5 +1,5 @@
 import { CampoPassword } from "@/components/CampoPassword";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { api, type CreateUserBody, type UpdateUserBody, type UserRole, type UserSummary } from "@/api/client";
 import { useAppStore } from "@/store";
@@ -103,9 +103,16 @@ export function UsersTab() {
     }
   };
 
-  const onPatch = async (username: string, patch: UpdateUserBody) => {
+  // A field saved on leaving it does not lock the table: the focus goes to
+  // the next field while the save runs, and a disabled field dropped it
+  // (review of the rc.30). The patches of the fields go one after the other.
+  const patching = useRef<Promise<void>>(Promise.resolve());
+  const onPatch = (username: string, patch: UpdateUserBody) => {
+    patching.current = patching.current.then(() => patchNow(username, patch));
+    return patching.current;
+  };
+  const patchNow = async (username: string, patch: UpdateUserBody) => {
     setError(null);
-    setBusy(true);
     try {
       await api.updateUser(username, patch);
       await refresh();
@@ -120,8 +127,6 @@ export function UsersTab() {
       } else {
         setError(t("cfgUi.updateError", { message: msg }));
       }
-    } finally {
-      setBusy(false);
     }
   };
 
