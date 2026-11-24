@@ -132,7 +132,6 @@
     "deployAlSalvataggio": "on save",
     "deployAlSalvataggioTitle": "Send the project after every successful save (without users or secrets). Off: it is sent only with «Send now».",
     "deployErrore": "Last send failed: {{motivo}}",
-    "deployOnSaveNeedsConfirm": "Send on save stopped: the panel asks for a confirmation. Press «Send now» to see it.",
     "deployConfigTitle": "Click to configure the connection to the remote runtime",
     "deployReconnectTitle": "Click to reconnect to {{url}}",
     "dispositivoCollegatoTitle": "Connected to {{dispositivo}} — this is the panel that runs deploys and discoveries. Click for the Connection tab.",

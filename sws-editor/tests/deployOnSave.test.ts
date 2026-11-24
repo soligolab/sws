@@ -101,16 +101,35 @@ describe("deploy on save and the explicit deploy", () => {
     expect(deploys).toHaveLength(1);
   });
 
-  it("a deploy started by a save never asks: on a 428 it stops and says where to confirm", async () => {
+  it("a deploy started by a save asks too, the same question; «no» stops it (decision of 24-11-2026)", async () => {
     deployAnswer = () => new Response(JSON.stringify({ conferma: "sostituisce-progetti", progetto: "p", progetti: [{ nome: "tiny-ty" }] }),
       { status: 428, headers: { "content-type": "application/json" } });
     await useAppStore.getState().saveAll();
-    for (let i = 0; i < 100 && useAppStore.getState().remoteDeployStatus !== "error"; i++) await wait(5);
+    for (let i = 0; i < 100 && useAppStore.getState().remoteDeployStatus === "syncing"; i++) await wait(5);
+    for (let i = 0; i < 100 && !vi.mocked(conferma).mock.calls.length; i++) await wait(5);
+    expect(conferma).toHaveBeenCalledTimes(1);
+    await wait(30);
     expect(deploys).toHaveLength(1);
-    expect(conferma).not.toHaveBeenCalled();
-    expect(avviso).not.toHaveBeenCalled();
-    expect(useAppStore.getState().remoteDeployStatus).toBe("error");
-    expect(useAppStore.getState().remoteDeployErrore).toBe(i18n.t("header.deployOnSaveNeedsConfirm"));
+    expect(useAppStore.getState().remoteDeployStatus).toBe("idle");
+  });
+
+  it("a save during a deploy waits for it and deploys once after it (review of the rc.30)", async () => {
+    let release: () => void = () => {};
+    const gate = new Promise<void>((r) => { release = r; });
+    deployAnswer = () => new Response(new ReadableStream({
+      async start(c) { await gate; c.enqueue(new TextEncoder().encode("✓ done\n")); c.close(); },
+    }), { status: 200 });
+    const first = useAppStore.getState().deployOra(false);
+    for (let i = 0; i < 100 && useAppStore.getState().remoteDeployStatus !== "syncing"; i++) await wait(5);
+    await useAppStore.getState().saveAll();
+    await wait(20);
+    expect(deploys).toHaveLength(1);
+    release();
+    await first;
+    for (let i = 0; i < 100 && deploys.length < 2; i++) await wait(5);
+    expect(deploys).toHaveLength(2);
+    await wait(30);
+    expect(deploys).toHaveLength(2);
   });
 
   it("the explicit «Send now» still asks", async () => {

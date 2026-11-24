@@ -132,7 +132,6 @@
     "deployAlSalvataggio": "al salvataggio",
     "deployAlSalvataggioTitle": "Invia il progetto a ogni salvataggio andato a buon fine (senza utenti né segreti). Spento: si invia solo con «Invia ora».",
     "deployErrore": "Ultimo invio fallito: {{motivo}}",
-    "deployOnSaveNeedsConfirm": "Invio al salvataggio fermato: il pannello chiede una conferma. Premi «Invia ora» per vederla.",
     "deployConfigTitle": "Clicca per configurare la connessione al runtime remoto",
     "deployReconnectTitle": "Clicca per riconnetterti a {{url}}",
     "dispositivoCollegatoTitle": "Collegato a {{dispositivo}} — è questo il pannello che esegue deploy e scoperte. Clicca per la scheda Connessione.",

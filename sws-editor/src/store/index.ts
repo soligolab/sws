@@ -946,10 +946,17 @@ const errText = (e: unknown) => (e instanceof Error ? e.message : String(e));
  * può dare — ogni salvataggio finirebbe col pallino rosso.
  */
 function autoDeployIfConnected() {
-  const { remoteConnected, deployAlSalvataggio } = useAppStore.getState();
+  const { remoteConnected, deployAlSalvataggio, remoteDeployStatus } = useAppStore.getState();
   if (!remoteConnected || !deployAlSalvataggio || saltaDeployAutomatico > 0) return;
-  void eseguiDeploy(false, true);
+  // A deploy is running (an explicit one, or the one of a save before): this
+  // save waits for it and goes after, once. Started alongside, it took 409
+  // and its error covered the other's (review of the rc.30).
+  if (remoteDeployStatus === "syncing") { deployDopo = true; return; }
+  void eseguiDeploy(false);
 }
+
+/** A save came while a deploy was running: one deploy on save follows it. */
+let deployDopo = false;
 
 /** Dove si ricorda l'interruttore «deploy al salvataggio». */
 const CHIAVE_DEPLOY_AL_SALVATAGGIO = "sws.deploy.alSalvataggio";
@@ -992,7 +999,7 @@ export { testoSostituzione, testoSimboliMancanti } from "./conferme428";
  *    progetto non ha utenti il server risponde 428 e chi guarda decide.
  *  Il registro in streaming si legge fino in fondo: l'ultima riga che inizia
  *  con ✗ è il motivo, e finisce nel tooltip della testata. */
-async function eseguiDeploy(completo: boolean, fromSave = false): Promise<void> {
+async function eseguiDeploy(completo: boolean): Promise<void> {
   useAppStore.setState({ remoteDeployStatus: "syncing", remoteDeployErrore: null });
   let errore: string | null = null;
   try {
@@ -1003,13 +1010,11 @@ async function eseguiDeploy(completo: boolean, fromSave = false): Promise<void> 
     for (;;) {
       res = await api.deployToRuntime({ replaceUsers: completo, conSegreti: completo, ...conferme });
       if (res.status !== 428) break;
-      // A deploy started by a save never asks: nobody pressed Deploy, and its
-      // question looked like the answer to the one who did (test of the rc.29,
-      // 23-11-2026). It stops, nothing touched, and says where to confirm.
-      if (fromSave) {
-        useAppStore.setState({ remoteDeployStatus: "error", remoteDeployErrore: i18n.t("header.deployOnSaveNeedsConfirm") });
-        return;
-      }
+      // A deploy started by a save asks too, the same question as the button
+      // (decision of the maintainer, 24-11-2026): «no» stops it, nothing
+      // touched. In rc.29 it stopped without asking, because two deploys ran
+      // together and the question of one looked like the other's; now a save
+      // during a deploy waits for it (`deployDopo`).
       const esito = await confermaDopo428(await res.clone().json().catch(() => ({})), conferme);
       if (esito.tipo === "riprova") { conferme = esito.conferme; continue; }
       if (esito.tipo === "annullato") { useAppStore.setState({ remoteDeployStatus: "idle" }); return; }
@@ -1033,6 +1038,8 @@ async function eseguiDeploy(completo: boolean, fromSave = false): Promise<void> 
     errore = errText(e);
   }
   useAppStore.setState({ remoteDeployStatus: errore ? "error" : "ok", remoteDeployErrore: errore });
+  // A save that came meanwhile goes now, once.
+  if (deployDopo) { deployDopo = false; autoDeployIfConnected(); }
   // **Un errore non si auto-cancella** (20-10-2026). Fino a oggi «Sync err.»
   // tornava «Deploy» dopo otto secondi, e il motivo viveva solo nel `title` del
   // pulsante: per leggerlo bisognava passarci sopra col mouse entro quegli otto
