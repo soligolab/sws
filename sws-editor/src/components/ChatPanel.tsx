@@ -88,7 +88,7 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
     suConversazioneNuova: (fn) => suConversazioneNuova(fn),
   }, [channel]);
   /** A question, with the open symbol when the editor is the symbol editor. */
-  const domanda = (testo: string) => ch.chiedi(testo, editor.simbolo?.leggi());
+  const domanda = (testo: string) => ch.chiedi(testo, editor.symbol?.read());
   // Lo store restituisce chiavi `storeErr.*`, non frasi: si traducono qui, nella lingua di adesso.
   const traduciEsito = (m?: string) => (m && m.startsWith("storeErr.") ? t(m) : m);
   const remoteConnected = useAppStore((s) => s.remoteConnected);
@@ -254,8 +254,8 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
           setRighe((r) => [...r, { tipo: "domande", domande: m.domande, piano: m.piano,
             risposte: Array.from({ length: m.domande.length + (m.piano.length ? 1 : 0) }, () => ""), inviate: false }]);
           break;
-        case "proposta_simbolo":
-          setRighe((r) => [...r, { tipo: "proposta_simbolo", msg: m }]);
+        case "symbol_proposal":
+          setRighe((r) => [...r, { tipo: "symbol_proposal", msg: m }]);
           break;
         case "simbolo":
           // Ridisegnato con lo stesso slug: la miniatura nuova prende il posto
@@ -374,18 +374,18 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
    *  takes it as one undoable step. */
   const applicaSimbolo = (indice: number) => {
     const riga = righe[indice];
-    if (riga?.tipo !== "proposta_simbolo") return;
-    const esito = editor.simbolo
-      ? editor.simbolo.applica(riga.msg.simbolo)
-      : { ok: false as const, motivo: t("chat.symbolNoEditor") };
-    setRighe((r) => r.map((x, i) => i !== indice || x.tipo !== "proposta_simbolo" ? x : {
-      ...x, esito: esito.ok ? "applicata" : "rifiutata", nota: esito.ok ? undefined : esito.motivo,
+    if (riga?.tipo !== "symbol_proposal") return;
+    const esito = editor.symbol
+      ? editor.symbol.apply(riga.msg.symbol)
+      : { ok: false as const, reason: t("chat.symbolNoEditor") };
+    setRighe((r) => r.map((x, i) => i !== indice || x.tipo !== "symbol_proposal" ? x : {
+      ...x, esito: esito.ok ? "applicata" : "rifiutata", nota: esito.ok ? undefined : esito.reason,
     }));
   };
 
   const scartaSimbolo = (indice: number) => {
     setRighe((r) => r.map((x, i) =>
-      i !== indice || x.tipo !== "proposta_simbolo" ? x : { ...x, esito: "scartata" }));
+      i !== indice || x.tipo !== "symbol_proposal" ? x : { ...x, esito: "scartata" }));
   };
 
   const scarta = (indice: number) => {
@@ -491,11 +491,11 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
           if (r.tipo === "errore") {
             return <div key={i} style={BOLLA_ERRORE}>{r.testo}</div>;
           }
-          if (r.tipo === "proposta_simbolo") {
+          if (r.tipo === "symbol_proposal") {
             return (
-              <div key={i} style={CARTA} data-testid="chat-proposta-simbolo">
+              <div key={i} style={CARTA} data-testid="chat-symbol-proposal">
                 <div style={{ fontSize: 12, fontWeight: 600, color: "var(--brand-text, #e2e8f0)", marginBottom: 6 }}>
-                  {r.msg.motivo}
+                  {r.msg.reason}
                 </div>
                 <img src={svgComeImmagine(r.msg.svg)} alt="" style={{ width: "100%", maxHeight: 160, objectFit: "contain", marginBottom: 8 }} />
                 {r.esito ? (
@@ -507,7 +507,7 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
                 ) : (
                   <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                     <button style={{ ...BTN_PRIMARIO, opacity: avviso ? 0.5 : 1 }} disabled={!!avviso}
-                            data-testid="chat-applica-simbolo"
+                            data-testid="chat-apply-symbol"
                             onClick={() => applicaSimbolo(i)}>{t("chat.apply")}</button>
                     <button style={BTN} onClick={() => scartaSimbolo(i)}>{t("chat.discard")}</button>
                   </div>

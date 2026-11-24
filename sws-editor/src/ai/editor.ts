@@ -35,8 +35,8 @@ import type { DescrizioneSimbolo } from "@/types";
 /** The symbol editor, for its assistant (23-11-2026): the symbol as it is
  *  now, and a proposed drawing taken as one undoable step. */
 export interface SymbolAi {
-  leggi(): DescrizioneSimbolo;
-  applica(d: DescrizioneSimbolo): { ok: true } | { ok: false; motivo: string };
+  read(): DescrizioneSimbolo;
+  apply(d: DescrizioneSimbolo): { ok: true } | { ok: false; reason: string };
 }
 
 export interface EditorAi {
@@ -48,7 +48,7 @@ export interface EditorAi {
   /** La foto di una pagina di un progetto web, per l'assistente (10-11-2026). */
   fotografa(r: RichiestaFoto): Promise<Foto>;
   /** Only in the symbol editor. */
-  simbolo?: SymbolAi;
+  symbol?: SymbolAi;
 }
 
 /** Il caso dell'IDE: lo store è qui. */

@@ -397,7 +397,7 @@ pub struct Opzioni {
     /// The conversation of the symbol editor (`/ws/ai?scope=symbol`, plan
     /// 2026-11-23-assistente-dei-simboli): its own short list of tools, on the
     /// one symbol that is open, never the project.
-    pub simbolo: bool,
+    pub symbol_scope: bool,
 }
 
 /// The questions of `fai_domande`, cleaned, as the chat frame that shows
@@ -446,8 +446,8 @@ pub fn domande(input: &Value) -> Result<Value, String> {
 /// Gli strumenti di questa conversazione: quelli di sempre, più quelli degli
 /// scopi configurati **in coda** (per non spostare il prefisso in cache).
 pub fn definizioni_per(o: Opzioni) -> Vec<Value> {
-    if o.simbolo {
-        return definizioni_simbolo(o);
+    if o.symbol_scope {
+        return symbol_tool_definitions(o);
     }
     let mut v = definizioni();
     if o.no_snapshot {
@@ -524,12 +524,12 @@ fn disegna_simbolo_def(editor: bool) -> Value {
              lo stesso slug e cosa cambiare. Dopo le bozze fermati e fai scegliere la persona."
             .to_string();
     if editor {
-        properties["dal_simbolo_aperto"] = json!({ "type": "boolean",
+        properties["dal_open_symbol"] = json!({ "type": "boolean",
             "description": "true = parte dal simbolo aperto nell'editor e lo cambia come dice `cosa` \
                             (tiene gli id di parti e bocche); false = un disegno nuovo da zero" });
         descrizione.push_str(
             " Nell'editor dei simboli usa sempre lo slug e le etichette del simbolo aperto \
-             (leggi_simbolo).",
+             (read_symbol).",
         );
     }
     strumento(
@@ -543,13 +543,13 @@ fn disegna_simbolo_def(editor: bool) -> Value {
 /// The tools of the symbol editor's conversation: ask, read the open symbol,
 /// draw (with the symbol model, or by itself), propose. Nothing that reads
 /// or changes the project.
-fn definizioni_simbolo(o: Opzioni) -> Vec<Value> {
+fn symbol_tool_definitions(o: Opzioni) -> Vec<Value> {
     let base = definizioni();
     let una = |n: &str| base.iter().find(|d| d["name"] == n).cloned();
     let mut v: Vec<Value> = Vec::new();
     v.extend(una("fai_domande"));
     v.push(strumento(
-        "leggi_simbolo",
+        "read_symbol",
         "Il simbolo aperto nell'editor, com'è adesso (anche non salvato): la descrizione, gli \
          errori del compilatore, le parti e le bocche. Leggilo prima di cambiarlo.",
         json!({ "type": "object", "additionalProperties": false, "properties": {} }),
@@ -560,15 +560,15 @@ fn definizioni_simbolo(o: Opzioni) -> Vec<Value> {
         v.extend(una("bozza_simbolo"));
     }
     v.push(strumento(
-        "proponi_simbolo",
+        "propose_symbol",
         "Propone alla persona una bozza di questa conversazione al posto del simbolo aperto: in \
          chat compare «Applica», e il simbolo entra nell'editor come un passo che Ctrl+Z annulla \
          (nome ed etichette restano quelli dell'editor). Non nello stesso turno del disegno: \
          prima la persona guarda la bozza. Chiude il turno.",
-        json!({ "type": "object", "required": ["motivo"], "additionalProperties": false,
+        json!({ "type": "object", "required": ["reason"], "additionalProperties": false,
                 "properties": {
                     "slug": { "type": "string", "description": "la bozza da proporre; omesso = l'ultima disegnata" },
-                    "motivo": { "type": "string", "description": "in una riga, cosa cambia" } } }),
+                    "reason": { "type": "string", "description": "in una riga, cosa cambia" } } }),
     ));
     v
 }
@@ -630,8 +630,8 @@ pub const FUORI_DA_ESEGUI: [&str; 10] = [
     "varia_sfondo",
     // The symbol editor's conversation (23-11-2026): they read and propose the
     // symbol open in that browser window.
-    "leggi_simbolo",
-    "proponi_simbolo",
+    "read_symbol",
+    "propose_symbol",
 ];
 
 /// Le definizioni dei soli strumenti di sola lettura.
@@ -1877,7 +1877,7 @@ mod tests {
                 disegna_simboli: true,
                 sfondi: true,
                 no_snapshot: false,
-                simbolo: false,
+                symbol_scope: false,
             })
             .iter()
             .map(|d| d["name"].as_str().unwrap().to_string()),
@@ -1885,7 +1885,7 @@ mod tests {
         // And the symbol editor's own (23-11-2026).
         tutti.extend(
             definizioni_per(Opzioni {
-                simbolo: true,
+                symbol_scope: true,
                 disegna_simboli: true,
                 ..Default::default()
             })
@@ -2349,7 +2349,7 @@ mod tests_opzioni {
         assert!(base.contains(&"istantanea_pagina".to_string()));
         let blind = nomi(Opzioni {
             no_snapshot: true,
-            simbolo: false,
+            symbol_scope: false,
             ..Default::default()
         });
         let expected: Vec<String> = base
@@ -2366,7 +2366,7 @@ mod tests_opzioni {
             disegna_simboli: true,
             sfondi: true,
             no_snapshot: false,
-            simbolo: false,
+            symbol_scope: false,
         });
         assert!(!tutti.contains(&"bozza_simbolo".to_string()));
         let fine = &tutti[tutti.len() - 3..];
@@ -2383,20 +2383,20 @@ mod tests_opzioni {
     #[test]
     fn the_symbol_scope_has_its_own_tools() {
         let senza = nomi(Opzioni {
-            simbolo: true,
+            symbol_scope: true,
             ..Default::default()
         });
         assert_eq!(
             senza,
             [
                 "fai_domande",
-                "leggi_simbolo",
+                "read_symbol",
                 "bozza_simbolo",
-                "proponi_simbolo"
+                "propose_symbol"
             ]
         );
         let o = Opzioni {
-            simbolo: true,
+            symbol_scope: true,
             disegna_simboli: true,
             sfondi: true,
             ..Default::default()
@@ -2405,16 +2405,16 @@ mod tests_opzioni {
             nomi(o),
             [
                 "fai_domande",
-                "leggi_simbolo",
+                "read_symbol",
                 "disegna_simbolo",
-                "proponi_simbolo"
+                "propose_symbol"
             ]
         );
         let disegna = definizioni_per(o)
             .into_iter()
             .find(|d| d["name"] == "disegna_simbolo")
             .unwrap();
-        assert!(disegna["input_schema"]["properties"]["dal_simbolo_aperto"].is_object());
+        assert!(disegna["input_schema"]["properties"]["dal_open_symbol"].is_object());
         // Outside the editor the same tool has no such field.
         let fuori = definizioni_per(Opzioni {
             disegna_simboli: true,
@@ -2425,7 +2425,7 @@ mod tests_opzioni {
             .find(|d| d["name"] == "disegna_simbolo")
             .unwrap();
         assert!(d["input_schema"]["properties"]
-            .get("dal_simbolo_aperto")
+            .get("dal_open_symbol")
             .is_none());
     }
 

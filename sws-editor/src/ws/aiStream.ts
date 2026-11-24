@@ -45,7 +45,7 @@ import type { DescrizioneSimbolo } from "@/types";
 
 /** What the chat panel needs from a conversation. */
 export interface AiChannelApi {
-  chiedi(testo: string, simbolo?: DescrizioneSimbolo): boolean;
+  chiedi(testo: string, symbol?: DescrizioneSimbolo): boolean;
   approvaSfondo(id: string): boolean;
   mandaFoto(id: string, esito: { png: string; avvisi: string[] } | { errore: string }): boolean;
   ascolta(fn: (m: MsgIn) => void): () => void;
@@ -186,8 +186,8 @@ export class AiChannel implements AiChannelApi {
   /** `false` se il socket non è pronto: il chiamante lo dice all'utente invece
    *  di perdere il messaggio in silenzio. The symbol editor sends the symbol
    *  as it is with every question. */
-  chiedi(testo: string, simbolo?: DescrizioneSimbolo): boolean {
-    return this.send(simbolo ? { t: "chiedi", testo, simbolo } : { t: "chiedi", testo });
+  chiedi(testo: string, symbol?: DescrizioneSimbolo): boolean {
+    return this.send(symbol ? { t: "chiedi", testo, symbol } : { t: "chiedi", testo });
   }
 
   /** «Usa come base» sotto la miniatura di uno sfondo: l'approvazione la dà la

@@ -64,7 +64,7 @@ impl Contesto {
                 disegna_simboli: simboli.is_some(),
                 sfondi: sfondi.is_some(),
                 no_snapshot: assistant.is_some_and(|a| !a.sees_images),
-                simbolo: false,
+                symbol_scope: false,
             },
             simboli,
             sfondi,
@@ -151,9 +151,9 @@ pub(crate) async fn disegna(
     // (23-11-2026): the same request as the editor's AI tab made, and only the
     // photos it already had may stay.
     let aperto: Option<sws_core::simboli_prj::Descrizione> =
-        if input.get("dal_simbolo_aperto").and_then(Value::as_bool) == Some(true) {
+        if input.get("dal_open_symbol").and_then(Value::as_bool) == Some(true) {
             let v = banco
-                .simbolo_aperto
+                .open_symbol
                 .as_ref()
                 .ok_or("l'editor non ha mandato il simbolo aperto: disegna da zero")?;
             Some(
@@ -918,7 +918,7 @@ mod tests {
                 disegna_simboli: false,
                 sfondi: true,
                 no_snapshot: false,
-                simbolo: false,
+                symbol_scope: false,
             },
             simboli: None,
             sfondi: Some(openai_choice()),
@@ -1049,7 +1049,7 @@ mod tests {
                 disegna_simboli: false,
                 sfondi: true,
                 no_snapshot: false,
-                simbolo: false,
+                symbol_scope: false,
             },
             simboli: None,
             sfondi: Some(scopi::SceltaImmagini {

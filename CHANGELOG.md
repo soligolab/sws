@@ -21,9 +21,9 @@ si stabilizza su `release/2.26` (piano `docs/plans/2026-11-22-dev-rc-release-e-p
   l'editor, dentro l'IDE o nella sua finestra (decisione del maintainer, 23-11).
 - `ws/aiStream.ts`: il canale diventa la classe `AiChannel`, un'istanza per conversazione; le funzioni di prima parlano
   a quella del progetto. `symbolChannel(slug)` apre `/ws/ai?conv=…&scope=symbol`.
-- Server: con `scope=symbol` gli strumenti sono solo `fai_domande`, `leggi_simbolo` (nuovo: il simbolo com'è, con
-  errori, parti e bocche), `disegna_simbolo` (che con `dal_simbolo_aperto` parte dal simbolo aperto e tiene solo le sue
-  foto) o `bozza_simbolo`, e `proponi_simbolo` (nuovo: la bozza all'editor, con «Applica»; non nello stesso turno del
+- Server: con `scope=symbol` gli strumenti sono solo `fai_domande`, `read_symbol` (nuovo: il simbolo com'è, con
+  errori, parti e bocche), `disegna_simbolo` (che con `dal_open_symbol` parte dal simbolo aperto e tiene solo le sue
+  foto) o `bozza_simbolo`, e `propose_symbol` (nuovo: la bozza all'editor, con «Applica»; non nello stesso turno del
   disegno). Il blocco di prompt «Editor dei simboli» va dopo quello fisso, così la cache regge. Ogni domanda porta il
   simbolo aperto (`chiedi.simbolo`).
 - «Applica» mette il disegno nell'editor come **un passo che Ctrl+Z annulla**, con nome, etichette e variante

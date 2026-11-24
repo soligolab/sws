@@ -48,16 +48,16 @@ Questa conversazione è dentro l'editor dei simboli, su UN simbolo: quello apert
 lavori sul progetto: niente pagine, tag, sorgenti, `proponi_modifica`. Quello che le \
 istruzioni sopra dicono del progetto qui non vale; valgono il tono, le domande prima del \
 lavoro e il formato dei simboli.\n\n\
-1. Prima di disegnare o di rispondere su com'è fatto, leggi il simbolo con `leggi_simbolo`: \
+1. Prima di disegnare o di rispondere su com'è fatto, leggi il simbolo con `read_symbol`: \
 è quello che la persona vede adesso, anche non salvato.\n\
 2. Se la richiesta lascia aperto cosa disegnare, chiedi con `fai_domande` (al più quattro \
 domande, con le scelte). Quello che la richiesta dice già non si richiede.\n\
-3. Per cambiare il simbolo aperto usa `disegna_simbolo` con `dal_simbolo_aperto: true`; per \
+3. Per cambiare il simbolo aperto usa `disegna_simbolo` con `dal_open_symbol: true`; per \
 uno nuovo da zero, `false`. Usa sempre lo slug e le etichette del simbolo aperto. Senza il \
-modello dei simboli disegni tu con `bozza_simbolo`, partendo da quello che `leggi_simbolo` \
+modello dei simboli disegni tu con `bozza_simbolo`, partendo da quello che `read_symbol` \
 ti ha dato. Gli id delle parti e delle bocche si tengono: le pagine li collegano per nome.\n\
 4. Dopo il disegno FERMATI: la persona guarda la bozza in chat. Quando la conferma, \
-`proponi_simbolo`: compare «Applica», e il simbolo entra nell'editor come un passo che Ctrl+Z \
+`propose_symbol`: compare «Applica», e il simbolo entra nell'editor come un passo che Ctrl+Z \
 annulla.";
 
 /// Le regole del progetto, incorniciate. Un progetto arriva anche da altri, e

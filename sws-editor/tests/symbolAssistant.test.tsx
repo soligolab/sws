@@ -11,7 +11,7 @@ import type { DescrizioneSimbolo } from "../src/types";
 
 /** The conversation the editor opens: what it was asked, and a way to answer. */
 const fake = vi.hoisted(() => ({
-  asked: [] as { testo: string; simbolo?: unknown }[],
+  asked: [] as { testo: string; symbol?: unknown }[],
   listener: null as ((m: unknown) => void) | null,
   opened: [] as string[],
   released: [] as string[],
@@ -19,7 +19,7 @@ const fake = vi.hoisted(() => ({
 
 vi.mock("@/ws/aiStream", () => {
   const channel = {
-    chiedi: (testo: string, simbolo?: unknown) => { fake.asked.push({ testo, simbolo }); return true; },
+    chiedi: (testo: string, symbol?: unknown) => { fake.asked.push({ testo, symbol }); return true; },
     approvaSfondo: () => true,
     mandaFoto: () => true,
     ascolta: (fn: (m: unknown) => void) => { fake.listener = fn; return () => { fake.listener = null; }; },
@@ -101,8 +101,8 @@ describe("the symbol editor's assistant", () => {
     fireEvent.keyDown(box, { key: "Enter" });
     expect(fake.asked).toHaveLength(1);
     expect(fake.asked[0].testo).toBe("fallo più alto");
-    expect(fake.asked[0].simbolo).toMatchObject({ slug: "stufa", it: "Stufa" });
-    expect((fake.asked[0].simbolo as DescrizioneSimbolo).ops).toHaveLength(2);
+    expect(fake.asked[0].symbol).toMatchObject({ slug: "stufa", it: "Stufa" });
+    expect((fake.asked[0].symbol as DescrizioneSimbolo).ops).toHaveLength(2);
   });
 
   it("«Apply» puts the drawing in the editor with its own names, and Ctrl+Z takes it back", async () => {
@@ -121,18 +121,18 @@ describe("the symbol editor's assistant", () => {
         newRect({ x: 10, y: 60, w: 20, h: 20 }),
       ],
     };
-    await arrives({ t: "proposta_simbolo", id: "p1", motivo: "più pezzi", simbolo: proposed, svg: SVG });
+    await arrives({ t: "symbol_proposal", id: "p1", reason: "più pezzi", symbol: proposed, svg: SVG });
     await arrives({ t: "fine" });
-    expect(screen.getByTestId("chat-proposta-simbolo").textContent).toMatch(/più pezzi/);
-    fireEvent.click(screen.getByTestId("chat-applica-simbolo"));
+    expect(screen.getByTestId("chat-symbol-proposal").textContent).toMatch(/più pezzi/);
+    fireEvent.click(screen.getByTestId("chat-apply-symbol"));
     await waitFor(() => expect(rows()).toBe(before + 2));
-    expect(screen.queryByTestId("chat-applica-simbolo")).toBeNull();
+    expect(screen.queryByTestId("chat-apply-symbol")).toBeNull();
     // The next question carries the applied drawing, with the editor's names.
     const box = screen.getByTestId("symbol-assistant-column").querySelector("textarea")!;
     fireEvent.change(box, { target: { value: "ok" } });
     fireEvent.keyDown(box, { key: "Enter" });
-    expect(fake.asked.at(-1)!.simbolo).toMatchObject({ slug: "stufa", it: "Stufa", en: "Stove" });
-    expect((fake.asked.at(-1)!.simbolo as DescrizioneSimbolo).ops).toHaveLength(4);
+    expect(fake.asked.at(-1)!.symbol).toMatchObject({ slug: "stufa", it: "Stufa", en: "Stove" });
+    expect((fake.asked.at(-1)!.symbol as DescrizioneSimbolo).ops).toHaveLength(4);
     // One step back.
     fireEvent.keyDown(document.body, { key: "z", ctrlKey: true });
     await waitFor(() => expect(rows()).toBe(before));

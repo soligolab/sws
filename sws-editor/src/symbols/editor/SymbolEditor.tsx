@@ -420,9 +420,9 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
     diff: () => Promise.reject(new Error("the symbol editor proposes symbols only")),
     applica: async () => ({ ok: false, motivo: "the symbol editor proposes symbols only" }),
     fotografa: () => Promise.reject(new Error("the symbol editor takes no page snapshots")),
-    simbolo: {
-      leggi: latest,
-      applica: (p) => { commit(withOwnNames(p, latest())); return { ok: true }; },
+    symbol: {
+      read: latest,
+      apply: (p) => { commit(withOwnNames(p, latest())); return { ok: true }; },
     },
   }), [commit, latest]);
 

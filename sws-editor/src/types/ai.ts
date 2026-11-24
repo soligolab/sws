@@ -41,7 +41,7 @@ export type MsgIn =
       byte?: number; secondi?: number }
   /** The symbol editor's assistant proposes a drawing for the open symbol
    *  (23-11-2026): the description, compiled, with «Apply». */
-  | { t: "proposta_simbolo"; id: string; motivo: string; simbolo: DescrizioneSimbolo; svg: string }
+  | { t: "symbol_proposal"; id: string; reason: string; symbol: DescrizioneSimbolo; svg: string }
   | { t: "proposta"; id: string; motivo: string;
       project?: ProjectInfo | null; pages?: SynopticPage[] | null;
       impronta?: string | null; giudizio: Giudizio;
@@ -92,9 +92,9 @@ export type MsgIn =
 
 /** Quello che si manda. */
 export type MsgOut =
-  /** `simbolo`: the symbol open in the symbol editor, with every question of
+  /** `symbol`: the symbol open in the symbol editor, with every question of
    *  its conversation (23-11-2026). */
-  | { t: "chiedi"; testo: string; simbolo?: DescrizioneSimbolo }
+  | { t: "chiedi"; testo: string; symbol?: DescrizioneSimbolo }
   | { t: "approva_sfondo"; id: string }
   /** La risposta a `fotografa`: il PNG in base64, o l'errore. */
   | { t: "foto"; id: string; png?: string; avvisi?: string[]; errore?: string };
@@ -148,7 +148,7 @@ export type Riga =
   | { tipo: "errore"; testo: string }
   | { tipo: "simbolo"; slug: string; nome: string; svg: string }
   /** A drawing proposed for the open symbol, and what became of it. */
-  | { tipo: "proposta_simbolo"; msg: Extract<MsgIn, { t: "proposta_simbolo" }>;
+  | { tipo: "symbol_proposal"; msg: Extract<MsgIn, { t: "symbol_proposal" }>;
       esito?: "applicata" | "scartata" | "rifiutata"; nota?: string }
   | { tipo: "floor_plan"; id: string; name: string; svg: string }
   | { tipo: "immagine"; png: string; testo?: string };
