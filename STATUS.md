@@ -12,6 +12,32 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — l'assistente dei simboli, sessioni 1 e 2, nella 2.27.0-dev.1 sul cloud (2026-11-24 mattina, `ufficio`)
+
+**Fatto stanotte** (piano [`docs/plans/2026-11-23-assistente-dei-simboli.md`](docs/plans/2026-11-23-assistente-dei-simboli.md),
+decisioni del maintainer annotate nel piano):
+- **Sessione 1**, ramo `feat/symbol-assistant-chat`: «✦ Assistente IA» nell'editor dei simboli apre la chat dell'IDE su
+  una conversazione del simbolo (`/ws/ai?scope=symbol`), dove sta l'editor; `read_symbol`, `disegna_simbolo` anche dal
+  simbolo aperto, `propose_symbol` con «Applica» come passo annullabile. Tolti «Disegno con l'IA» e l'intervista
+  vecchia; «Genera foto» resta.
+- **Sessione 2**, ramo `feat/symbol-assistant-interview` (annidato): l'intervista nel prompt, la **scheda del
+  simbolo** modificabile in chat fino a «Conferma», il disegno dalla scheda con ingressi, bocche ed effetti messi dal
+  codice, la **foto allegata** col fermaglio in tutte e due le chat.
+- La regola UI 3 in `CLAUDE.md` («ciò che si crea chiede prima il nome»).
+- **2.27.0-dev.1** (`b6061e89`, tag e due rami **pushati**, costruita dal ramo con `SWS_BUILD_FUORI_RAMO=1`, solo
+  amd64, 17 minuti): **gateway di sws.soligo.net sulla dev.1** (ripiego rc.30). Contiene tutta la rc.30.
+
+**Il collaudo, cosa guardare** (IDE del cloud, un progetto con un simbolo, modello vero dello scopo «Simboli»):
+1. «Assistente IA» nell'editor dei simboli, anche nella finestra a parte; riaprendo lo stesso simbolo la conversazione
+   c'è ancora, un altro simbolo ne ha una sua;
+2. un simbolo nuovo dall'intervista: le domande (al più quattro), la scheda, correggerla nella scheda e «Conferma»;
+3. il disegno dalla scheda: le parti coi loro nomi, gli effetti messi sui gruppi giusti, le bocche; «Applica», Ctrl+Z;
+4. una foto della macchina vera col fermaglio, nella chat dei simboli (riferimento del disegno) e in quella del progetto;
+5. «Genera foto» ancora al suo posto; «Disegno con l'IA» sparito.
+
+**Poi**: se il collaudo passa, squash delle due sessioni in `main` (rami da eliminare). La sessione 3 (le foto e la
+rimozione di `/api/symbols/ai`) può partire annidata anche prima. Mai provato con un modello vero: solo copioni.
+
 ## ▶ Riprendere da qui — la 2.26.0-rc.30 pubblicata, da collaudare; PLX800 in `main` (2026-11-23 sera, `elitedesk`)
 
 **rc.30** (`a0bff2eb` su `release/2.26`, tag `2.26.0-rc.30` su origin) col piano
