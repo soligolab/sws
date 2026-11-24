@@ -33,7 +33,7 @@ import { useAppStore } from "@/store";
 import { buildWsUrl } from "@/ws/wsUrl";
 import { ReconnectingWs } from "@/ws/reconnectingWs";
 import { nuovoId } from "@/ai/ponte";
-import type { MsgIn, MsgOut } from "@/types/ai";
+import type { AttachedPhoto, MsgIn, MsgOut, SymbolSheet } from "@/types/ai";
 import type { DescrizioneSimbolo } from "@/types";
 
 // One socket per conversation (23-11-2026). Until then the window had one
@@ -44,8 +44,11 @@ import type { DescrizioneSimbolo } from "@/types";
 // instance as before.
 
 /** What the chat panel needs from a conversation. */
+/** What a question may carry besides its text. */
+export interface QuestionExtras { photo?: AttachedPhoto; sheet?: SymbolSheet }
+
 export interface AiChannelApi {
-  chiedi(testo: string, symbol?: DescrizioneSimbolo): boolean;
+  chiedi(testo: string, symbol?: DescrizioneSimbolo, extras?: QuestionExtras): boolean;
   approvaSfondo(id: string): boolean;
   mandaFoto(id: string, esito: { png: string; avvisi: string[] } | { errore: string }): boolean;
   ascolta(fn: (m: MsgIn) => void): () => void;
@@ -186,8 +189,8 @@ export class AiChannel implements AiChannelApi {
   /** `false` se il socket non è pronto: il chiamante lo dice all'utente invece
    *  di perdere il messaggio in silenzio. The symbol editor sends the symbol
    *  as it is with every question. */
-  chiedi(testo: string, symbol?: DescrizioneSimbolo): boolean {
-    return this.send(symbol ? { t: "chiedi", testo, symbol } : { t: "chiedi", testo });
+  chiedi(testo: string, symbol?: DescrizioneSimbolo, extras?: QuestionExtras): boolean {
+    return this.send({ t: "chiedi", testo, ...(symbol ? { symbol } : {}), ...extras });
   }
 
   /** «Usa come base» sotto la miniatura di uno sfondo: l'approvazione la dà la
@@ -255,8 +258,8 @@ export function nuovaConversazione(): void {
   progetto.nuovaConversazione();
 }
 
-export function chiedi(testo: string): boolean {
-  return progetto.chiedi(testo);
+export function chiedi(testo: string, extras?: QuestionExtras): boolean {
+  return progetto.chiedi(testo, undefined, extras);
 }
 
 export function approvaSfondo(id: string): boolean {

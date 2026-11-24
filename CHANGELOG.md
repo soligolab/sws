@@ -14,6 +14,24 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 Il lavoro della **2.27.0** (versioni `2.27.0-dev.N`). Dal 22-11-2026 `main` porta la release successiva, e la 2.26.0
 si stabilizza su `release/2.26` (piano `docs/plans/2026-11-22-dev-rc-release-e-portale-di-sviluppo.md`).
 
+### Aggiunto — l'assistente dei simboli, sessione 2: l'intervista, la scheda, la foto allegata (24-11-2026, ramo `feat/symbol-assistant-interview`)
+- Il blocco di prompt «Editor dei simboli» porta l'**intervista** del piano (blocchi 0-6: da dove si parte, che cos'è,
+  ingressi, foto, parti e bocche, effetti, la scheda), con `fai_domande` e al più quattro domande per volta.
+- **La scheda del simbolo** (`ai/symbol_sheet.rs`, strumento `symbol_sheet`): nome, misura, stile, ingressi, parti coi
+  nomi e i movimenti, bocche, effetti, foto. Il server controlla nomi (la regola del compilatore) e riferimenti e
+  rimanda gli errori al modello. In chat è **modificabile** fino a «Conferma» (`SymbolSheetCard.tsx`, decisione del
+  maintainer); la versione confermata parte con la domanda (`chiedi.sheet`) e da lì vale quella.
+- **Il disegno dalla scheda**: `disegna_simbolo` con `from_sheet` chiede al modello che disegna le parti coi loro nomi
+  (gruppi, e uno strato `parte` per quelle che si muovono: i movimenti li fa lui, decisione del maintainer), le bocche,
+  la misura. Poi **il codice** (`complete`, T1 e T4 del piano) mette gli ingressi che nessuna parte porta, le bocche
+  mancanti a metà del loro lato, e gli effetti sui loro gruppi; quello che non riesce torna al modello come
+  `sheet_notes`. Vale anche per `bozza_simbolo`.
+- **La foto allegata**, in tutte e due le chat (decisione del maintainer): il fermaglio accanto a «Manda», ridotta a
+  1024 px nel browser, mostrata nella domanda; va al modello della chat se vede le immagini, altrimenti glielo si dice.
+  Nella chat dei simboli resta come riferimento per `disegna_simbolo` con `with_photo`.
+- La modalità copione (`SWS_AI_FAKE`) conosce `read_symbol`, `symbol_sheet` e `propose_symbol`.
+- `/api/symbols/ai` resta ancora: si toglie nella sessione 3, con i test di `draw()` spostati.
+
 ### Aggiunto — l'assistente dei simboli, sessione 1: la chat dentro l'editor (23-11-2026, ramo `feat/symbol-assistant-chat`)
 - Piano `docs/plans/2026-11-23-assistente-dei-simboli.md`. Il pulsante **«Assistente IA»** nella barra dell'editor dei
   simboli apre accanto al disegno la chat dell'IDE (`ChatPanel`) su una **conversazione del simbolo**, separata da
@@ -22,7 +40,7 @@ si stabilizza su `release/2.26` (piano `docs/plans/2026-11-22-dev-rc-release-e-p
 - `ws/aiStream.ts`: il canale diventa la classe `AiChannel`, un'istanza per conversazione; le funzioni di prima parlano
   a quella del progetto. `symbolChannel(slug)` apre `/ws/ai?conv=…&scope=symbol`.
 - Server: con `scope=symbol` gli strumenti sono solo `fai_domande`, `read_symbol` (nuovo: il simbolo com'è, con
-  errori, parti e bocche), `disegna_simbolo` (che con `dal_open_symbol` parte dal simbolo aperto e tiene solo le sue
+  errori, parti e bocche), `disegna_simbolo` (che con `from_open_symbol` parte dal simbolo aperto e tiene solo le sue
   foto) o `bozza_simbolo`, e `propose_symbol` (nuovo: la bozza all'editor, con «Applica»; non nello stesso turno del
   disegno). Il blocco di prompt «Editor dei simboli» va dopo quello fisso, così la cache regge. Ogni domanda porta il
   simbolo aperto (`chiedi.simbolo`).

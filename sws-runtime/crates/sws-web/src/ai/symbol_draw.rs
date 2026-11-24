@@ -356,7 +356,7 @@ pub enum Mode {
     Edit,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct Photo {
     pub media_type: String,
     /// Base64, without the `data:` prefix.
@@ -415,11 +415,7 @@ fn editor_messages(req: &EditorRequest, d: &Descrizione) -> Value {
         Mode::Edit => edit_text(d),
     };
     if req.photo.is_some() {
-        text.push_str(
-            "\nThe photo shows the machine: draw it seen from the front, in the style of the \
-             examples, with simple shapes. Leave out the background, the people and the text \
-             on it.\n",
-        );
+        text.push_str(PHOTO_NOTE);
     }
     if !req.instruction.trim().is_empty() {
         text.push('\n');
@@ -433,6 +429,11 @@ fn editor_messages(req: &EditorRequest, d: &Descrizione) -> Value {
         ] }),
     }
 }
+
+/// What the drawing model is told of a photo of the machine.
+pub(crate) const PHOTO_NOTE: &str =
+    "\nThe photo shows the machine: draw it seen from the front, in the style of the \
+     examples, with simple shapes. Leave out the background, the people and the text on it.\n";
 
 /// The request to change `d`: the symbol as it is, and how to keep what the
 /// pages bind. The editor's AI tab and the symbol editor's chat both use it.

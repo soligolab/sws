@@ -515,7 +515,13 @@
       "risposte": "Le risposte:",
       "decidiTu": "decidi tu",
       "inviate": "Risposte inviate"
-    }
+    },
+    "photoAttach": "Allega una foto (la macchina vera, un quadro da copiare): la vede il modello, se legge le immagini",
+    "photoWaiting": "Foto pronta: parte con il prossimo messaggio",
+    "photoRemove": "Togli la foto",
+    "photoUnreadable": "Questa foto non si legge: usa un JPEG, un PNG o un WebP.",
+    "photoText": "Ecco una foto.",
+    "sheetConfirmed": "Scheda confermata."
   },
   "viewer": {
     "maintenance": "Manutenzione",
@@ -6174,5 +6180,47 @@
       "writer_active": "SWS comanda il modulo",
       "foreign_writer": "Un altro programma ha scritto"
     }
+  },
+  "symbolSheet": {
+    "title": "La scheda del simbolo",
+    "name": "Nome",
+    "stateColors": "colori dallo stato",
+    "style": {
+      "vector": "Vettoriale",
+      "photo": "Fotorealistico",
+      "mixed": "Misto (foto e parti vive)"
+    },
+    "inputs": "Ingressi",
+    "id": "Nome",
+    "inputType": {
+      "bool": "sì/no",
+      "number": "numero",
+      "states": "stati"
+    },
+    "statesHint": "stati, separati da virgole",
+    "addInput": "ingresso",
+    "parts": "Parti",
+    "what": "Che cos'è",
+    "motion": "Movimento",
+    "still": "ferma",
+    "addPart": "parte",
+    "ports": "Bocche dei tubi",
+    "side": {
+      "left": "sinistra",
+      "right": "destra",
+      "top": "sopra",
+      "bottom": "sotto"
+    },
+    "addPort": "bocca",
+    "effects": "Effetti",
+    "on": "su",
+    "with": "con",
+    "addEffect": "effetto",
+    "photo": "La foto",
+    "photoVaries": "Cambia con «{{input}}»: {{n}} foto.",
+    "remove": "Togli",
+    "confirm": "Conferma",
+    "confirmed": "Confermata: l'assistente lavora su questa.",
+    "problems": "Da sistemare prima di confermare: {{names}} (nomi a-z, 0-9, «-»; ognuno una volta; effetti e movimenti su parti e ingressi che ci sono)."
   }
 }

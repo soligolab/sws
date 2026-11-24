@@ -524,7 +524,13 @@ fn disegna_simbolo_def(editor: bool) -> Value {
              lo stesso slug e cosa cambiare. Dopo le bozze fermati e fai scegliere la persona."
             .to_string();
     if editor {
-        properties["dal_open_symbol"] = json!({ "type": "boolean",
+        properties["from_sheet"] = json!({ "type": "boolean",
+            "description": "true = disegna dalla scheda confermata (symbol_sheet): misura, parti coi loro \
+                            nomi, bocche; ingressi ed effetti li aggiunge SWS. `cosa` aggiunge solo quello \
+                            che la scheda non dice" });
+        properties["with_photo"] = json!({ "type": "boolean",
+            "description": "true = il modello che disegna guarda anche la foto che la persona ha allegato" });
+        properties["from_open_symbol"] = json!({ "type": "boolean",
             "description": "true = parte dal simbolo aperto nell'editor e lo cambia come dice `cosa` \
                             (tiene gli id di parti e bocche); false = un disegno nuovo da zero" });
         descrizione.push_str(
@@ -540,6 +546,51 @@ fn disegna_simbolo_def(editor: bool) -> Value {
     )
 }
 
+/// `symbol_sheet`: the schema of the sheet (`symbol_sheet.rs`).
+fn symbol_sheet_def() -> Value {
+    let id = json!({ "type": "string", "description": "a-z, 0-9 e «-», da 2 a 30" });
+    strumento(
+        "symbol_sheet",
+        "Mostra alla persona la SCHEDA del simbolo, il riassunto dell'intervista: nome, misura, stile, \
+         ingressi, parti coi loro nomi, bocche, effetti, foto. La persona la corregge nella scheda e la \
+         conferma: la versione confermata arriva nel prossimo messaggio, e da lì vale quella. Dopo \
+         FERMATI. SWS controlla nomi e riferimenti e ti rimanda gli errori.",
+        json!({ "type": "object", "required": ["sheet"], "additionalProperties": false,
+            "properties": { "sheet": { "type": "object", "required": ["name", "size", "style"], "properties": {
+                "name": { "type": "string", "description": "il nome del simbolo, come lo leggono le persone" },
+                "category": { "type": "string" },
+                "size": { "type": "object", "required": ["w", "h"], "description": "multipli di 10, da 20 a 512",
+                          "properties": { "w": { "type": "integer" }, "h": { "type": "integer" } } },
+                "style": { "type": "string", "enum": ["vector", "photo", "mixed"] },
+                "state_colors": { "type": "boolean", "description": "il corpo prende il colore dello stato" },
+                "inputs": { "type": "array", "items": { "type": "object", "required": ["id", "type"], "properties": {
+                    "id": id, "type": { "type": "string", "enum": ["bool", "number", "states"] },
+                    "min": { "type": "number" }, "max": { "type": "number" }, "unit": { "type": "string" },
+                    "states": { "type": "array", "items": { "type": "string" } } } } },
+                "photo": { "type": "object", "required": ["description"], "properties": {
+                    "description": { "type": "string" },
+                    "varies_with": { "type": "object", "required": ["input", "mode"], "properties": {
+                        "input": { "type": "string" },
+                        "mode": { "type": "string", "enum": ["on_off", "states", "steps"] },
+                        "steps": { "type": "array", "items": { "type": "object", "required": ["min", "max", "description"],
+                            "properties": { "min": { "type": "number" }, "max": { "type": "number" },
+                                            "description": { "type": "string" } } } } } } } },
+                "parts": { "type": "array", "items": { "type": "object", "required": ["id", "what"], "properties": {
+                    "id": id, "what": { "type": "string" },
+                    "motion": { "type": "string", "enum": ["rotor", "slide", "level", "needle", "lever", "lamp", "vibrate", "pulse", "signal"] },
+                    "input": { "type": "string" } } } },
+                "ports": { "type": "array", "items": { "type": "object", "required": ["id", "side"], "properties": {
+                    "id": id, "side": { "type": "string", "enum": ["left", "right", "top", "bottom"] } } } },
+                "effects": { "type": "array", "items": { "type": "object", "required": ["kind", "part", "input"], "properties": {
+                    "kind": { "type": "string", "enum": ["flame", "smoke", "glow", "bubbles"] },
+                    "part": { "type": "string" }, "input": { "type": "string" },
+                    "when": { "type": "object", "properties": { "op": { "type": "string", "enum": ["gt", "ge", "lt", "le", "eq", "ne"] },
+                                                                "value": { "type": "number" } } },
+                    "level": { "type": "object", "properties": { "min": { "type": "number" }, "max": { "type": "number" } } },
+                    "color": { "type": "string" } } } } } } } }),
+    )
+}
+
 /// The tools of the symbol editor's conversation: ask, read the open symbol,
 /// draw (with the symbol model, or by itself), propose. Nothing that reads
 /// or changes the project.
@@ -548,6 +599,7 @@ fn symbol_tool_definitions(o: Opzioni) -> Vec<Value> {
     let una = |n: &str| base.iter().find(|d| d["name"] == n).cloned();
     let mut v: Vec<Value> = Vec::new();
     v.extend(una("fai_domande"));
+    v.push(symbol_sheet_def());
     v.push(strumento(
         "read_symbol",
         "Il simbolo aperto nell'editor, com'è adesso (anche non salvato): la descrizione, gli \
@@ -615,7 +667,7 @@ pub const SOLA_LETTURA: [&str; 14] = [
 ///
 /// `bozza_simbolo` scrive nel **banco della conversazione**, che vive nel ciclo
 /// della chat e non altrove: fuori da lì una bozza non avrebbe dove stare.
-pub const FUORI_DA_ESEGUI: [&str; 10] = [
+pub const FUORI_DA_ESEGUI: [&str; 11] = [
     "proponi_modifica",
     // Asks the person in the chat (20-11-2026): an MCP client has no card to show it.
     "fai_domande",
@@ -632,6 +684,7 @@ pub const FUORI_DA_ESEGUI: [&str; 10] = [
     // symbol open in that browser window.
     "read_symbol",
     "propose_symbol",
+    "symbol_sheet",
 ];
 
 /// Le definizioni dei soli strumenti di sola lettura.
@@ -2390,6 +2443,7 @@ mod tests_opzioni {
             senza,
             [
                 "fai_domande",
+                "symbol_sheet",
                 "read_symbol",
                 "bozza_simbolo",
                 "propose_symbol"
@@ -2405,6 +2459,7 @@ mod tests_opzioni {
             nomi(o),
             [
                 "fai_domande",
+                "symbol_sheet",
                 "read_symbol",
                 "disegna_simbolo",
                 "propose_symbol"
@@ -2414,7 +2469,9 @@ mod tests_opzioni {
             .into_iter()
             .find(|d| d["name"] == "disegna_simbolo")
             .unwrap();
-        assert!(disegna["input_schema"]["properties"]["dal_open_symbol"].is_object());
+        for p in ["from_open_symbol", "from_sheet", "with_photo"] {
+            assert!(disegna["input_schema"]["properties"][p].is_object(), "{p}");
+        }
         // Outside the editor the same tool has no such field.
         let fuori = definizioni_per(Opzioni {
             disegna_simboli: true,
@@ -2425,7 +2482,7 @@ mod tests_opzioni {
             .find(|d| d["name"] == "disegna_simbolo")
             .unwrap();
         assert!(d["input_schema"]["properties"]
-            .get("dal_open_symbol")
+            .get("from_open_symbol")
             .is_none());
     }
 

@@ -227,6 +227,14 @@ l'archivio `2026-11-19-assistente-ia-simboli.md`).
   foto di riferimento entra nella chat (blocco 0 dell'intervista), i test passano a chiamare `draw()` direttamente, e la
   rotta si toglie. L'intervista vecchia (`/api/symbols/ai/interview`) è già tolta. Il parametro del socket, che il piano chiama
   `ambito=simbolo`, nel codice è **`scope=symbol`** (regola del codice in inglese).
+- **Decisioni prima della sessione 2** (24-11-2026): la scheda si **corregge nella scheda** in chat, non scrivendo; i
+  **movimenti li fa il modello che disegna** (strati `parte` coi nomi della scheda), il codice mette ingressi, bocche ed
+  effetti; la foto si allega **in tutte e due le chat**.
+- **Sessione 2 fatta** (ramo `feat/symbol-assistant-interview`, annidato sul primo). Nomi nel codice in inglese:
+  `symbol_sheet`, `read_symbol`, `propose_symbol`, frame `symbol_proposal` e `symbol_sheet`, la scheda con chiavi
+  inglesi (`inputs`, `parts`, `ports`, `effects`, `photo.varies_with`). **Rimandato alla sessione 3**: togliere
+  `/api/symbols/ai` spostando i test di `draw()` (la foto di riferimento ora c'è nella chat, quindi la rotta non ha più
+  niente di suo).
 
 ### Sessioni (un ramo per sessione, annidati se il collaudo arriva dopo)
 1. **`feat/symbol-assistant-chat`**:

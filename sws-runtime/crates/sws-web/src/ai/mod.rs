@@ -44,6 +44,7 @@ pub mod scopi;
 pub mod spending;
 pub(crate) mod strumenti_scopi;
 pub(crate) mod symbol_draw;
+pub(crate) mod symbol_sheet;
 pub mod tools;
 pub mod user_keys;
 
@@ -298,6 +299,32 @@ async fn sessione(
             continue;
         }
 
+        // A photo attached to the question (23-11-2026, both chats).
+        let foto = match attached_photo(&v) {
+            Ok(f) => f,
+            Err(e) => {
+                invia(&tx, json!({ "t": "errore", "messaggio": e }));
+                invia(&tx, json!({ "t": "fine" }));
+                continue;
+            }
+        };
+        // The sheet as the person confirmed it, with their corrections.
+        let sheet = match v.get("sheet").filter(|_| symbol_scope) {
+            None => None,
+            Some(raw) => match symbol_sheet::read(raw) {
+                Ok(s) => Some(s),
+                Err(errors) => {
+                    invia(
+                        &tx,
+                        json!({ "t": "errore",
+                        "messaggio": format!("la scheda non va: {}", errors.join("; ")) }),
+                    );
+                    invia(&tx, json!({ "t": "fine" }));
+                    continue;
+                }
+            },
+        };
+
         // Il lucchetto per tutto il turno: storia, spesa e banco cambiano insieme.
         let mut g = conv.lock().await;
         // The symbol editor sends the symbol as it is with every question:
@@ -314,7 +341,34 @@ async fn sessione(
             misure,
             banco,
         } = &mut *g;
-        messaggi.push(domanda_dopo(messaggi, &domanda));
+        let mut domanda = domanda;
+        if let Some(s) = sheet {
+            domanda.push_str(&format!(
+                "\n\n[La scheda confermata dalla persona, con le sue correzioni: da qui in avanti vale questa]\n```json\n{}\n```",
+                serde_json::to_string_pretty(&s).unwrap_or_default()
+            ));
+            banco.sheet = Some(s);
+        }
+        let blocco_foto = match &foto {
+            Some(f) => {
+                if symbol_scope {
+                    banco.reference_photo = Some(f.clone());
+                }
+                let vede = finto.is_some() || scelta.as_ref().is_some_and(|sc| sc.sees_images);
+                if vede {
+                    Some(json!({ "type": "image", "source": { "type": "base64",
+                                 "media_type": f.media_type, "data": f.data } }))
+                } else {
+                    domanda.push_str(
+                        "\n\n[La persona ha allegato una foto, ma questo modello non vede le immagini: \
+                         diglielo. Nell'editor dei simboli il modello che disegna la può usare.]",
+                    );
+                    None
+                }
+            }
+            None => None,
+        };
+        messaggi.push(domanda_dopo(messaggi, &domanda, blocco_foto));
 
         let esito = match &finto {
             // La foto di un progetto web la chiede l'IDE di QUESTO socket: la
@@ -923,6 +977,7 @@ async fn vero_giro(
             // `bozza_simbolo` ci scrive, e `valida` le deve vedere.
             let esito = match nome {
                 "read_symbol" => Ok(read_symbol(banco.open_symbol.as_ref())),
+                "symbol_sheet" => show_sheet(tx, banco, input),
                 "fai_domande" => tools::domande(input).map(|frame| {
                     invia(tx, frame);
                     json!({ "mostrate": true, "nota": "Le domande sono sullo schermo. FERMATI qui, \
@@ -1158,7 +1213,7 @@ fn risultato(id: &str, contenuto: &Value, errore: bool) -> Value {
 /// rc.12, 11-11-2026, chiedendo un'altra modifica dopo aver applicato la
 /// prima). Le risposte vanno nello stesso messaggio della domanda, prima del
 /// testo: due messaggi `user` di fila non tutti i fornitori li accettano.
-fn domanda_dopo(messaggi: &[Value], domanda: &str) -> Value {
+fn domanda_dopo(messaggi: &[Value], domanda: &str, foto: Option<Value>) -> Value {
     let aperti: Vec<&str> = messaggi
         .last()
         .filter(|m| m.get("role").and_then(Value::as_str) == Some("assistant"))
@@ -1170,7 +1225,12 @@ fn domanda_dopo(messaggi: &[Value], domanda: &str) -> Value {
         .filter_map(|b| b.get("id").and_then(Value::as_str))
         .collect();
     if aperti.is_empty() {
-        return json!({ "role": "user", "content": domanda });
+        return match foto {
+            None => json!({ "role": "user", "content": domanda }),
+            Some(f) => {
+                json!({ "role": "user", "content": [f, { "type": "text", "text": domanda }] })
+            }
+        };
     }
     let mut blocchi: Vec<Value> = aperti
         .into_iter()
@@ -1182,6 +1242,7 @@ fn domanda_dopo(messaggi: &[Value], domanda: &str) -> Value {
             })
         })
         .collect();
+    blocchi.extend(foto);
     blocchi.push(json!({ "type": "text", "text": domanda }));
     json!({ "role": "user", "content": blocchi })
 }
@@ -1271,6 +1332,53 @@ async fn proponi(
         }),
     );
     Proposta::Inviata
+}
+
+/// The photo attached to a question, checked: JPEG, PNG or WebP, at most
+/// [`PHOTO_MAX_BASE64`] (the chat reduces it to 1024 px).
+fn attached_photo(v: &Value) -> Result<Option<symbol_draw::Photo>, String> {
+    let Some(p) = v.get("photo").filter(|p| !p.is_null()) else {
+        return Ok(None);
+    };
+    let p: symbol_draw::Photo =
+        serde_json::from_value(p.clone()).map_err(|e| format!("foto allegata: {e}"))?;
+    if !matches!(
+        p.media_type.as_str(),
+        "image/jpeg" | "image/png" | "image/webp"
+    ) {
+        return Err(format!(
+            "foto allegata di tipo {}: JPEG, PNG o WebP",
+            p.media_type
+        ));
+    }
+    if p.data.len() > PHOTO_MAX_BASE64 {
+        return Err("foto allegata troppo grande".to_string());
+    }
+    Ok(Some(p))
+}
+
+const PHOTO_MAX_BASE64: usize = 4 * 1024 * 1024;
+
+/// `symbol_sheet`: the sheet, checked, to the person, who corrects and
+/// confirms it in the chat. Its mistakes go back to the model.
+fn show_sheet(
+    tx: &mpsc::UnboundedSender<String>,
+    banco: &mut Banco,
+    input: &Value,
+) -> Result<Value, String> {
+    let raw = input.get("sheet").unwrap_or(input);
+    let s = symbol_sheet::read(raw).map_err(|e| {
+        json!({ "ok": false, "errors": e, "note": "correggi e richiama symbol_sheet" }).to_string()
+    })?;
+    invia(
+        tx,
+        json!({ "t": "symbol_sheet", "id": uuid_breve(), "sheet": s }),
+    );
+    banco.sheet = Some(s);
+    Ok(
+        json!({ "shown": true, "note": "La scheda è sullo schermo, modificabile. FERMATI qui: la persona \
+              la corregge e la conferma; la versione confermata arriva nel prossimo messaggio." }),
+    )
 }
 
 /// The largest open symbol the editor may send with a question: the photos
@@ -1383,8 +1491,14 @@ pub(crate) struct Banco {
     pub free_symbols: Vec<free_symbol_tool::FreeSymbolDraft>,
     /// The symbol open in the symbol editor, as the last question brought it
     /// (`scope=symbol`): what `read_symbol` answers and what
-    /// `disegna_simbolo` changes with `dal_open_symbol`.
+    /// `disegna_simbolo` changes with `from_open_symbol`.
     pub open_symbol: Option<Value>,
+    /// The sheet of the symbol, as the interview decided it and the person
+    /// confirmed it (`symbol_sheet`, session 2): the drawing follows it.
+    pub sheet: Option<symbol_sheet::Sheet>,
+    /// The photo the person attached last, for `disegna_simbolo` with
+    /// `with_photo` (the machine to draw, seen for real).
+    pub reference_photo: Option<symbol_draw::Photo>,
 }
 
 impl Banco {
@@ -1446,11 +1560,27 @@ fn bozza(
     }
     match tools::compila_bozza(input) {
         Ok((d, c)) => {
+            // In the symbol editor, the sheet's structure and effects (T1, T4).
+            let (d, c, note) = match &banco.sheet {
+                None => (d, c, Vec::new()),
+                Some(s) => {
+                    let (d, note) = symbol_sheet::complete(d, s);
+                    let c = sws_core::simboli_prj::compila_e_controlla(&d).map_err(|e| {
+                        json!({ "ok": false, "errori": e,
+                                "nota": "completata dalla scheda non compila: correggi e richiama bozza_simbolo" })
+                        .to_string()
+                    })?;
+                    (d, c, note)
+                }
+            };
             invia(
                 tx,
                 json!({ "t": "simbolo", "slug": d.slug, "it": d.it, "en": d.en, "svg": c.svg }),
             );
-            let esito = tools::esito_bozza(&c);
+            let mut esito = tools::esito_bozza(&c);
+            if !note.is_empty() {
+                esito["sheet_notes"] = json!(note);
+            }
             banco.metti(d);
             Ok(esito)
         }
@@ -1605,6 +1735,7 @@ async fn finto_giro(
                     }),
                     "bozza_simbolo" => bozza(tx, banco, &input),
                     "read_symbol" => Ok(read_symbol(banco.open_symbol.as_ref())),
+                    "symbol_sheet" => show_sheet(tx, banco, &input),
                     // La foto, come nel giro vero: serve all'e2e della chat e a
                     // provare dal vivo la foto dal browser (10-11-2026).
                     "istantanea_pagina" => istantanea_per_il_modello(s, tx, &input, banco)
@@ -1754,7 +1885,7 @@ mod tests_domanda_dopo {
                 { "type": "tool_use", "id": "proponi_modifica:10", "name": "proponi_modifica", "input": {} },
             ]}),
         ];
-        let m = domanda_dopo(&messaggi, "ora gli sfondi");
+        let m = domanda_dopo(&messaggi, "ora gli sfondi", None);
         let blocchi = m["content"].as_array().unwrap();
         assert_eq!(blocchi.len(), 2);
         assert_eq!(blocchi[0]["type"], "tool_result");
@@ -1770,13 +1901,50 @@ mod tests_domanda_dopo {
         let messaggi =
             vec![json!({ "role": "assistant", "content": [{ "type": "text", "text": "Fatto" }] })];
         assert_eq!(
-            domanda_dopo(&messaggi, "ciao"),
+            domanda_dopo(&messaggi, "ciao", None),
             json!({ "role": "user", "content": "ciao" })
         );
         assert_eq!(
-            domanda_dopo(&[], "ciao"),
+            domanda_dopo(&[], "ciao", None),
             json!({ "role": "user", "content": "ciao" })
         );
+    }
+
+    /// A photo attached to a question (23-11-2026): an image block before the
+    /// text, also after a proposal still open.
+    #[test]
+    fn a_photo_goes_before_the_question() {
+        let foto = json!({ "type": "image", "source": { "type": "base64", "media_type": "image/jpeg", "data": "AA==" } });
+        let m = domanda_dopo(&[], "questa è la stufa", Some(foto.clone()));
+        assert_eq!(m["content"][0], foto);
+        assert_eq!(m["content"][1]["text"], "questa è la stufa");
+        let aperta = vec![json!({ "role": "assistant", "content": [
+            { "type": "tool_use", "id": "t1", "name": "proponi_modifica", "input": {} } ] })];
+        let m = domanda_dopo(&aperta, "ecco", Some(foto.clone()));
+        let tipi: Vec<&str> = m["content"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|b| b["type"].as_str().unwrap())
+            .collect();
+        assert_eq!(tipi, ["tool_result", "image", "text"]);
+    }
+
+    /// Only a JPEG, PNG or WebP of a sensible size is taken.
+    #[test]
+    fn an_attached_photo_is_checked() {
+        assert!(super::attached_photo(&json!({ "t": "chiedi" }))
+            .unwrap()
+            .is_none());
+        let ok = json!({ "photo": { "media_type": "image/jpeg", "data": "AA==" } });
+        assert_eq!(
+            super::attached_photo(&ok).unwrap().unwrap().media_type,
+            "image/jpeg"
+        );
+        let gif = json!({ "photo": { "media_type": "image/gif", "data": "AA==" } });
+        assert!(super::attached_photo(&gif)
+            .unwrap_err()
+            .contains("image/gif"));
     }
 }
 

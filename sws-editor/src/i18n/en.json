@@ -515,7 +515,13 @@
       "risposte": "The answers:",
       "decidiTu": "you decide",
       "inviate": "Answers sent"
-    }
+    },
+    "photoAttach": "Attach a photo (the real machine, a panel to copy): the model sees it, if it reads images",
+    "photoWaiting": "Photo ready: it goes with the next message",
+    "photoRemove": "Remove the photo",
+    "photoUnreadable": "This photo cannot be read: use a JPEG, a PNG or a WebP.",
+    "photoText": "Here is a photo.",
+    "sheetConfirmed": "Sheet confirmed."
   },
   "viewer": {
     "maintenance": "Maintenance",
@@ -6174,5 +6180,47 @@
       "writer_active": "SWS commands the module",
       "foreign_writer": "Another program wrote"
     }
+  },
+  "symbolSheet": {
+    "title": "The symbol's sheet",
+    "name": "Name",
+    "stateColors": "colours from the state",
+    "style": {
+      "vector": "Vector",
+      "photo": "Photographic",
+      "mixed": "Mixed (photo and live parts)"
+    },
+    "inputs": "Inputs",
+    "id": "Name",
+    "inputType": {
+      "bool": "yes/no",
+      "number": "number",
+      "states": "states"
+    },
+    "statesHint": "states, separated by commas",
+    "addInput": "input",
+    "parts": "Parts",
+    "what": "What it is",
+    "motion": "Motion",
+    "still": "still",
+    "addPart": "part",
+    "ports": "Pipe ports",
+    "side": {
+      "left": "left",
+      "right": "right",
+      "top": "top",
+      "bottom": "bottom"
+    },
+    "addPort": "port",
+    "effects": "Effects",
+    "on": "on",
+    "with": "with",
+    "addEffect": "effect",
+    "photo": "The photo",
+    "photoVaries": "Changes with «{{input}}»: {{n}} photos.",
+    "remove": "Remove",
+    "confirm": "Confirm",
+    "confirmed": "Confirmed: the assistant works on this one.",
+    "problems": "To fix before confirming: {{names}} (names a-z, 0-9, «-»; each once; effects and motions on parts and inputs that exist)."
   }
 }

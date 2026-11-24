@@ -9,6 +9,7 @@ use serde_json::{json, Value};
 use tokio::sync::mpsc;
 
 use super::background_size::{self, Facing, Scale};
+use super::symbol_sheet;
 use super::{
     bfl, client, floor_plan_tool, immagini, local_http, scopi, spending, symbol_draw, tools, Banco,
     Misure,
@@ -151,7 +152,7 @@ pub(crate) async fn disegna(
     // (23-11-2026): the same request as the editor's AI tab made, and only the
     // photos it already had may stay.
     let aperto: Option<sws_core::simboli_prj::Descrizione> =
-        if input.get("dal_open_symbol").and_then(Value::as_bool) == Some(true) {
+        if input.get("from_open_symbol").and_then(Value::as_bool) == Some(true) {
             let v = banco
                 .open_symbol
                 .as_ref()
@@ -163,13 +164,55 @@ pub(crate) async fn disegna(
         } else {
             None
         };
-    let richiesta = match &aperto {
-        Some(d) => format!("{}\n{misure_dette}\n{cosa}", symbol_draw::edit_text(d)),
-        None => format!(
+    // From the sheet the interview made (session 2): the names and the size
+    // are its, and the code adds inputs and effects afterwards.
+    let scheda = if input.get("from_sheet").and_then(Value::as_bool) == Some(true) {
+        Some(banco.sheet.clone().ok_or(
+            "nessuna scheda confermata: prima symbol_sheet, poi la conferma della persona",
+        )?)
+    } else {
+        None
+    };
+    let mut richiesta = match (&aperto, &scheda) {
+        (Some(d), Some(s)) => format!(
+            "{}\n{}\n{cosa}",
+            symbol_draw::edit_text(d),
+            symbol_sheet::drawing_request(s)
+        ),
+        (None, Some(s)) => format!(
+            "{}slug: {slug}\nit: {it}\nen: {en}\n\n{cosa}",
+            symbol_sheet::drawing_request(s)
+        ),
+        (Some(d), None) => format!("{}\n{misure_dette}\n{cosa}", symbol_draw::edit_text(d)),
+        (None, None) => format!(
             "Disegna questo simbolo.\nslug: {slug}\nit: {it}\nen: {en}\n{misure_dette}\n{cosa}"
         ),
     };
-    let messaggi = vec![json!({ "role": "user", "content": richiesta })];
+    // The photo of the machine the person attached, for a model that sees.
+    let foto = if input.get("with_photo").and_then(Value::as_bool) == Some(true) {
+        let p = banco
+            .reference_photo
+            .clone()
+            .ok_or("nessuna foto allegata in questa conversazione")?;
+        if !sc.sees_images {
+            return Err(format!(
+                "il modello dei simboli ({}) non vede le immagini: disegna dalle parole",
+                sc.modello
+            ));
+        }
+        richiesta.push_str(symbol_draw::PHOTO_NOTE);
+        Some(p)
+    } else {
+        None
+    };
+    let contenuto = match foto {
+        None => json!(richiesta),
+        Some(p) => json!([
+            { "type": "image", "source": { "type": "base64", "media_type": p.media_type, "data": p.data } },
+            { "type": "text", "text": richiesta },
+        ]),
+    };
+    let messaggi = vec![json!({ "role": "user", "content": contenuto })];
     // Slug ed etichette sono quelli chiesti dall'assistente: il modello dei
     // simboli disegna, non rinomina.
     let mut fissi = serde_json::Map::new();
@@ -200,7 +243,19 @@ pub(crate) async fn disegna(
                 Some(a) => symbol_draw::keep_known_photos(fatto, &symbol_draw::photos_of(a)),
                 None => fatto,
             };
+            let tentativi = fatto.attempts;
             let (d, c) = (fatto.description, fatto.compiled);
+            // The sheet's structure and effects (T1, T4), whatever was drawn.
+            let (d, c, note) = match &banco.sheet {
+                None => (d, c, Vec::new()),
+                Some(s) => {
+                    let (d, note) = symbol_sheet::complete(d, s);
+                    let c = sws_core::simboli_prj::compila_e_controlla(&d).map_err(|e| {
+                        format!("completato dalla scheda non compila: {}", e.join("; "))
+                    })?;
+                    (d, c, note)
+                }
+            };
             invia(
                 tx,
                 json!({ "t": "simbolo", "slug": d.slug, "it": d.it,
@@ -208,7 +263,10 @@ pub(crate) async fn disegna(
             );
             let mut esito = tools::esito_bozza(&c);
             esito["disegnato_da"] = json!(sc.modello);
-            esito["tentativi"] = json!(fatto.attempts);
+            esito["tentativi"] = json!(tentativi);
+            if !note.is_empty() {
+                esito["sheet_notes"] = json!(note);
+            }
             banco.metti(d);
             Ok(esito)
         }
