@@ -71,6 +71,23 @@ Vale su **tutte** le macchine di sviluppo, ed e' per questo che sta qui e non in
 locale: `CLAUDE.md` viaggia con git, `~/.claude/` no — stesso motivo per cui i piani stanno in
 `docs/plans/`.
 
+## Si scrive con le regole di ASD-STE100 (regola del maintainer, 2026-11-24)
+
+**Le risposte in chat, i messaggi di commit, i documenti in `docs/`, `STATUS.md`, `CHANGELOG.md`, i commenti nel
+codice e i testi dei file di lingua seguono le regole di scrittura di ASD-STE100** (Simplified Technical English), con
+una coerenza di circa l'80%: è la regola di default, e cede solo a un termine tecnico, a un nome del codice o a una
+citazione. Parole del maintainer: «Puoi usarlo di default con una coerenza dell'80% per tutte le risposte?», poi
+esteso a documenti, commit, commenti e file di lingua.
+
+- **In inglese** (commenti, messaggi di log, testi `en` dei file di lingua): STE completo, regole e dizionario.
+- **In italiano** (chat, commit, `docs/`, testi `it`): le regole di scrittura; il dizionario di STE è solo inglese.
+- Le regole: frasi corte (al più 20 parole per un'istruzione, 25 per una descrizione); un'istruzione per frase; le
+  procedure in un elenco numerato nell'ordine dei passi; forma attiva con il soggetto esplicito; un termine per ogni
+  concetto, senza sinonimi; il numero preciso, non una parola vaga; paragrafi corti con un argomento; le avvertenze
+  prima del passo a cui si riferiscono.
+- **Si applica man mano**, come la regola del codice in inglese: il testo nuovo nasce così, quello esistente non si
+  riscrive di passaggio.
+
 ## Il codice si scrive in inglese, ovunque (regola del maintainer, 2026-11-13)
 
 **Tutto il codice è in inglese**: nomi di file e cartelle, moduli, tipi, funzioni, variabili, costanti, campi e chiavi
