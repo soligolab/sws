@@ -4473,7 +4473,9 @@ async fn get_history(
             prima =
                 s.db.get(&tag)
                     .await
-                    .filter(|t| t.timestamp_ms <= da)
+                    // `timestamp_ms` 0 is «never received»: no value to
+                    // repeat (review of the rc.30: a flat line at 0).
+                    .filter(|t| t.timestamp_ms > 0 && t.timestamp_ms <= da)
                     .map(|t| sws_historian::Sample {
                         ts_ms: t.timestamp_ms,
                         value: t.value,
@@ -15616,6 +15618,25 @@ mod password_change_on_the_viewer {
         let mut open = s.clone();
         open.senza_auth_sviluppo = true;
         assert!(!close_locks_out(&open, &h).await);
+    }
+
+    /// A tag never received is not repeated at the start of a trend window
+    /// (review of the rc.30): it was drawn as a flat line at 0.
+    #[tokio::test]
+    async fn a_never_received_tag_is_not_anchored() {
+        use axum::extract::{Path as P, Query as Q, State as St};
+        let dir = tempfile::tempdir().unwrap();
+        let (_, _, s) = build_di_prova(dir.path(), None, None).await;
+        s.db.semina("mai".into(), sws_core::TagValue::Float(0.0))
+            .await;
+        let now = sws_core::now_ms();
+        let q: HistoryQuery = serde_json::from_value(serde_json::json!({
+            "from": now - 60_000, "to": now, "ancora": true }))
+        .unwrap();
+        let r = get_history(St(s), P("mai".into()), Q(q)).await;
+        let body = axum::body::to_bytes(r.into_body(), 1 << 20).await.unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(v, serde_json::json!([]), "nothing to draw");
     }
 
     /// rc.30 (collaudo on the PLX800, 23-11-2026): a write from the viewer's
