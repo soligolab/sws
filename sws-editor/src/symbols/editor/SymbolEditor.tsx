@@ -1059,6 +1059,9 @@ function SymbolEditor({ target }: { target: SymbolEditorTarget }) {
     setSaved(copy);
     setSavedSlug(copy.slug);
     portsSaved(copy);
+    // The parts too: made before «Save as», they stayed «new» on the copy, and
+    // the next save did not know them (review of the rc.30).
+    partsSaved(copy);
     setFromObject(undefined);
     setSel([]);
   };
