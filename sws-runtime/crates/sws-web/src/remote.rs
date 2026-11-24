@@ -3196,7 +3196,12 @@ pub fn rotation_to_confirm(system: &serde_json::Value, portrait: bool) -> Option
     let current = u32::try_from(r.get("current")?.as_u64()?).ok()?;
     let flipped = r.get("flipped").and_then(|f| f.as_bool()).unwrap_or(false);
     let wanted = crate::control_panel::wanted_rotation(portrait, flipped);
-    (current != wanted).then_some((current, wanted))
+    // Already asked, and the panel is restarting to get there: not twice.
+    let pending = r
+        .get("pending")
+        .and_then(|p| p.as_u64())
+        .and_then(|p| u32::try_from(p).ok());
+    (current != wanted && pending != Some(wanted)).then_some((current, wanted))
 }
 
 /// Serve la conferma esplicita dell'editor?
@@ -4141,6 +4146,12 @@ mod tests {
         assert_eq!(super::rotation_to_confirm(&portrait, false), Some((1, 0)));
         // Upside down: a landscape project wants two quarter turns.
         let flipped = json!({"screen_rotation": {"current": 2, "flipped": true}});
+        // A rotation already asked and on its way is not asked again (review of the rc.30).
+        let waiting = json!({"screen_rotation": {"current": 0, "flipped": false, "pending": 1}});
+        assert_eq!(super::rotation_to_confirm(&waiting, true), None);
+        // The window closed, or another rotation asked: asked as before.
+        let other = json!({"screen_rotation": {"current": 0, "flipped": false, "pending": 3}});
+        assert_eq!(super::rotation_to_confirm(&other, true), Some((0, 1)));
         assert_eq!(super::rotation_to_confirm(&flipped, false), None);
         assert_eq!(super::rotation_to_confirm(&flipped, true), Some((2, 3)));
         assert_eq!(

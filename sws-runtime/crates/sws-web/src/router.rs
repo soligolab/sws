@@ -10291,6 +10291,31 @@ async fn handle_ws(
                                 .await;
                             continue;
                         }
+                        // T-69 on the socket too (review of the rc.30): a computed tag
+                        // takes no user write, as on the PUT.
+                        if db.is_computed(&tag).await {
+                            ws_audit.record(crate::ws_audit::WsWrite {
+                                action: "tag.write_rejected_computed",
+                                who,
+                                tag: tag.clone(),
+                                detail: serde_json::json!({"tag": tag.clone(), "via": "ws"}),
+                            });
+                            let ack = WriteAck {
+                                ty: "ack",
+                                req_id,
+                                error: Some(format!(
+                                    "il tag «{tag}» è calcolato (espressione o generatore): non è scrivibile"
+                                )),
+                                tag,
+                                ok: false,
+                            };
+                            let _ = out_tx
+                                .send(Message::Text(
+                                    serde_json::to_string(&ack).unwrap_or_default(),
+                                ))
+                                .await;
+                            continue;
+                        }
                         // Q27: stesso contratto del PUT — l'ack negativo porta il motivo.
                         let value = match db.coerce_for_write(&tag, value).await {
                             Ok(v) => v,
@@ -15671,6 +15696,32 @@ mod password_change_on_the_viewer {
         assert_eq!(row["actor"], "op");
         assert_eq!(row["detail"]["tag"], "light");
         assert_eq!(row["detail"]["via"], "ws");
+        // T-69 on the socket (review of the rc.30): a computed tag is refused,
+        // with the reason, as on the PUT.
+        s.db.set_computed_tags(["calc".to_string()].into_iter().collect())
+            .await;
+        ws.send(T::Text(
+            r#"{"type":"write","tag":"calc","value":1,"req_id":"2"}"#.into(),
+        ))
+        .await
+        .unwrap();
+        let ack = loop {
+            let m = tokio::time::timeout(std::time::Duration::from_secs(5), ws.next())
+                .await
+                .expect("an answer within 5 s")
+                .unwrap()
+                .unwrap();
+            let v: serde_json::Value =
+                serde_json::from_str(&m.into_text().unwrap_or_default()).unwrap_or_default();
+            if v["type"] == "ack" && v["req_id"] == "2" {
+                break v;
+            }
+        };
+        assert_eq!(ack["ok"], false);
+        assert!(
+            ack["error"].as_str().unwrap().contains("calcolato"),
+            "{ack}"
+        );
     }
 
     /// D17 (18-11-2026): on the viewer port a user who must change the

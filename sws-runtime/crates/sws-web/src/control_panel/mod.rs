@@ -449,6 +449,14 @@ pub fn rotation_step(
     }
 }
 
+/// The rotation asked and not there yet, while its retry window is open.
+pub fn pending_rotation(current: u32, last: Option<(u32, u64)>, now_ms: u64) -> Option<u32> {
+    match last {
+        Some((w, at)) if w != current && now_ms.saturating_sub(at) < ROTATION_RETRY_MS => Some(w),
+        _ => None,
+    }
+}
+
 fn now_ms() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -463,6 +471,11 @@ pub struct ScreenRotation {
     pub current: u32,
     /// The device is mounted upside down (the control panel's «Flipped»).
     pub flipped: bool,
+    /// A rotation already asked and still on its way (`rotation_attempt`,
+    /// inside its retry window): a second deploy must not ask it again
+    /// (review of the rc.30).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pending: Option<u32>,
 }
 
 pub async fn screen_rotation(config_dir: &std::path::Path) -> Option<ScreenRotation> {
@@ -470,9 +483,11 @@ pub async fn screen_rotation(config_dir: &std::path::Path) -> Option<ScreenRotat
         return None;
     }
     let current = backend().system_rotation().await.ok()?;
+    let settings = DeviceSettings::load(config_dir);
     Some(ScreenRotation {
         current,
-        flipped: DeviceSettings::load(config_dir).flipped,
+        flipped: settings.flipped,
+        pending: pending_rotation(current, settings.rotation_attempt, now_ms()),
     })
 }
 
@@ -1234,6 +1249,24 @@ mod tests {
             DeviceSettings::load(d.path()).panel_corner,
             RebootCorner::TopRight
         );
+    }
+
+    /// The rotation on its way is said while its window is open (review of
+    /// the rc.30): a second deploy then does not ask it again.
+    #[test]
+    fn a_rotation_on_its_way_is_said() {
+        assert_eq!(pending_rotation(0, Some((1, 1_000)), 2_000), Some(1));
+        assert_eq!(
+            pending_rotation(1, Some((1, 1_000)), 2_000),
+            None,
+            "already there"
+        );
+        assert_eq!(
+            pending_rotation(0, Some((1, 1_000)), 1_000 + ROTATION_RETRY_MS),
+            None,
+            "window over"
+        );
+        assert_eq!(pending_rotation(0, None, 2_000), None);
     }
 
     #[test]
