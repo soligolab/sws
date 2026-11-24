@@ -12,6 +12,30 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — la 2.27.0-dev.2 sul cloud: residui della rc.30, scelte riviste, assistente dei simboli (2026-11-24, `ufficio`)
+
+**Fatto** (piano [`docs/plans/2026-11-24-residui-rc30-e-bad-di-default.md`](docs/plans/2026-11-24-residui-rc30-e-bad-di-default.md),
+parti A e B; decisioni del maintainer nella tabella in testa):
+- ramo `fix/rc30-leftovers`, annidato su `feat/symbol-assistant-interview` (a sua volta su `feat/symbol-assistant-chat`),
+  **pushato** con il tag `2.27.0-dev.2` (`c0c640ab`); dentro c'è un merge di `main` con la chiusura della 2.26;
+- correzioni: rotazione in attesa non richiesta di nuovo; socket dei tag che rifiuta i tag calcolati; registro audit
+  del pannello a 16 MB e letto dalla fine; ritaglio che conserva l'aspetto della forma, effetto orfano tolto, foto che
+  gira con le forme; pagina Utenti che non si blocca; trend (tag mai ricevuto, finestre passate, cursori sul Bad);
+- scelte riviste: il deploy dal salvataggio chiede la conferma 428; un salvataggio durante un deploy aspetta;
+  l'abbinamento dal cloud crea l'Admin del dispositivo;
+- **2.27.0-dev.2**: amd64, arm64 e Tiny TY in 33 minuti; immagini su ghcr (`dev-*`); **gateway di sws.soligo.net sulla
+  dev.2** (ripiego la dev.1). Il pacchetto Tiny TY è solo in `dist/`, non pubblicato. Il TC620 è ancora sulla rc.30.
+
+**Il collaudo, cosa guardare** (dev.2; prima la lista dell'assistente dei simboli qui sotto):
+1. abbinare un pannello dal cloud: il modulo chiede l'Admin del dispositivo; poi il deploy dalla rete locale funziona;
+2. salvare durante un deploy: un solo deploy dopo; il deploy al salvataggio con un 428 fa la domanda;
+3. due deploy di un progetto verticale in pochi minuti: la rotazione si chiede una volta;
+4. trend: un tag mai ricevuto non disegna 0; una finestra storica con un tag ora Bad non dice «dati non validi»;
+5. editor dei simboli: ritaglia e «Togli ritaglio» (la forma torna com'era); Ruota con foto e forme selezionate;
+6. pagina Utenti: cambiare il nome e passare col Tab al campo dopo.
+
+**Poi**: parte C del piano (il Bad visibile di default), su un ramo annidato `feat/bad-by-default`.
+
 ## ▶ Riprendere da qui — l'assistente dei simboli, sessioni 1 e 2, nella 2.27.0-dev.1 sul cloud (2026-11-24 mattina, `ufficio`)
 
 **Fatto stanotte** (piano [`docs/plans/2026-11-23-assistente-dei-simboli.md`](docs/plans/2026-11-23-assistente-dei-simboli.md),

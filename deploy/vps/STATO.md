@@ -173,7 +173,13 @@ resta 404: così un bundle che manca non torna come HTML con stato 200.
 (`10.89.0.x`): il limite di 20 richieste/s vale per tutti insieme finché non c'è l'indirizzo vero (seme «indirizzo vero
 dietro Traefik»). Si aggiorna con `scripts/manuale/pubblica.sh`.
 
-**Versione in esecuzione: `b6061e89-amd64` (2.27.0-dev.1)** dal 24-11-2026 mattina, su richiesta del maintainer
+**Versione in esecuzione: `c0c640ab-amd64` (2.27.0-dev.2)** dal 24-11-2026, su richiesta del maintainer («Fai push
+e dev2»): costruita dal ramo `fix/rc30-leftovers` (annidato sui due rami dell'assistente dei simboli) prima dello
+squash. Contiene i residui della rc.30, le scelte riviste e l'assistente dei simboli, sessioni 1 e 2. Sequenza solita,
+copia `sws-gateway.container.prima-dev2`; gateway `healthy`, `SWS_VERSION` = 2.27.0-dev.2, radice 200, `/health` «ok».
+Ripiego la dev.1 (`b6061e89-amd64`).
+
+Prima: **Versione in esecuzione: `b6061e89-amd64` (2.27.0-dev.1)** dal 24-11-2026 mattina, su richiesta del maintainer
 («fai il push e aggiorna sws.soligo.net»): la prima dev della 2.27, **costruita dal ramo
 `feat/symbol-assistant-interview` prima dello squash** (`SWS_BUILD_FUORI_RAMO=1`), per collaudare l'assistente dei
 simboli nell'IDE del cloud. Contiene tutta la rc.30 (riportata in `main`). Da qui il cloud **non segue più le rc
