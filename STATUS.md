@@ -12,6 +12,31 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — CasaDomotica riordinata e la sua copia verticale per il TC620 (2026-11-24, `ufficio`)
+
+**Il maintainer**: «Vorrei usare il tc620 in verticale, mi generi una copia di Casa Domotica orientato in verticale con
+il menù in basso su due righe? Con l'occasione fai ordine sui tag»; poi «prima sistema quello attuale per tutto e poi
+crea il layout verticale», e «per ora un navigatore unico, crea un seme per il multi riga».
+
+**1. I tag di CasaDomotica, sul VPS** (backup `~/sws-vps/backup-prima-di-ordine-tag-20261124-114109`; proposta approvata
+in `tmp/casa-verticale/proposta-tag.html`): 69 rinominati in inglese col punto per zona o apparato (`window.*`, `door.*`,
+`perimeter.*`, `shutter.*`, `plug.*`, `upstairs_meter.*`, `host.*`, `garage.light_*`), con il walker di «Rinomina tag»
+dell'IDE più parametri dei faceplate, la funzione `tapparelle_tutte` e il report; 16 tag di prova tolti con il faceplate
+`collaudo_tapparella` e l'allarme `collaudo_allarme`; `TelevisioneSoggiorno_power` tolto (doppione di `plug.tv.power`);
+37 descrizioni e 15 unità. **Lo storico dei 13 tag rinominati con lo storico acceso resta sotto il nome vecchio.** Il
+validatore dà gli stessi 21 rilievi di prima (le foglie strutturate nel report: un difetto del validatore che c'era già).
+**Il TC620 ha ancora i nomi vecchi**: serve un deploy di CasaDomotica dall'IDE del cloud.
+
+**2. La copia verticale** «CasaDomotica (TC620_Verticale)», sul VPS accanto all'originale: 800×1280, cornice con la
+testata su due righe e il menu in basso su una riga; Clima, Energy, Garage, Luci, Sandokan, SystemInfo, Tapparelle
+ridisposte a mano (istantanee in `tmp/casa-verticale/foto-vert*`), Piano terra, Piano superiore ed Energy dati a due
+colonne larghe 760, Test-RC23 solo scalata, le finestre da 800×600 come prima. Storico vuoto (l'originale ha 540 MB).
+**Da guardare**: Garage (i pulsanti sopra la foto di sfondo potrebbero non cadere più sulle luci); le notifiche
+(email, Telegram) partono da tutti e due i progetti se sono aperti insieme.
+
+**3. Nel ramo `fix/rc30-leftovers`** (non ancora in una dev): l'albero dei tag raggruppa anche per prefisso;
+«Cambia risoluzione» scala anche il contenuto dei faceplate (`faceplate_scale`). **Seme**: il navigatore su più righe.
+
 ## ▶ Riprendere da qui — la 2.27.0-dev.2 sul cloud: residui della rc.30, scelte riviste, assistente dei simboli (2026-11-24, `ufficio`)
 
 **Fatto** (piano [`docs/plans/2026-11-24-residui-rc30-e-bad-di-default.md`](docs/plans/2026-11-24-residui-rc30-e-bad-di-default.md),
