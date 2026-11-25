@@ -27,6 +27,59 @@
 
 ---
 
+## Collaudo 2.27.0-dev.3 sul PLX800 (25-11-2026)
+
+PLX800 `user@plx800-a-p3-l2-a2-0891bc.local` reinstallato da ghcr con la `2.27.0-dev.3-arm64` (versione fissata), con
+un monitor HDMI 1920×1080. Gateway del cloud sulla dev.3, IDE locale 8460 da `main` (codice uguale alla dev.3).
+Progetti `PLX800`, poi `PLX800_Verticale` (rinominato nel cloud). Le voci passate:
+
+1. [x] Dopo l'aggiornamento il servizio parte, il progetto si apre, sorgente e tunnel partono; le uscite comandano i
+       loopback — confermato dal maintainer il 25-11-2026 (prima serviva l'alimentazione della sezione I/O, che è
+       separata da quella del sistema).
+2. [x] Le scritture dal viewer nel registro (rc.30, voce 7): una riga `tag.write` con `via: ws` per scrittura, le
+       scritture entro 1 s raggruppate (`coalesced`) — confermato dal maintainer il 25-11-2026.
+3. [x] La pagina Utenti salva da sé (rc.30, voce 4) — confermato dal maintainer il 25-11-2026 nell'IDE del cloud
+       (progetto `tiny-ty`). Il segnale «Salvato» si vede poco: piano
+       [Save nella testata](plans/2026-11-25-save-nella-testata.md).
+4. [x] Il deploy dalla rete locale con un utente del progetto, su un pannello abbinato dal cloud prima della 2.27, si
+       ferma prima di toccare il pannello (rc.30, voce 3) — confermato dal maintainer il 25-11-2026.
+5. [x] All'avvio il log dice `user store empty` col percorso, non più «no-auth mode» (rc.30, voce 5) — letto il
+       25-11-2026.
+6. [x] La rotazione si chiede prima del deploy (rc.30, voce 1): «No» non riavvia; «Sì» riavvia una volta, in verticale
+       e poi in orizzontale — confermato dal maintainer il 25-11-2026.
+7. [x] Anomalia 6 della rc.30 (i PLC fermi dopo il riavvio da rotazione): **non riprodotta** su due riavvii (10:02 e
+       11:29). `pixsys-launcher` esce con 0, `plc.target`, LogicLab, il bridge e atvise partono — 25-11-2026.
+
+Le voci non provate:
+
+8. [ ] Pagina Utenti: Zone scritto un carattere alla volta con la virgola, e il Tab dopo il nome (residuo A2): non
+       confermati.
+9. [ ] Il socket dei tag rifiuta le scritture sui tag calcolati (residuo A3): il progetto PLX800 non ha tag calcolati.
+       Da provare su un progetto che li ha.
+10. [ ] Il tetto di 20 righe al secondo per socket nel registro: non si raggiunge a mano.
+11. [ ] Un secondo deploy entro 10 minuti non chiede di nuovo la rotazione in attesa (residuo A1): con «Sì» il
+        riavvio parte subito, quindi non resta una rotazione in attesa da osservare.
+12. [ ] Il testo della conferma «senza utenti» (`cfg.deployNoUsersConfirm`, rc.30 voce 5): non è comparso.
+13. [ ] L'abbinamento dal cloud crea l'Admin del dispositivo (residuo B1): il PLX800 era già abbinato.
+
+Le anomalie (la patch, in `STATUS.md`):
+
+14. [ ] 25-11-2026: non passa — dopo «Eliminare solo il progetto, restando nel cloud» e un deploy, la pagina del
+        monitor resta ferma (valori fermi, comandi che non partono, fascia «Dati in ritardo» che conta). Un riavvio del
+        browser la sblocca. Correzione indicata dal maintainer: dopo «Elimina» si chiude il pannello di controllo e il
+        browser riparte.
+15. [ ] 25-11-2026: non passa — rinominare nel cloud il progetto aperto dà un errore rosso e mostra il progetto vuoto:
+        l'IDE rilegge dal prefisso `/p/-/<nome vecchio>/`.
+16. [ ] 25-11-2026: non passa — «Cambia risoluzione» mette `faceplate_scale` e il contenuto dei faceplate si stira sul
+        riquadro: i testi si allargano o si schiacciano (sul PLX800 `fresh` 1,54 × 1,35). Le proporzioni degli oggetti
+        vanno tenute.
+17. [ ] 25-11-2026: da guardare — dopo il reset che tiene il cloud il log dice «in attesa di abbinamento» con un codice,
+        ma il pannello è abbinato. Da verificare se quel codice permette un secondo abbinamento dalla rete locale.
+18. [ ] 25-11-2026: da guardare — tre conferme di fila in un deploy (utenti, cancellazione, rotazione), la prima con un
+        altro stile; due login falliti dal cloud dopo un deploy che sostituisce gli utenti, poi il 429.
+
+Fuori da SWS: il monitor del PLX800 non gira l'immagine con la rotazione di PixsysOS (da segnalare a chi fa PixsysOS).
+
 ## Collaudo 2.27.0-dev.0 sul PLX800 (23-11-2026) — la sorgente `plx800_io`
 
 Ramo `feat/plx800-io` (squashato in `main` il 23-11-2026 sera, `ae62396f`), immagine costruita in locale e installata da
@@ -45,9 +98,10 @@ abbinato dal cloud. Gateway 2.26.0-rc.29, IDE locale 8460 dal ramo. Progetto `PL
        confermato dal maintainer il 23-11-2026.
 7. [x] Un altro scrittore tiene il lock: sorgente in sola lettura, card dell'IDE «lock occupato», OUT0 bloccato nel
        viewer; il lock si riprende 2,9 s dopo il rilascio — confermato dal maintainer il 23-11-2026.
-8. [ ] Fermando il bridge (`qmb800-shm-bridge.service`) i punti vanno Bad entro un secondo e la pagina diventa rossa
-       (**passato**); alla ripartenza tornavano Good dopo 24 s. Corretto (il segmento si ricerca ogni 500 ms e un
-       segmento ricreato si riconosce dall'inode): **da rifare** su un'immagine con la correzione (una dev da `main`).
+8. [x] Fermando il bridge (`qmb800-shm-bridge.service`) i punti vanno Bad entro un secondo e la pagina diventa rossa;
+       alla ripartenza tornano Good. Il 23-11 il ritorno durava 24 s; corretto (il segmento si ricerca ogni 500 ms e un
+       segmento ricreato si riconosce dall'inode) — confermato dal maintainer il 25-11-2026 sulla 2.27.0-dev.3: Bad
+       entro 0,35 s dallo stop, Good 0,33 s dopo lo start.
 
 ## Collaudo 2.26.0-rc.29 sul WP630 (23-11-2026) — fermo al test 7/12
 
@@ -104,8 +158,9 @@ Squash in `main` prima del collaudo (regola «rc prima del collaudo»), tag `2.2
         «un'altra scheda». Anche nel cloud, due browser su CasaDomotica.
 
 ### Le foto nei simboli (fase 3)
-11. [ ] Editor dei simboli → «Foto…» → una foto del progetto: sotto a tutto, alle proporzioni giuste; sposta,
-        ridimensiona, opacità; dentro una parte rotore gira con lei (scheda Prova).
+11. [x] Editor dei simboli → «Foto…» → una foto del progetto: sotto a tutto, alle proporzioni giuste; sposta,
+        ridimensiona, opacità; dentro una parte rotore gira con lei (scheda Prova) — confermato dal maintainer il
+        25-11-2026 sulla 2.27.0-dev.3, nel runtime web del PLX800 (simbolo `prj:pixsys`, opacità compresa).
 12. [ ] Un segnale con due voci e una foto ciascuna: in Prova, in pagina legato a un tag, e sul TC620 la foto cambia
         col valore.
 13. [ ] «Genera foto» nella scheda IA (modello per «Sfondi»): OpenAI trasparente, FLUX grigio; la foto è fra le

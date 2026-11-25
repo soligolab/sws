@@ -230,7 +230,10 @@ Il controllore compatto della LAN ufficio, raggiungibile da `elitedesk`. È il d
 | Sistema | PLX800-A-P3-L2-A2, RK3399 aarch64, **PixsysOS 2.1.3**, kernel 6.12 PREEMPT_RT, glibc 2.39, 2 GB, 6 core, podman 5.0.2 |
 | PLC | LogicLab: `logiclab.service` (LLExec **3.2.29** da root, `/data/logiclab`) e `logiclab-opcua.service`; anche atvise (`PlcEngine` di `user`) |
 | Modulo I/O | `/dev/shm/qmb800_registers` (176 B, 0666), servizio `qmb800-shm-bridge`; riferimento in `/home/ut1/Git/openplc` |
-| SWS | non installato il 23-11-2026 |
+| SWS | **2.27.0-dev.3** da ghcr (`2.27.0-dev.3-arm64`, versione fissata) dal 25-11-2026; prima la dev.0 da archivio (23-11). Progetto `PLX800_Verticale`, abbinato al cloud |
+| Alimentazioni | **due, separate**: quella del sistema e quella della **sezione ingressi e uscite**. Senza la seconda le uscite non si accendono, anche se il modulo le riporta accese (25-11-2026) |
+| Schermo | monitor HDMI **1920×1080** dal 25-11-2026 (Chromium in kiosk, `chromium@main-app`). La rotazione di PixsysOS riavvia il dispositivo ma il monitor non gira l'immagine |
+| SSH di `pixsys` | `/home/pixsys` è un overlay con la parte scrivibile in `/var/volatile` (RAM): **la chiave si perde a ogni riavvio**, e il maintainer la rimette. Quella di `user` resta. Per leggere dopo un riavvio basta `user@`; il journal di sistema chiede `pixsys` |
 
 ### Il broker MQTT di prova (dal 2026-10-26)
 

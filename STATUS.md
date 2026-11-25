@@ -20,7 +20,24 @@
 - **Regola UI 4** in `CLAUDE.md` (il Save nella testata fissa) e il piano
   [`docs/plans/2026-11-25-save-nella-testata.md`](docs/plans/2026-11-25-save-nella-testata.md).
 - **Template PLX800**: le tensioni in V e non in mV, punto 5 del piano del template.
-- Il collaudo della dev.3 sul PLX800 è fatto; la registrazione degli esiti aspetta il sì del maintainer.
+- **Collaudo 2.27.0-dev.3 del 25-11 sul PLX800**: 7 voci passate, 6 non provate, 5 anomalie (dettaglio in
+  [`docs/COLLAUDI_IN_SOSPESO.md`](docs/COLLAUDI_IN_SOSPESO.md), sezione del 25-11). Passate: ritorno a Good in 0,33 s
+  dopo il bridge (prima 24 s), scritture dal viewer nel registro, pagina Utenti, deploy dalla rete locale fermato prima,
+  log `user store empty`, rotazione chiesta prima del deploy nei due versi, foto nel rotore (voce 11 della rc.23).
+  **L'anomalia 6 della rc.30 non si riproduce** su due riavvii.
+- **La patch, in quest'ordine** (la prima passa davanti, regola di `CLAUDE.md`):
+  1. dopo «Eliminare solo il progetto» e un deploy la pagina del monitor resta ferma finché il browser non riparte;
+     correzione del maintainer: dopo «Elimina» si chiude il pannello di controllo e il browser riparte;
+  2. «Cambia risoluzione» stira il contenuto dei faceplate (`faceplate_scale`): testi allargati o schiacciati;
+     probabilmente anche nella copia verticale di CasaDomotica del 24-11;
+  3. la rinomina nel cloud del progetto aperto rilegge dal prefisso vecchio: errore rosso e progetto vuoto;
+  4. il Save nella testata ([piano](docs/plans/2026-11-25-save-nella-testata.md));
+  5. da guardare: il log «in attesa di abbinamento» dopo il reset che tiene il cloud; tre conferme di fila in un deploy;
+     due login falliti dal cloud dopo un deploy che sostituisce gli utenti.
+- **Fuori da SWS**: il monitor del PLX800 non gira l'immagine con la rotazione di PixsysOS.
+- **Da rimettere nel progetto del PLX800**: la sorgente `host` (13 metriche), aggiunta sul pannello il 23-11 e mai
+  copiata nell'IDE; le tensioni in V (piano del template, punto 5).
+- **L'IDE 8460 gira su `elitedesk`** (`start_editor_develop.sh`, log in `tmp/test-changes/2026-11-25/ide-8460.log`).
 
 ## ▶ Riprendere da qui — tutto in `main`, la 2.27.0-dev.3 sul cloud; da qui si lavora solo come dev (2026-11-24, `ufficio`)
 
