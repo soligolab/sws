@@ -33,7 +33,7 @@
   «Verifica».
 - **Da decidere per la patch dopo**: «Stirando» dal menu scrive `"stretch"`, che un pannello più vecchio della dev.4 non
   legge; proposta: scrivere `true`, così solo «fit» chiede un pannello aggiornato, con una riga di compatibilità in NOVITA.
-- **Seme nuovo**: [cambiare il canale di un pannello dall'IDE del cloud](docs/plans/semi/2026-11-25-cambio-di-canale-dal-cloud.md).
+- **Seme nuovo**: [cambiare il canale di un pannello dall'IDE del cloud](docs/plans/2026-11-25-cambio-di-canale-dal-cloud.md).
   Il TC620 (rc.29, canale di prova) stasera il maintainer lo reinstalla da casa sul canale di sviluppo.
 - **Poi**: il Save nella testata ([piano](docs/plans/2026-11-25-save-nella-testata.md), ultracode consigliato acceso); la
   parte C del piano dei residui rc.30 (il Bad visibile di default); il template PLX800 (tensioni in V, sorgente `host`).
