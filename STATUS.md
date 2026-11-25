@@ -12,6 +12,32 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — la 2.27.0-dev.4 sul cloud, da collaudare sul PLX800 (2026-11-25 sera, `elitedesk`)
+
+- **2.27.0-dev.4** pubblicata: squash `2196fb38` del ramo `fix/dev3-collaudo` (eliminato), `chore(dev)` `a570b64b` col tag,
+  push di `main` e del tag. Immagini `a570b64b-amd64` e `-arm64` su ghcr, `dev-amd64`/`dev-arm64` spostati; build in
+  7 min 31 s da un worktree fermo sul tag (un'altra sessione aveva già committato su `main` dopo il tag).
+- **Gateway di sws.soligo.net sulla dev.4** (`a570b64b-amd64`): copia `sws-gateway.container.prima-dev4` sul VPS,
+  `healthy`, `SWS_VERSION` = 2.27.0-dev.4, radice 200, `/health` «ok». Ripiego la dev.3. `deploy/vps/STATO.md` e la copia
+  maestra del quadlet aggiornati.
+- **CasaDomotica (TC620_Verticale)**: i 30 faceplate con `faceplate_scale: true` passati a `fit` (col sì del
+  maintainer; riquadri già in proporzione, quindi nessun cambio a vista). Copia di sicurezza
+  `~/sws-vps/progetti/CasaDomotica (TC620_Verticale)-pagine-prima-faceplate-fit-20261125-155355.tgz`. **Attenzione**:
+  `fit` lo capiscono solo i runtime dalla dev.4; un deploy di quella copia su un pannello più vecchio (il TC620 è sulla
+  rc.30) perde le pagine Clima, Luci, Piano terra e Piano superiore. Prima si aggiorna il pannello. `PLX800_Verticale`
+  non aveva `faceplate_scale`: niente da fare.
+- **Il PLX800 è ancora sulla 2.27.0-dev.3** (fissata, da ghcr). **Prossimo passo**: `/test-changes` sul PLX800 con la
+  dev.4: «Eliminare solo il progetto» col monitor acceso e la pagina che riparte da sola; un fermo del runtime oltre il
+  minuto; «Cambia risoluzione» e i faceplate (web e LVGL); la rinomina nel cloud. Voci nel piano
+  [`docs/plans/2026-11-25-correzioni-collaudo-dev3.md`](docs/plans/2026-11-25-correzioni-collaudo-dev3.md), sezione
+  «Verifica».
+- **Da decidere per la patch dopo**: «Stirando» dal menu scrive `"stretch"`, che un pannello più vecchio della dev.4 non
+  legge; proposta: scrivere `true`, così solo «fit» chiede un pannello aggiornato, con una riga di compatibilità in NOVITA.
+- **Poi**: il Save nella testata ([piano](docs/plans/2026-11-25-save-nella-testata.md), ultracode consigliato acceso); la
+  parte C del piano dei residui rc.30 (il Bad visibile di default); il template PLX800 (tensioni in V, sorgente `host`).
+- Ramo locale `release/2.26` eliminato (il commit resta col tag `2.26.0-rc.30`). L'IDE 8460 di stamattina gira ancora
+  su `elitedesk` con il codice della dev.3: si riavvia con `start_editor_develop.sh` se serve.
+
 ## ▶ Riprendere da qui — collaudo della 2.27.0-dev.3 sul PLX800, regola di CasaDomotica rivista (2026-11-25, `elitedesk`)
 
 - **La regola di CasaDomotica è rivista** (decisione del maintainer): compatibilità e proposte, sempre col suo sì e con
