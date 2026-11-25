@@ -65,5 +65,5 @@ modo esplicito, perché la parola «VPN» in questo repo ha una storia.
    non sa fare non si mostra, come le altre sezioni.
 6. **Altri servizi dopo i primi due** (WireGuard, Tailscale): la forma deve permettere di aggiungerne senza rifare
    tutto, ma la sessione di plan decide se serve un'astrazione o se due casi bastano.
-7. **CasaDomotica**: il TC620 di casa nella ZeroTier del maintainer è il caso di prova naturale, e la regola di
-   CasaDomotica chiede che la funzione ci entri.
+7. **CasaDomotica**: il TC620 di casa nella ZeroTier del maintainer è il caso di prova naturale. Per la regola di
+   `CLAUDE.md` (rivista il 25-11-2026) è una proposta al maintainer, non un obbligo.

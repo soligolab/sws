@@ -1,5 +1,9 @@
 # CasaDomotica come progetto di riferimento
 
+> **Rivista il 25-11-2026.** La regola non chiede più di mettere ogni funzione in CasaDomotica: compatibilità e
+> proposte, sempre col sì del maintainer, e gli esempi nei gemelli e nei template. Vedi `CLAUDE.md`, sezione
+> «CasaDomotica, il progetto di riferimento». Il testo qui sotto è il referto del 16-10-2026.
+
 > **Decisione del maintainer, 16-10-2026**: «usare CasaDomotica come progetto di riferimento in
 > cui implementare man mano le cose che vengono aggiunte».
 >

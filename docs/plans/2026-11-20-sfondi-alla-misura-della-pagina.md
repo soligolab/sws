@@ -135,7 +135,8 @@ chat staccata. Oggi bisogna passare dai menù.
 - Manuale, la parte sugli sfondi dell'assistente.
 - CHANGELOG `[Unreleased]`; `NOVITA.yaml` (it/en) al rilascio.
 - Voci in `COLLAUDI_IN_SOSPESO.md`.
-- CasaDomotica: uno sfondo rigenerato col flusso nuovo. La chiamata a pagamento la fa il maintainer.
+- Da proporre al maintainer per CasaDomotica: uno sfondo rigenerato col flusso nuovo. La chiamata a pagamento la fa
+  lui (regola di `CLAUDE.md`, rivista il 25-11-2026).
 
 ## Verifica
 1. Definition of done: `cargo check`, `pnpm build`, `check_static.sh`, `cargo test`, `pnpm exec vitest run`; e i

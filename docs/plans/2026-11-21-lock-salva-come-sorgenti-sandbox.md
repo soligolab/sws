@@ -56,5 +56,6 @@ Scelte del maintainer: proteggere l'apertura una seconda volta con un lock vero.
 ## Verifica
 Ogni ramo: `cargo check`, `pnpm build`, `check_static.sh`, `cargo test`, vitest. Collaudo del maintainer dall'IDE
 locale (`start_editor_develop.sh`) col ramo in cima: due schede sullo stesso progetto (lock), «Salva come…» su un
-progetto con repository, una sorgente spenta e una Modbus con tolleranza in CasaDomotica, uno script con una costante
+progetto con repository, una sorgente spenta e una Modbus con tolleranza in un progetto di prova (non in CasaDomotica: regola di `CLAUDE.md`,
+rivista il 25-11-2026), uno script con una costante
 usata in un `def` e un `print` prima di un errore.

@@ -210,8 +210,9 @@ Alla fine, un riepilogo:
 - voci provate con esito; voci saltate, e perché; voci non provabili qui;
 - anomalie aperte;
 - modifiche fatte durante la sessione (commit), o «nessuna»;
-- funzioni visibili nuove di questa release che non sono ancora in **CasaDomotica** (regola di
-  `CLAUDE.md`): solo da segnalare.
+- **CasaDomotica** (regola di `CLAUDE.md`, rivista il 25-11-2026): i cambi di questa release che toccano
+  ciò che CasaDomotica usa già, e le novità che potrebbero servire alla casa. Solo da segnalare: si
+  propongono al maintainer, e niente si tocca senza il suo sì.
 
 Poi **chiedi conferma per registrare.** Dopo il sì:
 

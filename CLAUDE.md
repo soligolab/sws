@@ -37,25 +37,32 @@
    Utenti, piccolo nella colonna «Aggiornato», il maintainer l'ha visto al terzo tentativo; nella scheda Tags le righe
    scorrevano sotto il pulsante.
 
-## CasaDomotica, il progetto di riferimento (decisione del maintainer, 2026-10-16)
+## CasaDomotica, il progetto di riferimento (decisione del maintainer, 2026-10-16, rivista il 2026-11-25)
 
-**Quando una funzione visibile entra in `main`, va messa anche in CasaDomotica.** Non come
-verifica che funzioni — quella è la *definition of done* — ma perché il progetto di riferimento
-resti rappresentativo di cosa il prodotto sa fare. Se per una funzione non c'è un posto sensato
-in un impianto domestico, vale la pena annotarlo: è un indizio su chi sia davvero il destinatario
-di quella funzione.
+**CasaDomotica è l'impianto vero di casa del maintainer, e un progetto su cui lavora.** Dice se il prodotto regge in un
+impianto che gira: sorgenti vere, allarmi veri, 540 MB di storico. Non è un banco di prova: non si rompe e non ci si
+lasciano esperimenti. Parole del maintainer (25-11-2026): «non rompere il progetto (è un progetto reale su cui lavoro)
+ma tenerlo allineato alle novità e funzioni che vengono introdotte».
 
-Non sostituisce i gemelli `demo-items-*`, che coprono i **tipi** (39 su 39, guardia
-`check_demo_templates.sh`): CasaDomotica copre le **combinazioni su dati veri** — sorgenti vere,
-allarmi veri, 540 MB di storico — ed è la cosa che i gemelli non possono dire, cioè se una
-funzione regge in un impianto che gira. Il 16-10-2026 usava 16 tipi su 39.
+1. **Compatibilità.** Una modifica che cambia qualcosa che CasaDomotica usa già (una chiave rinominata senza alias, un
+   default che cambia aspetto o comportamento, un campo tolto, un controllo nuovo del validatore) porta con sé l'elenco
+   di cosa adeguare in CasaDomotica. La sessione lo propone al maintainer.
+2. **Proposte.** A ogni dev o rc la sessione propone le novità che possono servire alla casa: un elenco breve, con il
+   posto dove andrebbero. Entrano solo quelle che il maintainer sceglie.
+3. **Come si tocca.** Ogni modifica si fa dopo il sì del maintainer, anche quella di sola compatibilità. Prima una copia
+   di sicurezza (`project.yaml.prima-<cosa>-<data>`), dopo un resoconto. Mai tag, oggetti o pagine di prova: si prova
+   su una copia o su un template.
+4. **Gli esempi stanno nei template.** L'esempio che fa vedere o prova una funzione nuova va nei gemelli
+   `demo-items-web`/`-lvgl` (guardia `check_demo_templates.sh`, 39 tipi su 39) o nel template del suo dominio (per
+   esempio `plx800-io`). Viaggiano con git e non toccano l'impianto.
 
-Era un piano (`docs/plans/`), ma un piano che non finisce mai non è un piano: dal 21-10-2026 è
-una regola, e il piano è in
-[archivio](docs/archive/2026-10-16-casadomotica-progetto-di-riferimento.md). Le due domande che
-lasciava aperte — versionarla, e separarla dall'impianto di casa del maintainer — erano nel
-seme [CasaDomotica versionata e separata](docs/archive/2026-10-21-casadomotica-versionata-e-separata.md),
-lasciato il 05-11-2026: per ora non si fanno.
+Fino al 25-11-2026 la regola diceva «quando una funzione visibile entra in `main`, va messa anche in CasaDomotica», e i
+piani ci mettevano esempi: il 24-11 ne sono stati tolti 16 tag di prova e un faceplate di prova. Il maintainer: «non
+serve importare tutto, mi sa che ti ho dato delle disposizioni sbagliate». Il piano d'origine è in
+[archivio](docs/archive/2026-10-16-casadomotica-progetto-di-riferimento.md). Le due domande che lasciava aperte —
+versionarla, e separarla dall'impianto di casa — sono nel seme
+[CasaDomotica versionata e separata](docs/archive/2026-10-21-casadomotica-versionata-e-separata.md), lasciato il
+05-11-2026: per ora non si fanno.
 
 ## I file di lavoro stanno in `sws/tmp/` (regola del maintainer, 2026-10-22)
 

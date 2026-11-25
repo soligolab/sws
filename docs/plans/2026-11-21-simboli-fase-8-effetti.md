@@ -25,7 +25,8 @@ Tutti e quattro: **bagliore (neon)**, **bollicine**, **fumo/vapore**, **fiamma**
 - **LVGL**: il bagliore è uno strato già sfocato da resvg, mostrato o nascosto; le bolle sono pochi `lv_obj` con
   `lv_anim`; fumo e fiamma sono fotogrammi pre-disegnati, nel budget dei fotogrammi di `simbolo_lib.rs`.
 - **Editor**: ogni effetto nel menù delle parti, con i suoi parametri e l'anteprima nella scheda Prova.
-- **CasaDomotica**: la caldaia con la fiamma, il camino col fumo.
+- **Esempi**: fiamma e fumo nei gemelli `demo-items-*`. Per CasaDomotica, da proporre al maintainer: la caldaia con la
+  fiamma, il camino col fumo (regola di `CLAUDE.md`, rivista il 25-11-2026).
 
 ## Verifica
 Per ogni ramo la definition of done di `CLAUDE.md`, `check_lvgl_parity` e una misura sul TY570 (tempo per fotogramma e

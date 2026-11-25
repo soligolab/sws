@@ -45,8 +45,8 @@ Ramo: **`feat/symbol-library`**.
 ## Verifica
 `cargo test` (rotte con appartenenza: un membro sì, un estraneo 403; impronta stabile; copia con foto e suffisso),
 `pnpm exec vitest run` (avviso di aggiornamento, copia di una variante), `pnpm build`, `./scripts/check_static.sh`;
-`/test-changes` nell'IDE locale e nel cloud (due utenti della stessa azienda). Un esempio in CasaDomotica: un simbolo
-preso dalla libreria.
+`/test-changes` nell'IDE locale e nel cloud (due utenti della stessa azienda). Un esempio nei gemelli `demo-items-*`: un
+simbolo preso dalla libreria.
 
 ## Com'è andata (22-11-2026, notte)
 Fatto sul ramo `feat/symbol-library` (annidato su `feat/symbol-photo`), da collaudare. Due scostamenti:

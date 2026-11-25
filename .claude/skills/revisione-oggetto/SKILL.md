@@ -255,7 +255,8 @@ Contiene:
     `check_i18n_parita.sh`);
   - gemelli `demo-items-web` / `demo-items-lvgl` (guardia `check_demo_templates.sh`);
   - manuale `docs/manual/05_widget_reference.md` (guardia `check_manuale_widget.sh`);
-  - CasaDomotica (`CLAUDE.md`), `CHANGELOG.md`, `NOVITA.yaml` in italiano e inglese.
+  - l'esempio nei gemelli; per CasaDomotica solo compatibilità e proposte, col sì del maintainer (`CLAUDE.md`);
+  - `CHANGELOG.md`, `NOVITA.yaml` in italiano e inglese.
 - **Gli effetti generici restano generici.** Blink, qualità, stale, allarme, ruolo vivono nel
   wrapper di pagina di `SvgCanvas.tsx` e in `effects.rs`. Non si rifanno dentro un oggetto.
 - **Una decisione architetturale non si prende qui.** Diventa un seme in `docs/plans/semi/`.

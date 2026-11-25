@@ -151,8 +151,9 @@ locale**. Si apre da Strumenti ▸ Simboli (`LeftPanel.tsx`, `RamoSimboli`: «+ 
 | 7 | `feat/symbol-library` | libreria personale/aziendale nel cloud e nell'IDE locale |
 | 8+ | `feat/symbol-fx-*` | neon, sfocatura, bollicine, fumo, fuoco: un effetto per ramo |
 
-Ogni fase mette un esempio in CasaDomotica (regola di `CLAUDE.md`). La fase 1 è quella da cui si parte; le altre si
-riverificano col maintainer prima di aprirle.
+Ogni fase mette un esempio nei gemelli `demo-items-*`; in CasaDomotica entra solo quello che il maintainer sceglie
+(regola di `CLAUDE.md`, rivista il 25-11-2026). La fase 1 è quella da cui si parte; le altre si riverificano col
+maintainer prima di aprirle.
 
 **Riverifica del 19-11-2026** (piano [fase 2](../archive/2026-11-19-editor-dei-simboli-fase-2.md)): la fase 1 è su `main`
 (`8b7bb6a30`) ma sulle descrizioni `prj:`, non sul formato `sym:`, e così si continua finché non servono le foto. La

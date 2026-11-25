@@ -12,6 +12,16 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — collaudo della 2.27.0-dev.3 sul PLX800, regola di CasaDomotica rivista (2026-11-25, `elitedesk`)
+
+- **La regola di CasaDomotica è rivista** (decisione del maintainer): compatibilità e proposte, sempre col suo sì e con
+  una copia di sicurezza prima; mai tag o oggetti di prova; gli esempi delle funzioni nuove nei gemelli e nei template.
+  Testo in `CLAUDE.md`; le righe dei piani vivi riscritte allo stesso criterio.
+- **Regola UI 4** in `CLAUDE.md` (il Save nella testata fissa) e il piano
+  [`docs/plans/2026-11-25-save-nella-testata.md`](docs/plans/2026-11-25-save-nella-testata.md).
+- **Template PLX800**: le tensioni in V e non in mV, punto 5 del piano del template.
+- Il collaudo della dev.3 sul PLX800 è fatto; la registrazione degli esiti aspetta il sì del maintainer.
+
 ## ▶ Riprendere da qui — tutto in `main`, la 2.27.0-dev.3 sul cloud; da qui si lavora solo come dev (2026-11-24, `ufficio`)
 
 - **Squash** in `main` (`b80fbb98`) di `feat/symbol-assistant-chat`, `feat/symbol-assistant-interview` e

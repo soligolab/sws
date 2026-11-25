@@ -62,9 +62,9 @@ Ramo: **`feat/symbol-photo`**.
 - **`.swsym`**: quando il simbolo ha foto diventa uno zip (`symbol.json` + le immagini), con `fflate` (dipendenza
   nuova, piccola); il lettore apre i file `PK` che oggi rifiuta. Senza foto resta il JSON di oggi.
 
-## CasaDomotica e misure
-- Un simbolo con foto in una pagina di CasaDomotica (per esempio la caldaia fotografata, con la spia della fiamma e il
-  livello disegnati sopra).
+## Esempio e misure
+- Un simbolo con foto nei gemelli `demo-items-*`. Per CasaDomotica, da proporre al maintainer: la caldaia
+  fotografata, con la spia della fiamma e il livello disegnati sopra (regola di `CLAUDE.md`, rivista il 25-11-2026).
 - Memoria sul TY570 con `SWS_MISURA_SIMBOLI=1` e `VmRSS`: SSH solo chiedendo.
 
 ## Verifica

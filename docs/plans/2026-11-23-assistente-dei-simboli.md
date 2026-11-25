@@ -249,7 +249,8 @@ l'archivio `2026-11-19-assistente-ia-simboli.md`).
    dello schema chiuso.
 4. **Chiusura**:
    - T5 con gli stati mostrati in chat;
-   - in CasaDomotica la stufa rifatta con l'assistente (regola di `CLAUDE.md`);
+   - da proporre al maintainer per CasaDomotica: la stufa rifatta con l'assistente (regola di `CLAUDE.md`, rivista il
+     25-11-2026);
    - manuale, `NOVITA.yaml` e `CHANGELOG.md`;
    - il seme «dissolvenza fra le foto del simbolo» in `docs/plans/semi/`.
 

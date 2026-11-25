@@ -105,7 +105,7 @@ armhf con la Linaro 6.5 di Axel (glibc 2.23, flag di `setenvRV1106.sh`); aarch64
 2. **Scritture e importazione nell'IDE** (3–4 sessioni): WRITE con le guardie, `TagWriteBus`, foglie di strutture e
    array; endpoint e finestra; banco di 1000 download con scritture continue e **zero scritture fuori posto**.
 3. **Flotta** (2–3 sessioni): TY570 armhf (`/data/plcsys`, `runLLExec.sh`, single core), WP630/TC620, installatore,
-   24 h di prova; CasaDomotica, o la nota che non c'entra.
+   24 h di prova; l'esempio nel template `plx800-io`.
 4. **Il (B) completo**, agganciato al ciclo, quando le misure della v1 lo giustificano.
 
 ## Domande per Axel / Pixsys (da mandare all'avvio della fase 0)

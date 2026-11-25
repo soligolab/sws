@@ -66,4 +66,5 @@ del campo, e lo si accetta o no. È l'assistente della chat ridotto a un campo s
   IA.
 - Collaudo: il tag della RAM di CasaDomotica (o un tag a rampa), «converti in MB con due decimali» → la domanda
   kB/KiB, poi espressione, unità e decimali; la stessa cosa con un modello in casa (Ollama).
-- CasaDomotica: un tag con l'espressione scritta così (regola di `CLAUDE.md`).
+- Esempio: un tag con l'espressione scritta così nei gemelli `demo-items-*` (regola di `CLAUDE.md`, rivista il
+  25-11-2026).
