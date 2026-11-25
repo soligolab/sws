@@ -11,8 +11,12 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
-Il lavoro della **2.27.0** (versioni `2.27.0-dev.N`). Dal 22-11-2026 `main` porta la release successiva, e la 2.26.0
-si stabilizza su `release/2.26` (piano `docs/plans/2026-11-22-dev-rc-release-e-portale-di-sviluppo.md`).
+## [2.27.0] — 2026-11-25
+
+La prima release dopo la 2.25.2. Contiene anche tutto il lavoro della 2.26, che non è mai uscita (decisione del
+maintainer del 24-11-2026: si è fermata alla `2.26.0-rc.30`). Le versioni di prova: `2.26.0-rc.1…30` e
+`2.27.0-dev.1…4`. Il maintainer ha autorizzato la release il 25-11-2026, insieme al cambio di canale dall'IDE, per
+portare alla 2.27 i pannelli sul canale stabile e su quello di prova.
 
 ### Aggiunto — il canale degli aggiornamenti si cambia dall'IDE, anche nel cloud (25-11-2026, ramo `feat/update-channel`)
 Piano `docs/plans/2026-11-25-cambio-di-canale-dal-cloud.md`. Fino a oggi un pannello cambiava canale solo reinstallandolo
