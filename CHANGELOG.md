@@ -11,6 +11,8 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+Il lavoro della **2.28.0** (versioni `2.28.0-dev.N`), da `main`.
+
 ## [2.27.0] — 2026-11-25
 
 La prima release dopo la 2.25.2. Contiene anche tutto il lavoro della 2.26, che non è mai uscita (decisione del
