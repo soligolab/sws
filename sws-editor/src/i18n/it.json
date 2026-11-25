@@ -3510,7 +3510,25 @@
     "inCorsoSulPannello": "Un aggiornamento è in corso sul pannello: l'esito compare qui fra un paio di minuti.",
     "riavvioInCorso": "Il pannello si sta riavviando per l'aggiornamento: per qualche minuto non è raggiungibile, poi torna da solo. L'esito compare qui.",
     "apriInstallazione": "Apri Installazione",
-    "istantaneaInCorso": "Il pannello sta copiando i suoi dati prima di aggiornarsi (servono per tornare indietro): con molto storico può volerci qualche minuto."
+    "istantaneaInCorso": "Il pannello sta copiando i suoi dati prima di aggiornarsi (servono per tornare indietro): con molto storico può volerci qualche minuto.",
+    "canaleTitolo": "Canale degli aggiornamenti",
+    "canaleNome": {
+      "stable": "Stabile",
+      "test": "Prova",
+      "dev": "Sviluppo"
+    },
+    "canaleCambia": "Cambia canale",
+    "canaleConferma": "Il pannello passa al canale {{canale}}.\n\nSe il canale {{canale}} ha una versione più alta della {{versione}}, il pannello la installa adesso: prima l'istantanea dei dati, poi un riavvio di circa un minuto.\n\nSe no, il pannello resta sulla {{versione}} e passa al canale {{canale}} col primo aggiornamento: un pannello non scende mai di versione.\n\nProcedo?",
+    "canaleAvvisoSviluppo": "Il canale di sviluppo porta le versioni di lavoro (-dev): sono di prova e possono avere difetti. Per un impianto vero usa il canale stabile.",
+    "canaleInAttesa": "Canale scelto: {{canale}}. Il pannello resta sulla {{versione}} finché il canale {{canale}} non ha una versione più alta.",
+    "canaleInAttesaDisponibile": "Canale scelto: {{canale}}. L'aggiornamento passa al canale {{canale}} con la {{a}}.",
+    "canaleAvviato": "Cambio di canale avviato: il pannello installa la {{a}} e si riavvia.",
+    "canaleNomeNessuno": {
+      "fissata": "Questa versione (fissata)",
+      "archivio": "Questa versione (da archivio)"
+    },
+    "canaleConfermaRitorno": "Il pannello torna a «{{canale}}»: resta sulla {{versione}} e la scelta di un altro canale si annulla. Procedo?",
+    "canaleRiga": "Versione {{versione}} ({{canale}})."
   },
   "finestra": {
     "orologio": "Orologio del pannello: {{locale}} (UTC{{scostamento}}) · {{utc}} UTC",

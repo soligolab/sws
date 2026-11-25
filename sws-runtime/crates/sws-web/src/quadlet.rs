@@ -280,20 +280,7 @@ pub async fn aggiorna(config_dir: &Path) -> Result<(), String> {
             .unwrap_or_else(|| "Non si può aggiornare da qui.".into()));
     }
     let host = host_config().ok_or("SWS_HOST_CONFIG_DIR assente")?;
-    // I file nella cartella config: il container la scrive, l'host la vede.
-    let copia = config_dir.join(DIR_COPIA);
-    tokio::fs::create_dir_all(&copia)
-        .await
-        .map_err(|e| format!("{}: {e}", copia.display()))?;
-    for f in [
-        "install-container.sh",
-        "sws-runtime.container",
-        "sws-lvgl-viewer.container",
-    ] {
-        tokio::fs::copy(Path::new(DIR_IMMAGINE).join(f), copia.join(f))
-            .await
-            .map_err(|e| format!("copia di {f}: {e}"))?;
-    }
+    copy_installer(config_dir).await?;
     let utente = zbus::Connection::session()
         .await
         .map_err(|e| format!("bus utente: {e}"))?;
@@ -319,6 +306,45 @@ pub async fn aggiorna(config_dir: &Path) -> Result<(), String> {
         &argv,
     )
     .await
+}
+
+/// Copies the installer and the unit templates of this image into the config
+/// folder: the container writes it, the host sees it. Shared by the quadlet
+/// update and by the channel switch (`update_channel.rs`, 25-11-2026).
+///
+/// **Every file** of the folder, not a list (review of 25-11-2026): the
+/// installer also reads the fiducia units and script from its own folder, and
+/// with three files only, on a host with `certutil`, it stopped half-way.
+pub(crate) async fn copy_installer(config_dir: &Path) -> Result<(), String> {
+    let copia = config_dir.join(DIR_COPIA);
+    tokio::fs::create_dir_all(&copia)
+        .await
+        .map_err(|e| format!("{}: {e}", copia.display()))?;
+    let mut dir = tokio::fs::read_dir(DIR_IMMAGINE)
+        .await
+        .map_err(|e| format!("{DIR_IMMAGINE}: {e}"))?;
+    let mut copied = 0;
+    while let Some(entry) = dir.next_entry().await.map_err(|e| e.to_string())? {
+        let is_file = entry
+            .file_type()
+            .await
+            .map(|t| t.is_file())
+            .unwrap_or(false);
+        if !is_file {
+            continue;
+        }
+        let name = entry.file_name();
+        tokio::fs::copy(entry.path(), copia.join(&name))
+            .await
+            .map_err(|e| format!("copia di {}: {e}", name.to_string_lossy()))?;
+        copied += 1;
+    }
+    if !copia.join("install-container.sh").exists() {
+        return Err(format!(
+            "{DIR_IMMAGINE} non ha l'installer ({copied} file copiati)"
+        ));
+    }
+    Ok(())
 }
 
 /// Il comando del servizio transitorio, con i percorsi dell'host.

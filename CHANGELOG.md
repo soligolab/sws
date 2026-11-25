@@ -14,6 +14,20 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 Il lavoro della **2.27.0** (versioni `2.27.0-dev.N`). Dal 22-11-2026 `main` porta la release successiva, e la 2.26.0
 si stabilizza su `release/2.26` (piano `docs/plans/2026-11-22-dev-rc-release-e-portale-di-sviluppo.md`).
 
+### Aggiunto — il canale degli aggiornamenti si cambia dall'IDE, anche nel cloud (25-11-2026, ramo `feat/update-channel`)
+Piano `docs/plans/2026-11-25-cambio-di-canale-dal-cloud.md`. Fino a oggi un pannello cambiava canale solo reinstallandolo
+in SSH, che dal cloud non si può fare.
+- `POST /api/update/channel` (`stable`, `test`, `dev`), solo Admin, nel registro; dal cloud `/api/remote/update/channel`.
+- Se il canale scelto ha una versione più alta di quella che gira, il pannello cambia subito: istantanea dei dati, poi
+  l'installer in un servizio transitorio (`--solo-unita --image-ref`, nuovo) scarica l'immagine, riscrive `Image=` e
+  `SWS_IMAGE` e riavvia. Se no, il canale scelto aspetta in `config/update_channel.json` e l'immagine resta: un pannello
+  non scende mai di versione. «Aggiorna ora», la finestra e il pilota automatico fanno il cambio appena il canale ha una
+  versione più alta.
+- Anche un pannello con una versione fissata o installato da archivio sceglie un canale (registry pubblico,
+  architettura dal tag).
+- Nell'IDE, in «Aggiornamento del runtime», il menu Stabile / Prova / Sviluppo con la conferma e l'avviso sul canale
+  di sviluppo (`boot/UpdateChannel.tsx`).
+
 ### Corretto — le anomalie del collaudo della 2.27.0-dev.3 sul PLX800 (25-11-2026, ramo `fix/dev3-collaudo`)
 Piano `docs/plans/2026-11-25-correzioni-collaudo-dev3.md`.
 - **La pagina del pannello restava ferma dopo «Elimina solo il progetto».** Il runtime rifiutava i socket per due

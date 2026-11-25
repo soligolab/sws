@@ -5,6 +5,7 @@ import { FinestraAggiornamento } from "./FinestraAggiornamento";
 import { useAppStore } from "@/store";
 import { conferma } from "@/finestraAvviso/finestraAvviso";
 import { Icona } from "@/components/Icona";
+import { UpdateChannel } from "./UpdateChannel";
 // Le due frasi sull'esito le scrive il runtime e le mostrano tre posti (qui,
 // il viewer web, il pannello LVGL): stanno nella tabella del testo di sistema,
 // una volta sola. Qui però la lingua è quella dell'**IDE** — questa è una
@@ -58,6 +59,10 @@ export function AggiornamentoRuntime() {
   const [avviato, setAvviato] = useState(false);
   const [inCorso, setInCorso] = useState(false);
   const [esitoChiusoOra, setEsitoChiusoOra] = useState(false);
+  // A channel change on its way (the panel takes the snapshot first), and
+  // whether the update that started is a channel switch (25-11-2026).
+  const [channelBusy, setChannelBusy] = useState(false);
+  const [channelSwitch, setChannelSwitch] = useState(false);
   // Il pannello non risponde, ma l'aggiornamento era partito da poco: si sta
   // riavviando. `tentativi` cresce a ogni lettura fallita e fa ripartire l'attesa.
   const [riavvio, setRiavvio] = useState(false);
@@ -133,7 +138,9 @@ export function AggiornamentoRuntime() {
 
   let riga: string;
   let tono = "var(--brand-text-subtle, #64748b)";
-  const manuale = !errore && !avviato && !!stato
+  // A channel chosen from the IDE (25-11-2026) makes a fixed or archive panel
+  // follow a channel: no «update from Install» any more.
+  const manuale = !errore && !avviato && !!stato && !stato.canale_scelto
     && (stato.canale === "archivio" || stato.canale === "fissata" || stato.canale === "sconosciuto");
   if (errore) { riga = errore; tono = "var(--brand-danger, #ef4444)"; }
   // Il pannello non risponde perché si sta riavviando per l'aggiornamento
@@ -141,13 +148,25 @@ export function AggiornamentoRuntime() {
   else if (riavvio) { riga = t("aggiornamento.riavvioInCorso"); tono = "var(--brand-warning, #f59e0b)"; }
   else if (stato === undefined) riga = t("aggiornamento.carico");
   else if (stato === null) riga = t("aggiornamento.illeggibile");
-  else if (avviato) { riga = t("aggiornamento.avviato", { a: stato.disponibile }); tono = "var(--brand-warning, #f59e0b)"; }
+  else if (avviato) {
+    riga = channelSwitch
+      ? t("aggiornamento.canaleAvviato", { a: stato.disponibile ?? "?" })
+      : t("aggiornamento.avviato", { a: stato.disponibile ?? "?" });
+    tono = "var(--brand-warning, #f59e0b)";
+  }
   // Già chiesto, da qui o da un'altra scheda: niente «disponibile» né pulsante,
   // che un secondo clic farebbe partire un'altra copia dei dati (10-11-2026).
   else if (giaPartito) { riga = t("aggiornamento.inCorsoSulPannello"); tono = "var(--brand-warning, #f59e0b)"; }
   else {
     const canale = t(`aggiornamento.canale.${stato.canale}`);
-    if (stato.canale === "archivio" || stato.canale === "fissata" || stato.canale === "sconosciuto") {
+    // A chosen channel that waits: the line says what runs (also «fixed»),
+    // and the channel choice below says what waits (review of 25-11-2026).
+    if (stato.canale_scelto) {
+      riga = stato.errore
+        ? t("aggiornamento.registryErrore", { versione: stato.versione, canale, msg: stato.errore })
+        : t("aggiornamento.canaleRiga", { versione: stato.versione, canale });
+      if (stato.disponibile) tono = "var(--brand-warning, #f59e0b)";
+    } else if (stato.canale === "archivio" || stato.canale === "fissata" || stato.canale === "sconosciuto") {
       riga = t("aggiornamento.manuale", { versione: stato.versione, canale });
     } else if (stato.errore) {
       riga = t("aggiornamento.registryErrore", { versione: stato.versione, canale, msg: stato.errore });
@@ -193,7 +212,7 @@ export function AggiornamentoRuntime() {
       {/* Il pannello risponde dopo aver copiato i dati (l'istantanea per il
           ritorno): con uno storico grande sono minuti, e senza questa riga il
           bottone fermo su «in corso» sembrava un IDE bloccato (07-11-2026). */}
-      {inCorso && (
+      {(inCorso || channelBusy) && (
         <div style={{ marginBottom: 8, fontSize: 12, color: "var(--brand-warning, #f59e0b)" }}>{t("aggiornamento.istantaneaInCorso")}</div>
       )}
       <span style={{ fontSize: 12, color: tono }}>{riga}</span>
@@ -237,7 +256,7 @@ export function AggiornamentoRuntime() {
         </div>
       )}
 
-      {stato?.disponibile && !avviato && !giaPartito && !errore && (
+      {stato?.disponibile && !avviato && !giaPartito && !errore && !channelBusy && (
         <div style={{ marginTop: 8 }}>
           <button type="button" onClick={aggiorna} disabled={inCorso}>
             {inCorso ? t("aggiornamento.inCorso") : t("aggiornamento.pulsante", { a: stato.disponibile })}
@@ -245,8 +264,23 @@ export function AggiornamentoRuntime() {
         </div>
       )}
 
+      {/* The channel, chosen from the IDE (25-11-2026): every panel in a
+          container, also a fixed or archive one. */}
+      {/* Only panels that know the route (`cambio_canale`, from 2.27.0), and
+          not while «Update now» takes its snapshot: a choice then would change
+          the target of the update in flight (review of 25-11-2026). */}
+      {stato && stato.cambio_canale && !avviato && !giaPartito && !errore && !riavvio && !inCorso
+        && stato.canale !== "sconosciuto" && (
+        <UpdateChannel
+          stato={stato}
+          onChanged={(s) => setStato(s)}
+          onSwitchStarted={(s) => { setStato(s); segnaPartito(); setChannelSwitch(true); setAvviato(true); }}
+          onBusy={setChannelBusy}
+        />
+      )}
+
       {/* La finestra (Fase 2): solo per chi segue un canale del registry. */}
-      {stato && !avviato && !giaPartito && !errore && (stato.canale === "stabile" || stato.canale === "prova" || stato.canale === "sviluppo") && (
+      {stato && !avviato && !giaPartito && !errore && !channelBusy && (stato.canale === "stabile" || stato.canale === "prova" || stato.canale === "sviluppo") && (
         <FinestraAggiornamento stato={stato} conferma={confermaAggiornamento} />
       )}
     </section>

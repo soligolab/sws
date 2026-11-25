@@ -828,6 +828,7 @@ pub fn build(
         // «Aggiorna ora». Admin: riavvia il servizio.
         .route("/api/update/status", get(aggiornamento_stato))
         .route("/api/update/apply", post(aggiornamento_avvia))
+        .route("/api/update/channel", post(aggiornamento_canale))
         .route("/api/quadlet/aggiorna", post(quadlet_aggiorna))
         // OpenPLC dall'IDE (30-10-2026): Admin, come i quadlet.
         .route("/api/openplc/installa", post(openplc_installa))
@@ -865,6 +866,10 @@ pub fn build(
         .route(
             "/api/remote/update/apply",
             post(crate::remote::remote_update_apply),
+        )
+        .route(
+            "/api/remote/update/channel",
+            post(crate::remote::remote_update_channel),
         )
         .route(
             "/api/remote/quadlet/aggiorna",
@@ -2150,6 +2155,7 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
         // Aggiornamento del runtime (27-09-2026): chiamato dall'IDE collegato.
         .route("/api/update/status", get(aggiornamento_stato))
         .route("/api/update/apply", post(aggiornamento_avvia))
+        .route("/api/update/channel", post(aggiornamento_canale))
         .route("/api/quadlet/aggiorna", post(quadlet_aggiorna))
         // OpenPLC dall'IDE (30-10-2026): Admin, come i quadlet.
         .route("/api/openplc/installa", post(openplc_installa))
@@ -2358,6 +2364,7 @@ fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>) -> Router {
     // Il test `le_scritture_dell_aggiornamento_restano_admin_sul_viewer` lo fissa.
     let aggiornamento_routes = Router::new()
         .route("/api/update/apply", post(aggiornamento_avvia))
+        .route("/api/update/channel", post(aggiornamento_canale))
         // «Ignora questa versione» dallo schermo (24-10-2026): è una scelta, quindi Admin.
         .route("/api/update/ignora", post(aggiornamento_ignora))
         .route("/api/quadlet/aggiorna", post(quadlet_aggiorna))
@@ -5060,16 +5067,35 @@ async fn aggiornamento_avvia(
 ) -> Response {
     use crate::aggiornamento::Canale;
     let st = crate::aggiornamento::stato().await;
-    if !matches!(
-        st.canale,
-        Canale::Stabile | Canale::Prova | Canale::Sviluppo
-    ) {
+    // A channel chosen from the IDE makes a fixed or archive image updatable
+    // too: the update is the switch to that channel (25-11-2026).
+    if st.canale_scelto.is_none()
+        && !matches!(
+            st.canale,
+            Canale::Stabile | Canale::Prova | Canale::Sviluppo
+        )
+    {
         return (
             StatusCode::CONFLICT,
             "Questo runtime non segue un canale del registry (installato da archivio, o con una \
              versione fissata): si aggiorna dall'IDE, in Device → Installazione.",
         )
             .into_response();
+    }
+    // A chosen channel without a higher version: «Update now» would take the
+    // panel down a version or follow the old channel. Neither happens
+    // (review of 25-11-2026). And the switch's conditions before the snapshot.
+    if st.canale_scelto.is_some() {
+        if st.disponibile.is_none() {
+            return (
+                StatusCode::CONFLICT,
+                "Il canale scelto non ha ancora una versione più alta di quella che gira.",
+            )
+                .into_response();
+        }
+        if let Err(e) = crate::update_channel::preflight().await {
+            return (StatusCode::CONFLICT, e).into_response();
+        }
     }
     let preparazione = match crate::aggiornamento::prenota(&s.config_dir).await {
         Ok(p) => p,
@@ -5096,7 +5122,7 @@ async fn aggiornamento_avvia(
             let versione = st.versione.clone();
             async move { crate::istantanea_dati::prendi(&versione).await.map(|_| ()) }
         },
-        crate::aggiornamento::avvia(),
+        crate::aggiornamento::avvia_scelto(),
     );
     match esito.await {
         Ok(Ok(())) => {}
@@ -5110,6 +5136,159 @@ async fn aggiornamento_avvia(
         }
     }
     (StatusCode::ACCEPTED, Json(st)).into_response()
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ChannelBody {
+    /// `stable`, `test` or `dev`.
+    channel: String,
+}
+
+/// `POST /api/update/channel` — the update channel chosen from the IDE
+/// (25-11-2026, `update_channel.rs`). If the chosen channel has a version
+/// higher than the one that runs, the panel switches now (202, the data
+/// snapshot first, then a restart); otherwise the choice waits and the image
+/// stays (200): a panel never goes down a version.
+async fn aggiornamento_canale(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Json(b): Json<ChannelBody>,
+) -> Response {
+    use crate::aggiornamento::{self as agg, Canale};
+    use crate::update_channel::{self as uc, Decision};
+    // Nothing changes while an update is in preparation or in progress: the
+    // choice would change the target of the update in flight (review of
+    // 25-11-2026).
+    if agg::in_preparazione()
+        || crate::aggiornamento_finestra::carica(&s.config_dir)
+            .await
+            .in_corso
+            .is_some()
+    {
+        return (StatusCode::CONFLICT, agg::GIA_IN_CORSO).into_response();
+    }
+    // `none`: take back a choice that waits (a fixed or archive panel goes back
+    // to its pinned image; review of 25-11-2026).
+    if b.channel == "none" {
+        uc::clear(&s.config_dir).await;
+        s.audit.log(
+            "update.channel",
+            Some(user.username.clone()),
+            serde_json::json!({ "to": "none" }),
+        );
+        return Json(agg::stato_con_esito(&s.config_dir).await).into_response();
+    }
+    let Some(chosen) = uc::parse(&b.channel) else {
+        return (
+            StatusCode::BAD_REQUEST,
+            "canale sconosciuto: stable, test, dev o none",
+        )
+            .into_response();
+    };
+    let Some(image) = std::env::var("SWS_IMAGE").ok().filter(|s| !s.is_empty()) else {
+        return (
+            StatusCode::CONFLICT,
+            "Questo runtime non gira in un container installato con l'installer: il canale non si \
+             cambia da qui.",
+        )
+            .into_response();
+    };
+    let (image_channel, _) = agg::canale(Some(&image));
+    if image_channel == Canale::Sconosciuto {
+        return (
+            StatusCode::CONFLICT,
+            "Immagine sconosciuta: il canale non si cambia da qui.",
+        )
+            .into_response();
+    }
+    let (_, decision, top) = match uc::decide_now(&image, &image_channel, &chosen).await {
+        Ok(d) => d,
+        Err(e) => return (StatusCode::BAD_GATEWAY, format!("registry: {e}")).into_response(),
+    };
+    let audit = |s: &AppState, now: bool| {
+        s.audit.log(
+            "update.channel",
+            Some(user.username.clone()),
+            serde_json::json!({
+                "from": image_channel, "to": chosen, "now": now,
+                "running": agg::version(), "top": top.as_ref().map(agg::formatta),
+            }),
+        )
+    };
+    match decision {
+        Decision::Same => {
+            audit(&s, false);
+            uc::clear(&s.config_dir).await;
+            Json(agg::stato_con_esito(&s.config_dir).await).into_response()
+        }
+        Decision::Wait => {
+            if let Err(e) = uc::write(&s.config_dir, &chosen).await {
+                return (StatusCode::INTERNAL_SERVER_ERROR, e).into_response();
+            }
+            audit(&s, false);
+            Json(agg::stato_con_esito(&s.config_dir).await).into_response()
+        }
+        Decision::SwitchNow => {
+            if let Err(e) = uc::preflight().await {
+                return (StatusCode::CONFLICT, e).into_response();
+            }
+            let preparazione = match agg::prenota(&s.config_dir).await {
+                Ok(p) => p,
+                Err(e) => return (StatusCode::CONFLICT, e).into_response(),
+            };
+            // The choice is written only now, and taken back if the switch
+            // does not start: what the file says is what the user was told.
+            let previous = uc::read(&s.config_dir).await;
+            if let Err(e) = uc::write(&s.config_dir, &chosen).await {
+                return (StatusCode::INTERNAL_SERVER_ERROR, e).into_response();
+            }
+            audit(&s, true);
+            crate::aggiornamento_finestra::scarta_versione(&s.config_dir, None).await;
+            // The answer is built now, before the snapshot: after it the
+            // restart is on its way, and another registry round trip could
+            // race it (review of 25-11-2026).
+            let mut answer = agg::stato_con_esito(&s.config_dir).await;
+            let versione = agg::version().to_string();
+            let esito = agg::prepara_e_avvia_staccato(
+                preparazione,
+                s.config_dir.as_ref().clone(),
+                versione.clone(),
+                top.as_ref().map(agg::formatta),
+                {
+                    let versione = versione.clone();
+                    async move { crate::istantanea_dati::prendi(&versione).await.map(|_| ()) }
+                },
+                agg::avvia_scelto(),
+            );
+            let restore = |dir: std::path::PathBuf, previous: Option<Canale>| async move {
+                match previous {
+                    Some(p) => {
+                        let _ = uc::write(&dir, &p).await;
+                    }
+                    None => uc::clear(&dir).await,
+                }
+            };
+            match esito.await {
+                Ok(Ok(())) => {
+                    answer.in_corso = true;
+                    (StatusCode::ACCEPTED, Json(answer)).into_response()
+                }
+                Ok(Err(e)) => {
+                    restore(s.config_dir.as_ref().clone(), previous).await;
+                    (StatusCode::CONFLICT, e).into_response()
+                }
+                Err(_) => {
+                    restore(s.config_dir.as_ref().clone(), previous).await;
+                    (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "cambio di canale interrotto",
+                    )
+                        .into_response()
+                }
+            }
+        }
+    }
 }
 
 /// `POST /api/quadlet/aggiorna` — riscrive i quadlet del pannello dai template

@@ -48,6 +48,11 @@
 #                                              # rete di quelli già installati, e
 #                                              # riavvia: nessun pull, nessun container
 #                                              # rifatto (02-10-2026, lo usa il runtime)
+#   ./install-container.sh --solo-unita --image-ref ghcr.io/…:dev-arm64
+#                                              # come sopra, ma con un'altra immagine:
+#                                              # la scarica, la scrive nei quadlet e
+#                                              # riavvia. È il cambio di canale chiesto
+#                                              # dall'IDE (25-11-2026)
 #   ./install-container.sh --con-openplc       # installa anche OpenPLC Runtime, e
 #                                              # lo accende: parte vuoto, senza
 #                                              # programma, e riparte al boot
@@ -146,6 +151,21 @@ AUTOSTART=1
 # transitoria sul bus utente. Riscrive solo il passo 5 — piano
 # docs/archive/2026-10-02-quadlet-che-viaggia.md.
 SOLO_UNITA=0
+# `--image-ref` (25-11-2026), only with `--solo-unita`: the image to write in the
+# units instead of the one installed. The runtime passes the moving tag of the
+# channel chosen from the IDE (plan docs/plans/2026-11-25-cambio-di-canale-dal-cloud.md).
+IMAGE_REF=""
+OLD_TAG=""
+OLD_ID=""
+# Image= and SWS_IMAGE of a unit set to a reference, with the automatic update
+# that goes with it: off for an archive image (`localhost/…`), on otherwise.
+imposta_immagine() {  # imposta_immagine <ref> <unit file>
+    sed -i "s|^Image=.*|Image=$1|; s|^Environment=SWS_IMAGE=.*|Environment=SWS_IMAGE=$1|" "$2"
+    case "$1" in
+        localhost/*) sed -i "s|^AutoUpdate=|#AutoUpdate=|" "$2" ;;
+        *)           sed -i "s|^#AutoUpdate=|AutoUpdate=|" "$2" ;;
+    esac
+}
 # OpenPLC e OPZIONALE: «non e detto che a tutti i clienti serva» (decisione del
 # maintainer, 23-10-2026). Niente si installa senza che qualcuno lo chieda.
 CON_OPENPLC=0
@@ -199,6 +219,7 @@ while [ $# -gt 0 ]; do
         --host-network)  HOST_NETWORK=1; shift ;;
         --no-autostart)  AUTOSTART=0; shift ;;
         --solo-unita)    SOLO_UNITA=1; shift ;;
+        --image-ref)     IMAGE_REF="${2:?--image-ref vuole il riferimento di un immagine}"; shift 2 ;;
         --con-openplc)   CON_OPENPLC=1; shift ;;
         --solo-openplc)  SOLO_OPENPLC=1; shift ;;
         --uninstall)     UNINSTALL=1; shift ;;
@@ -208,6 +229,10 @@ while [ $# -gt 0 ]; do
 done
 
 command -v podman >/dev/null || { echo "ERRORE: podman non installato." >&2; exit 1; }
+if [ -n "$IMAGE_REF" ] && [ "$SOLO_UNITA" -ne 1 ]; then
+    echo "ERRORE: --image-ref vale solo con --solo-unita (per un'installazione nuova usa --pull)." >&2
+    exit 1
+fi
 
 # ── OpenPLC Runtime, a richiesta (23-10-2026, rifatto il 30-10-2026) ─────────
 #
@@ -471,6 +496,22 @@ if [ "$SOLO_UNITA" -eq 1 ]; then
         exit 1; }
     TAG="$(sed -n 's/^Image=//p' "$ESISTENTE" | head -1)"
     TAG_EXPLICIT=1
+    # The channel switch (25-11-2026): another image, pulled now. A moving tag
+    # already in the local storage (an old `latest-arm64`) would otherwise
+    # start the old image, because a unit pulls only a missing one.
+    OLD_TAG="$TAG"
+    # The image that runs now, by ID: «Torna alla versione precedente»
+    # (immagini.sh) goes back to OLD_TAG only for this image (review of
+    # 25-11-2026: guessing the old channel from image names moved panels that
+    # never switched).
+    OLD_ID="$(podman inspect "$NAME" --format '{{.Image}}' 2>/dev/null || true)"
+    if [ -n "$IMAGE_REF" ]; then
+        echo "==> solo le unità: immagine nuova $IMAGE_REF (era $TAG)"
+        podman pull "$IMAGE_REF" || {
+            echo "ERRORE: non riesco a scaricare $IMAGE_REF: niente cambia." >&2
+            exit 1; }
+        TAG="$IMAGE_REF"
+    fi
     VECCHI_DATI="$(sed -n 's|^Volume=\(.*\)/config:/var/sws/config.*|\1|p' "$ESISTENTE" | head -1)"
     [ -n "$VECCHI_DATI" ] && DATA="$VECCHI_DATI"
     if grep -q '^Network=host' "$ESISTENTE"; then HOST_NETWORK=1; else HOST_NETWORK=0; fi
@@ -621,7 +662,12 @@ if command -v certutil >/dev/null 2>&1 && [ -x "$DATA/config/fiducia-browser.sh"
     # (~/.config/containers/systemd), quindi nessuno l'aveva mai creata.
     mkdir -p "$USER_UNIT_DIR"
     for U in sws-fiducia.path sws-fiducia.service; do
-        sed "s|/data/user/sws/config|$DATA/config|g" "$SRC_DIR/$U" > "$USER_UNIT_DIR/$U"
+        # A copy of the installer without these files (the runtime copied only
+        # three files until 25-11-2026) must not stop here with `set -e`, nor
+        # empty the unit that runs: write through a temporary file.
+        [ -f "$SRC_DIR/$U" ] || { echo "    $U non c'e' accanto all'installer: resta com'e'"; continue; }
+        sed "s|/data/user/sws/config|$DATA/config|g" "$SRC_DIR/$U" > "$USER_UNIT_DIR/$U.nuovo" \
+            && mv "$USER_UNIT_DIR/$U.nuovo" "$USER_UNIT_DIR/$U"
     done
     systemctl --user daemon-reload 2>/dev/null || true
     systemctl --user enable --now sws-fiducia.path 2>/dev/null || true
@@ -983,8 +1029,34 @@ if [ "$AUTOSTART" -eq 1 ]; then
     if [ "$SOLO_UNITA" -eq 1 ]; then
         # Il runtime gira ancora (è lui che ha chiesto): va riavviato perché le
         # righe nuove del quadlet valgono solo per un container ricreato.
-        systemctl --user restart "$NAME"
+        if [ -n "$IMAGE_REF" ]; then
+            # A channel switch (25-11-2026): if the new image does not become
+            # healthy (`Notify=healthy`), the units go back to the image that
+            # ran and the runtime starts again on it. `podman auto-update` has
+            # its own rollback; this restart has not, and `Restart=always`
+            # would keep starting the broken image.
+            if ! systemctl --user restart "$NAME"; then
+                echo "ERRORE: $IMAGE_REF non parte: torno a $OLD_TAG" >&2
+                for q in "$UNIT_DIR/$NAME.container" "$UNIT_DIR/sws-lvgl-viewer.container"; do
+                    [ -f "$q" ] || continue
+                    imposta_immagine "$OLD_TAG" "$q"
+                done
+                systemctl --user daemon-reload
+                systemctl --user restart "$NAME" || true
+                exit 1
+            fi
+            # The switch held: remember the image it replaced, for «Torna
+            # alla versione precedente».
+            printf 'image_id=%s\nimage=%s\n' "$OLD_ID" "$OLD_TAG" > "$DATA/config/channel-switch-prev" || true
+        else
+            systemctl --user restart "$NAME"
+        fi
     else
+        # A full installation decides the image: a channel chosen from the IDE
+        # that was waiting, and the record of the last channel switch, no
+        # longer apply. Removed only here, when the image and the units are
+        # really replaced (review of 25-11-2026).
+        rm -f "$DATA/config/update_channel.json" "$DATA/config/channel-switch-prev"
         systemctl --user start "$NAME"
     fi
 

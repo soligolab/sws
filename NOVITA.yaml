@@ -69,6 +69,9 @@ versioni:
       - it: "Le installazioni native non hanno più admin/admin: partono col codice di abbinamento. Un admin/admin rimasto va cambiato al primo accesso."
         en: "Native installations no longer have admin/admin: they start with the pairing code. An admin/admin left over must be changed at the next login."
     voci:
+      # Il canale dall'IDE del cloud (25-11-2026).
+      - it: "Il canale degli aggiornamenti (stabile, prova, sviluppo) si cambia dall'IDE, anche nel cloud: se il canale nuovo è più indietro, il pannello aspetta e non scende di versione."
+        en: "The update channel (stable, test, development) changes from the IDE, also in the cloud: if the new channel is behind, the panel waits and never goes down a version."
       # Collaudo della 2.27.0-dev.3 sul PLX800 (25-11-2026).
       - it: "Dopo «Eliminare solo il progetto, restando nel cloud» la pagina del pannello si ricarica da sola, e i valori non restano fermi dopo un fermo o un deploy."
         en: "After «Remove only the project, staying in the cloud» the panel page loads again by itself, and the values no longer stay frozen after a stop or a deploy."

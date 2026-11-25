@@ -125,6 +125,32 @@ bash "$S" ritorna "$C" 2.12.0-rc.12 > "$T/out.log"
 prova "registro: podman tag della precedente sul canale" "grep -q 'podman tag bbb ghcr.io/soligolab/sws-runtime:rc-arm64' '$LOG'"
 prova "registro: senza istantanea, dati=false"         "python3 -c \"import json; assert not json.load(open('$C/ritorno.json'))['dati']\""
 
+# ── ritorna dopo un cambio di canale (25-11-2026): l'installer ha scritto quale
+# immagine ha sostituito; solo per quella il quadlet torna al riferimento di prima.
+echo ddd > "$T/attuale"
+printf 'attuale=ddd\nprecedente=bbb\n' > "$C/immagini.stato"
+sed -i 's|^Image=.*|Image=ghcr.io/soligolab/sws-runtime:latest-arm64|' "$T/unit/sws-runtime.container"
+echo "ghcr.io/soligolab/sws-runtime:2.27.0-dev.4-arm64" > "$DB/bbb/nomi"
+printf 'image_id=bbb\nimage=ghcr.io/soligolab/sws-runtime:2.27.0-dev.4-arm64\n' > "$C/channel-switch-prev"
+echo '{"channel":"stabile","since_ms":1}' > "$C/update_channel.json"
+: > "$LOG"
+bash "$S" ritorna "$C" 2.27.0 > "$T/out.log"
+prova "canale: il quadlet torna alla versione fissata"  "grep -q '^Image=ghcr.io/soligolab/sws-runtime:2.27.0-dev.4-arm64$' '$T/unit/sws-runtime.container'"
+prova "canale: niente podman tag sul canale nuovo"      "! grep -q 'podman tag' '$LOG'"
+prova "canale: il segno del cambio si toglie"            "[ ! -e '$C/channel-switch-prev' ]"
+prova "canale: il canale scelto non torna"               "[ ! -e '$C/update_channel.json' ]"
+
+# ── ritorna su un pannello che non ha mai cambiato canale: un nome di canale
+# rimasto sulla precedente non sposta il pannello (review del 25-11-2026).
+echo ddd > "$T/attuale"
+printf 'attuale=ddd\nprecedente=bbb\n' > "$C/immagini.stato"
+sed -i 's|^Image=.*|Image=ghcr.io/soligolab/sws-runtime:rc-arm64|' "$T/unit/sws-runtime.container"
+echo "ghcr.io/soligolab/sws-runtime:latest-arm64" > "$DB/bbb/nomi"
+: > "$LOG"
+bash "$S" ritorna "$C" 2.26.0-rc.1 > "$T/out.log"
+prova "senza cambio: il canale resta"                    "grep -q '^Image=ghcr.io/soligolab/sws-runtime:rc-arm64$' '$T/unit/sws-runtime.container'"
+prova "senza cambio: podman tag sul canale di sempre"    "grep -q 'podman tag bbb ghcr.io/soligolab/sws-runtime:rc-arm64' '$LOG'"
+
 # ── pulisci: tiene attuale, precedente e quelle in uso ───────────────────────
 echo fff > "$T/attuale"; printf 'fff\naaa\n' > "$T/inuso"
 printf 'attuale=fff\nprecedente=eee\n' > "$C/immagini.stato"

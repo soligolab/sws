@@ -23,7 +23,7 @@ pub fn version() -> &'static str {
 }
 
 /// Da dove viene l'immagine che gira, e quindi come si aggiorna.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Canale {
     /// `latest-<arch>`: le release.
@@ -217,6 +217,14 @@ pub struct StatoAggiornamento {
     /// (`POST /api/update/ignora`): l'avviso di quella versione non si ripropone.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub versione_ignorata: Option<String>,
+    /// The channel chosen from the IDE that waits for a version higher than
+    /// the one that runs (`update_channel.rs`, 25-11-2026). When it is set,
+    /// `disponibile` and `novita` are those of this channel.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub canale_scelto: Option<Canale>,
+    /// This runtime knows `POST /api/update/channel` (25-11-2026): the IDE
+    /// shows the channel choice only to panels that answer it.
+    pub cambio_canale: bool,
 }
 
 /// Le novità di una versione, come viaggiano dentro la sua immagine.
@@ -298,7 +306,7 @@ fn same_release(a: &str, b: &str) -> bool {
     base(a) == base(b)
 }
 
-fn formatta(v: &Versione) -> String {
+pub(crate) fn formatta(v: &Versione) -> String {
     let (a, b, c) = v.numeri;
     match &v.pre {
         None => format!("{a}.{b}.{c}"),
@@ -375,7 +383,7 @@ async fn get_registry(
 /// più `n` per risposta e indica la pagina dopo nell'intestazione `Link`. Erano
 /// 376 il 22-11-2026, e con le build dev arrivano presto oltre i 1000: senza
 /// pagine, le versioni più nuove potevano restare fuori dalla lista.
-async fn tag_del_registry(r: &Riferimento) -> Result<Vec<String>, String> {
+pub(crate) async fn tag_del_registry(r: &Riferimento) -> Result<Vec<String>, String> {
     let mut tutti = Vec::new();
     let mut percorso = "tags/list?n=1000".to_string();
     // A ceiling, so a registry that keeps answering with the same link cannot
@@ -428,7 +436,7 @@ application/vnd.docker.distribution.manifest.list.v2+json";
 /// nomina: due richieste e pochi KB, contro le centinaia di MB di un pull.
 /// È così che il runtime legge le novità di una versione prima di installarla
 /// (decisione 42, 28-09-2026).
-async fn etichette(
+pub(crate) async fn etichette(
     r: &Riferimento,
     tag: &str,
 ) -> Result<std::collections::HashMap<String, String>, String> {
@@ -478,7 +486,35 @@ pub async fn stato() -> StatoAggiornamento {
         novita_installata: None,
         in_corso: false,
         versione_ignorata: None,
+        canale_scelto: None,
+        cambio_canale: true,
     };
+    // A channel chosen from the IDE that waits (25-11-2026): what is available
+    // is read on that channel, also for a fixed or archive image.
+    if let (Some(dir), Some(img)) = (crate::istantanea_dati::config_dir(), immagine.as_deref()) {
+        if let Some(chosen) = crate::update_channel::waiting(&dir, &canale).await {
+            st.canale_scelto = Some(chosen.clone());
+            // `disponibile` is what the switch would install: the version
+            // behind the channel's moving tag, only if it is higher.
+            match crate::update_channel::decide_now(img, &canale, &chosen).await {
+                Ok((r, crate::update_channel::Decision::SwitchNow, Some(top))) => {
+                    st.disponibile = Some(formatta(&top));
+                    if let (Ok(tags), Some((_, arch))) = (
+                        tag_del_registry(&r).await,
+                        crate::update_channel::target(img, &chosen),
+                    ) {
+                        let questa = Versione::leggi(version());
+                        st.novita =
+                            novita_da_attraversare(&r, &tags, &chosen, &arch, questa.as_ref())
+                                .await;
+                    }
+                }
+                Ok(_) => {}
+                Err(e) => st.errore = Some(e),
+            }
+            return st;
+        }
+    }
     let (Some(arch), Some(r)) = (arch, immagine.as_deref().and_then(scomponi)) else {
         return st;
     };
@@ -688,7 +724,7 @@ pub async fn prepara_e_avvia(
     let _preparazione = prenota(config_dir).await?;
     crate::istantanea_dati::prendi(da).await?;
     crate::aggiornamento_esito::segna_in_corso(config_dir, da, a).await;
-    avvia().await
+    avvia_scelto().await
 }
 
 /// L'aggiornamento chiesto in questo processo e non ancora consegnato a
@@ -770,6 +806,38 @@ where
         }
     });
     rx
+}
+
+/// The update of «Update now», the window and the autopilot (25-11-2026):
+/// with a channel chosen from the IDE that waits, the switch to that channel
+/// (`update_channel::start_switch`); otherwise `podman auto-update` on the
+/// image's own channel. The caller must have **already answered**.
+pub async fn avvia_scelto() -> Result<(), String> {
+    let immagine = std::env::var("SWS_IMAGE").ok().filter(|s| !s.is_empty());
+    let (canale_immagine, _) = canale(immagine.as_deref());
+    if let (Some(dir), Some(img)) = (crate::istantanea_dati::config_dir(), immagine.as_deref()) {
+        if let Some(chosen) = crate::update_channel::waiting(&dir, &canale_immagine).await {
+            // Decided again here, when the switch really starts (review of
+            // 25-11-2026): a banner days old, or a choice changed during the
+            // snapshot, must never take the panel down a version. And never
+            // `podman auto-update` instead: that follows the old channel.
+            let (r, d, _) =
+                crate::update_channel::decide_now(img, &canale_immagine, &chosen).await?;
+            if d != crate::update_channel::Decision::SwitchNow {
+                return Err(
+                    "Il canale scelto non ha una versione più alta di quella che gira: niente \
+                     cambia (un pannello non scende di versione)."
+                        .into(),
+                );
+            }
+            return crate::update_channel::start_switch(
+                &dir,
+                &crate::update_channel::image_ref(&r),
+            )
+            .await;
+        }
+    }
+    avvia().await
 }
 
 /// Avvia `podman-auto-update.service` sul bus utente. Il chiamante deve aver

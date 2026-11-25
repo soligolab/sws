@@ -84,4 +84,61 @@ prova "il container non viene rimosso"                  "! grep -q 'podman rm' '
 if [ "$fallito" -ne 0 ]; then
     echo "  uscita dell'installer:"; sed 's/^/      /' "$T/uscita.log"
 fi
+
+# The channel switch (25-11-2026): `--image-ref` pulls the new image and writes
+# it in both units, with SWS_IMAGE and the automatic update on.
+: > "$LOG"
+bash "$T/src/install-container.sh" --solo-unita --image-ref ghcr.io/soligolab/sws-runtime:dev-arm64 \
+    > "$T/uscita2.log" 2>&1 || {
+    echo "  ✗ --solo-unita --image-ref è fallito:"; sed 's/^/      /' "$T/uscita2.log"; exit 1; }
+prova "--image-ref: immagine nuova nel runtime"         "grep -q '^Image=ghcr.io/soligolab/sws-runtime:dev-arm64$' '$R'"
+prova "--image-ref: SWS_IMAGE coerente"                 "grep -q '^Environment=SWS_IMAGE=ghcr.io/soligolab/sws-runtime:dev-arm64$' '$R'"
+prova "--image-ref: immagine nuova nel viewer"          "grep -q '^Image=ghcr.io/soligolab/sws-runtime:dev-arm64$' '$V'"
+prova "--image-ref: aggiornamento automatico acceso"    "grep -q '^AutoUpdate=registry' '$R'"
+prova "--image-ref: l'immagine si scarica prima"        "grep -q 'podman pull ghcr.io/soligolab/sws-runtime:dev-arm64' '$LOG'"
+prova "--image-ref: cartella dati conservata"           "grep -q '^Volume=$T/altrove/config:/var/sws/config' '$R'"
+prova "--image-ref: il runtime viene riavviato"         "grep -q 'systemctl --user restart sws-runtime' '$LOG'"
+prova "--image-ref senza --solo-unita è rifiutato"      "! bash '$T/src/install-container.sh' --image-ref x:y > /dev/null 2>&1"
+prova "--image-ref: il segno dell'immagine sostituita"  "grep -q '^image=ghcr.io/soligolab/sws-runtime:rc-arm64$' '$T/altrove/config/channel-switch-prev'"
+if [ "$fallito" -ne 0 ]; then
+    echo "  uscita dell'installer (--image-ref):"; sed 's/^/      /' "$T/uscita2.log"
+fi
+
+# With `certutil` on the host and an earlier full install (review of 25-11-2026):
+# a copy of the installer without the fiducia files must not stop, nor empty
+# the fiducia unit that runs.
+DATI="$T/altrove"
+mkdir -p "$DATI/config" "$HOME/.config/systemd/user"
+printf '#!/bin/sh\nexit 0\n' > "$DATI/config/fiducia-browser.sh"; chmod +x "$DATI/config/fiducia-browser.sh"
+printf '[Path]\nPathChanged=x\n' > "$HOME/.config/systemd/user/sws-fiducia.path"
+printf '#!/usr/bin/env bash\nexit 0\n' > "$T/bin/certutil"; chmod +x "$T/bin/certutil"
+: > "$LOG"
+bash "$T/src/install-container.sh" --solo-unita --image-ref ghcr.io/soligolab/sws-runtime:rc-arm64 \
+    > "$T/uscita3.log" 2>&1
+prova "certutil: l'installer arriva in fondo"           "grep -q '^Image=ghcr.io/soligolab/sws-runtime:rc-arm64$' '$R'"
+prova "certutil: la unit di fiducia non si svuota"     "[ -s '$HOME/.config/systemd/user/sws-fiducia.path' ]"
+rm -f "$T/bin/certutil"
+
+# A new image that does not become healthy: the units go back to the image
+# that ran, and the runtime starts again on it.
+cat > "$T/bin/systemctl" <<EOF
+#!/usr/bin/env bash
+echo "systemctl \$*" >> "$LOG"
+if [ "\$*" = "--user restart sws-runtime" ] && grep -q '^Image=ghcr.io/soligolab/sws-runtime:dev-arm64' "$R"; then exit 1; fi
+exit 0
+EOF
+chmod +x "$T/bin/systemctl"
+: > "$LOG"
+if bash "$T/src/install-container.sh" --solo-unita --image-ref ghcr.io/soligolab/sws-runtime:dev-arm64 \
+    > "$T/uscita4.log" 2>&1; then esito4=0; else esito4=1; fi
+prova "ritorno: l'installer dice che non è riuscito"   "[ $esito4 -eq 1 ]"
+prova "ritorno: il runtime torna all'immagine di prima" "grep -q '^Image=ghcr.io/soligolab/sws-runtime:rc-arm64$' '$R'"
+prova "ritorno: anche SWS_IMAGE"                       "grep -q '^Environment=SWS_IMAGE=ghcr.io/soligolab/sws-runtime:rc-arm64$' '$R'"
+prova "ritorno: anche il viewer"                       "grep -q '^Image=ghcr.io/soligolab/sws-runtime:rc-arm64$' '$V'"
+prova "ritorno: aggiornamento automatico acceso"        "grep -q '^AutoUpdate=registry' '$R'"
+prova "ritorno: il runtime riparte"                    "[ \"\$(grep -c 'restart sws-runtime' '$LOG')\" -ge 2 ]"
+if [ "$fallito" -ne 0 ]; then
+    echo "  uscita (certutil):"; sed 's/^/      /' "$T/uscita3.log" | tail -15
+    echo "  uscita (ritorno):"; sed 's/^/      /' "$T/uscita4.log" | tail -15
+fi
 exit "$fallito"

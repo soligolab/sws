@@ -3510,7 +3510,25 @@
     "inCorsoSulPannello": "An update is in progress on the panel: the outcome shows here in a couple of minutes.",
     "riavvioInCorso": "The panel is restarting for the update: it is unreachable for a few minutes, then it comes back on its own. The outcome shows here.",
     "apriInstallazione": "Open Install",
-    "istantaneaInCorso": "The panel is copying its data before updating (it is what a rollback needs): with a lot of history this can take a few minutes."
+    "istantaneaInCorso": "The panel is copying its data before updating (it is what a rollback needs): with a lot of history this can take a few minutes.",
+    "canaleTitolo": "Update channel",
+    "canaleNome": {
+      "stable": "Stable",
+      "test": "Test",
+      "dev": "Development"
+    },
+    "canaleCambia": "Change channel",
+    "canaleConferma": "The panel moves to the {{canale}} channel.\n\nIf the {{canale}} channel has a version higher than {{versione}}, the panel installs it now: first the data snapshot, then a restart of about one minute.\n\nIf not, the panel stays on {{versione}} and moves to the {{canale}} channel with the first update: a panel never goes down a version.\n\nGo ahead?",
+    "canaleAvvisoSviluppo": "The development channel brings the work versions (-dev): they are for tests and can have defects. For a real plant use the stable channel.",
+    "canaleInAttesa": "Chosen channel: {{canale}}. The panel stays on {{versione}} until the {{canale}} channel has a higher version.",
+    "canaleInAttesaDisponibile": "Chosen channel: {{canale}}. The update moves to the {{canale}} channel with {{a}}.",
+    "canaleAvviato": "Channel change started: the panel installs {{a}} and restarts.",
+    "canaleNomeNessuno": {
+      "fissata": "This version (fixed)",
+      "archivio": "This version (from an archive)"
+    },
+    "canaleConfermaRitorno": "The panel goes back to «{{canale}}»: it stays on {{versione}} and the choice of another channel is cancelled. Go ahead?",
+    "canaleRiga": "Version {{versione}} ({{canale}})."
   },
   "finestra": {
     "orologio": "Panel clock: {{locale}} (UTC{{scostamento}}) · {{utc}} UTC",

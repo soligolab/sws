@@ -52,6 +52,15 @@ usata() {  # usata <id>: un container la usa?
     done
     return 1
 }
+# Image= and SWS_IMAGE of a unit set to a reference, with the automatic update
+# that goes with it: off for an archive image (`localhost/…`), on otherwise.
+imposta_immagine() {  # imposta_immagine <ref> <unit file>
+    sed -i "s|^Image=.*|Image=$1|; s|^Environment=SWS_IMAGE=.*|Environment=SWS_IMAGE=$1|" "$2"
+    case "$1" in
+        localhost/*) sed -i "s|^AutoUpdate=|#AutoUpdate=|" "$2" ;;
+        *)           sed -i "s|^#AutoUpdate=|AutoUpdate=|" "$2" ;;
+    esac
+}
 nomi() { podman image inspect "$1" --format '{{range .RepoTags}}{{.}} {{end}}' 2>/dev/null | sed 's/ *$//'; }
 versione() { podman image inspect "$1" --format '{{index .Labels "org.opencontainers.image.version"}}' 2>/dev/null; }
 byte() { podman image inspect "$1" --format '{{.Size}}' 2>/dev/null || echo 0; }
@@ -196,18 +205,38 @@ cmd_ritorna() {
 
     img="$(sed -n 's/^Image=//p' "$QR" | head -1)"
     nuovo="$(nomi "$prec" | tr ' ' '\n' | grep '^localhost/' | head -1)"
-    if [ -n "$nuovo" ]; then
+    # After a channel switch from the IDE (25-11-2026) the installer wrote
+    # which image it replaced and its unit reference. Only for that image the
+    # units go back to that reference: the old channel, or the old pinned
+    # version. Names are not guessed: an image can keep a stale channel name.
+    prima=""
+    if [ -f "$CONF/channel-switch-prev" ] \
+        && [ "$(sed -n 's/^image_id=//p' "$CONF/channel-switch-prev")" = "$prec" ]; then
+        prima="$(sed -n 's/^image=//p' "$CONF/channel-switch-prev")"
+    fi
+    if [ -n "$prima" ]; then
+        echo "==> quadlet: Image=$prima (prima del cambio di canale)"
+        for q in "$QR" "$QV"; do
+            [ -f "$q" ] || continue
+            imposta_immagine "$prima" "$q"
+        done
+        rm -f "$CONF/channel-switch-prev"
+    elif [ -n "$nuovo" ]; then
         # Da archivio: il quadlet punta al nome della precedente.
         echo "==> quadlet: Image=$nuovo"
         for q in "$QR" "$QV"; do
             [ -f "$q" ] || continue
-            sed -i "s|^Image=.*|Image=$nuovo|; s|^Environment=SWS_IMAGE=.*|Environment=SWS_IMAGE=$nuovo|" "$q"
+            imposta_immagine "$nuovo" "$q"
         done
     else
         # Dal registro: il nome del canale torna sulla precedente.
         echo "==> podman tag $prec $img"
         podman tag "$prec" "$img"
     fi
+    # A channel chosen from the IDE belongs to the version left behind: the
+    # snapshot may have brought it back, and it would offer the discarded
+    # version again (review of 25-11-2026).
+    rm -f "$CONF/update_channel.json"
     # Ora gira la precedente; quella scartata resta come «precedente» finché
     # qualcuno non pulisce.
     scrivi_stato "$prec" "$att"

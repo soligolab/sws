@@ -1976,6 +1976,25 @@ pub async fn remote_update_apply(
     .await
 }
 
+/// `POST /api/remote/update/channel` — the update channel chosen from the IDE,
+/// sent to the connected device (25-11-2026). Same wait as `update/apply`: a
+/// switch that happens now answers after the data snapshot.
+pub async fn remote_update_channel(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Json(body): Json<serde_json::Value>,
+) -> Response {
+    inoltra_aggiornamento_con_attesa(
+        &s,
+        &user,
+        reqwest::Method::POST,
+        Some(body),
+        |base| format!("{base}/api/update/channel"),
+        ATTESA_AGGIORNAMENTO_S,
+    )
+    .await
+}
+
 /// `POST /api/remote/boot-image/reset` — il ripristino dell'immagine di
 /// fabbrica, girato al dispositivo collegato.
 pub async fn remote_boot_image_reset(

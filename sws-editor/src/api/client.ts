@@ -492,11 +492,20 @@ export interface InventarioCertificati {
   ssh: { known_hosts: string[]; chiave_progetto: string | null };
 }
 
+/** The three channels as the API names them (`POST /api/update/channel`). */
+export type UpdateChannelName = "stable" | "test" | "dev";
+
 /** Gemello di `aggiornamento::StatoAggiornamento` in `sws-web`. */
 export interface StatoAggiornamento {
   versione: string;
   immagine: string | null;
   canale: "stabile" | "prova" | "sviluppo" | "fissata" | "archivio" | "sconosciuto";
+  /** The channel chosen from the IDE that waits for a version higher than the
+   *  one that runs (25-11-2026): `disponibile` is that channel's. */
+  canale_scelto?: "stabile" | "prova" | "sviluppo";
+  /** The runtime knows `POST /api/update/channel` (from 2.27.0): an older
+   *  panel answers 404, so the IDE shows the choice only when this is true. */
+  cambio_canale?: boolean;
   disponibile: string | null;
   errore: string | null;
   /** Cosa cambia, letto dalle etichette delle immagini da attraversare: una
@@ -2837,6 +2846,15 @@ export const api = {
   /** «Aggiorna ora»: il dispositivo avvia podman-auto-update e si riavvia. */
   remoteAvviaAggiornamento: () =>
     request<StatoAggiornamento>("/api/remote/update/apply", { method: "POST" }),
+  /** The update channel of the connected device (25-11-2026). With a version
+   *  higher than the one that runs on that channel the device switches now
+   *  (`disponibile` set in the answer); otherwise the choice waits. */
+  remoteCambiaCanale: (channel: UpdateChannelName | "none") =>
+    request<StatoAggiornamento>("/api/remote/update/channel", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ channel }),
+    }),
   /** Riscrive i quadlet del pannello dai template della sua immagine (02-10-2026):
    *  il pannello si riavvia. */
   remoteAggiornaQuadlet: () =>

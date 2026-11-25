@@ -34,6 +34,11 @@ const ESCLUSI_CONFIG: &[&str] = &[
     "immagini.stato",
     "immagini.json",
     "ritorno.json",
+    // The channel chosen from the IDE and the record of the last channel
+    // switch (25-11-2026): a rollback must not bring back the choice that
+    // caused the update it undoes.
+    crate::update_channel::FILE,
+    "channel-switch-prev",
 ];
 /// In ogni progetto, a qualunque profondità.
 const ESCLUSI_PROGETTO: &[&str] = &["backups", "logs", ".run"];
@@ -43,6 +48,12 @@ static RADICI: OnceLock<(PathBuf, PathBuf)> = OnceLock::new();
 
 pub fn imposta_radici(config_dir: PathBuf, projects_root: PathBuf) {
     let _ = RADICI.set((config_dir, projects_root));
+}
+
+/// The config folder set at start, for the modules that have no `AppState`
+/// at hand (the update channel, 25-11-2026).
+pub fn config_dir() -> Option<PathBuf> {
+    RADICI.get().map(|(c, _)| c.clone())
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
