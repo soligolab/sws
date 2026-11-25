@@ -173,7 +173,13 @@ resta 404: così un bundle che manca non torna come HTML con stato 200.
 (`10.89.0.x`): il limite di 20 richieste/s vale per tutti insieme finché non c'è l'indirizzo vero (seme «indirizzo vero
 dietro Traefik»). Si aggiorna con `scripts/manuale/pubblica.sh`.
 
-**Versione in esecuzione: `8a257875-amd64` (2.27.0-dev.3)** dal 24-11-2026: la prima dev costruita da `main` dopo lo
+**Versione in esecuzione: `a570b64b-amd64` (2.27.0-dev.4)** dal 25-11-2026: le correzioni del collaudo della dev.3 sul
+PLX800 (pagina del pannello ferma dopo «Elimina», faceplate stirati da «Cambia risoluzione», rinomina nel cloud). Sequenza
+solita, copia `sws-gateway.container.prima-dev4`; gateway `healthy`, `SWS_VERSION` = 2.27.0-dev.4, radice 200, `/health`
+«ok», `check_gateway_immagine` verde. Ripiego la dev.3 (`8a257875-amd64`). La build è partita da un worktree fermo sul
+tag (`tmp/wt-dev4`), perché un'altra sessione aveva già committato su `main` dopo il tag.
+
+Prima: **Versione in esecuzione: `8a257875-amd64` (2.27.0-dev.3)** dal 24-11-2026: la prima dev costruita da `main` dopo lo
 squash dell'assistente dei simboli e dei residui della rc.30. Sequenza solita, copia `sws-gateway.container.prima-dev3`;
 gateway `healthy`, `SWS_VERSION` = 2.27.0-dev.3, radice 200, `/health` «ok». Ripiego la dev.2 (`c0c640ab-amd64`).
 
