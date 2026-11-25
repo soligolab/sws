@@ -27,6 +27,17 @@
    container monta solo i progetti, non `/data`); sei core (`cpu_core_pct` con param `'0'`..`'5'`). Tre tag di
    CasaDomotica sono **espressioni** e vanno copiati come tali: `host.uptime_h = round(tags['host.uptime_s'] / 3600, 1)`,
    `host.net_rx_kbs` e `host.net_tx_kbs` = `round(tags['host.net_*_bps'] / 1024, 1)`.
+5. **Le tensioni in V, non in mV** (richiesta del maintainer, 25-11-2026: «alla prossima occasione nel demo del PLX800
+   correggi la visualizzazione delle tensioni da mV a V aggiungendo l'unità di misura e rimuovendola dal testo che
+   descrive il campo»). Oggi, in `examples/templates/plx800-io/`:
+   - i tag `io.supply_main_mv`, `io.supply_cpu_mv` e `io.vcap_mv` sono `u16` con `unit: mV`;
+   - le etichette `t0008`, `t0009` e `t0010` in `project.yaml` portano «[mV]» nel testo, in tre lingue;
+   - il faceplate `valore` (`faceplates/valore.yaml`) mostra `{value}` e nessuna unità.
+
+   Da fare: il valore si mostra in V, con l'unità «V» accanto al numero; le etichette perdono «[mV]». Una strada
+   possibile sono tag calcolati in V, come `host.uptime_h` di CasaDomotica (punto 4). Va misurata prima, insieme ai
+   trend del punto 3, che usano gli stessi tag. Lo stesso cambio va nel progetto `PLX800` del cloud, che viene da
+   questo template, e poi sul pannello con un deploy.
 
 ## Decisioni da chiedere al maintainer prima di scrivere
 
