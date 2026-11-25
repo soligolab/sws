@@ -12,6 +12,33 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — release 2.27.0 e canale degli aggiornamenti dall'IDE (2026-11-25 notte, `elitedesk`)
+
+- **Il canale degli aggiornamenti si cambia dall'IDE, anche nel cloud** (squash `d077bc4c`, piano
+  [`docs/plans/2026-11-25-cambio-di-canale-dal-cloud.md`](docs/plans/2026-11-25-cambio-di-canale-dal-cloud.md)).
+  Menu Stabile / Prova / Sviluppo in «Aggiornamento del runtime». Il pannello cambia subito se il canale scelto ha una
+  versione più alta (istantanea, `install-container.sh --solo-unita --image-ref`, ritorno all'immagine di prima se la
+  nuova non diventa sana). Se no, la scelta aspetta in `config/update_channel.json`: un pannello non scende mai di
+  versione. Tre revisioni, l'ultima un controllo avversario sulle correzioni.
+- **Release 2.27.0** (autorizzata dal maintainer insieme al cambio di canale): Novità da 92 a 15 voci (`ae74e6d7`), più
+  le 7 di compatibilità. Sezione `[2.27.0] — 2026-11-25` nel CHANGELOG, `chore(rc): 2.27.0` (`17d41858`) col tag
+  annotato `2.27.0`. `build_rc.sh --push` in 40 min sulle tre gambe, da un worktree. Su ghcr: `2.27.0-*` e
+  `17d41858-*`; `latest-*`, `rc-*` e `dev-*` puntano alla 2.27.0. Archivi in `dist/`, log in `tmp/build-2.27.0-logs/`.
+- **Gateway di sws.soligo.net sulla 2.27.0** (`17d41858-amd64`): copia `sws-gateway.container.prima-2.27.0`,
+  `healthy`, `SWS_VERSION` = 2.27.0, radice 200, `/health` «ok». Ripiego la dev.4. **Tiny TY**: `latest.txt` = 2.27.0.
+- **`main` alla 2.28.0-dev.0** (`c835597e`, in avanti veloce dalla release). `release/2.27` eliminato, qui e su origin.
+- **Prossimo passo, il collaudo del maintainer** (6 voci in [`docs/COLLAUDI_IN_SOSPESO.md`](docs/COLLAUDI_IN_SOSPESO.md),
+  sezione «Collaudo 2.27.0»):
+  1. TC620 (rc.29, canale di prova): «Aggiorna ora» verso la 2.27.0;
+  2. il deploy di CasaDomotica coi faceplate `fit`;
+  3. TC620 → Sviluppo: la scelta aspetta, perché anche `dev-arm64` è sulla 2.27.0;
+  4. PLX800 (dev.3 fissata) → Stabile: il cambio parte subito.
+  Le voci della dev.4 (piano delle correzioni del collaudo della dev.3, «Verifica») si provano sulla 2.27.0.
+- **CasaDomotica**: niente da adeguare, perché la novità sta nel pannello e non nel progetto. Con il TC620 sulla 2.27.0
+  il `fit` dei faceplate diventa leggibile anche lì.
+- **Resta da decidere**: «Stirando» dal menu scrive `"stretch"`, che i pannelli più vecchi della dev.4 non leggono
+  (proposta nella sezione qui sotto).
+
 ## ▶ Riprendere da qui — la 2.27.0-dev.4 sul cloud, da collaudare sul PLX800 (2026-11-25 sera, `elitedesk`)
 
 - **2.27.0-dev.4** pubblicata: squash `2196fb38` del ramo `fix/dev3-collaudo` (eliminato), `chore(dev)` `a570b64b` col tag,

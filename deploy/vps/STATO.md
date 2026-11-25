@@ -173,7 +173,14 @@ resta 404: così un bundle che manca non torna come HTML con stato 200.
 (`10.89.0.x`): il limite di 20 richieste/s vale per tutti insieme finché non c'è l'indirizzo vero (seme «indirizzo vero
 dietro Traefik»). Si aggiorna con `scripts/manuale/pubblica.sh`.
 
-**Versione in esecuzione: `a570b64b-amd64` (2.27.0-dev.4)** dal 25-11-2026: le correzioni del collaudo della dev.3 sul
+**Versione in esecuzione: `17d41858-amd64` (2.27.0, release)** dal 25-11-2026, 21:15: la prima release dopo la 2.25.2,
+con il lavoro della 2.26 e della 2.27 e il cambio di canale dall'IDE. Sequenza solita da elitedesk: `diff` fra la copia
+maestra e la macchina (uguali), `podman pull`, copia `sws-gateway.container.prima-2.27.0`, `sed` del commit in `Image=` e
+`--gateway-immagine`, `daemon-reload`, `restart sws-gateway`. Verificato: gateway `healthy`, `SWS_VERSION` = 2.27.0,
+radice 200, `/health` «ok», nessun errore nel journal, `check_gateway_immagine` verde. Ripiego la dev.4
+(`a570b64b-amd64`). Tiny TY: `latest.txt` = 2.27.0 (sha256 `2cc653ad…`).
+
+Prima: **Versione in esecuzione: `a570b64b-amd64` (2.27.0-dev.4)** dal 25-11-2026: le correzioni del collaudo della dev.3 sul
 PLX800 (pagina del pannello ferma dopo «Elimina», faceplate stirati da «Cambia risoluzione», rinomina nel cloud). Sequenza
 solita, copia `sws-gateway.container.prima-dev4`; gateway `healthy`, `SWS_VERSION` = 2.27.0-dev.4, radice 200, `/health`
 «ok», `check_gateway_immagine` verde. Ripiego la dev.3 (`8a257875-amd64`). La build è partita da un worktree fermo sul

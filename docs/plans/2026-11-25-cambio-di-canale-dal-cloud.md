@@ -3,6 +3,11 @@
 > **Piano** (era un seme fino al 25-11-2026 sera). Il maintainer: «se implementi questa cosa ti autorizzo a rilasciare
 > una versione stabile che venga vista dal TC620 e lo porti alla 2.27.xxx, in questo momento ho solo dispositivi di
 > test tutti in mano mia»; e «"questa cosa" → switch per saltare da devel a stable con opportuni warning».
+>
+> **Stato (25-11-2026, 21:20)**: fatto. Squash `d077bc4c` in `main`; release **2.27.0** (tag su `17d41858`, build
+> `build_rc.sh --push` in 40 min sulle tre gambe; `latest-*`, `rc-*` e `dev-*` sulla 2.27.0); gateway del cloud sulla
+> 2.27.0; Tiny TY pubblicato; `main` alla 2.28.0-dev.0; `release/2.27` eliminato. Resta il collaudo del maintainer
+> (`docs/COLLAUDI_IN_SOSPESO.md`, sezione «Collaudo 2.27.0»). Dopo il collaudo il piano va in archivio.
 
 ## L'idea
 

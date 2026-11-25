@@ -27,6 +27,31 @@
 
 ---
 
+## Collaudo 2.27.0 (release del 25-11-2026) — il canale degli aggiornamenti dall'IDE
+
+La 2.27.0 sposta `latest-*`, `rc-*` e `dev-*`: tutti e tre i canali portano alla 2.27.0. Piano
+[`docs/plans/2026-11-25-cambio-di-canale-dal-cloud.md`](plans/2026-11-25-cambio-di-canale-dal-cloud.md). La 2.27.0
+contiene anche le correzioni della dev.4: le loro voci sono nel piano
+[`docs/plans/2026-11-25-correzioni-collaudo-dev3.md`](plans/2026-11-25-correzioni-collaudo-dev3.md), sezione «Verifica».
+
+1. [ ] **TC620** (2.26.0-rc.29, canale di prova), dall'IDE del cloud: «Aggiorna ora» propone la 2.27.0, con le 7 voci di
+       compatibilità in cima e le 15 Novità. Dopo il riavvio lo stato dice 2.27.0. Se fallisce: il tag `rc-arm64` non
+       è stato spostato (`scripts/registro.py tags`).
+2. [ ] **TC620** sulla 2.27.0: un deploy di CasaDomotica (TC620_Verticale) mostra le pagine Clima, Luci, Piano terra e
+       Piano superiore coi faceplate `fit`. Se fallisce: il runtime non legge `fit`.
+3. [ ] **TC620**: il menu «Canale» nella riga di «Aggiornamento del runtime» → Sviluppo → conferma con l'avviso rosso.
+       Il canale di sviluppo ha la stessa 2.27.0: il pannello non si riavvia, e la riga gialla dice che resta sulla
+       2.27.0 finché Sviluppo non ha una versione più alta. Alla prima 2.28.0-dev.N, «Aggiorna ora» fa il cambio.
+4. [ ] **PLX800** (2.27.0-dev.3, versione fissata): Canale → Stabile. La 2.27.0 è più alta: istantanea dei dati, poi il
+       pannello riparte in circa un minuto sulla 2.27.0, e lo stato dice «canale stabile». Sul pannello
+       `grep -E '^(Image|AutoUpdate)|SWS_IMAGE' ~/.config/containers/systemd/sws-runtime.container` mostra
+       `latest-arm64` e `AutoUpdate=registry`. Se il pannello torna sulla dev.3 da solo: l'installer ha visto la 2.27.0
+       non sana; il log è in `journalctl --user -u 'sws-quadlet-aggiorna-*'`.
+5. [ ] **PLX800** dopo la voce 4 (facoltativa, perde i dati scritti dopo il cambio): «Torna alla 2.27.0-dev.3» riporta
+       l'immagine fissata `2.27.0-dev.3-arm64` nel quadlet, non `latest-arm64`.
+6. [ ] Un pannello fissato con un canale in attesa: «Questa versione (fissata)» toglie la scelta, la riga gialla sparisce,
+       il pannello non si riavvia.
+
 ## Collaudo 2.27.0-dev.3 sul PLX800 (25-11-2026)
 
 PLX800 `user@plx800-a-p3-l2-a2-0891bc.local` reinstallato da ghcr con la `2.27.0-dev.3-arm64` (versione fissata), con
