@@ -22,6 +22,17 @@ export function prefissoGateway(percorso?: string): string {
   return m ? `/p/${m[1]}/${m[2]}` : "";
 }
 
+/** Where the IDE goes after the open project is renamed (25-11-2026, collaudo
+ *  of 2.27.0-dev.3): in the cloud the project lives at its address, and the
+ *  old one goes away with the old name (the gateway stops its container), so
+ *  the IDE goes to the new address, keeping the open tab. `null` outside the
+ *  cloud: there the IDE reads the project again where it is. */
+export function addressAfterRename(newName: string, pathname?: string, hash = ""): string | null {
+  const p = pathname ?? (typeof window !== "undefined" ? window.location.pathname : "");
+  const m = /^\/p\/([^/]+)\/([^/]+)(?:\/|$)/.exec(p);
+  return m ? `/p/${m[1]}/${encodeURIComponent(newName)}/${hash}` : null;
+}
+
 /** L'indirizzo di una finestra dell'IDE (`/index-chat.html`, `/index-log.html`)
  *  **dello stesso progetto**: nel cloud sotto `/p/<azienda>/<progetto>`.
  *

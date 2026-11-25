@@ -806,8 +806,17 @@ pub struct SynopticObject {
     pub faceplate_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub faceplate_params: Option<Value>,
+    /// How the content follows the instance box (25-11-2026): absent = its own
+    /// size (times `faceplate_zoom`); `"stretch"` = positions and sizes per
+    /// axis, fonts by the smaller factor; `"fit"` = one factor, the smaller,
+    /// centred. `true` (projects saved before 25-11-2026) reads as `"stretch"`.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub faceplate_scale: Option<bool>,
+    pub faceplate_scale: Option<Value>,
+    /// The content at its own size times this factor (25-11-2026). Written by
+    /// «Change resolution» with the page factor; absent = 1. Not used when
+    /// `faceplate_scale` is set.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub faceplate_zoom: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub faceplate_overrides: Option<Value>,
     // Text list (type === "text_list") — same pre-existing gap.

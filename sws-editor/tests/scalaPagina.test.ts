@@ -109,11 +109,31 @@ describe("scala fra risoluzioni", () => {
   });
 });
 
-describe("a scaled faceplate follows its box (24-11-2026)", () => {
-  it("sets faceplate_scale when the size changes, and not otherwise", () => {
-    const fp = { id: "f", type: "faceplate", x: 10, y: 10, width: 400, height: 200, faceplate_id: "t" } as never;
-    expect(scalaOggetto(fp, 0.5, (x, y) => ({ x, y })).faceplate_scale).toBe(true);
-    expect(scalaOggetto(fp, 1, (x, y) => ({ x, y })).faceplate_scale).toBeUndefined();
+describe("a scaled faceplate keeps its proportions (24-11 and 25-11-2026)", () => {
+  const punto = (x: number, y: number) => ({ x, y });
+
+  it("the content takes the page factor as a zoom, and the size changes alone do not stretch it", () => {
+    // The PLX800 (collaudo of 2.27.0-dev.3): a box 100×36 over a definition
+    // 144×36. With `faceplate_scale` the content followed the box, 0.94 × 1.35,
+    // and the text came out narrow; now it is 1.35 on both axes.
+    const fp = { id: "in0", type: "faceplate", x: 10, y: 10, width: 100, height: 36, faceplate_id: "punto" } as never;
+    const out = scalaOggetto(fp, 1.35, punto);
+    expect(out.faceplate_zoom).toBe(1.35);
+    expect(out.faceplate_scale).toBeUndefined();
+    expect(scalaOggetto(fp, 1, punto).faceplate_zoom).toBeUndefined();
+  });
+
+  it("two conversions multiply the zoom", () => {
+    const fp = { id: "f", type: "faceplate", x: 0, y: 0, width: 100, height: 36, faceplate_zoom: 0.625 } as never;
+    expect(scalaOggetto(fp, 1.6, punto).faceplate_zoom).toBe(1);
+  });
+
+  it("with faceplate_scale the box decides: no zoom", () => {
+    const fp = { id: "f", type: "faceplate", x: 0, y: 0, width: 100, height: 36, faceplate_scale: "fit" } as never;
+    const out = scalaOggetto(fp, 2, punto);
+    expect(out.faceplate_zoom).toBeUndefined();
+    expect(out.faceplate_scale).toBe("fit");
+    expect(out.width).toBe(200);
   });
 });
 

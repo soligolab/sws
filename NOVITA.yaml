@@ -69,6 +69,13 @@ versioni:
       - it: "Le installazioni native non hanno più admin/admin: partono col codice di abbinamento. Un admin/admin rimasto va cambiato al primo accesso."
         en: "Native installations no longer have admin/admin: they start with the pairing code. An admin/admin left over must be changed at the next login."
     voci:
+      # Collaudo della 2.27.0-dev.3 sul PLX800 (25-11-2026).
+      - it: "Dopo «Eliminare solo il progetto, restando nel cloud» la pagina del pannello si ricarica da sola, e i valori non restano fermi dopo un fermo o un deploy."
+        en: "After «Remove only the project, staying in the cloud» the panel page loads again by itself, and the values no longer stay frozen after a stop or a deploy."
+      - it: "«Cambia risoluzione» scala il contenuto dei faceplate col fattore della pagina: i testi non si allargano più. «Contenuto al riquadro» ha tre scelte."
+        en: "«Change resolution» scales the faceplate content by the page factor: texts no longer stretch. «Content to the box» has three choices."
+      - it: "Nel cloud, rinominare il progetto aperto porta al nuovo indirizzo invece di mostrare un progetto vuoto."
+        en: "In the cloud, renaming the open project goes to the new address instead of showing an empty project."
       - it: "L'albero delle variabili raggruppa anche per zona o apparato: la parte del nome prima del punto (window, shutter, host…)."
         en: "The variables tree also groups by area or device: the part of the name before the dot (window, shutter, host…)."
       - it: "Abbinando un pannello dal cloud si crea anche il suo Admin del dispositivo: il deploy dalla rete locale torna possibile."

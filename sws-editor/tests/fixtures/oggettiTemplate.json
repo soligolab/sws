@@ -464,8 +464,9 @@
        "x": 450.0,
        "y": 612.0,
        "width": 180.0,
-       "height": 110.0,
+       "height": 80.0,
        "faceplate_id": "riquadro_valore",
+       "faceplate_scale": "fit",
        "faceplate_params": {
         "etichetta": "{{t0063}}",
         "tag": "demo.sim.flow",
@@ -2378,8 +2379,9 @@
        "x": 450.0,
        "y": 612.0,
        "width": 180.0,
-       "height": 110.0,
+       "height": 80.0,
        "faceplate_id": "riquadro_valore",
+       "faceplate_scale": "fit",
        "faceplate_params": {
         "etichetta": "{{t0063}}",
         "tag": "demo.sim.flow",

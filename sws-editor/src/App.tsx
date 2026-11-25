@@ -726,6 +726,7 @@ export function App() {
   // sta alla radice del sito, che e' il gateway.
   const tornaAllaRadiceSeNelCloud = () => {
     if (!prefissoGateway()) return false;
+    useAppStore.getState().leavePage();
     window.location.assign("/");
     return true;
   };
@@ -874,7 +875,12 @@ export function App() {
   // WelcomeScreen in place) and are guarded by their own dialog.
   useEffect(() => {
     if (!isDirty) return;
-    const handler = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
+    const handler = (e: BeforeUnloadEvent) => {
+      // A navigation the user already confirmed (a rename in the cloud,
+      // closing in the cloud): no second question (`leavePage`, 25-11-2026).
+      if (useAppStore.getState().leavingPage) return;
+      e.preventDefault(); e.returnValue = "";
+    };
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
   }, [isDirty]);

@@ -37,6 +37,15 @@
 - **Fuori da SWS**: il monitor del PLX800 non gira l'immagine con la rotazione di PixsysOS.
 - **Da rimettere nel progetto del PLX800**: la sorgente `host` (13 metriche), aggiunta sul pannello il 23-11 e mai
   copiata nell'IDE; le tensioni in V (piano del template, punto 5).
+- **Ramo `fix/dev3-collaudo`** (piano [`docs/plans/2026-11-25-correzioni-collaudo-dev3.md`](docs/plans/2026-11-25-correzioni-collaudo-dev3.md)):
+  A (pagina del pannello ferma dopo «Elimina»: socket del viewer che non si arrendono, ricarica dopo il reset), B
+  (faceplate: `faceplate_zoom` nella conversione, `faceplate_scale` stretch/fit uguale su web e LVGL), C (rinomina nel
+  cloud), D (log del pannello abbinato senza utenti; due semi). Tutto verde: vitest 3057, cargo test 2252, check_static
+  58/58. **Revisione a più agenti fatta** (66 agenti, 13 rilievi distinti, poi un secondo revisore): corretti in
+  `ad2f17a8`; vitest 3058, cargo test 2253, check_static 58/58. **Prossimo**: la dev.4 (dal ramo o dopo lo squash, lo
+  decide il maintainer) e il collaudo sul PLX800. Da proporre al maintainer: correggere `faceplate_scale` nella copia
+  verticale di CasaDomotica e in `PLX800_Verticale`.
+- **Regola nuova in `CLAUDE.md`**: prima di ogni task, dire se conviene accendere o spegnere ultracode.
 - **L'IDE 8460 gira su `elitedesk`** (`start_editor_develop.sh`, log in `tmp/test-changes/2026-11-25/ide-8460.log`).
 
 ## ▶ Riprendere da qui — tutto in `main`, la 2.27.0-dev.3 sul cloud; da qui si lavora solo come dev (2026-11-24, `ufficio`)

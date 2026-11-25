@@ -4,8 +4,12 @@ import { useAppStore } from "@/store";
 import type { AlarmState } from "@/types";
 import { buildWsUrl } from "@/ws/wsUrl";
 import { socketCondiviso } from "@/ws/singletonWs";
+import { streamsKeptAlive } from "@/ws/streamPolicy";
 
-const socket = socketCondiviso(() => buildWsUrl("/ws/alarms", "VITE_ALARMS_WS_URL"));
+const socket = socketCondiviso(
+  () => buildWsUrl("/ws/alarms", "VITE_ALARMS_WS_URL"),
+  () => ({ persistent: streamsKeptAlive() }),
+);
 
 /** Il runtime ha risposto di nuovo dopo un fermo: il socket degli allarmi si
  *  riapre adesso, e lo stato si rilegge — un runtime ripartito li ha

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { percorsoFinestra, prefissoGateway, prefissoSchermo, progettoDalPercorso } from "@/api/prefisso";
+import { addressAfterRename, percorsoFinestra, prefissoGateway, prefissoSchermo, progettoDalPercorso } from "@/api/prefisso";
 import { pannelloDelTunnel } from "@/components/ViewerLink";
 
 describe("prefissoGateway", () => {
@@ -78,5 +78,21 @@ describe("percorsoFinestra", () => {
   });
   it("in locale resta alla radice", () => {
     expect(percorsoFinestra("/index-chat.html", "/index-admin.html")).toBe("/index-chat.html");
+  });
+});
+
+// The rename of the open project in the cloud (collaudo of 2.27.0-dev.3,
+// 25-11-2026): the IDE read the project again from the old address, which the
+// gateway had already closed, and showed a red error and an empty project.
+describe("addressAfterRename", () => {
+  it("in the cloud: the new address, same company, with the open tab", () => {
+    expect(addressAfterRename("PLX800_Verticale", "/p/-/PLX800/", "#config/runtime"))
+      .toBe("/p/-/PLX800_Verticale/#config/runtime");
+    expect(addressAfterRename("Casa due", "/p/pixsys/Casa/")).toBe("/p/pixsys/Casa%20due/");
+  });
+
+  it("outside the cloud: null, the IDE reads the project again where it is", () => {
+    expect(addressAfterRename("Nuovo", "/")).toBeNull();
+    expect(addressAfterRename("Nuovo", "/schermo/tc620-garage/")).toBeNull();
   });
 });

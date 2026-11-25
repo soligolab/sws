@@ -548,7 +548,11 @@ pub struct SynopticObject {
     pub datalog_page_size: Option<f64>,
 
     // ── Faceplate ──
-    pub faceplate_scale: Option<bool>,
+    /// `true` or `"stretch"`, `"fit"`, absent (25-11-2026): see
+    /// `scala_del_faceplate` in `lvgl_render.rs`.
+    pub faceplate_scale: Option<serde_json::Value>,
+    /// The content at its own size times this factor (25-11-2026).
+    pub faceplate_zoom: Option<f64>,
     pub faceplate_overrides: Option<serde_json::Value>,
 
     // ── Animazione di movimento ──

@@ -12,6 +12,7 @@ import { corniceDellaPagina, eCornice, idCornice, oggettiComposti, oggettoSfondo
 import { CampoSfondoArea } from "@/editor/CampoSfondoArea";
 import { espandiAlGruppo, gruppoIntero } from "@/editor/gruppiSelezione";
 import { useTranslation } from "react-i18next";
+import i18n from "i18next";
 import { api } from "@/api/client";
 import { QDOT_BUILTIN_TYPES, SvgCanvas, faceplateDefBBox, normalizeFaceplateParams, substituteFaceplateParams, type CanvasViewApi } from "@/canvas/SvgCanvas";
 import { PALETTE } from "@/canvas/TrendCanvas";
@@ -6002,10 +6003,22 @@ export function ObjectProps({
               })}
             </>
           )}
-          {/* F6.4: scaling dei figli al box dell'istanza (opt-in) */}
+          {/* F6.4: how the content follows the instance box. Three values
+              since 25-11-2026 (collaudo of 2.27.0-dev.3: stretching deformed
+              the texts); `true` of the older projects shows as «stretch». */}
           {defn && field(t("props.faceplateScale"),
-            <input type="checkbox" checked={!!obj.faceplate_scale}
-              onChange={(e) => onChange({ faceplate_scale: e.target.checked || undefined })} />
+            <select style={INPUT} data-testid="faceplate-scale"
+              value={obj.faceplate_scale === true ? "stretch" : (obj.faceplate_scale || "")}
+              onChange={(e) => onChange({ faceplate_scale: (e.target.value || undefined) as SynopticObject["faceplate_scale"] })}>
+              {/* With a zoom from «Change resolution» the content is not at its
+                  own size: the option says by how much (review of 25-11-2026). */}
+              <option value="">{typeof obj.faceplate_zoom === "number" && Number.isFinite(obj.faceplate_zoom)
+                && obj.faceplate_zoom > 0 && obj.faceplate_zoom !== 1
+                ? t("props.faceplateScaleNoneZoom", { zoom: Number(obj.faceplate_zoom.toFixed(3)).toLocaleString(i18n.language) })
+                : t("props.faceplateScaleNone")}</option>
+              <option value="stretch">{t("props.faceplateScaleStretch")}</option>
+              <option value="fit">{t("props.faceplateScaleFit")}</option>
+            </select>
           )}
         </>
       );

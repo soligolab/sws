@@ -17380,23 +17380,75 @@ fn riquadro_definizione(defn: &crate::model::FaceplateDef) -> (f64, f64) {
     (w.max(1.0), h.max(1.0))
 }
 
-/// `faceplate_scale` (decisione del maintainer, 11-11-2026): i fattori fra il
-/// riquadro dell'istanza e quello della definizione, se la scala è accesa e
-/// l'istanza ha una misura. Il web scala con una trasformazione SVG; qui si
-/// moltiplicano posizioni, misure e corpi, senza costo a runtime.
+/// How a faceplate's children are scaled and moved: per axis, then shifted
+/// (25-11-2026, collaudo of 2.27.0-dev.3).
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct FaceplateFactors {
+    sx: f64,
+    sy: f64,
+    dx: f64,
+    dy: f64,
+}
+
+/// `faceplate_scale` and `faceplate_zoom` (11-11-2026, three values since
+/// 25-11-2026; twin of `faceplateLayout` in `sws-editor/src/canvas/
+/// faceplateLayout.ts`: who changes one changes the other):
+/// - `true` or `"stretch"`: the factors between the instance box and the
+///   definition box, per axis;
+/// - `"fit"`: the smaller of the two on both axes, centred in the box;
+/// - absent: `faceplate_zoom` on both axes, if it is not 1.
+///
+/// Positions, sizes and fonts are multiplied, without a cost at run time.
 fn scala_del_faceplate(
     obj: &SynopticObject,
     defn: &crate::model::FaceplateDef,
-) -> Option<(f64, f64)> {
-    if obj.faceplate_scale != Some(true) {
-        return None;
+) -> Option<FaceplateFactors> {
+    let mode = match &obj.faceplate_scale {
+        Some(serde_json::Value::Bool(true)) => Some("stretch"),
+        Some(serde_json::Value::String(m)) if m == "stretch" || m == "fit" => Some(m.as_str()),
+        _ => None,
+    };
+    match mode {
+        Some(mode) => {
+            let (dw, dh) = riquadro_definizione(defn);
+            // The web's size for an instance without one (`SvgCanvas.tsx`).
+            let (w, h) = (obj.width.unwrap_or(120.0), obj.height.unwrap_or(80.0));
+            let (sx, sy) = (w / dw, h / dh);
+            if mode == "fit" {
+                let s = sx.min(sy);
+                Some(FaceplateFactors {
+                    sx: s,
+                    sy: s,
+                    dx: (w - dw * s) / 2.0,
+                    dy: (h - dh * s) / 2.0,
+                })
+            } else {
+                Some(FaceplateFactors {
+                    sx,
+                    sy,
+                    dx: 0.0,
+                    dy: 0.0,
+                })
+            }
+        }
+        None => {
+            let z = obj.faceplate_zoom.filter(|z| *z > 0.0 && *z != 1.0)?;
+            Some(FaceplateFactors {
+                sx: z,
+                sy: z,
+                dx: 0.0,
+                dy: 0.0,
+            })
+        }
     }
-    let (dw, dh) = riquadro_definizione(defn);
-    Some((obj.width? / dw, obj.height? / dh))
 }
 
 /// Un figlio scalato: posizione e misura per asse, i corpi col fattore minore
 /// (un testo non si deforma, e così non esce dal riquadro).
+///
+/// The ends of a line, the points of a polyline or pipe and the motion path
+/// follow the axes too (review of 25-11-2026): twin of `stretchChild` in
+/// `sws-editor/src/canvas/faceplateLayout.ts`.
 fn scala_figlio(c: &mut SynopticObject, sx: f64, sy: f64) {
     let corpo = sx.min(sy);
     c.x = c.x.map(|v| v * sx);
@@ -17409,6 +17461,60 @@ fn scala_figlio(c: &mut SynopticObject, sx: f64, sy: f64) {
         &mut c.unit_font_size,
     ] {
         *f = f.map(|v| v * corpo);
+    }
+    map_child_points(c, |x, y| (x * sx, y * sy));
+}
+
+/// Moves a faceplate child by `(dx, dy)`: its box, the ends of a line, the
+/// points of a polyline or pipe and its motion path. In a faceplate definition
+/// they are all relative to the definition's corner; on the panel they are
+/// page coordinates. Before 25-11-2026 only `x` and `y` moved, so a line or a
+/// polyline in a faceplate was drawn near the page corner.
+fn shift_child(c: &mut SynopticObject, dx: f64, dy: f64) {
+    c.x = Some(c.x.unwrap_or(0.0) + dx);
+    c.y = Some(c.y.unwrap_or(0.0) + dy);
+    map_child_points(c, |x, y| (x + dx, y + dy));
+}
+
+/// Applies `f` to `x2`/`y2`, to `points` and to `motion_path` (pairs
+/// `[x, y]` or objects `{x, y}`, as `punti_movimento` reads them).
+fn map_child_points(c: &mut SynopticObject, f: impl Fn(f64, f64) -> (f64, f64)) {
+    if c.x2.is_some() || c.y2.is_some() {
+        let (x2, y2) = f(c.x2.unwrap_or(0.0), c.y2.unwrap_or(0.0));
+        if c.x2.is_some() {
+            c.x2 = Some(x2);
+        }
+        if c.y2.is_some() {
+            c.y2 = Some(y2);
+        }
+    }
+    if let Some(points) = c.points.as_mut() {
+        for p in points.iter_mut() {
+            (p.x, p.y) = f(p.x, p.y);
+        }
+    }
+    if let Some(serde_json::Value::Array(path)) = c.motion_path.as_mut() {
+        for p in path.iter_mut() {
+            match p {
+                serde_json::Value::Array(pair) if pair.len() >= 2 => {
+                    if let (Some(x), Some(y)) = (pair[0].as_f64(), pair[1].as_f64()) {
+                        let (nx, ny) = f(x, y);
+                        pair[0] = serde_json::json!(nx);
+                        pair[1] = serde_json::json!(ny);
+                    }
+                }
+                serde_json::Value::Object(o) => {
+                    let x = o.get("x").and_then(|v| v.as_f64());
+                    let y = o.get("y").and_then(|v| v.as_f64());
+                    if let (Some(x), Some(y)) = (x, y) {
+                        let (nx, ny) = f(x, y);
+                        o.insert("x".into(), serde_json::json!(nx));
+                        o.insert("y".into(), serde_json::json!(ny));
+                    }
+                }
+                _ => {}
+            }
+        }
     }
 }
 
@@ -17487,11 +17593,13 @@ fn render_faceplate(
         if !SUPPORTED_TYPES.contains(&child_type.as_str()) || child_type == "faceplate" {
             continue;
         }
-        if let Some((sx, sy)) = scala {
-            scala_figlio(&mut child, sx, sy);
+        let (mut dx, mut dy) = (origin_x, origin_y);
+        if let Some(f) = scala {
+            scala_figlio(&mut child, f.sx, f.sy);
+            dx += f.dx;
+            dy += f.dy;
         }
-        child.x = Some(origin_x + child.x.unwrap_or(0.0));
-        child.y = Some(origin_y + child.y.unwrap_or(0.0));
+        shift_child(&mut child, dx, dy);
         let lucchetto = LUCCHETTI.with(|l| {
             l.borrow()
                 .as_ref()
@@ -21166,10 +21274,10 @@ mod binding_tests {
             "id":"f","type":"faceplate","x":0,"y":0,"width":200,"height":150,"faceplate_scale":true
         }))
         .unwrap();
-        let (sx, sy) = scala_del_faceplate(&istanza, &defn).unwrap();
-        assert_eq!((sx, sy), (2.0, 3.0));
+        let f = scala_del_faceplate(&istanza, &defn).unwrap();
+        assert_eq!((f.sx, f.sy, f.dx, f.dy), (2.0, 3.0, 0.0, 0.0));
         let mut c: SynopticObject = serde_json::from_value(defn.objects[0].clone()).unwrap();
-        scala_figlio(&mut c, sx, sy);
+        scala_figlio(&mut c, f.sx, f.sy);
         assert_eq!(
             (c.x, c.y, c.width, c.height),
             (Some(20.0), Some(60.0), Some(180.0), Some(90.0))
@@ -21180,6 +21288,89 @@ mod binding_tests {
         }))
         .unwrap();
         assert!(scala_del_faceplate(&senza, &defn).is_none());
+    }
+
+    #[test]
+    fn faceplate_children_move_their_line_ends_points_and_motion_path() {
+        // Review of 25-11-2026: a line or a polyline in a faceplate kept its
+        // definition coordinates, so it was drawn near the page corner and did
+        // not follow the stretch.
+        let mut line: SynopticObject = serde_json::from_value(serde_json::json!({
+            "id":"l","type":"line","x":0,"y":25,"x2":100,"y2":25
+        }))
+        .unwrap();
+        scala_figlio(&mut line, 2.0, 3.0);
+        shift_child(&mut line, 400.0, 300.0);
+        assert_eq!(
+            (line.x, line.y, line.x2, line.y2),
+            (Some(400.0), Some(375.0), Some(600.0), Some(375.0))
+        );
+        let mut pipe: SynopticObject = serde_json::from_value(serde_json::json!({
+            "id":"p","type":"pipe","points":[{"x":10,"y":10},{"x":50,"y":10}],
+            "motion_path":[[0,5],{"x":10,"y":0}]
+        }))
+        .unwrap();
+        shift_child(&mut pipe, 100.0, 200.0);
+        let pts: Vec<(f64, f64)> = pipe
+            .points
+            .as_ref()
+            .unwrap()
+            .iter()
+            .map(|p| (p.x, p.y))
+            .collect();
+        assert_eq!(pts, vec![(110.0, 210.0), (150.0, 210.0)]);
+        assert_eq!(
+            punti_movimento(pipe.motion_path.as_ref().unwrap()),
+            vec![(100.0, 205.0), (110.0, 200.0)]
+        );
+    }
+
+    #[test]
+    fn faceplate_scale_has_three_modes_and_the_zoom() {
+        // Collaudo of 2.27.0-dev.3 (25-11-2026): the same numbers as
+        // `tests/faceplateLayout.test.ts` of the web.
+        let defn: crate::model::FaceplateDef = serde_json::from_value(serde_json::json!({
+            "width": 100, "height": 50, "objects": []
+        }))
+        .unwrap();
+        let istanza = |extra: serde_json::Value| -> SynopticObject {
+            let mut v = serde_json::json!({"id":"f","type":"faceplate","x":0,"y":0,"width":200,"height":150});
+            v.as_object_mut()
+                .unwrap()
+                .extend(extra.as_object().unwrap().clone());
+            serde_json::from_value(v).unwrap()
+        };
+        let stretch = scala_del_faceplate(
+            &istanza(serde_json::json!({"faceplate_scale":"stretch"})),
+            &defn,
+        )
+        .unwrap();
+        assert_eq!((stretch.sx, stretch.sy), (2.0, 3.0));
+        let fit = scala_del_faceplate(
+            &istanza(serde_json::json!({"faceplate_scale":"fit"})),
+            &defn,
+        )
+        .unwrap();
+        assert_eq!((fit.sx, fit.sy, fit.dx, fit.dy), (2.0, 2.0, 0.0, 25.0));
+        let zoom = scala_del_faceplate(&istanza(serde_json::json!({"faceplate_zoom":1.35})), &defn)
+            .unwrap();
+        assert_eq!((zoom.sx, zoom.sy, zoom.dx, zoom.dy), (1.35, 1.35, 0.0, 0.0));
+        // With a fit the zoom is not used: the box decides.
+        let both = scala_del_faceplate(
+            &istanza(serde_json::json!({"faceplate_scale":"fit","faceplate_zoom":1.35})),
+            &defn,
+        )
+        .unwrap();
+        assert_eq!(both, fit);
+        assert!(
+            scala_del_faceplate(&istanza(serde_json::json!({"faceplate_zoom":1.0})), &defn)
+                .is_none()
+        );
+        assert!(scala_del_faceplate(
+            &istanza(serde_json::json!({"faceplate_scale":false})),
+            &defn
+        )
+        .is_none());
     }
 
     #[test]

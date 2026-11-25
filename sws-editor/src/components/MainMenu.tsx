@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, dimenticaVersioneProgetto } from "@/api/client";
-import { prefissoGateway, progettoDalPercorso } from "@/api/prefisso";
+import { addressAfterRename, prefissoGateway, progettoDalPercorso } from "@/api/prefisso";
 import { canConfigureProject } from "@/auth/permissions";
 import { DROP_ITEM, DROP_PANEL, DROP_SEP, HDR_BTN, useOutsideClose } from "@/components/headerStyles";
 import { chiedi, conferma } from "@/finestraAvviso/finestraAvviso";
@@ -150,7 +150,9 @@ export function MainMenu({
       const rifNuovo = `${azienda}/${nuovo}`;
       if (prefissoGateway()) {
         // Nel cloud ogni progetto e' un container suo: aprirlo e' andarci.
-        window.location.assign(`/p/${rifNuovo}/`);
+        // Each part encoded: a '#' or a '?' in the name cut the address
+        // (review of 25-11-2026).
+        window.location.assign(`/p/${rifNuovo.split("/").map(encodeURIComponent).join("/")}/`);
         return;
       }
       await api.openProject(rifNuovo);
@@ -166,6 +168,10 @@ export function MainMenu({
 
   const handleRename = async () => {
     const currentName = project?.meta.name ?? "";
+    // In the cloud the rename moves the project to a new address and the IDE
+    // opens it from the disk: unsaved changes are lost. Ask first, as «Save
+    // as» does (review of 25-11-2026: the browser asked only after the rename).
+    if (prefissoGateway() && dirty && !(await conferma({ testo: t("menu.renameUnsaved"), pericolo: true }))) return;
     const newName = (await chiedi({ testo: t("menu.renamePrompt"), iniziale: currentName, ok: t("editor.rename") }))?.trim();
     if (!newName || newName === currentName) return;
     setRenaming(true); setIoStat(null);
@@ -176,6 +182,17 @@ export function MainMenu({
       // segnalato dal maintainer il 07-10-2026, entrato come utente pixsys.
       const rif = await indirizzoDelProgettoAperto(currentName);
       await api.renameProject(rif, newName);
+      // In the cloud the old address is gone with the old name: reading the
+      // project again from it gave a red error and an empty project (collaudo
+      // of 2.27.0-dev.3, 25-11-2026). The IDE goes to the new address, as
+      // «Save as» does.
+      const nuovoIndirizzo = addressAfterRename(newName, undefined, window.location.hash);
+      if (nuovoIndirizzo) {
+        // The user already said yes above: no «Leave site?» from the browser.
+        useAppStore.getState().leavePage();
+        window.location.assign(nuovoIndirizzo);
+        return;
+      }
       // Q30 — si **rilegge** invece di correggere `meta.name` in memoria.
       //
       // Rinominare riscrive `project.yaml` sul server (`patch_project_name`

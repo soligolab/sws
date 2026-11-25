@@ -1517,20 +1517,30 @@ async fn main() -> anyhow::Result<()> {
     // non lascia entrare nessuno, e questa riga è il primo posto in cui chi lo
     // ha appena installato lo trova (`journalctl`, `podman logs`, l'installer).
     let access = sws_web::router::fonte_auth_corrente(&app_state).await;
+    // The cloud message only when the tunnel really starts: a paired panel
+    // installed again `--senza-cloud` keeps its pairing file but calls
+    // nobody, and there the code is the only way in (review of 25-11-2026).
+    let tunnel_configured = args.tunnel.as_deref().is_some_and(|u| !u.trim().is_empty());
     if access == sws_web::router::FonteAutenticazione::InAttesa {
-        if let Some(c) = app_state.abbinamento.codice() {
+        if tunnel_configured && app_state.abbinamento.tunnel().is_some() {
+            // Paired from the cloud, no project with users yet (rc.30: the
+            // PLX800 said only «no-auth mode (all routes open)», which was false).
+            // This comes first: the pairing file always keeps a code (one use,
+            // then a new one), and after «delete only the project» the log said
+            // «waiting for pairing» with that code on a paired panel (collaudo
+            // of 2.27.0-dev.3, 25-11-2026). The status page does not show it
+            // either; whether it still opens a local pairing is a seed
+            // (docs/plans/semi/2026-11-25-codice-di-abbinamento-col-cloud-senza-utenti.md).
+            warn!(
+                "paired to the cloud and without users: closed on the local network, \
+                 open to the cloud gateway until a project brings its users"
+            );
+        } else if let Some(c) = app_state.abbinamento.codice() {
             warn!(
                 codice = %c,
                 "pannello in attesa di abbinamento: nessun utente, non entra nessuno. \
                  Codice di abbinamento: {c} — inseriscilo nell'IDE («Connetti») o nella pagina \
                  di questo pannello per creare l'amministratore"
-            );
-        } else if app_state.abbinamento.tunnel().is_some() {
-            // Paired from the cloud, no project with users yet (rc.30: the
-            // PLX800 said only «no-auth mode (all routes open)», which was false).
-            warn!(
-                "paired to the cloud and without users: closed on the local network, \
-                 open to the cloud gateway until a project brings its users"
             );
         }
     } else {

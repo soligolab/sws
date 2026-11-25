@@ -117,6 +117,28 @@ Si misura nello stesso ramo. Una correzione piccola e ovvia entra; il resto va i
 2. **Tre conferme di fila in un deploy** (utenti, cancellazione, rotazione), la prima con un altro stile.
 3. **Due login falliti dal cloud** dopo un deploy che sostituisce gli utenti, poi il 429.
 
+## Stato (25-11-2026)
+
+- **A, B e C fatte** sul ramo `fix/dev3-collaudo` (`e43f96e2`, `fa672528`, `65a8fbb4`).
+- **D**: il log all'avvio è corretto (il messaggio del cloud prima, niente codice stampato). Il resto è in due semi:
+  [il codice di abbinamento col cloud senza utenti](semi/2026-11-25-codice-di-abbinamento-col-cloud-senza-utenti.md) e
+  [le conferme del deploy e il login dopo gli utenti](semi/2026-11-25-deploy-conferme-e-login-dopo-gli-utenti.md).
+- **Revisione a più agenti** (25-11-2026, 66 agenti, verifica avversaria a tre voti): 19 rilievi confermati su 20,
+  13 distinti dopo i doppioni. Corretti nel ramo: la ricarica dopo il reset annullata dal 401 della sessione; lo
+  stiramento che lasciava fermi `x2`/`y2`, `points` e `motion_path`; su LVGL linee e polilinee del faceplate non
+  spostate dall'istanza (preesistente); lo zoom detto nel menu; la misura 120×80 di LVGL senza riquadro; il log col
+  tunnel configurato davvero; la voce di NOVITA col nome esatto del comando; la rinomina nel cloud con modifiche non
+  salvate; il nome codificato in «Salva come» e nella schermata iniziale; `/health` col prefisso dello schermo remoto.
+  Restano annotati: `faceplate_scale` senza un controllo dei valori; il test della parte C che prova la funzione e non
+  il menu; fit e zoom su LVGL che non scalano tratti e raggi (preesistente). Il pannello di controllo dallo schermo
+  remoto è un seme: [pannello di controllo dallo schermo remoto](semi/2026-11-25-pannello-di-controllo-dallo-schermo-remoto.md).
+- **Verifica fatta**: vitest 3057/3057, cargo test 2252/0, `pnpm build`, lint, type-check, fmt, clippy come la CI,
+  `check_static.sh` 58/58. Da fare: la revisione a più agenti, la dev.4, il collaudo sul PLX800.
+- **Compatibilità da proporre al maintainer**: la copia verticale di CasaDomotica e `PLX800_Verticale` hanno il
+  `faceplate_scale: true` della conversione del 24-25-11. Con la correzione il testo non si deforma più, ma il
+  contenuto segue ancora il riquadro per asse; la correzione dei due progetti (zoom al posto della scala) aspetta il
+  suo sì.
+
 ## Verifica
 
 1. `cargo check`, `cargo test`, `pnpm build`, `pnpm exec vitest run`, `./scripts/check_static.sh`, più fmt, clippy e

@@ -14,6 +14,31 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 Il lavoro della **2.27.0** (versioni `2.27.0-dev.N`). Dal 22-11-2026 `main` porta la release successiva, e la 2.26.0
 si stabilizza su `release/2.26` (piano `docs/plans/2026-11-22-dev-rc-release-e-portale-di-sviluppo.md`).
 
+### Corretto — le anomalie del collaudo della 2.27.0-dev.3 sul PLX800 (25-11-2026, ramo `fix/dev3-collaudo`)
+Piano `docs/plans/2026-11-25-correzioni-collaudo-dev3.md`.
+- **La pagina del pannello restava ferma dopo «Elimina solo il progetto».** Il runtime rifiutava i socket per due
+  minuti, il socket dei tag si arrendeva dopo sei tentativi, e il deploy successivo ricaricava le pagine ma non i
+  valori. Nel viewer i socket di tag e allarmi non si arrendono più (`ws/streamPolicy.ts`); a ogni cambio di progetto
+  si riaprono; dopo un reset il pannello di controllo ricarica la pagina quando `/health` risponde
+  (`control-panel/reloadWhenBack.ts`). La ricarica parte dal reset e non si annulla quando il pannello torna al PIN;
+  sullo schermo remoto del cloud `/health` passa dal prefisso `/schermo/<pannello>`.
+- **«Cambia risoluzione» stirava il contenuto dei faceplate.** La correzione del 24-11 metteva `faceplate_scale`, e il
+  contenuto seguiva un riquadro con proporzioni diverse dalla definizione: testi allargati o schiacciati. Ora la
+  conversione scrive `faceplate_zoom` (il fattore della pagina). `faceplate_scale` ha tre valori: assente,
+  `"stretch"` (anche il `true` dei progetti salvati) e `"fit"`. Stirando, web e LVGL fanno la stessa cosa: posizioni
+  e misure per asse, caratteri col fattore minore, e anche i capi delle linee, i punti di polilinee e tubi e il
+  percorso di movimento (`canvas/faceplateLayout.ts`, `scala_del_faceplate`). Sul pannello LVGL linee e polilinee
+  dentro un faceplate ora si spostano con l'istanza: prima restavano vicino all'angolo della pagina. Con uno zoom il
+  menu lo dice («No: alla sua misura × 1,35»).
+- **La rinomina nel cloud del progetto aperto** rileggeva dal vecchio indirizzo `/p/<azienda>/<nome>/`, già chiuso dal
+  gateway: errore rosso e progetto vuoto. Ora l'IDE va al nuovo indirizzo, come «Salva come», e prima chiede se ci
+  sono modifiche non salvate. «Salva come» e l'apertura dalla schermata iniziale codificano il nome nell'indirizzo.
+- **Il log all'avvio di un pannello abbinato al cloud e senza utenti** (dopo «Eliminare solo il progetto») diceva «in
+  attesa di abbinamento» e stampava un codice valido. Ora, se il tunnel è configurato, dice che è abbinato al cloud e
+  il codice non si stampa. Se
+  quel codice debba ancora aprire un abbinamento dalla rete locale è un seme
+  (`docs/plans/semi/2026-11-25-codice-di-abbinamento-col-cloud-senza-utenti.md`).
+
 ### Corretto — «Cambia risoluzione» rimpicciolisce anche il contenuto dei faceplate (24-11-2026, ramo `fix/rc30-leftovers`)
 - Un faceplate disegna il suo contenuto alla sua misura se `faceplate_scale` non dice di seguire il riquadro: scalato,
   il riquadro diventava più piccolo e il contenuto no, e le istanze vicine si sovrapponevano. `scalaOggetto` ora mette

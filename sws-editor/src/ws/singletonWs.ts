@@ -25,7 +25,12 @@ export interface SocketCondiviso {
   riprova(): void;
 }
 
-export function socketCondiviso(costruisciUrl: () => string): SocketCondiviso {
+/** `options` is read each time a socket is created, not once: the viewer
+ *  decides at start (`ws/streamPolicy.ts`), after the modules are loaded. */
+export function socketCondiviso(
+  costruisciUrl: () => string,
+  options: () => { persistent?: boolean } = () => ({}),
+): SocketCondiviso {
   let rws: ReconnectingWs | null = null;
   let chiave: string | null = null;
 
@@ -38,7 +43,7 @@ export function socketCondiviso(costruisciUrl: () => string): SocketCondiviso {
       }
       if (!rws) {
         chiave = k;
-        rws = new ReconnectingWs(costruisciUrl);
+        rws = new ReconnectingWs(costruisciUrl, undefined, options());
       }
       return rws;
     },

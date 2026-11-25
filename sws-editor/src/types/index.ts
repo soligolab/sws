@@ -789,9 +789,17 @@ export interface SynopticObject {
   faceplate_id?: string;
   /** Parameter values substituted into the faceplate template (e.g. {tag_prefix: "pump1"}). */
   faceplate_params?: Record<string, string>;
-  /** F6.4: i figli scalano al box dell'istanza (viewBox virtuale dal bbox
-   *  della definizione). Opt-in: default false = coordinate assolute storiche. */
-  faceplate_scale?: boolean;
+  /** How the content follows the instance box (F6.4; three values since
+   *  25-11-2026). Absent: the content keeps its own size (times
+   *  `faceplate_zoom`). `"stretch"`: positions and sizes per axis, fonts by the
+   *  smaller factor, so a text does not deform. `"fit"`: one factor, the
+   *  smaller of the two, centred in the box. `true` is read as `"stretch"`:
+   *  projects saved before 25-11-2026 have it. */
+  faceplate_scale?: boolean | "stretch" | "fit";
+  /** The content drawn at its own size times this factor (25-11-2026). Written
+   *  by «Change resolution» with the page factor; absent = 1. Not used when
+   *  `faceplate_scale` is set: then the box decides. */
+  faceplate_zoom?: number;
   /** F6.4: override per-istanza di proprietà dei figli, per id figlio
    *  (es. { "obj-3": { fill: "#f00" } }) — applicati DOPO la sostituzione
    *  parametri ("link spezzato" rispetto al template). */

@@ -1,9 +1,17 @@
 /** The device control panel on the web viewer (plan
  *  docs/archive/2026-11-13-pannello-di-controllo.md, phase 2): PIN, network
  *  change with its confirmation, the corner gesture, the boot button. */
-import { render, screen, fireEvent, act } from "@testing-library/react";
+import { render, screen, fireEvent, act, waitFor } from "@testing-library/react";
 import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 import "../src/i18n/index";
+
+// After a reset the page loads again when the runtime answers (25-11-2026):
+// here only that the panel asks for it; the wait is in viewerStreamsRecover.
+const reload = vi.hoisted(() => {
+  const cancel = vi.fn();
+  return { cancel, whenBack: vi.fn(() => cancel) };
+});
+vi.mock("../src/control-panel/reloadWhenBack", () => ({ reloadWhenBack: reload.whenBack }));
 import { ControlPanel } from "../src/control-panel/ControlPanel";
 import { ControlPanelLauncher, BOOT_BUTTON_MS, openControlPanel } from "../src/control-panel/ControlPanelLauncher";
 import { GRACE_MS, HOLD_MS, holdComplete, holdProgress, inCorner, startHold, stillHolding } from "../src/control-panel/cornerHold";
@@ -148,11 +156,13 @@ describe("ControlPanel", () => {
   });
 
   it("a panel paired to the cloud can remove only the project and keep the pairing", async () => {
+    reload.whenBack.mockClear();
+    reload.cancel.mockClear();
     const calls = fakeRuntime({
       "GET /api/control-panel/info": () => reply(200, { model: "TY570-1AD-P1", serial: "P1", hostname: "ty570-1ad-p1-06e990", sws_version: "2.26.0", initial_pin: "06e990", cloud: "tunnel.soligo.net" }),
       "POST /api/control-panel/reset": () => reply(202),
     });
-    render(<ControlPanel onClose={() => {}} />);
+    const { unmount } = render(<ControlPanel onClose={() => {}} />);
     await typePin("06e990");
     await screen.findByTestId("card-eth0");
     fireEvent.click(screen.getByTestId("control-panel-section-device"));
@@ -162,6 +172,15 @@ describe("ControlPanel", () => {
     expect(await screen.findByText(/ancora abbinato al cloud|still paired to the cloud/)).toBeTruthy();
     const sent = calls.filter((c) => c.path === "/api/control-panel/reset");
     expect(sent.map((c) => c.body)).toEqual([JSON.stringify({ pin: "06e990", keep_cloud: true })]);
+    // Collaudo of 2.27.0-dev.3 (25-11-2026): the page under the panel stayed
+    // frozen after this reset; now it loads again when the runtime answers.
+    // The request comes after the reset's answer: wait for it.
+    await waitFor(() => expect(reload.whenBack).toHaveBeenCalledTimes(1));
+    // The restarted runtime answers 401 to the old session, and the panel goes
+    // back to the PIN keypad: the reload must survive the panel going away
+    // (review of 25-11-2026).
+    unmount();
+    expect(reload.cancel).not.toHaveBeenCalled();
   });
 
   it("away from the device's screen, without a project PIN, it says to set one (CRA D13, 18-11-2026)", async () => {

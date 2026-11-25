@@ -86,7 +86,7 @@ solo con una chiave già autorizzata. Questo ha una conseguenza che morde al mom
 password non c'è.
 
 Quindi la chiave di una macchina nuova si aggiunge **da una macchina che entra già**, prima di
-averne bisogno. Chi autorizza (al 20-11-2026):
+averne bisogno. Chi autorizza (al 25-11-2026):
 
 ```sh
 ssh debian@37.187.181.142 'ssh-keygen -lf ~/.ssh/authorized_keys'
@@ -94,6 +94,7 @@ ssh debian@37.187.181.142 'ssh-keygen -lf ~/.ssh/authorized_keys'
 #   ut1@windows per sws-vps              → la macchina Windows del maintainer
 #   max_xxv@ufficio (casa) per sws-vps   → il PC di casa (host `ufficio`), dal 10-10-2026
 #   mauro@soligo.net                     → elitedesk (`id_ed25519_soligonet_sws`, alias `sws-vps`), dal 20-11-2026
+#   ut1@ut1-HP-EliteBook-850-G6 per sws-vps → il portatile (`id_ed25519_sws_vps`, alias `sws-vps`), dal 25-11-2026
 ```
 
 **L'impronta del server**, da confrontare la prima volta che una macchina si collega (non accettarla alla

@@ -48,6 +48,8 @@ export const CAMPI_POSIZIONE = ["x", "y", "x2", "y2", "points", "motion_path", "
 export const CAMPI_FISSI = [
   "alarm_bell_sound_repeat_s", "alarm_high", "alarm_low", "bg_image_opacity", "slider_track_opacity", "slider_tick_major", "slider_tick_minor", "slider_origin", "slider_rest_value", "alarm_shelve_minutes", "alarm_viewer_max_rows",
   "bar_gap", "bar_ticks", "blink_fade_depth", "blink_rate_ms", "brightness", "datalog_page_size", "decimals",
+  // `faceplate_zoom` is a factor: `scalaOggetto` multiplies it on its own.
+  "faceplate_zoom",
   "fill_level", "fill_level_min", "fill_level_max", "gauge_end_angle", "gauge_start_angle", "gauge_ticks", "grid_cols", "grid_rows", "line_height",
   "marker_size", "max", "min", "motion_max", "motion_min", "opacity", "pan_step_s", "pie_group_below_pct",
   "pie_inner_ratio", "rotation", "sides", "spark_fill_opacity", "spark_window_s", "stale_after_s", "star_inner",
@@ -112,8 +114,14 @@ export function scalaOggetto(
   const out = scalaMisure(obj, f);
   // A faceplate draws its content at its own size unless `faceplate_scale`
   // says to follow the box: scaled without it, the box shrank and the content
-  // did not (24-11-2026, the portrait copy of CasaDomotica).
-  if (obj.type === "faceplate" && f !== 1) out.faceplate_scale = true;
+  // did not (24-11-2026, the portrait copy of CasaDomotica). The content takes
+  // the page factor as `faceplate_zoom`, not `faceplate_scale`: following a
+  // box with other proportions than the definition stretched the texts
+  // (25-11-2026, collaudo of 2.27.0-dev.3 on the PLX800). With
+  // `faceplate_scale` already set the box decides, and it scaled with `f`.
+  if (obj.type === "faceplate" && f !== 1 && !obj.faceplate_scale) {
+    out.faceplate_zoom = Math.round((obj.faceplate_zoom ?? 1) * f * 10_000) / 10_000;
+  }
   const p = punto(obj.x ?? 0, obj.y ?? 0);
   out.x = arrotonda(p.x);
   out.y = arrotonda(p.y);

@@ -5,12 +5,17 @@ import type { TagQuality } from "@/types";
 import { buildWsUrl } from "@/ws/wsUrl";
 import { socketCondiviso } from "@/ws/singletonWs";
 import { accoda, ricominciaMisura, segnaScollegato } from "@/ws/coalescenza";
+import { streamsKeptAlive } from "@/ws/streamPolicy";
 
 /** Dopo il primo battito del server, quanto silenzio vuol dire socket morto:
  *  il runtime ne manda uno ogni 2 s (`ws_tags_handler`, 12-11-2026). */
 export const SILENZIO_MAX_MS = 5000;
 
-const socket = socketCondiviso(() => buildWsUrl("/ws/tags", "VITE_RUNTIME_WS_URL"));
+const socket = socketCondiviso(
+  () => buildWsUrl("/ws/tags", "VITE_RUNTIME_WS_URL"),
+  // The viewer of a panel: the stream never gives up (`ws/streamPolicy.ts`).
+  () => ({ persistent: streamsKeptAlive() }),
+);
 /** Il socket dei tag: cambia anche quando ci si collega/scollega da un runtime
  *  remoto, perché `buildWsUrl` lo dirotta nel relay. */
 function getStream(remoteConnected: boolean) {

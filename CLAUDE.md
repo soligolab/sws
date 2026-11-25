@@ -171,6 +171,20 @@ Read these only when the trigger applies:
   - `./scripts/start_editor_develop.sh` — the same IDE with projects inside the checkout (`.run-editor/projects`). Use this one while developing; the other is the production run.
   - First access: open `http://localhost:8080` (runtime) or `:8090` (editor) to accept the self-signed cert without leaving the app.
 
+## Ultracode: dirlo prima di ogni task (regola del maintainer, 2026-11-25)
+
+**Prima di iniziare davvero un task, la sessione dice se conviene accendere ultracode, e se conviene spegnerlo.**
+Parole del maintainer: «Avvisami sempre, prima di iniziare a lavorare veramente su un task, se mi conviene o meno
+attivare ultracode e, al tempo stesso, suggeriscimi sempre se conviene disattivarlo».
+
+- **Accenderlo conviene** per il lavoro largo e parallelo: una revisione a più agenti con verifica avversaria prima di
+  una dev o di una rc (come per la rc.30), un refactoring su molte schede o molti file indipendenti, una ricerca su
+  tutto il repo.
+- **Spegnerlo conviene** per il lavoro sequenziale: una correzione su pochi file, un collaudo con `/test-changes`, i
+  documenti, la chiusura di un ramo. Lì gli agenti in più costano senza dare niente.
+- Una riga sola, prima del lavoro: «Ultracode: acceso / spento — conviene / non conviene, perché…». La decisione è del
+  maintainer.
+
 ## Definition of done
 
 `cargo check` green **and** `pnpm build` green **and** `./scripts/check_static.sh` green **and** `cargo test` + `pnpm exec vitest run` green **and** the maintainer has confirmed the feature works. All five, before anything reaches `main`.

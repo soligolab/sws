@@ -11,6 +11,7 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties, type Reac
 import { CampoPassword } from "@/components/CampoPassword";
 import { QrCode } from "@/components/QrCode";
 import { usePanelTranslation } from "./language";
+import { reloadWhenBack } from "./reloadWhenBack";
 import { cityOf, continentsIn, countriesIn, search, zoneLabel, type CountryEntry, type Zone } from "./timezones";
 import {
   type About,
@@ -1342,7 +1343,17 @@ function DeviceSection({ api, guard, info, caps }: {
   const doReset = async () => {
     if (!reset || !reset.pin) return;
     try {
-      if (await api.reset(reset.pin, reset.keepCloud)) { setReset(null); setResetDone(reset.keepCloud ? "keep-cloud" : "all"); }
+      if (await api.reset(reset.pin, reset.keepCloud)) {
+        setReset(null);
+        setResetDone(reset.keepCloud ? "keep-cloud" : "all");
+        // After a reset the page loads again when the runtime answers: the
+        // panel closes, and the viewer starts from a clean state
+        // (`reloadWhenBack.ts`). Not tied to this component: the restarted
+        // runtime answers 401 to the old session, the panel goes back to the
+        // PIN keypad and this section unmounts — an effect cleanup here
+        // cancelled the reload about one time in three (review of 25-11-2026).
+        reloadWhenBack();
+      }
       else setReset({ ...reset, pin: "", wrong: true });
     } catch (e) {
       void guard(Promise.reject(e));

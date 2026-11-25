@@ -200,7 +200,9 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
       // Con la barra finale: è la radice del progetto, e tutto quello che la
       // pagina costruisce da `location.pathname` (il watcher della build, le
       // chiamate con prefisso) deve partire da dentro, non dal livello sopra.
-      window.location.assign(`/p/${rif}/`);
+      // Each part encoded: a '#' or a '?' in a name cut the address (review
+      // of 25-11-2026).
+      window.location.assign(`/p/${rif.split("/").map(encodeURIComponent).join("/")}/`);
       return;
     }
     try {

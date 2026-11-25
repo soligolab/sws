@@ -529,6 +529,14 @@ interface AppState {
   markPagesSaved: () => void;
   /** Drop all unsaved-changes state (used when closing a project or logging out). */
   resetDirty: () => void;
+  /** True once the page leaves on purpose (a navigation the user already
+   *  confirmed): the browser's «Leave site?» must not ask again. */
+  leavingPage: boolean;
+  /** The page is about to leave on purpose: no «Leave site?» (25-11-2026).
+   *  `resetDirty()` is not enough: the listener goes away only after the next
+   *  render, and `location.assign` fires `beforeunload` at once; the page tree
+   *  and the scripts keep their own dirty flags too. */
+  leavePage: () => void;
   setSaveStatus: (s: "idle" | "saving" | "ok" | "error", e?: string | null) => void;
   /** Segnala "salvataggio riuscito" per i tab che salvano fuori da saveAll()
    *  (Tag/Sorgenti/Allarmi) — vedi commento sull'implementazione. */
@@ -3386,6 +3394,9 @@ export const useAppStore = create<AppState>((set, get) => {
     markPagesSaved: () => set((s) => ({ savedPagesRev: s.pagesRev })),
 
     resetDirty: () => set((s) => ({ savedPagesRev: s.pagesRev, pendingSections: {} })),
+
+    leavingPage: false,
+    leavePage: () => set({ leavingPage: true }),
 
     saveAll: async () => {
       // One save at a time: who asks while one runs waits for that one,

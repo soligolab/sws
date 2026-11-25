@@ -163,6 +163,14 @@ export function RuntimeViewer() {
     ricaricaSimboliProgetto();
     return loadProjectData(current)
       .then(() => {
+        // A new project: the streams that are down open again now (25-11-2026,
+        // collaudo of 2.27.0-dev.3 on the PLX800). After «delete only the
+        // project» the runtime answered but refused the sockets for two
+        // minutes: the tag socket gave up, and the deploy that followed
+        // loaded the pages but left the values frozen. An open socket is not
+        // touched (`riprovaSubito`).
+        riprovaFlussoTag();
+        riprovaFlussoAllarmi();
         // **Chi sono, adesso?** (22-10-2026, piano
         // `docs/plans/2026-10-22-sessione-che-non-sopravvive-al-deploy.md`).
         //

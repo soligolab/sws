@@ -51,6 +51,7 @@ import {
   SFONDO_PREDEFINITO,
 } from "@/pageLayout";
 import { faceplateDefBBox, normalizeFaceplateParams } from "@/faceplate/definizione";
+import { faceplateLayout } from "@/canvas/faceplateLayout";
 import { effectiveFaceplateParams, figliDelFaceplate, substituteFaceplateParams } from "./parametriFaceplate";
 import { bboxDelGruppo, espandiAlGruppo, gruppoIntero } from "@/editor/gruppiSelezione";
 import { idsNelRiquadro } from "@/canvas/selezioneRiquadro";
@@ -7140,15 +7141,13 @@ function SvgObjectCorpo(p: ObjProps) {
     // riempiono quelli non forniti) e poi gli override per figlio (F6.4). La
     // stessa funzione della raccolta dei tag, così il filtro di pagina chiede
     // proprio i tag che i figli leggono.
-    const figli = figliDelFaceplate(obj, defn);
-    // F6.4: scaling opzionale dei figli al box dell'istanza (uniforme sui due
-    // assi per non distorcere i testi... no: viewBox-like, assi indipendenti,
-    // come uno <svg> con preserveAspectRatio="none" — è ciò che l'utente
-    // vede ridimensionando il box). Opt-in per retro-compatibilità.
-    const defBox = defn ? faceplateDefBBox(defn) : { w, h };
-    const scaleTf = obj.faceplate_scale
-      ? ` scale(${(w / defBox.w).toFixed(4)}, ${(h / defBox.h).toFixed(4)})`
-      : "";
+    // How the content follows the box: zoom, stretch or fit, the same on the
+    // LVGL viewer (`canvas/faceplateLayout.ts`, 25-11-2026). Stretching is no
+    // longer one SVG transform: that deformed the texts.
+    const layout = faceplateLayout(obj, w, h, defn ? faceplateDefBBox(defn) : { w, h });
+    const figli = figliDelFaceplate(obj, defn).map(layout.child);
+    const scaleTf = layout.transform;
+    const sfondo = layout.background;
 
     if (isEditMode) {
       // Edit mode: render the faceplate's own children (the same `figli` as
@@ -7166,7 +7165,7 @@ function SvgObjectCorpo(p: ObjProps) {
             {/* bgLayer DENTRO il transform: fuori restava alla dimensione del
                 box e non seguiva faceplate_scale (in editor lo sfondo non
                 combaciava coi figli scalati). */}
-            {bgLayer(0, 0, obj.faceplate_scale ? defBox.w : w, obj.faceplate_scale ? defBox.h : h, 4)}
+            {bgLayer(sfondo.x, sfondo.y, sfondo.w, sfondo.h, 4)}
             {figli.map((resolved, i) => {
               return (
                 <SvgObject
@@ -7202,7 +7201,7 @@ function SvgObjectCorpo(p: ObjProps) {
     // View mode: render child objects with param substitution at (obj.x, obj.y) offset
     return (
       <g transform={`translate(${obj.x}, ${obj.y})${scaleTf}`} style={{ cursor: "default" }}>
-        {bgLayer(0, 0, obj.faceplate_scale ? defBox.w : w, obj.faceplate_scale ? defBox.h : h, 4)}
+        {bgLayer(sfondo.x, sfondo.y, sfondo.w, sfondo.h, 4)}
         {figli.map((resolved, i) => {
           const lucchetto = ruoloCheServe(resolved, ruoloVista, projectTags, projectTypes, projectFunctions);
           return (
