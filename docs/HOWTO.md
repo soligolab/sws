@@ -338,9 +338,14 @@ Note pratiche:
 Un comando solo. Il `podman login` serve una volta per macchina (senza, il push muore a metà):
 
 ```bash
-podman login ghcr.io
+podman login --authfile ~/.config/containers/auth.json ghcr.io
 ./scripts/build_containers_all.sh --push
 ```
+
+**Il login va scritto in `~/.config/containers/auth.json`.** Senza `--authfile`, podman lo scrive in
+`/run/user/<uid>/containers/auth.json`, che è in RAM e sparisce a ogni riavvio. Quando quel file non
+c'è, podman legge `~/.config/containers/auth.json`: il login resta dopo il riavvio. È così su `ufficio`
+dal 27-09-2026 e su `elitedesk` dal 25-11-2026.
 
 Compila la SPA e il Rust, poi costruisce e pubblica le **due** immagini su
 `ghcr.io/soligolab/sws-runtime` (dal 2026-09-10, Q53: prima erano tre), ognuna con tre tag —
