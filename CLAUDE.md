@@ -30,6 +30,12 @@
    nominano raggruppandoli). Annulla non crea niente. Il resto dell'IDE si allinea man mano.
    Nato dal collaudo della rc.29 sul WP630: «+ nuovo ingresso…» creava un ingresso senza nome, e
    gli ingressi «si scambiavano» fra gli effetti.
+4. **Il Save sta in alto a destra, nella testata fissa del form** (2026-11-25). La testata non scorre: titolo, testo
+   d'aiuto, azioni della scheda e Save. Scorre solo il contenuto sotto. Il Save resta **uno solo** e salva tutte le
+   schede con modifiche (decisione del 22-09-2026, confermata il 25-11). La conferma è una **barra verde** ben
+   visibile. Il resto dell'IDE si allinea man mano. Nato dal collaudo della 2.27.0-dev.3: il «Salvato» della pagina
+   Utenti, piccolo nella colonna «Aggiornato», il maintainer l'ha visto al terzo tentativo; nella scheda Tags le righe
+   scorrevano sotto il pulsante.
 
 ## CasaDomotica, il progetto di riferimento (decisione del maintainer, 2026-10-16)
 
