@@ -14,7 +14,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 Il lavoro della **2.28.0** (versioni `2.28.0-dev.N`), da `main`.
 
 ### Aggiunto — il firewall dei dispositivi (26-11-2026, ramo `feat/firewall`)
-Piano `docs/plans/2026-11-26-firewall-dei-dispositivi.md`. Il WP630 è passato a Pixsys OS 2.2.0, che porta firewalld
+Piano `docs/archive/2026-11-26-firewall-dei-dispositivi.md`. Il WP630 è passato a Pixsys OS 2.2.0, che porta firewalld
 attivo: la zona `public` apre i servizi di Pixsys, non 7443 e 7444, e dalla LAN il pannello non rispondeva più («Nessun
 instradamento per l'host»). Il cloud funzionava, perché il tunnel è una connessione uscente.
 - **Le porte di SWS si aprono da sole.** Gli installatori (`install-container.sh`, Yocto nativo, Tiny TY, Linux

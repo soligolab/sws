@@ -27,6 +27,33 @@
 
 ---
 
+## Collaudo 2.28.0-dev.1 sul WP630 (26-11-2026) — il firewall dei dispositivi
+
+Piano [`docs/archive/2026-11-26-firewall-dei-dispositivi.md`](archive/2026-11-26-firewall-dei-dispositivi.md). Pannello
+`wp630-a-p3-07a077.local` su Pixsys OS 2.2.0 (firewalld 1.3.2), canale Sviluppo; gateway di sws.soligo.net sulla
+`2.28.0-dev.1`. Letture via ssh dal portatile, azioni dall'IDE del cloud e dai pannelli di controllo.
+
+1. [x] Al primo avvio della dev.1 il runtime apre 7443/tcp e 7444/tcp nella zona `public`, runtime e permanente, e
+       scrive `sws_ports_opened` in `config/firewall.json`. Dalla LAN 7443 e 7444 rispondono 200. Confermato dal
+       maintainer il 26-11-2026.
+2. [x] IDE → Device → Firewall: «+ porta» 4840/tcp, conferma: la porta è nella configurazione permanente. Confermato dal
+       maintainer il 26-11-2026.
+3. [x] 7444 spenta senza conferma: riepilogo rosso; dalla LAN chiusa dalle 14:29:18 alle 14:30:17, poi torna da sola.
+       Confermato dal maintainer il 26-11-2026.
+4. [x] atvise, finder e cockpit spenti in una modifica sola e confermati: spariscono dalla configurazione, restano nella
+       scheda come interruttori spenti; cockpit riacceso e confermato. Confermato dal maintainer il 26-11-2026.
+5. [x] 4840 → 4841 con «Modifica», senza conferma: una barra con due righe; dopo 60 s torna 4840, la configurazione
+       permanente non cambia mai. Confermato dal maintainer il 26-11-2026.
+6. [x] Regola per sorgente `192.168.1.0/24` su 7444/tcp, accept: il testo composto dal modulo è in
+       `--permanent --list-rich-rules`. Confermato dal maintainer il 26-11-2026.
+7. [x] Pannello di controllo LVGL (codesys spento e confermato, attore `control-panel:screen`) e web (la regola del
+       test 6 spenta e confermata, attore `control-panel:network 192.168.0.225`). Confermato dal maintainer il
+       26-11-2026.
+8. [ ] `install-container.sh --uninstall` toglie le porte di SWS: non provato sul WP630 (smonterebbe SWS); coperto da
+       `tests/shell/firewall.sh`.
+9. [ ] **Anomalia**: alla scadenza dei 60 s il registro delle azioni (`audit.jsonl`) non scrive niente; c'è solo il
+       WARN nel log del runtime. Correzione nel ramo `fix/firewall-collaudo`.
+
 ## Collaudo 2.27.0 (release del 25-11-2026) — il canale degli aggiornamenti dall'IDE
 
 La 2.27.0 sposta `latest-*`, `rc-*` e `dev-*`: tutti e tre i canali portano alla 2.27.0. Piano

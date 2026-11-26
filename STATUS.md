@@ -12,23 +12,22 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — il firewall dei dispositivi, ramo `feat/firewall` (2026-11-26, portatile)
+## ▶ Riprendere da qui — il firewall nella 2.28.0-dev.1, collaudato; ramo `fix/firewall-collaudo` (2026-11-26, portatile)
 
-- **Il collaudo della 2.27.0 sul WP630 si è fermato al test 1/6.** Le letture: 2.27.0 dal canale di prova, servizio
-  attivo, progetto `tiny-ty` aperto, tunnel aperto. Due cose trovate:
-  1. **Pixsys OS 2.2.0 porta firewalld** e la zona `public` non apre 7443 e 7444: dalla LAN il pannello non risponde.
-     Il maintainer: «questa modifica (in toto) serve venga implementata subito sulla dev» → piano
-     [`docs/plans/2026-11-26-firewall-dei-dispositivi.md`](docs/plans/2026-11-26-firewall-dei-dispositivi.md).
-  2. **`podman-auto-update.service` di sistema** ha `ExecStartPost=/usr/bin/podman image prune -f`: dopo un
-     aggiornamento dal registro l'immagine di prima sparisce, `immagini.json` ha `precedente: null`, e «Torna alla …»
-     non ha un'immagine. **Da proporre come lavoro a parte**, dopo il firewall.
-- **Ramo `feat/firewall`** (5 commit): runtime (`sws-web/src/firewall.rs`, rotte Admin e del pannello di controllo,
-  proxy dell'IDE, porte di SWS aperte al primo avvio una volta), installatori (4, con `tests/shell/firewall.sh`),
-  sonda, polkit, scheda IDE **Device → Firewall**, sezione Firewall nei pannelli di controllo web e LVGL, documenti
-  (HOWTO §34, manuale 10 e 17). Verificato: `cargo check`, `cargo clippy -D warnings`, `cargo test`, `pnpm build`,
-  lint, `vitest` 3077, `check_static` 58/58.
-- **Prossimo passo**: il collaudo sul WP630 (lista nel piano, «Verifica»), poi lo squash, la `2.28.0-dev.1` e
-  `build_dev.sh`. Push e tag solo su istruzione esplicita.
+- **Il firewall dei dispositivi è in `main`** (squash `1fdf1482`) e nella **`2.28.0-dev.1`** (`cdc0e8bd`, tag e push
+  fatti, immagini amd64 e arm64 su ghcr, `dev-*` spostati). Il piano è in
+  [archivio](docs/archive/2026-11-26-firewall-dei-dispositivi.md).
+- **Gateway di sws.soligo.net sulla 2.28.0-dev.1** (`deploy/vps/STATO.md`). Dal portatile si entra con l'alias
+  `sws-vps`.
+- **Collaudo 2.28.0-dev.1 del 26-11 sul WP630: 7 passate, 2 anomalie** (`docs/COLLAUDI_IN_SOSPESO.md`):
+  1. alla scadenza dei 60 s il registro delle azioni non scrive niente (manca `firewall.expired`);
+  2. `ricarica.sh --stato` dice «versione fissata» per l'immagine `dev-arm64` (difetto della skill).
+  Le due correzioni sono nel ramo **`fix/firewall-collaudo`**, aperto da `main`.
+- **Stato del WP630 lasciato dal collaudo**: porte 4840, 7443, 7444; spenti atvise, finder, codesys; la regola per
+  sorgente spenta.
+- **Ancora da proporre, lavoro a parte**: `podman-auto-update.service` di sistema ha
+  `ExecStartPost=/usr/bin/podman image prune -f`; dopo un aggiornamento dal registro l'immagine di prima sparisce e
+  «Torna alla …» non ha un'immagine.
 
 ## ▶ Riprendere da qui — release 2.27.0 e canale degli aggiornamenti dall'IDE (2026-11-25 notte, `elitedesk`)
 
