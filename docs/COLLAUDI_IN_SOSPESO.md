@@ -37,6 +37,8 @@ contiene anche le correzioni della dev.4: le loro voci sono nel piano
 1. [ ] **TC620** (2.26.0-rc.29, canale di prova), dall'IDE del cloud: «Aggiorna ora» propone la 2.27.0, con le 7 voci di
        compatibilità in cima e le 15 Novità. Dopo il riavvio lo stato dice 2.27.0. Se fallisce: il tag `rc-arm64` non
        è stato spostato (`scripts/registro.py tags`).
+       26-11-2026: il maintainer ha aggiornato il TC620 alla 2.27.0 la mattina. Da guardare stasera: lo stato e le
+       Novità che il pannello ha mostrato.
 2. [ ] **TC620** sulla 2.27.0: un deploy di CasaDomotica (TC620_Verticale) mostra le pagine Clima, Luci, Piano terra e
        Piano superiore coi faceplate `fit`. Se fallisce: il runtime non legge `fit`.
 3. [ ] **TC620**: il menu «Canale» nella riga di «Aggiornamento del runtime» → Sviluppo → conferma con l'avviso rosso.

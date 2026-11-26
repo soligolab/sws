@@ -14,6 +14,11 @@
 
 ## ▶ Riprendere da qui — release 2.27.0 e canale degli aggiornamenti dall'IDE (2026-11-25 notte, `elitedesk`)
 
+- **26-11-2026, mattina**: il maintainer ha aggiornato il **TC620** alla 2.27.0 e sta aggiornando il **WP630**. Il
+  collaudo riparte dal portatile (`192.168.0.203`) con `/test-changes`: target WP630 da confermare (il 23-11 era
+  `user@wp630-a-p3-07a077.local`). Le letture da fare senza lo schermo: versione, canale, servizi, log dopo il riavvio,
+  etichette delle Novità nell'immagine, quadlet (`Image=`, `AutoUpdate`), `cambio_canale` nello stato. Il TC620 si
+  raggiunge solo dal cloud o da `ufficio`: le sue voci restano per la sera.
 - **Il canale degli aggiornamenti si cambia dall'IDE, anche nel cloud** (squash `d077bc4c`, piano
   [`docs/plans/2026-11-25-cambio-di-canale-dal-cloud.md`](docs/plans/2026-11-25-cambio-di-canale-dal-cloud.md)).
   Menu Stabile / Prova / Sviluppo in «Aggiornamento del runtime». Il pannello cambia subito se il canale scelto ha una
