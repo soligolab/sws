@@ -28,6 +28,10 @@
   `2026-11-25-cambio-di-canale-dal-cloud.md`, solo collaudo (voce 3 passata sul WP630).
 - **Stato del WP630 lasciato dal collaudo**: porte 4840, 7443, 7444; spenti atvise, finder, codesys; la regola per
   sorgente spenta.
+- **Da fare alla prima occasione** (il maintainer, 26-11-2026): «abilita la possibilità di fissare una versione ad un
+  device anche nella console di amministrazione». Oggi la console (`sws-editor/src/console/Pannelli.tsx`) non ha
+  niente sugli aggiornamenti, e la rotta del pannello `POST /api/update/channel` conosce solo `stable`, `test` e
+  `dev` (`sws-web/src/update_channel.rs`): fissare una versione si fa solo reinstallando da Device → Installazione.
 - **Ancora da proporre, lavoro a parte**: `podman-auto-update.service` di sistema ha
   `ExecStartPost=/usr/bin/podman image prune -f`; dopo un aggiornamento dal registro l'immagine di prima sparisce e
   «Torna alla …» non ha un'immagine.
