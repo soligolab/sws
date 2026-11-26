@@ -1,5 +1,5 @@
 //! The device's firewall, when the system runs firewalld (PixsysOS 2.2.0 and
-//! later; plan `docs/plans/2026-11-26-firewall-dei-dispositivi.md`).
+//! later; plan `docs/archive/2026-11-26-firewall-dei-dispositivi.md`).
 //!
 //! The runtime talks to firewalld over the system D-Bus, like the control
 //! panel talks to NetworkManager. PixsysOS lets the service user change the
@@ -1141,8 +1141,13 @@ pub async fn state(config_dir: &Path) -> Result<FirewallView, String> {
 }
 
 /// `POST …/firewall/apply`: the operations on the running firewall, in
-/// order. If one fails, the ones before it are undone.
-pub async fn apply(ops: Vec<Op>, by: Option<String>) -> Result<u32, FwError> {
+/// order. If one fails, the ones before it are undone. When the wait ends
+/// without a confirmation, `audit` gets a `firewall.expired` entry.
+pub async fn apply(
+    ops: Vec<Op>,
+    by: Option<String>,
+    audit: Option<std::sync::Arc<sws_audit::AuditLog>>,
+) -> Result<u32, FwError> {
     let _busy = BUSY.lock().await;
     if PENDING.lock().unwrap().is_some() {
         return Err(FwError::Conflict(
@@ -1182,7 +1187,11 @@ pub async fn apply(ops: Vec<Op>, by: Option<String>) -> Result<u32, FwError> {
         let still = PENDING.lock().unwrap().as_ref().is_some_and(|p| p.id == id);
         if still {
             tracing::warn!("firewall: no confirmation in time, the change is undone");
-            let _ = rollback().await;
+            if let Ok(ops) = rollback().await {
+                if let Some(a) = audit {
+                    a.log("firewall.expired", None, serde_json::json!({ "ops": ops }));
+                }
+            }
         }
     });
     Ok(CONFIRM_WITHIN_SECS)
@@ -1372,7 +1381,7 @@ pub mod http {
         by: Option<String>,
     ) -> Response {
         let ops = change.ops.clone();
-        match super::apply(change.ops, by.clone()).await {
+        match super::apply(change.ops, by.clone(), Some(s.audit.clone())).await {
             Ok(secs) => {
                 s.audit.log("firewall.apply", by, json!({ "ops": ops }));
                 Json(json!({ "confirm_within_secs": secs })).into_response()
@@ -1595,15 +1604,19 @@ mod tests {
             item: svc(n),
         };
         // Undone: the entries come back.
-        apply(vec![off("cockpit"), off("http")], Some("admin".into()))
-            .await
-            .unwrap();
+        apply(
+            vec![off("cockpit"), off("http")],
+            Some("admin".into()),
+            None,
+        )
+        .await
+        .unwrap();
         let v = state(dir.path()).await.unwrap();
         assert_eq!(v.pending.as_ref().unwrap().ops.len(), 2);
         assert!(!v.zones[0].entries.iter().any(|e| e.item == svc("http")));
         // A second change waits for the first.
         assert!(matches!(
-            apply(vec![off("ssh")], None).await,
+            apply(vec![off("ssh")], None, None).await,
             Err(FwError::Conflict(_))
         ));
         rollback().await.unwrap();
@@ -1615,7 +1628,7 @@ mod tests {
             .any(|e| e.item == svc("http") && e.enabled));
         assert!(matches!(rollback().await, Err(FwError::Conflict(_))));
         // Confirmed: the entry stays off, and on the screen.
-        apply(vec![off("cockpit")], None).await.unwrap();
+        apply(vec![off("cockpit")], None, None).await.unwrap();
         confirm(dir.path(), Some("admin")).await.unwrap();
         let v = state(dir.path()).await.unwrap();
         let e = v.zones[0]
@@ -1627,11 +1640,13 @@ mod tests {
         assert_eq!(read_stored(dir.path()).disabled.len(), 1);
         // A wrong change touches nothing.
         assert!(matches!(
-            apply(vec![off("cockpit")], None).await,
+            apply(vec![off("cockpit")], None, None).await,
             Err(FwError::Bad(_))
         ));
         // Back on.
-        apply(vec![off("cockpit").inverse()], None).await.unwrap();
+        apply(vec![off("cockpit").inverse()], None, None)
+            .await
+            .unwrap();
         confirm(dir.path(), None).await.unwrap();
         assert!(read_stored(dir.path()).disabled.is_empty());
     }

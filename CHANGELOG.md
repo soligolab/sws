@@ -13,6 +13,13 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 Il lavoro della **2.28.0** (versioni `2.28.0-dev.N`), da `main`.
 
+### Corretto — le anomalie del collaudo del firewall (26-11-2026, ramo `fix/firewall-collaudo`)
+
+- Quando la barra dei 60 s scade senza conferma, il registro delle azioni scrive `firewall.expired` con le operazioni
+  annullate. Prima lo diceva solo il log del runtime: nel registro restava la modifica applicata, senza la sua fine.
+- `ricarica.sh --stato` della skill `test-changes` chiama «canale di sviluppo» l'immagine `dev-*`. Prima diceva
+  «versione fissata».
+
 ### Aggiunto — il firewall dei dispositivi (26-11-2026, ramo `feat/firewall`)
 Piano `docs/archive/2026-11-26-firewall-dei-dispositivi.md`. Il WP630 è passato a Pixsys OS 2.2.0, che porta firewalld
 attivo: la zona `public` apre i servizi di Pixsys, non 7443 e 7444, e dalla LAN il pannello non rispondeva più («Nessun

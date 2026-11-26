@@ -120,6 +120,7 @@ canale_di() {
         localhost/*)     echo "da archivio" ;;
         *:latest-*)      echo "canale stabile" ;;
         *:rc-*)          echo "canale di prova" ;;
+        *:dev-*)         echo "canale di sviluppo" ;;
         *)               echo "versione fissata" ;;
     esac
 }

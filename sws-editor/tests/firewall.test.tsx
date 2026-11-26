@@ -1,6 +1,6 @@
 /** The device firewall (26-11-2026): the draft of the changes, and the editor
  *  shared by the IDE and the control panel. Plan
- *  docs/plans/2026-11-26-firewall-dei-dispositivi.md. */
+ *  docs/archive/2026-11-26-firewall-dei-dispositivi.md. */
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, afterEach, vi } from "vitest";
 import "../src/i18n/index";

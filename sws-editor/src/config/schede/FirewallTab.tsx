@@ -1,6 +1,6 @@
 // Device → Firewall (26-11-2026): the firewalld rules of the connected panel,
 // through the IDE's proxy, so the same from the LAN and from the cloud. Plan
-// docs/plans/2026-11-26-firewall-dei-dispositivi.md.
+// docs/archive/2026-11-26-firewall-dei-dispositivi.md.
 
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";

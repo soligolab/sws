@@ -1,7 +1,7 @@
 // The device firewall (firewalld), as the runtime describes it: the same shape
 // for the IDE (`/api/remote/firewall`) and for the control panel
 // (`/api/control-panel/firewall`). Plan
-// docs/plans/2026-11-26-firewall-dei-dispositivi.md.
+// docs/archive/2026-11-26-firewall-dei-dispositivi.md.
 //
 // A change is a list of operations. The screens build it as a draft (switch an
 // entry off, edit a port, add a rule), then apply it at once: the runtime

@@ -1,7 +1,7 @@
 //! The Firewall section of the LVGL control panel (26-11-2026): the same
 //! draft as the web (`sws-editor/src/firewall/core.ts`), on the same routes
 //! (`/api/control-panel/firewall*`). Pure, so the tests need no screen. Plan
-//! `docs/plans/2026-11-26-firewall-dei-dispositivi.md`.
+//! `docs/archive/2026-11-26-firewall-dei-dispositivi.md`.
 
 use serde::{Deserialize, Serialize};
 
