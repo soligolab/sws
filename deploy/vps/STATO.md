@@ -173,7 +173,16 @@ resta 404: così un bundle che manca non torna come HTML con stato 200.
 (`10.89.0.x`): il limite di 20 richieste/s vale per tutti insieme finché non c'è l'indirizzo vero (seme «indirizzo vero
 dietro Traefik»). Si aggiorna con `scripts/manuale/pubblica.sh`.
 
-**Versione in esecuzione: `17d41858-amd64` (2.27.0, release)** dal 25-11-2026, 21:15: la prima release dopo la 2.25.2,
+**Versione in esecuzione: `cdc0e8bd-amd64` (2.28.0-dev.1)** dal 26-11-2026, 12:52, su richiesta del maintainer («aggiorna
+il gateway alla dev.1»): il firewall dei dispositivi, con il proxy `/api/remote/firewall` per l'IDE del cloud. Sequenza
+solita, la prima dal portatile `ut1-HP-EliteBook-850-G6` (alias `sws-vps` in `~/.ssh/config`): copia maestra e macchina
+uguali, `podman pull`, copia `sws-gateway.container.prima-2.28dev1`, `sed` del commit, `daemon-reload`, `restart`.
+Verificato: gateway e i due progetti `healthy` su `cdc0e8bd`, `SWS_VERSION` = 2.28.0-dev.1, radice 200, `/health` «ok», i
+tre tunnel riaperti (plx800, wp630-ufficio, tc620-garage). Subito dopo il riavvio, per meno di un minuto, il journal ha
+segnato `ws verso il progetto non aperto: 404` per WP630_DemoTY570: una scheda dell'IDE aperta con il token di prima,
+poi più niente. Ripiego la 2.27.0 (`17d41858-amd64`).
+
+Prima: **Versione in esecuzione: `17d41858-amd64` (2.27.0, release)** dal 25-11-2026, 21:15: la prima release dopo la 2.25.2,
 con il lavoro della 2.26 e della 2.27 e il cambio di canale dall'IDE. Sequenza solita da elitedesk: `diff` fra la copia
 maestra e la macchina (uguali), `podman pull`, copia `sws-gateway.container.prima-2.27.0`, `sed` del commit in `Image=` e
 `--gateway-immagine`, `daemon-reload`, `restart sws-gateway`. Verificato: gateway `healthy`, `SWS_VERSION` = 2.27.0,
