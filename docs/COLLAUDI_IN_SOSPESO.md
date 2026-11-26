@@ -52,7 +52,7 @@ Piano [`docs/archive/2026-11-26-firewall-dei-dispositivi.md`](archive/2026-11-26
 8. [ ] `install-container.sh --uninstall` toglie le porte di SWS: non provato sul WP630 (smonterebbe SWS); coperto da
        `tests/shell/firewall.sh`.
 9. [ ] **Anomalia**: alla scadenza dei 60 s il registro delle azioni (`audit.jsonl`) non scrive niente; c'è solo il
-       WARN nel log del runtime. Correzione nel ramo `fix/firewall-collaudo`.
+       WARN nel log del runtime. Corretto in `main` (`baa98062`, `firewall.expired`): si collauda nella prossima dev.
 
 ## Collaudo 2.27.0 (release del 25-11-2026) — il canale degli aggiornamenti dall'IDE
 
@@ -68,9 +68,11 @@ contiene anche le correzioni della dev.4: le loro voci sono nel piano
        Novità che il pannello ha mostrato.
 2. [ ] **TC620** sulla 2.27.0: un deploy di CasaDomotica (TC620_Verticale) mostra le pagine Clima, Luci, Piano terra e
        Piano superiore coi faceplate `fit`. Se fallisce: il runtime non legge `fit`.
-3. [ ] **TC620**: il menu «Canale» nella riga di «Aggiornamento del runtime» → Sviluppo → conferma con l'avviso rosso.
+3. [x] **TC620**: il menu «Canale» nella riga di «Aggiornamento del runtime» → Sviluppo → conferma con l'avviso rosso.
        Il canale di sviluppo ha la stessa 2.27.0: il pannello non si riavvia, e la riga gialla dice che resta sulla
        2.27.0 finché Sviluppo non ha una versione più alta. Alla prima 2.28.0-dev.N, «Aggiorna ora» fa il cambio.
+       Confermato dal maintainer il 26-11-2026 sul **WP630** e non sul TC620: dal canale di prova (2.27.0) a Sviluppo, con
+       la 2.28.0-dev.1 già pubblicata; il pannello è passato da solo a `dev-arm64` e alla dev.1.
 4. [ ] **PLX800** (2.27.0-dev.3, versione fissata): Canale → Stabile. La 2.27.0 è più alta: istantanea dei dati, poi il
        pannello riparte in circa un minuto sulla 2.27.0, e lo stato dice «canale stabile». Sul pannello
        `grep -E '^(Image|AutoUpdate)|SWS_IMAGE' ~/.config/containers/systemd/sws-runtime.container` mostra

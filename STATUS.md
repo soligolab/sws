@@ -12,7 +12,7 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — il firewall nella 2.28.0-dev.1, collaudato; ramo `fix/firewall-collaudo` (2026-11-26, portatile)
+## ▶ Riprendere da qui — il firewall nella 2.28.0-dev.1, collaudato; `/chiudi-plan-aperti` (2026-11-26, portatile)
 
 - **Il firewall dei dispositivi è in `main`** (squash `1fdf1482`) e nella **`2.28.0-dev.1`** (`cdc0e8bd`, tag e push
   fatti, immagini amd64 e arm64 su ghcr, `dev-*` spostati). Il piano è in
@@ -22,7 +22,10 @@
 - **Collaudo 2.28.0-dev.1 del 26-11 sul WP630: 7 passate, 2 anomalie** (`docs/COLLAUDI_IN_SOSPESO.md`):
   1. alla scadenza dei 60 s il registro delle azioni non scrive niente (manca `firewall.expired`);
   2. `ricarica.sh --stato` dice «versione fissata» per l'immagine `dev-arm64` (difetto della skill).
-  Le due correzioni sono nel ramo **`fix/firewall-collaudo`**, aperto da `main`.
+  Le due correzioni sono in `main` (`baa98062`), senza dev: escono e si collaudano nella dev del primo piano con
+  codice (scelta del maintainer).
+- **`/chiudi-plan-aperti`** (skill nuova, 26-11): i piani vivi dal più recente, una dev per ciascuno. Primo piano:
+  `2026-11-25-cambio-di-canale-dal-cloud.md`, solo collaudo (voce 3 passata sul WP630).
 - **Stato del WP630 lasciato dal collaudo**: porte 4840, 7443, 7444; spenti atvise, finder, codesys; la regola per
   sorgente spenta.
 - **Ancora da proporre, lavoro a parte**: `podman-auto-update.service` di sistema ha
