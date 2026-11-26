@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook } from "@testing-library/react";
 import { rebaselineProjectWatcher, useProjectWatcher } from "../src/ws/projectWatcher";
-import { api, AuthError, NoProjectError, PasswordChangeRequiredError, RuntimeUnavailableError } from "../src/api/client";
+import { api, AuthError, NoProjectError, PairingRequiredError, PasswordChangeRequiredError, RuntimeUnavailableError } from "../src/api/client";
 
 // Il sorvegliante del progetto, e il falso allarme che rendeva rumoroso l'IDE.
 //
@@ -44,6 +44,33 @@ describe("sorvegliante del progetto", () => {
     const avvisato = vi.fn();
     renderHook(() => useProjectWatcher(avvisato, 3_000));
     await tick(0);
+    expect(avvisato).not.toHaveBeenCalled();
+  });
+
+  // 26-11-2026, collaudo on the PLX800: after «Delete project on the runtime»
+  // the panel answered 401 `abbinamento_richiesto`, and the monitor kept the
+  // old synoptic with frozen values and a running clock.
+  it("a panel that waits for a pairing has no project: the screen leaves the old one", async () => {
+    const spia = impronta("aaa");
+    const avvisato = vi.fn();
+    renderHook(() => useProjectWatcher(avvisato, 3_000));
+    await tick(0);
+    spia.mockRejectedValue(new PairingRequiredError());
+    await tick(3_000);
+    expect(avvisato).toHaveBeenCalledWith(null);
+    // The deploy brings the project back: a change again.
+    spia.mockResolvedValue({ sha256: "bbb", computed_at_ms: 0 } as never);
+    await tick(3_000);
+    expect(avvisato).toHaveBeenLastCalledWith("bbb");
+  });
+
+  it("a plain 401 is still not a fact about the project", async () => {
+    const spia = impronta("aaa");
+    const avvisato = vi.fn();
+    renderHook(() => useProjectWatcher(avvisato, 3_000));
+    await tick(0);
+    spia.mockRejectedValue(new AuthError());
+    await tick(3_000);
     expect(avvisato).not.toHaveBeenCalled();
   });
 
@@ -271,5 +298,24 @@ describe("sorvegliante del progetto — runtime che non risponde", () => {
     spia.mockResolvedValue({ sha256: "altrui", computed_at_ms: 0 } as never);
     await tick(3_000);
     expect(avvisato).toHaveBeenCalledWith("altrui");
+  });
+});
+
+describe("the 401 of a panel that waits for a pairing", () => {
+  afterEach(() => { vi.restoreAllMocks(); });
+
+  it("becomes a PairingRequiredError, still an AuthError", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(
+      JSON.stringify({ abbinamento_richiesto: true, error: "abbinamento_richiesto" }), { status: 401 }));
+    const e = await api.getProjectFingerprint().catch((x) => x);
+    expect(e).toBeInstanceOf(PairingRequiredError);
+    expect(e).toBeInstanceOf(AuthError);
+  });
+
+  it("a plain 401 stays an AuthError", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("unauthorized", { status: 401 }));
+    const e = await api.getProjectFingerprint().catch((x) => x);
+    expect(e).toBeInstanceOf(AuthError);
+    expect(e).not.toBeInstanceOf(PairingRequiredError);
   });
 });

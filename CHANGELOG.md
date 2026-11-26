@@ -35,6 +35,16 @@ Piano `docs/plans/2026-11-26-versione-fissata-e-blocco.md`.
   automatico rifiutano una testa di canale oltre il blocco. Il cambio di canale aspetta. La riga di stato dell'IDE dice
   il blocco e la versione che resta fuori. Un pannello già sopra il blocco resta dov'è.
 
+### Corretto — il collaudo del 26-11-2026 sul PLX800 (ramo `fix/viewer-after-project-delete`)
+
+- Dopo «Delete project on the runtime» un pannello abbinato al cloud resta senza utenti e risponde 401
+  `abbinamento_richiesto`. Il sorvegliante del viewer lo prendeva per «login da fare» e teneva il sinottico vecchio, con
+  i valori fermi, senza la fascia «Dati in ritardo» e con l'orologio che andava avanti. Ora quel 401 vale «nessun
+  progetto» (`PairingRequiredError`), e lo schermo lo dice.
+- Il deploy dopo quella cancellazione avvisava di un simbolo del progetto (`prj:pixsys`) «sconosciuto al pannello»: la
+  prova chiedeva il manifesto, riceveva 401 e lo prendeva per «non sa servirli». Ora solo un 404 vuol dire un runtime
+  senza la rotta.
+
 ### Corretto — le anomalie del collaudo del firewall (26-11-2026, ramo `fix/firewall-collaudo`)
 
 - Quando la barra dei 60 s scade senza conferma, il registro delle azioni scrive `firewall.expired` con le operazioni

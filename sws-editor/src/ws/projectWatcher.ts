@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { api, AuthError, PasswordChangeRequiredError, RuntimeUnavailableError } from "@/api/client";
+import { api, AuthError, PairingRequiredError, PasswordChangeRequiredError, RuntimeUnavailableError } from "@/api/client";
 
 /** A write of ours that did not go through this page's API client — the symbol
  *  editor's own window saves from another page (test of the rc.29, 23-11-2026):
@@ -98,18 +98,24 @@ export function useProjectWatcher(
         // successivo leggeva l'impronta **nuova** e la prendeva per baseline in
         // silenzio: lo schermo restava sul progetto vecchio, con il deploy
         // «completato» nell'IDE.
-        if (e instanceof AuthError || e instanceof PasswordChangeRequiredError) {
+        // A panel that waits for a pairing has no project (26-11-2026): after
+        // «Delete project on the runtime» it answers 401 `abbinamento_richiesto`
+        // to everything. That is a fact about the project: the screen must
+        // leave the old synoptic, whose values no longer move.
+        if (e instanceof PairingRequiredError) {
+          fp = null;
+        } else if (e instanceof AuthError || e instanceof PasswordChangeRequiredError) {
           return;
-        }
-        // Runtime in riavvio o rete giù: non è un fatto sul progetto. La
-        // baseline resta quella di prima (10-11-2026, vedi sopra).
-        if (e instanceof RuntimeUnavailableError) {
+        } else if (e instanceof RuntimeUnavailableError) {
+          // Runtime in riavvio o rete giù: non è un fatto sul progetto. La
+          // baseline resta quella di prima (10-11-2026, vedi sopra).
           irraggiungibile.current = true;
           return;
+        } else {
+          // Nessun progetto attivo (503) o un errore del runtime: si normalizza
+          // a null, così anche "progetto chiuso" è un cambio.
+          fp = null;
         }
-        // Nessun progetto attivo (503) o un errore del runtime: si normalizza
-        // a null, così anche "progetto chiuso" è un cambio.
-        fp = null;
       }
       if (!alive || gen !== generazione.current) return;
       if (irraggiungibile.current) {

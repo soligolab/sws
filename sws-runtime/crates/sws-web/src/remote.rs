@@ -3145,12 +3145,31 @@ async fn pannello_ha_simboli_progetto(
     if let Some(h) = auth_hdr {
         r = r.header("Authorization", h);
     }
-    match r.send().await {
-        Ok(resp) if resp.status().is_success() => resp
-            .json::<serde_json::Value>()
+    let Ok(resp) = r.send().await else {
+        return false;
+    };
+    project_symbols_answer(resp.status(), || async {
+        resp.json::<serde_json::Value>()
             .await
-            .is_ok_and(|v| v.get("symbols").is_some()),
-        _ => false,
+            .is_ok_and(|v| v.get("symbols").is_some())
+    })
+    .await
+}
+
+/// What the answer of `/api/project/simboli/manifest.json` says. Only a 404
+/// means a runtime without the route. A panel without a project and without
+/// users (after «Delete project on the runtime») answers 401 or 503: it cannot
+/// say, and the deploy must not warn of a false missing symbol (26-11-2026,
+/// collaudo on the PLX800: «prj:pixsys» shown as unknown).
+async fn project_symbols_answer<F, Fut>(status: reqwest::StatusCode, body_ok: F) -> bool
+where
+    F: FnOnce() -> Fut,
+    Fut: std::future::Future<Output = bool>,
+{
+    if status.is_success() {
+        body_ok().await
+    } else {
+        status != reqwest::StatusCode::NOT_FOUND
     }
 }
 
@@ -4204,6 +4223,18 @@ pub async fn remote_status(State(s): State<AppState>) -> Json<RemoteStatus> {
 
 #[cfg(test)]
 mod tests {
+    #[tokio::test]
+    async fn only_a_404_says_the_panel_cannot_serve_project_symbols() {
+        use reqwest::StatusCode as S;
+        let ok = || async { true };
+        assert!(project_symbols_answer(S::OK, ok).await);
+        assert!(!project_symbols_answer(S::OK, || async { false }).await);
+        assert!(!project_symbols_answer(S::NOT_FOUND, ok).await);
+        // No project and no users: the panel cannot say, no false warning.
+        assert!(project_symbols_answer(S::UNAUTHORIZED, ok).await);
+        assert!(project_symbols_answer(S::SERVICE_UNAVAILABLE, ok).await);
+    }
+
     /// rc.30 (collaudo on the PLX800): a deploy that would turn the screen
     /// asks first; nothing to ask when the rotation is already there, or when
     /// the panel doesn't say (older runtime, or no system rotation).

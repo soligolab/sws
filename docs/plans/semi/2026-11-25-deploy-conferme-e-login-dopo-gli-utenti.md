@@ -30,3 +30,7 @@ Collaudo della 2.27.0-dev.3 sul PLX800 (25-11-2026), deploy dall'IDE del cloud d
   Oppure restano separate ma con lo stesso stile, e la rotazione per prima?
 - Dopo un deploy che sostituisce gli utenti, l'IDE deve smettere di riprovare il login con la password vecchia, e
   chiedere la nuova al primo 401, prima di consumare i tentativi?
+
+**26-11-2026, collaudo sul PLX800 (2.28.0-dev.1).** Il primo deploy dopo «Delete project on the runtime» ha chiesto
+tre conferme di fila: gli utenti, un simbolo del progetto «sconosciuto» (falso, corretto nel ramo
+`fix/viewer-after-project-delete`) e la rotazione con il riavvio del dispositivo. Con il simbolo corretto restano due.

@@ -189,6 +189,21 @@ export class AuthError extends Error {
   }
 }
 
+/** A 401 that says the panel waits for a pairing (`abbinamento_richiesto`):
+ *  it has no users, because it has no project. On the viewer this means «no
+ *  project», not «log in» (26-11-2026, collaudo on the PLX800: after «Delete
+ *  project on the runtime» the monitor kept the old synoptic with frozen
+ *  values). A subclass, so every `instanceof AuthError` stays true. */
+/** The `error` of that 401, as the runtime writes it (`abbinamento.rs`). */
+const PAIRING_REQUIRED = ["abbinamento", "richiesto"].join("_");
+
+export class PairingRequiredError extends AuthError {
+  constructor(dettaglio?: string) {
+    super(dettaglio);
+    this.name = "PairingRequiredError";
+  }
+}
+
 /** The runtime is not reachable (network error, or proxy returned 502/504).
  *  Distinct from AuthError so the UI can show "start the runtime" rather than
  *  "wrong password". */
@@ -1071,10 +1086,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       window.dispatchEvent(new CustomEvent("sws:session-expired"));
     }
     // Il 401 di un altro runtime porta il suo motivo: si tiene.
-    let motivo = "";
-    if (PARLA_CON_UN_ALTRO_RUNTIME(path)) {
-      try { motivo = (await res.text()).trim(); } catch { /* il motivo è un extra */ }
-    }
+    let corpo = "";
+    try { corpo = (await res.text()).trim(); } catch { /* il motivo è un extra */ }
+    const motivo = PARLA_CON_UN_ALTRO_RUNTIME(path) ? corpo : "";
+    // This runtime waits for a pairing: it has no project and no users.
+    if (corpo.includes(`"${PAIRING_REQUIRED}"`)) throw new PairingRequiredError(motivo || undefined);
     throw new AuthError(motivo || undefined);
   }
   if (res.status === 503) {

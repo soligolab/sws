@@ -53,6 +53,11 @@ versioni:
         en: "In the IDE's Channel menu, «Fix a version…»: the panel goes to the version you select and does not update by itself."
       - it: "La console della piattaforma può bloccare un pannello fino a una versione: il blocco non aggiorna e non riavvia niente."
         en: "The platform console can cap a panel at a version: the cap does not update or restart anything."
+      # Le anomalie del collaudo del 26-11-2026 sul PLX800.
+      - it: "Dopo «Elimina il progetto sul runtime» lo schermo del pannello lascia il sinottico: i valori non sembrano più vivi."
+        en: "After «Delete project on the runtime» the panel screen leaves the synoptic: the values no longer look live."
+      - it: "L'esito di un aggiornamento ingrigisce tutto lo schermo, con l'avviso al centro, sul web e su LVGL."
+        en: "The result of an update greys the whole screen, with the notice in the middle, on web and LVGL."
   # La 2.26 non ha mai avuto una versione ufficiale (decisione del maintainer, 24-11-2026: «la 26 rc30 sia
   # l'ultima e ora lavoriamo solo alla 27»). Il suo blocco diventa quello della 2.27.0: chi aggiorna dalla 2.25
   # vede tutto qui, e prima della release le voci si sintetizzano insieme al maintainer.
