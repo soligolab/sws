@@ -158,12 +158,15 @@ IMAGE_REF=""
 OLD_TAG=""
 OLD_ID=""
 # Image= and SWS_IMAGE of a unit set to a reference, with the automatic update
-# that goes with it: off for an archive image (`localhost/…`), on otherwise.
+# that goes with it: on for a channel tag (`latest-`, `rc-`, `dev-`), off for an
+# archive image (`localhost/…`) and for a fixed version (`2.31.0-arm64`,
+# 26-11-2026: a pinned panel does not follow anything).
 imposta_immagine() {  # imposta_immagine <ref> <unit file>
     sed -i "s|^Image=.*|Image=$1|; s|^Environment=SWS_IMAGE=.*|Environment=SWS_IMAGE=$1|" "$2"
     case "$1" in
-        localhost/*) sed -i "s|^AutoUpdate=|#AutoUpdate=|" "$2" ;;
-        *)           sed -i "s|^#AutoUpdate=|AutoUpdate=|" "$2" ;;
+        localhost/*)                    sed -i "s|^AutoUpdate=|#AutoUpdate=|" "$2" ;;
+        *:latest-*|*:rc-*|*:dev-*)      sed -i "s|^#AutoUpdate=|AutoUpdate=|" "$2" ;;
+        *)                              sed -i "s|^AutoUpdate=|#AutoUpdate=|" "$2" ;;
     esac
 }
 # OpenPLC e OPZIONALE: «non e detto che a tutti i clienti serva» (decisione del
@@ -938,7 +941,12 @@ if [ "$AUTOSTART" -eq 1 ]; then
         localhost/*)
             sed -i "s|^AutoUpdate=|#AutoUpdate=|" "$UNIT_DIR/$NAME.container"
             echo "    immagine da archivio: aggiornamento automatico spento (si aggiorna dall'IDE con un archivio)" ;;
-        *)  echo "    aggiornamento: canale ${TAG##*:} (lo avvia il runtime su richiesta di un Admin)" ;;
+        *:latest-*|*:rc-*|*:dev-*)
+            echo "    aggiornamento: canale ${TAG##*:} (lo avvia il runtime su richiesta di un Admin)" ;;
+        *)
+            # A fixed version (26-11-2026): it follows nothing.
+            sed -i "s|^AutoUpdate=|#AutoUpdate=|" "$UNIT_DIR/$NAME.container"
+            echo "    versione fissata ${TAG##*:}: aggiornamento automatico spento (si torna a un canale dall'IDE)" ;;
     esac
     if [ "${PODMAN_MAJ:-0}" -lt 5 ] 2>/dev/null; then
         sed -i "s|^Notify=healthy|#Notify=healthy|" "$UNIT_DIR/$NAME.container"
@@ -1010,7 +1018,10 @@ if [ "$AUTOSTART" -eq 1 ]; then
     if [ -f "$VIEWER_UNIT_SRC" ]; then
         install -m 0644 "$VIEWER_UNIT_SRC" "$UNIT_DIR/sws-lvgl-viewer.container"
         sed -i "s|^Image=.*|Image=$TAG|" "$UNIT_DIR/sws-lvgl-viewer.container"
-        case "$TAG" in localhost/*) sed -i "s|^AutoUpdate=|#AutoUpdate=|" "$UNIT_DIR/sws-lvgl-viewer.container" ;; esac
+        case "$TAG" in
+            *:latest-*|*:rc-*|*:dev-*) ;;
+            *) sed -i "s|^AutoUpdate=|#AutoUpdate=|" "$UNIT_DIR/sws-lvgl-viewer.container" ;;
+        esac
         [ "$DATA" != "/data/user/sws" ] && \
             sed -i "s|^Volume=/data/user/sws/|Volume=$DATA/|" "$UNIT_DIR/sws-lvgl-viewer.container"
 

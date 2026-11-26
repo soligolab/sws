@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { scheda, titoletto } from "@/ui/base";
-import { avviso, chiedi, conferma } from "@/finestraAvviso/finestraAvviso";
+import { avviso, chiedi, conferma, scegli } from "@/finestraAvviso/finestraAvviso";
 import { Icona } from "@/components/Icona";
 
 /**
@@ -35,7 +35,13 @@ type Riga = {
   /** Scollegato, ma la sua scatola chiama il gateway in attesa di abbinamento
    *  (02-11-2026): ha perso le credenziali del cloud, va riabbinato col codice. */
   da_riabbinare?: boolean;
+  /** The version cap of the platform (26-11-2026): the panel does not go
+   *  above it. No cap if it is missing. */
+  blocco_versione?: string;
 };
+
+/** How many published versions the cap menu offers, the newest first. */
+const CAP_CHOICES = 30;
 type Elenco = {
   abbinati: Riga[];
   dichiarati: { nome: string; azienda: string; collegato: boolean; spento_ms?: number }[];
@@ -108,6 +114,39 @@ export function Pannelli() {
     }
   };
 
+  // The version cap (26-11-2026): a list of the published versions and «No
+  // cap». The cap never updates the panel: the dialog says so.
+  const versionCap = async (r: Riga) => {
+    let published: string[];
+    try {
+      published = (await api.publishedVersions()).versions;
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : String(e));
+      return;
+    }
+    const newest = [...published].reverse().slice(0, CAP_CHOICES);
+    if (r.blocco_versione && !newest.includes(r.blocco_versione)) newest.unshift(r.blocco_versione);
+    const NONE = "";
+    const picked = await scegli<string>({
+      titolo: t("console.pannelli.bloccoTitolo", { nome: r.nome }),
+      testo: t("console.pannelli.bloccoTesto"),
+      scelte: [
+        { valore: NONE, etichetta: t("console.pannelli.bloccoRimuovi") },
+        ...newest.map((v) => ({ valore: v, etichetta: v === r.blocco_versione ? `${v} ✓` : v })),
+      ],
+    });
+    if (picked === null) return;
+    try {
+      const answer = await api.versionCapPanel(r.nome, picked === NONE ? null : picked);
+      if (!answer.sent) {
+        void avviso(t("console.pannelli.bloccoNonInviato", { detail: answer.detail ?? "" }));
+      }
+      carica();
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : String(e));
+    }
+  };
+
   // Lo schermo remoto (29-10-2026): la scheda si apre dentro il clic, poi
   // riceve l'indirizzo col biglietto — aperta dopo l'attesa, il browser la
   // bloccherebbe come finestra non richiesta.
@@ -155,6 +194,7 @@ export function Pannelli() {
                 <th>{t("console.pannelli.hardware")}</th><th>{t("console.pannelli.ultimo")}</th>
                 <th>{t("console.pannelli.stato")}</th>
                 <th>{t("console.pannelli.schermo")}</th>
+                <th>{t("console.pannelli.blocco")}</th>
               </tr>
             </thead>
             <tbody>
@@ -212,6 +252,14 @@ export function Pannelli() {
                         ↗
                       </button>
                     )}
+                  </td>
+                  <td style={{ whiteSpace: "nowrap", fontSize: 12 }}>
+                    <span data-testid={`blocco-${r.nome}`}>{r.blocco_versione ?? t("console.pannelli.bloccoNessuno")}</span>
+                    <button onClick={() => void versionCap(r)} title={t("console.pannelli.bloccoTesto")}
+                      data-testid={`blocco-azione-${r.nome}`}
+                      style={{ marginLeft: 6, background: "transparent", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, cursor: "pointer", color: "var(--brand-text, #e2e8f0)", fontSize: 12, padding: "1px 6px" }}>
+                      {t("console.pannelli.bloccoAzione")}
+                    </button>
                   </td>
                 </tr>
               ))}

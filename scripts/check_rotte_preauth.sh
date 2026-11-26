@@ -86,6 +86,10 @@ esito() {
 #                                        la firma del gateway (HMAC del token
 #                                        del tunnel), che conoscono solo
 #                                        gateway e pannello
+#   /api/update/cap                      (26-11-2026) il blocco di versione
+#                                        dalla console della piattaforma: come
+#                                        la Rinomina, senza sessione ma NON
+#                                        aperta — firma del gateway, 404 senza
 #   /api/telefono/voce                   (26-10-2026, P4) il tasto «1» premuto
 #   /api/telefono/sms                    in una chiamata o la risposta «OK» a
 #                                        un SMS: le chiama Twilio, che non ha
@@ -145,6 +149,7 @@ ATTESE=(
     "/api/abbinamento"
     "/api/abbinamento/rivendica"
     "/api/abbinamento/nome"
+    "/api/update/cap"
     "/api/telefono/voce"
     "/api/telefono/sms"
     "/api/project"

@@ -62,7 +62,7 @@ export function AggiornamentoRuntime() {
   // A channel change on its way (the panel takes the snapshot first), and
   // whether the update that started is a channel switch (25-11-2026).
   const [channelBusy, setChannelBusy] = useState(false);
-  const [channelSwitch, setChannelSwitch] = useState(false);
+  const [channelSwitch, setChannelSwitch] = useState<boolean | "pin">(false);
   // Il pannello non risponde, ma l'aggiornamento era partito da poco: si sta
   // riavviando. `tentativi` cresce a ogni lettura fallita e fa ripartire l'attesa.
   const [riavvio, setRiavvio] = useState(false);
@@ -149,7 +149,9 @@ export function AggiornamentoRuntime() {
   else if (stato === undefined) riga = t("aggiornamento.carico");
   else if (stato === null) riga = t("aggiornamento.illeggibile");
   else if (avviato) {
-    riga = channelSwitch
+    riga = channelSwitch === "pin"
+      ? t("aggiornamento.fissaAvviata", { a: stato.disponibile ?? "?" })
+      : channelSwitch
       ? t("aggiornamento.canaleAvviato", { a: stato.disponibile ?? "?" })
       : t("aggiornamento.avviato", { a: stato.disponibile ?? "?" });
     tono = "var(--brand-warning, #f59e0b)";
@@ -167,7 +169,9 @@ export function AggiornamentoRuntime() {
         : t("aggiornamento.canaleRiga", { versione: stato.versione, canale });
       if (stato.disponibile) tono = "var(--brand-warning, #f59e0b)";
     } else if (stato.canale === "archivio" || stato.canale === "fissata" || stato.canale === "sconosciuto") {
-      riga = t("aggiornamento.manuale", { versione: stato.versione, canale });
+      // A panel that knows the channel route (from 2.27.0) leaves the fixed
+      // version from the channel menu below, not with a reinstallation.
+      riga = t(stato.cambio_canale ? "aggiornamento.manualeCanale" : "aggiornamento.manuale", { versione: stato.versione, canale });
     } else if (stato.errore) {
       riga = t("aggiornamento.registryErrore", { versione: stato.versione, canale, msg: stato.errore });
     } else if (stato.disponibile) {
@@ -216,9 +220,17 @@ export function AggiornamentoRuntime() {
         <div style={{ marginBottom: 8, fontSize: 12, color: "var(--brand-warning, #f59e0b)" }}>{t("aggiornamento.istantaneaInCorso")}</div>
       )}
       <span style={{ fontSize: 12, color: tono }}>{riga}</span>
+      {/* The version cap of the platform (26-11-2026): said when it is set,
+          and why a higher version of the channel is not offered. */}
+      {stato?.cap && !errore && (
+        <div data-testid="update-cap" style={{ marginTop: 4, fontSize: 12, color: "var(--brand-text-muted, #94a3b8)" }}>
+          {t("aggiornamento.bloccoRiga", { max: stato.cap })}
+          {stato.above_cap && <> {t("aggiornamento.bloccoOltre", { versione: stato.above_cap })}</>}
+        </div>
+      )}
       {/* Il percorso scritto non bastava (02-11-2026): nelle due disposizioni
           dell'IDE i menù si chiamano in modo diverso. Un bottone porta lì. */}
-      {manuale && (
+      {manuale && !stato?.cambio_canale && (
         <button type="button" data-testid="apri-installazione" style={{ marginLeft: 8 }}
           onClick={() => useAppStore.getState().setConfigTab("install")}>
           {t("aggiornamento.apriInstallazione")}
@@ -274,7 +286,7 @@ export function AggiornamentoRuntime() {
         <UpdateChannel
           stato={stato}
           onChanged={(s) => setStato(s)}
-          onSwitchStarted={(s) => { setStato(s); segnaPartito(); setChannelSwitch(true); setAvviato(true); }}
+          onSwitchStarted={(s, kind) => { setStato(s); segnaPartito(); setChannelSwitch(kind === "pin" ? "pin" : true); setAvviato(true); }}
           onBusy={setChannelBusy}
         />
       )}

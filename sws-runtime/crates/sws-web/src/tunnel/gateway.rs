@@ -142,6 +142,7 @@ pub async fn accetta(
         },
     };
     let registro = registro.clone();
+    let stato = s.clone();
     ws.on_upgrade(move |socket| async move {
         tracing::info!(pannello = %nome, "tunnel aperto");
         let filo = Filo::nuovo(socket);
@@ -150,6 +151,7 @@ pub async fn accetta(
         // suoi battiti (un byte `\0`) e l'annuncio dello spegnimento (`S`).
         let (maniglia, mut in_arrivo) = avvia(filo, Verso::Chiama);
         registro.entra(&nome, maniglia.clone()).await;
+        push_cap_at_open(stato.clone(), nome.clone());
         let annunciato = Arc::new(std::sync::atomic::AtomicBool::new(false));
         let mut sentito: Option<std::time::Instant> = None;
         let mut passo = tokio::time::interval(std::time::Duration::from_secs(2));
@@ -924,6 +926,162 @@ pub async fn imposta_schermo(
         }
         Ok(false) => StatusCode::NOT_FOUND.into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct VersionCap {
+    /// The highest version the panel can go to; `None` removes the cap.
+    max: Option<String>,
+}
+
+/// `POST /api/amministrazione/pannelli/:nome/blocco` — the version cap of a
+/// panel (26-11-2026, `crate::update_cap`). Only the platform administrator.
+/// The cap is saved here; if the panel is connected it gets it now through
+/// the tunnel, otherwise at its next tunnel open. The cap never updates and
+/// never restarts the panel. The answer says if the panel got it.
+pub async fn imposta_blocco(
+    State(s): State<crate::router::AppState>,
+    Path(nome): Path<String>,
+    user: Option<axum::Extension<crate::router::AuthUser>>,
+    axum::Json(b): axum::Json<VersionCap>,
+) -> Response {
+    let Some(a) = s.pannelli_abbinati.as_ref() else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    let max = match b.max.as_deref().map(str::trim).filter(|m| !m.is_empty()) {
+        None => None,
+        Some(m) => match crate::aggiornamento::Versione::leggi(m) {
+            Some(v) => Some(crate::aggiornamento::formatta(&v)),
+            None => return (StatusCode::BAD_REQUEST, "versione non valida").into_response(),
+        },
+    };
+    let by = user.map(|u| u.0.username);
+    match a.imposta_blocco(&nome, max.clone()) {
+        Ok(true) => {}
+        Ok(false) => return StatusCode::NOT_FOUND.into_response(),
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+    s.audit.log(
+        "pannello.blocco_versione",
+        by.clone(),
+        serde_json::json!({ "pannello": nome, "max": max }),
+    );
+    let sent = match push_cap(&s, &nome, max.as_deref(), by.as_deref()).await {
+        Ok(()) => serde_json::json!({ "sent": true }),
+        Err(e) => {
+            tracing::info!(pannello = %nome, "version cap saved, not sent now: {e}");
+            serde_json::json!({ "sent": false, "detail": e })
+        }
+    };
+    axum::Json(sent).into_response()
+}
+
+/// Sends the version cap to a connected panel, with the gateway's signature.
+pub(crate) async fn push_cap(
+    s: &crate::router::AppState,
+    pannello: &str,
+    max: Option<&str>,
+    by: Option<&str>,
+) -> Result<(), String> {
+    let registro = s.tunnel.as_ref().ok_or("questo processo non ha tunnel")?;
+    let maniglia = registro
+        .di(pannello)
+        .await
+        .ok_or("il pannello non è collegato adesso: lo riceve quando si ricollega")?;
+    let firma = firma_per(s, pannello).ok_or("firma del gateway non disponibile")?;
+    let richiesta = Request::builder()
+        .method("POST")
+        .uri("/api/update/cap")
+        .header("content-type", "application/json")
+        .header(crate::abbinamento::INTESTAZIONE_GATEWAY, firma)
+        .body(Body::from(
+            serde_json::json!({ "max": max, "by": by }).to_string(),
+        ))
+        .map_err(|e| e.to_string())?;
+    match attraverso(&maniglia, "/api/update/cap", "", richiesta).await {
+        Ok(r) if r.status().is_success() => Ok(()),
+        Ok(r) if r.status() == StatusCode::NOT_FOUND => {
+            Err("il pannello non conosce il blocco di versione: va aggiornato".into())
+        }
+        Ok(r) => Err(format!("il pannello ha risposto {}", r.status())),
+        Err(e) => Err(format!("il pannello non risponde: {e}")),
+    }
+}
+
+/// At every tunnel open the gateway sends the saved cap again (also none): a
+/// panel that was off when the cap changed gets it when it comes back.
+fn push_cap_at_open(s: crate::router::AppState, pannello: String) {
+    let Some(p) = s
+        .pannelli_abbinati
+        .as_ref()
+        .and_then(|a| a.per_nome(&pannello))
+    else {
+        return;
+    };
+    tokio::spawn(async move {
+        // The panel opened the tunnel: give its side a moment to settle.
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+        if let Err(e) = push_cap(&s, &pannello, p.blocco_versione.as_deref(), None).await {
+            if p.blocco_versione.is_some() {
+                tracing::warn!(%pannello, "version cap not sent at tunnel open: {e}");
+            } else {
+                tracing::debug!(%pannello, "no version cap sent at tunnel open: {e}");
+            }
+        }
+    });
+}
+
+/// `GET /api/amministrazione/versioni` — the versions published on the
+/// public registry (from the tags `X-arm64` and `X-amd64`), ascending, for
+/// the version cap menu of the console (26-11-2026).
+pub async fn versioni_pubblicate() -> Response {
+    let Some(r) =
+        crate::aggiornamento::scomponi(&format!("{}:latest", crate::update_channel::DEFAULT_IMAGE))
+    else {
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    };
+    match crate::aggiornamento::tag_del_registry(&r).await {
+        Ok(tags) => {
+            axum::Json(serde_json::json!({ "versions": published_any_arch(&tags) })).into_response()
+        }
+        Err(e) => (StatusCode::BAD_GATEWAY, format!("registry: {e}")).into_response(),
+    }
+}
+
+/// The versions with an image for `arm64` or `amd64`, ascending, once each.
+fn published_any_arch(tags: &[String]) -> Vec<String> {
+    let mut v = crate::update_channel::published_versions(tags, "arm64");
+    v.extend(crate::update_channel::published_versions(tags, "amd64"));
+    v.sort();
+    v.dedup();
+    v.iter().map(crate::aggiornamento::formatta).collect()
+}
+
+#[cfg(test)]
+mod version_cap_tests {
+    #[test]
+    fn the_published_versions_come_from_both_architectures() {
+        let tags: Vec<String> = [
+            "2.28.0-dev.1-arm64",
+            "2.27.0-amd64",
+            "2.27.0-arm64",
+            "2.26.0-rc.30-arm64-generic",
+            "2.26.0-rc.30-arm64",
+            "latest-arm64",
+            "dev-amd64",
+            "a570b64b-amd64",
+            "2026.7.0-arm64",
+            "2.29.0",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+        assert_eq!(
+            super::published_any_arch(&tags),
+            vec!["2.26.0-rc.30", "2.27.0", "2.28.0-dev.1"]
+        );
     }
 }
 

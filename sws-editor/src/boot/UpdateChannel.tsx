@@ -7,10 +7,14 @@
 // a higher version on the chosen channel it switches now, otherwise the choice
 // waits and the image stays — a panel never goes down a version.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { api, type StatoAggiornamento, type UpdateChannelName } from "@/api/client";
-import { conferma } from "@/finestraAvviso/finestraAvviso";
+import { api, type StatoAggiornamento, type UpdateChannelName, type UpdateVersions } from "@/api/client";
+import { conferma, scegli } from "@/finestraAvviso/finestraAvviso";
+
+/** The menu entry that opens «Fix a version…» (26-11-2026). It is not a
+ *  channel: choosing it opens the list of versions. */
+const PIN = "pin";
 
 const CHANNELS: readonly UpdateChannelName[] = ["stable", "test", "dev"];
 type ChannelChoice = UpdateChannelName | "none";
@@ -27,8 +31,9 @@ export function UpdateChannel({ stato, onChanged, onSwitchStarted, onBusy }: {
   stato: StatoAggiornamento;
   /** The new status of a choice that waits (or was taken back). */
   onChanged: (s: StatoAggiornamento) => void;
-  /** The panel switches now: it installs `a` and restarts. */
-  onSwitchStarted: (s: StatoAggiornamento) => void;
+  /** The panel switches now: it installs `a` and restarts. `pin`: to a
+   *  fixed version (26-11-2026). */
+  onSwitchStarted: (s: StatoAggiornamento, kind?: "channel" | "pin") => void;
   /** The request is on its way (the snapshot can take minutes): the parent
    *  says so and holds «Update now» (review of 25-11-2026). */
   onBusy?: (busy: boolean) => void;
@@ -43,6 +48,47 @@ export function UpdateChannel({ stato, onChanged, onSwitchStarted, onBusy }: {
   const [choice, setChoice] = useState<ChannelChoice>(current);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The versions the panel can be fixed to (26-11-2026). Only a runtime that
+  // knows `/api/update/versions` answers: for an older one the entry is hidden.
+  const [versions, setVersions] = useState<UpdateVersions | null>(null);
+  useEffect(() => {
+    let alive = true;
+    api.remoteUpdateVersions()
+      .then((v) => { if (alive && Array.isArray(v?.versions)) setVersions(v); })
+      .catch(() => { if (alive) setVersions(null); });
+    return () => { alive = false; };
+  }, []);
+
+  // «Fix a version…»: the list, then the confirmation with the snapshot and
+  // the restart, then the request.
+  const pin = async () => {
+    if (!versions) return;
+    if (versions.versions.length === 0) {
+      setError(t("aggiornamento.fissaNessuna"));
+      return;
+    }
+    const picked = await scegli<string>({
+      titolo: t("aggiornamento.fissaTitolo"),
+      testo: t("aggiornamento.fissaTesto", { running: versions.running }),
+      // The newest first: it is the one people look for.
+      scelte: [...versions.versions].reverse().map((v) => ({ valore: v, etichetta: v })),
+    });
+    if (!picked) return;
+    if (!(await conferma({ testo: t("aggiornamento.fissaConferma", { a: picked }) }))) return;
+    setBusy(true);
+    onBusy?.(true);
+    setError(null);
+    try {
+      const next = await api.remoteFixVersion(picked);
+      if (next.in_corso) onSwitchStarted({ ...next, disponibile: next.disponibile ?? picked }, "pin");
+      else onChanged(next);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+      onBusy?.(false);
+    }
+  };
 
   const label = (c: ChannelChoice) => c === "none"
     ? t(`aggiornamento.canaleNomeNessuno.${stato.canale === "archivio" ? "archivio" : "fissata"}`)
@@ -86,9 +132,13 @@ export function UpdateChannel({ stato, onChanged, onSwitchStarted, onBusy }: {
     <div style={{ marginTop: 10 }} data-testid="update-channel">
       <span style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)" }}>{t("aggiornamento.canaleTitolo")}</span>{" "}
       <select data-testid="update-channel-select" value={choice} disabled={busy}
-        onChange={(e) => setChoice(e.target.value as ChannelChoice)}>
+        onChange={(e) => {
+          if (e.target.value === PIN) { void pin(); return; }
+          setChoice(e.target.value as ChannelChoice);
+        }}>
         {pinned && <option value="none">{label("none")}</option>}
         {CHANNELS.map((c) => <option key={c} value={c}>{label(c)}</option>)}
+        {versions && <option value={PIN} data-testid="update-pin-entry">{t("aggiornamento.fissaVoce")}</option>}
       </select>{" "}
       <button type="button" data-testid="update-channel-apply" disabled={busy || choice === current}
         onClick={() => void apply()}>

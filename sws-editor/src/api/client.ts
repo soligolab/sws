@@ -522,6 +522,20 @@ export interface StatoAggiornamento {
   /** «Ignora questa versione» dato dallo schermo del pannello, ricordato dal
    *  runtime (24-10-2026: il kiosk in incognito perde il `localStorage`). */
   versione_ignorata?: string;
+  /** The version cap of the platform (26-11-2026): the panel does not go
+   *  above it, and `disponibile` never does. */
+  cap?: string;
+  /** The channel has a higher version, but it is above the cap. */
+  above_cap?: string;
+}
+
+/** `GET /api/update/versions` (26-11-2026): the versions the panel can be
+ *  fixed to, ascending, from the one that runs up to the cap. */
+export interface UpdateVersions {
+  running: string;
+  arch: string;
+  versions: string[];
+  cap: string | null;
 }
 
 /** Gemello di `aggiornamento::NovitaVersione`. */
@@ -2867,6 +2881,17 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ channel }),
     }),
+  /** The versions the connected device can be fixed to (26-11-2026). An
+   *  older device answers with an error: the IDE hides the choice. */
+  remoteUpdateVersions: () => request<UpdateVersions>("/api/remote/update/versions"),
+  /** Fixes the connected device to a version (26-11-2026): the data
+   *  snapshot, then the installer and a restart of about one minute. */
+  remoteFixVersion: (pin: string) =>
+    request<StatoAggiornamento>("/api/remote/update/channel", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pin }),
+    }),
   /** Riscrive i quadlet del pannello dai template della sua immagine (02-10-2026):
    *  il pannello si riavvia. */
   remoteAggiornaQuadlet: () =>
@@ -3449,6 +3474,16 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ acceso }),
     }),
+  /** The version cap of a panel (26-11-2026): `null` removes it. `sent`
+   *  says if the panel got it now (otherwise at its next connection). */
+  versionCapPanel: (nome: string, max: string | null) =>
+    request<{ sent: boolean; detail?: string }>(`/api/amministrazione/pannelli/${encodeURIComponent(nome)}/blocco`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ max }),
+    }),
+  /** The versions published on the public registry, ascending (26-11-2026). */
+  publishedVersions: () => request<{ versions: string[] }>("/api/amministrazione/versioni"),
   /** Il biglietto per aprire lo schermo di un pannello: l'indirizzo da aprire
    *  in una scheda (29-10-2026). Lo dà il gateway, a nome di chi chiede. */
   bigliettoSchermo: (nome: string) =>

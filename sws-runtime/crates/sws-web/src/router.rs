@@ -829,6 +829,7 @@ pub fn build(
         .route("/api/update/status", get(aggiornamento_stato))
         .route("/api/update/apply", post(aggiornamento_avvia))
         .route("/api/update/channel", post(aggiornamento_canale))
+        .route("/api/update/versions", get(aggiornamento_versioni))
         .route("/api/quadlet/aggiorna", post(quadlet_aggiorna))
         // OpenPLC dall'IDE (30-10-2026): Admin, come i quadlet.
         .route("/api/openplc/installa", post(openplc_installa))
@@ -883,6 +884,10 @@ pub fn build(
         .route(
             "/api/remote/update/channel",
             post(crate::remote::remote_update_channel),
+        )
+        .route(
+            "/api/remote/update/versions",
+            get(crate::remote::remote_update_versions),
         )
         .route(
             "/api/remote/quadlet/aggiorna",
@@ -1667,6 +1672,9 @@ pub fn build(
         // La Rinomina dal cloud (fetta E): fuori da `require_auth` perché la
         // protegge la firma del gateway, che solo lui e il pannello conoscono.
         .route("/api/abbinamento/nome", post(crate::abbinamento::rinomina))
+        // The version cap of the platform (26-11-2026): outside `require_auth`
+        // like the rename, protected by the gateway's signature (404 without).
+        .route("/api/update/cap", post(crate::update_cap::from_gateway))
         // Primo accesso dell'installazione: pre-auth per necessità — servono a
         // decidere QUALE schermata mostrare, e a quel punto nessun token può
         // esistere. La creazione è protetta dal codice stampato all'avvio e si
@@ -1841,6 +1849,16 @@ pub fn build(
                         .route(
                             "/api/amministrazione/pannelli/:nome/schermo",
                             post(crate::tunnel::gateway::imposta_schermo),
+                        )
+                        // The version cap of a panel (26-11-2026): the platform
+                        // limits how high a panel goes, it never updates one.
+                        .route(
+                            "/api/amministrazione/pannelli/:nome/blocco",
+                            post(crate::tunnel::gateway::imposta_blocco),
+                        )
+                        .route(
+                            "/api/amministrazione/versioni",
+                            get(crate::tunnel::gateway::versioni_pubblicate),
                         )
                         .route_layer(middleware::from_fn(require_amministratore_piattaforma))
                         .route_layer(middleware::from_fn_with_state(state.clone(), require_auth)),
@@ -2169,6 +2187,7 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
         .route("/api/update/status", get(aggiornamento_stato))
         .route("/api/update/apply", post(aggiornamento_avvia))
         .route("/api/update/channel", post(aggiornamento_canale))
+        .route("/api/update/versions", get(aggiornamento_versioni))
         .route("/api/quadlet/aggiorna", post(quadlet_aggiorna))
         // OpenPLC dall'IDE (30-10-2026): Admin, come i quadlet.
         .route("/api/openplc/installa", post(openplc_installa))
@@ -2259,6 +2278,8 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
         // La Rinomina dal cloud arriva qui sui pannelli con `--no-admin`: il
         // tunnel gira gli stream sulla porta di gestione (fetta E).
         .route("/api/abbinamento/nome", post(crate::abbinamento::rinomina))
+        // The version cap of the platform (26-11-2026): the gateway's signature.
+        .route("/api/update/cap", post(crate::update_cap::from_gateway))
         // La conferma dal telefono (P4, 26-10-2026): la chiama Twilio, che non
         // ha una sessione — la protegge la sua firma (`X-Twilio-Signature`), che
         // l'handler verifica col token del progetto, e un gettone monouso.
@@ -2383,6 +2404,7 @@ fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>) -> Router {
     let aggiornamento_routes = Router::new()
         .route("/api/update/apply", post(aggiornamento_avvia))
         .route("/api/update/channel", post(aggiornamento_canale))
+        .route("/api/update/versions", get(aggiornamento_versioni))
         // «Ignora questa versione» dallo schermo (24-10-2026): è una scelta, quindi Admin.
         .route("/api/update/ignora", post(aggiornamento_ignora))
         .route("/api/quadlet/aggiorna", post(quadlet_aggiorna))
@@ -5100,6 +5122,18 @@ async fn aggiornamento_avvia(
         )
             .into_response();
     }
+    // The head of the channel is above the version cap of the platform
+    // (26-11-2026): «Update now» would install it. Said before the snapshot.
+    if let (Some(head), Some(cap)) = (st.above_cap.as_deref(), st.cap.as_deref()) {
+        return (
+            StatusCode::CONFLICT,
+            format!(
+                "La {head} è oltre il blocco di versione della piattaforma (al massimo la {cap}): \
+                 l'aggiornamento non parte."
+            ),
+        )
+            .into_response();
+    }
     // A chosen channel without a higher version: «Update now» would take the
     // panel down a version or follow the old channel. Neither happens
     // (review of 25-11-2026). And the switch's conditions before the snapshot.
@@ -5159,8 +5193,12 @@ async fn aggiornamento_avvia(
 #[derive(serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ChannelBody {
-    /// `stable`, `test` or `dev`.
-    channel: String,
+    /// `stable`, `test`, `dev` or `none`.
+    #[serde(default)]
+    channel: Option<String>,
+    /// A fixed version instead of a channel (26-11-2026): `2.31.0`.
+    #[serde(default)]
+    pin: Option<String>,
 }
 
 /// `POST /api/update/channel` — the update channel chosen from the IDE
@@ -5186,9 +5224,20 @@ async fn aggiornamento_canale(
     {
         return (StatusCode::CONFLICT, agg::GIA_IN_CORSO).into_response();
     }
+    let channel = match (b.channel, b.pin) {
+        (Some(c), None) => c,
+        (None, Some(pin)) => return aggiornamento_fissa(&s, &user, &pin).await,
+        _ => {
+            return (
+                StatusCode::BAD_REQUEST,
+                "serve `channel` oppure `pin`, uno solo",
+            )
+                .into_response()
+        }
+    };
     // `none`: take back a choice that waits (a fixed or archive panel goes back
     // to its pinned image; review of 25-11-2026).
-    if b.channel == "none" {
+    if channel == "none" {
         uc::clear(&s.config_dir).await;
         s.audit.log(
             "update.channel",
@@ -5197,7 +5246,7 @@ async fn aggiornamento_canale(
         );
         return Json(agg::stato_con_esito(&s.config_dir).await).into_response();
     }
-    let Some(chosen) = uc::parse(&b.channel) else {
+    let Some(chosen) = uc::parse(&channel) else {
         return (
             StatusCode::BAD_REQUEST,
             "canale sconosciuto: stable, test, dev o none",
@@ -5220,10 +5269,12 @@ async fn aggiornamento_canale(
         )
             .into_response();
     }
-    let (_, decision, top) = match uc::decide_now(&image, &image_channel, &chosen).await {
-        Ok(d) => d,
-        Err(e) => return (StatusCode::BAD_GATEWAY, format!("registry: {e}")).into_response(),
-    };
+    let cap = crate::update_cap::read_max(&s.config_dir).await;
+    let (_, decision, top) =
+        match uc::decide_now(&image, &image_channel, &chosen, cap.as_ref()).await {
+            Ok(d) => d,
+            Err(e) => return (StatusCode::BAD_GATEWAY, format!("registry: {e}")).into_response(),
+        };
     let audit = |s: &AppState, now: bool| {
         s.audit.log(
             "update.channel",
@@ -5306,6 +5357,146 @@ async fn aggiornamento_canale(
                 }
             }
         }
+    }
+}
+
+/// The registry tags of the repository of the image that runs, with the
+/// image, its architecture and the version that runs. `Err` is the answer.
+async fn published_for_this_panel(
+) -> Result<(String, &'static str, Vec<crate::aggiornamento::Versione>), Response> {
+    let Some(image) = std::env::var("SWS_IMAGE").ok().filter(|s| !s.is_empty()) else {
+        return Err((
+            StatusCode::CONFLICT,
+            "Questo runtime non gira in un container installato con l'installer: la versione \
+             non si fissa da qui.",
+        )
+            .into_response());
+    };
+    let Some(arch) = crate::update_channel::image_arch(&image) else {
+        return Err((
+            StatusCode::CONFLICT,
+            "L'immagine che gira non dice la sua architettura.",
+        )
+            .into_response());
+    };
+    // Any version names the repository: the tags list does not use the tag.
+    let Some(r) = crate::aggiornamento::Versione::leggi("0.0.0")
+        .and_then(|v| crate::update_channel::pin_target(&image, &v))
+    else {
+        return Err((StatusCode::CONFLICT, "Immagine sconosciuta.").into_response());
+    };
+    let tags = crate::aggiornamento::tag_del_registry(&r)
+        .await
+        .map_err(|e| (StatusCode::BAD_GATEWAY, format!("registry: {e}")).into_response())?;
+    Ok((
+        image,
+        arch,
+        crate::update_channel::published_versions(&tags, arch),
+    ))
+}
+
+/// `GET /api/update/versions` — the versions this panel can be fixed to
+/// (26-11-2026): published for its architecture, from the one that runs up
+/// to the version cap, ascending. The IDE shows «Fix a version…» only to
+/// panels that answer this route.
+async fn aggiornamento_versioni(State(s): State<AppState>) -> Response {
+    use crate::aggiornamento as agg;
+    let (_, arch, published) = match published_for_this_panel().await {
+        Ok(p) => p,
+        Err(r) => return r,
+    };
+    let cap = crate::update_cap::read_max(&s.config_dir).await;
+    let running = agg::Versione::leggi(agg::version());
+    let versions: Vec<String> =
+        crate::update_channel::pin_choices(&published, running.as_ref(), cap.as_ref())
+            .iter()
+            .map(agg::formatta)
+            .collect();
+    Json(serde_json::json!({
+        "running": agg::version(),
+        "arch": arch,
+        "versions": versions,
+        "cap": cap.as_ref().map(agg::formatta),
+    }))
+    .into_response()
+}
+
+/// `POST /api/update/channel` with `{ "pin": "2.31.0" }` (26-11-2026): the
+/// panel goes to the image `2.31.0-<arch>`, without automatic updates. The
+/// version must be published for the architecture, not lower than the one
+/// that runs and not above the cap. The same road as a channel switch: the
+/// data snapshot, then the installer, then a restart of about one minute.
+async fn aggiornamento_fissa(s: &AppState, user: &AuthUser, pin: &str) -> Response {
+    use crate::aggiornamento as agg;
+    use crate::update_channel as uc;
+    let Some(version) = agg::Versione::leggi(pin.trim()) else {
+        return (StatusCode::BAD_REQUEST, "versione non valida").into_response();
+    };
+    let name = agg::formatta(&version);
+    let (image, _, published) = match published_for_this_panel().await {
+        Ok(p) => p,
+        Err(r) => return r,
+    };
+    let cap = crate::update_cap::read_max(&s.config_dir).await;
+    let running = agg::Versione::leggi(agg::version());
+    if let Err(refusal) = uc::check_pin(&version, &published, running.as_ref(), cap.as_ref()) {
+        let cap_name = cap.as_ref().map(agg::formatta);
+        return (
+            StatusCode::CONFLICT,
+            refusal.text(&name, agg::version(), cap_name.as_deref()),
+        )
+            .into_response();
+    }
+    let Some(target) = uc::pin_target(&image, &version) else {
+        return (StatusCode::CONFLICT, "Immagine sconosciuta.").into_response();
+    };
+    if let Err(e) = uc::preflight().await {
+        return (StatusCode::CONFLICT, e).into_response();
+    }
+    let preparazione = match agg::prenota(&s.config_dir).await {
+        Ok(p) => p,
+        Err(e) => return (StatusCode::CONFLICT, e).into_response(),
+    };
+    let image_ref = uc::image_ref(&target);
+    s.audit.log(
+        "update.pin",
+        Some(user.username.clone()),
+        serde_json::json!({ "from": image, "to": image_ref, "running": agg::version() }),
+    );
+    crate::aggiornamento_finestra::scarta_versione(&s.config_dir, None).await;
+    let mut answer = agg::stato_con_esito(&s.config_dir).await;
+    let running_name = agg::version().to_string();
+    let dir = s.config_dir.as_ref().clone();
+    let esito = agg::prepara_e_avvia_staccato(
+        preparazione,
+        dir.clone(),
+        running_name.clone(),
+        Some(name.clone()),
+        async move {
+            crate::istantanea_dati::prendi(&running_name)
+                .await
+                .map(|_| ())
+        },
+        {
+            let dir = dir.clone();
+            async move { uc::start_switch(&dir, &image_ref).await }
+        },
+    );
+    match esito.await {
+        Ok(Ok(())) => {
+            // A channel that waited is gone: the panel is fixed now.
+            uc::clear(&s.config_dir).await;
+            answer.canale_scelto = None;
+            answer.disponibile = Some(name);
+            answer.in_corso = true;
+            (StatusCode::ACCEPTED, Json(answer)).into_response()
+        }
+        Ok(Err(e)) => (StatusCode::CONFLICT, e).into_response(),
+        Err(_) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "versione fissata: richiesta interrotta",
+        )
+            .into_response(),
     }
 }
 
@@ -15524,6 +15715,48 @@ mod rotte_del_dispositivo {
             !viewer.contains("/api/firewall"),
             "the viewer must not reach the firewall"
         );
+    }
+
+    /// The version pin and cap (26-11-2026). The console route is only for
+    /// the platform administrator; the panel's cap route is outside
+    /// `require_auth` (the gateway's signature protects it, 404 without), and
+    /// never on the viewer; the versions list is Admin like the channel.
+    #[test]
+    fn the_version_cap_and_pin_routes_have_their_guards() {
+        let src = include_str!("router.rs");
+        let platform = blocco(
+            src,
+            "// Elenco e ban: solo chi amministra la piattaforma.",
+            "require_amministratore_piattaforma))",
+        );
+        assert!(platform.contains("\"/api/amministrazione/pannelli/:nome/blocco\""));
+        assert!(platform.contains("\"/api/amministrazione/versioni\""));
+        assert_eq!(
+            src.matches("\"/api/amministrazione/pannelli/:nome/blocco\"")
+                .count(),
+            1,
+            "the cap route of the console is registered once"
+        );
+        // The cap: next to the rename from the cloud, on both management routers.
+        let open = blocco(src, "let open = Router::new()", "let protected");
+        assert!(open.contains("post(crate::update_cap::from_gateway)"));
+        let device = blocco(src, "fn deploy_only_app(", "\nfn ");
+        let open_device = blocco(device, "let aperte", ";\n");
+        assert!(open_device.contains("post(crate::update_cap::from_gateway)"));
+        let gestione = blocco(device, "let gestione", "require_admin))");
+        assert!(!gestione.contains("/api/update/cap"));
+        let viewer = blocco(src, "fn build_runtime_inner(", "\nfn ");
+        assert!(
+            !viewer.contains("/api/update/cap"),
+            "the viewer must not take a cap"
+        );
+        // The versions: Admin, where the channel is.
+        let ide = blocco(src, "let system_ctrl_routes", "require_admin));");
+        assert!(ide.contains("\"/api/update/versions\""));
+        assert!(ide.contains("\"/api/remote/update/versions\""));
+        assert!(gestione.contains("\"/api/update/versions\""));
+        let writes = blocco(viewer, "let aggiornamento_routes", "require_admin));");
+        assert!(writes.contains("\"/api/update/versions\""));
     }
 
     #[test]

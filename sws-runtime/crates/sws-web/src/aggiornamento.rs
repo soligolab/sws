@@ -187,6 +187,30 @@ pub fn versioni_dopo(
     v
 }
 
+/// What the head of a channel is for the panel.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Offer {
+    /// Not higher than the version that runs.
+    Nothing,
+    /// Higher, and not above the cap: «available».
+    Available,
+    /// Higher, but above the version cap of the platform (26-11-2026). Not
+    /// offered: `podman auto-update` installs the head of the channel, never
+    /// a lower version, so nothing of this channel can be installed.
+    AboveCap,
+}
+
+/// The offer of the channel head `best` to a panel that runs `running`.
+pub fn offer(best: &Versione, running: Option<&Versione>, cap: Option<&Versione>) -> Offer {
+    if running.is_some_and(|r| best <= r) {
+        Offer::Nothing
+    } else if crate::update_cap::allows(cap, best) {
+        Offer::Available
+    } else {
+        Offer::AboveCap
+    }
+}
+
 /// Lo stato per l'IDE.
 #[derive(Debug, Clone, Serialize)]
 pub struct StatoAggiornamento {
@@ -225,6 +249,14 @@ pub struct StatoAggiornamento {
     /// This runtime knows `POST /api/update/channel` (25-11-2026): the IDE
     /// shows the channel choice only to panels that answer it.
     pub cambio_canale: bool,
+    /// The version cap of the platform (`update_cap.rs`, 26-11-2026): the
+    /// panel does not go above it. `disponibile` never does.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cap: Option<String>,
+    /// The channel has a higher version, but it is above the cap: it is not
+    /// offered, and the IDE says why.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub above_cap: Option<String>,
 }
 
 /// Le novità di una versione, come viaggiano dentro la sua immagine.
@@ -488,7 +520,11 @@ pub async fn stato() -> StatoAggiornamento {
         versione_ignorata: None,
         canale_scelto: None,
         cambio_canale: true,
+        cap: None,
+        above_cap: None,
     };
+    let cap = crate::update_cap::current().await;
+    st.cap = cap.as_ref().map(formatta);
     // A channel chosen from the IDE that waits (25-11-2026): what is available
     // is read on that channel, also for a fixed or archive image.
     if let (Some(dir), Some(img)) = (crate::istantanea_dati::config_dir(), immagine.as_deref()) {
@@ -496,7 +532,12 @@ pub async fn stato() -> StatoAggiornamento {
             st.canale_scelto = Some(chosen.clone());
             // `disponibile` is what the switch would install: the version
             // behind the channel's moving tag, only if it is higher.
-            match crate::update_channel::decide_now(img, &canale, &chosen).await {
+            match crate::update_channel::decide_now(img, &canale, &chosen, cap.as_ref()).await {
+                Ok((_, crate::update_channel::Decision::Wait, Some(top)))
+                    if !crate::update_cap::allows(cap.as_ref(), &top) =>
+                {
+                    st.above_cap = Some(formatta(&top));
+                }
                 Ok((r, crate::update_channel::Decision::SwitchNow, Some(top))) => {
                     st.disponibile = Some(formatta(&top));
                     if let (Ok(tags), Some((_, arch))) = (
@@ -522,7 +563,11 @@ pub async fn stato() -> StatoAggiornamento {
         Ok(tags) => {
             let questa = Versione::leggi(version());
             if let Some(m) = migliore_nel_canale(&tags, &canale, &arch) {
-                if questa.as_ref().map(|q| &m > q).unwrap_or(true) {
+                let offer = offer(&m, questa.as_ref(), cap.as_ref());
+                if offer == Offer::AboveCap {
+                    st.above_cap = Some(formatta(&m));
+                }
+                if offer == Offer::Available {
                     st.disponibile = Some(formatta(&m));
                     st.novita =
                         novita_da_attraversare(&r, &tags, &canale, &arch, questa.as_ref()).await;
@@ -821,8 +866,15 @@ pub async fn avvia_scelto() -> Result<(), String> {
             // 25-11-2026): a banner days old, or a choice changed during the
             // snapshot, must never take the panel down a version. And never
             // `podman auto-update` instead: that follows the old channel.
-            let (r, d, _) =
-                crate::update_channel::decide_now(img, &canale_immagine, &chosen).await?;
+            let cap = crate::update_cap::current().await;
+            let (r, d, top) =
+                crate::update_channel::decide_now(img, &canale_immagine, &chosen, cap.as_ref())
+                    .await?;
+            if let (Some(c), Some(t)) = (cap.as_ref(), top.as_ref()) {
+                if !crate::update_cap::allows(Some(c), t) {
+                    return Err(crate::update_cap::refusal(&formatta(t), c));
+                }
+            }
             if d != crate::update_channel::Decision::SwitchNow {
                 return Err(
                     "Il canale scelto non ha una versione più alta di quella che gira: niente \
@@ -835,6 +887,18 @@ pub async fn avvia_scelto() -> Result<(), String> {
                 &crate::update_channel::image_ref(&r),
             )
             .await;
+        }
+    }
+    // The cap, checked again where the update really starts: the version
+    // behind the image's moving tag is what `podman auto-update` installs.
+    if let Some(cap) = crate::update_cap::current().await {
+        let r = immagine
+            .as_deref()
+            .and_then(scomponi)
+            .ok_or("immagine sconosciuta: con un blocco di versione non si aggiorna")?;
+        let head = crate::update_channel::moving_version(&r).await?;
+        if !crate::update_cap::allows(Some(&cap), &head) {
+            return Err(crate::update_cap::refusal(&formatta(&head), &cap));
         }
     }
     avvia().await
@@ -942,6 +1006,30 @@ mod tests {
             Some(GIA_IN_CORSO)
         );
         assert!(stato_con_esito(dir.path()).await.in_corso);
+    }
+
+    #[test]
+    fn available_never_goes_above_the_cap() {
+        let v = |s: &str| Versione::leggi(s).unwrap();
+        let running = v("2.27.0");
+        assert_eq!(offer(&v("2.28.0"), Some(&running), None), Offer::Available);
+        assert_eq!(
+            offer(&v("2.28.0"), Some(&running), Some(&v("2.28.0"))),
+            Offer::Available
+        );
+        assert_eq!(
+            offer(&v("2.29.0"), Some(&running), Some(&v("2.28.0"))),
+            Offer::AboveCap
+        );
+        assert_eq!(
+            offer(&v("2.27.0"), Some(&running), Some(&v("2.26.0"))),
+            Offer::Nothing,
+            "a panel already above the cap: nothing, and it stays"
+        );
+        assert_eq!(
+            offer(&v("2.29.0"), None, Some(&v("2.28.0"))),
+            Offer::AboveCap
+        );
     }
 
     #[test]

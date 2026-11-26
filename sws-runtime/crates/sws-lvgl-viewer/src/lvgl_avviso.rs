@@ -430,20 +430,14 @@ impl Overlay {
                 )
             };
         }
-        // **L'esito non copre l'impianto** (decisione del maintainer,
-        // 20-10-2026, come sul web): dice soltanto com'è andato l'ultimo
-        // aggiornamento, e se nessuno è davanti al pannello resterebbe lì per
-        // giorni davanti alla pagina. Versione nuova, configurazione del
-        // servizio, domanda di conferma e accesso restano a schermo intero:
-        // chiedono una decisione, e vanno viste.
-        let striscia = matches!(avviso, Avviso::Esito { .. });
-        let altezza = if striscia {
-            // Un terzo dello schermo, e non meno di 120 px: ci stanno titolo,
-            // versioni e il pulsante per chiudere.
-            (ver_res as i16 / 3).max(120).min(ver_res as i16)
-        } else {
-            ver_res as i16
-        };
+        // **The outcome greys the whole screen** (maintainer, 26-11-2026).
+        // Until then it was a strip one third high, with a veil: on the
+        // PLX800 monitor the edge of the veil cut the page in two, and the
+        // page looked moved down. Now a light grey veil covers the whole
+        // screen, the plant stays visible below it, and the card is in the
+        // middle, with the colour of the outcome.
+        let esito = matches!(avviso, Avviso::Esito { .. });
+        let altezza = ver_res as i16;
         unsafe {
             lvgl_sys::lv_obj_set_pos(radice, 0, 0);
             lvgl_sys::lv_obj_set_size(radice, hor_res as i16, altezza);
@@ -460,6 +454,10 @@ impl Overlay {
             // schermo intero, quindi togliere il velo non scopre niente.
             let velo = if matches!(avviso, Avviso::Accesso { .. }) {
                 0
+            } else if esito {
+                // Grey, not black: the plant below stays readable.
+                lvgl_sys::lv_obj_set_style_bg_color(radice, colore(71, 85, 105), 0);
+                150
             } else {
                 220
             };
@@ -471,9 +469,13 @@ impl Overlay {
         }
 
         let card_w = (hor_res as i16 - 32).clamp(200, 560);
-        // La card sta dentro la radice, che per l'esito è alta un terzo: se
-        // si misurasse ancora su `ver_res` sborderebbe dalla striscia.
-        let card_h = (altezza - 24).clamp(100, 340);
+        // The outcome card keeps the size it had in the strip: one third of
+        // the screen, title, versions and the button to close.
+        let card_h = if esito {
+            (altezza / 3 - 24).clamp(100, 340)
+        } else {
+            (altezza - 24).clamp(100, 340)
+        };
         let rosso = matches!(
             avviso,
             Avviso::Esito { evento, .. } if evento.esito == EsitoAggiornamento::NonRiuscito
@@ -511,11 +513,17 @@ impl Overlay {
                 card,
                 if rosso {
                     colore(239, 68, 68)
+                } else if esito {
+                    // The colour of a good outcome.
+                    colore(34, 197, 94)
                 } else {
                     colore(51, 65, 85)
                 },
                 0,
             );
+            if esito {
+                lvgl_sys::lv_obj_set_style_border_width(card, 3, 0);
+            }
             pad(card, 12);
             lvgl_sys::lv_obj_clear_flag(card, lvgl_sys::LV_OBJ_FLAG_SCROLLABLE);
         }

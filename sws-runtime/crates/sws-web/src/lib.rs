@@ -77,6 +77,7 @@ pub mod templates;
 pub mod traduttore;
 pub mod trash;
 pub mod tunnel;
+pub mod update_cap;
 pub mod update_channel;
 pub mod users_sent;
 pub mod validate;

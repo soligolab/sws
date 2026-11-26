@@ -52,6 +52,11 @@ pub struct Pannello {
     /// i pannelli abbinati prima nascono accesi.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub schermo_spento: bool,
+    /// The version cap set by the platform (26-11-2026, `crate::update_cap`):
+    /// the panel does not go above it. `None`: no cap. The gateway sends it
+    /// to the panel when it is set and at every tunnel open.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub blocco_versione: Option<String>,
 }
 
 /// Il token di un pannello: ripetibile, mai memorizzato.
@@ -233,6 +238,8 @@ impl Abbinati {
             abbinato_ms: ora,
             ultimo_ms: ora,
             schermo_spento: false,
+            // The same box keeps the cap of the platform after a reset.
+            blocco_versione: esistente.and_then(|p| p.blocco_versione),
         };
         let token = token_per(segreto, hw);
         Ok((p, token))
@@ -292,6 +299,17 @@ impl Abbinati {
             return Ok(false);
         };
         p.schermo_spento = !acceso;
+        self.scrivi(&righe)?;
+        Ok(true)
+    }
+
+    /// Sets or removes the version cap of a panel. `false` if `nome` is not there.
+    pub fn imposta_blocco(&self, nome: &str, max: Option<String>) -> anyhow::Result<bool> {
+        let mut righe = self.g();
+        let Some(p) = righe.iter_mut().find(|p| p.nome == nome) else {
+            return Ok(false);
+        };
+        p.blocco_versione = max;
         self.scrivi(&righe)?;
         Ok(true)
     }

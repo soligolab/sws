@@ -203,16 +203,15 @@ export function AvvisoAggiornamento() {
     const ok = evento.esito === "riuscito";
     const inst = stato?.novita_installata ? nl(stato.novita_installata) : null;
     return conLogin(
-      // L'esito è solo informazione (decisione del maintainer, 19-10-2026): una striscia in
-      // basso che non copre la pagina, perché è quella che rischia di restare davanti
-      // all'impianto per giorni. Versione nuova e domanda di conferma restano modali:
-      // chiedono una decisione.
+      // The outcome greys the whole page, with the card in the middle and the
+      // colour of the outcome (maintainer, 26-11-2026, the same as LVGL). Until
+      // then it was a strip at the bottom: on LVGL its veil cut the page in two.
+      // The page stays visible below the light veil.
       <div role="status" aria-label={testoSistema(ok ? "esito_titolo_ok" : "esito_titolo_ko", lang)}
-        style={{ position: "fixed", left: 12, right: 12, bottom: 12, zIndex: 9000, display: "flex", justifyContent: "center", pointerEvents: "none" }}>
+        style={{ position: "fixed", inset: 0, zIndex: 9000, display: "flex", alignItems: "center", justifyContent: "center", padding: 12, background: "rgba(71, 85, 105, 0.6)" }}>
         <div style={{
-          pointerEvents: "auto",
           background: "var(--brand-surface, #1e293b)",
-          border: `1px solid ${ok ? "var(--brand-surface-2, #334155)" : "var(--brand-danger, #ef4444)"}`,
+          border: `3px solid ${ok ? "var(--brand-success, #22c55e)" : "var(--brand-danger, #ef4444)"}`,
           borderRadius: 8, padding: "10px 14px", maxWidth: 640, width: "100%", maxHeight: "40vh", overflowY: "auto",
           boxShadow: "0 6px 24px rgba(0,0,0,0.45)",
         }}>

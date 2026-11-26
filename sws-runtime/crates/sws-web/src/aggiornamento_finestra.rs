@@ -372,7 +372,14 @@ async fn scatta_approvazione(config_dir: &Path, mut p: Programma, a: Approvazion
             ora_breve(),
             a.versione
         ),
-        Azione::Niente(m) => format!("{}: {m}", ora_breve()),
+        // The version cap of the platform (26-11-2026) says why.
+        Azione::Niente(m) => match (&st.above_cap, &st.cap) {
+            (Some(v), Some(c)) => format!(
+                "{}: {m} (la {v} è oltre il blocco di versione della piattaforma, al massimo la {c})",
+                ora_breve()
+            ),
+            _ => format!("{}: {m}", ora_breve()),
+        },
     });
     if let Err(e) = salva(config_dir, &p).await {
         tracing::warn!("finestra dell'aggiornamento: non riesco a salvare lo stato: {e}");
@@ -405,6 +412,12 @@ async fn scatta_pilota(config_dir: &Path) {
         ),
         (Some(v), _) => format!("{}: pilota automatico, aggiornamento alla {v} avviato", ora_breve()),
         (None, Some(e)) => format!("{}: pilota automatico, registry non raggiungibile: {e}", ora_breve()),
+        (None, None) if st.above_cap.is_some() => format!(
+            "{}: pilota automatico, la {} è oltre il blocco di versione della piattaforma (al massimo la {}): non aggiorno",
+            ora_breve(),
+            st.above_cap.as_deref().unwrap_or("?"),
+            st.cap.as_deref().unwrap_or("?")
+        ),
         (None, None) => format!("{}: pilota automatico, nessuna versione nuova", ora_breve()),
     };
     p.ultimo_esito = Some(esito);

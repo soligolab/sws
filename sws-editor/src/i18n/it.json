@@ -3502,6 +3502,7 @@
     "disponibile": "Versione {{versione}} ({{canale}}): disponibile la {{a}}.",
     "registryErrore": "Versione {{versione}} ({{canale}}). Non so se ce n'è una più nuova: {{msg}}",
     "manuale": "Versione {{versione}} ({{canale}}): non riceve gli aggiornamenti, che arrivano solo a un pannello installato dal registry. Per cambiarla si reinstalla, da Device → Installazione.",
+    "manualeCanale": "Versione {{versione}} ({{canale}}): non riceve gli aggiornamenti. Per seguire un canale, sceglilo qui sotto.",
     "pulsante": "Aggiorna ora alla {{a}}",
     "inCorso": "Avvio…",
     "conferma": "Il runtime del pannello passa dalla {{da}} alla {{a}}.\n\nSi riavvia: per qualche secondo allarmi, storico e schermo si fermano e la connessione cade. Se la versione nuova non parte bene, il pannello torna da solo alla precedente.\n\nProcedo?",
@@ -3529,7 +3530,15 @@
       "archivio": "Questa versione (da archivio)"
     },
     "canaleConfermaRitorno": "Il pannello torna a «{{canale}}»: resta sulla {{versione}} e la scelta di un altro canale si annulla. Procedo?",
-    "canaleRiga": "Versione {{versione}} ({{canale}})."
+    "canaleRiga": "Versione {{versione}} ({{canale}}).",
+    "fissaVoce": "Fissa una versione…",
+    "fissaTitolo": "Fissa una versione",
+    "fissaTesto": "Il pannello resta sulla versione scelta e non si aggiorna più da solo. Si torna a un canale con questo stesso menu. Versioni da {{running}} in su:",
+    "fissaNessuna": "Non c'è una versione da fissare: nessuna versione pubblicata fra quella che gira e il blocco della piattaforma.",
+    "fissaConferma": "Il pannello passa alla versione {{a}} e la tiene fissa, senza aggiornamenti automatici.\n\nPrima il pannello copia i dati (l'istantanea per il ritorno), poi si riavvia: circa un minuto.\n\nProcedere?",
+    "fissaAvviata": "Versione fissata: il pannello installa la {{a}} e si riavvia.",
+    "bloccoRiga": "Bloccato fino alla {{max}} dall'amministrazione della piattaforma.",
+    "bloccoOltre": "Nel canale c'è la {{versione}}, ma è oltre il blocco: il pannello non la installa."
   },
   "finestra": {
     "orologio": "Orologio del pannello: {{locale}} (UTC{{scostamento}}) · {{utc}} UTC",
@@ -4023,7 +4032,14 @@
       "schermoSpento": "spento",
       "schermoAiuto": "Se acceso, chi è dell'azienda del pannello può aprirne la pagina operatore dal cloud (tasto Viewer dell'IDE). Ogni apertura si registra.",
       "schermoApri": "Apri lo schermo del pannello in una scheda nuova",
-      "daRiabbinare": "Acceso, ma chiama il cloud in attesa di abbinamento: ha perso le sue credenziali (installazione pulita?). Riabbinalo col codice che mostra: ritrova nome e azienda."
+      "daRiabbinare": "Acceso, ma chiama il cloud in attesa di abbinamento: ha perso le sue credenziali (installazione pulita?). Riabbinalo col codice che mostra: ritrova nome e azienda.",
+      "blocco": "Blocco versione",
+      "bloccoNessuno": "—",
+      "bloccoAzione": "Blocco versione…",
+      "bloccoTitolo": "Blocco versione di «{{nome}}»",
+      "bloccoTesto": "Il blocco non aggiorna il pannello e non lo riavvia: dice solo fin dove può salire. Un pannello già sopra il blocco resta dov'è.",
+      "bloccoRimuovi": "Nessun blocco",
+      "bloccoNonInviato": "Blocco salvato. Il pannello lo riceve quando si ricollega ({{detail}})."
     },
     "aiPrices": {
       "explain": "I prezzi con cui l'installazione calcola la spesa dell'IA e il tetto di ogni conversazione. Si aggiornano da soli una volta al giorno da models.dev; le righe a mano qui sotto hanno la precedenza. Valgono per tutti i progetti del cloud.",

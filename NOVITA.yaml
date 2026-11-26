@@ -48,6 +48,11 @@ versioni:
         en: "With firewalld (Pixsys OS 2.2.0) the installation and the first start open ports 7443 and 7444: the panel answers from the network again."
       - it: "Firewall in Device → Firewall dell'IDE e nel pannello di controllo: servizi, porte e regole per sorgente, anche del sistema, da attivare o disattivare; ogni modifica si conferma entro 60 s."
         en: "Firewall in the IDE's Device → Firewall and in the control panel: services, ports and source rules, also the system ones, to enable or disable; confirm each change within 60 s."
+      # Versione fissata e blocco di versione (piano docs/plans/2026-11-26-versione-fissata-e-blocco.md).
+      - it: "Nel menu Canale dell'IDE, «Fissa una versione…»: il pannello passa a una versione scelta e non si aggiorna più da solo."
+        en: "In the IDE's Channel menu, «Fix a version…»: the panel goes to the version you select and does not update by itself."
+      - it: "La console della piattaforma può bloccare un pannello fino a una versione: il blocco non aggiorna e non riavvia niente."
+        en: "The platform console can cap a panel at a version: the cap does not update or restart anything."
   # La 2.26 non ha mai avuto una versione ufficiale (decisione del maintainer, 24-11-2026: «la 26 rc30 sia
   # l'ultima e ora lavoriamo solo alla 27»). Il suo blocco diventa quello della 2.27.0: chi aggiorna dalla 2.25
   # vede tutto qui, e prima della release le voci si sintetizzano insieme al maintainer.

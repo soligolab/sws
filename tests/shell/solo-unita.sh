@@ -119,6 +119,19 @@ prova "certutil: l'installer arriva in fondo"           "grep -q '^Image=ghcr.io
 prova "certutil: la unit di fiducia non si svuota"     "[ -s '$HOME/.config/systemd/user/sws-fiducia.path' ]"
 rm -f "$T/bin/certutil"
 
+# A fixed version from the IDE (26-11-2026): the version tag, and no automatic
+# update. Back on a channel, the automatic update comes back.
+: > "$LOG"
+bash "$T/src/install-container.sh" --solo-unita --image-ref ghcr.io/soligolab/sws-runtime:2.28.0-dev.1-arm64 \
+    > "$T/uscita5.log" 2>&1
+prova "pin: la versione fissata nel runtime"            "grep -q '^Image=ghcr.io/soligolab/sws-runtime:2.28.0-dev.1-arm64$' '$R'"
+prova "pin: aggiornamento automatico spento"            "! grep -q '^AutoUpdate=' '$R'"
+prova "pin: spento anche nel viewer"                    "! grep -q '^AutoUpdate=' '$V'"
+: > "$LOG"
+bash "$T/src/install-container.sh" --solo-unita --image-ref ghcr.io/soligolab/sws-runtime:rc-arm64 \
+    > "$T/uscita6.log" 2>&1
+prova "pin → canale: aggiornamento automatico acceso"   "grep -q '^AutoUpdate=registry' '$R'"
+
 # A new image that does not become healthy: the units go back to the image
 # that ran, and the runtime starts again on it.
 cat > "$T/bin/systemctl" <<EOF

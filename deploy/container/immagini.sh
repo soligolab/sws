@@ -53,12 +53,15 @@ usata() {  # usata <id>: un container la usa?
     return 1
 }
 # Image= and SWS_IMAGE of a unit set to a reference, with the automatic update
-# that goes with it: off for an archive image (`localhost/…`), on otherwise.
+# that goes with it: on for a channel tag (`latest-`, `rc-`, `dev-`), off for an
+# archive image (`localhost/…`) and for a fixed version (`2.31.0-arm64`,
+# 26-11-2026: a pinned panel does not follow anything).
 imposta_immagine() {  # imposta_immagine <ref> <unit file>
     sed -i "s|^Image=.*|Image=$1|; s|^Environment=SWS_IMAGE=.*|Environment=SWS_IMAGE=$1|" "$2"
     case "$1" in
-        localhost/*) sed -i "s|^AutoUpdate=|#AutoUpdate=|" "$2" ;;
-        *)           sed -i "s|^#AutoUpdate=|AutoUpdate=|" "$2" ;;
+        localhost/*)                    sed -i "s|^AutoUpdate=|#AutoUpdate=|" "$2" ;;
+        *:latest-*|*:rc-*|*:dev-*)      sed -i "s|^#AutoUpdate=|AutoUpdate=|" "$2" ;;
+        *)                              sed -i "s|^AutoUpdate=|#AutoUpdate=|" "$2" ;;
     esac
 }
 nomi() { podman image inspect "$1" --format '{{range .RepoTags}}{{.}} {{end}}' 2>/dev/null | sed 's/ *$//'; }

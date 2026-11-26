@@ -1944,6 +1944,19 @@ pub async fn remote_update_status(
     .await
 }
 
+/// `GET /api/remote/update/versions` — the versions the connected device can
+/// be fixed to (26-11-2026). An older device answers 404: the IDE hides the
+/// choice.
+pub async fn remote_update_versions(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+) -> Response {
+    inoltra_aggiornamento(&s, &user, reqwest::Method::GET, None, |base| {
+        format!("{base}/api/update/versions")
+    })
+    .await
+}
+
 /// `POST /api/remote/quadlet/aggiorna` (02-10-2026): riscrive i quadlet del
 /// pannello dai template della sua immagine — il quadlet che viaggia.
 pub async fn remote_quadlet_aggiorna(

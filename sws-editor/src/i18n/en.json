@@ -3502,6 +3502,7 @@
     "disponibile": "Version {{versione}} ({{canale}}): {{a}} is available.",
     "registryErrore": "Version {{versione}} ({{canale}}). Cannot tell whether a newer one exists: {{msg}}",
     "manuale": "Version {{versione}} ({{canale}}): it gets no updates, which reach only a panel installed from the registry. To change it you reinstall, from Device → Install.",
+    "manualeCanale": "Version {{versione}} ({{canale}}): it gets no updates. To follow a channel, choose it below.",
     "pulsante": "Update now to {{a}}",
     "inCorso": "Starting…",
     "conferma": "The panel runtime goes from {{da}} to {{a}}.\n\nIt restarts: for a few seconds alarms, history and screen stop and the connection drops. If the new version does not start properly, the panel goes back to the previous one by itself.\n\nProceed?",
@@ -3529,7 +3530,15 @@
       "archivio": "This version (from an archive)"
     },
     "canaleConfermaRitorno": "The panel goes back to «{{canale}}»: it stays on {{versione}} and the choice of another channel is cancelled. Go ahead?",
-    "canaleRiga": "Version {{versione}} ({{canale}})."
+    "canaleRiga": "Version {{versione}} ({{canale}}).",
+    "fissaVoce": "Fix a version…",
+    "fissaTitolo": "Fix a version",
+    "fissaTesto": "The panel stays on the version you select and does not update by itself. To go back to a channel, use this menu. Versions from {{running}} up:",
+    "fissaNessuna": "There is no version to fix: no version is published between the version that runs and the platform cap.",
+    "fissaConferma": "The panel goes to version {{a}} and keeps it, without automatic updates.\n\nFirst the panel copies its data (the snapshot for a rollback). Then it restarts: about one minute.\n\nProceed?",
+    "fissaAvviata": "Version fixed: the panel installs {{a}} and restarts.",
+    "bloccoRiga": "Capped at {{max}} by the platform administration.",
+    "bloccoOltre": "The channel has {{versione}}, but it is above the cap: the panel does not install it."
   },
   "finestra": {
     "orologio": "Panel clock: {{locale}} (UTC{{scostamento}}) · {{utc}} UTC",
@@ -4023,7 +4032,14 @@
       "schermoSpento": "off",
       "schermoAiuto": "When on, members of the panel's company can open its operator page from the cloud (IDE Viewer button). Every opening is logged.",
       "schermoApri": "Open the panel's screen in a new tab",
-      "daRiabbinare": "Switched on, but it calls the cloud waiting to be paired: it lost its credentials (clean install?). Pair it again with the code it shows: it gets back its name and company."
+      "daRiabbinare": "Switched on, but it calls the cloud waiting to be paired: it lost its credentials (clean install?). Pair it again with the code it shows: it gets back its name and company.",
+      "blocco": "Version cap",
+      "bloccoNessuno": "—",
+      "bloccoAzione": "Version cap…",
+      "bloccoTitolo": "Version cap of «{{nome}}»",
+      "bloccoTesto": "The cap does not update the panel and does not restart it: it only sets how high the panel can go. A panel that is already above the cap stays where it is.",
+      "bloccoRimuovi": "No cap",
+      "bloccoNonInviato": "Cap saved. The panel gets it when it connects again ({{detail}})."
     },
     "aiPrices": {
       "explain": "The prices the installation uses to work out what the AI costs and the cap of each conversation. They update by themselves once a day from models.dev; the manual rows below take precedence. They apply to every project in the cloud.",

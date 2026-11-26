@@ -13,6 +13,28 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 Il lavoro della **2.28.0** (versioni `2.28.0-dev.N`), da `main`.
 
+### Aggiunto — fissare una versione a un pannello, e il blocco di versione (26-11-2026, ramo `feat/version-pin`)
+Piano `docs/plans/2026-11-26-versione-fissata-e-blocco.md`.
+
+- **Fissare una versione, dall'IDE.** Nel menu Canale c'è la voce «Fissa una versione…». L'elenco viene da
+  `GET /api/update/versions` (proxy `/api/remote/update/versions`): le versioni pubblicate per l'architettura del
+  pannello, dalla versione che gira fino al blocco. La scelta va a `POST /api/update/channel` con `{ "pin": "X" }`. Il
+  pannello controlla tre cose: la versione è pubblicata (tag `X-<arch>`), non è più bassa di quella che gira, non supera
+  il blocco. Poi fa la stessa strada del cambio di canale: istantanea dei dati, installer, riavvio di circa un minuto.
+  Registro `update.pin`. La voce compare solo sui pannelli che rispondono alla rotta nuova.
+- **L'installer spegne `AutoUpdate` per una versione fissata.** Con un tag di canale (`latest-`, `rc-`, `dev-`) resta
+  acceso, con un tag di versione (`2.31.0-arm64`) si spegne, come per un archivio. Vale anche per un'installazione nuova
+  con `--pull <immagine>:<versione>-<arch>`.
+- **Il blocco di versione, dalla console.** Colonna «Blocco versione» e azione «Blocco versione…» in Console →
+  Pannelli, solo per chi amministra la piattaforma (`POST /api/amministrazione/pannelli/:nome/blocco`, elenco da
+  `GET /api/amministrazione/versioni`). Il gateway salva il blocco in `pannelli_abbinati.json` (`blocco_versione`),
+  lo manda al pannello nel tunnel con la sua firma (`POST /api/update/cap`, 404 senza firma) e lo rimanda a ogni
+  apertura del tunnel. Il pannello lo tiene in `config/update_cap.json`. Registri `pannello.blocco_versione` e
+  `update.cap`.
+- **Il blocco non aggiorna e non riavvia niente.** «Disponibile» non lo supera. «Aggiorna ora», la finestra e il pilota
+  automatico rifiutano una testa di canale oltre il blocco. Il cambio di canale aspetta. La riga di stato dell'IDE dice
+  il blocco e la versione che resta fuori. Un pannello già sopra il blocco resta dov'è.
+
 ### Corretto — le anomalie del collaudo del firewall (26-11-2026, ramo `fix/firewall-collaudo`)
 
 - Quando la barra dei 60 s scade senza conferma, il registro delle azioni scrive `firewall.expired` con le operazioni

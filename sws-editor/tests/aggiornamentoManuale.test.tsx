@@ -24,6 +24,18 @@ describe("aggiornamento di un pannello installato da archivio", () => {
     expect(useAppStore.getState().configTab).toBe("install");
   });
 
+  // 26-11-2026, collaudo sul PLX800: a 2.27.0 panel with a fixed version said
+  // «reinstall», with the channel menu just below that does the same.
+  it("a panel that knows the channel route points to the channel menu, not to Install", async () => {
+    vi.spyOn(api, "remoteStatoAggiornamento").mockResolvedValue({
+      versione: "2.27.0", immagine: "ghcr.io/soligolab/sws-runtime:2.27.0-arm64", canale: "fissata", disponibile: null, errore: null,
+      cambio_canale: true,
+    } as StatoAggiornamento);
+    render(<AggiornamentoRuntime />);
+    expect(await screen.findByText(i18n.t("aggiornamento.manualeCanale", { versione: "2.27.0", canale: i18n.t("aggiornamento.canale.fissata") }))).toBeTruthy();
+    expect(screen.queryByTestId("apri-installazione")).toBeNull();
+  });
+
   it("nel cloud Installazione dà i comandi per il pannello, non il modulo SSH", () => {
     window.history.replaceState(null, "", "/p/-/prova/");
     render(<InstallTab />);
