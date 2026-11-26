@@ -173,7 +173,15 @@ resta 404: così un bundle che manca non torna come HTML con stato 200.
 (`10.89.0.x`): il limite di 20 richieste/s vale per tutti insieme finché non c'è l'indirizzo vero (seme «indirizzo vero
 dietro Traefik»). Si aggiorna con `scripts/manuale/pubblica.sh`.
 
-**Versione in esecuzione: `cdc0e8bd-amd64` (2.28.0-dev.1)** dal 26-11-2026, 12:52, su richiesta del maintainer («aggiorna
+**Versione in esecuzione: `183e33d4-amd64` (2.28.0-dev.3)** dal 26-11-2026, 18:59, su richiesta del maintainer («ok a
+squash push e gateway»): la versione fissata e il blocco di versione della console (rotte
+`/api/amministrazione/pannelli/:nome/blocco` e `/api/amministrazione/versioni`), più le correzioni del collaudo sul
+PLX800. La dev.2 non è mai andata sul gateway. Sequenza solita da `ut1-HP-EliteBook-850-G6`: copia maestra e macchina
+uguali, `podman pull`, copia `sws-gateway.container.prima-2.28dev3`, `sed` del commit, `daemon-reload`, `restart`.
+Verificato: gateway e `katodo-Pompa` `healthy` su `183e33d4`, `SWS_VERSION` = 2.28.0-dev.3, radice 200, `/health` «ok»,
+tunnel di `tc620-garage` riaperto; WP630 e PLX800 erano spenti (ufficio, sera). Ripiego la dev.1 (`cdc0e8bd-amd64`).
+
+Prima: **Versione in esecuzione: `cdc0e8bd-amd64` (2.28.0-dev.1)** dal 26-11-2026, 12:52, su richiesta del maintainer («aggiorna
 il gateway alla dev.1»): il firewall dei dispositivi, con il proxy `/api/remote/firewall` per l'IDE del cloud. Sequenza
 solita, la prima dal portatile `ut1-HP-EliteBook-850-G6` (alias `sws-vps` in `~/.ssh/config`): copia maestra e macchina
 uguali, `podman pull`, copia `sws-gateway.container.prima-2.28dev1`, `sed` del commit, `daemon-reload`, `restart`.

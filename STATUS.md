@@ -28,10 +28,36 @@
   `ufficio`); storico (1,6 GB) e `users.yaml` ripristinati nel progetto nuovo del TC620, runtime fermo circa 2 min e
   30 s in tutto; sul VPS la riga `orientation: portrait` nella copia verticale (copia
   `project.yaml.prima-orientamento-20261127`). Il TC620 ora è sulla 2.27.0, verticale, con storico e utenti.
-- **Non provate qui**: le voci 4-6 della 2.27.0 (PLX800, versione fissata), la dev.2 e la dev.3. Il gateway del cloud è
-  sulla 2.28.0-dev.1: la dev.2 e la dev.3 non ci sono ancora.
-- **Da aggiornare in STATUS**: il blocco del 26-11 si ferma alla dev.1; la dev.2 (versione fissata per pannello, blocco
-  della piattaforma) e la dev.3 (correzione del viewer dopo «Delete project») sono in `main` senza una riga qui.
+- **Non provate qui**: le voci 4-6 della 2.27.0 (PLX800, versione fissata), la dev.2 e la dev.3.
+- **Correzione del 27-11 (`elitebook`)**: questa sessione credeva il gateway sulla dev.1. In realtà era già sulla dev.3
+  dalla sera del 26-11: il commit che lo registrava (blocco qui sotto) era rimasto sul portatile, non pushato. Il
+  blocco qui sotto registra la dev.2, la dev.3 e il collaudo da fare.
+
+## ▶ Riprendere da qui — dev.3 sul cloud, collaudo da fare; `/chiudi-plan-aperti` al piano 1 (2026-11-26 sera, portatile)
+
+- **`main` è la `2.28.0-dev.3`** (`183e33d4`, tag e push fatti, immagini su ghcr, `dev-*` spostati). Contiene:
+  il firewall dei dispositivi e il suo fix (`firewall.expired`); la versione fissata dall'IDE e il blocco di versione
+  dalla console (piano `docs/plans/2026-11-26-versione-fissata-e-blocco.md`); l'esito dell'aggiornamento che
+  ingrigisce lo schermo (web e LVGL); il viewer che lascia il sinottico dopo «Delete project on the runtime»; niente
+  falso «simbolo sconosciuto» per un `prj:` dopo quella cancellazione.
+- **Gateway di sws.soligo.net sulla dev.3.** La dev.2 non è mai andata su un pannello né sul gateway.
+- **Le build sull'EliteBook**: dev.2 in 14 min, dev.3 in 8 min (la dev.1, la prima, 63 min).
+- **Il collaudo della dev.3, da fare** (WP630 e PLX800 sono sul canale di sviluppo: «Aggiorna ora»):
+  1. console → «Blocco versione» sul WP630: il pannello lo riceve (`config/update_cap.json`), lo stato lo dice;
+  2. PLX800 → «Fissa una versione…»: quadlet su `X-arm64` senza `AutoUpdate`;
+  3. la riga `firewall.expired` nel registro, lasciando scadere una modifica;
+  4. «Delete project on the runtime» col monitor del PLX800 acceso: lo schermo lascia il sinottico;
+  5. l'avviso dell'esito nuovo (lo si vede con l'aggiornamento stesso);
+  6. il piano `correzioni-collaudo-dev3`: voci 2-4 (fermo del runtime oltre il minuto, «Cambia risoluzione», rinomina
+     nel cloud). La voce 1 non si prova con `PLX800_Verticale`: il deploy riavvia il dispositivo per la rotazione.
+- **`/chiudi-plan-aperti`**: elenco dal più recente. Piano 1 (versione fissata) e piano 3 (correzioni dev3) aspettano
+  il collaudo qui sopra; piano 2 (cambio di canale) aspetta le voci 1-2 sul TC620; poi il piano 4, **Save nella
+  testata** (analisi fatta: tutto da fare; decisione proposta: la password nuova resta un'azione a parte e salva
+  subito, il resto della pagina Utenti diventa bozza), che sarà la prossima dev.
+- **Da proporre al maintainer**: CasaDomotica (copia verticale) da `faceplate_scale: true` allo zoom, dal piano
+  `correzioni-collaudo-dev3`; il lavoro a parte sul `podman image prune -f` di `podman-auto-update.service`.
+- **PLX800**: sulla dev.1 dal canale di sviluppo; `PLX800_Verticale` di nuovo distribuito. **WP630**: dev.1, canale di
+  sviluppo; firewall con 4840/tcp aperta, atvise, finder e codesys spenti.
 
 ## ▶ Riprendere da qui — il firewall nella 2.28.0-dev.1, collaudato; `/chiudi-plan-aperti` (2026-11-26, portatile)
 
