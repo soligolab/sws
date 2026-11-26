@@ -49,6 +49,9 @@
 29. [Il certificato del dispositivo su un pannello Pixsys (HTTPS senza avvisi)](#29-il-certificato-del-dispositivo-su-un-pannello-pixsys-https-senza-avvisi)
 30. [Lavorare dal cloud su un impianto](#30-lavorare-dal-cloud-su-un-impianto)
 31. [Leggere un inverter fotovoltaico (chiavetta Solarman)](#31-leggere-un-inverter-fotovoltaico-chiavetta-solarman)
+32. [Usare l'assistente IA con la propria chiave, senza metterla in ogni progetto](#32-usare-lassistente-ia-con-la-propria-chiave-senza-metterla-in-ogni-progetto)
+33. [Usare un modello in casa (Ollama, vLLM, LM Studio, llama.cpp)](#33-usare-un-modello-in-casa-ollama-vllm-lm-studio-llamacpp)
+34. [Il pannello non risponde dalla rete locale: il firewall](#34-il-pannello-non-risponde-dalla-rete-locale-il-firewall)
 
 ---
 
@@ -2429,3 +2432,44 @@ fornitori nel cloud, il modello in casa è anche l'ultimo dell'ordine fisso: con
   un modello che il listino non conosce) e il tetto di spesa resta acceso.
 - **Non è nell'account**: il modello in casa è dell'installazione, non della persona.
 
+## 34. Il pannello non risponde dalla rete locale: il firewall
+
+Dal 26-11-2026. Pixsys OS 2.2.0 porta **firewalld** attivo. La sua zona `public` apre i servizi di Pixsys (ssh, http,
+https, codesys…), non le porte di SWS. Il sintomo: dal PC il pannello non risponde su 7443 e 7444 («Nessun
+instradamento per l'host», `curl` restituisce `000`), mentre ssh, ping e il cloud funzionano. Il cloud funziona perché
+il tunnel è una connessione **uscente**.
+
+### Dalla 2.28.0-dev.1 si sistema da solo
+
+- **L'installazione** (`install-container.sh` e le installazioni native) apre 7443/tcp e 7444/tcp nella zona della
+  scheda di rete, subito e in modo permanente.
+- **Un pannello già installato** che si aggiorna dal registro apre le porte al primo avvio del runtime nuovo, **una
+  volta sola**. Il segno sta in `config/firewall.json`. Se un admin le chiude dopo, restano chiuse.
+
+### Le regole dall'IDE o dal pannello
+
+Configurazione → Istanza → Device → **Firewall** (pannello collegato, utente Admin), oppure la sezione **Firewall** del
+pannello di controllo, col PIN.
+
+1. Ogni voce della zona è un interruttore, anche quelle del sistema. Una voce spenta resta in elenco e si riaccende.
+2. Porte e regole si modificano con «Modifica». Servizi, porte e regole per sorgente si aggiungono coi pulsanti «+».
+3. Le modifiche fanno una bozza. «Applica…» la riassume; è in rosso se tocca una porta di SWS o ssh.
+4. «Applica ora» manda le modifiche. Il pannello le applica **solo per 60 s**.
+5. Premi «Conferma» entro 60 s. Senza conferma il pannello torna com'era, anche se il collegamento si è perso.
+
+Per lasciare la gestione (7444) solo alla rete dell'ufficio:
+
+1. «+ Regola»: da `192.168.0.0/23`, porta `7444`, `tcp`, accetta.
+2. Spegni la voce `7444/tcp`.
+3. «Applica…», «Applica ora», poi «Conferma» da un PC di quella rete.
+
+### A mano, da root
+
+```bash
+firewall-cmd --get-active-zones
+firewall-cmd --permanent --zone=public --add-port=7443/tcp --add-port=7444/tcp
+firewall-cmd --reload
+```
+
+Sul pannello l'utente `user` può già cambiare firewalld (polkit di Pixsys OS): l'installazione lo fa senza `sudo`. La
+sonda dell'installazione lo dice nella riga «Firewall».

@@ -113,6 +113,7 @@ mod barre;
 mod client;
 mod control_panel;
 mod control_panel_about;
+mod control_panel_firewall;
 mod drm_display;
 mod effects;
 mod keyboard_layout;

@@ -54,7 +54,9 @@ prima va cambiato al primo accesso, e non si può rimandare.
   nessuna interfaccia, solo le rotte che l'IDE chiama, autenticate tranne l'abbinamento e il pannello di controllo
   del dispositivo (che chiede il PIN di servizio). Ascolta su **tutte le interfacce**
   (`0.0.0.0`, `sws-runtime/crates/sws-runtime/src/main.rs`), perché l'IDE in rete locale la raggiunge con «Connetti»;
-  chi non la vuole raggiungibile la chiude col firewall. Con `--kiosk` è il **viewer** ad ascoltare solo su
+  chi non la vuole raggiungibile la chiude col firewall. Dove gira firewalld (Pixsys OS 2.2.0 e successivi)
+  l'installazione apre 7443 e 7444; le regole si gestiscono da **Device → Firewall** nell'IDE o dalla sezione
+  Firewall del pannello di controllo, anche per una sola rete. Con `--kiosk` è il **viewer** ad ascoltare solo su
   `127.0.0.1`. Porte e flussi: [capitolo 18, §4](18_container_e_comunicazione.md#4-le-porte).
 - **`SWS_IP_ALLOWLIST`** (`192.168.1.0/24,10.0.0.0/8`) limita **il login** agli indirizzi elencati; vuota, nessun
   limite.
@@ -161,8 +163,10 @@ Scritto qui perché chi installa SWS sappia cosa deve coprire da sé, finché no
    «Schermo e accesso» → «Pannello di controllo del dispositivo». Finché manca, vale il PIN del dispositivo, che
    chiunque in rete può leggere. Sulle installazioni native, **cambiare la password di `admin`**.
 4. **Non esporre la porta 7444** fuori dalla rete dell'impianto: ascolta su tutte le interfacce, anche sul pannello,
-   quindi va chiusa col firewall verso chi non usa l'IDE. Per raggiungere un pannello da fuori c'è il tunnel del
-   cloud, che non apre porte in entrata.
+   quindi va chiusa col firewall verso chi non usa l'IDE. Con firewalld si fa da **Device → Firewall**: una regola
+   per sorgente che accetta 7444 solo dalla rete dell'ufficio, poi la porta 7444 aperta a tutti si disattiva. Ogni
+   modifica si conferma entro 60 s, altrimenti il pannello torna com'era. Per raggiungere un pannello da fuori c'è il
+   tunnel del cloud, che non apre porte in entrata.
 5. **Dichiarare le origini iframe** solo se servono, e solo quelle.
 6. **Installare le versioni nuove** quando il pannello le segnala, o accendere il «Pilota automatico», e leggere gli
    avvisi di sicurezza su GitHub. Il Tiny TY e le installazioni native non segnalano niente: vanno controllati a

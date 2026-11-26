@@ -138,6 +138,13 @@ for riga in r.stdout.strip().splitlines():
     print(riga if riga.startswith("  ") else "  " + riga.strip())
 if r.returncode != 0:
     ko("immagini.sh su un pannello finto: vedi sopra")
+# Le porte di SWS in firewalld (26-11-2026): le funzioni degli installatori su
+# un firewalld finto, e uguali in tutti e quattro.
+r = subprocess.run(["bash", "tests/shell/firewall.sh"], capture_output=True, text=True)
+for riga in (r.stdout + r.stderr).strip().splitlines():
+    print(riga if riga.startswith("  ") else "  " + riga.strip())
+if r.returncode != 0:
+    ko("firewalld degli installatori su un firewalld finto: vedi sopra")
 
 print()
 print("\033[32mquadlet: versione coerente.\033[0m" if ESITO == 0 else "\033[31mquadlet: la versione non dice il vero.\033[0m")

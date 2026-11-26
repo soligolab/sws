@@ -40,6 +40,14 @@
 # successivo.
 
 versioni:
+  # La 2.28.0, da main come dev (26-11-2026).
+  - versione: "2.28.0"
+    voci:
+      # Il firewall dei dispositivi (piano docs/plans/2026-11-26-firewall-dei-dispositivi.md).
+      - it: "Con firewalld (Pixsys OS 2.2.0) l'installazione e il primo avvio aprono le porte 7443 e 7444: il pannello risponde di nuovo dalla rete."
+        en: "With firewalld (Pixsys OS 2.2.0) the installation and the first start open ports 7443 and 7444: the panel answers from the network again."
+      - it: "Firewall in Device → Firewall dell'IDE e nel pannello di controllo: servizi, porte e regole per sorgente, anche del sistema, da attivare o disattivare; ogni modifica si conferma entro 60 s."
+        en: "Firewall in the IDE's Device → Firewall and in the control panel: services, ports and source rules, also the system ones, to enable or disable; confirm each change within 60 s."
   # La 2.26 non ha mai avuto una versione ufficiale (decisione del maintainer, 24-11-2026: «la 26 rc30 sia
   # l'ultima e ora lavoriamo solo alla 27»). Il suo blocco diventa quello della 2.27.0: chi aggiorna dalla 2.25
   # vede tutto qui, e prima della release le voci si sintetizzano insieme al maintainer.

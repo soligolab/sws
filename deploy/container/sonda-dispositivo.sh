@@ -124,5 +124,23 @@ else
     r launcher_pixsys 0
 fi
 
+# ── firewalld (Pixsys OS 2.2.0, 26-11-2026) ────────────────────────────────────
+# Running? And may the user change it (polkit)? Reads only.
+if command -v firewall-cmd >/dev/null 2>&1; then
+    if [ "$($T firewall-cmd --state 2>/dev/null </dev/null)" = running ]; then
+        r firewalld running
+        if command -v pkcheck >/dev/null 2>&1 \
+           && $T pkcheck --action-id org.fedoraproject.FirewallD1.config --process $$ >/dev/null 2>&1 </dev/null; then
+            r firewalld_permesso 1
+        else
+            r firewalld_permesso 0
+        fi
+    else
+        r firewalld inactive
+    fi
+else
+    r firewalld absent
+fi
+
 r fine 1
 exit 0

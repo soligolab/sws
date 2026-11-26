@@ -21,6 +21,7 @@ pub mod cron;
 pub mod discover;
 pub mod display_target;
 pub mod dispositivi;
+pub mod firewall;
 pub mod floor_plan;
 pub mod gateway;
 pub mod git_deploy;

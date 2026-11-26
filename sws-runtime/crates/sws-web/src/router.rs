@@ -850,6 +850,19 @@ pub fn build(
             "/api/remote/security/frame-origins",
             get(crate::remote::remote_sicurezza_leggi).put(crate::remote::remote_sicurezza_scrivi),
         )
+        // The device firewall (26-11-2026): Admin, like the frame origins.
+        .route("/api/firewall", get(firewall_get))
+        .route("/api/firewall/apply", post(firewall_apply))
+        .route("/api/firewall/confirm", post(firewall_confirm))
+        .route("/api/firewall/rollback", post(firewall_rollback))
+        .route(
+            "/api/remote/firewall",
+            get(crate::remote::remote_firewall_get),
+        )
+        .route(
+            "/api/remote/firewall/:action",
+            post(crate::remote::remote_firewall_action),
+        )
         .route(
             "/api/remote/update/schedule",
             get(crate::remote::remote_finestra_leggi).put(crate::remote::remote_finestra_scrivi),
@@ -2172,6 +2185,11 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
             "/api/security/frame-origins",
             get(sicurezza_leggi).put(sicurezza_scrivi),
         )
+        // The device's firewall, from the connected IDE (26-11-2026).
+        .route("/api/firewall", get(firewall_get))
+        .route("/api/firewall/apply", post(firewall_apply))
+        .route("/api/firewall/confirm", post(firewall_confirm))
+        .route("/api/firewall/rollback", post(firewall_rollback))
         // ── Il certificato TLS del dispositivo ─────────────────────────────
         //
         // Non c'erano (23-10-2026): la porta di gestione il TLS non lo nominava
@@ -5454,6 +5472,43 @@ async fn istantanea_dati_prendi(
             .into_response(),
         Err(e) => (StatusCode::CONFLICT, e).into_response(),
     }
+}
+
+/// `GET /api/firewall` — firewalld on this device: zones, entries, the ports
+/// SWS listens on, the change that waits. Only on a device: the IDE machine
+/// is not the one to manage from here.
+async fn firewall_get(State(s): State<AppState>) -> Response {
+    if !s.is_device() {
+        return Json(serde_json::json!({ "available": false })).into_response();
+    }
+    crate::firewall::http::get(&s).await
+}
+
+/// `POST /api/firewall/apply` — applied at once, undone after 60 s unless
+/// `POST /api/firewall/confirm` arrives.
+async fn firewall_apply(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Json(change): Json<crate::firewall::Change>,
+) -> Response {
+    if !s.is_device() {
+        return (StatusCode::NOT_FOUND, "not a device").into_response();
+    }
+    crate::firewall::http::apply(&s, change, Some(user.username)).await
+}
+
+async fn firewall_confirm(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+) -> Response {
+    crate::firewall::http::confirm(&s, Some(user.username)).await
+}
+
+async fn firewall_rollback(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+) -> Response {
+    crate::firewall::http::rollback(&s, Some(user.username)).await
 }
 
 /// `GET /api/update/schedule` — la finestra dell'aggiornamento e l'orologio del pannello.
@@ -15438,6 +15493,37 @@ mod rotte_del_dispositivo {
         assert!(super::tag_write_allowed(&db, "pompa", sws_auth::Role::Operator).await);
         assert!(!super::tag_write_allowed(&db, "forno", sws_auth::Role::Operator).await);
         assert!(super::tag_write_allowed(&db, "forno", sws_auth::Role::Supervisor).await);
+    }
+
+    /// The firewall (26-11-2026) is Admin on both management routers, and
+    /// never on the viewer: a rule closes or opens the device to the network.
+    #[test]
+    fn the_firewall_routes_stay_admin() {
+        let src = include_str!("router.rs");
+        let device = blocco(src, "fn deploy_only_app(", "let flussi");
+        let device = blocco(device, "let gestione", "require_admin))");
+        let ide = blocco(src, "let system_ctrl_routes", "require_admin));");
+        for route in [
+            "\"/api/firewall\"",
+            "\"/api/firewall/apply\"",
+            "\"/api/firewall/confirm\"",
+            "\"/api/firewall/rollback\"",
+        ] {
+            assert!(
+                device.contains(route),
+                "{route} is not Admin on the management port"
+            );
+            assert!(
+                ide.contains(route),
+                "{route} is not Admin in the full router"
+            );
+        }
+        assert!(ide.contains("\"/api/remote/firewall\""));
+        let viewer = blocco(src, "fn build_runtime_inner(", "\nfn ");
+        assert!(
+            !viewer.contains("/api/firewall"),
+            "the viewer must not reach the firewall"
+        );
     }
 
     #[test]

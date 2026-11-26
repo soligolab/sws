@@ -205,6 +205,7 @@ rischio non c'era.
 | Utente | **`user@`** — è quello indicato dal maintainer il 26-10. `pixsys@` è sudoer ma è di prova (vedi la memoria «credenziali e privilegi») |
 | Immagine in esecuzione | **2.24.1** (`rc-arm64`) con OpenPLC v4 e la porta 33333/udp, dal 03-11-2026 (`install-container.sh --pull … --con-openplc`); prima 2.23.4 dal 28-10 (il 26-10 era la 2.21.1, aggiornata da `sws.soligo.net` perché la 2.17 aveva il difetto della tastiera LVGL e dalla UI non si poteva) |
 | Orari | **si spegne la sera**: dopo le **17:30** non risponde, e non è un guasto |
+| Sistema | **Pixsys OS 2.2.0** dal 26-11-2026, con **firewalld** attivo (zona `public` su `ethernet0`): fino alla 2.28.0-dev.1 le porte 7443 e 7444 erano chiuse dalla LAN. `user` può cambiare firewalld (polkit). HOWTO §34 |
 
 L'indirizzo va **riconfermato ogni sessione**: vedi «Convenzioni» in fondo. Il 26-10 era cambiato
 da `.120` a `.106` rispetto alla misura di agosto, e la riga vecchia diceva «risponde da frodo» —

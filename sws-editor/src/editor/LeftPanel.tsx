@@ -2448,7 +2448,7 @@ export const VOCI_SINISTRA = [
   { id: "report", gruppo: "dati", schede: ["reports"], apre: "reports" },
   { id: "utenti", gruppo: "fondo", inFondo: true, schede: ["users", "certificati"], apre: "users" },
   { id: "dispositivo", gruppo: "fondo", inFondo: true,
-    schede: ["system", "screen", "devices", "runtime", "install", "container", "prestazioni", "resources", "backups", "devpackage"], apre: "system" },
+    schede: ["system", "screen", "devices", "runtime", "firewall", "install", "container", "prestazioni", "resources", "backups", "devpackage"], apre: "system" },
   { id: "progetto", gruppo: "fondo", inFondo: true, schede: ["impostazioni", "stile", "languages", "git", "datastores"] },
   // Il menù IA (04-11-2026): la chat e la configurazione dei modelli.
   { id: "ia", gruppo: "fondo", inFondo: true, schede: ["ia_assistente", "ia_fornitori", "ia_scopi", "ia_spending", "ia_regole"], apre: "ia_assistente" },

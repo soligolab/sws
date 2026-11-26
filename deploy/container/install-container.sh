@@ -463,9 +463,54 @@ if [ -n "$TUNNEL_TOKEN" ] && [ "${#TUNNEL_TOKEN}" -lt 16 ]; then
     exit 1
 fi
 
+# ── firewalld (Pixsys OS 2.2.0, 26-11-2026) ───────────────────────────────────
+# The system runs firewalld, and the Pixsys zone opens its own services but not
+# the ports of SWS: from the network the panel did not answer ("No route to
+# host"). Open 7443 and 7444 in the zones with a network card (or in the default
+# zone), at once and permanently, without `--reload`. Without firewalld, do
+# nothing; without the permission, show the command and continue.
+SWS_FIREWALL_PORTS="7443/tcp 7444/tcp"
+firewall_sws_zones() {
+    local z
+    z="$(firewall-cmd --get-active-zones 2>/dev/null | awk '/^[^ \t]/{z=$1} /interfaces:/{print z}')"
+    [ -n "$z" ] || z="$(firewall-cmd --get-default-zone 2>/dev/null)"
+    echo "$z"
+}
+firewall_running() {
+    command -v firewall-cmd >/dev/null 2>&1 && [ "$(firewall-cmd --state 2>/dev/null)" = running ]
+}
+open_firewall_ports() {
+    firewall_running || return 0
+    local zone port
+    for zone in $(firewall_sws_zones); do
+        for port in $SWS_FIREWALL_PORTS; do
+            firewall-cmd --zone="$zone" --query-port="$port" >/dev/null 2>&1 && continue
+            if firewall-cmd --zone="$zone" --add-port="$port" >/dev/null 2>&1 \
+               && firewall-cmd --permanent --zone="$zone" --add-port="$port" >/dev/null 2>&1; then
+                echo "    firewall: $port open in zone $zone"
+            else
+                echo "    WARNING: firewalld does not let this user open $port in zone $zone." >&2
+                echo "    As root: firewall-cmd --permanent --zone=$zone --add-port=$port && firewall-cmd --reload" >&2
+            fi
+        done
+    done
+}
+close_firewall_ports() {
+    firewall_running || return 0
+    local zone port
+    for zone in $(firewall-cmd --get-zones 2>/dev/null); do
+        for port in $SWS_FIREWALL_PORTS; do
+            firewall-cmd --zone="$zone" --remove-port="$port" >/dev/null 2>&1 || true
+            firewall-cmd --permanent --zone="$zone" --remove-port="$port" >/dev/null 2>&1 || true
+        done
+    done
+    echo "    firewall: the ports of SWS are closed"
+}
+
 # ── Disinstallazione ──────────────────────────────────────────────────────────
 if [ "$UNINSTALL" -eq 1 ]; then
     echo "==> rimozione servizio e container"
+    close_firewall_ports
     systemctl --user disable --now "$NAME" 2>/dev/null || true
     rm -f "$UNIT_DIR/$NAME.container"
     # Anche il viewer: restava installato, e un `daemon-reload` lo rigenerava
@@ -1024,6 +1069,10 @@ if [ "$AUTOSTART" -eq 1 ]; then
     [ -f "$APPLY_DST_DIR/sws-display-apply.sh" ] && { rm -f "$APPLY_DST_DIR/sws-display-apply.sh"; VECCHIA=1; }
     rm -f "$DATA/config/display-target"
     [ "$VECCHIA" -eq 1 ] && echo "    commutazione web/LVGL sull'host tolta: ora la fa il runtime"
+
+    # The ports in the firewall, on a full installation. With --solo-unita the
+    # runtime opens them at its first start, once (firewall::ensure_sws_ports).
+    [ "$SOLO_UNITA" -eq 1 ] || open_firewall_ports
 
     systemctl --user daemon-reload
     if [ "$SOLO_UNITA" -eq 1 ]; then

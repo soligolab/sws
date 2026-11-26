@@ -17,7 +17,12 @@ polkit.addRule(function(action, subject) {
         "org.freedesktop.login1.reboot",
         "org.freedesktop.login1.reboot-multiple-sessions",
         "org.freedesktop.login1.power-off",
-        "org.freedesktop.login1.power-off-multiple-sessions"
+        "org.freedesktop.login1.power-off-multiple-sessions",
+        // The Firewall section, where firewalld runs (26-11-2026).
+        "org.fedoraproject.FirewallD1.info",
+        "org.fedoraproject.FirewallD1.config",
+        "org.fedoraproject.FirewallD1.config.info",
+        "org.fedoraproject.FirewallD1.all"
     ];
     if (subject.user == "sws" && allowed.indexOf(action.id) >= 0) {
         return polkit.Result.YES;

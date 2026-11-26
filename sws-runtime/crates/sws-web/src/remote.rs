@@ -1882,6 +1882,45 @@ pub async fn remote_sicurezza_leggi(
     .await
 }
 
+/// `GET /api/remote/firewall` → the firewall of the connected panel.
+pub async fn remote_firewall_get(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+) -> Response {
+    inoltra_al_pannello(
+        &s,
+        Some(&user),
+        reqwest::Method::GET,
+        "/api/firewall",
+        None,
+        30,
+    )
+    .await
+}
+
+/// `POST /api/remote/firewall/{apply,confirm,rollback}`: the answers of the
+/// panel pass as they are (400, 409 and 502 carry the reason).
+pub async fn remote_firewall_action(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    axum::extract::Path(action): axum::extract::Path<String>,
+    body: Option<Json<serde_json::Value>>,
+) -> Response {
+    if !matches!(action.as_str(), "apply" | "confirm" | "rollback") {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+    let path = format!("/api/firewall/{action}");
+    inoltra_al_pannello(
+        &s,
+        Some(&user),
+        reqwest::Method::POST,
+        &path,
+        Some(body.map(|Json(v)| v).unwrap_or(serde_json::json!({}))),
+        30,
+    )
+    .await
+}
+
 /// `PUT /api/remote/security/frame-origins`
 pub async fn remote_sicurezza_scrivi(
     State(s): State<AppState>,

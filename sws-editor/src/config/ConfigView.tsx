@@ -2,6 +2,7 @@ import React, { useEffect } from "react";
 import { ReportsTab } from "@/config/schede/ReportsTab";
 import { CertificatiTab } from "@/config/schede/CertificatiTab";
 import { PrestazioniTab } from "@/config/schede/PrestazioniTab";
+import { FirewallTab } from "@/config/schede/FirewallTab";
 import { useTranslation } from "react-i18next";
 import { Tenuta } from "@/components/Tenuta";
 import { schedaDa, schedeVisibili, type IdScheda, type IdOspitato } from "@/config/schede";
@@ -62,6 +63,7 @@ const COMPONENTI: Record<IdConComponente, React.ComponentType<{ scheda: IdScheda
   backups: BackupsTab,
   devices: DevicesTab,
   runtime: RuntimeConnectionTab,
+  firewall: FirewallTab,
   install: InstallTab,
   container: ContainerTab,
   devpackage: DevPackageTab,

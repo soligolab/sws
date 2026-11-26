@@ -55,10 +55,55 @@ require_root() {
     [ "$(id -u)" -eq 0 ] || die "Run as root:  sudo $0 $*"
 }
 
+# ── firewalld (Pixsys OS 2.2.0, 26-11-2026) ───────────────────────────────────
+# The system runs firewalld, and the Pixsys zone opens its own services but not
+# the ports of SWS: from the network the panel did not answer ("No route to
+# host"). Open 7443 and 7444 in the zones with a network card (or in the default
+# zone), at once and permanently, without `--reload`. Without firewalld, do
+# nothing; without the permission, show the command and continue.
+SWS_FIREWALL_PORTS="7443/tcp 7444/tcp"
+firewall_sws_zones() {
+    local z
+    z="$(firewall-cmd --get-active-zones 2>/dev/null | awk '/^[^ \t]/{z=$1} /interfaces:/{print z}')"
+    [ -n "$z" ] || z="$(firewall-cmd --get-default-zone 2>/dev/null)"
+    echo "$z"
+}
+firewall_running() {
+    command -v firewall-cmd >/dev/null 2>&1 && [ "$(firewall-cmd --state 2>/dev/null)" = running ]
+}
+open_firewall_ports() {
+    firewall_running || return 0
+    local zone port
+    for zone in $(firewall_sws_zones); do
+        for port in $SWS_FIREWALL_PORTS; do
+            firewall-cmd --zone="$zone" --query-port="$port" >/dev/null 2>&1 && continue
+            if firewall-cmd --zone="$zone" --add-port="$port" >/dev/null 2>&1 \
+               && firewall-cmd --permanent --zone="$zone" --add-port="$port" >/dev/null 2>&1; then
+                echo "    firewall: $port open in zone $zone"
+            else
+                echo "    WARNING: firewalld does not let this user open $port in zone $zone." >&2
+                echo "    As root: firewall-cmd --permanent --zone=$zone --add-port=$port && firewall-cmd --reload" >&2
+            fi
+        done
+    done
+}
+close_firewall_ports() {
+    firewall_running || return 0
+    local zone port
+    for zone in $(firewall-cmd --get-zones 2>/dev/null); do
+        for port in $SWS_FIREWALL_PORTS; do
+            firewall-cmd --zone="$zone" --remove-port="$port" >/dev/null 2>&1 || true
+            firewall-cmd --permanent --zone="$zone" --remove-port="$port" >/dev/null 2>&1 || true
+        done
+    done
+    echo "    firewall: the ports of SWS are closed"
+}
+
 # ── Uninstall ─────────────────────────────────────────────────────────────────
 
 if [ "${1:-}" = "--uninstall" ]; then
     require_root
+    close_firewall_ports
     echo "==> Stopping and disabling $SERVICE_NAME..."
     systemctl stop    "$SERVICE_NAME" 2>/dev/null || true
     systemctl disable "$SERVICE_NAME" 2>/dev/null || true
@@ -182,6 +227,9 @@ else
 fi
 
 echo ""
+echo "==> Firewall"
+open_firewall_ports
+
 echo "==> Installation complete."
 # `hostname -I` è un'opzione di net-tools: dove /usr/bin/hostname è quello di
 # coreutils (Pixsys OS, per esempio) fallisce, e con `set -euo pipefail` la

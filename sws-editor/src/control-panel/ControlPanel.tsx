@@ -7,7 +7,9 @@
 // keyboard, so PIN and addresses have their own keypads. A physical keyboard
 // still types in the fields.
 
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import type { FirewallApi } from "@/firewall/core";
+import { FirewallEditor, type FirewallSkin } from "@/firewall/FirewallEditor";
 import { CampoPassword } from "@/components/CampoPassword";
 import { QrCode } from "@/components/QrCode";
 import { usePanelTranslation } from "./language";
@@ -63,7 +65,7 @@ const field: CSSProperties = {
   fontSize: 16, fontFamily: "'DejaVu Sans Mono', monospace", width: 180,
 };
 
-type Section = "network" | "wifi" | "time" | "screen" | "device" | "openplc" | "about";
+type Section = "network" | "wifi" | "time" | "screen" | "device" | "openplc" | "firewall" | "about";
 
 export function ControlPanel({ onClose }: { onClose: () => void }) {
   const [api, setApi] = useState<ControlPanelSession | null>(null);
@@ -208,6 +210,7 @@ function Panel({ api, onClose, onExpired }: { api: ControlPanelSession; onClose:
     { id: "screen", label: t("controlPanel.screen"), on: true },
     { id: "device", label: t("controlPanel.device"), on: true },
     ...(caps?.openplc ? [{ id: "openplc" as const, label: t("controlPanel.openplc"), on: true }] : []),
+    ...(caps?.firewall ? [{ id: "firewall" as const, label: t("controlPanel.firewall"), on: true }] : []),
     { id: "about", label: t("controlPanel.about"), on: true },
   ];
 
@@ -247,6 +250,7 @@ function Panel({ api, onClose, onExpired }: { api: ControlPanelSession; onClose:
         {section === "screen" && <ScreenSection api={api} guard={guard} caps={caps} />}
         {section === "device" && <DeviceSection api={api} guard={guard} info={info} caps={caps} />}
         {section === "openplc" && <OpenPlcSection api={api} guard={guard} />}
+        {section === "firewall" && <FirewallSection api={api} onExpired={onExpired} />}
         {section === "about" && <AboutSection api={api} guard={guard} />}
       </main>
     </div>
@@ -511,6 +515,33 @@ function usePending(reload: () => void) {
   }, [pending, reload]);
   const start = (secs: number, before: string) => { setPending({ until: Date.now() + secs * 1000, before }); setNow(Date.now()); };
   return { pending, now, start, clear: () => setPending(null) };
+}
+
+// ── Firewall ─────────────────────────────────────────────────────────────────
+
+const FIREWALL_SKIN: FirewallSkin = {
+  text: C.text, muted: C.muted, line: C.line, accent: C.accent, ok: C.ok, warn: C.warn, bad: C.bad,
+  panel: C.panel, bg: C.bg, barBg: "#3b2f12", barText: "#e9d8b0",
+  btn, btnPrimary, btnDanger: { ...btn, background: C.bad, borderColor: C.bad, color: "#fff" },
+  card, input: { ...field, fontFamily: "inherit", width: "auto" },
+  keyboard: (onKey) => <TextKeyboard onKey={onKey} />,
+  fixedBar: true,
+};
+
+/** firewalld on this device (26-11-2026): the editor the IDE also has. */
+function FirewallSection({ api, onExpired }: { api: ControlPanelSession; onExpired: () => void }) {
+  const { t } = usePanelTranslation();
+  const fw: FirewallApi = useMemo(() => ({
+    get: () => api.firewall(),
+    apply: (ops) => api.firewallApply(ops),
+    confirmChange: () => api.firewallConfirm(),
+    rollbackChange: () => api.firewallRollback(),
+  }), [api]);
+  const expired = useCallback((e: unknown) => {
+    if (e instanceof SessionExpired) { onExpired(); return true; }
+    return false;
+  }, [onExpired]);
+  return <FirewallEditor api={fw} t={t} skin={FIREWALL_SKIN} onExpired={expired} />;
 }
 
 // ── On-screen keyboard ───────────────────────────────────────────────────────

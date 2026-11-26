@@ -1,3 +1,4 @@
+import type { FirewallView, Op as FirewallOp } from "@/firewall/core";
 import type {
   AlarmDef,
   BucketSample,
@@ -666,6 +667,8 @@ export interface SystemStatus {
    *  dell'immagine che gira (02-10-2026). Assente fuori da un container. */
   quadlet?: StatoQuadlet | null;
   openplc?: StatoOpenplc | null;
+  /** firewalld runs on the device (26-11-2026); absent on an older runtime. */
+  firewall?: boolean;
   conferma_aggiornamento?: StatoConferma | null;
   uptime_s: number;
   /** Q52 (dal 2.7.2): architettura del binario (`aarch64`, `x86_64`), nome
@@ -2826,6 +2829,15 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ scelta }),
     }),
+  /** The firewall of the connected panel (26-11-2026). */
+  remoteFirewall: () => request<FirewallView>("/api/remote/firewall"),
+  remoteFirewallApply: (ops: FirewallOp[]) =>
+    request<{ confirm_within_secs: number }>("/api/remote/firewall/apply", {
+      method: "POST",
+      body: JSON.stringify({ ops }),
+    }),
+  remoteFirewallConfirm: () => request<void>("/api/remote/firewall/confirm", { method: "POST", body: "{}" }),
+  remoteFirewallRollback: () => request<void>("/api/remote/firewall/rollback", { method: "POST", body: "{}" }),
   /** Le origini ammesse a mostrare il dispositivo collegato in un iframe (C6). */
   remoteOriginiIframe: () => request<{ origini_iframe: string[] }>("/api/remote/security/frame-origins"),
   remoteScriviOriginiIframe: (origini_iframe: string[]) =>

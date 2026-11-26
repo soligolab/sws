@@ -1601,6 +1601,11 @@ async fn main() -> anyhow::Result<()> {
         tokio::spawn(async move {
             sws_web::openplc::ensure_editor_user(&config).await;
         });
+        // The ports of SWS in firewalld, once (PixsysOS 2.2.0, 26-11-2026):
+        // a panel that updates from the registry never runs the installer.
+        if app_state.is_device() {
+            tokio::spawn(sws_web::firewall::at_startup(app_state.clone()));
+        }
     }
 
     if let Ok(dir) = sws_web::router::active_dir(&app_state).await {

@@ -466,6 +466,27 @@ pub(crate) fn valuta_sonda(
         _ => {}
     }
 
+    // ── firewalld (Pixsys OS 2.2.0, 26-11-2026) ────────────────────────────
+    // Information, like the boot image: the installer opens 7443 and 7444, and
+    // only says so when firewalld does not let it.
+    match (fatto(f, "firewalld"), fatto(f, "firewalld_permesso")) {
+        ("running", "0") => c.push(controllo(
+            "firewall",
+            Esito::Avviso,
+            "Firewall",
+            format!("firewalld è attivo, e {utente} non può cambiarlo: 7443 e 7444 vanno aperte da root"),
+            Some("firewall-cmd --permanent --add-port=7443/tcp --add-port=7444/tcp && firewall-cmd --reload"),
+        )),
+        ("running", _) => c.push(controllo(
+            "firewall",
+            Esito::Ok,
+            "Firewall",
+            "firewalld è attivo: l'installazione apre 7443 e 7444, e le regole si gestiscono da Device → Firewall",
+            None,
+        )),
+        _ => {}
+    }
+
     // ── SWS già presente ───────────────────────────────────────────────────
     let mut sws = SwsInstallato {
         data_path: (!data_path.is_empty()).then(|| data_path.to_string()),

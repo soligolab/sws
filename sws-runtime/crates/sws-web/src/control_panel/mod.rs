@@ -577,6 +577,16 @@ pub fn routes(listener: Listener) -> Router<AppState> {
             "/api/control-panel/touch-calibration",
             post(start_touch_calibration),
         )
+        .route("/api/control-panel/firewall", get(firewall))
+        .route("/api/control-panel/firewall/apply", post(firewall_apply))
+        .route(
+            "/api/control-panel/firewall/confirm",
+            post(firewall_confirm),
+        )
+        .route(
+            "/api/control-panel/firewall/rollback",
+            post(firewall_rollback),
+        )
         .route_layer(middleware::from_fn(require_session));
     open.merge(guarded).layer(Extension(listener))
 }
@@ -716,7 +726,46 @@ async fn capabilities(State(s): State<AppState>) -> Response {
     let mut caps = serde_json::to_value(backend().capabilities().await).unwrap_or_default();
     // The OpenPLC section, where the installation put it (D20).
     caps["openplc"] = json!(crate::openplc::installed(&s.config_dir));
+    // The Firewall section, where firewalld runs (26-11-2026).
+    caps["firewall"] = json!(crate::firewall::available().await);
     Json(caps).into_response()
+}
+
+/// Who changes the firewall from the control panel, for the audit log: the
+/// cloud user from the remote screen, otherwise where the request came from.
+fn firewall_actor(origin: Origin, headers: &HeaderMap) -> Option<String> {
+    remote_user(origin, headers).or_else(|| Some(format!("control-panel:{}", origin.describe())))
+}
+
+async fn firewall(State(s): State<AppState>) -> Response {
+    crate::firewall::http::get(&s).await
+}
+
+/// `POST /api/control-panel/firewall/apply` — applied at once, undone after
+/// [`CONFIRM_WITHIN_SECS`] unless `POST …/firewall/confirm` arrives.
+async fn firewall_apply(
+    State(s): State<AppState>,
+    origin: Origin,
+    headers: HeaderMap,
+    Json(change): Json<crate::firewall::Change>,
+) -> Response {
+    crate::firewall::http::apply(&s, change, firewall_actor(origin, &headers)).await
+}
+
+async fn firewall_confirm(
+    State(s): State<AppState>,
+    origin: Origin,
+    headers: HeaderMap,
+) -> Response {
+    crate::firewall::http::confirm(&s, firewall_actor(origin, &headers)).await
+}
+
+async fn firewall_rollback(
+    State(s): State<AppState>,
+    origin: Origin,
+    headers: HeaderMap,
+) -> Response {
+    crate::firewall::http::rollback(&s, firewall_actor(origin, &headers)).await
 }
 
 /// `GET /api/control-panel/openplc` — the OpenPLC on this device, with the

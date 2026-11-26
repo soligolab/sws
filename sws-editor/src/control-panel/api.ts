@@ -5,6 +5,7 @@
 // so the paths are relative.
 
 import type { Zone } from "./timezones";
+import type { FirewallView, Op as FirewallOp } from "@/firewall/core";
 
 export const SESSION_HEADER = "x-sws-control-panel";
 /** On a request the panel makes by itself: it does not keep the session alive. */
@@ -50,6 +51,8 @@ export interface Capabilities {
   reboot_corner?: boolean;
   /** OpenPLC is installed here: the panel shows its section (CRA D20). */
   openplc?: boolean;
+  /** firewalld runs here: the panel shows the Firewall section (26-11-2026). */
+  firewall?: boolean;
 }
 
 /** `GET /api/control-panel/openplc`: OpenPLC on this device, with the Editor's
@@ -318,6 +321,11 @@ export function session(token: string) {
       call<void>("/reboot-corner", { method: "PUT", body: JSON.stringify({ corner, options }) }),
     setDisplay: (brightness: number | null) =>
       call<void>("/display", { method: "PUT", body: JSON.stringify({ brightness }) }),
+    firewall: () => call<FirewallView>("/firewall"),
+    firewallApply: (ops: FirewallOp[]) =>
+      call<{ confirm_within_secs: number }>("/firewall/apply", { method: "POST", body: JSON.stringify({ ops }) }),
+    firewallConfirm: () => call<void>("/firewall/confirm", { method: "POST", body: "{}" }),
+    firewallRollback: () => call<void>("/firewall/rollback", { method: "POST", body: "{}" }),
   };
 }
 

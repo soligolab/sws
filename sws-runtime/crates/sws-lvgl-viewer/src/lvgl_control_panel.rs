@@ -22,6 +22,7 @@ use std::time::Instant;
 use lvgl::Color;
 
 use crate::control_panel::{self as cp, Power, Screen, Section, State};
+use crate::control_panel_firewall as fwm;
 use crate::lvgl_render::{stile, testo_etichetta, text_cstring};
 
 type P = *mut lvgl_sys::lv_obj_t;
@@ -113,6 +114,20 @@ enum Action {
     TzPick(String),
     TzFocus,
     TzKey(String),
+    FwToggle(String, usize),
+    FwOpen(u16, String),
+    /// 0 = service, 1 = port, 2 = rule.
+    FwFormStart(String, u8),
+    FwEdit(String, usize),
+    FwCycle(u8, i8),
+    FwFocus(usize),
+    FwFormOk,
+    FwFormCancel,
+    FwDiscard,
+    FwReview(bool),
+    FwSend,
+    FwConfirm,
+    FwRollback,
 }
 
 unsafe extern "C" fn sws_control_panel_cb(e: *mut lvgl_sys::lv_event_t) {
@@ -195,6 +210,26 @@ unsafe extern "C" fn sws_control_panel_cb(e: *mut lvgl_sys::lv_event_t) {
         Action::RebootSize(d) => cp::reboot_size_step(*d),
         Action::RebootConfirm(on) => cp::reboot_confirm_set(*on),
         Action::RebootAnswer(yes) => cp::reboot_answer(*yes),
+        Action::FwToggle(z, i) => cp::fw_toggle(z, *i),
+        Action::FwOpen(port, proto) => cp::fw_open(*port, proto),
+        Action::FwFormStart(z, k) => cp::fw_form_start(
+            z,
+            match k {
+                0 => fwm::FormKind::Service,
+                1 => fwm::FormKind::Port,
+                _ => fwm::FormKind::Rule,
+            },
+        ),
+        Action::FwEdit(z, i) => cp::fw_edit_start(z, *i),
+        Action::FwCycle(what, step) => cp::fw_form_cycle(*what, *step),
+        Action::FwFocus(i) => cp::fw_form_focus(*i),
+        Action::FwFormOk => cp::fw_form_ok(),
+        Action::FwFormCancel => cp::fw_form_cancel(),
+        Action::FwDiscard => cp::fw_discard(),
+        Action::FwReview(on) => cp::fw_review(*on),
+        Action::FwSend => cp::fw_send(),
+        Action::FwConfirm => cp::fw_confirm(),
+        Action::FwRollback => cp::fw_rollback(),
     }
 }
 
@@ -221,6 +256,9 @@ enum Tick {
     Date,
     Countdown,
     ConfirmHelp,
+    /// The bar of a firewall change: seconds, and the line under the question.
+    FwCountdown,
+    FwHelp,
     /// The dot under the finger while a calibration is tried.
     CalibrationDot,
 }
@@ -321,11 +359,12 @@ impl Overlay {
         if self.ticks.is_empty() {
             return;
         }
-        let (boot, time, pending) = cp::with_state(|s| {
+        let (boot, time, pending, fw_until) = cp::with_state(|s| {
             (
                 s.boot_until,
                 s.time.clone(),
                 s.pending.as_ref().map(|p| (p.until, p.before.clone())),
+                s.fw_until,
             )
         });
         let secs_to = |t: Instant| t.saturating_duration_since(now).as_secs_f32().ceil() as u64;
@@ -357,6 +396,10 @@ impl Overlay {
                         "confirmHelp",
                         &[("secs", &secs_to(*u).to_string()), ("before", before)],
                     )
+                }),
+                Tick::FwCountdown => fw_until.map(|u| secs_to(u).to_string()),
+                Tick::FwHelp => fw_until.map(|u| {
+                    cp::fw_word(lang, "confirmHelp", &[("secs", &secs_to(u).to_string())])
                 }),
                 Tick::CalibrationDot => None,
             };
@@ -717,6 +760,7 @@ impl Overlay {
             (Some(Section::Screen), "screen", screen_on),
             (Some(Section::Device), "device", true),
             (Some(Section::OpenPlc), "openplc", caps.openplc),
+            (Some(Section::Firewall), "firewall", caps.firewall),
             (Some(Section::About), "about", true),
         ];
         for (section, key, on) in sections {
@@ -766,13 +810,17 @@ impl Overlay {
             || (s.section == Section::Wifi && s.wifi_form.as_ref().is_some_and(|f| !f.submitting));
         let typing_tz = s.section == Section::Time && s.tz.as_ref().is_some_and(|p| p.typing);
         let pending = matches!(s.section, Section::Network | Section::Wifi) && s.pending.is_some();
+        let fw_pending = s.section == Section::Firewall && s.fw_until.is_some();
+        let typing_fw = s.section == Section::Firewall
+            && !fw_pending
+            && s.fw_form.as_ref().is_some_and(|f| f.text_fields() > 0);
         let keypad_h: i16 = if h < 520 { 104 } else { 116 };
         let keyboard_h: i16 = if h < 520 { 196 } else { 220 };
         let bottom = if typing_ip || typing_time {
             keypad_h
-        } else if typing_text || typing_tz {
+        } else if typing_text || typing_tz || typing_fw {
             keyboard_h
-        } else if pending {
+        } else if pending || fw_pending {
             84
         } else {
             0
@@ -823,6 +871,7 @@ impl Overlay {
             Section::Screen => self.screen(main, s, lang, &caps),
             Section::Device => self.device(main, s, lang, &caps),
             Section::OpenPlc => self.openplc(main, s, lang),
+            Section::Firewall => focused = self.firewall(main, s, lang),
             Section::About => self.about(main, s, lang),
         }
 
@@ -877,8 +926,28 @@ impl Overlay {
             self.keyboard(root, nav_w, w - nav_w, keyboard_h, &keys, lang);
         } else if typing_tz {
             self.tz_keyboard(root, nav_w, w - nav_w, keyboard_h, lang);
+        } else if typing_fw {
+            let f = s.fw_form.as_ref().expect("typing_fw");
+            let services =
+                s.fw.as_ref()
+                    .map(|v| v.known_services.clone())
+                    .unwrap_or_default();
+            let done = if matches!(f.kind, fwm::FormKind::Edit(_)) {
+                "editOk"
+            } else {
+                "addOk"
+            };
+            let keys = Keys {
+                shift: f.shift,
+                symbols: f.symbols,
+                done: cp::fw_word(lang, done, &[]),
+                valid: f.item(&services).is_some(),
+            };
+            self.keyboard(root, nav_w, w - nav_w, keyboard_h, &keys, lang);
         } else if pending {
             self.confirm_bar(root, w, lang);
+        } else if fw_pending {
+            self.fw_bar(root, w, lang, s);
         }
 
         // Where it was, if the section is the same one.
@@ -2015,6 +2084,409 @@ impl Overlay {
                 },
             );
         }
+    }
+
+    // ── Firewall ─────────────────────────────────────────────────────────────
+
+    /// The bar of a firewall change waiting for «Confirm».
+    unsafe fn fw_bar(&mut self, root: P, w: i16, lang: &str, s: &State) {
+        let bar = panel_box(root, (59, 47, 18));
+        stile::raggio(bar, 0.0, stile::MAIN);
+        lvgl_sys::lv_obj_set_style_border_side(
+            bar,
+            lvgl_sys::LV_BORDER_SIDE_TOP as u8,
+            stile::MAIN,
+        );
+        stile::bordo(bar, Some(WARN), 2.0, stile::MAIN);
+        lvgl_sys::lv_obj_set_pos(bar, 0, screen_size().1 - 84);
+        lvgl_sys::lv_obj_set_size(bar, w, 84);
+        stile::margini(bar, 8, 18, stile::MAIN);
+        flex(bar, lvgl_sys::lv_flex_flow_t_LV_FLEX_FLOW_ROW, 14);
+        center_items(bar);
+        let n = label(bar, "60", 30, WARN);
+        lvgl_sys::lv_obj_set_width(n, 50);
+        lvgl_sys::lv_obj_set_style_text_align(n, lvgl_sys::LV_TEXT_ALIGN_CENTER as u8, stile::MAIN);
+        self.ticks.push((n, Tick::FwCountdown));
+        let col = transparent(bar);
+        lvgl_sys::lv_obj_set_height(col, LV_SIZE_CONTENT);
+        lvgl_sys::lv_obj_set_flex_grow(col, 1);
+        flex(col, lvgl_sys::lv_flex_flow_t_LV_FLEX_FLOW_COLUMN, 2);
+        label(col, &cp::fw_word(lang, "confirmQuestion", &[]), 17, TEXT);
+        let help = label(col, "", 13, (233, 216, 176));
+        wrap(help, pct(100));
+        self.ticks.push((help, Tick::FwHelp));
+        let b = button(bar, &cp::fw_word(lang, "rollback", &[]), PANEL2, TEXT, 15);
+        if s.busy {
+            dim(b);
+        } else {
+            self.on(b, Action::FwRollback);
+        }
+        let b = button(
+            bar,
+            &cp::fw_word(lang, "confirm", &[]),
+            ACCENT,
+            (255, 255, 255),
+            15,
+        );
+        if s.busy {
+            dim(b);
+        } else {
+            self.on(b, Action::FwConfirm);
+        }
+    }
+
+    /// One switch: green and to the right when on.
+    unsafe fn fw_switch(&mut self, parent: P, on: bool, action: Option<Action>) {
+        let sw = panel_box(parent, if on { OK } else { LINE });
+        lvgl_sys::lv_obj_set_size(sw, 52, 28);
+        stile::raggio(sw, 14.0, stile::MAIN);
+        stile::bordo(sw, None, 0.0, stile::MAIN);
+        let knob = lvgl_sys::lv_obj_create(sw);
+        plain(knob);
+        lvgl_sys::lv_obj_set_size(knob, 22, 22);
+        stile::raggio(knob, 11.0, stile::MAIN);
+        stile::sfondo(knob, (255, 255, 255), stile::MAIN);
+        let align = if on {
+            lvgl_sys::LV_ALIGN_RIGHT_MID
+        } else {
+            lvgl_sys::LV_ALIGN_LEFT_MID
+        };
+        lvgl_sys::lv_obj_align(
+            knob,
+            align as lvgl_sys::lv_align_t,
+            if on { -3 } else { 3 },
+            0,
+        );
+        match action {
+            Some(a) => {
+                lvgl_sys::lv_obj_add_flag(sw, lvgl_sys::LV_OBJ_FLAG_CLICKABLE);
+                self.on(sw, a);
+            }
+            None => lvgl_sys::lv_obj_set_style_opa(sw, 128, stile::MAIN),
+        }
+    }
+
+    /// The Firewall section (26-11-2026): the ports SWS listens on, then each
+    /// zone with its entries as switches, the forms, and the draft to apply.
+    unsafe fn firewall(&mut self, main: P, s: &State, lang: &str) -> Option<P> {
+        let w = |k: &str| cp::fw_word(lang, k, &[]);
+        let Some(v) = &s.fw else {
+            label(main, &cp::word(lang, "loading", &[]), 15, MUTED);
+            return None;
+        };
+        if !v.available {
+            card(main, |c| {
+                wrap(label(c, &w("unavailable"), 15, MUTED), pct(100));
+            });
+            return None;
+        }
+        let pending = s.fw_until.is_some();
+        let op_text = |o: &fwm::Op| {
+            let what = match &o.item {
+                fwm::Item::RichRule { .. } => w("rule"),
+                i => fwm::label(i),
+            };
+            let key = if o.action == fwm::Action::Add {
+                "opAdd"
+            } else {
+                "opRemove"
+            };
+            cp::fw_word(lang, key, &[("what", &what), ("zone", &o.zone)])
+        };
+
+        // The help, and the draft with its buttons.
+        let head = card(main, |_| {});
+        wrap(label(head, &w("help"), 13, MUTED), pct(100));
+        if !s.fw_draft.is_empty() && !pending {
+            let n = s.fw_draft.len();
+            let key = if n == 1 {
+                "draftCount_one"
+            } else {
+                "draftCount_other"
+            };
+            label(
+                head,
+                &cp::fw_word(lang, key, &[("count", &n.to_string())]),
+                15,
+                WARN,
+            );
+            if s.fw_review {
+                for o in fwm::ops_to_send(&s.fw_draft) {
+                    wrap(
+                        label(head, &format!("• {}", op_text(&o)), 14, TEXT),
+                        pct(100),
+                    );
+                }
+                let sensitive = fwm::draft_is_sensitive(v, &s.fw_draft);
+                if sensitive {
+                    wrap(label(head, &w("sensitive"), 14, BAD), pct(100));
+                }
+                let r = actions(head);
+                let b = button(r, &w("back"), PANEL2, TEXT, 15);
+                self.on(b, Action::FwReview(false));
+                let bg = if sensitive { BAD } else { ACCENT };
+                let b = button(r, &w("applyNow"), bg, (255, 255, 255), 15);
+                if s.busy {
+                    dim(b);
+                } else {
+                    self.on(b, Action::FwSend);
+                }
+            } else {
+                let r = actions(head);
+                let b = button(r, &w("discard"), PANEL2, TEXT, 15);
+                self.on(b, Action::FwDiscard);
+                let b = button(r, &w("apply"), ACCENT, (255, 255, 255), 15);
+                self.on(b, Action::FwReview(true));
+            }
+        }
+
+        // The ports SWS listens on.
+        if !v.listen_ports.is_empty() {
+            let c = card(main, |_| {});
+            label(c, &w("listenTitle"), 16, TEXT);
+            let open_zone = fwm::zone_for_open(v);
+            for l in &v.listen_ports {
+                let open = !l.open_in.is_empty();
+                let r = row(c, "");
+                dot(r, if open { OK } else { BAD });
+                label(r, &format!("{}/{}", l.port, l.protocol), 16, TEXT);
+                if l.sws {
+                    tag(r, "SWS", true);
+                }
+                let state = if open {
+                    cp::fw_word(lang, "openIn", &[("zones", &l.open_in.join(", "))])
+                } else {
+                    w("closed")
+                };
+                label(r, &state, 14, MUTED);
+                if open || pending {
+                    continue;
+                }
+                if let Some(z) = open_zone {
+                    let item = fwm::Item::Port {
+                        port: l.port.to_string(),
+                        protocol: l.protocol.clone(),
+                    };
+                    let drafted = fwm::rows_of(z, &s.fw_draft)
+                        .iter()
+                        .any(|r| r.added && r.entry.item == item);
+                    spacer(r);
+                    let b = button(
+                        r,
+                        &w(if drafted { "inDraft" } else { "open" }),
+                        PANEL2,
+                        TEXT,
+                        15,
+                    );
+                    if drafted {
+                        dim(b);
+                    } else {
+                        self.on(b, Action::FwOpen(l.port, l.protocol.clone()));
+                    }
+                }
+            }
+        }
+
+        // The zones.
+        let mut focused = None;
+        for z in &v.zones {
+            let c = card(main, |_| {});
+            let mut title = cp::fw_word(lang, "zone", &[("name", &z.name)]);
+            if z.default {
+                title.push_str(&format!(" · {}", w("default")));
+            }
+            label(c, &title, 16, TEXT);
+            let mut info = Vec::new();
+            if !z.interfaces.is_empty() {
+                info.push(cp::fw_word(
+                    lang,
+                    "interfaces",
+                    &[("list", &z.interfaces.join(", "))],
+                ));
+            }
+            if !z.sources.is_empty() {
+                info.push(cp::fw_word(
+                    lang,
+                    "sources",
+                    &[("list", &z.sources.join(", "))],
+                ));
+            }
+            if !info.is_empty() {
+                label(c, &info.join(" · "), 13, MUTED);
+            }
+            for (i, r) in fwm::rows_of(z, &s.fw_draft).iter().enumerate() {
+                let line = transparent(c);
+                lvgl_sys::lv_obj_set_size(line, pct(100), LV_SIZE_CONTENT);
+                lvgl_sys::lv_obj_set_style_min_height(line, 44, stile::MAIN);
+                flex(line, lvgl_sys::lv_flex_flow_t_LV_FLEX_FLOW_ROW_WRAP, 10);
+                center_items(line);
+                if r.changed {
+                    lvgl_sys::lv_obj_set_style_border_side(
+                        line,
+                        lvgl_sys::LV_BORDER_SIDE_LEFT as u8,
+                        stile::MAIN,
+                    );
+                    stile::bordo(line, Some(WARN), 3.0, stile::MAIN);
+                    stile::margini(line, 0, 6, stile::MAIN);
+                }
+                let toggle = (!pending).then(|| Action::FwToggle(z.name.clone(), i));
+                self.fw_switch(line, r.on, toggle);
+                let e = &r.entry;
+                let (name, detail) = match (&e.item, &e.form) {
+                    (fwm::Item::Service { name }, _) => (name.clone(), e.ports.join(", ")),
+                    (fwm::Item::Port { .. }, _) => (fwm::label(&e.item), String::new()),
+                    (fwm::Item::RichRule { .. }, Some(f)) => {
+                        let target = match &f.target {
+                            fwm::RuleTarget::Port { port, protocol } => {
+                                format!("{port}/{protocol}")
+                            }
+                            fwm::RuleTarget::Service { name } => name.clone(),
+                        };
+                        let verdict = cp::fw_word(lang, &format!("verdict.{}", f.verdict), &[]);
+                        let summary = cp::fw_word(
+                            lang,
+                            "ruleSummary",
+                            &[
+                                ("source", &f.source),
+                                ("target", &target),
+                                ("verdict", &verdict),
+                            ],
+                        );
+                        (w("rule"), summary)
+                    }
+                    (fwm::Item::RichRule { rule }, None) => (w("rule"), rule.clone()),
+                };
+                label(line, &name, 16, if r.on { TEXT } else { MUTED });
+                if !detail.is_empty() {
+                    wrap(label(line, &detail, 13, MUTED), 360);
+                }
+                if fwm::is_sensitive(e) {
+                    tag(line, &w("connection"), false);
+                }
+                if r.added {
+                    tag(line, &w("new"), false);
+                }
+                if !r.added && !r.on && !r.changed {
+                    if let Some(by) = &e.disabled_by {
+                        label(
+                            line,
+                            &cp::fw_word(lang, "disabledBy", &[("who", by)]),
+                            12,
+                            MUTED,
+                        );
+                    }
+                }
+                let editable = !pending
+                    && r.on
+                    && matches!(
+                        (&e.item, &e.form),
+                        (fwm::Item::Port { .. }, _) | (fwm::Item::RichRule { .. }, Some(_))
+                    );
+                if editable && s.fw_form.is_none() {
+                    spacer(line);
+                    let b = button(line, &w("edit"), PANEL2, TEXT, 14);
+                    self.on(b, Action::FwEdit(z.name.clone(), i));
+                }
+            }
+            if !pending && s.fw_form.is_none() {
+                let r = actions(c);
+                for (k, key) in [(0u8, "service"), (1, "port"), (2, "rule")] {
+                    let b = button(r, &format!("+ {}", w(key)), PANEL2, TEXT, 15);
+                    self.on(b, Action::FwFormStart(z.name.clone(), k));
+                }
+            }
+            if let Some(f) = s.fw_form.as_ref().filter(|f| f.zone == z.name) {
+                focused = self.fw_form(c, f, v, lang).or(focused);
+            }
+        }
+        focused
+    }
+
+    /// The form of an entry being added or edited.
+    unsafe fn fw_form(&mut self, c: P, f: &fwm::Form, v: &fwm::View, lang: &str) -> Option<P> {
+        let w = |k: &str| cp::fw_word(lang, k, &[]);
+        let sep = lvgl_sys::lv_obj_create(c);
+        plain(sep);
+        lvgl_sys::lv_obj_set_size(sep, pct(100), 1);
+        stile::sfondo(sep, LINE, stile::MAIN);
+        let mut focused = None;
+        let services = &v.known_services;
+        let service_name = services.get(f.service).map_or("—", String::as_str);
+        let protocol = fwm::PROTOCOLS[f.protocol % fwm::PROTOCOLS.len()];
+        if f.kind == fwm::FormKind::Service {
+            let r = row(c, &w("service"));
+            self.fw_service_picker(r, service_name);
+        } else if !f.is_rule() {
+            let r = row(c, &w("port"));
+            let bad = !f.port.is_empty() && !fwm::valid_port(f.port.trim());
+            let fld = self.text_field(r, &f.port, 120, f.focus == 0, bad);
+            self.on(fld, Action::FwFocus(0));
+            focused = (f.focus == 0).then_some(fld);
+            let b = button(r, protocol, PANEL2, TEXT, 15);
+            self.on(b, Action::FwCycle(0, 1));
+        } else {
+            let r = row(c, &w("source"));
+            let bad = !f.source.is_empty() && !fwm::valid_source(f.source.trim());
+            let fld = self.text_field(r, &f.source, 220, f.focus == 0, bad);
+            self.on(fld, Action::FwFocus(0));
+            if f.focus == 0 {
+                focused = Some(fld);
+            }
+            let r = row(c, "");
+            // Each choice switches only when it is not the one on.
+            let to_port = if f.target_port { 0 } else { 1 };
+            let to_service = if f.target_port { 1 } else { 0 };
+            self.segmented(
+                r,
+                &[
+                    (w("port"), f.target_port, Action::FwCycle(1, to_port)),
+                    (w("service"), !f.target_port, Action::FwCycle(1, to_service)),
+                ],
+            );
+            if f.target_port {
+                let bad = !f.rule_port.is_empty() && !fwm::valid_port(f.rule_port.trim());
+                let fld = self.text_field(r, &f.rule_port, 110, f.focus == 1, bad);
+                self.on(fld, Action::FwFocus(1));
+                if f.focus == 1 {
+                    focused = Some(fld);
+                }
+                let b = button(r, protocol, PANEL2, TEXT, 15);
+                self.on(b, Action::FwCycle(0, 1));
+            } else {
+                self.fw_service_picker(r, service_name);
+            }
+            let verdict = fwm::VERDICTS[f.verdict % fwm::VERDICTS.len()];
+            let b = button(
+                r,
+                &cp::fw_word(lang, &format!("verdict.{verdict}"), &[]),
+                PANEL2,
+                TEXT,
+                15,
+            );
+            self.on(b, Action::FwCycle(3, 1));
+        }
+        // Without text to type there is no keyboard: Cancel and Add live here.
+        if f.text_fields() == 0 {
+            let r = actions(c);
+            let b = button(r, &w("cancel"), PANEL2, TEXT, 15);
+            self.on(b, Action::FwFormCancel);
+            let b = button(r, &w("addOk"), ACCENT, (255, 255, 255), 15);
+            if f.item(services).is_some() {
+                self.on(b, Action::FwFormOk);
+            } else {
+                dim(b);
+            }
+        }
+        focused
+    }
+
+    /// ◀ name ▶: the services of the system, one at a time.
+    unsafe fn fw_service_picker(&mut self, r: P, name: &str) {
+        let b = button(r, "◀", PANEL2, TEXT, 15);
+        self.on(b, Action::FwCycle(2, -1));
+        label(r, name, 16, TEXT);
+        let b = button(r, "▶", PANEL2, TEXT, 15);
+        self.on(b, Action::FwCycle(2, 1));
     }
 
     /// OpenPLC on this device, read only, with the Editor's user and password

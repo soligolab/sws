@@ -118,6 +118,8 @@ export const SCHEDE = [
   { id: "screen",        ramo: "istanza",   icona: "🖥", soloAdmin: true,  portaBozza: false, richiedeProgetto: true,  sottoRamo: "device" },
   { id: "devices",       ramo: "istanza",   icona: "📇", soloAdmin: true,  portaBozza: false, richiedeProgetto: false, sottoRamo: "device" },
   { id: "runtime",       ramo: "istanza",   icona: "🔗", soloAdmin: true,  portaBozza: false, richiedeProgetto: false, sottoRamo: "device" },
+  // The device firewall (26-11-2026): firewalld on the connected panel.
+  { id: "firewall",      ramo: "istanza",   icona: "🔐", soloAdmin: true,  portaBozza: false, richiedeProgetto: false, sottoRamo: "device" },
   { id: "install",       ramo: "istanza",   icona: "⬇", soloAdmin: true,  portaBozza: false, richiedeProgetto: false, sottoRamo: "device" },
   { id: "container",     ramo: "istanza",   icona: "🧱", soloAdmin: true,  portaBozza: false, richiedeProgetto: false, sottoRamo: "device", nonNelCloud: true },
   { id: "devpackage",    ramo: "istanza",   icona: "🏗", soloAdmin: true,  portaBozza: false, richiedeProgetto: false, sottoRamo: "sviluppatore", richiedeRepo: true },

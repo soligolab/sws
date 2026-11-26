@@ -13,6 +13,31 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 Il lavoro della **2.28.0** (versioni `2.28.0-dev.N`), da `main`.
 
+### Aggiunto — il firewall dei dispositivi (26-11-2026, ramo `feat/firewall`)
+Piano `docs/plans/2026-11-26-firewall-dei-dispositivi.md`. Il WP630 è passato a Pixsys OS 2.2.0, che porta firewalld
+attivo: la zona `public` apre i servizi di Pixsys, non 7443 e 7444, e dalla LAN il pannello non rispondeva più («Nessun
+instradamento per l'host»). Il cloud funzionava, perché il tunnel è una connessione uscente.
+- **Le porte di SWS si aprono da sole.** Gli installatori (`install-container.sh`, Yocto nativo, Tiny TY, Linux
+  generico) aprono 7443/tcp e 7444/tcp nelle zone con una scheda di rete, subito e in modo permanente, senza
+  `--reload`; con `--uninstall` le chiudono. Le funzioni sono uguali nei quattro (guardia `tests/shell/firewall.sh` in
+  `check_quadlet.sh`). Un pannello già installato che si aggiorna dal registro non passa dall'installatore: le apre il
+  runtime al primo avvio, **una volta** (`config/firewall.json`, `sws_ports_opened`), così un admin che le chiude dopo
+  le trova chiuse.
+- **Il runtime parla con firewalld** sul bus di sistema (`sws-web/src/firewall.rs`): zone attive, servizi con le loro
+  porte, porte, regole per sorgente, le porte su cui ascolta SWS (dai socket del processo). Una modifica è un elenco
+  di operazioni: si applica solo in runtime e aspetta 60 s la conferma, poi va nella configurazione permanente; senza
+  conferma il runtime la annulla, e un'aggiunta porta anche il timeout di firewalld, così sparisce anche se SWS cade.
+  Le voci disattivate restano in `config/firewall.json`, e gli schermi le mostrano come interruttori spenti.
+- **API**: `/api/control-panel/firewall*` (sessione col PIN) e `/api/firewall*` sulla porta di gestione, Admin, con il
+  proxy `/api/remote/firewall*` dell'IDE (LAN e tunnel). Capacità `firewall` in `/api/system` e in quelle del pannello
+  di controllo. Registro: `firewall.apply`, `firewall.confirm`, `firewall.rollback`, `firewall.sws_ports`.
+- **Gli schermi**: la scheda **Device → Firewall** nell'IDE e la sezione **Firewall** nei pannelli di controllo web e
+  LVGL. Ogni voce, anche quelle del sistema, è un interruttore; porte e regole si modificano; si aggiungono servizi,
+  porte e regole per sorgente. Le modifiche fanno una bozza, «Applica…» la riassume (in rosso se tocca SWS o ssh),
+  poi la barra dei 60 s chiede la conferma. Le parole stanno sotto `firewall.*` nei file di lingua, uguali per i tre.
+- **Sonda e polkit**: la sonda dell'installazione dice se firewalld è attivo e se l'utente lo può cambiare; le regole
+  polkit del Tiny TY e del Linux generico danno all'utente `sws` le azioni di firewalld.
+
 ## [2.27.0] — 2026-11-25
 
 La prima release dopo la 2.25.2. Contiene anche tutto il lavoro della 2.26, che non è mai uscita (decisione del

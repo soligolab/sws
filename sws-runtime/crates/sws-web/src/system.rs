@@ -219,6 +219,10 @@ pub struct SystemStatus {
     /// chiesta dall'IDE (30-10-2026). `None` fuori da un container.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub openplc: Option<crate::openplc::Stato>,
+    /// firewalld runs on this device, and the IDE can manage it (26-11-2026).
+    /// A capability: a runtime without the field reads `false`.
+    #[serde(default)]
+    pub firewall: bool,
     /// Dopo un aggiornamento: la domanda (confermare, rimandare, tornare
     /// indietro), l'ultima pulizia e l'ultimo ritorno (03-10-2026). `None` fuori
     /// da un dispositivo.
@@ -438,6 +442,7 @@ pub async fn compute_system_status(
         close_locks_out: false,
         quadlet: None,
         openplc: None,
+        firewall: false,
         conferma_aggiornamento: None,
     }
 }
@@ -583,6 +588,7 @@ pub async fn get_system_status(
         status.quadlet = Some(q);
     }
     status.openplc = crate::openplc::stato(&state.config_dir).await;
+    status.firewall = state.is_device() && crate::firewall::available().await;
     // La ritenzione automatica che aspetta la conferma (20-10-2026): solo all'Admin,
     // che è chi può confermarla (decisione del maintainer).
     if utente

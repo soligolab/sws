@@ -65,6 +65,36 @@ fn words(lang: &str) -> &'static serde_json::Value {
     }
 }
 
+/// `firewall.<key>` of the language files: the Firewall section shares its
+/// words with the IDE's Device → Firewall (26-11-2026).
+fn firewall_words(lang: &str) -> &'static serde_json::Value {
+    static IT: OnceLock<serde_json::Value> = OnceLock::new();
+    static EN: OnceLock<serde_json::Value> = OnceLock::new();
+    let parse = |json: &str| {
+        serde_json::from_str::<serde_json::Value>(json)
+            .ok()
+            .and_then(|mut v| v.get_mut("firewall").map(serde_json::Value::take))
+            .unwrap_or_default()
+    };
+    match lang {
+        "it" => IT.get_or_init(|| parse(include_str!("../../../../sws-editor/src/i18n/it.json"))),
+        _ => EN.get_or_init(|| parse(include_str!("../../../../sws-editor/src/i18n/en.json"))),
+    }
+}
+
+/// Like [`word`], for `firewall.<key>`.
+pub fn fw_word(lang: &str, key: &str, values: &[(&str, &str)]) -> String {
+    let found = key
+        .split('.')
+        .try_fold(firewall_words(lang), |v, k| v.get(k))
+        .and_then(|v| v.as_str());
+    let mut s = found.map_or_else(|| key.to_string(), str::to_string);
+    for (name, value) in values {
+        s = s.replace(&format!("{{{{{name}}}}}"), value);
+    }
+    s
+}
+
 /// The panel language for a content language: the same rule as
 /// `panelLanguage` on the web. With no content language the viewer has no UI
 /// language to fall back on, so English.
@@ -312,6 +342,9 @@ pub struct Capabilities {
     /// OpenPLC is installed here: the panel shows its section (CRA D20).
     #[serde(default)]
     pub openplc: bool,
+    /// firewalld runs here: the panel shows the Firewall section (26-11-2026).
+    #[serde(default)]
+    pub firewall: bool,
 }
 
 /// The corner that reboots the device when held (`sws_web::control_panel`).
@@ -526,6 +559,7 @@ pub enum Section {
     Screen,
     Device,
     OpenPlc,
+    Firewall,
     About,
 }
 
@@ -749,6 +783,13 @@ pub struct State {
     /// A note under the Screen section after a calibration ends.
     pub calibration_note: Option<&'static str>,
     pub error: Option<String>,
+    /// The Firewall section: what the runtime has, the draft, the review of
+    /// the draft, the end of the 60 seconds, the form being typed.
+    pub fw: Option<crate::control_panel_firewall::View>,
+    pub fw_draft: Vec<crate::control_panel_firewall::Op>,
+    pub fw_review: bool,
+    pub fw_until: Option<Instant>,
+    pub fw_form: Option<crate::control_panel_firewall::Form>,
     reload_network_at: Option<Instant>,
     /// The next look at the cards while the panel is open: a Wi-Fi dongle
     /// plugged in or pulled out shows up by itself, and turns the Wi-Fi
@@ -973,8 +1014,173 @@ pub fn select(section: Section) {
         Section::Screen => send(Job::Display),
         Section::Device => {}
         Section::OpenPlc => send(Job::OpenPlc),
+        Section::Firewall => {
+            change(|s| {
+                s.fw_form = None;
+                s.fw_review = false;
+            });
+            send(Job::Firewall);
+        }
         Section::About => send(Job::About),
     }
+}
+
+// Firewall
+
+use crate::control_panel_firewall as fwm;
+
+/// The rows of zone `z` after the draft, and the zone, from the state.
+fn fw_zone_row(s: &State, zone: &str, i: usize) -> Option<(fwm::Zone, fwm::Row)> {
+    let z =
+        s.fw.as_ref()?
+            .zones
+            .iter()
+            .find(|z| z.name == zone)?
+            .clone();
+    let r = fwm::rows_of(&z, &s.fw_draft).into_iter().nth(i)?;
+    Some((z, r))
+}
+
+pub fn fw_toggle(zone: &str, i: usize) {
+    change(|s| {
+        if let Some((z, r)) = fw_zone_row(s, zone, i) {
+            s.fw_draft = fwm::toggle(&s.fw_draft, &z.name, &r);
+            s.fw_review = false;
+        }
+    });
+}
+
+/// «Open» on a closed listening port: into the zone of the network cards.
+pub fn fw_open(port: u16, protocol: &str) {
+    change(|s| {
+        let Some(z) = s.fw.as_ref().and_then(fwm::zone_for_open).cloned() else {
+            return;
+        };
+        let item = fwm::Item::Port {
+            port: port.to_string(),
+            protocol: protocol.to_string(),
+        };
+        s.fw_draft = fwm::add_item(&s.fw_draft, &z, item);
+    });
+}
+
+pub fn fw_form_start(zone: &str, kind: fwm::FormKind) {
+    change(|s| {
+        s.fw_form = Some(fwm::Form::new(zone, kind));
+        s.fw_review = false;
+    });
+}
+
+pub fn fw_edit_start(zone: &str, i: usize) {
+    change(|s| {
+        let services =
+            s.fw.as_ref()
+                .map(|v| v.known_services.clone())
+                .unwrap_or_default();
+        if let Some((z, r)) = fw_zone_row(s, zone, i) {
+            s.fw_form = fwm::Form::edit(&z.name, &r.entry, &services);
+        }
+    });
+}
+
+/// The buttons of the form that turn a choice: protocol, target, service, verdict.
+pub fn fw_form_cycle(what: u8, step: i8) {
+    change(|s| {
+        let n = s.fw.as_ref().map_or(0, |v| v.known_services.len());
+        let Some(f) = s.fw_form.as_mut() else { return };
+        let turn = |v: usize, len: usize| -> usize {
+            if len == 0 {
+                0
+            } else {
+                (v as isize + step as isize).rem_euclid(len as isize) as usize
+            }
+        };
+        match what {
+            0 => f.protocol = turn(f.protocol, fwm::PROTOCOLS.len()),
+            1 => {
+                f.target_port = !f.target_port;
+                f.focus = 0;
+            }
+            2 => f.service = turn(f.service, n),
+            _ => f.verdict = turn(f.verdict, fwm::VERDICTS.len()),
+        }
+    });
+}
+
+pub fn fw_form_focus(i: usize) {
+    change(|s| {
+        if let Some(f) = s.fw_form.as_mut() {
+            if i < f.text_fields() {
+                f.focus = i;
+            }
+        }
+    });
+}
+
+pub fn fw_form_ok() {
+    change(|s| {
+        let Some(f) = s.fw_form.clone() else { return };
+        let services =
+            s.fw.as_ref()
+                .map(|v| v.known_services.clone())
+                .unwrap_or_default();
+        let Some(item) = f.item(&services) else {
+            return;
+        };
+        let Some(z) =
+            s.fw.as_ref()
+                .and_then(|v| v.zones.iter().find(|z| z.name == f.zone))
+                .cloned()
+        else {
+            return;
+        };
+        s.fw_draft = match &f.kind {
+            fwm::FormKind::Edit(old) => {
+                match fwm::rows_of(&z, &s.fw_draft)
+                    .into_iter()
+                    .find(|r| &r.entry.item == old)
+                {
+                    Some(r) => fwm::edit_item(&s.fw_draft, &z, &r, item),
+                    None => s.fw_draft.clone(),
+                }
+            }
+            _ => fwm::add_item(&s.fw_draft, &z, item),
+        };
+        s.fw_form = None;
+    });
+}
+
+pub fn fw_form_cancel() {
+    change(|s| s.fw_form = None);
+}
+
+pub fn fw_discard() {
+    change(|s| {
+        s.fw_draft.clear();
+        s.fw_review = false;
+    });
+}
+
+pub fn fw_review(on: bool) {
+    change(|s| s.fw_review = on && !s.fw_draft.is_empty());
+}
+
+pub fn fw_send() {
+    let ops = with_state(|s| (!s.busy).then(|| fwm::ops_to_send(&s.fw_draft)));
+    if let Some(ops) = ops.filter(|o| !o.is_empty()) {
+        change(|s| s.busy = true);
+        send(Job::FirewallApply(ops));
+    }
+}
+
+pub fn fw_confirm() {
+    change(|s| s.busy = true);
+    send(Job::FirewallConfirm);
+}
+
+pub fn fw_rollback() {
+    change(|s| s.busy = true);
+    send(Job::FirewallRollback);
 }
 
 // Network
@@ -1398,6 +1604,10 @@ pub fn form_focus(i: usize) {
 /// `?123`/`abc` (symbols), `👁` (show the password).
 pub fn form_key(k: &str) {
     change(|s| {
+        if let Some(f) = s.fw_form.as_mut() {
+            f.key(k);
+            return;
+        }
         if let Some(f) = s.ntp_form.as_mut() {
             match k {
                 "⇧" => f.shift = !f.shift,
@@ -1438,10 +1648,15 @@ pub fn form_cancel() {
     change(|s| {
         s.wifi_form = None;
         s.ntp_form = None;
+        s.fw_form = None;
     });
 }
 
 pub fn form_submit() {
+    if with_state(|s| s.fw_form.is_some()) {
+        fw_form_ok();
+        return;
+    }
     let ntp = with_state(|s| s.ntp_form.clone());
     if let Some(f) = ntp {
         if f.valid() {
@@ -1742,6 +1957,11 @@ pub fn tick(now: Instant) {
                 jobs.push(Job::Wifi);
                 changed = true;
             }
+        }
+        if s.fw_until.is_some_and(|t| now > t + Duration::from_secs(2)) {
+            s.fw_until = None;
+            jobs.push(Job::Firewall);
+            changed = true;
         }
         if s.reload_network_at.is_some_and(|t| now >= t) {
             s.reload_network_at = None;
@@ -2076,6 +2296,10 @@ enum Job {
     DiagnosticsUsb,
     SetDisplay(Option<u8>),
     TouchCalibration,
+    Firewall,
+    FirewallApply(Vec<crate::control_panel_firewall::Op>),
+    FirewallConfirm,
+    FirewallRollback,
 }
 
 /// The OpenPLC section, from `GET /openplc` (CRA D20, 18-11-2026): label and
@@ -2627,6 +2851,44 @@ async fn run(job: Job) {
                 change(|s| s.openplc = Some(v));
             }
         }
+        Job::Firewall => {
+            if let Some(v) = parse::<crate::control_panel_firewall::View>(
+                session_call(M::GET, "/firewall", None).await,
+            ) {
+                change(|s| {
+                    s.fw_until = v
+                        .pending
+                        .as_ref()
+                        .map(|p| Instant::now() + Duration::from_secs(p.seconds_left));
+                    s.fw = Some(v);
+                });
+            }
+        }
+        Job::FirewallApply(ops) => {
+            let body = serde_json::json!({ "ops": ops });
+            if let Some(r) = session_call(M::POST, "/firewall/apply", Some(body)).await {
+                let secs = r
+                    .get("confirm_within_secs")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(60);
+                change(|s| {
+                    s.fw_draft.clear();
+                    s.fw_review = false;
+                    s.fw_until = Some(Instant::now() + Duration::from_secs(secs));
+                });
+                send(Job::Firewall);
+            }
+        }
+        Job::FirewallConfirm => {
+            session_call(M::POST, "/firewall/confirm", Some(serde_json::json!({}))).await;
+            change(|s| s.fw_until = None);
+            send(Job::Firewall);
+        }
+        Job::FirewallRollback => {
+            session_call(M::POST, "/firewall/rollback", Some(serde_json::json!({}))).await;
+            change(|s| s.fw_until = None);
+            send(Job::Firewall);
+        }
         Job::Display => {
             if let Some(d) = session_call(M::GET, "/display", None).await {
                 let b = d
@@ -2769,6 +3031,64 @@ mod tests {
             .all(|e| e.code.is_some()));
         // The table has every country of zone.tab, without the curly apostrophe.
         assert_eq!(country_name("CI", "it"), "Costa d'Avorio");
+    }
+
+    /// The Firewall section reads `firewall.*`, the IDE's words: every key it
+    /// uses is there, in both languages.
+    #[test]
+    fn the_firewall_words_are_there() {
+        let keys = [
+            "help",
+            "draftCount_one",
+            "draftCount_other",
+            "back",
+            "applyNow",
+            "sensitive",
+            "discard",
+            "apply",
+            "listenTitle",
+            "openIn",
+            "closed",
+            "inDraft",
+            "open",
+            "zone",
+            "default",
+            "interfaces",
+            "sources",
+            "rule",
+            "ruleSummary",
+            "verdict.accept",
+            "verdict.reject",
+            "verdict.drop",
+            "connection",
+            "new",
+            "disabledBy",
+            "edit",
+            "service",
+            "port",
+            "source",
+            "cancel",
+            "addOk",
+            "editOk",
+            "opAdd",
+            "opRemove",
+            "confirmQuestion",
+            "confirmHelp",
+            "confirm",
+            "rollback",
+            "unavailable",
+        ];
+        for lang in ["it", "en"] {
+            for k in keys {
+                let found = k.split('.').try_fold(firewall_words(lang), |v, k| v.get(k));
+                assert!(
+                    found.is_some_and(|v| v.is_string()),
+                    "firewall.{k} is missing in {lang}"
+                );
+            }
+        }
+        assert_eq!(fw_word("it", "zone", &[("name", "public")]), "Zona public");
+        assert_ne!(word("en", "firewall", &[]), "firewall");
     }
 
     #[test]

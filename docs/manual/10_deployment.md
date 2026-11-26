@@ -217,6 +217,10 @@ https://<device-ip>:7444   → Gestione remota (deploy/pull/backup/utenti)
 Usa firewall o VPN per limitare l'accesso alla porta 7444 — vale anche senza IDE,
 perché da lì passano deploy e gestione utenti.
 
+**firewalld** (Pixsys OS 2.2.0 e successivi): l'installazione apre 7443 e 7444 nella
+zona della scheda di rete. Le regole si gestiscono da Configurazione → Istanza →
+Device → **Firewall**, o dalla sezione Firewall del pannello di controllo.
+
 ---
 
 ## Percorso C — Container podman
