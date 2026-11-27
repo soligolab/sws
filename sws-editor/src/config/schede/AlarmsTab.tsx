@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { AzioniTestata } from "@/config/slotTestata";
 import { Trans, useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { genId } from "@/id";
@@ -211,10 +212,13 @@ export function AlarmsTab() {
           `touched` traccia l'intenzione dell'utente invece della differenza
           strutturale. */}
       <SaveBar onSave={handleSave} saving={saving} saved={saved} section="alarms" dirty={touched} />
-      <div style={S.sectionTitle}>{t("cfgUi.alarms")}</div>
-      <div style={S.notice}>
-        <Trans i18nKey="cfgUi.alarmsNotice" components={TRANS_COMP} />
-      </div>
+      {/* The title is the header's; the help text is in the fixed header
+          (UI rule 4, 25-11-2026). */}
+      <AzioniTestata>
+        <div style={{ ...S.notice, marginBottom: 0, flex: 1 }}>
+          <Trans i18nKey="cfgUi.alarmsNotice" components={TRANS_COMP} />
+        </div>
+      </AzioniTestata>
 
       {quantiVecchi > 0 && (
         <div style={{ ...S.notice, display: "flex", alignItems: "center", gap: 10, borderColor: "var(--brand-danger, #ef4444)", color: "var(--brand-danger-soft, #fca5a5)" }}>

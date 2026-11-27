@@ -4,7 +4,8 @@ import { Trans, useTranslation } from "react-i18next";
 import { api, type CreateUserBody, type UpdateUserBody, type UserRole, type UserSummary } from "@/api/client";
 import { useAppStore } from "@/store";
 import { useFocus, usePubblicaElenco } from "@/config/fogliaConfig";
-import { TRANS_COMP, S } from "@/config/comuni";
+import { TRANS_COMP, S, SezionePendente } from "@/config/comuni";
+import { conModifica, patchDaBozza, type BozzaUtente, type BozzeUtenti } from "./usersDraft";
 import { conferma } from "@/finestraAvviso/finestraAvviso";
 import { LdapSection } from "./LdapSection";
 
@@ -31,10 +32,9 @@ export function UsersTab() {
 
   // Per-row "reset password" buffer keyed by username.
   const [resetBuf, setResetBuf] = useState<Record<string, string>>({});
-  // Every field saves by itself, and nothing said so (rc.30, collaudo on the
-  // PLX800: «non ho nessuna opzione per fare salva»): the row that has just
-  // been saved shows «✓ Saved» for a moment.
-  const [savedRow, setSavedRow] = useState<string | null>(null);
+  // What the page changed and has not saved (25-11-2026): the one Save of the
+  // header writes it. Name, role, «force change», session and zones.
+  const [bozze, setBozze] = useState<BozzeUtenti>({});
 
   const refresh = async () => {
     setError(null);
@@ -103,32 +103,51 @@ export function UsersTab() {
     }
   };
 
-  // A field saved on leaving it does not lock the table: the focus goes to
-  // the next field while the save runs, and a disabled field dropped it
-  // (review of the rc.30). The patches of the fields go one after the other.
-  const patching = useRef<Promise<void>>(Promise.resolve());
-  const onPatch = (username: string, patch: UpdateUserBody) => {
-    patching.current = patching.current.then(() => patchNow(username, patch));
-    return patching.current;
+  // The message of a refused change, as the server says it.
+  const motivoRifiuto = (msg: string) => {
+    if (msg.includes("409") || msg.includes("last_admin")) return t("cfgUi.ultimoAmministratore");
+    if (msg.includes("400") || msg.includes("invalid_password")) return t("cfgUi.passwordNonValida");
+    return t("cfgUi.updateError", { message: msg });
   };
-  const patchNow = async (username: string, patch: UpdateUserBody) => {
+
+  // An action of its own (the new password): it saves at once.
+  const onPatch = async (username: string, patch: UpdateUserBody) => {
     setError(null);
     try {
       await api.updateUser(username, patch);
       await refresh();
-      setSavedRow(username);
-      setTimeout(() => setSavedRow((r) => (r === username ? null : r)), 2500);
     } catch (e: any) {
-      const msg = String(e?.message ?? "");
-      if (msg.includes("409") || msg.includes("last_admin")) {
-        setError(t("cfgUi.ultimoAmministratore"));
-      } else if (msg.includes("400") || msg.includes("invalid_password")) {
-        setError(t("cfgUi.passwordNonValida"));
-      } else {
-        setError(t("cfgUi.updateError", { message: msg }));
-      }
+      setError(motivoRifiuto(String(e?.message ?? "")));
     }
   };
+
+  // The draft, for the Save of the header: one user after the other. A refusal
+  // stops the save and says why; the users already written leave the draft.
+  const bozzeRef = useRef(bozze);
+  bozzeRef.current = bozze;
+  const salvaBozze = async () => {
+    setError(null);
+    const elenco = users ?? [];
+    for (const [username, b] of Object.entries(bozzeRef.current)) {
+      const u = elenco.find((x) => x.username === username);
+      if (!u) continue;
+      const patch = patchDaBozza(u, b);
+      if (Object.keys(patch).length > 0) {
+        try {
+          await api.updateUser(username, patch);
+        } catch (e: any) {
+          const motivo = motivoRifiuto(String(e?.message ?? ""));
+          // `refresh` clears the error first: the reason is written after it.
+          await refresh();
+          setError(motivo);
+          throw new Error(`${username}: ${motivo}`);
+        }
+      }
+      setBozze((prev) => { const next = { ...prev }; delete next[username]; return next; });
+    }
+    await refresh();
+  };
+  const cambia = (u: UserSummary, change: BozzaUtente) => setBozze((prev) => conModifica(prev, u, change));
 
   const onResetPassword = async (username: string) => {
     const pwd = resetBuf[username];
@@ -164,6 +183,7 @@ export function UsersTab() {
 
   return (
     <div>
+      <SezionePendente section="users" dirty={Object.keys(bozze).length > 0} onSave={salvaBozze} />
       <div style={S.section}>
         <div style={S.sectionTitle}>{t("cfgUi.utentiTitolo")}</div>
         <p style={{ color: "var(--brand-text-muted, #94a3b8)", fontSize: 12, marginTop: 0 }}>
@@ -198,6 +218,9 @@ export function UsersTab() {
             <tbody>
               {users.filter((u) => focus === null || u.username === focus).map((u) => {
                 const isSelf = u.username === authUser;
+                const b = bozze[u.username] ?? {};
+                const modificato = u.username in bozze;
+                const ttl = b.session_ttl_secs !== undefined ? b.session_ttl_secs : u.session_ttl_secs;
                 return (
                   <tr key={u.username}>
                     <td style={S.td}>
@@ -208,16 +231,14 @@ export function UsersTab() {
                         style={{ ...S.inputSm, fontSize: 11, display: "block", marginTop: 4, minWidth: 130 }}
                         placeholder={t("cfg.displayName")} title={t("cfg.displayNameHint", { ph: "{{user.name}}", interpolation: { escapeValue: false } })}
                         defaultValue={u.display_name ?? ""} disabled={busy} data-testid={`utente-nome-${u.username}`}
-                        onBlur={(e) => {
-                          const v = e.target.value.trim();
-                          if (v !== (u.display_name ?? "")) onPatch(u.username, { display_name: v || null });
-                        }} />
+                        onChange={(e) => cambia(u, { display_name: e.target.value })} />
                     </td>
                     <td style={S.td}>
                       <select
-                        value={u.role}
+                        value={b.role ?? u.role}
                         disabled={busy}
-                        onChange={(e) => onPatch(u.username, { role: e.target.value as UserRole })}
+                        data-testid={`utente-ruolo-${u.username}`}
+                        onChange={(e) => cambia(u, { role: e.target.value as UserRole })}
                         style={S.input}
                       >
                         {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
@@ -227,16 +248,16 @@ export function UsersTab() {
                       <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
                         <input
                           type="checkbox"
-                          checked={u.must_change_password}
+                          checked={b.must_change_password ?? u.must_change_password}
                           disabled={busy}
-                          onChange={(e) => onPatch(u.username, { must_change_password: e.target.checked })}
+                          onChange={(e) => cambia(u, { must_change_password: e.target.checked })}
                         />
                         {t("cfgUi.forza")}
                       </label>
                     </td>
                     <td style={S.td}>
                       <select
-                        value={u.session_ttl_secs === null ? "default" : u.session_ttl_secs === 0 ? "never" : String(u.session_ttl_secs)}
+                        value={ttl === null ? "default" : ttl === 0 ? "never" : String(ttl)}
                         disabled={busy}
                         style={{ ...S.inputSm, minWidth: 110 }}
                         onChange={(e) => {
@@ -245,7 +266,7 @@ export function UsersTab() {
                             v === "default" ? null :
                             v === "never"   ? 0    :
                             Number(v);
-                          onPatch(u.username, { session_ttl_secs: ttl });
+                          cambia(u, { session_ttl_secs: ttl });
                         }}
                       >
                         <option value="default">{t("cfg.default")}</option>
@@ -257,18 +278,17 @@ export function UsersTab() {
                         <option value="86400">{t("cfgUi.oreN", { count: 24 })}</option>
                         <option value="604800">{t("cfgUi.giorniN", { n: 7 })}</option>
                         {/* Preserve custom values not in the list */}
-                        {u.session_ttl_secs !== null && u.session_ttl_secs !== 0 &&
-                         ![1800, 3600, 7200, 28800, 86400, 604800].includes(u.session_ttl_secs) && (
-                          <option value={String(u.session_ttl_secs)}>
-                            {Math.round(u.session_ttl_secs / 60)} min
+                        {ttl !== null && ttl !== 0 &&
+                         ![1800, 3600, 7200, 28800, 86400, 604800].includes(ttl) && (
+                          <option value={String(ttl)}>
+                            {Math.round(ttl / 60)} min
                           </option>
                         )}
                       </select>
                     </td>
                     <td style={S.td}>
-                      {/* Saved on leaving the field or on Enter, like the name: saving at
-                          every key disabled the field and the comma vanished as soon as it
-                          was typed, so «zone1, zone2» could only be pasted (rc.30). */}
+                      {/* Uncontrolled, the text as typed: «zone1,» survives the
+                          key that writes the comma (rc.30). The draft keeps it. */}
                       <input
                         key={`${u.username}:${(u.allowed_zones ?? []).join(",")}`}
                         style={{ ...S.inputSm, fontSize: 11, minWidth: 120 }}
@@ -277,18 +297,14 @@ export function UsersTab() {
                         defaultValue={(u.allowed_zones ?? []).join(", ")}
                         disabled={busy}
                         data-testid={`utente-zone-${u.username}`}
-                        onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
-                        onBlur={(e) => {
-                          const zones = e.target.value.split(",").map((z) => z.trim()).filter(Boolean);
-                          if (zones.join(",") !== (u.allowed_zones ?? []).join(",")) onPatch(u.username, { allowed_zones: zones });
-                        }}
+                        onChange={(e) => cambia(u, { zones: e.target.value })}
                       />
                     </td>
                     <td style={S.td}>
                       <span style={{ color: "var(--brand-text-muted, #94a3b8)", fontSize: 12 }}>{fmtDate(u.updated_at_ms)}</span>
-                      {savedRow === u.username && (
-                        <span data-testid={`utente-salvato-${u.username}`}
-                          style={{ display: "block", color: "var(--brand-success-soft, #4ade80)", fontSize: 11 }}>{t("cfgUi.saved2")}</span>
+                      {modificato && (
+                        <span data-testid={`utente-modificato-${u.username}`}
+                          style={{ display: "block", color: "var(--brand-warning, #f59e0b)", fontSize: 11 }}>{t("cfgUi.utenteNonSalvato")}</span>
                       )}
                     </td>
                     <td style={S.td}>

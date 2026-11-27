@@ -105,7 +105,7 @@ export const SCHEDE = [
   { id: "languages",     ramo: "progetto",  icona: "🌐", soloAdmin: false, portaBozza: true,  richiedeProgetto: true, sezione: "languages"  },
   { id: "git",           ramo: "progetto",  icona: "🔀", iconName: "git", soloAdmin: false, portaBozza: false, richiedeProgetto: false },
   { id: "datastores",    ramo: "dati",      icona: "🗄", soloAdmin: true,  portaBozza: true,  richiedeProgetto: false, elementi: true, sezione: "datastores" },
-  { id: "users",         ramo: "sicurezza", icona: "👤", soloAdmin: true,  portaBozza: false, richiedeProgetto: false, elementi: true },
+  { id: "users",         ramo: "sicurezza", icona: "👤", soloAdmin: true,  portaBozza: true,  richiedeProgetto: false, elementi: true, sezione: "users" },
   // La vista dei certificati (25-10-2026, decisione 3 del piano dei certificati).
   { id: "certificati",   ramo: "sicurezza", icona: "🔏", soloAdmin: true,  portaBozza: false, richiedeProgetto: false },
   // Dove se ne va il tempo (26-10-2026): i lavori di questa istanza e del pannello.

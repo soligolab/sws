@@ -12,22 +12,19 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — il cambio di nome del progetto, fatto sul ramo; collaudo da fare (2026-11-27, `elitebook`)
+## ▶ Riprendere da qui — cambio di nome e Save nella testata in `main` (2026-11-27, `elitebook`)
 
-- **Ramo aperto: `feat/plant-id-e-rinomina-tag`** (non pushato), piano
-  [`docs/plans/2026-11-27-cambio-di-nome-del-progetto.md`](docs/plans/2026-11-27-cambio-di-nome-del-progetto.md):
-  A (identità d'impianto e «Salva come» con due scelte), B (il deploy con un altro nome), C (lo storico che segue i tag
-  rinominati, fatto in un ramo annidato già fuso e eliminato), D (orientamento dedotto), E (CHANGELOG, NOVITA, HOWTO
-  §35, manuale 08 e T11).
-- **Verde il 27-11**: `cargo check`, `cargo clippy -D warnings`, `cargo test` (tutti), `pnpm build`, vitest
-  (3102 test), `check_static.sh` (58 guardie).
-- **Collaudo del ramo del 27-11 sul PLX800: 6 passate, 4 anomalie piccole** (`docs/COLLAUDI_IN_SOSPESO.md`, sezione
-  del ramo): la rinomina fuori dal registro delle azioni, la riga falsa «resterà senza account», `tag_renames`
-  ereditato da «Progetto nuovo», il generatore non allineato all'orologio. Si correggono sullo stesso ramo, poi squash su
-  `main`, poi `feat/save-nella-testata`, poi la `2.28.0-dev.4`.
-- **PLX800**: immagine del ramo da archivio, fuori dal canale di sviluppo; `config/utenti_dispositivo.yaml` creato a
-  mano (`admin-dispositivo`); progetto `Prova_Orizzontale2`. `PLX800_Verticale` è in
-  `tmp/test-changes/2026-11-27/` su `elitebook`.
+- **In `main`, non pushato**: `feat(deploy): l'identità d'impianto…` (squash del 27-11), piano
+  [`2026-11-27-cambio-di-nome-del-progetto.md`](docs/plans/2026-11-27-cambio-di-nome-del-progetto.md). Collaudo del
+  ramo sul PLX800: 6 passate (`docs/COLLAUDI_IN_SOSPESO.md`). Le 4 correzioni del collaudo (rinomina nel registro delle
+  azioni, «resterà senza account», `tag_renames` di «Progetto nuovo», generatori sull'orologio) sono dentro, da provare
+  con la dev.4.
+- **In `main`, non pushato: il Save nella testata**, piano archiviato
+  [`2026-11-25-save-nella-testata.md`](docs/archive/2026-11-25-save-nella-testata.md): la testata fissa con «Salva»,
+  l'elenco delle schede con modifiche e la barra verde; Tags, Allarmi e Report con testo e pulsanti nella testata; la
+  pagina Utenti come bozza. Confermato dal maintainer nell'IDE il 27-11-2026. Poi `2.28.0-dev.4`, con il suo sì.
+- **PLX800**: il maintainer lo aggiorna e fa il factory reset (27-11): da ora non è disponibile. Le note del collaudo
+  (Admin del dispositivo a mano, immagine da archivio) sono superate.
 
 ## ▶ Riprendere da qui — collaudo della 2.27.0 sul TC620; prima cosa, il piano del cambio di nome (2026-11-27, `ufficio`)
 
@@ -155,7 +152,7 @@
   legge; proposta: scrivere `true`, così solo «fit» chiede un pannello aggiornato, con una riga di compatibilità in NOVITA.
 - **Seme nuovo**: [cambiare il canale di un pannello dall'IDE del cloud](docs/plans/2026-11-25-cambio-di-canale-dal-cloud.md).
   Il TC620 (rc.29, canale di prova) stasera il maintainer lo reinstalla da casa sul canale di sviluppo.
-- **Poi**: il Save nella testata ([piano](docs/plans/2026-11-25-save-nella-testata.md), ultracode consigliato acceso); la
+- **Poi**: il Save nella testata ([piano](docs/archive/2026-11-25-save-nella-testata.md), ultracode consigliato acceso); la
   parte C del piano dei residui rc.30 (il Bad visibile di default); il template PLX800 (tensioni in V, sorgente `host`).
 - Ramo locale `release/2.26` eliminato (il commit resta col tag `2.26.0-rc.30`). L'IDE 8460 di stamattina gira ancora
   su `elitedesk` con il codice della dev.3: si riavvia con `start_editor_develop.sh` se serve.
@@ -166,7 +163,7 @@
   una copia di sicurezza prima; mai tag o oggetti di prova; gli esempi delle funzioni nuove nei gemelli e nei template.
   Testo in `CLAUDE.md`; le righe dei piani vivi riscritte allo stesso criterio.
 - **Regola UI 4** in `CLAUDE.md` (il Save nella testata fissa) e il piano
-  [`docs/plans/2026-11-25-save-nella-testata.md`](docs/plans/2026-11-25-save-nella-testata.md).
+  [`docs/archive/2026-11-25-save-nella-testata.md`](docs/archive/2026-11-25-save-nella-testata.md).
 - **Template PLX800**: le tensioni in V e non in mV, punto 5 del piano del template.
 - **Collaudo 2.27.0-dev.3 del 25-11 sul PLX800**: 7 voci passate, 6 non provate, 5 anomalie (dettaglio in
   [`docs/COLLAUDI_IN_SOSPESO.md`](docs/COLLAUDI_IN_SOSPESO.md), sezione del 25-11). Passate: ritorno a Good in 0,33 s
@@ -179,7 +176,7 @@
   2. «Cambia risoluzione» stira il contenuto dei faceplate (`faceplate_scale`): testi allargati o schiacciati;
      probabilmente anche nella copia verticale di CasaDomotica del 24-11;
   3. la rinomina nel cloud del progetto aperto rilegge dal prefisso vecchio: errore rosso e progetto vuoto;
-  4. il Save nella testata ([piano](docs/plans/2026-11-25-save-nella-testata.md));
+  4. il Save nella testata ([piano](docs/archive/2026-11-25-save-nella-testata.md));
   5. da guardare: il log «in attesa di abbinamento» dopo il reset che tiene il cloud; tre conferme di fila in un deploy;
      due login falliti dal cloud dopo un deploy che sostituisce gli utenti.
 - **Fuori da SWS**: il monitor del PLX800 non gira l'immagine con la rotazione di PixsysOS.

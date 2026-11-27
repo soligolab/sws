@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { ReportsTab } from "@/config/schede/ReportsTab";
 import { CertificatiTab } from "@/config/schede/CertificatiTab";
 import { PrestazioniTab } from "@/config/schede/PrestazioniTab";
@@ -35,6 +35,7 @@ import { BackupsTab } from "@/config/schede/BackupsTab";
 import { GitTab } from "@/config/schede/GitTab";
 import { ImpostazioniProgettoTab } from "@/config/schede/ImpostazioniProgettoTab";
 import { Icona } from "@/components/Icona";
+import { BarraEsito, SlotTestata, StatoSalvataggio } from "@/config/testata";
 
 /** Il componente di ogni scheda. Un `Record` e non un elenco: se una scheda
  *  entra in `SCHEDE` e non qui, è il compilatore a dirlo. Le schede ospitate
@@ -87,6 +88,9 @@ export function ConfigView() {
   const isAdmin = authRole === "Admin";
   const project          = useAppStore((s) => s.project);
   const projectLoadError = useAppStore((s) => s.projectLoadError);
+  // The place in the fixed header where the open tab puts its help text and
+  // its buttons (`AzioniTestata`, 25-11-2026).
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
 
   const focus    = useAppStore((s) => s.configFocus);
   // Un figlio (il dispositivo di un bus Modbus, 04-10-2026) si legge «bus › dispositivo».
@@ -133,7 +137,12 @@ export function ConfigView() {
   const voce = titoloVoce === t(`config.tabs.${tab}`) ? null : titoloVoce;
 
   return (
+    <SlotTestata.Provider value={slot}>
     <div style={S.page}>
+      {/* The fixed header (UI rule 4, 25-11-2026): title, the help text and
+          the actions of the tab, the Save and its green bar. It does not
+          scroll; only the body below does. */}
+      <div style={S.testata}>
       <div style={S.intestazione}>
         {/* Il nome del menù da cui si arriva, quello che si vede a sinistra
             («Device»), non il ramo interno del registro («Instance»), che
@@ -149,6 +158,13 @@ export function ConfigView() {
           <span aria-hidden="true" style={{ color: "var(--brand-text-subtle, #64748b)" }}>›</span>
           <span style={{ color: "var(--brand-text, #e2e8f0)" }}>{etichettaFocus}</span>
         </>)}
+        {project !== null && <StatoSalvataggio />}
+      </div>
+      <style>{`.sws-header-actions:not(:empty) { margin-top: 8px; }
+        .sws-header-actions > * { margin-bottom: 0; }
+        .sws-save-result { margin-top: 8px; }`}</style>
+      <div ref={setSlot} className="sws-header-actions" style={S.azioniTestata} />
+      <BarraEsito />
       </div>
 
       {/* Content */}
@@ -182,5 +198,6 @@ export function ConfigView() {
         )}
       </div>
     </div>
+    </SlotTestata.Provider>
   );
 }

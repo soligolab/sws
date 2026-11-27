@@ -138,7 +138,7 @@ Progetti `PLX800`, poi `PLX800_Verticale` (rinominato nel cloud). Le voci passat
        scritture entro 1 s raggruppate (`coalesced`) — confermato dal maintainer il 25-11-2026.
 3. [x] La pagina Utenti salva da sé (rc.30, voce 4) — confermato dal maintainer il 25-11-2026 nell'IDE del cloud
        (progetto `tiny-ty`). Il segnale «Salvato» si vede poco: piano
-       [Save nella testata](plans/2026-11-25-save-nella-testata.md).
+       [Save nella testata](archive/2026-11-25-save-nella-testata.md).
 4. [x] Il deploy dalla rete locale con un utente del progetto, su un pannello abbinato dal cloud prima della 2.27, si
        ferma prima di toccare il pannello (rc.30, voce 3) — confermato dal maintainer il 25-11-2026.
 5. [x] All'avvio il log dice `user store empty` col percorso, non più «no-auth mode» (rc.30, voce 5) — letto il

@@ -1,9 +1,11 @@
-/** rc.30, collaudo on the PLX800 (23-11-2026): the Users tab saves every field
- *  by itself and said nothing, and the Zones field saved at every key — the
- *  field went disabled and the comma vanished as soon as it was typed. */
-import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/react";
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+/** The Users page as a draft (25-11-2026, plan `docs/plans/2026-11-25-save-nella-testata.md`).
+ *  Before, every field saved by itself and «✓ Saved» showed for 2.5 s in the row: the
+ *  maintainer saw it at the third attempt. Now the fields write a draft, and the one Save
+ *  of the header writes it. The new password stays an action of its own and saves at once. */
+import { render, screen, fireEvent, waitFor, cleanup, act } from "@testing-library/react";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
+import { useAppStore } from "../src/store";
 
 const { listUsers, updateUser } = vi.hoisted(() => ({
   listUsers: vi.fn(),
@@ -17,6 +19,7 @@ vi.mock("@/api/client", async () => {
 import { UsersTab } from "../src/config/schede/UsersTab";
 
 beforeAll(async () => { await i18n.changeLanguage("it"); });
+beforeEach(() => { useAppStore.setState({ pendingSections: {} }); });
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 const op = {
@@ -24,8 +27,10 @@ const op = {
   session_ttl_secs: null, allowed_zones: [] as string[],
 };
 
-describe("the Users tab", () => {
-  it("lets «zone1, zone2» be typed key by key and saves it once, on leaving the field", async () => {
+const pending = () => useAppStore.getState().pendingSections["users"];
+
+describe("the Users page", () => {
+  it("lets «zone1, zone2» be typed key by key, and the Save writes it once", async () => {
     listUsers.mockResolvedValue([op]);
     updateUser.mockResolvedValue({});
     render(<UsersTab />);
@@ -37,42 +42,46 @@ describe("the Users tab", () => {
     }
     expect(field.value).toBe("zone1, zone2");
     expect(updateUser).not.toHaveBeenCalled();
-    fireEvent.blur(field);
-    await waitFor(() => expect(updateUser).toHaveBeenCalledTimes(1));
+    expect(screen.getByTestId("utente-modificato-op")).toBeTruthy();
+    await waitFor(() => expect(pending()).toBeDefined());
+    await act(async () => { await pending()!(); });
+    expect(updateUser).toHaveBeenCalledTimes(1);
     expect(updateUser).toHaveBeenCalledWith("op", { allowed_zones: ["zone1", "zone2"] });
+    await waitFor(() => expect(pending()).toBeUndefined());
   });
 
-  it("says «Saved» on the row that has just been saved", async () => {
+  it("puts the changes of one user in one request", async () => {
     listUsers.mockResolvedValue([op]);
     updateUser.mockResolvedValue({});
     render(<UsersTab />);
-    const name = await screen.findByTestId("utente-nome-op");
-    fireEvent.change(name, { target: { value: "Operatore" } });
-    fireEvent.blur(name);
-    expect((await screen.findByTestId("utente-salvato-op")).textContent).toContain("Salvato");
+    fireEvent.change(await screen.findByTestId("utente-nome-op"), { target: { value: "Operatore" } });
+    fireEvent.change(screen.getByTestId("utente-ruolo-op"), { target: { value: "Supervisor" } });
+    await waitFor(() => expect(pending()).toBeDefined());
+    await act(async () => { await pending()!(); });
+    expect(updateUser).toHaveBeenCalledTimes(1);
+    expect(updateUser).toHaveBeenCalledWith("op", { display_name: "Operatore", role: "Supervisor" });
   });
 
-  it("does not save a field left as it was", async () => {
+  it("is not changed when a field goes back to what it was", async () => {
     listUsers.mockResolvedValue([{ ...op, allowed_zones: ["a", "b"] }]);
     render(<UsersTab />);
     const field = (await screen.findByTestId("utente-zone-op")) as HTMLInputElement;
-    expect(field.value).toBe("a, b");
-    fireEvent.blur(field);
-    expect(updateUser).not.toHaveBeenCalled();
+    fireEvent.change(field, { target: { value: "a, b, c" } });
+    await waitFor(() => expect(pending()).toBeDefined());
+    fireEvent.change(field, { target: { value: "a,b" } });
+    await waitFor(() => expect(pending()).toBeUndefined());
+    expect(screen.queryByTestId("utente-modificato-op")).toBeNull();
   });
 
-  it("keeps the next field usable while the one just left saves (review of the rc.30)", async () => {
-    listUsers.mockResolvedValue([op]);
-    let finish: () => void = () => {};
-    updateUser.mockImplementation(() => new Promise<void>((r) => { finish = r; }));
+  it("says why the Save is refused, and the save fails", async () => {
+    listUsers.mockResolvedValue([{ ...op, role: "Admin" as const }]);
+    updateUser.mockRejectedValue(new Error("409 last_admin"));
     render(<UsersTab />);
-    const name = await screen.findByTestId("utente-nome-op");
-    const zones = (await screen.findByTestId("utente-zone-op")) as HTMLInputElement;
-    fireEvent.change(name, { target: { value: "Operatore" } });
-    fireEvent.blur(name);
-    await waitFor(() => expect(updateUser).toHaveBeenCalledTimes(1));
-    // The save is still running: the next field is not disabled.
-    expect(zones.disabled).toBe(false);
-    finish();
+    fireEvent.change(await screen.findByTestId("utente-ruolo-op"), { target: { value: "Viewer" } });
+    await waitFor(() => expect(pending()).toBeDefined());
+    let failed = false;
+    await act(async () => { try { await pending()!(); } catch { failed = true; } });
+    expect(failed).toBe(true);
+    expect(await screen.findByText(i18n.t("cfgUi.ultimoAmministratore"))).toBeTruthy();
   });
 });

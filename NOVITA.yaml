@@ -58,6 +58,11 @@ versioni:
         en: "After «Delete project on the runtime» the panel screen leaves the synoptic: the values no longer look live."
       - it: "L'esito di un aggiornamento ingrigisce tutto lo schermo, con l'avviso al centro, sul web e su LVGL."
         en: "The result of an update greys the whole screen, with the notice in the middle, on web and LVGL."
+      # Il Save nella testata (piano docs/plans/2026-11-25-save-nella-testata.md).
+      - it: "Nella Configurazione il Salva sta in alto a destra, fermo mentre la scheda scorre, con l'elenco delle schede da salvare e una barra verde di conferma."
+        en: "In the Configuration the Save is at the top right, fixed while the tab scrolls, with the list of the tabs to save and a green bar that confirms."
+      - it: "La pagina Utenti non salva più campo per campo: le modifiche si salvano col Salva, come nelle altre schede. La password nuova si salva subito."
+        en: "The Users page no longer saves field by field: the changes are saved with Save, as in the other tabs. A new password is saved at once."
       # Il cambio di nome del progetto (piano docs/plans/2026-11-27-cambio-di-nome-del-progetto.md).
       - it: "«Salva come» chiede se la copia è dello stesso impianto o un progetto nuovo: il deploy di una copia sul pannello dell'originale tiene storico, utenti e backup."
         en: "«Save as» asks if the copy is of the same plant or a new project: the deploy of a copy to the panel of the original keeps history, users and backups."

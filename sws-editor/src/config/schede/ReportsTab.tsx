@@ -7,6 +7,7 @@
  *  **Chi genera**: il pannello, dove gira l'impianto. Nell'IDE e nel cloud lo
  *  storico non c'è, quindi file e «Genera ora» parlano col pannello collegato
  *  (`remoto`); senza pannello si vedono solo le definizioni. */
+import { AzioniTestata } from "@/config/slotTestata";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
@@ -97,7 +98,10 @@ export function ReportsTab() {
     <div style={S.section}>
       <SaveBar onSave={salva} section="reports" dirty={toccato} notice={msg} />
       <div style={S.sectionTitle}>{t("reportTab.titolo")}</div>
-      <div style={S.notice}>{t("reportTab.intro")}</div>
+      {/* The help text is in the fixed header (UI rule 4, 25-11-2026). */}
+      <AzioniTestata>
+        <div style={{ ...S.notice, marginBottom: 0, flex: 1 }}>{t("reportTab.intro")}</div>
+      </AzioniTestata>
       {!programmati && <div style={{ ...S.notice, color: "var(--brand-warning, #f59e0b)" }}>{t("reportTab.nonQui")}</div>}
 
       <div style={{ display: "flex", gap: 16 }}>

@@ -1,5 +1,9 @@
 # Il Save nella testata fissa delle schede, e la pagina Utenti senza salvataggio automatico (25-11-2026)
 
+> **Stato: FATTO, in `main` il 27-11-2026 (squash del ramo `feat/save-nella-testata`), confermato dal maintainer
+> nell'IDE il 27-11-2026.** Punti 1-6 fatti: le 11 schede con
+> `SaveBar` passano tutte dalla testata; le azioni portate nella testata sono quelle di Tags, Allarmi e Report.
+
 ## Contesto
 
 Collaudo della 2.27.0-dev.3, test 4 (la pagina Utenti, voce 4 della rc.30), fatto dal maintainer nell'IDE del cloud sul
@@ -61,5 +65,5 @@ il salvataggio; Ctrl+S. La conferma del maintainer con `/test-changes` su una de
 - **La password nuova resta un'azione a parte**, con la sua finestra, e salva subito: una password non resta in una
   bozza non salvata. Il resto della pagina Utenti (nome, ruolo, zone, scadenza della sessione) diventa bozza.
 - **Le 8 schede che usano ancora `SaveBar`** passano alla testata nello stesso ramo (punto 6).
-- Esce nella stessa dev del piano [cambio di nome del progetto](2026-11-27-cambio-di-nome-del-progetto.md), con un
+- Esce nella stessa dev del piano [cambio di nome del progetto](../plans/2026-11-27-cambio-di-nome-del-progetto.md), con un
   ramo dopo l'altro.

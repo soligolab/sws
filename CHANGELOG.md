@@ -13,6 +13,21 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 Il lavoro della **2.28.0** (versioni `2.28.0-dev.N`), da `main`.
 
+### Cambiato — il Save nella testata fissa delle schede (27-11-2026, ramo `feat/save-nella-testata`)
+Piano `docs/archive/2026-11-25-save-nella-testata.md`, regola UI 4 di `CLAUDE.md`.
+
+- **La testata della Configurazione non scorre** e porta, a destra, «Salva» e l'elenco delle schede con modifiche
+  («Non salvato: Tags, Allarmi»). Il Save resta uno solo e chiama `saveAll()`. Sotto, una **barra verde** di circa 3 s
+  conferma il salvataggio; un errore resta rosso finché non si chiude (`config/testata.tsx`).
+- **`SaveBar` non disegna più niente**: registra la bozza come `SezionePendente`, e un suo avviso (l'esito di una
+  rinomina) va nella testata. Vale per le 11 schede che la usano.
+- **Le azioni delle schede nella testata** (`AzioniTestata`, un portale verso la testata): in Tags il testo blu,
+  Export CSV e Import CSV; in Allarmi e Report il testo d'aiuto.
+- **La pagina Utenti è una bozza come le altre schede**: nome, ruolo, «forza cambio password», scadenza della sessione e
+  zone si scrivono col Save della testata e con Ctrl+S, una richiesta per utente. La password nuova, la creazione e la
+  cancellazione di un utente restano azioni a parte, che salvano subito. Prima ogni campo salvava da sé, e «✓ Salvato»
+  compariva per 2,5 s nella riga.
+
 ### Aggiunto — il deploy di un progetto con un altro nome, e lo storico che segue i tag rinominati (27-11-2026, ramo `feat/plant-id-e-rinomina-tag`)
 Piano `docs/plans/2026-11-27-cambio-di-nome-del-progetto.md`. Nato dal collaudo della 2.27.0 sul TC620: il deploy di
 `CasaDomotica (TC620_Verticale)` sul pannello che aveva `CasaDomotica` ha cancellato 1,6 GB di storico e gli utenti,

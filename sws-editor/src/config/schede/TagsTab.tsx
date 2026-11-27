@@ -1,5 +1,6 @@
 import type { IdScheda } from "@/config/schede";
 import React, { useMemo, useRef, useState } from "react";
+import { AzioniTestata } from "@/config/slotTestata";
 import { Trans, useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { Tenuta } from "@/components/Tenuta";
@@ -396,20 +397,26 @@ export function TagsTab({ scheda }: { scheda: IdScheda }) {
           reimportare. Il Salva è uno (quello del progetto) e l'import/export
           CSV copre entrambe, quindi sta sopra tutte e due le viste. Il
           selettore fra le due è diventato l'albero (24-09-2026). */}
-      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
-        <div style={{ flex: 1 }} />
-        <button style={S.btn("ghost")} onClick={handleExportCsv} title={t("cfg.downloadTagsCsv")}>{t("cfgUi.exportCsv")}</button>
-        <button style={S.btn("ghost")} onClick={() => setShowImport(true)} title={t("cfg.importTagsCsv")}>{t("cfgUi.importCsv")}</button>
-      </div>
+      {/* In the fixed header since 25-11-2026 (UI rule 4): the blue help text
+          on the left, Export CSV and Import CSV on the right, next to the
+          Save. The rows scroll under the header, not under the buttons. */}
+      <AzioniTestata>
+        {vista === "variabili" && (
+          <div style={{ ...S.notice, marginBottom: 0, flex: 1, minWidth: 260 }}>
+            <Trans i18nKey="cfgUi.variablesNotice" values={{ tab: t("config.tabs.protocols") }} components={TRANS_COMP} />
+          </div>
+        )}
+        <div style={{ display: "flex", gap: 8, marginLeft: "auto" }}>
+          <button style={S.btn("ghost")} onClick={handleExportCsv} title={t("cfg.downloadTagsCsv")}>{t("cfgUi.exportCsv")}</button>
+          <button style={S.btn("ghost")} onClick={() => setShowImport(true)} title={t("cfg.importTagsCsv")}>{t("cfgUi.importCsv")}</button>
+        </div>
+      </AzioniTestata>
 
       <Tenuta attiva={vista === "tipi"}>
         <TipiTab key={revTipi} incorporata variabiliToccate={touched}
           onIstanzaCreata={(id) => { setTags(conRigaVuota(useAppStore.getState().project?.tags ?? [])); setConfigTab("tags"); setConfigFocus(id); }} />
       </Tenuta>
       <Tenuta attiva={vista === "variabili"}>
-      <div style={S.notice}>
-        <Trans i18nKey="cfgUi.variablesNotice" values={{ tab: t("config.tabs.protocols") }} components={TRANS_COMP} />
-      </div>
 
       <table style={S.table}>
         <thead>

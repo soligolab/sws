@@ -1,7 +1,8 @@
 import React, { useEffect, useRef } from "react";
-import { useTranslation } from "react-i18next";
 import { useAppStore } from "@/store";
-import i18n from "@/i18n";
+// Loads the translations: the tabs and their tests rely on this import.
+import "@/i18n";
+import { AzioniTestata } from "@/config/slotTestata";
 
 // Segnaposto dei tag `<strong>`/`<em>`/`<code>` dentro i testi tradotti con `<Trans>`.
 export const TRANS_COMP = { strong: <strong />, em: <em />, code: <code /> };
@@ -47,15 +48,31 @@ export const S = {
   },
   /** «Ramo › Scheda» in cima all'area: dal 24-09-2026 la barra delle schede
    *  non c'è più (le sceglie l'albero ⚙), e questo dice dove si è. */
+  /** The fixed header (25-11-2026): `intestazione`, the actions of the tab
+   *  and the green bar. It does not scroll. */
+  testata: {
+    display: "flex" as const,
+    flexDirection: "column" as const,
+    padding: "10px 24px",
+    background: "var(--brand-surface, #1e293b)",
+    borderBottom: "1px solid var(--brand-surface-2, #334155)",
+    flexShrink: 0,
+  },
   intestazione: {
     display: "flex" as const,
     alignItems: "center" as const,
     gap: 8,
-    padding: "10px 24px",
+    minHeight: 30,
     fontSize: 14,
-    background: "var(--brand-surface, #1e293b)",
-    borderBottom: "1px solid var(--brand-surface-2, #334155)",
-    flexShrink: 0,
+  },
+  /** Where a tab puts its help text and its buttons (`AzioniTestata`). The
+   *  space above it comes from the class `sws-header-actions` and only when
+   *  it has content (`ConfigView` writes the rule): empty, it takes no room. */
+  azioniTestata: {
+    display: "flex" as const,
+    alignItems: "center" as const,
+    gap: 8,
+    flexWrap: "wrap" as const,
   },
   body: {
     flex: 1,
@@ -222,13 +239,17 @@ export function SezionePendente({
   return null;
 }
 
+/** The draft of a tab, for the one Save of the header (25-11-2026, plan
+ *  `docs/plans/2026-11-25-save-nella-testata.md`). It registers the draft
+ *  among the pending sections, like `SezionePendente`, and draws no bar: the
+ *  Save, the list of the tabs with changes and the green bar are in the fixed
+ *  header (`config/testata.tsx`). A `notice` of the tab (the result of a
+ *  rename, of a test) goes in the header too.
+ *
+ *  `saving`/`saved`/`label`/`savedNotice`/`disabled` stay in the signature so
+ *  as not to touch eleven calls at once: they are ignored. */
 export function SaveBar({
   onSave,
-  saving: _saving,
-  saved: _saved,
-  savedNotice = i18n.t("cfgUi.savedChangesAppliedImmediately"),
-  label: _label,
-  disabled = false,
   notice,
   section,
   dirty,
@@ -248,46 +269,17 @@ export function SaveBar({
    *  dell'utente, non per confronto strutturale (incidente del 2026-07-28). */
   dirty: boolean;
 }) {
-  const { t } = useTranslation();
-  const registerPendingSection = useAppStore((s) => s.registerPendingSection);
-  const saveAll = useAppStore((s) => s.saveAll);
-  const saveStatus = useAppStore((s) => s.saveStatus);
-  const saveError = useAppStore((s) => s.saveError);
-  const ultimiTagCreati = useAppStore((s) => s.ultimiTagCreati);
-  // onSave cambia identità a ogni render della tab: tenerlo in una ref evita
-  // di ri-registrare (e quindi ri-renderizzare) a ogni battuta di tasto.
-  const onSaveRef = useRef(onSave);
-  onSaveRef.current = onSave;
-
-  useEffect(() => {
-    registerPendingSection(section, dirty ? async () => { await onSaveRef.current(); } : null);
-    return () => registerPendingSection(section, null);
-  }, [section, dirty, registerPendingSection]);
-
-  const saving = saveStatus === "saving";
-  const noticeIsError = !!notice && (/^(errore|✗|✕)/i).test(notice.trim());
+  const noticeIsError = !!notice && (/^(errore|error|✗|✕)/i).test(notice.trim());
   return (
-    <div style={{
-      display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 12,
-      marginBottom: 16, position: "sticky", top: 0, zIndex: 5,
-      padding: "8px 0", background: "var(--brand-bg, #0f172a)",
-    }}>
-      {notice != null ? (
-        <span style={{ fontSize: 12, color: noticeIsError ? "var(--brand-danger, #ef4444)" : "var(--brand-success, #22c55e)" }}>
-          {notice}
-        </span>
-      ) : saveStatus === "error" ? (
-        <span style={{ fontSize: 12, color: "var(--brand-danger, #ef4444)" }}>{saveError}</span>
-      ) : saveStatus === "ok" ? (
-        <span style={{ fontSize: 12, color: "var(--brand-success, #22c55e)" }}>
-          {savedNotice}{ultimiTagCreati.length > 0 ? ` · ${t("cfgUi.tagCreati", { n: ultimiTagCreati.length, ids: ultimiTagCreati.join(", ") })}` : ""}
-        </span>
-      ) : dirty ? (
-        <span style={{ fontSize: 12, color: "var(--brand-warning, #f59e0b)" }}>{t("cfgUi.unsavedInTab")}</span>
-      ) : null}
-      <button style={S.btn("success")} onClick={() => void saveAll()} disabled={saving || disabled} title={t("cfgUi.saveProjectHint")}>
-        {saving ? t("cfgUi.saving") : t("cfgUi.saveProject")}
-      </button>
-    </div>
+    <>
+      <SezionePendente section={section} dirty={dirty} onSave={onSave} />
+      {notice != null && (
+        <AzioniTestata>
+          <span data-testid="testata-avviso" style={{ fontSize: 12, color: noticeIsError ? "var(--brand-danger, #ef4444)" : "var(--brand-success, #22c55e)" }}>
+            {notice}
+          </span>
+        </AzioniTestata>
+      )}
+    </>
   );
 }
