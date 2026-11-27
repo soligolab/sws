@@ -1,8 +1,9 @@
 # Il deploy di un progetto con un altro nome: l'identità d'impianto, e lo storico che segue i tag rinominati
 
-> **Stato: fatto, in `main`; le 4 correzioni del collaudo da provare con la dev.4** (27-11-2026): A, B, C, D ed E sul ramo `feat/plant-id-e-rinomina-tag`,
-> definition of done verde tranne la conferma del maintainer (la «Verifica» in fondo). Rivisto col maintainer il 27-11-2026 (era «piano da rivedere»). Nato dal collaudo della 2.27.0
-> sul TC620. Il dettaglio del collaudo e dei rimedi a mano è in `docs/COLLAUDI_IN_SOSPESO.md`, sezione «Collaudo 2.27.0».
+> **Stato: FATTO**, in `main` il 27-11-2026 (squash `56399844`), uscito nella `2.28.0-dev.4`. Collaudo del ramo sul PLX800
+> (6 su 6) e della dev.4 sul WP630 (27-11-2026): 3 correzioni su 4 confermate; la quarta (il registro con l'Admin del
+> dispositivo) non è provabile sul WP630 e resta aperta in `docs/COLLAUDI_IN_SOSPESO.md`. Le due anomalie della dev.4
+> vanno nel ramo `fix/collaudo-dev4`.
 
 ## Contesto
 

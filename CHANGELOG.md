@@ -39,7 +39,7 @@ Piano `docs/archive/2026-11-25-save-nella-testata.md`, regola UI 4 di `CLAUDE.md
   compariva per 2,5 s nella riga.
 
 ### Aggiunto — il deploy di un progetto con un altro nome, e lo storico che segue i tag rinominati (27-11-2026, ramo `feat/plant-id-e-rinomina-tag`)
-Piano `docs/plans/2026-11-27-cambio-di-nome-del-progetto.md`. Nato dal collaudo della 2.27.0 sul TC620: il deploy di
+Piano `docs/archive/2026-11-27-cambio-di-nome-del-progetto.md`. Nato dal collaudo della 2.27.0 sul TC620: il deploy di
 `CasaDomotica (TC620_Verticale)` sul pannello che aveva `CasaDomotica` ha cancellato 1,6 GB di storico e gli utenti,
 e il registro diceva «Utenti: non toccati».
 

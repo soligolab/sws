@@ -27,12 +27,23 @@
 
 ---
 
+## Collaudo 2.28.0-dev.4 sul WP630 (27-11-2026) — il cambio di nome del progetto, le correzioni
+
+Pannello `user@wp630-a-p3-07a077.local`, canale Sviluppo, aggiornato da `2.28.0-dev.3` a `2.28.0-dev.4` con «Aggiorna
+ora»; gateway di sws.soligo.net sulla dev.4. Azioni dall'IDE del cloud, letture via ssh sul pannello e sul VPS. Le
+voci delle 4 correzioni sono nella sezione qui sotto. Anomalie, per il ramo `fix/collaudo-dev4`:
+
+- [ ] «New deploy» rimette la spunta su «Replace users too» anche dopo un deploy fatto senza utenti: `users-pending`
+      ricorda solo gli utenti mandati, non il «no» della persona;
+- [ ] «It is the same plant» dice «utenti conservati», e subito dopo, con «Replace users too» accesa, il deploy chiede di
+      sostituire gli utenti: le due domande in sequenza si contraddicono.
+
 ## Collaudo del ramo `feat/plant-id-e-rinomina-tag` sul PLX800 (27-11-2026) — il cambio di nome del progetto
 
 PLX800 `user@plx800-a-p3-l2-a2-0891bc.local` reinstallato da un archivio costruito dal ramo (commit `c0f8633f`; il
 pannello dice `2.28.0-dev.3`). IDE locale `start_editor_develop.sh` dallo stesso commit. Progetti di prova
 `Prova_Impianto` e copie, mai CasaDomotica. Piano
-[`2026-11-27-cambio-di-nome-del-progetto.md`](plans/2026-11-27-cambio-di-nome-del-progetto.md), sezione «Verifica».
+[`2026-11-27-cambio-di-nome-del-progetto.md`](archive/2026-11-27-cambio-di-nome-del-progetto.md), sezione «Verifica».
 
 Il pannello, abbinato al cloud dalla dev.0, non aveva un Admin del dispositivo: con un utente del progetto il deploy
 dalla LAN si ferma (regola della 2.27). Per la prova è stato creato a mano `config/utenti_dispositivo.yaml` con
@@ -54,11 +65,16 @@ dalla LAN si ferma (regola della 2.27). Per la prova è stato creato a mano `con
 
 Anomalie, corrette sullo stesso ramo prima dello squash (decisione del maintainer, 27-11-2026; commit «fix(deploy): le
 anomalie del collaudo sul PLX800»). Da provare con la dev che le porta:
-- [ ] la rinomina del progetto sul pannello non entra nel registro delle azioni (`audit.jsonl`);
+- [x] la rinomina del progetto sul pannello non entra nel registro delle azioni (`audit.jsonl`) — corretta: sul WP630
+      con la dev.4 la riga 71 è `project.rename` da `-/tiny-ty` a `-/WP630_Vert_DemoFiera` — confermato dal maintainer il
+      27-11-2026;
 - [ ] il registro del deploy scrive «il dispositivo resterà senza account» anche quando il pannello ha l'Admin del
-      dispositivo;
-- [ ] «Progetto nuovo» eredita `tag_renames` dall'originale;
-- [ ] il generatore campiona ogni 100 ms senza allineamento all'orologio: un'onda triangolare 0–100 si vede fra 1 e 99.
+      dispositivo — 27-11-2026: non provabile sul WP630 (abbinato dal cloud prima della 2.27, senza Admin del
+      dispositivo). Da provare su un pannello abbinato con il codice; il test `riferisci_piano_utenti` copre i due casi;
+- [x] «Progetto nuovo» eredita `tag_renames` dall'originale — corretta: `Prova_Nuovo` nel cloud nasce senza
+      `tag_renames`, con un `plant_id` nuovo e senza storico — confermato dal maintainer il 27-11-2026;
+- [x] il generatore campiona ogni 100 ms senza allineamento all'orologio — corretta: l'onda triangolare 0–100 tocca 0 e
+      100 — confermato dal maintainer il 27-11-2026 (visto nell'IDE del cloud sulla dev.4).
 
 Note: «Cambia risoluzione» da orizzontale a verticale e ritorno rimpicciolisce il disegno due volte (fattore 0,563 a
 ogni passo): è il comportamento atteso, non un'anomalia. Dopo il riavvio il mouse USB del PLX800 non si presenta al
@@ -109,7 +125,7 @@ contiene anche le correzioni della dev.4: le loro voci sono nel piano
        visibile. Ci si è arrivati con tre rimedi a mano, col sì del maintainer: lo storico (1,6 GB) e `users.yaml`
        del progetto sostituito ripristinati nel progetto nuovo, e la riga `orientation: portrait` aggiunta alla copia
        verticale sul VPS. Le tre anomalie stanno nel piano
-       [`2026-11-27-cambio-di-nome-del-progetto.md`](plans/2026-11-27-cambio-di-nome-del-progetto.md).
+       [`2026-11-27-cambio-di-nome-del-progetto.md`](archive/2026-11-27-cambio-di-nome-del-progetto.md).
 3. [x] **TC620**: il menu «Canale» nella riga di «Aggiornamento del runtime» → Sviluppo → conferma con l'avviso rosso.
        Il canale di sviluppo ha la stessa 2.27.0: il pannello non si riavvia, e la riga gialla dice che resta sulla
        2.27.0 finché Sviluppo non ha una versione più alta. Alla prima 2.28.0-dev.N, «Aggiorna ora» fa il cambio.

@@ -12,24 +12,29 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — cambio di nome e Save nella testata in `main` (2026-11-27, `elitebook`)
+## ▶ Riprendere da qui — 2.28.0-dev.4 uscita e collaudata sul WP630; `/chiudi-plan-aperti` al piano 1 (2026-11-27, `elitebook`)
 
-- **In `main`, non pushato**: `feat(deploy): l'identità d'impianto…` (squash del 27-11), piano
-  [`2026-11-27-cambio-di-nome-del-progetto.md`](docs/plans/2026-11-27-cambio-di-nome-del-progetto.md). Collaudo del
-  ramo sul PLX800: 6 passate (`docs/COLLAUDI_IN_SOSPESO.md`). Le 4 correzioni del collaudo (rinomina nel registro delle
-  azioni, «resterà senza account», `tag_renames` di «Progetto nuovo», generatori sull'orologio) sono dentro, da provare
-  con la dev.4.
-- **In `main`, non pushato: il Save nella testata**, piano archiviato
-  [`2026-11-25-save-nella-testata.md`](docs/archive/2026-11-25-save-nella-testata.md): la testata fissa con «Salva»,
-  l'elenco delle schede con modifiche e la barra verde; Tags, Allarmi e Report con testo e pulsanti nella testata; la
-  pagina Utenti come bozza. Confermato dal maintainer nell'IDE il 27-11-2026. Poi `2.28.0-dev.4`, con il suo sì.
-- **PLX800**: il maintainer lo aggiorna e fa il factory reset (27-11): da ora non è disponibile. Le note del collaudo
-  (Admin del dispositivo a mano, immagine da archivio) sono superate.
+- **`2.28.0-dev.4` pushata e costruita** (arm64 e amd64), gateway di sws.soligo.net sulla dev.4. Dentro: il cambio di
+  nome del progetto (identità d'impianto), il Save nella testata, il tema chiaro dell'IDE, le sezioni delle variabili
+  in Tags.
+- **Collaudo 2.28.0-dev.4 del 27-11 sul WP630: 4 passate, 1 saltata, 2 anomalie** (`docs/COLLAUDI_IN_SOSPESO.md`).
+  Saltata: il registro del deploy con l'Admin del dispositivo (il WP630 non ne ha uno). Anomalie, nel ramo
+  `fix/collaudo-dev4`:
+  1. «New deploy» rimette la spunta su «Replace users too»: `users-pending` non ricorda il «no»;
+  2. «It is the same plant» dice «utenti conservati», poi il deploy chiede di sostituirli.
+- **Piani archiviati oggi**: il Save nella testata, il cambio di nome del progetto. **Piano nuovo, pronto**:
+  [l'immagine base del sistema](docs/plans/2026-11-27-immagine-base-del-sistema.md) (proposte approvate). **Seme
+  nuovo**: [il Live value grezzo o formattato](docs/plans/semi/2026-11-27-valore-live-grezzo-o-formattato.md).
+- **`/chiudi-plan-aperti`**: piano 1 chiuso; dopo `fix/collaudo-dev4` si passa al piano 2,
+  [la versione fissata e il blocco](docs/plans/2026-11-26-versione-fissata-e-blocco.md).
+- **CasaDomotica**: al primo deploy dalla dev.4 non ha `plant_id` e arriva la domanda con 3 scelte: va scelto «stesso
+  impianto», altrimenti si perde lo storico.
+- **PLX800**: aggiornato e riportato alle condizioni di fabbrica dal maintainer (27-11), non disponibile.
 
 ## ▶ Riprendere da qui — collaudo della 2.27.0 sul TC620; prima cosa, il piano del cambio di nome (2026-11-27, `ufficio`)
 
 - **Prima cosa della prossima sessione** (il maintainer): la revisione del piano
-  [`docs/plans/2026-11-27-cambio-di-nome-del-progetto.md`](docs/plans/2026-11-27-cambio-di-nome-del-progetto.md) — il
+  [`docs/archive/2026-11-27-cambio-di-nome-del-progetto.md`](docs/archive/2026-11-27-cambio-di-nome-del-progetto.md) — il
   deploy di un progetto con un altro nome: A, lo stesso impianto con un nome nuovo, che tiene utenti e storico; B, un
   progetto nuovo.
 - **Collaudo 2.27.0 del 27-11 sul TC620: 2 passate, 3 anomalie** (`docs/COLLAUDI_IN_SOSPESO.md`, sezione «Collaudo
