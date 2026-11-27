@@ -230,6 +230,11 @@ pub struct ProjectListEntry {
     /// numero, così una nuova si vede subito e la stessa resta in cache.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub anteprima_ms: Option<u64>,
+    /// `meta.plant_id` of the project (27-11-2026): the deploy of a project
+    /// with another name compares it with its own to know if it is the same
+    /// plant. Absent on a project made before, and from an older runtime.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plant_id: Option<String>,
 }
 
 /// I pochi campi di `project.yaml` che servono all'elenco.
@@ -499,6 +504,7 @@ pub async fn list_projects(
                         anteprima_ms: None,
                         archiviato: None,
                         cestino: None,
+                        plant_id: None,
                     },
                 );
             }
@@ -565,6 +571,7 @@ pub async fn list_projects(
                         anteprima_ms: None,
                         archiviato: None,
                         cestino: None,
+                        plant_id: None,
                     },
                 );
             }
@@ -619,6 +626,7 @@ pub async fn list_projects(
                 anteprima_ms: None,
                 archiviato: None,
                 cestino: None,
+                plant_id: None,
             },
         );
     }
@@ -637,6 +645,7 @@ pub async fn list_projects(
         e.motore = motore;
         e.risoluzione = risoluzione;
         e.anteprima_ms = crate::anteprima::scritta_ms(dir);
+        e.plant_id = read_plant_id(dir);
     }
     // Most recently opened first; untouched legacy entries (no registry
     // timestamp) sort after every timestamped one, alphabetically among
@@ -1154,6 +1163,11 @@ pub async fn create_project(
                     // Non-fatal — project is usable, name just stays as template id.
                 }
             }
+            // A project made from a template is a new plant: the template's
+            // own id (if it has one) must never travel to two projects.
+            if let Err(e) = patch_plant_id(&yaml_path, Some(&new_plant_id())).await {
+                warn!("create_project: patch meta.plant_id: {e}");
+            }
             // Il progetto lo produce questo runtime, adesso: senza il timbro
             // l'IDE lo segnalerebbe «da aggiornare» appena creato. Non fatale
             // per lo stesso motivo del nome: un avviso di troppo è meglio di un
@@ -1179,6 +1193,8 @@ pub async fn create_project(
                 meta: ProjectMeta {
                     name: safe_name.clone(),
                     version: "0.1.0".into(),
+                    // A new project is a new plant (27-11-2026).
+                    plant_id: Some(new_plant_id()),
                 },
                 types: vec![],
                 tags: vec![],
@@ -1207,6 +1223,7 @@ pub async fn create_project(
                 auto_backup_interval_minutes: None,
                 auto_backup_retention: None,
                 ritenzione_ora: None,
+                tag_renames: Vec::new(),
             };
             let yaml = match project.stamp_and_serialize() {
                 Ok(y) => y,
@@ -1544,6 +1561,10 @@ pub async fn apply_loaded_project(
     }
     match DatastoreRegistry::from_project(&project, project_dir).await {
         Ok(Some(reg)) => {
+            // The history follows the tag renames before the first sample
+            // and before the RAM ring loads from it (plan
+            // `2026-11-27-cambio-di-nome-del-progetto`, part C).
+            reg.apply_tag_renames(&project.tag_renames).await;
             if !ide_only {
                 reg.clone().spawn_recorder(db.clone());
             }
@@ -1935,7 +1956,17 @@ pub struct RenameRequest {
     /// one: the copy can no longer push to the original's remote.
     #[serde(default)]
     pub git: Option<crate::git_deploy::CopyRepository>,
+    /// Duplicating only (27-11-2026): the copy is another plant. It gets a
+    /// new `meta.plant_id`, and `history/` and `backups/` are not copied.
+    /// Absent or false = a copy of the same plant: the id stays the same, so
+    /// a deploy of the copy over the original keeps history and users.
+    #[serde(default)]
+    pub new_plant: bool,
 }
+
+/// What «Save as» does not copy when the copy is another plant: the data of
+/// the plant, not of the project. The legacy hidden names are here too.
+const PLANT_DATA_DIRS: &[&str] = &["history", "backups", ".history", ".bak"];
 
 /// A project's directory is "external" when it doesn't live directly under
 /// `projects_root` (i.e. it was created at a maintainer-chosen custom
@@ -2362,6 +2393,31 @@ pub struct DeleteQuery {
     /// della WelcomeScreen, dove cancellare tutto è la richiesta esplicita.
     #[serde(default)]
     pub preserve_state: bool,
+    /// `users` → remove everything in the folder except `users.yaml`
+    /// (27-11-2026). The deploy of another plant that keeps the users of the
+    /// panel: history, backups and secrets go, the accounts stay.
+    #[serde(default)]
+    pub keep: Option<String>,
+}
+
+/// The only file that `DELETE …?keep=users` leaves in the folder.
+const KEPT_WITH_USERS: &str = "users.yaml";
+
+/// Remove every entry of `dir` except `users.yaml`. The folder itself stays.
+pub(crate) async fn clear_all_but_users(dir: &StdPath) -> std::io::Result<()> {
+    let mut rd = tokio::fs::read_dir(dir).await?;
+    while let Some(entry) = rd.next_entry().await? {
+        if entry.file_name() == KEPT_WITH_USERS {
+            continue;
+        }
+        let path = entry.path();
+        if entry.file_type().await?.is_dir() {
+            tokio::fs::remove_dir_all(&path).await?;
+        } else {
+            tokio::fs::remove_file(&path).await?;
+        }
+    }
+    Ok(())
 }
 
 /// Ciò che il deploy sovrascrive: artefatti di progettazione, prodotti dall'IDE
@@ -2470,6 +2526,32 @@ pub async fn delete_project(
     // non resta mai senza account.
     // Il progetto NON viene rimosso da `known_projects`: la cartella esiste
     // ancora e sta per ricevere i file nuovi.
+    match q.keep.as_deref() {
+        None => {}
+        Some("users") => {
+            // The container first, as for a full delete: it must not keep
+            // the database open while its files go.
+            spegni_container(&s, &chiave).await;
+            if let Err(e) = clear_all_but_users(&target).await {
+                warn!("delete_project(keep=users): {}: {e}", target.display());
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "cannot clear the project folder",
+                )
+                    .into_response();
+            }
+            s.audit.log(
+                "project.delete",
+                chi.as_ref().map(|e| e.0.username.clone()),
+                serde_json::json!({ "progetto": chiave, "keep": "users" }),
+            );
+            info!(name = %safe_name, "project cleared, users kept (deploy)");
+            return StatusCode::NO_CONTENT.into_response();
+        }
+        Some(_) => {
+            return (StatusCode::BAD_REQUEST, "keep: the only value is «users»").into_response()
+        }
+    }
     if q.preserve_state {
         for name in DESIGN_ARTIFACTS {
             let path = target.join(name);
@@ -2607,6 +2689,7 @@ pub async fn rename_project(
         s.known_projects
             .rename_key(&chiave_vecchia, &chiave_nuova)
             .await;
+        audit_rename(&s, chi.as_ref(), &chiave_vecchia, &chiave_nuova);
         info!(old = %old_name, new = %new_name, path = %old_dir.display(), "external project renamed (folder unchanged)");
         return Json(serde_json::json!({ "name": new_name })).into_response();
     }
@@ -2669,8 +2752,25 @@ pub async fn rename_project(
     }
     s.known_projects.remove(&chiave_vecchia).await;
     s.known_projects.touch(&chiave_nuova, &new_dir).await;
+    audit_rename(&s, chi.as_ref(), &chiave_vecchia, &chiave_nuova);
     info!(old = %chiave_vecchia, new = %chiave_nuova, "project renamed");
     Json(serde_json::json!({ "name": new_name })).into_response()
+}
+
+/// The audit row of a rename. The deploy renames the panel project before it
+/// clears or replaces it (plan 2026-11-27): without this row the audit log of
+/// the panel showed the delete of a project name that never existed there.
+fn audit_rename(
+    s: &AppState,
+    chi: Option<&axum::Extension<crate::router::AuthUser>>,
+    old: &str,
+    new: &str,
+) {
+    s.audit.log(
+        "project.rename",
+        chi.map(|e| e.0.username.clone()),
+        serde_json::json!({ "from": old, "to": new }),
+    );
 }
 
 /// Dove nasce un progetto copiato da `src_dir` con il nome `dst_name`:
@@ -2762,6 +2862,9 @@ pub async fn duplicate_project(
     if scelta_git == Some(crate::git_deploy::CopyRepository::NoRepository) {
         salta.push(".git");
     }
+    if req.new_plant {
+        salta.extend_from_slice(PLANT_DATA_DIRS);
+    }
     // Il segno dell'archivio non si copia: la copia nasce viva (18-10-2026).
     if let Err(e) = copy_dir_all(&src_dir, &dst_dir, &salta).await {
         warn!("duplicate_project: copy {src_name} → {dst_name}: {e}");
@@ -2783,9 +2886,29 @@ pub async fn duplicate_project(
             return (StatusCode::BAD_REQUEST, e).into_response();
         }
     }
+    // The copy carries its own name (27-11-2026): before, `meta.name` stayed
+    // the original's, and a deploy of the copy arrived on the panel with the
+    // name of the original.
+    let yaml_dst = dst_dir.join("project.yaml");
+    if let Err(e) = patch_project_name(&yaml_dst, &dst_name).await {
+        warn!("duplicate_project: patch meta.name of {dst_name}: {e}");
+    }
+    if req.new_plant {
+        // Another plant must never keep the id of the original: then the
+        // deploy would take it for the same plant and keep its history.
+        if let Err(e) = patch_another_plant(&yaml_dst, &new_plant_id()).await {
+            warn!("duplicate_project: new plant_id for {dst_name}: {e}");
+            let _ = tokio::fs::remove_dir_all(&dst_dir).await;
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "cannot give the copy a new plant identity",
+            )
+                .into_response();
+        }
+    }
     s.known_projects.touch(&chiave_dst, &dst_dir).await;
     crate::gateway::progetti::segui_duplicazione(&s.projects_root, &src_dir, &dst_dir).await;
-    info!(src = %src_name, dst = %dst_name, "project duplicated");
+    info!(src = %src_name, dst = %dst_name, new_plant = req.new_plant, "project duplicated");
     (
         StatusCode::CREATED,
         Json(serde_json::json!({ "name": dst_name })),
@@ -3631,7 +3754,8 @@ fn build_seed_accounts() -> Vec<(String, sws_auth::Role, String)> {
 
 /// Rewrite `meta.name` in a copied `project.yaml` to match the user-chosen
 /// project folder name, so the ConfigView title reflects the real project
-/// name instead of the template's internal id.
+/// name instead of the template's internal id. Used by create (template),
+/// rename and duplicate (since 27-11-2026: before, duplicate did not call it).
 async fn patch_project_name(yaml_path: &StdPath, name: &str) -> anyhow::Result<()> {
     let raw = tokio::fs::read_to_string(yaml_path).await?;
     let mut doc: serde_yaml::Value = serde_yaml::from_str(&raw)?;
@@ -3641,6 +3765,75 @@ async fn patch_project_name(yaml_path: &StdPath, name: &str) -> anyhow::Result<(
     let updated = serde_yaml::to_string(&doc)?;
     crate::router::scrivi_atomico(yaml_path, updated.as_bytes()).await?;
     Ok(())
+}
+
+/// A new plant identity for `meta.plant_id` (27-11-2026): a random UUID v4.
+pub(crate) fn new_plant_id() -> String {
+    uuid::Uuid::new_v4().to_string()
+}
+
+/// Write `meta.plant_id` in a `project.yaml`, or remove it with `None`.
+///
+/// It works on the raw YAML, as `patch_project_name` does: the typed struct
+/// would drop the fields that this build does not know (Q10).
+/// The caller holds `project_write_lock`.
+pub(crate) async fn patch_plant_id(yaml_path: &StdPath, id: Option<&str>) -> anyhow::Result<()> {
+    let raw = tokio::fs::read_to_string(yaml_path).await?;
+    let mut doc: serde_yaml::Value = serde_yaml::from_str(&raw)?;
+    if let Some(meta) = doc.get_mut("meta").and_then(|m| m.as_mapping_mut()) {
+        let key = serde_yaml::Value::from("plant_id");
+        match id {
+            Some(id) => {
+                meta.insert(key, serde_yaml::Value::from(id));
+            }
+            None => {
+                meta.remove(&key);
+            }
+        }
+    } else {
+        anyhow::bail!("project.yaml has no meta section");
+    }
+    let updated = serde_yaml::to_string(&doc)?;
+    crate::router::scrivi_atomico(yaml_path, updated.as_bytes()).await?;
+    Ok(())
+}
+
+/// A copy becomes another plant: a new `meta.plant_id`, and no `tag_renames`.
+/// The renames move the samples of the original's history, and another plant
+/// starts without that history (collaudo of 27-11-2026 on the PLX800).
+async fn patch_another_plant(yaml_path: &StdPath, id: &str) -> anyhow::Result<()> {
+    patch_plant_id(yaml_path, Some(id)).await?;
+    let raw = tokio::fs::read_to_string(yaml_path).await?;
+    let mut doc: serde_yaml::Value = serde_yaml::from_str(&raw)?;
+    let removed = doc
+        .as_mapping_mut()
+        .and_then(|m| m.remove(serde_yaml::Value::from("tag_renames")))
+        .is_some();
+    if removed {
+        let updated = serde_yaml::to_string(&doc)?;
+        crate::router::scrivi_atomico(yaml_path, updated.as_bytes()).await?;
+    }
+    Ok(())
+}
+
+/// The `meta.plant_id` of a project folder, if its `project.yaml` has one.
+/// Every field is optional: a broken file gives `None`, not an error.
+pub(crate) fn read_plant_id(dir: &StdPath) -> Option<String> {
+    #[derive(Deserialize, Default)]
+    struct OnlyMeta {
+        #[serde(default)]
+        meta: Option<OnlyPlant>,
+    }
+    #[derive(Deserialize, Default)]
+    struct OnlyPlant {
+        #[serde(default)]
+        plant_id: Option<String>,
+    }
+    let text = std::fs::read_to_string(dir.join("project.yaml")).ok()?;
+    let m: OnlyMeta = serde_yaml::from_str(&text).unwrap_or_default();
+    m.meta
+        .and_then(|m| m.plant_id)
+        .filter(|id| !id.trim().is_empty())
 }
 
 /// La tabella lingue con cui nasce un progetto vuoto: **una** lingua, quella di
@@ -4755,5 +4948,266 @@ mod segreti_migrazione_tests {
         .unwrap();
         assert_eq!(migra_segreti_se_serve(dir.path()), None);
         assert!(crate::backups::list_backups(dir.path()).is_empty());
+    }
+}
+
+/// The plant identity (27-11-2026, plan `2026-11-27-cambio-di-nome-del-progetto`):
+/// «Save as», the new projects and the delete that keeps the users.
+#[cfg(test)]
+mod plant_identity_tests {
+    use super::*;
+    use axum::body::to_bytes;
+
+    async fn state(name: &str) -> (AppState, PathBuf) {
+        let dir = std::env::temp_dir().join(format!("sws-plant-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        (crate::router::stato_di_prova(&dir).await, dir)
+    }
+
+    /// A project with history, backups, users and an id.
+    fn plant(root: &StdPath, name: &str, id: Option<&str>) -> PathBuf {
+        let p = root.join(name);
+        std::fs::create_dir_all(p.join("history")).unwrap();
+        std::fs::create_dir_all(p.join("backups")).unwrap();
+        std::fs::create_dir_all(p.join("synoptics")).unwrap();
+        let id = id.map(|i| format!("  plant_id: {i}\n")).unwrap_or_default();
+        std::fs::write(
+            p.join("project.yaml"),
+            format!("meta:\n  name: {name}\n  version: 0.1.0\n{id}tags: []\nsources: []\n"),
+        )
+        .unwrap();
+        std::fs::write(p.join("history/historian.db"), b"1.6 GB").unwrap();
+        std::fs::write(p.join("backups/b1.zip"), b"zip").unwrap();
+        std::fs::write(p.join("users.yaml"), b"users: []\n").unwrap();
+        std::fs::write(p.join("secrets.yaml"), b"{}\n").unwrap();
+        std::fs::write(p.join("synoptics/home.yaml"), b"id: home\n").unwrap();
+        p
+    }
+
+    fn meta(dir: &StdPath) -> sws_core::ProjectMeta {
+        sws_core::Project::load(dir).expect("project.yaml").meta
+    }
+
+    async fn duplicate(s: &AppState, from: &str, body: serde_json::Value) -> StatusCode {
+        let req: RenameRequest = serde_json::from_value(body).unwrap();
+        duplicate_project(
+            State(s.clone()),
+            None,
+            Path(("-".to_string(), from.to_string())),
+            Json(req),
+        )
+        .await
+        .status()
+    }
+
+    #[tokio::test]
+    async fn save_as_a_copy_of_the_same_plant_keeps_the_id_and_the_data() {
+        let (s, dir) = state("same").await;
+        plant(&dir, "Casa", Some("id-1"));
+        let st = duplicate(&s, "Casa", serde_json::json!({ "new_name": "Casa prova" })).await;
+        assert_eq!(st, StatusCode::CREATED);
+        let copy = dir.join("Casa prova");
+        let m = meta(&copy);
+        assert_eq!(m.name, "Casa prova", "the copy has its own name in meta");
+        assert_eq!(m.plant_id.as_deref(), Some("id-1"));
+        for f in [
+            "history/historian.db",
+            "backups/b1.zip",
+            "users.yaml",
+            "secrets.yaml",
+        ] {
+            assert!(copy.join(f).exists(), "{f} copied");
+        }
+        // The original is untouched.
+        assert_eq!(meta(&dir.join("Casa")).name, "Casa");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn save_as_another_plant_gets_a_new_id_and_no_history() {
+        let (s, dir) = state("new").await;
+        let casa = plant(&dir, "Casa", Some("id-1"));
+        let yaml = std::fs::read_to_string(casa.join("project.yaml")).unwrap();
+        std::fs::write(
+            casa.join("project.yaml"),
+            format!("{yaml}tag_renames:\n- id: r1\n  from: a\n  to: b\n"),
+        )
+        .unwrap();
+        let st = duplicate(
+            &s,
+            "Casa",
+            serde_json::json!({ "new_name": "Garage", "new_plant": true }),
+        )
+        .await;
+        assert_eq!(st, StatusCode::CREATED);
+        let copy = dir.join("Garage");
+        let m = meta(&copy);
+        assert_eq!(m.name, "Garage");
+        let id = m.plant_id.expect("a new id");
+        assert_ne!(id, "id-1");
+        assert!(!copy.join("history").exists(), "history is the plant's");
+        assert!(!copy.join("backups").exists(), "backups are the plant's");
+        assert!(copy.join("users.yaml").exists(), "users are copied");
+        assert!(copy.join("synoptics/home.yaml").exists());
+        let p = sws_core::Project::load(&copy).unwrap();
+        assert!(p.tag_renames.is_empty(), "the renames move the original's history");
+        // The copy of the same plant keeps them: the history comes along.
+        duplicate(&s, "Casa", serde_json::json!({ "new_name": "Casa 2" })).await;
+        let p = sws_core::Project::load(&dir.join("Casa 2")).unwrap();
+        assert_eq!(p.tag_renames.len(), 1);
+
+        // A project made before the field: the copy of the same plant does
+        // not invent one, another plant gets one.
+        plant(&dir, "Vecchio", None);
+        duplicate(&s, "Vecchio", serde_json::json!({ "new_name": "Vecchio 2" })).await;
+        assert_eq!(meta(&dir.join("Vecchio 2")).plant_id, None);
+        duplicate(
+            &s,
+            "Vecchio",
+            serde_json::json!({ "new_name": "Vecchio 3", "new_plant": true }),
+        )
+        .await;
+        assert!(meta(&dir.join("Vecchio 3")).plant_id.is_some());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn a_new_project_is_a_new_plant_and_the_list_says_its_id() {
+        let (s, dir) = state("create").await;
+        let req: CreateProjectRequest =
+            serde_json::from_value(serde_json::json!({ "name": "Nuovo" })).unwrap();
+        let r = create_project(State(s.clone()), None, Json(req)).await;
+        assert!(r.status().is_success(), "{}", r.status());
+        let id = meta(&dir.join("Nuovo")).plant_id.expect("an id at birth");
+        let req: CreateProjectRequest =
+            serde_json::from_value(serde_json::json!({ "name": "Altro" })).unwrap();
+        create_project(State(s.clone()), None, Json(req)).await;
+        assert_ne!(meta(&dir.join("Altro")).plant_id, Some(id.clone()));
+
+        let r = list_projects(State(s.clone()), None).await;
+        let body = to_bytes(r.into_body(), 1 << 20).await.unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        let nuovo = v
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|e| e["name"] == "Nuovo")
+            .expect("in the list");
+        assert_eq!(nuovo["plant_id"], serde_json::json!(id));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn a_template_does_not_give_its_id_to_the_projects() {
+        let (s, dir) = state("template").await;
+        let t = dir.join("templates").join("demo");
+        std::fs::create_dir_all(&t).unwrap();
+        std::fs::write(
+            t.join("project.yaml"),
+            "meta:\n  name: demo\n  version: 0.1.0\n  plant_id: template-id\ntags: []\nsources: []\n",
+        )
+        .unwrap();
+        for n in ["Uno", "Due"] {
+            let req: CreateProjectRequest =
+                serde_json::from_value(serde_json::json!({ "name": n, "template": "demo" }))
+                    .unwrap();
+            let r = create_project(State(s.clone()), None, Json(req)).await;
+            assert!(r.status().is_success(), "{}", r.status());
+        }
+        let uno = meta(&dir.join("Uno")).plant_id.unwrap();
+        let due = meta(&dir.join("Due")).plant_id.unwrap();
+        assert_ne!(uno, "template-id");
+        assert_ne!(uno, due);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn delete_keep_users_leaves_only_the_users() {
+        let (s, dir) = state("keep").await;
+        let p = plant(&dir, "Casa", Some("id-1"));
+        let q = DeleteQuery {
+            preserve_state: false,
+            keep: Some("users".into()),
+        };
+        let r = delete_project(
+            State(s.clone()),
+            None,
+            Path(("-".to_string(), "Casa".to_string())),
+            Query(q),
+        )
+        .await;
+        assert_eq!(r.status(), StatusCode::NO_CONTENT);
+        let rimasti: Vec<String> = std::fs::read_dir(&p)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().to_string())
+            .collect();
+        assert_eq!(rimasti, vec!["users.yaml".to_string()]);
+
+        // Any other value is refused, and touches nothing.
+        let p = plant(&dir, "Altro", None);
+        let r = delete_project(
+            State(s.clone()),
+            None,
+            Path(("-".to_string(), "Altro".to_string())),
+            Query(DeleteQuery {
+                preserve_state: false,
+                keep: Some("history".into()),
+            }),
+        )
+        .await;
+        assert_eq!(r.status(), StatusCode::BAD_REQUEST);
+        assert!(p.join("history/historian.db").exists());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn a_rename_writes_its_row_in_the_audit_log() {
+        let (s, dir) = state("rename-audit").await;
+        plant(&dir, "Casa", Some("id-1"));
+        let req: RenameRequest =
+            serde_json::from_value(serde_json::json!({ "new_name": "Casa nuova" })).unwrap();
+        let r = rename_project(
+            State(s.clone()),
+            None,
+            Path(("-".to_string(), "Casa".to_string())),
+            Json(req),
+        )
+        .await;
+        assert_eq!(r.status(), StatusCode::OK);
+        // The audit log writes in the background: wait for the row.
+        let log = dir.join("audit.jsonl");
+        let mut row = None;
+        for _ in 0..50 {
+            row = std::fs::read_to_string(&log)
+                .unwrap_or_default()
+                .lines()
+                .filter_map(|l| serde_json::from_str::<serde_json::Value>(l).ok())
+                .find(|v| v["action"] == "project.rename");
+            if row.is_some() {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        }
+        let row = row.expect("a project.rename row in the audit log");
+        assert!(row["detail"]["from"].as_str().unwrap().ends_with("Casa"));
+        assert!(row["detail"]["to"].as_str().unwrap().ends_with("Casa nuova"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn patch_plant_id_writes_and_removes_the_field_and_keeps_the_rest() {
+        let d = tempfile::tempdir().unwrap();
+        let y = d.path().join("project.yaml");
+        std::fs::write(
+            &y,
+            "meta:\n  name: x\n  version: 0.1.0\nfuturo: 42\ntags: []\nsources: []\n",
+        )
+        .unwrap();
+        patch_plant_id(&y, Some("abc")).await.unwrap();
+        assert_eq!(read_plant_id(d.path()).as_deref(), Some("abc"));
+        assert!(std::fs::read_to_string(&y).unwrap().contains("futuro: 42"));
+        patch_plant_id(&y, None).await.unwrap();
+        assert_eq!(read_plant_id(d.path()), None);
     }
 }

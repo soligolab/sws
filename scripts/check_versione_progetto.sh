@@ -60,6 +60,8 @@ RIMEDI_RAW = {
         "MainMenu.handleImport rilegge con getProject() subito dopo l'import",
     "/api/projects/:azienda/:nome/rename":
         "MainMenu.handleRename rilegge con getProject() (la risposta è {name}, senza ETag)",
+    "/api/projects/:azienda/:nome/duplicate":
+        "scrive solo il project.yaml della COPIA (meta.name, plant_id: 27-11-2026); MainMenu.handleSalvaCome apre la copia, chiama dimenticaVersioneProgetto() e ricarica",
     "/api/projects/upload":
         "ConfigView chiama dimenticaVersioneProgetto() e poi openProject()",
     # La miniatura della pagina iniziale (29-10-2026): scrive un PNG accanto a

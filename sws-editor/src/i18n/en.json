@@ -217,6 +217,10 @@
     "salvaCome": "Save as…",
     "salvaComeTitle": "Make a copy of this project under a new name and keep working on the copy",
     "salvaComePrompt": "Name of the copy:",
+    "salvaComeStessoImpianto": "Copy of the same plant",
+    "salvaComeStessoImpiantoAiuto": "A working or archive copy. The deploy of the copy on the panel that has the original keeps history, users and backups.",
+    "salvaComeNuovoImpianto": "New project (another plant)",
+    "salvaComeNuovoImpiantoAiuto": "A new identity, without the history and the backups of the original. The deploy on the panel of the original asks what to do.",
     "salvaComeNonSalvato": "There are unsaved changes: the copy will hold the project as it is on disk, not what you see now. Go ahead?",
     "renameUnsaved": "There are unsaved changes: in the cloud the rename opens the project again from the disk, and the changes are lost. Go ahead?",
     "copyGitQuestion": "The project is a git repository (branch «{{branch}}»). What does the copy do?",
@@ -1934,6 +1938,7 @@
     "multiStateSvgTitle": "Multi-state: import an SVG and pick the colorable elements",
     "purgeHistoryConfirm": "Purge \"{{id}}\" now, keeping {{desc}}?\n\nSamples outside these limits are deleted. This cannot be undone.",
     "deleteTagHistoryConfirm": "Delete all history for tag \"{{tag}}\"?\n\nThis cannot be undone.",
+    "assignTagHistoryConfirm": "The samples of \"{{from}}\" move to the tag \"{{to}}\". Where the two tags have a sample at the same time, the sample of \"{{to}}\" stays.\n\nThe deploy takes the same change to the panel. Continue?",
     "uploadDbConfirm": "Replace the database of \"{{id}}\"?\n\nAn automatic backup of the previous file will be made, but the new database will NOT be used until the runtime is restarted: the connection already open keeps writing to the old file until then. A delicate operation.",
     "uploadDbConfirmRemote": "Replace the database of \"{{id}}\" on the connected remote device?\n\nAn automatic backup of the previous file will be made, but the new database will NOT be used until the runtime is restarted: the connection already open keeps writing to the old file until then. A delicate operation.",
     "purgeNowTitle": "Apply the retention configured above now, without waiting for the automatic cleanup.",
@@ -1980,6 +1985,25 @@
     "istantaneaPrendo": "==> Data snapshot on the connected panel...",
     "istantaneaPresa": "    snapshot taken ({{mb}} MB, version {{v}})",
     "istantaneaNessuna": "    no snapshot ({{motivo}}): going back will only restore the image",
+    "deployImpiantoTitolo": "A project with another name on the panel",
+    "deployImpiantoDomanda": "The deploy of «{{progetto}}» finds on the panel:\n{{elenco}}",
+    "deployImpiantoDiverso": "«{{erede}}» and «{{progetto}}» are two different plants.",
+    "deployImpiantoIgnoto": "I cannot tell if «{{erede}}» and «{{progetto}}» are the same plant: one of the two is from an older version.",
+    "deployScelta": {
+      "same_plant": {
+        "etichetta": "It is the same plant",
+        "aiuto": "• It is the same plant: «{{erede}}» takes the new name. History, users and backups stay."
+      },
+      "keep_users": {
+        "etichetta": "Keep the panel users",
+        "aiuto": "• Keep the panel users: history and backups are deleted. The users of the panel stay."
+      },
+      "delete_all": {
+        "etichetta": "Delete all",
+        "aiuto": "• Delete all: history, users and backups of the panel are deleted. The users of the project arrive."
+      }
+    },
+    "deployPlantIdentityUnsupported": "The panel has an older version and cannot rename its project. To keep history or users, update the panel. To replace everything, deploy again and choose «Delete all».",
     "deploySostituisceConfirm": "Deploying «{{progetto}}» deletes from the panel:\n{{elenco}}\n\nThe history of these projects is lost. Continue?",
     "deploySostituisceVoce": "  • «{{nome}}», with {{mb}} MB of history",
     "deploySostituisceVoceSenzaPeso": "  • «{{nome}}», with its history",
@@ -2997,6 +3021,9 @@
     "uploadRemote": "Upload (remote)",
     "orphanTagsTheyHaveHistory": "Orphan tags — they have history but no longer exist in the project:",
     "deleteHistory": "Delete history",
+    "assignToTag": "Assign to a tag…",
+    "assignToTagChoose": "Select the tag",
+    "assignToTagMove": "Move the history",
     "scriptThatRunsWhenThe": "# Script that runs when the project opens\nprint('Hello from global script!')\n",
     "startup": "Startup",
     "saved": "Saved.",
@@ -3072,6 +3099,7 @@
     "samplesExported": "✓ Exported {{samples}} samples from {{tags}} tags.",
     "noOrphanTags": "✓ No orphan tags ({{count}} tags in the database).",
     "tagSamplesDeleted": "✓ \"{{tag}}\": {{n}} samples deleted.",
+    "tagHistoryAssigned": "✓ The history of \"{{from}}\" is now of the tag \"{{to}}\".",
     "noSpaceToReclaim": "No space to reclaim (file at {{mb}} MB).",
     "previousBackup": "Backup of the previous one: {{path}}. Restart the runtime for the new database to be used.",
     "certDownloadFailed": "Cannot download the cert ({{message}}). Is the remote runtime on with TLS active? Alternatively, from a terminal:\n  curl -k {{target}}/cert -o sws.crt",

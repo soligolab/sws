@@ -17,6 +17,8 @@ serde.workspace        = true
 serde_json.workspace   = true
 serde_path_to_error.workspace = true
 serde_yaml.workspace   = true
+# A new plant identity (`meta.plant_id`, 27-11-2026).
+uuid.workspace         = true
 tracing.workspace      = true
 anyhow.workspace       = true
 # Il client di podman del gateway (gateway/podman.rs): HTTP/1.1 a mano su un

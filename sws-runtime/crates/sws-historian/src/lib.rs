@@ -137,6 +137,31 @@ impl Historian {
         *self.store.write().await = new_store;
     }
 
+    /// Moves the RAM ring of `from` to `to`, after a tag rename that the
+    /// history follows. If `to` has samples too, the two rings merge in time
+    /// order, and on the same timestamp the sample of `to` stays.
+    pub async fn rename_tag(&self, from: &str, to: &str) {
+        if from == to {
+            return;
+        }
+        let mut buf = self.buffers.write().await;
+        let Some(old) = buf.remove(from) else {
+            return;
+        };
+        let merged: VecDeque<Sample> = match buf.remove(to) {
+            None => old,
+            Some(cur) => {
+                let mut all: Vec<Sample> = cur.into_iter().chain(old).collect();
+                // A stable sort keeps the sample of `to` first on the same ts.
+                all.sort_by_key(|x| x.ts_ms);
+                all.dedup_by_key(|x| x.ts_ms);
+                let skip = all.len().saturating_sub(self.max_per_tag);
+                all.into_iter().skip(skip).collect()
+            }
+        };
+        buf.insert(to.to_string(), merged);
+    }
+
     /// Discard all in-memory samples for all tags.
     /// Called on project open/close. The SQLite store is preserved on disk.
     pub async fn clear(&self) {
@@ -379,6 +404,35 @@ mod tests {
             quality: TagQuality::Good,
             timestamp_ms: ts,
         }
+    }
+
+    /// The RAM ring follows a tag rename: alone it moves, with samples of the
+    /// new name it merges in time order, and the new name wins on the same ts.
+    #[tokio::test]
+    async fn rename_tag_moves_and_merges_the_ring() {
+        let h = Historian::new(100);
+        h.record("a", &st(10, 1.0)).await;
+        h.record("a", &st(20, 2.0)).await;
+        h.rename_tag("a", "b").await;
+        assert!(h.query("a", None, None).await.is_empty());
+        assert_eq!(h.query("b", None, None).await.len(), 2);
+        h.record("c", &st(15, 9.0)).await;
+        h.record("c", &st(20, 8.0)).await;
+        h.rename_tag("b", "c").await;
+        let got: Vec<(u64, TagValue)> = h
+            .query("c", None, None)
+            .await
+            .into_iter()
+            .map(|x| (x.ts_ms, x.value))
+            .collect();
+        assert_eq!(
+            got,
+            [
+                (10, TagValue::Float(1.0)),
+                (15, TagValue::Float(9.0)),
+                (20, TagValue::Float(8.0)),
+            ]
+        );
     }
 
     /// `record` resta in RAM: con uno store attaccato non scrive su disco

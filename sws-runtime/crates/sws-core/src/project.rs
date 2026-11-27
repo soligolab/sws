@@ -10,6 +10,14 @@ use std::path::Path;
 pub struct ProjectMeta {
     pub name: String,
     pub version: String,
+    /// The identity of the plant this project runs (27-11-2026). Two projects
+    /// with the same `plant_id` are copies of the same plant: the deploy of one
+    /// over the other keeps history, users and backups on the panel. A new
+    /// project gets a new id; «Save as» keeps it or makes a new one.
+    /// `None` = a project made before this field: it gets an id at the first
+    /// deploy that asks, not before.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plant_id: Option<String>,
 }
 
 /// One tag definition as written in project.yaml.
@@ -452,6 +460,21 @@ impl GeneratorSpec {
     }
 }
 
+/// The step of the generator supervisor, in milliseconds.
+pub const GENERATOR_TICK_MS: i64 = 100;
+
+/// The next tick of the generators after `now_ms`: the next multiple of
+/// [`GENERATOR_TICK_MS`] on the wall clock, never `now_ms` itself.
+///
+/// The ticks sit on the wall clock, not on the moment the runtime started
+/// (collaudo of 27-11-2026 on the PLX800): with a free 100 ms interval a
+/// triangle 0..100 with a 10 s period was sampled up to 50 ms away from its
+/// peaks, and showed 1..99 until the next restart. On the wall clock, every
+/// period that is a multiple of 200 ms has its peaks and zeros on a tick.
+pub fn next_generator_tick(now_ms: i64) -> i64 {
+    (now_ms.div_euclid(GENERATOR_TICK_MS) + 1) * GENERATOR_TICK_MS
+}
+
 #[cfg(test)]
 mod generator_tests {
     use super::GeneratorSpec;
@@ -474,6 +497,34 @@ mod generator_tests {
         assert!((g.value_at(999) - 99.9).abs() < 1e-6);
         // Al giro successivo ricomincia da 0 (fase periodica, non un clamp).
         assert!((g.value_at(1500) - 50.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn the_ticks_sit_on_the_wall_clock_and_hit_the_peaks() {
+        use super::next_generator_tick;
+        assert_eq!(next_generator_tick(0), 100);
+        assert_eq!(next_generator_tick(1), 100);
+        assert_eq!(next_generator_tick(99), 100);
+        assert_eq!(next_generator_tick(100), 200);
+        assert_eq!(next_generator_tick(1_795_776_037_151), 1_795_776_037_200);
+        // A triangle 0..100 over 10 s, started at any moment: the ticks give
+        // exactly 0 and 100.
+        let g = GeneratorSpec {
+            shape: "triangle".into(),
+            period_ms: 10_000,
+            min: 0.0,
+            max: 100.0,
+            enabled: true,
+        };
+        let mut t = next_generator_tick(1_795_776_000_037);
+        let (mut lo, mut hi) = (f64::MAX, f64::MIN);
+        for _ in 0..100 {
+            let v = g.value_at(t);
+            lo = lo.min(v);
+            hi = hi.max(v);
+            t = next_generator_tick(t);
+        }
+        assert_eq!((lo, hi), (0.0, 100.0));
     }
 
     #[test]
@@ -2822,6 +2873,22 @@ pub struct Project {
     /// progetto puliscono alla stessa ora.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ritenzione_ora: Option<String>,
+    /// The tag renames that the history must follow (plan
+    /// `docs/plans/2026-11-27-cambio-di-nome-del-progetto.md`, part C). The
+    /// runtime applies each entry once, in order, when it opens the project.
+    /// The history database keeps the ids that it applied.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tag_renames: Vec<TagRename>,
+}
+
+/// One tag rename that the history follows: the samples of `from` go to `to`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TagRename {
+    /// Unique in the project. The history database records it when it applies
+    /// the entry, so that the entry applies one time only.
+    pub id: String,
+    pub from: String,
+    pub to: String,
 }
 
 /// Motore di rendering a cui è destinato il progetto.
@@ -3066,6 +3133,33 @@ pub struct PageLayoutConfig {
     /// `docs/archive/2026-11-15-rotazione-dello-schermo.md`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub orientation: Option<Orientation>,
+}
+
+impl PageLayoutConfig {
+    /// Is this project portrait? See [`is_portrait`].
+    pub fn is_portrait(&self) -> bool {
+        is_portrait(self.orientation, self.default_width, self.default_height)
+    }
+}
+
+/// Is a project portrait? `orientation` says it. Without it, a page higher
+/// than wide is portrait (27-11-2026): a copy made with «Change resolution»
+/// had 600×1024 and no `orientation`, and the deploy did not ask for the
+/// rotation. Landscape is written as the absence of the field, so a missing
+/// field alone does not mean landscape. Every reader of the orientation
+/// (deploy, panel, viewer) uses this function, so they agree.
+pub fn is_portrait(
+    orientation: Option<Orientation>,
+    default_width: Option<f64>,
+    default_height: Option<f64>,
+) -> bool {
+    match orientation {
+        Some(o) => o == Orientation::Portrait,
+        None => matches!(
+            (default_width, default_height),
+            (Some(w), Some(h)) if w > 0.0 && h > w
+        ),
+    }
 }
 
 /// The orientation a project is drawn for. Portrait: the panel turned 90°
@@ -4084,5 +4178,32 @@ mod tests_pannello {
         assert_eq!(p.fps, Some(15));
         assert_eq!(p.luminosita, None);
         assert_eq!(serde_yaml::to_string(&p).unwrap().trim(), "fps: 15");
+    }
+}
+
+#[cfg(test)]
+mod portrait_tests {
+    use super::{is_portrait, Orientation};
+
+    /// A copy made with «Change resolution» has 600×1024 and no
+    /// `orientation` (collaudo 2.27.0, 27-11-2026): it is portrait.
+    #[test]
+    fn a_page_higher_than_wide_is_portrait_without_the_field() {
+        assert!(is_portrait(None, Some(600.0), Some(1024.0)));
+        assert!(!is_portrait(None, Some(1024.0), Some(600.0)));
+        assert!(!is_portrait(None, None, Some(1024.0)));
+        assert!(!is_portrait(None, Some(0.0), Some(1024.0)));
+        assert!(!is_portrait(None, Some(800.0), Some(800.0)));
+        // The field, when there, decides.
+        assert!(is_portrait(
+            Some(Orientation::Portrait),
+            Some(1024.0),
+            Some(600.0)
+        ));
+        assert!(!is_portrait(
+            Some(Orientation::Landscape),
+            Some(600.0),
+            Some(1024.0)
+        ));
     }
 }

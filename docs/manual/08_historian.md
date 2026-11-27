@@ -53,6 +53,19 @@ I backup automatici (ogni N minuti) **non** contengono lo storico: lo copiavano 
 backup, 3,8 GB). «Crea backup» lo contiene, copiato in modo coerente anche mentre il runtime registra, e senza le
 copie `historian-prima-della-pulizia-*`. Ripristinare un backup senza storico lascia lo storico com'è.
 
+### Un tag rinominato (dal 27-11-2026)
+
+«Rinomina ovunque» porta lo storico al nome nuovo. Il runtime scrive la rinomina in `project.yaml`:
+
+```yaml
+tag_renames:
+  - { id: "…", from: "Temperatura", to: "TempMandata" }
+```
+
+All'apertura del progetto il runtime applica ogni voce una volta sola, anche sul pannello dopo il deploy. Se il nome
+nuovo ha già dei campioni, i campioni si fondono; alla stessa ora resta quello del nome nuovo. Per un tag rinominato a
+mano, la scheda Datastore mostra il nome vecchio fra i tag orfani, con «Assegna a un tag…».
+
 ---
 
 ## Configurazione campionamento

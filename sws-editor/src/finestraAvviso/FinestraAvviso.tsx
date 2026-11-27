@@ -73,6 +73,7 @@ function Finestra({ r, attiva = true, livello = 0 }: { r: Richiesta; attiva?: bo
   const daRiprendere = useRef<Element | null>(typeof document !== "undefined" ? document.activeElement : null);
   const [testo, setTesto] = useState(r.tipo === "chiedi" ? r.iniziale ?? "" : "");
   const [errore, setErrore] = useState<string | null>(null);
+  const [opzione, setOpzione] = useState<string | null>(r.tipo === "chiedi" ? r.opzioni?.[0]?.valore ?? null : null);
 
   const chiudibile = r.tipo !== "modulo" || r.chiudibile !== false;
   const chiudi = (v: unknown) => rispondiA(r.id, v);
@@ -84,7 +85,7 @@ function Finestra({ r, attiva = true, livello = 0 }: { r: Richiesta; attiva?: bo
     if (r.tipo !== "chiedi") return;
     const msg = r.valida?.(testo) ?? null;
     if (msg) { setErrore(msg); return; }
-    chiudi(testo);
+    chiudi(r.opzioni?.length ? { testo, opzione } : testo);
   };
 
   /** Il campo di `chiedi`, uguale con e senza password: solo il tipo cambia. */
@@ -227,6 +228,25 @@ function Finestra({ r, attiva = true, livello = 0 }: { r: Richiesta; attiva?: bo
               <div role="alert" data-testid="finestra-avviso-errore"
                 style={{ fontSize: 12, marginTop: 6, color: "var(--brand-danger-soft, #fca5a5)" }}>{errore}</div>
             )}
+            {r.opzioni?.length ? (
+              <div role="radiogroup" style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 10 }}>
+                {r.opzioni.map((o, i) => (
+                  <label key={o.valore} data-testid={`finestra-avviso-opzione-${i}`}
+                    style={{ display: "flex", gap: 8, alignItems: "flex-start", cursor: "pointer", fontSize: 13 }}>
+                    <input type="radio" name={`finestra-avviso-opzioni-${r.id}`} value={o.valore}
+                      checked={opzione === o.valore} onChange={() => setOpzione(o.valore)} style={{ marginTop: 3 }} />
+                    <span>
+                      <span style={{ color: "var(--brand-text, #e2e8f0)" }}>{o.etichetta}</span>
+                      {o.spiegazione && (
+                        <span style={{ display: "block", fontSize: 12, color: "var(--brand-text-muted, #94a3b8)" }}>
+                          {o.spiegazione}
+                        </span>
+                      )}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            ) : null}
           </div>
         )}
         {r.tipo === "modulo" && r.corpo((v) => chiudi(v))}

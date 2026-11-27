@@ -12,6 +12,23 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — il cambio di nome del progetto, fatto sul ramo; collaudo da fare (2026-11-27, `elitebook`)
+
+- **Ramo aperto: `feat/plant-id-e-rinomina-tag`** (non pushato), piano
+  [`docs/plans/2026-11-27-cambio-di-nome-del-progetto.md`](docs/plans/2026-11-27-cambio-di-nome-del-progetto.md):
+  A (identità d'impianto e «Salva come» con due scelte), B (il deploy con un altro nome), C (lo storico che segue i tag
+  rinominati, fatto in un ramo annidato già fuso e eliminato), D (orientamento dedotto), E (CHANGELOG, NOVITA, HOWTO
+  §35, manuale 08 e T11).
+- **Verde il 27-11**: `cargo check`, `cargo clippy -D warnings`, `cargo test` (tutti), `pnpm build`, vitest
+  (3102 test), `check_static.sh` (58 guardie).
+- **Collaudo del ramo del 27-11 sul PLX800: 6 passate, 4 anomalie piccole** (`docs/COLLAUDI_IN_SOSPESO.md`, sezione
+  del ramo): la rinomina fuori dal registro delle azioni, la riga falsa «resterà senza account», `tag_renames`
+  ereditato da «Progetto nuovo», il generatore non allineato all'orologio. Si correggono sullo stesso ramo, poi squash su
+  `main`, poi `feat/save-nella-testata`, poi la `2.28.0-dev.4`.
+- **PLX800**: immagine del ramo da archivio, fuori dal canale di sviluppo; `config/utenti_dispositivo.yaml` creato a
+  mano (`admin-dispositivo`); progetto `Prova_Orizzontale2`. `PLX800_Verticale` è in
+  `tmp/test-changes/2026-11-27/` su `elitebook`.
+
 ## ▶ Riprendere da qui — collaudo della 2.27.0 sul TC620; prima cosa, il piano del cambio di nome (2026-11-27, `ufficio`)
 
 - **Prima cosa della prossima sessione** (il maintainer): la revisione del piano

@@ -1059,23 +1059,31 @@ async fn main() -> anyhow::Result<()> {
     // agganciarsi. Tick fisso a 100ms indipendente dal periodo del singolo
     // generatore: abbastanza fitto per un'onda liscia anche a periodi brevi
     // (es. 1s), senza sprecare un thread per generatore.
+    //
+    // The ticks sit on the wall clock (27-11-2026, `next_generator_tick`):
+    // each turn sleeps to the next multiple of 100 ms and computes the value
+    // at that instant, not at the moment it wakes up. So a peak falls on a
+    // tick, and a late wake-up or an NTP correction does not move the wave.
     {
         let db = tag_db.clone();
         let generators = generator_tags.clone();
         tokio::spawn(async move {
-            let mut tick = tokio::time::interval(std::time::Duration::from_millis(100));
+            let wall_ms = || {
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_millis() as i64)
+                    .unwrap_or(0)
+            };
             loop {
-                tick.tick().await;
+                let tick_ms = sws_core::project::next_generator_tick(wall_ms());
+                let wait = (tick_ms - wall_ms()).clamp(0, sws_core::project::GENERATOR_TICK_MS);
+                tokio::time::sleep(std::time::Duration::from_millis(wait as u64)).await;
                 let pairs = generators.read().await.clone();
                 if pairs.is_empty() {
                     continue;
                 }
-                let now_ms = std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .map(|d| d.as_millis() as i64)
-                    .unwrap_or(0);
                 for (id, spec) in pairs {
-                    let value = spec.value_at(now_ms);
+                    let value = spec.value_at(tick_ms);
                     // Il generatore calcola in virgola mobile — una rampa e
                     // una funzione continua del tempo — ma il tag ha un tipo
                     // dichiarato, e quello comanda: una rampa 0..100 su un

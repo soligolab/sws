@@ -309,6 +309,72 @@ impl PostgresBackend {
         Ok(crate::ritenzione::conta(&per_tag, retention_rows, size))
     }
 
+    /// Applies the pending tag renames, in order, one time each. The table
+    /// `sws_tag_renames_applied` keeps the applied ids. The samples of `from`
+    /// go to `to`; on the same timestamp the sample of `to` stays.
+    pub async fn apply_tag_renames(
+        &self,
+        renames: &[sws_core::project::TagRename],
+    ) -> anyhow::Result<crate::sqlite::TagRenameOutcome> {
+        if renames.is_empty() {
+            return Ok(Default::default());
+        }
+        let mut g = self
+            .get_client()
+            .await
+            .ok_or_else(|| anyhow::anyhow!("postgres: disconnected"))?;
+        let client = g
+            .client
+            .as_mut()
+            .ok_or_else(|| anyhow::anyhow!("postgres: disconnected"))?;
+        client
+            .batch_execute(
+                "CREATE TABLE IF NOT EXISTS sws_tag_renames_applied (
+                     id         TEXT   PRIMARY KEY,
+                     applied_ms BIGINT NOT NULL
+                 )",
+            )
+            .await?;
+        let tx = client.transaction().await?;
+        let now = now_ms() as i64;
+        let mut applied = 0;
+        for r in renames {
+            let done = tx
+                .query_opt(
+                    "SELECT 1 FROM sws_tag_renames_applied WHERE id = $1",
+                    &[&r.id],
+                )
+                .await?
+                .is_some();
+            if done {
+                continue;
+            }
+            if r.from != r.to {
+                tx.execute(
+                    "INSERT INTO sws_samples (tag_id, ts_ms, value, quality)
+                     SELECT $2, ts_ms, value, quality FROM sws_samples WHERE tag_id = $1
+                     ON CONFLICT DO NOTHING",
+                    &[&r.from, &r.to],
+                )
+                .await?;
+                tx.execute("DELETE FROM sws_samples WHERE tag_id = $1", &[&r.from])
+                    .await?;
+            }
+            tx.execute(
+                "INSERT INTO sws_tag_renames_applied (id, applied_ms) VALUES ($1, $2)
+                 ON CONFLICT DO NOTHING",
+                &[&r.id, &now],
+            )
+            .await?;
+            applied += 1;
+        }
+        tx.commit().await?;
+        Ok(crate::sqlite::TagRenameOutcome {
+            applied,
+            deferred: false,
+        })
+    }
+
     pub async fn export(
         &self,
         tags: &[String],

@@ -34,6 +34,8 @@ export function DatastoresTab() {
   const [saved, setSaved] = useState(false);
   const [statusMap, setStatusMap] = useState<Record<string, { ok: boolean; msg: string }>>({});
   const [statsMap, setStatsMap]   = useState<Record<string, DatastoreStats | null>>({});
+  // The orphan tag whose «Assign to a tag…» is open, and the tag chosen for it.
+  const [assigning, setAssigning] = useState<{ ds: string; from: string; to: string } | null>(null);
 
   // Keep local copy in sync when project reloads.
   useEffect(() => {
@@ -184,6 +186,23 @@ export function DatastoresTab() {
       setTagsMap((m) => ({ ...m, [ds.id]: fresh }));
       await loadStats(ds.id);
       return t("cfgUi.tagSamplesDeleted", { tag, n: r.deleted.toLocaleString() });
+    });
+  };
+
+  /** «Assign to a tag…» on an orphan tag (plan 2026-11-27-cambio-di-nome-del-progetto,
+   *  part C): the same entry as «Rinomina ovunque», for a rename done by hand in
+   *  the YAML or with git. The project store is not touched: a new `project`
+   *  object resets this tab and its unsaved changes. */
+  const doAssignTag = async (ds: DatastoreConfig, from: string, to: string) => {
+    if (!to) return;
+    if (!(await conferma({ testo: t("cfg.assignTagHistoryConfirm", { from, to }) }))) return;
+    setAssigning(null);
+    void withBusy(ds.id, async () => {
+      await api.addTagRename(from, to);
+      const fresh = await api.listDatastoreTags(ds.id);
+      setTagsMap((m) => ({ ...m, [ds.id]: fresh }));
+      await loadStats(ds.id);
+      return t("cfgUi.tagHistoryAssigned", { from, to });
     });
   };
 
@@ -436,6 +455,33 @@ export function DatastoresTab() {
                         style={{ background: "var(--brand-danger, #ef4444)", color: "var(--brand-on-danger, #fff)", border: "none", borderRadius: 4, padding: "1px 6px", cursor: "pointer", fontSize: 10 }}>
                         {t("cfgUi.deleteHistory")}
                       </button>
+                      {assigning?.ds === ds.id && assigning.from === tag ? (
+                        <>
+                          <select value={assigning.to} data-testid="assign-tag-select" autoFocus
+                            onChange={(e) => setAssigning({ ...assigning, to: e.target.value })}
+                            style={{ ...inputStyle, width: "auto", fontSize: 11, padding: "1px 4px" }}>
+                            <option value="">{t("cfgUi.assignToTagChoose")}</option>
+                            {(project?.tags ?? []).map((x) => x.id).filter((id) => id !== tag).sort().map((id) => (
+                              <option key={id} value={id}>{id}</option>
+                            ))}
+                          </select>
+                          <button onClick={() => void doAssignTag(ds, tag, assigning.to)}
+                            disabled={busyMgmt[ds.id] || !assigning.to} data-testid="assign-tag-move"
+                            style={{ background: "var(--sws-accent, #0ea5e9)", color: "var(--sws-on-accent, #0f172a)", border: "none", borderRadius: 4, padding: "1px 6px", cursor: "pointer", fontSize: 10, opacity: assigning.to ? 1 : 0.5 }}>
+                            {t("cfgUi.assignToTagMove")}
+                          </button>
+                          <button onClick={() => setAssigning(null)}
+                            style={{ background: "var(--brand-surface, #1e293b)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "1px 6px", cursor: "pointer", fontSize: 10 }}>
+                            {t("common.cancel")}
+                          </button>
+                        </>
+                      ) : (
+                        <button onClick={() => setAssigning({ ds: ds.id, from: tag, to: "" })} disabled={busyMgmt[ds.id]}
+                          data-testid="assign-tag"
+                          style={{ background: "var(--brand-surface, #1e293b)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "1px 6px", cursor: "pointer", fontSize: 10 }}>
+                          {t("cfgUi.assignToTag")}
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>

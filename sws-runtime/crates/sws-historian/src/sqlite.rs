@@ -199,6 +199,84 @@ fn prepara_migrazione(c: &mut Connection) -> rusqlite::Result<bool> {
     Ok(true)
 }
 
+/// What [`SqliteStore::apply_tag_renames`] did.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct TagRenameOutcome {
+    /// Entries applied (or marked) now.
+    pub applied: usize,
+    /// The migration from the old format runs: no entry was applied.
+    pub deferred: bool,
+}
+
+/// The body of [`SqliteStore::apply_tag_renames`], on an open connection.
+fn apply_tag_renames_on(
+    c: &mut Connection,
+    renames: &[sws_core::project::TagRename],
+) -> anyhow::Result<TagRenameOutcome> {
+    c.execute_batch(
+        "CREATE TABLE IF NOT EXISTS tag_renames_applied (
+             id         TEXT    PRIMARY KEY,
+             applied_ms INTEGER NOT NULL
+         );",
+    )?;
+    let legacy = c
+        .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'samples_vecchi'")?
+        .exists([])?;
+    if legacy {
+        return Ok(TagRenameOutcome {
+            applied: 0,
+            deferred: true,
+        });
+    }
+    let now = sws_core::now_ms() as i64;
+    let tx = c.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+    let mut applied = 0;
+    for r in renames {
+        let done = tx
+            .prepare_cached("SELECT 1 FROM tag_renames_applied WHERE id = ?1")?
+            .exists(params![r.id])?;
+        if done {
+            continue;
+        }
+        let id_of = |name: &str| -> rusqlite::Result<Option<i64>> {
+            tx.prepare_cached("SELECT id FROM tag_storico WHERE nome = ?1")?
+                .query_row(params![name], |row| row.get(0))
+                .optional()
+        };
+        if r.from != r.to {
+            if let Some(from_id) = id_of(&r.from)? {
+                match id_of(&r.to)? {
+                    None => {
+                        tx.execute(
+                            "UPDATE tag_storico SET nome = ?1 WHERE id = ?2",
+                            params![r.to, from_id],
+                        )?;
+                    }
+                    Some(to_id) => {
+                        tx.execute(
+                            "INSERT OR IGNORE INTO campioni (tag_id, ts_ms, tipo, valore, qualita)
+                             SELECT ?1, ts_ms, tipo, valore, qualita FROM campioni WHERE tag_id = ?2",
+                            params![to_id, from_id],
+                        )?;
+                        tx.execute("DELETE FROM campioni WHERE tag_id = ?1", params![from_id])?;
+                        tx.execute("DELETE FROM tag_storico WHERE id = ?1", params![from_id])?;
+                    }
+                }
+            }
+        }
+        tx.execute(
+            "INSERT INTO tag_renames_applied (id, applied_ms) VALUES (?1, ?2)",
+            params![r.id, now],
+        )?;
+        applied += 1;
+    }
+    tx.commit()?;
+    Ok(TagRenameOutcome {
+        applied,
+        deferred: false,
+    })
+}
+
 /// Quante righe sposta ogni transazione di [`migra_a_lotti`]: poche abbastanza
 /// da tenere il lock di scrittura per poco (le registrazioni dal vivo aspettano
 /// col `busy_timeout`), abbastanza da finire in fretta.
@@ -1035,6 +1113,39 @@ impl SqliteStore {
         .await?
     }
 
+    /// Applies the tag renames of the project, in order, one time each (plan
+    /// `2026-11-27-cambio-di-nome-del-progetto`, part C). The table
+    /// `tag_renames_applied` keeps the ids that this database applied.
+    ///
+    /// For each entry that is not applied:
+    /// - `from` is not in the history: the entry is only marked;
+    /// - `to` is not in the history: the row of `from` gets the new name;
+    /// - both are in the history: the samples of `from` move to `to`. On the
+    ///   same timestamp the sample of `to` stays.
+    ///
+    /// While the migration from the old format runs (`samples_vecchi` exists),
+    /// nothing changes and nothing is marked: the migration finds the tags by
+    /// name. The next open tries again.
+    ///
+    /// The queue is written first, so that no sample of `from` arrives after
+    /// the rename. All the entries go in one transaction.
+    pub async fn apply_tag_renames(
+        &self,
+        renames: &[sws_core::project::TagRename],
+    ) -> anyhow::Result<TagRenameOutcome> {
+        if renames.is_empty() {
+            return Ok(TagRenameOutcome::default());
+        }
+        self.svuota().await;
+        let conn = self.conn.clone();
+        let renames = renames.to_vec();
+        task::spawn_blocking(move || -> anyhow::Result<TagRenameOutcome> {
+            let mut c = conn.blocking_lock();
+            apply_tag_renames_on(&mut c, &renames)
+        })
+        .await?
+    }
+
     /// `VACUUM` + checkpoint del WAL. Ritorna la dimensione del file prima e dopo.
     ///
     /// Il checkpoint serve perché qui SQLite gira in WAL: senza `TRUNCATE` il
@@ -1644,6 +1755,7 @@ mod tests {
         let path = dir.path().join("historian.db");
         copia_coerente(std::path::Path::new(&orig), &path).unwrap();
         let prima_byte = std::fs::metadata(&path).unwrap().len();
+        #[allow(clippy::type_complexity)]
         let (conti, campione): (Vec<(String, i64)>, Vec<(String, i64, String, String)>) = {
             let c = Connection::open(&path).unwrap();
             let conti = c
@@ -1801,5 +1913,155 @@ mod tests {
             .map(|s| s.ts_ms)
             .collect();
         assert_eq!(ts, [1, 4, 5, 6, 7]);
+    }
+
+    // ── Tag renames (plan 2026-11-27-cambio-di-nome-del-progetto, part C) ──
+
+    fn rn(id: &str, from: &str, to: &str) -> sws_core::project::TagRename {
+        sws_core::project::TagRename {
+            id: id.into(),
+            from: from.into(),
+            to: to.into(),
+        }
+    }
+
+    fn sample(ts: u64, v: f64) -> Sample {
+        Sample {
+            ts_ms: ts,
+            value: TagValue::Float(v),
+            quality: TagQuality::Good,
+        }
+    }
+
+    async fn write(store: &SqliteStore, tag: &str, pts: &[(u64, f64)]) {
+        for (ts, v) in pts {
+            store.append(tag, &sample(*ts, *v)).await;
+        }
+        store.svuota().await;
+    }
+
+    async fn values(store: &SqliteStore, tag: &str) -> Vec<(u64, f64)> {
+        store
+            .query_range(tag, 0, u64::MAX / 2)
+            .await
+            .into_iter()
+            .map(|s| match s.value {
+                TagValue::Float(f) => (s.ts_ms, f),
+                other => panic!("unexpected value {other:?}"),
+            })
+            .collect()
+    }
+
+    /// The simple case: the row of `from` gets the new name, the samples stay.
+    #[tokio::test]
+    async fn tag_rename_changes_the_name() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = SqliteStore::open(dir.path().join("h.db")).await.unwrap();
+        write(&store, "a", &[(1, 1.0), (2, 2.0)]).await;
+        let o = store.apply_tag_renames(&[rn("r1", "a", "b")]).await.unwrap();
+        assert_eq!(o.applied, 1);
+        assert!(values(&store, "a").await.is_empty());
+        assert_eq!(values(&store, "b").await, [(1, 1.0), (2, 2.0)]);
+        assert_eq!(store.distinct_tags().await.unwrap(), ["b"]);
+    }
+
+    /// `to` has samples too: the two merge, and on the same timestamp the
+    /// sample of `to` stays.
+    #[tokio::test]
+    async fn tag_rename_merges_into_an_existing_tag() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = SqliteStore::open(dir.path().join("h.db")).await.unwrap();
+        write(&store, "a", &[(1, 1.0), (2, 2.0), (3, 3.0)]).await;
+        write(&store, "b", &[(3, 30.0), (4, 40.0)]).await;
+        store.apply_tag_renames(&[rn("r1", "a", "b")]).await.unwrap();
+        assert_eq!(
+            values(&store, "b").await,
+            [(1, 1.0), (2, 2.0), (3, 30.0), (4, 40.0)]
+        );
+        assert_eq!(store.distinct_tags().await.unwrap(), ["b"]);
+        assert_eq!(store.total_samples().await.unwrap(), 4);
+    }
+
+    /// An entry applies one time only, also after a new open. A new tag `a`
+    /// that records after the rename a→b keeps its samples.
+    #[tokio::test]
+    async fn tag_rename_applies_once_and_a_new_tag_with_the_old_name_stays() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("h.db");
+        let renames = [rn("r1", "a", "b")];
+        {
+            let store = SqliteStore::open(&path).await.unwrap();
+            write(&store, "a", &[(1, 1.0)]).await;
+            assert_eq!(store.apply_tag_renames(&renames).await.unwrap().applied, 1);
+            // A new tag with the old name.
+            write(&store, "a", &[(10, 10.0)]).await;
+            assert_eq!(store.apply_tag_renames(&renames).await.unwrap().applied, 0);
+        }
+        let store = SqliteStore::open(&path).await.unwrap();
+        assert_eq!(store.apply_tag_renames(&renames).await.unwrap().applied, 0);
+        assert_eq!(values(&store, "a").await, [(10, 10.0)]);
+        assert_eq!(values(&store, "b").await, [(1, 1.0)]);
+    }
+
+    /// a→b→c in order: the samples of `a` arrive at `c`. An entry whose
+    /// `from` has no history is marked and does nothing.
+    #[tokio::test]
+    async fn tag_rename_chain_applies_in_order() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = SqliteStore::open(dir.path().join("h.db")).await.unwrap();
+        write(&store, "a", &[(1, 1.0)]).await;
+        let o = store
+            .apply_tag_renames(&[rn("r1", "a", "b"), rn("r2", "b", "c"), rn("r3", "x", "y")])
+            .await
+            .unwrap();
+        assert_eq!(o.applied, 3);
+        assert_eq!(values(&store, "c").await, [(1, 1.0)]);
+        assert_eq!(store.distinct_tags().await.unwrap(), ["c"]);
+        // Already applied: a later list with the same ids changes nothing.
+        write(&store, "b", &[(5, 5.0)]).await;
+        let o = store
+            .apply_tag_renames(&[rn("r1", "a", "b"), rn("r2", "b", "c")])
+            .await
+            .unwrap();
+        assert_eq!(o.applied, 0);
+        assert_eq!(values(&store, "b").await, [(5, 5.0)]);
+    }
+
+    /// While the migration from the old format is pending, nothing is applied
+    /// and nothing is marked: the next open tries again.
+    #[tokio::test]
+    async fn tag_rename_waits_for_the_legacy_migration() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("h.db");
+        let mut c = Connection::open(&path).unwrap();
+        c.execute_batch(
+            "CREATE TABLE samples (tag TEXT NOT NULL, ts_ms INTEGER NOT NULL, value TEXT NOT NULL,
+                 quality TEXT NOT NULL, PRIMARY KEY (tag, ts_ms)) WITHOUT ROWID;
+             INSERT INTO samples VALUES ('a', 1, '1.5', 'Good');",
+        )
+        .unwrap();
+        assert!(prepara_migrazione(&mut c).unwrap());
+        let renames = [rn("r1", "a", "b")];
+        let o = apply_tag_renames_on(&mut c, &renames).unwrap();
+        assert_eq!(
+            o,
+            TagRenameOutcome {
+                applied: 0,
+                deferred: true
+            }
+        );
+        let marked: i64 = c
+            .query_row("SELECT COUNT(*) FROM tag_renames_applied", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(marked, 0);
+        drop(c);
+        migra_a_lotti(&path).unwrap();
+        let mut c = Connection::open(&path).unwrap();
+        let o = apply_tag_renames_on(&mut c, &renames).unwrap();
+        assert_eq!(o.applied, 1);
+        let name: String = c
+            .query_row("SELECT nome FROM tag_storico", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(name, "b");
     }
 }

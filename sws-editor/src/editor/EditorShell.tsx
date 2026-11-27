@@ -81,7 +81,7 @@ import type { AlarmSeverity, ButtonAction, FunctionDef, GridCell, PageLayoutConf
 import { eBoot, paginePerNavigazione } from "@/boot/tipi";
 import { aggiornaPagina, applicaATutte, applicaPredefinito, cambiaOrientamento, generePagina, salvaLayout } from "@/formatoProgettoAzioni";
 import { dalTag, descrizioniDeiTag } from "@/tag/forma";
-import { patchSovrascrittura, seguePredefinito, SPUNTATA_DI_PARTENZA, type GenerePagina } from "@/formatoProgetto";
+import { eVerticale, patchSovrascrittura, seguePredefinito, SPUNTATA_DI_PARTENZA, type GenerePagina } from "@/formatoProgetto";
 import { impostaBootAbilitata } from "@/boot/abilitata";
 import { Icona } from "@/components/Icona";
 import { CampoCornice } from "@/cornici/CampoCornice";
@@ -597,7 +597,7 @@ function FormatoPredefinitoProgetto() {
   const [applicate, setApplicate] = useState<number | null>(null);
   const [errore, setErrore] = useState<string | null>(null);
   const [girate, setGirate] = useState<number | null>(null);
-  const verticale = layout?.orientation === "portrait";
+  const verticale = eVerticale(layout);
   const gira = (o: "landscape" | "portrait") => {
     setErrore(null); setApplicate(null); setGirate(null);
     cambiaOrientamento(o).then(setGirate, (e) => setErrore(e instanceof Error ? e.message : String(e)));

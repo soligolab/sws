@@ -7,7 +7,7 @@
 // `i18next` e non `@/i18n`, come lo store: questo modulo lo importa lo store, e
 // `@/i18n` caricherebbe le traduzioni in ogni test che usa lo store.
 import i18n from "i18next";
-import { avviso, conferma } from "@/finestraAvviso/finestraAvviso";
+import { avviso, conferma, scegli } from "@/finestraAvviso/finestraAvviso";
 
 /** I flag con cui una richiesta di deploy dice al server cosa è già stato
  *  confermato: gli stessi nomi di `api.deployToRuntime`. */
@@ -18,7 +18,14 @@ export interface ConfermeDeploy {
   confirmUsersChange: boolean;
   /** The device restarts to turn the screen (rc.30). */
   confirmRotation: boolean;
+  /** The answer to `sostituisce-progetti` with `scelte` (27-11-2026). */
+  replaceMode: ModoSostituzione | null;
 }
+
+/** What the deploy does to the panel project with another name (27-11-2026):
+ *  the same values as `ReplaceMode` in `remote.rs`. */
+export type ModoSostituzione = "same_plant" | "keep_users" | "delete_all";
+const MODI: readonly ModoSostituzione[] = ["same_plant", "keep_users", "delete_all"];
 
 export const NESSUNA_CONFERMA: ConfermeDeploy = {
   confirmNoUsers: false,
@@ -26,6 +33,7 @@ export const NESSUNA_CONFERMA: ConfermeDeploy = {
   confirmMissingSymbols: false,
   confirmUsersChange: false,
   confirmRotation: false,
+  replaceMode: null,
 };
 
 /** Il corpo di un 428 di `/api/remote/deploy` (`remote.rs`). */
@@ -43,6 +51,12 @@ export interface Dati428 {
   current?: number;
   wanted?: number;
   portrait?: boolean;
+  /** `sostituisce-progetti` (27-11-2026): the answers to offer, the panel
+   *  project that takes the new name, and whether the two are the same plant
+   *  (`false` = two different identities, `null` = unknown). */
+  scelte?: string[];
+  erede?: string | null;
+  stesso_impianto?: boolean | null;
 }
 
 /** - `riprova`: chi guarda ha confermato, si rifà la richiesta con `conferme`;
@@ -68,6 +82,24 @@ export function testoSostituzione(
       : i18n.t("cfg.deploySostituisceVoceSenzaPeso", { nome: p.nome })))
     .join("\n");
   return i18n.t("cfg.deploySostituisceConfirm", { progetto: progetto ?? "?", elenco });
+}
+
+/** The question of a deploy over a panel project with another name, with the
+ *  answers (27-11-2026, plan `2026-11-27-cambio-di-nome-del-progetto`). Pure,
+ *  for the tests. */
+export function testoSceltaImpianto(d: Dati428, scelte: readonly ModoSostituzione[]): string {
+  const elenco = (d.progetti ?? [])
+    .map((p) => (p.storico_byte != null
+      ? i18n.t("cfg.deploySostituisceVoce", { nome: p.nome, mb: (p.storico_byte / 1_000_000).toFixed(1) })
+      : i18n.t("cfg.deploySostituisceVoceSenzaPeso", { nome: p.nome })))
+    .join("\n");
+  const progetto = d.progetto ?? "?";
+  const erede = d.erede ?? "?";
+  const stato = d.stesso_impianto === false
+    ? i18n.t("cfg.deployImpiantoDiverso", { erede, progetto })
+    : i18n.t("cfg.deployImpiantoIgnoto", { erede, progetto });
+  const righe = scelte.map((s) => i18n.t(`cfg.deployScelta.${s}.aiuto`, { erede })).join("\n");
+  return `${i18n.t("cfg.deployImpiantoDomanda", { progetto, elenco })}\n\n${stato}\n\n${righe}`;
 }
 
 /** Il testo della conferma quando il pannello non conosce dei simboli di
@@ -139,6 +171,30 @@ export async function confermaDopo428(d: Dati428, gia: ConfermeDeploy): Promise<
   if ((d.conferma === "utenti-sostituiti" || d.conferma === "utenti-da-cambiare") && !gia.confirmUsersChange) {
     const si = await conferma({ testo: testoSostituzioneUtenti(d) });
     return si ? { tipo: "riprova", conferme: { ...gia, confirmUsersChange: true } } : { tipo: "annullato" };
+  }
+  // A panel too old to rename its project (27-11-2026): keeping history or
+  // users needs an update; «delete all» works. Not a confirmation.
+  if (d.conferma === "plant-identity-unsupported") {
+    await avviso({ livello: "errore", testo: i18n.t("cfg.deployPlantIdentityUnsupported") });
+    return { tipo: "annullato" };
+  }
+  // A panel project with another name, and a choice (27-11-2026): the same
+  // plant, another plant with the same users, or a new project.
+  const scelte = (d.scelte ?? []).filter((x): x is ModoSostituzione => (MODI as readonly string[]).includes(x));
+  if (d.conferma === "sostituisce-progetti" && scelte.length > 0 && !gia.replaceMode) {
+    const modo = await scegli<ModoSostituzione>({
+      titolo: i18n.t("cfg.deployImpiantoTitolo"),
+      testo: testoSceltaImpianto(d, scelte),
+      scelte: scelte.map((x) => ({ valore: x, etichetta: i18n.t(`cfg.deployScelta.${x}.etichetta`), pericolo: x !== "same_plant" })),
+    });
+    if (modo === null) return { tipo: "annullato" };
+    // «Same plant» on a project without identity writes `meta.plant_id` in
+    // `project.yaml`: the next save must not take it for a conflict.
+    if (modo === "same_plant") {
+      const { dimenticaVersioneProgetto } = await import("@/api/client");
+      dimenticaVersioneProgetto();
+    }
+    return { tipo: "riprova", conferme: { ...gia, replaceMode: modo, confirmReplace: true } };
   }
   // Il deploy cancellerebbe progetti con un altro nome, storico compreso.
   if (d.conferma === "sostituisce-progetti" && !gia.confirmReplace) {

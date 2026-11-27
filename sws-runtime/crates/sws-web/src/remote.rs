@@ -1351,18 +1351,26 @@ async fn device_capability(
     }
 }
 
-/// Whether closing the project would leave this deploy's session without
-/// access (`close_locks_out` of the panel's `/api/system`, rc.30). The panel
-/// decides, because only it knows whether it has a device Admin and whether
-/// the request came through the gateway. `false` without a session, on a
-/// panel that does not say, or when it doesn't answer.
-async fn close_locks_out_on_device(
+/// What the panel's `/api/system` says about this deploy's session and the
+/// panel (rc.30 and 27-11-2026). The panel decides, because only it knows
+/// whether it has a device Admin and whether the request came through the
+/// gateway. All `false` without a session, on a panel that does not say, or
+/// when it doesn't answer.
+#[derive(Debug, Default, Clone, Copy)]
+struct PanelSessionFlags {
+    /// Closing the project would leave this session without access.
+    close_locks_out: bool,
+    /// The panel has a device Admin, who stays when the project changes.
+    device_admin: bool,
+}
+
+async fn panel_session_flags(
     client: &reqwest::Client,
     base: &str,
     auth_hdr: &Option<String>,
-) -> bool {
+) -> PanelSessionFlags {
     let Some(h) = auth_hdr else {
-        return false;
+        return PanelSessionFlags::default();
     };
     match client
         .get(format!("{base}/api/system"))
@@ -1370,11 +1378,14 @@ async fn close_locks_out_on_device(
         .send()
         .await
     {
-        Ok(resp) if resp.status().is_success() => resp
-            .json::<serde_json::Value>()
-            .await
-            .is_ok_and(|v| v["close_locks_out"].as_bool() == Some(true)),
-        _ => false,
+        Ok(resp) if resp.status().is_success() => match resp.json::<serde_json::Value>().await {
+            Ok(v) => PanelSessionFlags {
+                close_locks_out: v["close_locks_out"].as_bool() == Some(true),
+                device_admin: v["device_admin"].as_bool() == Some(true),
+            },
+            Err(_) => PanelSessionFlags::default(),
+        },
+        _ => PanelSessionFlags::default(),
     }
 }
 
@@ -1427,12 +1438,31 @@ pub(crate) fn differenza_utenti(
 /// non ha modificato gli account» — che era falso due volte: il deploy con nome
 /// diverso li sostituiva già, e la 401 che portava lì era causata dal deploy
 /// stesso.
+///
+/// `heir_mode` (27-11-2026): what happens to the panel project with another
+/// name, if there is one. With `DeleteAll` its users go with it, and the log
+/// said «Utenti: non toccati» while the deploy deleted them (collaudo 2.27.0
+/// on the TC620).
 fn riferisci_piano_utenti(
     sostituisci: bool,
     utenti_progetto: &[String],
     utenti_dispositivo: Option<&Vec<String>>,
+    device_admin: bool,
+    heir_mode: Option<(&str, ReplaceMode)>,
     send: &impl Fn(&str),
 ) {
+    match heir_mode {
+        Some((heir, ReplaceMode::DeleteAll)) => send(&format!(
+            "Utenti: «{heir}» si cancella dal pannello con i suoi utenti."
+        )),
+        Some((heir, ReplaceMode::KeepUsers)) => {
+            send(&format!(
+                "ⓘ Utenti: restano quelli del pannello (di «{heir}», scelta «Tieni gli utenti del pannello»)."
+            ));
+            return;
+        }
+        Some((_, ReplaceMode::SamePlant)) | None => {}
+    }
     if !sostituisci {
         send("ⓘ Utenti: non toccati («Sostituisci anche gli utenti» è spenta).");
         if let Some(dispositivo) = utenti_dispositivo {
@@ -1449,7 +1479,11 @@ fn riferisci_piano_utenti(
         return;
     }
     if utenti_progetto.is_empty() {
-        send("⚠ Il progetto non ha utenti: il dispositivo resterà senza account.");
+        if device_admin {
+            send("ⓘ Il progetto non ha utenti: sul dispositivo resta solo l'Admin del dispositivo.");
+        } else {
+            send("⚠ Il progetto non ha utenti: il dispositivo resterà senza account.");
+        }
         return;
     }
     send(&format!(
@@ -3017,6 +3051,12 @@ pub struct DeployBody {
     /// 428 `rotate-screen`.
     #[serde(default)]
     pub confirm_rotation: bool,
+    /// The answer to the 428 `sostituisce-progetti` with `scelte` (27-11-2026):
+    /// `"same_plant"`, `"keep_users"` or `"delete_all"` (see `ReplaceMode`).
+    /// Absent with `confirm_replace: true` = `delete_all`, the meaning that an
+    /// older IDE gives to its yes.
+    #[serde(default)]
+    pub replace_mode: Option<String>,
 }
 
 /// Il deploy che sostituisce gli utenti chiede conferma (07-11-2026): quando il
@@ -3204,6 +3244,180 @@ pub(crate) struct DaSostituire {
     pub nome: String,
     /// Il peso del suo storico, se il pannello lo dice (runtime dal 03-10-2026).
     pub storico_byte: Option<u64>,
+    /// Its `meta.plant_id`, if the panel says it (runtime from 27-11-2026).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plant_id: Option<String>,
+}
+
+/// What the deploy does to the project on the panel that has another name
+/// (27-11-2026, plan `2026-11-27-cambio-di-nome-del-progetto`). The three
+/// cases of the maintainer: a copy of the same plant, a project for another
+/// product of the same customer, a new project.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ReplaceMode {
+    /// The same plant under another name: rename the panel project, then a
+    /// same-name deploy. History, users, backups and secrets stay.
+    SamePlant,
+    /// Another plant, same people: rename, then `DELETE …?keep=users`, then
+    /// an upload that does not replace the users.
+    KeepUsers,
+    /// A new project: the panel project is deleted, history and users too.
+    DeleteAll,
+}
+
+impl ReplaceMode {
+    pub(crate) fn parse(s: &str) -> Option<Self> {
+        match s {
+            "same_plant" => Some(Self::SamePlant),
+            "keep_users" => Some(Self::KeepUsers),
+            "delete_all" => Some(Self::DeleteAll),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn as_str(self) -> &'static str {
+        match self {
+            Self::SamePlant => "same_plant",
+            Self::KeepUsers => "keep_users",
+            Self::DeleteAll => "delete_all",
+        }
+    }
+
+    /// The panel must rename its project: it needs the `plant_identity`
+    /// capability (a runtime from 27-11-2026).
+    pub(crate) fn needs_rename(self) -> bool {
+        matches!(self, Self::SamePlant | Self::KeepUsers)
+    }
+}
+
+/// What to do with the projects of the panel, decided before touching them.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) enum ReplaceDecision {
+    /// Go on. `heir` = the panel project that takes the new name (with
+    /// `mode`); every other project with another name is deleted.
+    Go {
+        heir: Option<String>,
+        mode: ReplaceMode,
+        /// True when the same `plant_id` decided it, with no question.
+        automatic: bool,
+    },
+    /// Stop with a 428 `sostituisce-progetti`. `choices = None` = a plain yes
+    /// (the old question); `Some` = the user picks one.
+    Ask {
+        heir: Option<String>,
+        choices: Option<Vec<ReplaceMode>>,
+        /// The two `plant_id` are known and different.
+        different_plant: bool,
+    },
+}
+
+/// The decision of the deploy about the panel projects with another name.
+/// Pure, for the tests.
+///
+/// - none with another name: go, nothing to replace;
+/// - one with the same name as the project: that one keeps its data, the
+///   others are deleted after a plain yes (as before);
+/// - one with the same `plant_id`: it takes the new name with no question;
+/// - else the first one is the heir, and the user picks: with two known and
+///   different ids «keep users» or «delete all», with an id missing on one
+///   side also «it is the same plant».
+///
+/// `chosen` is the answer to the question; `confirm_replace` without
+/// `chosen` is the yes of an older IDE, that means «delete all».
+pub(crate) fn replace_decision(
+    on_panel: &[DaSostituire],
+    name: Option<&str>,
+    plant_id: Option<&str>,
+    chosen: Option<ReplaceMode>,
+    confirm_replace: bool,
+) -> ReplaceDecision {
+    let others = progetti_da_sostituire(on_panel, name);
+    let confirmed = confirm_replace || chosen.is_some();
+    if others.is_empty() {
+        return ReplaceDecision::Go {
+            heir: None,
+            mode: ReplaceMode::DeleteAll,
+            automatic: false,
+        };
+    }
+    let same_name_present = name.is_some_and(|n| on_panel.iter().any(|p| p.nome == n));
+    if same_name_present {
+        return if confirmed {
+            ReplaceDecision::Go {
+                heir: None,
+                mode: ReplaceMode::DeleteAll,
+                automatic: false,
+            }
+        } else {
+            ReplaceDecision::Ask {
+                heir: None,
+                choices: None,
+                different_plant: false,
+            }
+        };
+    }
+    let plant_id = plant_id.filter(|id| !id.is_empty());
+    if let Some(heir) = plant_id.and_then(|id| {
+        others
+            .iter()
+            .find(|p| p.plant_id.as_deref() == Some(id))
+    }) {
+        // The same plant: no question about it. The other projects (if any)
+        // are deleted, and that still needs the plain yes.
+        return if others.len() == 1 || confirmed {
+            ReplaceDecision::Go {
+                heir: Some(heir.nome.clone()),
+                mode: ReplaceMode::SamePlant,
+                automatic: true,
+            }
+        } else {
+            ReplaceDecision::Ask {
+                heir: Some(heir.nome.clone()),
+                choices: None,
+                different_plant: false,
+            }
+        };
+    }
+    let heir = others[0].clone();
+    let different_plant = plant_id.is_some() && heir.plant_id.is_some();
+    let choices = if different_plant {
+        vec![ReplaceMode::KeepUsers, ReplaceMode::DeleteAll]
+    } else {
+        vec![
+            ReplaceMode::SamePlant,
+            ReplaceMode::KeepUsers,
+            ReplaceMode::DeleteAll,
+        ]
+    };
+    match chosen {
+        Some(mode) if choices.contains(&mode) => ReplaceDecision::Go {
+            heir: Some(heir.nome),
+            mode,
+            automatic: false,
+        },
+        None if confirm_replace => ReplaceDecision::Go {
+            heir: Some(heir.nome),
+            mode: ReplaceMode::DeleteAll,
+            automatic: false,
+        },
+        // No answer, or an answer that is not one of the choices (an id
+        // changed between the question and the answer): ask again.
+        _ => ReplaceDecision::Ask {
+            heir: Some(heir.nome),
+            choices: Some(choices),
+            different_plant,
+        },
+    }
+}
+
+/// The `plant_id` that a project without one gets when the user says «it is
+/// the same plant»: the one of the panel project if it has one, else a new
+/// one. So the two sides have the same id from this deploy on.
+pub(crate) fn plant_id_to_write(panel_id: Option<&str>) -> String {
+    panel_id
+        .filter(|id| !id.is_empty())
+        .map(str::to_string)
+        .unwrap_or_else(crate::projects::new_plant_id)
 }
 
 /// I progetti sul pannello che il deploy di `nome` cancellerebbe **per intero**:
@@ -3247,6 +3461,7 @@ async fn leggi_progetti_dispositivo(
                     Some(DaSostituire {
                         nome: p["name"].as_str()?.to_string(),
                         storico_byte: p["storico_byte"].as_u64(),
+                        plant_id: p["plant_id"].as_str().map(str::to_string),
                     })
                 })
                 .collect()
@@ -3268,6 +3483,7 @@ impl Default for DeployBody {
             confirm_missing_symbols: false,
             confirm_users_change: false,
             confirm_rotation: false,
+            replace_mode: None,
         }
     }
 }
@@ -3306,6 +3522,61 @@ pub(crate) fn serve_conferma(
     utenti_dispositivo: Option<usize>,
 ) -> bool {
     sostituisci && utenti_progetto == 0 && utenti_dispositivo.is_none_or(|n| n > 0)
+}
+
+/// Rename the heir on the panel to `new`, then clear it for the upload:
+/// design files only (`SamePlant`) or everything but `users.yaml`
+/// (`KeepUsers`). `Ok` = the log line; `Err` = the log line of the failure,
+/// and the deploy stops there, before any project is deleted.
+async fn rename_heir(
+    client: &reqwest::Client,
+    base: &str,
+    auth_hdr: &Option<String>,
+    old: &str,
+    new: &str,
+    mode: ReplaceMode,
+) -> Result<String, String> {
+    let mut r = client
+        .post(format!("{base}/api/projects/{}/rename", pct_encode(old)))
+        .json(&serde_json::json!({ "new_name": new }));
+    if let Some(h) = auth_hdr {
+        r = r.header("Authorization", h);
+    }
+    match r.send().await {
+        Ok(resp) if resp.status().is_success() => {}
+        Ok(resp)
+            if resp.status() == reqwest::StatusCode::NOT_FOUND
+                || resp.status() == reqwest::StatusCode::METHOD_NOT_ALLOWED =>
+        {
+            return Err(format!(
+                "✗ Il pannello non sa rinominare «{old}» ({}): aggiorna il pannello per conservare \
+                 storico o utenti, oppure rifai il deploy e scegli «Cancella tutto».",
+                resp.status()
+            ));
+        }
+        Ok(resp) => return Err(format!("✗ Rinomina di «{old}» fallita: {}", resp.status())),
+        Err(e) => return Err(format!("✗ Rinomina di «{old}» fallita: {e}")),
+    }
+    let query = match mode {
+        ReplaceMode::KeepUsers => "keep=users",
+        _ => "preserve_state=true",
+    };
+    let mut d = client.delete(format!("{base}/api/projects/{}?{query}", pct_encode(new)));
+    if let Some(h) = auth_hdr {
+        d = d.header("Authorization", h);
+    }
+    match d.send().await {
+        Ok(resp) if resp.status().is_success() => Ok(match mode {
+            ReplaceMode::KeepUsers => format!(
+                "  ✓ «{old}» → «{new}»: altro impianto, utenti del pannello conservati; storico e backup cancellati"
+            ),
+            _ => format!(
+                "  ✓ «{old}» → «{new}»: stesso impianto, storico, utenti e backup conservati"
+            ),
+        }),
+        Ok(resp) => Err(format!("✗ «{new}»: {}", resp.status())),
+        Err(e) => Err(format!("✗ «{new}»: {e}")),
+    }
 }
 
 /// L'URL di upload verso il dispositivo. **Unico punto** in cui i parametri del
@@ -3406,7 +3677,8 @@ pub async fn remote_deploy(
     // decides (`close_locks_out` in its `/api/system`): through the gateway,
     // on a panel without a device Admin, the deploy goes on as before. A panel
     // that doesn't say goes on as before too.
-    if close_locks_out_on_device(&client, &base, &auth_hdr).await {
+    let flags = panel_session_flags(&client, &base, &auth_hdr).await;
+    if flags.close_locks_out {
         return (
             StatusCode::PRECONDITION_REQUIRED,
             Json(serde_json::json!({ "conferma": "project-session" })),
@@ -3459,6 +3731,126 @@ pub async fn remote_deploy(
         opz.replace_users = true;
         opz.con_segreti = true;
     }
+    // ── The panel projects with another name (27-11-2026) ────────────────
+    //
+    // The deploy of `CasaDomotica (TC620_Verticale)` over `CasaDomotica`
+    // deleted 1.6 GB of history and the users, and the log said «Utenti: non
+    // toccati» (collaudo 2.27.0). Decided here, before the questions about the
+    // users: what happens to them depends on this answer. The name is the one
+    // that goes in the manifest of the ZIP: `meta.name`.
+    let progetto_locale = sws_core::Project::load(&proj_dir).ok();
+    let nome_locale = progetto_locale.as_ref().map(|p| p.meta.name.clone());
+    let plant_locale = progetto_locale
+        .as_ref()
+        .and_then(|p| p.meta.plant_id.clone());
+    let sul_pannello = leggi_progetti_dispositivo(&client, &base, &auth_hdr).await;
+    let scelta = match opz.replace_mode.as_deref() {
+        None => None,
+        Some(m) => match ReplaceMode::parse(m) {
+            Some(x) => Some(x),
+            None => {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    "replace_mode: same_plant, keep_users or delete_all",
+                )
+                    .into_response()
+            }
+        },
+    };
+    let (erede, modo_erede, automatico) = match replace_decision(
+        &sul_pannello,
+        nome_locale.as_deref(),
+        plant_locale.as_deref(),
+        scelta,
+        opz.confirm_replace,
+    ) {
+        ReplaceDecision::Go {
+            heir,
+            mode,
+            automatic,
+        } => (heir, mode, automatic),
+        ReplaceDecision::Ask {
+            heir,
+            choices,
+            different_plant,
+        } => {
+            let da_sostituire = progetti_da_sostituire(&sul_pannello, nome_locale.as_deref());
+            let mut corpo = serde_json::json!({
+                "conferma": "sostituisce-progetti",
+                "progetto": nome_locale,
+                "progetti": da_sostituire,
+            });
+            if let Some(choices) = choices {
+                corpo["scelte"] = serde_json::json!(choices
+                    .iter()
+                    .map(|c| c.as_str())
+                    .collect::<Vec<_>>());
+                corpo["erede"] = serde_json::json!(heir);
+                // `false` = two known and different ids; `null` = unknown.
+                corpo["stesso_impianto"] = if different_plant {
+                    serde_json::json!(false)
+                } else {
+                    serde_json::Value::Null
+                };
+            }
+            return (StatusCode::PRECONDITION_REQUIRED, Json(corpo)).into_response();
+        }
+    };
+    // Keeping history or users needs a panel that renames its project: an
+    // older one is updated first. «Delete all» works on every panel.
+    if erede.is_some()
+        && modo_erede.needs_rename()
+        && !device_capability(&client, &base, &auth_hdr, "plant_identity").await
+    {
+        return (
+            StatusCode::PRECONDITION_REQUIRED,
+            Json(serde_json::json!({ "conferma": "plant-identity-unsupported" })),
+        )
+            .into_response();
+    }
+    // «It is the same plant» for a project made before `plant_id`: from now
+    // on the two sides have the same id, written before the bundle is built
+    // so that it travels with it.
+    let mut plant_id_scritto = false;
+    if erede.is_some() && modo_erede == ReplaceMode::SamePlant && plant_locale.is_none() {
+        let panel_id = sul_pannello
+            .iter()
+            .find(|p| erede.as_deref() == Some(p.nome.as_str()))
+            .and_then(|p| p.plant_id.clone());
+        let id = plant_id_to_write(panel_id.as_deref());
+        let _scrittura = s.project_write_lock.lock().await;
+        if let Err(e) =
+            crate::projects::patch_plant_id(&proj_dir.join("project.yaml"), Some(&id)).await
+        {
+            tracing::warn!("deploy: cannot write meta.plant_id: {e}");
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("cannot write the plant identity in project.yaml: {e}"),
+            )
+                .into_response();
+        }
+        plant_id_scritto = true;
+    }
+    // What the choice means for users and secrets. «Keep users»: the users of
+    // the panel stay, so the project's do not travel. «Delete all»: the panel
+    // keeps nothing, so the project's travel; without them the panel would
+    // stay without accounts and secrets.
+    // A first deploy (panel without users) keeps its own rule above.
+    if erede.is_some() && !first_deploy {
+        match modo_erede {
+            ReplaceMode::KeepUsers => {
+                opz.replace_users = false;
+                opz.con_segreti = true;
+            }
+            ReplaceMode::DeleteAll => {
+                opz.replace_users = true;
+                opz.con_segreti = true;
+            }
+            ReplaceMode::SamePlant => {}
+        }
+    }
+    let elimina_erede = erede.is_some() && modo_erede == ReplaceMode::DeleteAll;
+
     if serve_admin(pannello_in_attesa, opz.replace_users, progetto_ha_admin) {
         return (
             StatusCode::PRECONDITION_REQUIRED,
@@ -3500,11 +3892,13 @@ pub async fn remote_deploy(
                 .await
                 .unwrap_or_default(),
         );
-        if chiede_sostituzione_utenti(
-            utenti_progetto.len(),
-            utenti_dispositivo.as_deref(),
-            da_cambiare.len(),
-        ) {
+        // With «delete all» the user already said that the panel users go.
+        let pannello = if elimina_erede {
+            None
+        } else {
+            utenti_dispositivo.as_deref()
+        };
+        if chiede_sostituzione_utenti(utenti_progetto.len(), pannello, da_cambiare.len()) {
             return (
                 StatusCode::PRECONDITION_REQUIRED,
                 Json(serde_json::json!({
@@ -3518,26 +3912,9 @@ pub async fn remote_deploy(
         }
     }
 
-    // Il deploy di un progetto con un altro nome cancella dal pannello quello
-    // che c'era, storico compreso (03-10-2026: `rc14_lvgl` sparito dal TC620
-    // senza una domanda). Si chiede prima di toccare qualunque cosa. Il nome è
-    // quello che finirà nel manifest dello ZIP: `meta.name`.
-    if !opz.confirm_replace {
-        let nome = sws_core::Project::load(&proj_dir).ok().map(|p| p.meta.name);
-        let sul_pannello = leggi_progetti_dispositivo(&client, &base, &auth_hdr).await;
-        let da_sostituire = progetti_da_sostituire(&sul_pannello, nome.as_deref());
-        if !da_sostituire.is_empty() {
-            return (
-                StatusCode::PRECONDITION_REQUIRED,
-                Json(serde_json::json!({
-                    "conferma": "sostituisce-progetti",
-                    "progetto": nome,
-                    "progetti": da_sostituire,
-                })),
-            )
-                .into_response();
-        }
-    }
+    // The question about the projects with another name (03-10-2026:
+    // `rc14_lvgl` gone from the TC620 without a question) is asked above,
+    // before the questions about the users (27-11-2026).
 
     // **Simboli di libreria che il pannello non conosce** (M9 del piano dei
     // simboli di libreria): la libreria viaggia con l'immagine del runtime, non
@@ -3594,11 +3971,12 @@ pub async fn remote_deploy(
     // a rotation by restarting, and on a controller that stops its PLCs too.
     // Said before, the last question, so that «yes» sends right away.
     if !opz.confirm_rotation {
+        // Also a project without `orientation` whose pages are higher than
+        // wide (27-11-2026, `PageLayoutConfig::is_portrait`).
         let portrait = sws_core::Project::load(&proj_dir)
             .ok()
             .and_then(|p| p.page_layout)
-            .and_then(|l| l.orientation)
-            == Some(sws_core::project::Orientation::Portrait);
+            .is_some_and(|l| l.is_portrait());
         let mut r = client.get(format!("{base}/api/system?screen_rotation=1"));
         if let Some(h) = &auth_hdr {
             r = r.header("Authorization", h);
@@ -3701,10 +4079,22 @@ pub async fn remote_deploy(
         // l'elenco del dispositivo è ancora quello vero.
         // `bundle_users` e non la lettura fatta nel precheck: è ciò che sta
         // davvero nello ZIP appena costruito, cioè quello che arriverà.
+        if plant_id_scritto {
+            send("ⓘ Il progetto riceve l'identità d'impianto del pannello: i prossimi deploy lo riconoscono.");
+        }
+        if automatico {
+            if let Some(e) = &erede {
+                send(&format!(
+                    "ⓘ «{e}» sul pannello ha la stessa identità d'impianto: si rinomina, senza domande."
+                ));
+            }
+        }
         riferisci_piano_utenti(
             opz.replace_users,
             &bundle_users,
             utenti_dispositivo.as_ref(),
+            flags.device_admin,
+            erede.as_deref().map(|e| (e, modo_erede)),
             &send,
         );
 
@@ -3731,8 +4121,32 @@ pub async fn remote_deploy(
                         }
                         let _ = rc.send().await;
                     }
+                    // The heir takes the new name before anything is deleted
+                    // (27-11-2026): its folder keeps history and backups, and
+                    // users too unless «keep users» clears the rest.
+                    let rinominato = match (&erede, deploy_name.as_deref()) {
+                        (Some(vecchio), Some(nuovo)) if modo_erede.needs_rename() => {
+                            match rename_heir(&client, &base, &auth_hdr, vecchio, nuovo, modo_erede)
+                                .await
+                            {
+                                Ok(riga) => {
+                                    send(&riga);
+                                    preserved_same_name = true;
+                                    Some(vecchio.clone())
+                                }
+                                Err(riga) => {
+                                    send(&riga);
+                                    return;
+                                }
+                            }
+                        }
+                        _ => None,
+                    };
                     for item in arr {
                         if let Some(n) = item["name"].as_str() {
+                            if rinominato.as_deref() == Some(n) {
+                                continue;
+                            }
                             // Stesso nome = stai ridistribuendo QUESTO progetto: si
                             // rimuovono solo i file di progettazione e si lascia lo
                             // stato del dispositivo (database storico in testa).
@@ -4616,6 +5030,7 @@ sources:
         let p = |n: &str, b: Option<u64>| DaSostituire {
             nome: n.into(),
             storico_byte: b,
+            plant_id: None,
         };
         let pannello = vec![
             p("rc14_lvgl", Some(51_000_000)),
@@ -4638,6 +5053,209 @@ sources:
         assert!(d.confirm_replace);
         let d: DeployBody = serde_json::from_str("{}").unwrap();
         assert!(!d.confirm_replace);
+    }
+
+    /// The deploy over a panel project with another name (27-11-2026, plan
+    /// `2026-11-27-cambio-di-nome-del-progetto`): same id → no question,
+    /// different ids → two answers, an id missing → three answers.
+    #[test]
+    fn the_deploy_decides_by_the_plant_identity() {
+        let p = |n: &str, id: Option<&str>| DaSostituire {
+            nome: n.into(),
+            storico_byte: Some(1_600_000_000),
+            plant_id: id.map(str::to_string),
+        };
+        let go = |heir: Option<&str>, mode, automatic| ReplaceDecision::Go {
+            heir: heir.map(str::to_string),
+            mode,
+            automatic,
+        };
+        let nuovo = Some("Casa (verticale)");
+
+        // Nothing with another name: nothing to ask.
+        assert_eq!(
+            replace_decision(&[p("Casa (verticale)", None)], nuovo, None, None, false),
+            go(None, ReplaceMode::DeleteAll, false)
+        );
+        assert_eq!(
+            replace_decision(&[], nuovo, Some("a"), None, false),
+            go(None, ReplaceMode::DeleteAll, false)
+        );
+
+        // Same id: the panel project takes the new name, with no question.
+        let pannello = [p("Casa", Some("id-1"))];
+        assert_eq!(
+            replace_decision(&pannello, nuovo, Some("id-1"), None, false),
+            go(Some("Casa"), ReplaceMode::SamePlant, true)
+        );
+
+        // Different ids: two answers, «same plant» is not one of them.
+        let chiede = replace_decision(&pannello, nuovo, Some("id-2"), None, false);
+        assert_eq!(
+            chiede,
+            ReplaceDecision::Ask {
+                heir: Some("Casa".into()),
+                choices: Some(vec![ReplaceMode::KeepUsers, ReplaceMode::DeleteAll]),
+                different_plant: true,
+            }
+        );
+        assert_eq!(
+            replace_decision(
+                &pannello,
+                nuovo,
+                Some("id-2"),
+                Some(ReplaceMode::KeepUsers),
+                true
+            ),
+            go(Some("Casa"), ReplaceMode::KeepUsers, false)
+        );
+        // An answer that is not offered asks again.
+        assert!(matches!(
+            replace_decision(
+                &pannello,
+                nuovo,
+                Some("id-2"),
+                Some(ReplaceMode::SamePlant),
+                true
+            ),
+            ReplaceDecision::Ask { .. }
+        ));
+        // The yes of an older IDE (no answer) is «delete all», as before.
+        assert_eq!(
+            replace_decision(&pannello, nuovo, Some("id-2"), None, true),
+            go(Some("Casa"), ReplaceMode::DeleteAll, false)
+        );
+
+        // An id missing, on either side: three answers, the first «same plant».
+        let tre = Some(vec![
+            ReplaceMode::SamePlant,
+            ReplaceMode::KeepUsers,
+            ReplaceMode::DeleteAll,
+        ]);
+        for (pannello, locale) in [
+            ([p("Casa", None)], Some("id-1")),
+            ([p("Casa", Some("id-1"))], None),
+            ([p("Casa", None)], None),
+        ] {
+            assert_eq!(
+                replace_decision(&pannello, nuovo, locale, None, false),
+                ReplaceDecision::Ask {
+                    heir: Some("Casa".into()),
+                    choices: tre.clone(),
+                    different_plant: false,
+                }
+            );
+            assert_eq!(
+                replace_decision(&pannello, nuovo, locale, Some(ReplaceMode::SamePlant), true),
+                go(Some("Casa"), ReplaceMode::SamePlant, false)
+            );
+        }
+
+        // The same name is on the panel too: it keeps its data, the others
+        // go after the plain yes of before.
+        let due = [p("Casa (verticale)", None), p("Vecchio", None)];
+        assert_eq!(
+            replace_decision(&due, nuovo, None, None, false),
+            ReplaceDecision::Ask {
+                heir: None,
+                choices: None,
+                different_plant: false,
+            }
+        );
+        assert_eq!(
+            replace_decision(&due, nuovo, None, None, true),
+            go(None, ReplaceMode::DeleteAll, false)
+        );
+
+        // The same plant and one more project: the plain yes for the other.
+        let piu = [p("Vecchio", None), p("Casa", Some("id-1"))];
+        assert!(matches!(
+            replace_decision(&piu, nuovo, Some("id-1"), None, false),
+            ReplaceDecision::Ask { choices: None, .. }
+        ));
+        assert_eq!(
+            replace_decision(&piu, nuovo, Some("id-1"), None, true),
+            go(Some("Casa"), ReplaceMode::SamePlant, true)
+        );
+    }
+
+    #[test]
+    fn the_replace_mode_reads_and_writes_its_three_values() {
+        for m in [
+            ReplaceMode::SamePlant,
+            ReplaceMode::KeepUsers,
+            ReplaceMode::DeleteAll,
+        ] {
+            assert_eq!(ReplaceMode::parse(m.as_str()), Some(m));
+        }
+        assert_eq!(ReplaceMode::parse("tutto"), None);
+        assert!(ReplaceMode::SamePlant.needs_rename());
+        assert!(ReplaceMode::KeepUsers.needs_rename());
+        assert!(!ReplaceMode::DeleteAll.needs_rename());
+        let d: DeployBody = serde_json::from_str(r#"{"replace_mode":"keep_users"}"#).unwrap();
+        assert_eq!(d.replace_mode.as_deref(), Some("keep_users"));
+        assert!(DeployBody::default().replace_mode.is_none());
+        // The id that a project without one takes: the panel's, else new.
+        assert_eq!(plant_id_to_write(Some("id-1")), "id-1");
+        let nuovo = plant_id_to_write(None);
+        assert_eq!(nuovo.len(), 36, "a UUID: {nuovo}");
+        assert_ne!(plant_id_to_write(Some("")), "");
+    }
+
+    /// The log tells the truth about the users (collaudo 2.27.0 on the TC620:
+    /// «Utenti: non toccati» while the deploy deleted them).
+    #[test]
+    fn the_log_says_what_happens_to_the_panel_users() {
+        let righe = std::cell::RefCell::new(Vec::<String>::new());
+        let send = |m: &str| righe.borrow_mut().push(m.to_string());
+        let progetto = vec!["admin".to_string()];
+        let pannello = vec!["capo".to_string()];
+        riferisci_piano_utenti(
+            true,
+            &progetto,
+            Some(&pannello),
+            false,
+            Some(("Casa", ReplaceMode::DeleteAll)),
+            &send,
+        );
+        let testo = righe.borrow().join("\n");
+        assert!(testo.contains("si cancella dal pannello con i suoi utenti"), "{testo}");
+        assert!(testo.contains("sostituiti"), "{testo}");
+        assert!(!testo.contains("non toccati"), "{testo}");
+
+        righe.borrow_mut().clear();
+        riferisci_piano_utenti(
+            false,
+            &progetto,
+            Some(&pannello),
+            false,
+            Some(("Casa", ReplaceMode::KeepUsers)),
+            &send,
+        );
+        let testo = righe.borrow().join("\n");
+        assert!(testo.contains("restano quelli del pannello"), "{testo}");
+        assert!(!testo.contains("casella"), "{testo}");
+
+        righe.borrow_mut().clear();
+        riferisci_piano_utenti(false, &progetto, Some(&pannello), false, None, &send);
+        assert!(righe.borrow()[0].contains("non toccati"));
+
+        // A project without users on a panel with a device Admin (collaudo of
+        // 27-11-2026 on the PLX800): the device Admin stays, the log says so.
+        let nessuno: Vec<String> = vec![];
+        for (device_admin, atteso) in [(true, "resta solo l'Admin del dispositivo"), (false, "senza account")] {
+            righe.borrow_mut().clear();
+            riferisci_piano_utenti(
+                true,
+                &nessuno,
+                Some(&pannello),
+                device_admin,
+                Some(("Casa", ReplaceMode::DeleteAll)),
+                &send,
+            );
+            let testo = righe.borrow().join("\n");
+            assert!(testo.contains(atteso), "{testo}");
+        }
     }
 
     #[test]

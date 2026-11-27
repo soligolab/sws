@@ -67,6 +67,7 @@ import type {
   ScopoIaCfg,
   ConfigTraduzione,
   TypeDef,
+  TagRename,
 } from "@/types";
 import { prefissoGateway, prefissoSchermo } from "./prefisso";
 import { corniceAPagina } from "@/cornici/modello";
@@ -873,6 +874,9 @@ const PATH_RIPORTANO_VERSIONE = [
   // sopra: non «qualcun altro ha modificato il progetto», ma questo stesso
   // client, un pulsante prima.
   "/api/project/languages/translate",
+  // The tag renames (27-11-2026) only add an entry: no `If-Match`, but the
+  // answer has the new version of `project.yaml`.
+  "/api/project/tag-renames",
 ];
 
 /** I salvataggi di sezione, cioè quelli che il server confronta con `If-Match`.
@@ -1136,6 +1140,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 // stringhe «fuori dal catalogo» invece di una (vedi il tetto dichiarato per
 // questo file nella guardia).
 const URL_CONFIG_TRADUZIONE = "/api/traduzione/config";
+const URL_TAG_RENAMES = "/api/project/tag-renames";
 
 /** Un rilievo di `validate::semantic` (Rust): `path` è per la macchina,
  *  `message` e `hint` per chi legge. */
@@ -2555,11 +2560,13 @@ export const api = {
 
   /** `git`: what the copy does with the repository (21-11-2026); absent on a
    *  repository the server makes it a new one. */
-  duplicateProject: (riferimento: string, newName: string, git?: CopyRepository) =>
+  /** `newPlant` (27-11-2026): the copy is another plant — a new `plant_id`,
+   *  and no `history/` or `backups/`. Absent = a copy of the same plant. */
+  duplicateProject: (riferimento: string, newName: string, git?: CopyRepository, newPlant?: boolean) =>
     request<{ name: string }>(`/api/projects/${rotta(riferimento)}/duplicate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ new_name: newName, ...(git ? { git } : {}) }),
+      body: JSON.stringify({ new_name: newName, ...(git ? { git } : {}), ...(newPlant ? { new_plant: true } : {}) }),
     }),
 
   // Template gallery (pre-auth)
@@ -2826,6 +2833,16 @@ export const api = {
     request<{ db_tags: string[]; orphan_tags: string[] }>(
       `/api/datastores/${encodeURIComponent(id)}/tags`,
     ),
+
+  /** POST /api/project/tag-renames — the history follows a tag rename: the
+   *  runtime adds the entry to `project.yaml` and applies it at once to the
+   *  history of the active project. The deploy takes it to the panel. */
+  addTagRename: (from: string, to: string) =>
+    request<{ rename: TagRename; applied: number }>(URL_TAG_RENAMES, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ from, to }),
+    }),
 
   /** POST /api/datastores/:id/delete-tag — cancella lo storico di un tag.
    *  Irreversibile, audit-logged lato runtime. */
@@ -3265,7 +3282,7 @@ export const api = {
    *  Unico punto in cui si compone il corpo: prima la `fetch` era scritta due
    *  volte (qui e nell'auto-deploy dello store), ed è così che i due percorsi
    *  divergono senza che nessuno se ne accorga. */
-  deployToRuntime: async (opts: { replaceUsers: boolean; confirmNoUsers?: boolean; conSegreti?: boolean; confirmReplace?: boolean; confirmMissingSymbols?: boolean; confirmUsersChange?: boolean; confirmRotation?: boolean }): Promise<Response> => {
+  deployToRuntime: async (opts: { replaceUsers: boolean; confirmNoUsers?: boolean; conSegreti?: boolean; confirmReplace?: boolean; confirmMissingSymbols?: boolean; confirmUsersChange?: boolean; confirmRotation?: boolean; replaceMode?: string | null }): Promise<Response> => {
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (TOKEN) headers["Authorization"] = `Bearer ${TOKEN}`;
     return fetch(`${getBaseUrl()}/api/remote/deploy`, {
@@ -3286,6 +3303,9 @@ export const api = {
         confirm_users_change: opts.confirmUsersChange ?? false,
         // The device restarts to turn the screen, and the user knows (rc.30).
         confirm_rotation: opts.confirmRotation ?? false,
+        // The answer about the panel project with another name (27-11-2026).
+        // Only when there is one: the body is checked field by field.
+        ...(opts.replaceMode ? { replace_mode: opts.replaceMode } : {}),
       }),
     });
   },

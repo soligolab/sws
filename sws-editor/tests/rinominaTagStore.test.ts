@@ -14,6 +14,7 @@ vi.mock("@/api/client", () => ({
     saveBootPage: vi.fn(async () => {}),
     saveFaceplate: vi.fn(async () => {}),
     saveRecipe: vi.fn(async () => {}),
+    addTagRename: vi.fn(async (from: string, to: string) => ({ rename: { id: "r1", from, to }, applied: 1 })),
   },
   setAuthToken: vi.fn(),
   getAuthToken: () => null,
@@ -59,6 +60,34 @@ describe("rinominaTag", () => {
     expect((st.pages[0].objects[0] as SynopticObject).tag).toBe("pompa.marcia");
     expect(st.pagesRev).toBe(st.savedPagesRev);
     expect(st.saveStatus).toBe("ok");
+  });
+
+  it("the history follows: the route is called last, and the entry goes into the store", async () => {
+    await useAppStore.getState().rinominaTag("pompa.on", "pompa.marcia", []);
+    expect(api.addTagRename).toHaveBeenCalledWith("pompa.on", "pompa.marcia");
+    const order = (f: unknown) => (f as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0];
+    expect(order(api.addTagRename)).toBeGreaterThan(order(api.saveSynoptic));
+    expect(useAppStore.getState().project?.tag_renames).toEqual([{ id: "r1", from: "pompa.on", to: "pompa.marcia" }]);
+  });
+
+  it("an older runtime (404) does not stop the rename: only a console warning", async () => {
+    (api.addTagRename as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      new Error("API /api/project/tag-renames: 404 Not Found"));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await useAppStore.getState().rinominaTag("pompa.on", "pompa.marcia", []);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+    const st = useAppStore.getState();
+    expect(st.project?.tags.map((t) => t.id)).toEqual(["pompa.marcia", "altro"]);
+    expect(st.project?.tag_renames ?? []).toEqual([]);
+    expect(st.saveStatus).toBe("ok");
+  });
+
+  it("another error of the route is an error of the rename", async () => {
+    (api.addTagRename as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      new Error("API /api/project/tag-renames: 500 Internal Server Error"));
+    await expect(useAppStore.getState().rinominaTag("pompa.on", "pompa.marcia", [])).rejects.toThrow(/500/);
+    expect(useAppStore.getState().saveStatus).toBe("error");
   });
 
   it("a progetto sporco si rifiuta senza scrivere niente", async () => {

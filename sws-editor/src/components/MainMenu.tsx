@@ -4,8 +4,9 @@ import { api, dimenticaVersioneProgetto } from "@/api/client";
 import { addressAfterRename, prefissoGateway, progettoDalPercorso } from "@/api/prefisso";
 import { canConfigureProject } from "@/auth/permissions";
 import { DROP_ITEM, DROP_PANEL, DROP_SEP, HDR_BTN, useOutsideClose } from "@/components/headerStyles";
-import { chiedi, conferma } from "@/finestraAvviso/finestraAvviso";
+import { chiedi, chiediConOpzione, conferma } from "@/finestraAvviso/finestraAvviso";
 import { askCopyRepository } from "@/components/copyRepository";
+import { opzioniSalvaCome } from "@/components/salvaCome";
 import { pickInitialPageId } from "@/pageLayout";
 import { selectIsDirty, useAppStore } from "@/store";
 import { Icona } from "@/components/Icona";
@@ -131,12 +132,12 @@ export function MainMenu({
     // Le modifiche non salvate si perdono (la copia si apre ricaricando): come
     // aprire un altro progetto con delle bozze, è un'azione pericolosa.
     if (dirty && !(await conferma({ testo: t("menu.salvaComeNonSalvato"), pericolo: true }))) return;
-    const nuovo = (await chiedi({
-      testo: t("menu.salvaComePrompt"),
-      iniziale: `${currentName} ${t("common.copiaSuffisso")}`,
-      ok: t("common.save"),
-    }))?.trim();
-    if (!nuovo || nuovo === currentName) return;
+    // Same plant or another plant (27-11-2026): it decides what a deploy of
+    // the copy does on a panel that has the original.
+    const risposta = await chiediConOpzione(opzioniSalvaCome(currentName, t));
+    const nuovo = risposta?.testo.trim();
+    if (!risposta || !nuovo || nuovo === currentName) return;
+    const newPlant = risposta.opzione === "new_plant";
     // A repository asks what the copy does with it (21-11-2026): until then
     // the copy kept `origin`, and its Push landed on the original's remote.
     const git = await askCopyRepository(nuovo);
@@ -145,7 +146,7 @@ export function MainMenu({
     try {
       const rif = await indirizzoDelProgettoAperto(currentName);
       const azienda = rif.split("/")[0];
-      await api.duplicateProject(rif, nuovo, git);
+      await api.duplicateProject(rif, nuovo, git, newPlant);
       // Si va sulla copia: «salva come» vuol dire che da adesso lavori li'.
       const rifNuovo = `${azienda}/${nuovo}`;
       if (prefissoGateway()) {

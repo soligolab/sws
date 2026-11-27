@@ -1,6 +1,7 @@
 # Il deploy di un progetto con un altro nome: l'identità d'impianto, e lo storico che segue i tag rinominati
 
-> **Stato: pronto** — rivisto col maintainer il 27-11-2026 (era «piano da rivedere»). Nato dal collaudo della 2.27.0
+> **Stato: fatto, in `main`; le 4 correzioni del collaudo da provare con la dev.4** (27-11-2026): A, B, C, D ed E sul ramo `feat/plant-id-e-rinomina-tag`,
+> definition of done verde tranne la conferma del maintainer (la «Verifica» in fondo). Rivisto col maintainer il 27-11-2026 (era «piano da rivedere»). Nato dal collaudo della 2.27.0
 > sul TC620. Il dettaglio del collaudo e dei rimedi a mano è in `docs/COLLAUDI_IN_SOSPESO.md`, sezione «Collaudo 2.27.0».
 
 ## Contesto

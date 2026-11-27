@@ -79,6 +79,12 @@ pub struct SystemStatus {
     /// stops before sending one.
     #[serde(default)]
     pub symbol_photos: bool,
+    /// This runtime knows the plant identity (27-11-2026): its project list
+    /// says `plant_id`, and its management port renames a project and
+    /// deletes it keeping `users.yaml` (`DELETE …?keep=users`). The deploy
+    /// of a project with another name needs both to keep history or users.
+    #[serde(default)]
+    pub plant_identity: bool,
     pub uptime_s: u64,
     /// Quale ruolo sta servendo questa istanza: `"runtime"` se ha un viewer
     /// operatori (`--viewer-port`), `"ide"` se no.
@@ -211,6 +217,12 @@ pub struct SystemStatus {
     /// without a project (collaudo on the PLX800, 23-11-2026).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub close_locks_out: bool,
+    /// This panel has a device Admin, who stays when the project changes
+    /// (27-11-2026). The deploy reads it to tell the truth about the accounts
+    /// that remain: a project without users does not leave such a panel
+    /// without accounts.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub device_admin: bool,
     /// La configurazione del servizio (i quadlet) rispetto a quella che questa
     /// immagine si aspetta (02-10-2026). `None` fuori da un container.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -407,6 +419,7 @@ pub async fn compute_system_status(
         runtime_version: sws_core::project::runtime_version().to_string(),
         segreti_separati: true,
         symbol_photos: true,
+        plant_identity: true,
         uptime_s: started_at.elapsed().as_secs(),
         mode: mode_label(ide_only),
         runtime_git: env!("SWS_GIT_SHA"),
@@ -440,6 +453,7 @@ pub async fn compute_system_status(
         display: None,
         screen_rotation: None,
         close_locks_out: false,
+        device_admin: false,
         quadlet: None,
         openplc: None,
         firewall: false,
@@ -673,6 +687,7 @@ pub async fn get_system_status_route(
         status.screen_rotation = crate::control_panel::screen_rotation(&s.config_dir).await;
     }
     status.close_locks_out = crate::router::close_locks_out(&s, &headers).await;
+    status.device_admin = !s.ide_only && s.auth_dispositivo.has_users().await;
     Json(status)
 }
 

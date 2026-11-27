@@ -217,6 +217,10 @@
     "salvaCome": "Salva come…",
     "salvaComeTitle": "Crea una copia di questo progetto con un nome nuovo e continua a lavorare sulla copia",
     "salvaComePrompt": "Nome della copia:",
+    "salvaComeStessoImpianto": "Copia dello stesso impianto",
+    "salvaComeStessoImpiantoAiuto": "Una copia di lavoro o di archivio. Il deploy della copia sul pannello che ha l'originale conserva storico, utenti e backup.",
+    "salvaComeNuovoImpianto": "Progetto nuovo (un altro impianto)",
+    "salvaComeNuovoImpiantoAiuto": "Un'identità nuova, senza lo storico e i backup dell'originale. Il deploy sul pannello dell'originale chiede cosa fare.",
     "salvaComeNonSalvato": "Ci sono modifiche non salvate: la copia conterrà il progetto com'è sul disco, non quello che vedi adesso. Procedo?",
     "renameUnsaved": "Ci sono modifiche non salvate: nel cloud la rinomina riapre il progetto dal disco, e le modifiche si perdono. Procedo?",
     "copyGitQuestion": "Il progetto è un repository git (ramo «{{branch}}»). Cosa fa la copia?",
@@ -1934,6 +1938,7 @@
     "multiStateSvgTitle": "Multi-stato: importa SVG e scegli gli elementi colorabili",
     "purgeHistoryConfirm": "Pulire ora \"{{id}}\" mantenendo {{desc}}?\n\nI campioni fuori da questi limiti vengono cancellati. Operazione irreversibile.",
     "deleteTagHistoryConfirm": "Cancellare tutto lo storico del tag \"{{tag}}\"?\n\nOperazione irreversibile.",
+    "assignTagHistoryConfirm": "I campioni di \"{{from}}\" passano al tag \"{{to}}\". Dove i due tag hanno un campione alla stessa ora, resta quello di \"{{to}}\".\n\nIl deploy porta la stessa modifica sul pannello. Continuare?",
     "uploadDbConfirm": "Sostituire il database di \"{{id}}\"?\n\nVerrà creato un backup automatico del file precedente, ma il nuovo database NON sarà usato finché il runtime non viene riavviato: la connessione già aperta continua a scrivere sul vecchio file fino al riavvio. Operazione delicata.",
     "uploadDbConfirmRemote": "Sostituire il database di \"{{id}}\" sul dispositivo remoto connesso?\n\nVerrà creato un backup automatico del file precedente, ma il nuovo database NON sarà usato finché il runtime non viene riavviato: la connessione già aperta continua a scrivere sul vecchio file fino al riavvio. Operazione delicata.",
     "purgeNowTitle": "Applica ora la retention configurata sopra, senza aspettare la pulizia automatica.",
@@ -1980,6 +1985,25 @@
     "istantaneaPrendo": "==> Istantanea dei dati sul pannello collegato...",
     "istantaneaPresa": "    istantanea presa ({{mb}} MB, versione {{v}})",
     "istantaneaNessuna": "    nessuna istantanea ({{motivo}}): tornando indietro si riporterà solo l'immagine",
+    "deployImpiantoTitolo": "Un progetto con un altro nome sul pannello",
+    "deployImpiantoDomanda": "Il deploy di «{{progetto}}» trova sul pannello:\n{{elenco}}",
+    "deployImpiantoDiverso": "«{{erede}}» e «{{progetto}}» sono due impianti diversi.",
+    "deployImpiantoIgnoto": "Non so se «{{erede}}» e «{{progetto}}» sono lo stesso impianto: uno dei due è di una versione precedente.",
+    "deployScelta": {
+      "same_plant": {
+        "etichetta": "È lo stesso impianto",
+        "aiuto": "• È lo stesso impianto: «{{erede}}» prende il nome nuovo. Storico, utenti e backup restano."
+      },
+      "keep_users": {
+        "etichetta": "Tieni gli utenti del pannello",
+        "aiuto": "• Tieni gli utenti del pannello: storico e backup si cancellano. Gli utenti del pannello restano."
+      },
+      "delete_all": {
+        "etichetta": "Cancella tutto",
+        "aiuto": "• Cancella tutto: storico, utenti e backup del pannello si cancellano. Arrivano gli utenti del progetto."
+      }
+    },
+    "deployPlantIdentityUnsupported": "Il pannello ha una versione precedente e non sa rinominare il suo progetto. Per conservare storico o utenti, aggiorna il pannello. Per sostituire tutto, rifai il deploy e scegli «Cancella tutto».",
     "deploySostituisceConfirm": "Il deploy di «{{progetto}}» cancella dal pannello:\n{{elenco}}\n\nLo storico di questi progetti si perde. Continuare?",
     "deploySostituisceVoce": "  • «{{nome}}», con {{mb}} MB di storico",
     "deploySostituisceVoceSenzaPeso": "  • «{{nome}}», col suo storico",
@@ -2997,6 +3021,9 @@
     "uploadRemote": "Carica (remoto)",
     "orphanTagsTheyHaveHistory": "Tag orfani — hanno storico ma non esistono più nel progetto:",
     "deleteHistory": "Elimina storico",
+    "assignToTag": "Assegna a un tag…",
+    "assignToTagChoose": "Scegli il tag",
+    "assignToTagMove": "Sposta lo storico",
     "scriptThatRunsWhenThe": "# Script avviato all'apertura del progetto\nprint('Hello from global script!')\n",
     "startup": "Avvio",
     "saved": "Salvato.",
@@ -3072,6 +3099,7 @@
     "samplesExported": "✓ Esportati {{samples}} campioni da {{tags}} tag.",
     "noOrphanTags": "✓ Nessun tag orfano ({{count}} tag nel database).",
     "tagSamplesDeleted": "✓ \"{{tag}}\": {{n}} campioni cancellati.",
+    "tagHistoryAssigned": "✓ Lo storico di \"{{from}}\" ora è del tag \"{{to}}\".",
     "noSpaceToReclaim": "Nessuno spazio da liberare (file a {{mb}} MB).",
     "previousBackup": "Backup del precedente: {{path}}. Riavvia il runtime perché il nuovo database venga usato.",
     "certDownloadFailed": "Non riesco a scaricare il cert ({{message}}). Il runtime remoto è acceso e ha il TLS attivo? In alternativa, da un terminale:\n  curl -k {{target}}/cert -o sws.crt",

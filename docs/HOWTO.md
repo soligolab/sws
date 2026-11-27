@@ -52,6 +52,7 @@
 32. [Usare l'assistente IA con la propria chiave, senza metterla in ogni progetto](#32-usare-lassistente-ia-con-la-propria-chiave-senza-metterla-in-ogni-progetto)
 33. [Usare un modello in casa (Ollama, vLLM, LM Studio, llama.cpp)](#33-usare-un-modello-in-casa-ollama-vllm-lm-studio-llamacpp)
 34. [Il pannello non risponde dalla rete locale: il firewall](#34-il-pannello-non-risponde-dalla-rete-locale-il-firewall)
+35. [Una copia del progetto e il pannello](#35-una-copia-del-progetto-e-il-pannello)
 
 ---
 
@@ -2473,3 +2474,44 @@ firewall-cmd --reload
 
 Sul pannello l'utente `user` può già cambiare firewalld (polkit di Pixsys OS): l'installazione lo fa senza `sudo`. La
 sonda dell'installazione lo dice nella riga «Firewall».
+
+## 35. Una copia del progetto e il pannello
+
+Dalla 2.28.0-dev.4. Ogni progetto ha un'**identità d'impianto** (`meta.plant_id` in `project.yaml`). Il deploy la usa
+quando il pannello ha un progetto con un altro nome. Prima, quel deploy cancellava storico e utenti del pannello.
+
+### Fare una copia
+
+1. Apri il progetto nell'IDE.
+2. Scegli **«Salva come»** e scrivi il nome nuovo.
+3. Scegli una delle due voci:
+   - **«Copia dello stesso impianto»** (predefinita): una copia di lavoro o di archivio. Tiene l'identità, lo storico e
+     i backup.
+   - **«Progetto nuovo (un altro impianto)»**: un'identità nuova, senza storico e senza backup.
+
+Gli utenti si copiano in tutti e due i casi.
+
+### Il deploy della copia
+
+| Sul pannello c'è | Cosa fa il deploy |
+|---|---|
+| lo stesso impianto con un altro nome | rinomina il progetto del pannello e tiene storico, utenti e backup; non chiede niente |
+| un altro impianto | chiede: «Tieni gli utenti del pannello» (storico e backup si cancellano) o «Cancella tutto» |
+| un progetto senza identità (versione precedente) | chiede anche «È lo stesso impianto», che scrive l'identità nel progetto |
+
+Un pannello di una versione precedente non sa rinominare il suo progetto. Per tenere storico o utenti, aggiorna prima
+il pannello. «Cancella tutto» funziona anche lì.
+
+### Un progetto vecchio, senza identità
+
+Non serve fare niente. Il primo deploy con un nome diverso chiede una volta. Con «È lo stesso impianto» l'identità
+entra nel progetto locale e viaggia coi deploy successivi.
+
+### Un tag rinominato e il suo storico
+
+1. Nella scheda Tags, usa **«Rinomina ovunque»**: lo storico passa al nome nuovo, subito nell'IDE e sul pannello al
+   deploy successivo.
+2. Un tag rinominato a mano nel YAML o con git compare fra i **tag orfani** della scheda Datastore. Premi
+   **«Assegna a un tag…»** e scegli il tag nuovo.
+
+Se il tag nuovo ha già dei campioni, i campioni si fondono. Alla stessa ora resta il campione del tag nuovo.

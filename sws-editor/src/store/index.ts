@@ -67,6 +67,7 @@ import type {
   RecipeDef,
   TagState,
   TypeDef,
+  TagRename,
 } from "@/types";
 
 export interface HistoryEntry {
@@ -941,6 +942,21 @@ function readShowRulers(): boolean {
 }
 
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
+/** The history follows a tag rename (plan 2026-11-27-cambio-di-nome-del-progetto,
+ *  part C). A runtime older than the route answers 404: then the rename stays
+ *  as it was before, without the history, and only the console says so. */
+export async function followTagRenameInHistory(from: string, to: string): Promise<TagRename | null> {
+  try {
+    return (await api.addTagRename(from, to)).rename;
+  } catch (err) {
+    if (/: 404\b/.test(errText(err))) {
+      console.warn(`tag rename ${from} -> ${to}: the runtime has no /api/project/tag-renames, the history does not follow`);
+      return null;
+    }
+    throw err;
+  }
+}
 
 /**
  * After a successful save, push the project to the connected remote runtime.
@@ -3298,6 +3314,7 @@ export const useAppStore = create<AppState>((set, get) => {
       // distinti. Un errore a metà lascia il progetto parzialmente rinominato:
       // il chiamante lo dice e il salvataggio successivo non lo peggiora.
       set({ saveStatus: "saving", saveError: null });
+      let tagRenames = s.project.tag_renames ?? [];
       try {
         if (e.tagsCambiati) await api.updateTags(e.tags);
         if (e.sourcesCambiate) await api.updateSources(e.sources);
@@ -3315,6 +3332,9 @@ export const useAppStore = create<AppState>((set, get) => {
         }
         for (const fp of e.faceplates) if (e.faceplateCambiati.has(fp.id)) await api.saveFaceplate(fp);
         for (const r of e.recipes) if (e.ricetteCambiate.has(r.id)) await api.saveRecipe(r);
+        // Last, when all the parts are saved: the history follows the new name.
+        const entry = await followTagRenameInHistory(vecchio, nuovo.trim());
+        if (entry) tagRenames = [...tagRenames, entry];
       } catch (err) {
         set({ saveStatus: "error", saveError: errText(err) });
         throw err;
@@ -3328,7 +3348,7 @@ export const useAppStore = create<AppState>((set, get) => {
       set((st) => ({
         project: st.project ? {
           ...st.project, tags: e.tags, sources: e.sources, alarms: e.alarms, global_scripts: e.globalScripts,
-          functions: e.functions,
+          functions: e.functions, tag_renames: tagRenames,
         } : st.project,
         pages: [...e.pages, ...pagineFp],
         faceplateFirme: { ...st.faceplateFirme, ...Object.fromEntries(pagineFp.map((p) => [p.id, firmaFaceplate(p)])) },

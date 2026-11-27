@@ -498,6 +498,7 @@ pub fn build(
     // plus the multi-user CRUD).
     let admin_routes = Router::new()
         .route("/api/project/tags", put(update_project_tags))
+        .route("/api/project/tag-renames", post(add_tag_rename))
         .route("/api/project/types", put(update_project_types))
         .route("/api/project/tags/import-csv", post(import_tags_csv))
         .route("/api/project/languages", put(update_project_languages))
@@ -2017,7 +2018,7 @@ pub fn build(
 /// | Cosa | Rotte |
 /// |---|---|
 /// | login | `POST /api/auth/login` |
-/// | deploy | `GET /api/projects`, `POST /api/projects/upload`, `POST /api/projects/:azienda/:nome/open`, `POST /api/projects/close`, `DELETE /api/projects/:azienda/:nome` |
+/// | deploy | `GET /api/projects`, `POST /api/projects/upload`, `POST /api/projects/:azienda/:nome/open`, `POST /api/projects/close`, `DELETE /api/projects/:azienda/:nome`, `POST /api/projects/:azienda/:nome/rename` |
 /// | pull | `GET /api/project/export` |
 /// | stato | `GET /api/system`, `GET /api/project` |
 /// | utenti | `GET/POST /api/auth/users`, `POST /api/auth/users-file` |
@@ -2059,6 +2060,14 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
         .route("/api/projects/close", post(pj::close_project))
         .route("/api/projects/:azienda/:nome", delete(pj::delete_project))
         .route("/api/projects/:nome", delete(pj::delete_project_implicito))
+        // The deploy of a copy of the same plant renames the project on the
+        // panel, so history, users and backups stay (27-11-2026, plan
+        // `2026-11-27-cambio-di-nome-del-progetto`). Admin like the delete.
+        .route(
+            "/api/projects/:azienda/:nome/rename",
+            post(pj::rename_project),
+        )
+        .route("/api/projects/:nome/rename", post(pj::rename_project_implicito))
         // ── Pull: il verso opposto ─────────────────────────────────────────
         .route("/api/project/export", get(export_project_zip))
         // ── Stato, che l'IDE legge per dire com'è il dispositivo ───────────
@@ -6440,6 +6449,7 @@ where
             meta: ProjectMeta {
                 name: "default".into(),
                 version: "0.1.0".into(),
+                plant_id: Some(crate::projects::new_plant_id()),
             },
             // Progetto vuoto: sorgenti non ce ne sono, niente da rivedere.
             sorgenti_da_rivedere: false,
@@ -6468,6 +6478,7 @@ where
             auto_backup_interval_minutes: None,
             auto_backup_retention: None,
             ritenzione_ora: None,
+            tag_renames: Vec::new(),
         },
     };
     // Gli allarmi nel formato vecchio fermano il salvataggio (23-09-2026).
@@ -6838,9 +6849,120 @@ async fn update_project_tags(
     // toglie gli orfani, aggiorna scale/ruoli/tipi/calcolati — senza riavvio.
     // I tipi struttura (Fase 1b) si rileggono dal file appena scritto: questa
     // rotta non li tocca, ma le forme delle istanze dipendono da loro.
-    let tipi = Project::load(&dir).map(|p| p.types).unwrap_or_default();
+    let progetto = Project::load(&dir).ok();
+    let tipi = progetto.as_ref().map(|p| p.types.clone()).unwrap_or_default();
     crate::projects::apply_tags(&s.db, &s.derived_tags, &s.generator_tags, &per_db, &tipi).await;
+    if let Some(p) = &progetto {
+        refresh_history_routes(&s, p).await;
+    }
     res
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)] // Q9: payload solo-API, campi ignoti = 400
+struct TagRenameBody {
+    from: String,
+    to: String,
+}
+
+/// A new id for a `TagRename`: the time in ms and in ns, and a counter, in
+/// hexadecimal. It must not be the same as an id in the list: the history
+/// database applies each id one time only.
+fn new_tag_rename_id(existing: &[sws_core::project::TagRename]) -> String {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static N: AtomicU64 = AtomicU64::new(0);
+    loop {
+        let t = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default();
+        let id = format!(
+            "{:x}-{:x}{:x}",
+            t.as_millis(),
+            t.subsec_nanos(),
+            N.fetch_add(1, Ordering::Relaxed)
+        );
+        if !existing.iter().any(|r| r.id == id) {
+            return id;
+        }
+    }
+}
+
+/// `POST /api/project/tag-renames` `{from, to}` — the history follows a tag
+/// rename (plan `2026-11-27-cambio-di-nome-del-progetto`, part C).
+///
+/// The entry goes at the end of `tag_renames` in `project.yaml`, under the
+/// project write lock, and applies at once to the history of the active
+/// project. The deploy takes it to the panel, which applies it when it opens
+/// the project. The IDE calls this route after «Rinomina ovunque», and for an
+/// orphan history tag («Assegna a un tag…»).
+///
+/// No `If-Match`: the route only adds an entry, and a save of another section
+/// at the same time does not change it. The answer has the new version.
+async fn add_tag_rename(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Json(body): Json<TagRenameBody>,
+) -> Response {
+    let from = body.from.trim().to_string();
+    let to = body.to.trim().to_string();
+    if from.is_empty() || to.is_empty() || from == to {
+        return (
+            StatusCode::BAD_REQUEST,
+            "from and to must be two different tag ids",
+        )
+            .into_response();
+    }
+    let dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
+    s.audit.log(
+        "project.change",
+        Some(user.username),
+        serde_json::json!({"what": "tag_renames", "from": from.clone(), "to": to.clone()}),
+    );
+    let mut entry = None;
+    let res = patch_project(&s.project_write_lock, &dir, |p| {
+        let r = sws_core::project::TagRename {
+            id: new_tag_rename_id(&p.tag_renames),
+            from,
+            to,
+        };
+        p.tag_renames.push(r.clone());
+        entry = Some(r);
+    })
+    .await;
+    if res.status() != StatusCode::NO_CONTENT {
+        return res;
+    }
+    let Some(r) = entry else {
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    };
+    // The history of the active project follows at once. The panel applies
+    // the same entry when it opens the project after the deploy.
+    let reg = s.registry.read().await.as_ref().map(Arc::clone);
+    let applied = match reg {
+        Some(reg) => reg.apply_tag_renames(std::slice::from_ref(&r)).await,
+        None => 0,
+    };
+    s.historian.rename_tag(&r.from, &r.to).await;
+    let mut out = Json(serde_json::json!({ "rename": r, "applied": applied })).into_response();
+    if let Some(et) = res.headers().get(axum::http::header::ETAG) {
+        out.headers_mut()
+            .insert(axum::http::header::ETAG, et.clone());
+    }
+    out
+}
+
+/// Rebuilds the history routes from the project just written. A tag that
+/// got a new name, or a new tag with `history: true`, records at once,
+/// without a new open of the project (plan
+/// `2026-11-27-cambio-di-nome-del-progetto`, part C, point 5).
+async fn refresh_history_routes(s: &AppState, project: &Project) {
+    let reg = s.registry.read().await.as_ref().map(Arc::clone);
+    if let Some(reg) = reg {
+        reg.update_routes(project).await;
+    }
 }
 
 /// `PUT /api/project/types` — i tipi struttura del progetto (Fase 2).
@@ -6875,8 +6997,12 @@ async fn update_project_types(
     if res.status() != StatusCode::NO_CONTENT {
         return res;
     }
-    let tags = Project::load(&dir).map(|p| p.tags).unwrap_or_default();
+    let progetto = Project::load(&dir).ok();
+    let tags = progetto.as_ref().map(|p| p.tags.clone()).unwrap_or_default();
     crate::projects::apply_tags(&s.db, &s.derived_tags, &s.generator_tags, &tags, &per_db).await;
+    if let Some(p) = &progetto {
+        refresh_history_routes(&s, p).await;
+    }
     res
 }
 
@@ -7310,6 +7436,7 @@ async fn import_tags_csv(
             &proj.types,
         )
         .await;
+        refresh_history_routes(&s, &proj).await;
     }
     // `imported` sono le variabili, per non cambiare il significato del campo
     // a chi lo legge già; i tipi si contano a parte.
@@ -8420,6 +8547,7 @@ async fn import_project_zip(
         &project.types,
     )
     .await;
+    refresh_history_routes(&s, &project).await;
     s.alarms.load(project.alarms.clone()).await;
     crate::projects::resolve_mqtt_client_ids(
         &project.meta.name,
@@ -12559,6 +12687,7 @@ async fn soft_reload_project(s: &AppState, dir: &std::path::Path) {
         &project.types,
     )
     .await;
+    refresh_history_routes(s, &project).await;
     s.alarms.load(project.alarms.clone()).await;
     {
         let mut funcs = s.functions.write().await;
@@ -16070,6 +16199,73 @@ pub(crate) async fn build_di_prova(
         regia,
         None,
     )
+}
+
+#[cfg(test)]
+mod tag_renames_route {
+    use super::*;
+
+    /// `POST /api/project/tag-renames`: the entry goes into `project.yaml`
+    /// with an id, and the history of the active project follows at once.
+    #[tokio::test]
+    async fn the_entry_is_saved_and_the_history_follows() {
+        let dir = tempfile::tempdir().unwrap();
+        let s = stato_di_prova(dir.path()).await;
+        let pdir = dir.path().join("p");
+        std::fs::create_dir_all(&pdir).unwrap();
+        std::fs::write(
+            pdir.join("project.yaml"),
+            "meta: { name: p, version: \"1\" }\n\
+             tags:\n  - { id: b, data_type: f64, history: true }\n\
+             datastores:\n  - { id: default, label: d, backend: { kind: sqlite, path: h.db } }\n",
+        )
+        .unwrap();
+        let project = Project::load(&pdir).unwrap();
+        let reg = DatastoreRegistry::from_project(&project, &pdir)
+            .await
+            .unwrap()
+            .unwrap();
+        let store = reg.primary_sqlite_store().unwrap();
+        store
+            .append(
+                "a",
+                &sws_historian::Sample {
+                    ts_ms: 1,
+                    value: sws_core::TagValue::Float(1.0),
+                    quality: sws_core::TagQuality::Good,
+                },
+            )
+            .await;
+        store.svuota().await;
+        *s.registry.write().await = Some(reg);
+        *s.project_dir.write().await = Some(pdir.clone());
+        let user = AuthUser {
+            username: "admin".into(),
+            role: Role::Admin,
+            must_change_password: false,
+            allowed_zones: vec![],
+            amministratore_piattaforma: false,
+        };
+        let body: TagRenameBody =
+            serde_json::from_value(serde_json::json!({"from": "a", "to": "b"})).unwrap();
+        let r = add_tag_rename(State(s.clone()), Extension(user.clone()), Json(body)).await;
+        assert_eq!(r.status(), StatusCode::OK);
+        assert!(r.headers().get(header::ETAG).is_some(), "the new version");
+        let bytes = axum::body::to_bytes(r.into_body(), 1 << 20).await.unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(v["applied"], 1);
+        let saved = Project::load(&pdir).unwrap();
+        assert_eq!(saved.tag_renames.len(), 1);
+        assert_eq!(saved.tag_renames[0].from, "a");
+        assert_eq!(saved.tag_renames[0].to, "b");
+        assert_eq!(saved.tag_renames[0].id, v["rename"]["id"]);
+        assert_eq!(store.distinct_tags().await.unwrap(), ["b"]);
+        // A rename to the same name is refused.
+        let body: TagRenameBody =
+            serde_json::from_value(serde_json::json!({"from": "b", "to": "b"})).unwrap();
+        let r = add_tag_rename(State(s.clone()), Extension(user), Json(body)).await;
+        assert_eq!(r.status(), StatusCode::BAD_REQUEST);
+    }
 }
 
 #[cfg(test)]

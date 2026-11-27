@@ -89,6 +89,7 @@ Supervisor o l'amministratore.
 | «Connetti» non risponde | la porta: la **7444** (gestione), non la 7443; con HTTPS, prima **Accetta cert TLS** |
 | Il codice è rifiutato | il codice cambia a ogni riavvio del pannello: rileggilo dal log o dallo schermo |
 | Il deploy chiede conferma | sta per sostituire progetti o utenti diversi: leggi cosa e conferma |
+| Il deploy chiede cosa fare di un progetto con un altro nome | è un altro impianto, o una copia senza identità: vedi [HOWTO §35](../HOWTO.md#35-una-copia-del-progetto-e-il-pannello) |
 | Il pannello non legge il PLC | dal pannello, l'indirizzo del PLC deve essere raggiungibile (`127.0.0.1` vale solo se stanno sulla stessa macchina) |
 
 Le porte, i certificati e cosa passa sulla rete sono nel [18 — Container e comunicazione](18_container_e_comunicazione.md).

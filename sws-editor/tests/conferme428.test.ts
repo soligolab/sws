@@ -47,4 +47,49 @@ describe("confermaDopo428", () => {
     expect(await confermaDopo428({ conferma: "utenti-vuoti" }, gia)).toEqual({ tipo: "nessuna" });
     expect(r.chiamate).toHaveLength(0);
   });
+
+  // 27-11-2026, plan 2026-11-27-cambio-di-nome-del-progetto: the panel has a
+  // project with another name, and the user picks what the deploy does to it.
+  it("two identities known and different: two answers, and the one picked goes back", async () => {
+    r = rispondi((q: { tipo: string }) => (q.tipo === "scegli" ? "keep_users" : true));
+    const d = { conferma: "sostituisce-progetti", progetto: "Casa (verticale)", progetti: [{ nome: "Casa", storico_byte: 1_600_000_000 }],
+                scelte: ["keep_users", "delete_all"], erede: "Casa", stesso_impianto: false };
+    expect(await confermaDopo428(d, NESSUNA_CONFERMA))
+      .toEqual({ tipo: "riprova", conferme: { ...NESSUNA_CONFERMA, confirmReplace: true, replaceMode: "keep_users" } });
+    const [q] = r.chiamate as { tipo: string; scelte: { valore: string; pericolo?: boolean }[]; testo: string }[];
+    expect(q.tipo).toBe("scegli");
+    expect(q.scelte.map((x) => x.valore)).toEqual(["keep_users", "delete_all"]);
+    expect(q.scelte.every((x) => x.pericolo)).toBe(true);
+    expect(q.testo).toContain("Casa");
+    expect(q.testo).toContain("1600.0");
+  });
+
+  it("an identity missing: three answers, the first is «the same plant»", async () => {
+    r = rispondi((q: { tipo: string }) => (q.tipo === "scegli" ? "same_plant" : true));
+    const d = { conferma: "sostituisce-progetti", progetto: "Casa (verticale)", progetti: [{ nome: "Casa" }],
+                scelte: ["same_plant", "keep_users", "delete_all"], erede: "Casa", stesso_impianto: null };
+    expect(await confermaDopo428(d, NESSUNA_CONFERMA))
+      .toEqual({ tipo: "riprova", conferme: { ...NESSUNA_CONFERMA, confirmReplace: true, replaceMode: "same_plant" } });
+    const [q] = r.chiamate as { scelte: { valore: string; pericolo?: boolean }[] }[];
+    expect(q.scelte.map((x) => x.valore)).toEqual(["same_plant", "keep_users", "delete_all"]);
+    // Keeping everything is not a danger.
+    expect(q.scelte[0].pericolo).toBe(false);
+  });
+
+  it("cancel on the choice touches nothing; an answer already given is not asked again", async () => {
+    r = rispondi(null);
+    const d = { conferma: "sostituisce-progetti", progetti: [{ nome: "Casa" }], scelte: ["keep_users", "delete_all"], erede: "Casa" };
+    expect(await confermaDopo428(d, NESSUNA_CONFERMA)).toEqual({ tipo: "annullato" });
+    r.ferma();
+    r = rispondi(true);
+    const gia = { ...NESSUNA_CONFERMA, confirmReplace: true, replaceMode: "delete_all" as const };
+    expect(await confermaDopo428(d, gia)).toEqual({ tipo: "nessuna" });
+    expect(r.chiamate).toHaveLength(0);
+  });
+
+  it("a panel that cannot rename its project: said as an error, nothing is sent", async () => {
+    r = rispondi(undefined);
+    expect(await confermaDopo428({ conferma: "plant-identity-unsupported" }, NESSUNA_CONFERMA)).toEqual({ tipo: "annullato" });
+    expect((r.chiamate[0] as { livello?: string }).livello).toBe("errore");
+  });
 });

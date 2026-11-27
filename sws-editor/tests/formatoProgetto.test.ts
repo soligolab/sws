@@ -219,5 +219,30 @@ describe("a project that changes orientation", () => {
     expect(indietro.orientation).toBeUndefined();
     expect(indietro).toMatchObject({ default_width: 1024, default_height: 600 });
   });
+
+  // A copy made with «Change resolution» (collaudo 2.27.0, 27-11-2026): the
+  // format is already higher than wide, and has no `orientation`.
+  it("writes only the orientation when the format is already in that direction", async () => {
+    const { cambioOrientamento, eVerticale } = await import("../src/formatoProgetto");
+    const pagina = (id: string, width: number, height: number) => ({ id, name: id, width, height, objects: [] }) as never;
+    const pagine = [{ pagina: pagina("home", 600, 1024), genere: "pagina" as const }];
+    const copia = { size_mode: "fixed" as const, default_width: 600, default_height: 1024 };
+    // The runtime takes it for portrait already, and so does the IDE.
+    expect(eVerticale(copia)).toBe(true);
+    expect(eVerticale({ size_mode: "fixed" as const, default_width: 1024, default_height: 600 })).toBe(false);
+    expect(eVerticale(null)).toBe(false);
+    const giro = cambioOrientamento(pagine, copia, "portrait");
+    expect(giro.layout).toMatchObject({ orientation: "portrait", default_width: 600, default_height: 1024 });
+    expect(giro.patches).toEqual([]);
+    // Explicit landscape on a format that is portrait: the sizes do turn.
+    const verso = cambioOrientamento(pagine, { ...copia, orientation: "landscape" as const }, "portrait");
+    expect(verso.layout).toMatchObject({ orientation: "portrait", default_width: 600, default_height: 1024 });
+    expect(verso.patches).toEqual([]);
+    // From the deduced portrait back to landscape: the sizes and pages turn.
+    const indietro = cambioOrientamento(pagine, copia, "landscape");
+    expect(indietro.layout).toMatchObject({ default_width: 1024, default_height: 600 });
+    expect(indietro.layout.orientation).toBeUndefined();
+    expect(indietro.patches).toEqual([{ id: "home", patch: { width: 1024, height: 600 } }]);
+  });
 });
 

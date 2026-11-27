@@ -13,6 +13,44 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 Il lavoro della **2.28.0** (versioni `2.28.0-dev.N`), da `main`.
 
+### Aggiunto — il deploy di un progetto con un altro nome, e lo storico che segue i tag rinominati (27-11-2026, ramo `feat/plant-id-e-rinomina-tag`)
+Piano `docs/plans/2026-11-27-cambio-di-nome-del-progetto.md`. Nato dal collaudo della 2.27.0 sul TC620: il deploy di
+`CasaDomotica (TC620_Verticale)` sul pannello che aveva `CasaDomotica` ha cancellato 1,6 GB di storico e gli utenti,
+e il registro diceva «Utenti: non toccati».
+
+- **L'identità d'impianto.** `meta.plant_id` in `project.yaml`. Un progetto nuovo, anche da template, riceve un id
+  nuovo; un template non dà il suo. I progetti di prima restano senza id fino alla prima scelta del deploy.
+- **«Salva come» ha due scelte.** «Copia dello stesso impianto» (predefinita) tiene l'id. «Progetto nuovo (un altro
+  impianto)» riceve un id nuovo e non copia `history/` e `backups/`. Gli utenti si copiano in tutti e due i casi. Il
+  duplicato ora riscrive `meta.name` (prima teneva il nome dell'originale).
+- **Il deploy riconosce lo stesso impianto.** Il pannello dice `plant_id` nell'elenco dei progetti e la capacità
+  `plant_identity` in `/api/system`. La porta di gestione riceve la rinomina e `DELETE …?keep=users`. Davanti a un
+  progetto con un altro nome: stesso id → il pannello rinomina il suo progetto e il deploy conserva storico, utenti e
+  backup, senza domande; id diversi → 428 con «Tieni gli utenti del pannello» e «Cancella tutto»; id mancante → anche
+  «È lo stesso impianto», che scrive l'id nel progetto locale. Un pannello di una versione precedente si ferma con
+  `plant-identity-unsupported`, tranne «Cancella tutto».
+- **Il registro del deploy dice il vero sugli utenti**: con «Cancella tutto» scrive che gli utenti del pannello si
+  cancellano.
+- **Lo storico segue i tag rinominati.** Chiave nuova `tag_renames` (`id`, `from`, `to`). «Rinomina ovunque» chiama
+  `POST /api/project/tag-renames`, che aggiunge la voce e la applica subito. All'apertura del progetto il runtime
+  applica le voci in ordine, una volta sola (`tag_renames_applied` in SQLite, `sws_tag_renames_applied` in Postgres):
+  così il deploy porta la rinomina sul pannello. Se il nome nuovo ha già campioni, i campioni si fondono. Con la
+  migrazione dal formato vecchio in corso, la voce si riprova all'apertura dopo.
+- **«Assegna a un tag…»** accanto a «cancella» per i tag orfani della scheda Datastore: crea la stessa voce, per le
+  rinomine fatte a mano nel YAML o con git.
+- **Le rotte dello storico si ricostruiscono al salvataggio dei tag** (tag, tipi, import CSV e zip, ricarica da git).
+  Prima un tag rinominato o nuovo con `history` non registrava fino alla riapertura del progetto.
+- **L'orientamento dedotto.** Un progetto senza `orientation` e più alto che largo è verticale per il deploy, il
+  pannello e il viewer LVGL (`is_portrait` in `sws-core`). «Cambia orientamento» scrive solo `orientation` se le
+  misure sono già nel verso chiesto.
+- **Le correzioni del collaudo del 27-11 sul PLX800.** La rinomina di un progetto scrive `project.rename` nel registro
+  delle azioni. Il pannello dice `device_admin` in `/api/system`, e il registro del deploy non scrive più «resterà senza
+  account» quando resta l'Admin del dispositivo. «Progetto nuovo» non porta `tag_renames`, che spostano lo storico
+  dell'originale.
+- **I generatori seguono l'orologio.** Il supervisore calcola il valore ai multipli di 100 ms dell'orologio
+  (`next_generator_tick`), non ogni 100 ms dall'avvio del runtime. Prima un'onda triangolare 0–100 con periodo 10 s si
+  vedeva fra 1 e 99 fino al riavvio successivo.
+
 ### Aggiunto — fissare una versione a un pannello, e il blocco di versione (26-11-2026, ramo `feat/version-pin`)
 Piano `docs/plans/2026-11-26-versione-fissata-e-blocco.md`.
 

@@ -197,6 +197,20 @@ impl DatastoreBackend {
         }
     }
 
+    /// Applies the pending tag renames of the project (see
+    /// `SqliteStore::apply_tag_renames`). ODBC is a stub that keeps no
+    /// samples: there is nothing to rename.
+    pub async fn apply_tag_renames(
+        &self,
+        renames: &[sws_core::project::TagRename],
+    ) -> anyhow::Result<crate::sqlite::TagRenameOutcome> {
+        match self {
+            DatastoreBackend::Sqlite(b) => b.store().apply_tag_renames(renames).await,
+            DatastoreBackend::Postgres(b) => b.apply_tag_renames(renames).await,
+            DatastoreBackend::Odbc(_) => Ok(Default::default()),
+        }
+    }
+
     /// `VACUUM` + checkpoint WAL. Ritorna (byte prima, byte dopo).
     pub async fn vacuum(&self) -> anyhow::Result<(u64, u64)> {
         match self {

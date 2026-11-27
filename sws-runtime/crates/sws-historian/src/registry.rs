@@ -99,6 +99,62 @@ struct TagRoute {
     filter: TagFilter,
 }
 
+/// The route table from the project tag definitions.
+fn build_routes(
+    project: &Project,
+    backends: &[(String, DatastoreBackend)],
+) -> HashMap<TagId, TagRoute> {
+    // Fase 1e (22-09-2026): un'**istanza** non si registra intera — lo
+    // storico tiene scalari, e Postgres ha una colonna numerica. Si
+    // registrano le sue **foglie**, con l'id di percorso. L'interruttore
+    // `history` sta sulla **radice** (scelta del maintainer): acceso,
+    // entrano tutte le foglie; il tipo può escluderne una con
+    // `history: false` sul membro, e vale per tutte le istanze. Banda
+    // morta e intervallo minimo vengono dal membro, se li dichiara.
+    let mut routes = HashMap::new();
+    for tag in &project.tags {
+        if !tag.history {
+            continue;
+        }
+        let datastore_idx = if let Some(ref id) = tag.datastore_id {
+            backends.iter().position(|(bid, _)| bid == id).unwrap_or(0)
+        } else {
+            0
+        };
+        let foglie = match sws_core::Forma::da_tag(tag, &project.types) {
+            Ok(Some(forma)) => forma.foglie(&tag.id, &project.types),
+            _ => Vec::new(),
+        };
+        if foglie.is_empty() {
+            routes.insert(
+                tag.id.clone(),
+                TagRoute {
+                    datastore_idx,
+                    filter: TagFilter::new(tag.history_deadband, tag.history_min_interval_ms),
+                },
+            );
+            continue;
+        }
+        for f in foglie {
+            let (registra, deadband, intervallo) = match &f.membro {
+                Some(m) => (m.history, m.history_deadband, m.history_min_interval_ms),
+                None => (true, tag.history_deadband, tag.history_min_interval_ms),
+            };
+            if !registra {
+                continue;
+            }
+            routes.insert(
+                f.percorso,
+                TagRoute {
+                    datastore_idx,
+                    filter: TagFilter::new(deadband, intervallo),
+                },
+            );
+        }
+    }
+    routes
+}
+
 // ── Registry ─────────────────────────────────────────────────────────────────
 
 pub struct DatastoreRegistry {
@@ -140,56 +196,7 @@ impl DatastoreRegistry {
             }
         }
 
-        // Build route table from the project tag definitions.
-        //
-        // Fase 1e (22-09-2026): un'**istanza** non si registra intera — lo
-        // storico tiene scalari, e Postgres ha una colonna numerica. Si
-        // registrano le sue **foglie**, con l'id di percorso. L'interruttore
-        // `history` sta sulla **radice** (scelta del maintainer): acceso,
-        // entrano tutte le foglie; il tipo può escluderne una con
-        // `history: false` sul membro, e vale per tutte le istanze. Banda
-        // morta e intervallo minimo vengono dal membro, se li dichiara.
-        let mut routes = HashMap::new();
-        for tag in &project.tags {
-            if !tag.history {
-                continue;
-            }
-            let datastore_idx = if let Some(ref id) = tag.datastore_id {
-                backends.iter().position(|(bid, _)| bid == id).unwrap_or(0)
-            } else {
-                0
-            };
-            let foglie = match sws_core::Forma::da_tag(tag, &project.types) {
-                Ok(Some(forma)) => forma.foglie(&tag.id, &project.types),
-                _ => Vec::new(),
-            };
-            if foglie.is_empty() {
-                routes.insert(
-                    tag.id.clone(),
-                    TagRoute {
-                        datastore_idx,
-                        filter: TagFilter::new(tag.history_deadband, tag.history_min_interval_ms),
-                    },
-                );
-                continue;
-            }
-            for f in foglie {
-                let (registra, deadband, intervallo) = match &f.membro {
-                    Some(m) => (m.history, m.history_deadband, m.history_min_interval_ms),
-                    None => (true, tag.history_deadband, tag.history_min_interval_ms),
-                };
-                if !registra {
-                    continue;
-                }
-                routes.insert(
-                    f.percorso,
-                    TagRoute {
-                        datastore_idx,
-                        filter: TagFilter::new(deadband, intervallo),
-                    },
-                );
-            }
-        }
+        let routes = build_routes(project, &backends);
 
         Ok(Some(Arc::new(Self {
             backends,
@@ -197,6 +204,66 @@ impl DatastoreRegistry {
             registratore_avviato: AtomicBool::new(false),
             chiuso: AtomicBool::new(false),
         })))
+    }
+
+    /// Rebuilds the route table from the project tags, after a save of the
+    /// tags or of the types. Before 27-11-2026 the routes came only from the
+    /// project open: a renamed tag, or a new tag with `history: true`, did not
+    /// record until the project opened again. A route that stays with the same
+    /// datastore and the same filter keeps its filter state.
+    pub async fn update_routes(&self, project: &Project) {
+        let mut new_routes = build_routes(project, &self.backends);
+        let mut routes = self.routes.write().await;
+        for (id, route) in new_routes.iter_mut() {
+            if let Some(old) = routes.remove(id) {
+                if old.datastore_idx == route.datastore_idx
+                    && old.filter.deadband == route.filter.deadband
+                    && old.filter.min_interval_ms == route.filter.min_interval_ms
+                {
+                    *route = old;
+                }
+            }
+        }
+        *routes = new_routes;
+    }
+
+    /// The tags that have a route (history on), in no given order.
+    pub async fn routed_tags(&self) -> Vec<TagId> {
+        self.routes.read().await.keys().cloned().collect()
+    }
+
+    /// Applies the pending tag renames on each backend (plan
+    /// `2026-11-27-cambio-di-nome-del-progetto`, part C). An error on one
+    /// backend does not stop the others: the entries stay pending there, and
+    /// the next open tries again. Returns the number of entries applied.
+    pub async fn apply_tag_renames(&self, renames: &[sws_core::project::TagRename]) -> usize {
+        if renames.is_empty() {
+            return 0;
+        }
+        let mut total = 0;
+        for (id, backend) in &self.backends {
+            let t0 = std::time::Instant::now();
+            match backend.apply_tag_renames(renames).await {
+                Ok(o) if o.deferred => {
+                    info!(datastore = %id, "tag renames: legacy migration runs, retry at next open");
+                }
+                Ok(o) => {
+                    total += o.applied;
+                    if o.applied > 0 {
+                        info!(
+                            datastore = %id,
+                            applied = o.applied,
+                            ms = t0.elapsed().as_millis() as u64,
+                            "tag renames: applied to the history"
+                        );
+                    }
+                }
+                Err(e) => {
+                    warn!(datastore = %id, "tag renames: not applied, retry at next open: {e:#}");
+                }
+            }
+        }
+        total
     }
 
     /// Record a sample.  Applies deadband/interval filter and routes to the
@@ -549,5 +616,47 @@ datastores:
         .await;
         tokio::time::sleep(std::time::Duration::from_millis(150)).await;
         assert_eq!(conta().await, 1, "chiuso: non registra più");
+    }
+
+    /// A tags save rebuilds the routes: a renamed tag records at once with
+    /// its new name, without a new open of the project. A route that does
+    /// not change keeps its filter state.
+    #[tokio::test]
+    async fn update_routes_follows_a_tag_rename() {
+        let dir = tempfile::tempdir().unwrap();
+        let reg = DatastoreRegistry::from_project(&progetto(), dir.path())
+            .await
+            .unwrap()
+            .expect("registry");
+        reg.routes
+            .write()
+            .await
+            .get_mut("motore1.velocita")
+            .unwrap()
+            .filter
+            .last_ts_ms = 77;
+        let mut p = progetto();
+        p.tags.iter_mut().find(|t| t.id == "piatto").unwrap().id = "piatto2".into();
+        reg.update_routes(&p).await;
+        let mut ids = reg.routed_tags().await;
+        ids.sort();
+        assert_eq!(ids, ["motore1.marcia", "motore1.velocita", "piatto2"]);
+        assert_eq!(
+            reg.routes.read().await["motore1.velocita"].filter.last_ts_ms,
+            77,
+            "an unchanged route keeps its state"
+        );
+        let store = reg.primary_sqlite_store().unwrap();
+        reg.record(
+            "piatto2",
+            &Sample {
+                ts_ms: 1,
+                value: sws_core::TagValue::Float(1.0),
+                quality: sws_core::TagQuality::Good,
+            },
+        )
+        .await;
+        store.svuota().await;
+        assert_eq!(store.distinct_tags().await.unwrap(), ["piatto2"]);
     }
 }

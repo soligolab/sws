@@ -204,12 +204,24 @@ function turnedBackgrounds(
   return patch;
 }
 
+/** Is the project portrait? `orientation` says it; without it, a format
+ *  higher than wide is portrait (27-11-2026). Same rule as the runtime
+ *  (`sws_core::project::is_portrait`): the deploy asks for the rotation with it,
+ *  and the panel turns the picture with it. */
+export function eVerticale(layout: PageLayoutConfig | undefined | null): boolean {
+  if (!layout) return false;
+  if (layout.orientation) return layout.orientation === "portrait";
+  const w = layout.default_width, h = layout.default_height;
+  return w != null && h != null && w > 0 && h > w;
+}
+
 /** A project that changes orientation (decision of 15-11-2026: «scambiando
  *  anche le pagine»): the default format and every screen-sized page trade
  *  width and height. The objects stay where they are, except the generated
  *  backgrounds that have a twin for the other orientation (`hasImage` says
- *  whether the project has that file; 20-11-2026). Pure: the same call twice
- *  gives back what there was. */
+ *  whether the project has that file; 20-11-2026). When the format is already
+ *  in the requested direction, only `orientation` changes (27-11-2026). Pure:
+ *  the same call twice gives back what there was. */
 export function cambioOrientamento(
   pagine: readonly { pagina: SynopticPage; genere: GenerePagina }[],
   layout: PageLayoutConfig | undefined | null,
@@ -217,9 +229,15 @@ export function cambioOrientamento(
   hasImage: (src: string) => boolean = () => false,
 ): { layout: PageLayoutConfig; patches: { id: string; patch: Partial<SynopticPage> }[] } {
   const base: PageLayoutConfig = layout ?? { size_mode: "fixed" };
-  const prima = base.orientation ?? "landscape";
+  const prima = eVerticale(base) ? "portrait" : "landscape";
   const nuovo: PageLayoutConfig = { ...base, orientation: orientation === "portrait" ? "portrait" : undefined };
   if (prima === orientation) return { layout: nuovo, patches: [] };
+  // The format is already in the requested direction (a copy made with
+  // «Change resolution», 27-11-2026): only the orientation is written.
+  const w = base.default_width, h = base.default_height;
+  const giaNelVerso = w != null && h != null && w > 0 && h > 0
+    && (orientation === "portrait" ? h > w : w > h);
+  if (giaNelVerso) return { layout: nuovo, patches: [] };
   nuovo.default_width = base.default_height;
   nuovo.default_height = base.default_width;
   const frames = new Map(pagine.filter(({ pagina }) => eCornice(pagina))

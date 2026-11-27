@@ -28,8 +28,18 @@ interface OpzioniBase {
 
 export interface OpzioniAvviso extends OpzioniBase { livello?: Livello; ok?: string }
 export interface OpzioniConferma extends OpzioniBase { pericolo?: boolean; si?: string; no?: string }
+/** A choice under the field of `chiedi` (27-11-2026, «Save as»: same plant or
+ *  another plant): a radio button with a short explanation under it. */
+export interface OpzioneChiedi {
+  valore: string;
+  etichetta: string;
+  spiegazione?: string;
+}
 export interface OpzioniChiedi extends OpzioniBase {
   iniziale?: string;
+  /** With choices the answer is `{ testo, opzione }` (see `chiediConOpzione`);
+   *  the first one is chosen at the start. */
+  opzioni?: OpzioneChiedi[];
   password?: boolean;
   /** Il messaggio d'errore da mostrare, o `null` se il valore va bene. */
   valida?: (v: string) => string | null;
@@ -205,6 +215,14 @@ export function conferma(o: OpzioniConferma | string): Promise<boolean> {
 /** Al posto di `prompt`: `null` se si annulla. */
 export function chiedi(o: OpzioniChiedi | string): Promise<string | null> {
   return apri<string | null>({ tipo: "chiedi", ...(typeof o === "string" ? { testo: o } : o) });
+}
+
+/** `chiedi` with choices under the field: the text and the chosen value, or
+ *  `null` if cancelled. The first choice is the default. */
+export function chiediConOpzione(
+  o: OpzioniChiedi & { opzioni: OpzioneChiedi[] },
+): Promise<{ testo: string; opzione: string } | null> {
+  return apri<{ testo: string; opzione: string } | null>({ tipo: "chiedi", ...o });
 }
 
 /** Una scelta fra più di due strade: `null` se si annulla. */

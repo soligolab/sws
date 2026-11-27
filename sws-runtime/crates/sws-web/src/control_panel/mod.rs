@@ -408,8 +408,7 @@ pub async fn enforce_project(config_dir: &std::path::Path, project_dir: &std::pa
     }
     let portrait = project
         .and_then(|p| p.page_layout)
-        .and_then(|l| l.orientation)
-        == Some(sws_core::project::Orientation::Portrait);
+        .is_some_and(|l| l.is_portrait());
     enforce_rotation(config_dir, portrait).await;
 }
 
@@ -1194,8 +1193,7 @@ async fn set_flip(State(s): State<AppState>, Json(body): Json<FlipBody>) -> Resp
         let portrait = dir
             .and_then(|d| sws_core::project::Project::load(&d).ok())
             .and_then(|p| p.page_layout)
-            .and_then(|l| l.orientation)
-            == Some(sws_core::project::Orientation::Portrait);
+            .is_some_and(|l| l.is_portrait());
         enforce_rotation(&s.config_dir, portrait).await;
     }
     StatusCode::NO_CONTENT.into_response()

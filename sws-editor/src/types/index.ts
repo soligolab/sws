@@ -2203,7 +2203,9 @@ export interface LastDevice {
 }
 
 export interface ProjectInfo {
-  meta: { name: string; version: string };
+  /** `plant_id`: the identity of the plant (27-11-2026). Same id = a copy of
+   *  the same plant: the deploy keeps history and users on the panel. */
+  meta: { name: string; version: string; plant_id?: string };
   /** I tipi struttura riusabili (Fase 1b). Assente nei progetti che non ne hanno. */
   types?: TypeDef[];
   tags: TagDef[];
@@ -2247,6 +2249,10 @@ export interface ProjectInfo {
   auto_backup_retention?: number;
   /** L'ora del giro notturno di ritenzione dei datastore, "HH:MM" locale; assente = 03:00 (20-10-2026). */
   ritenzione_ora?: string;
+  /** The tag renames that the history follows (plan
+   *  2026-11-27-cambio-di-nome-del-progetto, part C). The runtime adds the
+   *  entries (`POST /api/project/tag-renames`) and applies each one once. */
+  tag_renames?: TagRename[];
   /** Q58 — le sorgenti non le ha ancora guardate nessuno: il progetto viene da
    *  un template e porta gli indirizzi dell'esempio. Finché è acceso il runtime
    *  **non le avvia**, e salvare dalla scheda Sorgenti lo spegne. */
@@ -2254,6 +2260,13 @@ export interface ProjectInfo {
   /** Il progetto è nato vuoto da «Nuovo progetto» e la finestra «Impostazioni
    *  progetto» non è ancora stata chiusa: l'IDE la apre da sé (08-11-2026). */
   impostazione_iniziale?: boolean;
+}
+
+/** One tag rename that the history follows: the samples of `from` go to `to`. */
+export interface TagRename {
+  id: string;
+  from: string;
+  to: string;
 }
 
 // ── Project language table (T-40) ──────────────────────────────────────────

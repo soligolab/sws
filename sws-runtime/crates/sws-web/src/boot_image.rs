@@ -249,8 +249,7 @@ fn quarter_turns(config_dir: &Path, project_dir: &Path) -> u8 {
     let portrait = sws_core::project::Project::load(project_dir)
         .ok()
         .and_then(|p| p.page_layout)
-        .and_then(|l| l.orientation)
-        == Some(sws_core::project::Orientation::Portrait);
+        .is_some_and(|l| l.is_portrait());
     let flipped = crate::control_panel::DeviceSettings::load(config_dir).flipped;
     u8::from(portrait) + 2 * u8::from(flipped)
 }

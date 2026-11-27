@@ -112,6 +112,9 @@ declare -A TETTO=(
     [sws-runtime/crates/sws-runtime/src/main.rs]=1        # esiste? (sola lettura)
     [sws-runtime/crates/sws-web/src/control_panel/about.rs]=1 # the About section of the control panel (15-11-2026): reads the file's
                                                          # modification time as the project's load date. It never opens it.
+    [sws-runtime/crates/sws-web/src/remote.rs]=1         # the deploy writes meta.plant_id in the local project.yaml (27-11-2026,
+                                                         # «it is the same plant»): patch_plant_id rewrites the raw YAML with that
+                                                         # one key added. It reads no secret and writes none: they stay in secrets.yaml.
     [sws-runtime/crates/sws-banco/src/main.rs]=1          # lo ZIP del banco di prestazioni (17-10-2026): un project.yaml di soli
                                                          # tag generati, senza sorgenti né notifiche, quindi nessun segreto da portare.
 )

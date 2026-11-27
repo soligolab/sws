@@ -27,6 +27,43 @@
 
 ---
 
+## Collaudo del ramo `feat/plant-id-e-rinomina-tag` sul PLX800 (27-11-2026) — il cambio di nome del progetto
+
+PLX800 `user@plx800-a-p3-l2-a2-0891bc.local` reinstallato da un archivio costruito dal ramo (commit `c0f8633f`; il
+pannello dice `2.28.0-dev.3`). IDE locale `start_editor_develop.sh` dallo stesso commit. Progetti di prova
+`Prova_Impianto` e copie, mai CasaDomotica. Piano
+[`2026-11-27-cambio-di-nome-del-progetto.md`](plans/2026-11-27-cambio-di-nome-del-progetto.md), sezione «Verifica».
+
+Il pannello, abbinato al cloud dalla dev.0, non aveva un Admin del dispositivo: con un utente del progetto il deploy
+dalla LAN si ferma (regola della 2.27). Per la prova è stato creato a mano `config/utenti_dispositivo.yaml` con
+`admin-dispositivo`.
+
+1. [x] Il primo deploy su un progetto senza identità (`PLX800_Verticale`): la domanda con 3 scelte, «Tieni gli utenti
+       del pannello» → `users.yaml` identico a prima, storico e backup cancellati, registro corretto, la rotazione
+       chiesta e fatta — confermato dal maintainer il 27-11-2026.
+2. [x] «Salva come» → «Copia dello stesso impianto» → deploy: nessuna domanda sul nome, rinomina sul pannello, storico
+       (dalle 11:32) e utenti conservati — confermato dal maintainer il 27-11-2026. Con «Sostituisci anche gli utenti»
+       accesa e un progetto senza utenti compare la domanda «il progetto non ha utenti»: il caso è protetto.
+3. [x] «Rinomina ovunque» `tag_history` → `tag_storia` e deploy: `tag_renames` sul pannello, applicata una volta
+       (`tag_renames_applied`), i 5816 campioni dalle 11:32 sotto il nome nuovo — confermato dal maintainer il 27-11-2026.
+4. [x] «Salva come» → «Progetto nuovo» → deploy: la domanda con 2 scelte («due impianti diversi»), «Cancella tutto» →
+       storico e utenti cancellati, l'`admin` del progetto rifiutato — confermato dal maintainer il 27-11-2026.
+5. [x] La copia fatta con «Cambia risoluzione» (1080×1920, senza `orientation`): il deploy chiede la rotazione, e il
+       pannello torna verticale; poi 1920×1080, e torna orizzontale — confermato dal maintainer il 27-11-2026.
+       «Annulla» sulla domanda della rotazione non è stato provato (la domanda c'è dalla rc.30).
+
+Anomalie, corrette sullo stesso ramo prima dello squash (decisione del maintainer, 27-11-2026; commit «fix(deploy): le
+anomalie del collaudo sul PLX800»). Da provare con la dev che le porta:
+- [ ] la rinomina del progetto sul pannello non entra nel registro delle azioni (`audit.jsonl`);
+- [ ] il registro del deploy scrive «il dispositivo resterà senza account» anche quando il pannello ha l'Admin del
+      dispositivo;
+- [ ] «Progetto nuovo» eredita `tag_renames` dall'originale;
+- [ ] il generatore campiona ogni 100 ms senza allineamento all'orologio: un'onda triangolare 0–100 si vede fra 1 e 99.
+
+Note: «Cambia risoluzione» da orizzontale a verticale e ritorno rimpicciolisce il disegno due volte (fattore 0,563 a
+ogni passo): è il comportamento atteso, non un'anomalia. Dopo il riavvio il mouse USB del PLX800 non si presenta al
+kernel: non dipende da SWS. Il PLX800 resta fuori dal canale di sviluppo (installazione da archivio).
+
 ## Collaudo 2.28.0-dev.1 sul WP630 (26-11-2026) — il firewall dei dispositivi
 
 Piano [`docs/archive/2026-11-26-firewall-dei-dispositivi.md`](archive/2026-11-26-firewall-dei-dispositivi.md). Pannello
