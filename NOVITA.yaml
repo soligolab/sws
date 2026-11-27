@@ -63,6 +63,8 @@ versioni:
         en: "In the Configuration the Save is at the top right, fixed while the tab scrolls, with the list of the tabs to save and a green bar that confirms."
       - it: "La pagina Utenti non salva più campo per campo: le modifiche si salvano col Salva, come nelle altre schede. La password nuova si salva subito."
         en: "The Users page no longer saves field by field: the changes are saved with Save, as in the other tabs. A new password is saved at once."
+      - it: "Il deploy ricorda quando non mandi gli utenti: con gli stessi utenti la casella «Sostituisci anche gli utenti» resta spenta."
+        en: "The deploy remembers when you do not send the users: with the same users the «Replace users too» box stays unchecked."
       - it: "Il tema chiaro dell'IDE non ha più strisce scure: l'avviso blu di Tags, il generatore, il pulsante Deploy."
         en: "The light theme of the IDE has no more dark strips: the blue notice of Tags, the generator, the Deploy button."
       - it: "In Tags λ, ⚙ e ∿ aprono e chiudono sempre la loro sezione; il pulsante è colorato se la sezione ha dati, e le sezioni stanno sotto il nome."

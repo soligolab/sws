@@ -1899,7 +1899,8 @@
       "first_deploy": "Primo deploy: il pannello non ha utenti, li riceve comunque.",
       "never_sent": "Utenti mai inviati da qui a questo dispositivo.",
       "changed": "Gli utenti sono cambiati dall'ultimo invio.",
-      "same": "Utenti uguali all'ultimo invio: non serve mandarli."
+      "same": "Utenti uguali all'ultimo invio: non serve mandarli.",
+      "declined": "Questi utenti non li hai mandati con l'ultimo deploy: la casella resta spenta finché non cambiano."
     },
     "deployProjectSession": "Sei collegato al pannello con un utente del progetto. Il deploy chiude il progetto, e con lui finisce la tua sessione: il pannello resterebbe senza progetto a metà strada, e non è stato toccato niente.\n\nCollegati con l'Admin del dispositivo (quello nato col codice di abbinamento) oppure, se il pannello è abbinato al cloud, fai il deploy dall'IDE nel cloud. Un pannello abbinato dal cloud prima della 2.27 non ha l'Admin del dispositivo: per lui vale solo il deploy dal cloud.",
     "deployRotateScreenPortrait": "Questo progetto è verticale e lo schermo del pannello adesso è orizzontale. Per girarlo il sistema riavvia il dispositivo (circa un minuto); su un controllore si fermano anche i PLC (LogicLab, CODESYS, OpenPLC): dopo il riavvio controlla che siano ripartiti.\n\nProcedere col deploy e col riavvio?",
@@ -1992,7 +1993,8 @@
     "deployScelta": {
       "same_plant": {
         "etichetta": "È lo stesso impianto",
-        "aiuto": "• È lo stesso impianto: «{{erede}}» prende il nome nuovo. Storico, utenti e backup restano."
+        "aiuto": "• È lo stesso impianto: «{{erede}}» prende il nome nuovo. Storico, utenti e backup restano.",
+        "aiutoUtentiProgetto": "• È lo stesso impianto: «{{erede}}» prende il nome nuovo. Storico e backup restano. Gli utenti arrivano dal progetto, perché «Sostituisci anche gli utenti» è accesa."
       },
       "keep_users": {
         "etichetta": "Tieni gli utenti del pannello",

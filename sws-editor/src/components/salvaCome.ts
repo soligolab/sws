@@ -2,7 +2,7 @@ import type { TFunction } from "i18next";
 import type { OpzioneChiedi, OpzioniChiedi } from "@/finestraAvviso/finestraAvviso";
 
 /** The two answers of «Save as» (27-11-2026, plan
- *  `docs/plans/2026-11-27-cambio-di-nome-del-progetto.md`). `same_plant` is the
+ *  `docs/archive/2026-11-27-cambio-di-nome-del-progetto.md`). `same_plant` is the
  *  default: a working or archive copy of the plant, whose deploy keeps history
  *  and users on the panel. `new_plant`: another plant, with its own identity,
  *  and without the history and the backups of the original. */

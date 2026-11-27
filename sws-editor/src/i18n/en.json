@@ -1899,7 +1899,8 @@
       "first_deploy": "First deploy: the panel has no users and receives them anyway.",
       "never_sent": "Users never sent from here to this device.",
       "changed": "Users changed since they were last sent.",
-      "same": "Same users as last sent: no need to send them."
+      "same": "Same users as last sent: no need to send them.",
+      "declined": "You did not send these users with the last deploy: the box stays unchecked until they change."
     },
     "deployProjectSession": "You are connected to the panel with a project user. The deploy closes the project, and your session ends with it: the panel would stay without a project half way, and nothing has been touched.\n\nConnect with the device Admin (the one created with the pairing code) or, if the panel is paired to the cloud, deploy from the IDE in the cloud. A panel paired from the cloud before 2.27 has no device Admin: for it, only the deploy from the cloud works.",
     "deployRotateScreenPortrait": "This project is portrait and the panel's screen is landscape now. To turn it the system restarts the device (about a minute); on a controller the PLCs (LogicLab, CODESYS, OpenPLC) stop too: after the restart check that they are running again.\n\nGo on with the deploy and the restart?",
@@ -1992,7 +1993,8 @@
     "deployScelta": {
       "same_plant": {
         "etichetta": "It is the same plant",
-        "aiuto": "• It is the same plant: «{{erede}}» takes the new name. History, users and backups stay."
+        "aiuto": "• It is the same plant: «{{erede}}» takes the new name. History, users and backups stay.",
+        "aiutoUtentiProgetto": "• It is the same plant: «{{erede}}» takes the new name. History and backups stay. The users come from the project, because «Replace users too» is on."
       },
       "keep_users": {
         "etichetta": "Keep the panel users",

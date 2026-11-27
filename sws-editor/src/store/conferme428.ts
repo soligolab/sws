@@ -57,6 +57,9 @@ export interface Dati428 {
   scelte?: string[];
   erede?: string | null;
   stesso_impianto?: boolean | null;
+  /** «Replace users too» is on: with «same plant» the users come from the
+   *  project (27-11-2026). */
+  sostituisci_utenti?: boolean;
 }
 
 /** - `riprova`: chi guarda ha confermato, si rifà la richiesta con `conferme`;
@@ -98,7 +101,10 @@ export function testoSceltaImpianto(d: Dati428, scelte: readonly ModoSostituzion
   const stato = d.stesso_impianto === false
     ? i18n.t("cfg.deployImpiantoDiverso", { erede, progetto })
     : i18n.t("cfg.deployImpiantoIgnoto", { erede, progetto });
-  const righe = scelte.map((s) => i18n.t(`cfg.deployScelta.${s}.aiuto`, { erede })).join("\n");
+  const righe = scelte.map((s) => i18n.t(
+    s === "same_plant" && d.sostituisci_utenti ? "cfg.deployScelta.same_plant.aiutoUtentiProgetto" : `cfg.deployScelta.${s}.aiuto`,
+    { erede },
+  )).join("\n");
   return `${i18n.t("cfg.deployImpiantoDomanda", { progetto, elenco })}\n\n${stato}\n\n${righe}`;
 }
 

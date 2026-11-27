@@ -3786,6 +3786,11 @@ pub async fn remote_deploy(
                     .map(|c| c.as_str())
                     .collect::<Vec<_>>());
                 corpo["erede"] = serde_json::json!(heir);
+                // With the box on, «same plant» keeps history and backups but
+                // the users come from the project: the answer has to say so,
+                // or the users question that follows contradicts it
+                // (collaudo of the dev.4 on the WP630, 27-11-2026).
+                corpo["sostituisci_utenti"] = serde_json::json!(opz.replace_users);
                 // `false` = two known and different ids; `null` = unknown.
                 corpo["stesso_impianto"] = if different_plant {
                     serde_json::json!(false)
@@ -4009,6 +4014,17 @@ pub async fn remote_deploy(
     let config_ricordo = s.config_dir.clone();
     let users_yaml_sent = if opz.replace_users {
         tokio::fs::read(proj_dir.join("users.yaml")).await.ok()
+    } else {
+        None
+    };
+    // The «no» of the person (27-11-2026): the users of this deploy, kept back
+    // by choice. The box of the next deploy starts unchecked for them.
+    let users_yaml_declined = if !opz.replace_users && !first_deploy {
+        Some(
+            tokio::fs::read(proj_dir.join("users.yaml"))
+                .await
+                .unwrap_or_default(),
+        )
     } else {
         None
     };
@@ -4331,6 +4347,9 @@ pub async fn remote_deploy(
                 send("🚀 Deploy completato!");
                 if let Some(bytes) = &users_yaml_sent {
                     crate::users_sent::record(&config_ricordo, &url_bersaglio, bytes).await;
+                } else if let Some(bytes) = &users_yaml_declined {
+                    crate::users_sent::record_declined(&config_ricordo, &url_bersaglio, bytes)
+                        .await;
                 }
                 if primo_deploy_cloud {
                     // Visto nel collaudo dell'11-10-2026: il primo deploy
@@ -4612,7 +4631,13 @@ pub async fn remote_users_pending(State(s): State<AppState>) -> Response {
         .unwrap_or(false);
     let current = tokio::fs::read(proj_dir.join("users.yaml")).await.ok();
     let last = crate::users_sent::last_sent(&s.config_dir, &base).await;
-    let p = crate::users_sent::pending(waiting, last.as_deref(), current.as_deref());
+    let declined = crate::users_sent::last_declined(&s.config_dir, &base).await;
+    let p = crate::users_sent::pending(
+        waiting,
+        last.as_deref(),
+        declined.as_deref(),
+        current.as_deref(),
+    );
     Json(serde_json::json!({ "send": p.send(), "reason": p })).into_response()
 }
 

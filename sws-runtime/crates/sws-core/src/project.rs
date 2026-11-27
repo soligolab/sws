@@ -2874,7 +2874,7 @@ pub struct Project {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ritenzione_ora: Option<String>,
     /// The tag renames that the history must follow (plan
-    /// `docs/plans/2026-11-27-cambio-di-nome-del-progetto.md`, part C). The
+    /// `docs/archive/2026-11-27-cambio-di-nome-del-progetto.md`, part C). The
     /// runtime applies each entry once, in order, when it opens the project.
     /// The history database keeps the ids that it applied.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

@@ -1,5 +1,5 @@
 // The fixed header of the Configuration forms (25-11-2026, plan
-// `docs/plans/2026-11-25-save-nella-testata.md`; UI rule 4 in CLAUDE.md).
+// `docs/archive/2026-11-25-save-nella-testata.md`; UI rule 4 in CLAUDE.md).
 //
 // The header does not scroll: title, help text, the actions of the tab and
 // the Save. Only the content below scrolls. Before, `SaveBar` was a sticky

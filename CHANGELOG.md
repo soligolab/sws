@@ -13,6 +13,16 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 Il lavoro della **2.28.0** (versioni `2.28.0-dev.N`), da `main`.
 
+### Corretto — le anomalie del collaudo della dev.4 sul WP630 (27-11-2026, ramo `fix/collaudo-dev4`)
+
+- **«Sostituisci anche gli utenti» ricorda il «no».** Un deploy fatto con la casella spenta registra l'impronta degli
+  utenti non mandati (`users-sent.json`, chiave `<url>#declined`). Con gli stessi utenti la casella del deploy dopo
+  resta spenta (`users-pending` risponde `declined`); con utenti cambiati torna accesa; un invio cancella il «no».
+  Prima «New deploy» la riaccendeva ogni volta.
+- **«È lo stesso impianto» con la casella accesa** dice che storico e backup restano e che gli utenti arrivano dal
+  progetto: il 428 porta `sostituisci_utenti`. Prima diceva «utenti conservati», e la domanda sugli utenti che segue lo
+  contraddiceva.
+
 ### Corretto — il tema chiaro dell'IDE e le righe della scheda Tags (27-11-2026, ramo `fix/tema-chiaro-e-righe-tag`)
 
 - **Il tema chiaro nello stile colorato** imposta i 19 token `--sws-*` (`colorfulLightTokens` in `theme.ts`). Prima

@@ -93,3 +93,16 @@ describe("confermaDopo428", () => {
     expect((r.chiamate[0] as { livello?: string }).livello).toBe("errore");
   });
 });
+
+describe("«same plant» with «Replace users too» on (collaudo of the dev.4, 27-11-2026)", () => {
+  it("says that the users come from the project, so the users question after it does not contradict it", async () => {
+    const { testoSceltaImpianto } = await import("../src/store/conferme428");
+    const base = { conferma: "sostituisce-progetti", progetto: "Nuovo", progetti: [{ nome: "Casa" }],
+      scelte: ["same_plant", "keep_users", "delete_all"], erede: "Casa", stesso_impianto: null } as never;
+    const spenta = testoSceltaImpianto(base, ["same_plant"]);
+    const accesa = testoSceltaImpianto({ ...(base as object), sostituisci_utenti: true } as never, ["same_plant"]);
+    expect(spenta).toContain("History, users and backups stay");
+    expect(accesa).not.toContain("History, users and backups stay");
+    expect(accesa).toContain("The users come from the project");
+  });
+});

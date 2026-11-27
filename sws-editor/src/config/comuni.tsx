@@ -240,7 +240,7 @@ export function SezionePendente({
 }
 
 /** The draft of a tab, for the one Save of the header (25-11-2026, plan
- *  `docs/plans/2026-11-25-save-nella-testata.md`). It registers the draft
+ *  `docs/archive/2026-11-25-save-nella-testata.md`). It registers the draft
  *  among the pending sections, like `SezionePendente`, and draws no bar: the
  *  Save, the list of the tabs with changes and the green bar are in the fixed
  *  header (`config/testata.tsx`). A `notice` of the tab (the result of a

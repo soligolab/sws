@@ -1,5 +1,5 @@
 // The draft of the Users page (25-11-2026, plan
-// `docs/plans/2026-11-25-save-nella-testata.md`, decision 2). The fields write
+// `docs/archive/2026-11-25-save-nella-testata.md`, decision 2). The fields write
 // here, and the one Save of the header writes the draft. Before, every field
 // saved by itself on leaving it, and «✓ Saved» showed for 2.5 s in the row:
 // the maintainer saw it at the third attempt.
