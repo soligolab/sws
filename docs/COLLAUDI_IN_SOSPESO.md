@@ -27,6 +27,23 @@
 
 ---
 
+## Collaudo della versione fissata e del blocco (27-11-2026, WP630) — piano 2 di `/chiudi-plan-aperti`
+
+Piano [`2026-11-26-versione-fissata-e-blocco.md`](plans/2026-11-26-versione-fissata-e-blocco.md), codice dalla
+dev.2. Pannello `wp630-a-p3-07a077.local` sulla dev.4, canale Sviluppo; gateway sulla dev.5; console e IDE del cloud.
+
+1. [x] Il blocco alla dev.4 dalla console arriva al pannello (`update_cap.json` con `max`, `by`, `since_ms`; riga 79
+       `update.cap` in `audit.jsonl`); l'IDE dice «Capped at 2.28.0-dev.4 by the platform administration» e non offre
+       la dev.5, che è la testa del canale — confermato dal maintainer il 27-11-2026.
+2. [ ] Il blocco tolto dalla console: il pannello lo dimentica, la dev.5 torna disponibile. **Il WP630 resta bloccato
+       alla dev.4** finché non si toglie il blocco (console → wp630-ufficio → «Version cap…» → «No cap»).
+3. [ ] «Fissa una versione…»: il pannello passa all'immagine fissata, senza `AutoUpdate`; poi si torna al canale.
+
+Il maintainer farà i test 2 e 3 nel fine settimana sul TC620 di casa. Anomalia, già corretta sul ramo
+`fix/scelta-versione` (commit `3721c544`, non ancora in un'immagine):
+- [ ] l'elenco delle versioni del blocco è fatto di pulsanti senza un ordine visibile → menù a tendina dalla più recente
+      alla più vecchia, anche per «Fissa una versione…».
+
 ## Collaudo 2.28.0-dev.5 dal cloud (27-11-2026) — le anomalie della dev.4
 
 Gateway di sws.soligo.net sulla dev.5, pannello `wp630-a-p3-07a077.local` ancora sulla dev.4 (le due correzioni sono

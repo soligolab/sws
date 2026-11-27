@@ -12,6 +12,18 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — `/chiudi-plan-aperti` al piano 2, test 2 e 3 sul TC620; ramo `fix/scelta-versione` aperto (2026-11-27 sera, `elitebook`)
+
+- **Ramo aperto: `fix/scelta-versione`** (commit `3721c544`): il blocco di versione della console e «Fissa una
+  versione…» dell'IDE con un menù a tendina dalla più recente alla più vecchia. Definition of done verde tranne la
+  conferma. Raccoglie le anomalie del collaudo del piano 2; poi squash e `2.28.0-dev.6` col sì del maintainer.
+- **Piano 2, [la versione fissata e il blocco](docs/plans/2026-11-26-versione-fissata-e-blocco.md)**: test 1 passato
+  sul WP630 (il blocco dalla console). **Test 2 e 3 nel fine settimana sul TC620 di casa** (`docs/COLLAUDI_IN_SOSPESO.md`,
+  sezione «Collaudo della versione fissata e del blocco»): togliere il blocco, «Fissa una versione…» e ritorno al canale.
+- **Il WP630 dell'ufficio resta bloccato alla 2.28.0-dev.4** dalla console: va tolto il blocco («No cap») perché
+  riprenda gli aggiornamenti.
+- `main` e origin: la dev.5 è pushata; i commit meta dopo (`f0d14083`, `89455745` e questo) sono solo locali.
+
 ## ▶ Riprendere da qui — 2.28.0-dev.4 uscita e collaudata sul WP630; `/chiudi-plan-aperti` al piano 1 (2026-11-27, `elitebook`)
 
 - **`2.28.0-dev.4` pushata e costruita** (arm64 e amd64), gateway di sws.soligo.net sulla dev.4. Dentro: il cambio di
