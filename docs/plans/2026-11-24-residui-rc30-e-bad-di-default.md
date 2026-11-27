@@ -73,6 +73,9 @@ piano si **annida** sopra `feat/symbol-assistant-interview` (regola «un ramo al
 5. **Edit mode**: le sinusoidi demo restano; il segno si vede col toggle «Anteprima effetti».
 6. **Parità**: `check_lvgl_parity` e i gemelli `demo-items-*`; istantanee web e LVGL a confronto.
 7. **NOVITA**: un avviso di compatibilità («i valori Bad ora si vedono su tutti gli oggetti»).
+8. **CasaDomotica** (il maintainer, 27-11-2026: «per casa domotica basta sistemare il progetto sul cloud»): l'elenco
+   degli oggetti da adeguare (`quality_display: "none"` dove un tag spesso Bad non deve mostrare il «?») si applica
+   solo al progetto sul cloud, col sì del maintainer e la copia di sicurezza; il pannello lo riceve col deploy.
 
 ## Stato (24-11-2026)
 
