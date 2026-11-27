@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { scheda, titoletto } from "@/ui/base";
-import { avviso, chiedi, conferma, scegli } from "@/finestraAvviso/finestraAvviso";
+import { avviso, chiedi, conferma } from "@/finestraAvviso/finestraAvviso";
+import { scegliVersione } from "@/components/sceltaVersione";
 import { Icona } from "@/components/Icona";
 
 /**
@@ -40,8 +41,6 @@ type Riga = {
   blocco_versione?: string;
 };
 
-/** How many published versions the cap menu offers, the newest first. */
-const CAP_CHOICES = 30;
 type Elenco = {
   abbinati: Riga[];
   dichiarati: { nome: string; azienda: string; collegato: boolean; spento_ms?: number }[];
@@ -124,16 +123,17 @@ export function Pannelli() {
       setErr(e instanceof Error ? e.message : String(e));
       return;
     }
-    const newest = [...published].reverse().slice(0, CAP_CHOICES);
-    if (r.blocco_versione && !newest.includes(r.blocco_versione)) newest.unshift(r.blocco_versione);
+    // A drop-down list, newest first (27-11-2026): before, 30 buttons in
+    // rows with no visible order.
+    const versions = r.blocco_versione && !published.includes(r.blocco_versione)
+      ? [...published, r.blocco_versione] : published;
     const NONE = "";
-    const picked = await scegli<string>({
+    const picked = await scegliVersione({
       titolo: t("console.pannelli.bloccoTitolo", { nome: r.nome }),
       testo: t("console.pannelli.bloccoTesto"),
-      scelte: [
-        { valore: NONE, etichetta: t("console.pannelli.bloccoRimuovi") },
-        ...newest.map((v) => ({ valore: v, etichetta: v === r.blocco_versione ? `${v} ✓` : v })),
-      ],
+      versioni: versions,
+      iniziale: r.blocco_versione ?? NONE,
+      nessuna: t("console.pannelli.bloccoRimuovi"),
     });
     if (picked === null) return;
     try {

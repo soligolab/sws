@@ -6348,5 +6348,11 @@
     "cancel": "Annulla",
     "addOk": "Aggiungi",
     "editOk": "Sostituisci"
+  },
+  "sceltaVersione": {
+    "recente": "la più recente",
+    "inUso": "quella che gira",
+    "ordine": "{{n}} versioni, dall'alto la più recente, in basso la più vecchia.",
+    "applica": "Applica"
   }
 }

@@ -28,6 +28,18 @@ vi.mock("@/finestraAvviso/finestraAvviso", () => ({
   chiedi: vi.fn(),
   avviso: vi.fn(),
 }));
+// The drop-down of the versions (27-11-2026): its entries, newest first, as
+// the old list of buttons, so the assertions below stay the same.
+vi.mock("@/components/sceltaVersione", () => ({
+  scegliVersione: vi.fn(async (o: { testo: string; versioni: string[]; nessuna?: string }) => {
+    dialogs.asked.push(o.testo);
+    dialogs.choices.push([
+      ...(o.nessuna !== undefined ? [{ valore: "", etichetta: o.nessuna }] : []),
+      ...[...o.versioni].reverse().map((v) => ({ valore: v, etichetta: v })),
+    ]);
+    return dialogs.pick;
+  }),
+}));
 
 import { AggiornamentoRuntime } from "../src/boot/AggiornamentoRuntime";
 import { Pannelli } from "../src/console/Pannelli";

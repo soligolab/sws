@@ -10,7 +10,8 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, type StatoAggiornamento, type UpdateChannelName, type UpdateVersions } from "@/api/client";
-import { conferma, scegli } from "@/finestraAvviso/finestraAvviso";
+import { conferma } from "@/finestraAvviso/finestraAvviso";
+import { scegliVersione } from "@/components/sceltaVersione";
 
 /** The menu entry that opens «Fix a version…» (26-11-2026). It is not a
  *  channel: choosing it opens the list of versions. */
@@ -67,11 +68,11 @@ export function UpdateChannel({ stato, onChanged, onSwitchStarted, onBusy }: {
       setError(t("aggiornamento.fissaNessuna"));
       return;
     }
-    const picked = await scegli<string>({
+    const picked = await scegliVersione({
       titolo: t("aggiornamento.fissaTitolo"),
       testo: t("aggiornamento.fissaTesto", { running: versions.running }),
-      // The newest first: it is the one people look for.
-      scelte: [...versions.versions].reverse().map((v) => ({ valore: v, etichetta: v })),
+      versioni: versions.versions,
+      inUso: versions.running,
     });
     if (!picked) return;
     if (!(await conferma({ testo: t("aggiornamento.fissaConferma", { a: picked }) }))) return;

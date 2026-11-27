@@ -13,6 +13,13 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 Il lavoro della **2.28.0** (versioni `2.28.0-dev.N`), da `main`.
 
+### Corretto — la scelta di una versione in un menù a tendina (27-11-2026, ramo `fix/scelta-versione`)
+
+- **Il blocco di versione della console e «Fissa una versione…» dell'IDE** scelgono la versione da un menù a tendina
+  (`components/sceltaVersione.tsx`), dalla più recente alla più vecchia, con le note «la più recente» e «quella che
+  gira» e una riga che dice l'ordine. Prima ogni versione era un pulsante, e trenta pulsanti andavano a capo senza un
+  ordine visibile (collaudo della dev.5 sul WP630). Il blocco offre tutte le versioni pubblicate, non più le ultime 30.
+
 ### Corretto — le anomalie del collaudo della dev.4 sul WP630 (27-11-2026, ramo `fix/collaudo-dev4`)
 
 - **«Sostituisci anche gli utenti» ricorda il «no».** Un deploy fatto con la casella spenta registra l'impronta degli
