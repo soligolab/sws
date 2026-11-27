@@ -27,6 +27,20 @@
 
 ---
 
+## Collaudo 2.28.0-dev.6 (da fare, 28-11-2026, TC620 di casa) — l'immagine base, la versione a tendina
+
+Piano [`2026-11-27-immagine-base-del-sistema.md`](plans/2026-11-27-immagine-base-del-sistema.md) e le voci 2-3 del
+piano 2 qui sotto. Gateway di sws.soligo.net sulla dev.6 (`f17278e5`). Misurato su ghcr.io il 27-11: i primi due
+strati della dev.6 sono quelli di `sws-base:2026.11.1` su arm64 e amd64; da un pannello sulla dev.5 l'arm64 scarica
+38,8 MB su 200,2.
+
+1. [ ] L'aggiornamento del TC620 alla dev.6: il pull scarica solo gli strati di SWS. Da un pannello sulla 2.27.0 si
+       scarica anche il sistema una volta (la 2.27.0 ha strati diversi, costruita su un'altra macchina); dalla
+       dev.4 o dalla dev.5 no.
+2. [ ] Il blocco di versione della console e «Fissa una versione…» dell'IDE: un menù a tendina, dalla più recente alla
+       più vecchia, con «la più recente» e «quella che gira».
+3. [ ] Le voci 2 e 3 del piano 2 qui sotto (togliere il blocco; «Fissa una versione…» e ritorno al canale).
+
 ## Collaudo della versione fissata e del blocco (27-11-2026, WP630) — piano 2 di `/chiudi-plan-aperti`
 
 Piano [`2026-11-26-versione-fissata-e-blocco.md`](plans/2026-11-26-versione-fissata-e-blocco.md), codice dalla
@@ -40,7 +54,7 @@ dev.2. Pannello `wp630-a-p3-07a077.local` sulla dev.4, canale Sviluppo; gateway 
 3. [ ] «Fissa una versione…»: il pannello passa all'immagine fissata, senza `AutoUpdate`; poi si torna al canale.
 
 Il maintainer farà i test 2 e 3 nel fine settimana sul TC620 di casa. Anomalia, già corretta sul ramo
-`fix/scelta-versione` (commit `3721c544`, non ancora in un'immagine):
+`fix/scelta-versione` (squashato in `main` come `7eeab8cd`, nella **2.28.0-dev.6**):
 - [ ] l'elenco delle versioni del blocco è fatto di pulsanti senza un ordine visibile → menù a tendina dalla più recente
       alla più vecchia, anche per «Fissa una versione…».
 

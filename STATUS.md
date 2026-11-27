@@ -12,6 +12,24 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — 2.28.0-dev.6 sulla base nuova, gateway aggiornato; collaudo domani sul TC620 (2026-11-27 sera, `ufficio`)
+
+- **`2.28.0-dev.6` pushata e costruita** (arm64 e amd64, 23 min da `ufficio`), gateway di sws.soligo.net sulla dev.6
+  (`f17278e5`, tutti i container `healthy`). Dentro:
+  - `7eeab8cd`: il blocco di versione e «Fissa una versione…» con un menù a tendina (ex ramo `fix/scelta-versione`);
+  - `ef591e95`: **l'immagine base del sistema**. `ghcr.io/soligolab/sws-base:2026.11.1` (pubblica) per arm64 e amd64,
+    ricavata con `scripts/base_from_image.py` dagli strati della dev.5, senza ricompressione; `deploy/container/BASE`
+    col digest; i Containerfile del runtime con `FROM ${BASE}` e senza `apt-get`; `build_base.sh`, `check_base.sh`,
+    HOWTO §36. Misurato su ghcr.io: i primi due strati della dev.6 sono quelli della base; dalla dev.5 l'arm64
+    scarica 38,8 MB su 200,2.
+- **Collaudo di domani** (il maintainer, dal PC): `docs/COLLAUDI_IN_SOSPESO.md`, sezione «Collaudo 2.28.0-dev.6» —
+  l'aggiornamento del TC620 che scarica solo gli strati di SWS, la tendina, le voci 2-3 del piano 2.
+- **`/chiudi-plan-aperti`**: piano 1 (immagine base) fatto, da collaudare; piani 2, 3 e 4 aspettano il collaudo;
+  **il prossimo da implementare è il piano 5**, la parte C del
+  [Bad di default](docs/plans/2026-11-24-residui-rc30-e-bad-di-default.md) (decisioni B2–B4 prese). CasaDomotica si
+  adegua solo nel progetto sul cloud (punto C.8, il maintainer, 27-11).
+- **Il WP630 dell'ufficio resta bloccato alla 2.28.0-dev.4** dalla console: «No cap» perché riprenda gli aggiornamenti.
+
 ## ▶ Riprendere da qui — `/chiudi-plan-aperti` al piano 2, test 2 e 3 sul TC620; ramo `fix/scelta-versione` aperto (2026-11-27 sera, `elitebook`)
 
 - **Ramo aperto: `fix/scelta-versione`** (commit `3721c544`): il blocco di versione della console e «Fissa una
