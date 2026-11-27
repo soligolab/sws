@@ -1,6 +1,7 @@
 # L'immagine base del sistema: il sistema operativo in uno strato con un nome, i binari sopra (27-11-2026)
 
-> **Stato: piano da rivedere con il maintainer** (27-11-2026). Le domande sono in fondo, nella sezione «Da decidere».
+> **Stato: pronto** (27-11-2026). Il maintainer ha approvato le 6 proposte di «Da decidere» il 27-11-2026.
+> Primo passo quando si apre il ramo: misurare i digest degli strati del punto 6.
 
 ## Contesto
 
