@@ -22,7 +22,14 @@
   sezione «Collaudo della versione fissata e del blocco»): togliere il blocco, «Fissa una versione…» e ritorno al canale.
 - **Il WP630 dell'ufficio resta bloccato alla 2.28.0-dev.4** dalla console: va tolto il blocco («No cap») perché
   riprenda gli aggiornamenti.
-- `main` e origin: la dev.5 è pushata; i commit meta dopo (`f0d14083`, `89455745` e questo) sono solo locali.
+- **Fine giornata, pushato**: `main` con i commit meta e `style(rust): cargo fmt` (16 blocchi di formattazione dei file
+  del giorno); il ramo `fix/scelta-versione` è su origin come ramo, da provare nel fine settimana e poi squashare.
+  Controlli della CI verdi da qui: `cargo fmt --check`, clippy `-D warnings`, `cargo audit` (solo avvisi ammessi),
+  `pnpm lint`, `pnpm type-check`.
+- **Oggi, in breve**: dev.4 (cambio di nome del progetto, Save nella testata, tema chiaro, sezioni di Tags) e dev.5 (le
+  anomalie della dev.4), tutte e due collaudate sul WP630; gateway sulla dev.5; piani archiviati: Save nella testata e
+  cambio di nome; piano nuovo pronto: [l'immagine base del sistema](docs/plans/2026-11-27-immagine-base-del-sistema.md);
+  semi: il Live value grezzo o formattato, la finestra del cambio di nome (punto 3 del seme delle conferme).
 
 ## ▶ Riprendere da qui — 2.28.0-dev.4 uscita e collaudata sul WP630; `/chiudi-plan-aperti` al piano 1 (2026-11-27, `elitebook`)
 
