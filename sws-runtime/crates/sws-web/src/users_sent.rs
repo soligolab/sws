@@ -179,7 +179,10 @@ mod tests {
             Pending::NeverSent
         );
         // A panel without users receives them anyway.
-        assert_eq!(pending(true, None, Some(&fa), Some(a)), Pending::FirstDeploy);
+        assert_eq!(
+            pending(true, None, Some(&fa), Some(a)),
+            Pending::FirstDeploy
+        );
     }
 
     #[tokio::test]
@@ -191,7 +194,10 @@ mod tests {
             Some(fingerprint(b"x"))
         );
         record(dir.path(), "https://ty.local:7444", b"x").await;
-        assert_eq!(last_declined(dir.path(), "https://ty.local:7444").await, None);
+        assert_eq!(
+            last_declined(dir.path(), "https://ty.local:7444").await,
+            None
+        );
     }
 
     #[tokio::test]

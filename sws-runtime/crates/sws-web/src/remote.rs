@@ -1480,7 +1480,9 @@ fn riferisci_piano_utenti(
     }
     if utenti_progetto.is_empty() {
         if device_admin {
-            send("ⓘ Il progetto non ha utenti: sul dispositivo resta solo l'Admin del dispositivo.");
+            send(
+                "ⓘ Il progetto non ha utenti: sul dispositivo resta solo l'Admin del dispositivo.",
+            );
         } else {
             send("⚠ Il progetto non ha utenti: il dispositivo resterà senza account.");
         }
@@ -3357,11 +3359,9 @@ pub(crate) fn replace_decision(
         };
     }
     let plant_id = plant_id.filter(|id| !id.is_empty());
-    if let Some(heir) = plant_id.and_then(|id| {
-        others
-            .iter()
-            .find(|p| p.plant_id.as_deref() == Some(id))
-    }) {
+    if let Some(heir) =
+        plant_id.and_then(|id| others.iter().find(|p| p.plant_id.as_deref() == Some(id)))
+    {
         // The same plant: no question about it. The other projects (if any)
         // are deleted, and that still needs the plain yes.
         return if others.len() == 1 || confirmed {
@@ -3781,10 +3781,8 @@ pub async fn remote_deploy(
                 "progetti": da_sostituire,
             });
             if let Some(choices) = choices {
-                corpo["scelte"] = serde_json::json!(choices
-                    .iter()
-                    .map(|c| c.as_str())
-                    .collect::<Vec<_>>());
+                corpo["scelte"] =
+                    serde_json::json!(choices.iter().map(|c| c.as_str()).collect::<Vec<_>>());
                 corpo["erede"] = serde_json::json!(heir);
                 // With the box on, «same plant» keeps history and backups but
                 // the users come from the project: the answer has to say so,
@@ -5244,7 +5242,10 @@ sources:
             &send,
         );
         let testo = righe.borrow().join("\n");
-        assert!(testo.contains("si cancella dal pannello con i suoi utenti"), "{testo}");
+        assert!(
+            testo.contains("si cancella dal pannello con i suoi utenti"),
+            "{testo}"
+        );
         assert!(testo.contains("sostituiti"), "{testo}");
         assert!(!testo.contains("non toccati"), "{testo}");
 
@@ -5268,7 +5269,10 @@ sources:
         // A project without users on a panel with a device Admin (collaudo of
         // 27-11-2026 on the PLX800): the device Admin stays, the log says so.
         let nessuno: Vec<String> = vec![];
-        for (device_admin, atteso) in [(true, "resta solo l'Admin del dispositivo"), (false, "senza account")] {
+        for (device_admin, atteso) in [
+            (true, "resta solo l'Admin del dispositivo"),
+            (false, "senza account"),
+        ] {
             righe.borrow_mut().clear();
             riferisci_piano_utenti(
                 true,

@@ -1958,7 +1958,10 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let store = SqliteStore::open(dir.path().join("h.db")).await.unwrap();
         write(&store, "a", &[(1, 1.0), (2, 2.0)]).await;
-        let o = store.apply_tag_renames(&[rn("r1", "a", "b")]).await.unwrap();
+        let o = store
+            .apply_tag_renames(&[rn("r1", "a", "b")])
+            .await
+            .unwrap();
         assert_eq!(o.applied, 1);
         assert!(values(&store, "a").await.is_empty());
         assert_eq!(values(&store, "b").await, [(1, 1.0), (2, 2.0)]);
@@ -1973,7 +1976,10 @@ mod tests {
         let store = SqliteStore::open(dir.path().join("h.db")).await.unwrap();
         write(&store, "a", &[(1, 1.0), (2, 2.0), (3, 3.0)]).await;
         write(&store, "b", &[(3, 30.0), (4, 40.0)]).await;
-        store.apply_tag_renames(&[rn("r1", "a", "b")]).await.unwrap();
+        store
+            .apply_tag_renames(&[rn("r1", "a", "b")])
+            .await
+            .unwrap();
         assert_eq!(
             values(&store, "b").await,
             [(1, 1.0), (2, 2.0), (3, 30.0), (4, 40.0)]

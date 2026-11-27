@@ -2067,7 +2067,10 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
             "/api/projects/:azienda/:nome/rename",
             post(pj::rename_project),
         )
-        .route("/api/projects/:nome/rename", post(pj::rename_project_implicito))
+        .route(
+            "/api/projects/:nome/rename",
+            post(pj::rename_project_implicito),
+        )
         // ── Pull: il verso opposto ─────────────────────────────────────────
         .route("/api/project/export", get(export_project_zip))
         // ── Stato, che l'IDE legge per dire com'è il dispositivo ───────────
@@ -6850,7 +6853,10 @@ async fn update_project_tags(
     // I tipi struttura (Fase 1b) si rileggono dal file appena scritto: questa
     // rotta non li tocca, ma le forme delle istanze dipendono da loro.
     let progetto = Project::load(&dir).ok();
-    let tipi = progetto.as_ref().map(|p| p.types.clone()).unwrap_or_default();
+    let tipi = progetto
+        .as_ref()
+        .map(|p| p.types.clone())
+        .unwrap_or_default();
     crate::projects::apply_tags(&s.db, &s.derived_tags, &s.generator_tags, &per_db, &tipi).await;
     if let Some(p) = &progetto {
         refresh_history_routes(&s, p).await;
@@ -6998,7 +7004,10 @@ async fn update_project_types(
         return res;
     }
     let progetto = Project::load(&dir).ok();
-    let tags = progetto.as_ref().map(|p| p.tags.clone()).unwrap_or_default();
+    let tags = progetto
+        .as_ref()
+        .map(|p| p.tags.clone())
+        .unwrap_or_default();
     crate::projects::apply_tags(&s.db, &s.derived_tags, &s.generator_tags, &tags, &per_db).await;
     if let Some(p) = &progetto {
         refresh_history_routes(&s, p).await;

@@ -642,7 +642,9 @@ datastores:
         ids.sort();
         assert_eq!(ids, ["motore1.marcia", "motore1.velocita", "piatto2"]);
         assert_eq!(
-            reg.routes.read().await["motore1.velocita"].filter.last_ts_ms,
+            reg.routes.read().await["motore1.velocita"]
+                .filter
+                .last_ts_ms,
             77,
             "an unchanged route keeps its state"
         );

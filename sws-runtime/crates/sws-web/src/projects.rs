@@ -5051,7 +5051,10 @@ mod plant_identity_tests {
         assert!(copy.join("users.yaml").exists(), "users are copied");
         assert!(copy.join("synoptics/home.yaml").exists());
         let p = sws_core::Project::load(&copy).unwrap();
-        assert!(p.tag_renames.is_empty(), "the renames move the original's history");
+        assert!(
+            p.tag_renames.is_empty(),
+            "the renames move the original's history"
+        );
         // The copy of the same plant keeps them: the history comes along.
         duplicate(&s, "Casa", serde_json::json!({ "new_name": "Casa 2" })).await;
         let p = sws_core::Project::load(&dir.join("Casa 2")).unwrap();
@@ -5060,7 +5063,12 @@ mod plant_identity_tests {
         // A project made before the field: the copy of the same plant does
         // not invent one, another plant gets one.
         plant(&dir, "Vecchio", None);
-        duplicate(&s, "Vecchio", serde_json::json!({ "new_name": "Vecchio 2" })).await;
+        duplicate(
+            &s,
+            "Vecchio",
+            serde_json::json!({ "new_name": "Vecchio 2" }),
+        )
+        .await;
         assert_eq!(meta(&dir.join("Vecchio 2")).plant_id, None);
         duplicate(
             &s,
@@ -5191,7 +5199,10 @@ mod plant_identity_tests {
         }
         let row = row.expect("a project.rename row in the audit log");
         assert!(row["detail"]["from"].as_str().unwrap().ends_with("Casa"));
-        assert!(row["detail"]["to"].as_str().unwrap().ends_with("Casa nuova"));
+        assert!(row["detail"]["to"]
+            .as_str()
+            .unwrap()
+            .ends_with("Casa nuova"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
