@@ -13,6 +13,16 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 Il lavoro della **2.28.0** (versioni `2.28.0-dev.N`), da `main`.
 
+### Corretto — il tema chiaro dell'IDE e le righe della scheda Tags (27-11-2026, ramo `fix/tema-chiaro-e-righe-tag`)
+
+- **Il tema chiaro nello stile colorato** imposta i 19 token `--sws-*` (`colorfulLightTokens` in `theme.ts`). Prima
+  li toglieva, e i valori di ripiego sono i colori scuri: l'avviso blu di Tags, la riga del generatore e il pulsante
+  Deploy restavano scuri su fondo chiaro.
+- **Tags, le sezioni della variabile** (meta, espressione, generatore): si aprono e si chiudono sempre col loro
+  pulsante, anche con dati dentro; il pulsante di una sezione con dati ha lo sfondo colorato (`bottoneDettaglio`); le
+  sezioni prendono lo sfondo della riga, una barra d'accento le unisce alla variabile, e il contenuto parte dalla
+  colonna Tag ID. I pulsanti della riga stanno su una linea, della stessa altezza.
+
 ### Cambiato — il Save nella testata fissa delle schede (27-11-2026, ramo `feat/save-nella-testata`)
 Piano `docs/archive/2026-11-25-save-nella-testata.md`, regola UI 4 di `CLAUDE.md`.
 

@@ -349,6 +349,29 @@ export function soberTokens(t: SoberTheme, variant: ResolvedTheme): Record<IdeTo
   };
 }
 
+/** The values of `IDE_TOKENS` in the colourful style with the light theme
+ *  (27-11-2026). The hand-written fallbacks of `var(--sws-<name>, #…)` are the
+ *  dark colours of always, so the colourful light IDE painted dark strips: the
+ *  blue notice of the Tags tab, the generator row, the Deploy button. Now the
+ *  colourful light theme sets the tokens from its own neutrals and states; the
+ *  colourful dark theme still removes them and keeps the fallbacks. */
+export function colorfulLightTokens(primary: string): Record<IdeToken, string> {
+  const n = LIGHT_NEUTRALS;
+  const st = LIGHT_STATUS;
+  return {
+    "select-bg": "#dbeafe", "select-text": "#1e3a8a", "select-border": "#93c5fd",
+    "accent": primary, "on-accent": readableOn(primary),
+    "danger-bg": st.dangerBg, "danger-border": st.danger, "danger-text": st.dangerSoft,
+    "warning-bg": st.warningBg, "warning-border": st.warning, "warning-text": st.warningSoft,
+    "success-bg": st.successBg, "success-border": st.success, "success-text": st.successSoft,
+    "surface": n.surface,
+    "sunken": n.surface2,
+    "border": n.border,
+    "text": n.text,
+    "muted": n.textMuted,
+  };
+}
+
 /** The contrasts the IDE preferences show next to the pickers. */
 export function soberContrasts(c: SoberColors, variant: ResolvedTheme) {
   const t = soberTheme(c, variant);
@@ -530,7 +553,8 @@ export function applyAppearance(mode: ThemeMode): ResolvedTheme {
   for (const [group, [dark, light]] of Object.entries(GROUP_COLORS)) {
     s.setProperty(groupVar(group), sober ? neutrals.textMuted : resolved === "light" ? light : dark);
   }
-  const tokens = sober ? soberTokens(sober, resolved) : null;
+  const tokens = sober ? soberTokens(sober, resolved)
+    : resolved === "light" ? colorfulLightTokens(primary) : null;
   for (const name of IDE_TOKENS) {
     if (tokens) s.setProperty(`--sws-${name}`, tokens[name]);
     else s.removeProperty(`--sws-${name}`);

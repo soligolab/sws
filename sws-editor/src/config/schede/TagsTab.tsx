@@ -28,6 +28,23 @@ import { AiFieldButton } from "@/components/AiFieldButton";
 
 type TagSortCol = "id" | "description" | "data_type" | "history" | "datastore_id" | "value";
 
+/** The style of a detail button of a tag row (λ, ⚙, ∿; 27-11-2026). A
+ *  section with data has a tinted button; an open section has the accent
+ *  border. The tokens are the ones every style sets (colourful dark and
+ *  light, sober), so the mark reads in all of them. */
+export function bottoneDettaglio(hasData: boolean, open: boolean): React.CSSProperties {
+  return {
+    ...S.btn("ghost"),
+    fontWeight: "bold",
+    ...(hasData ? {
+      background: "var(--sws-select-bg, #172554)",
+      color: "var(--sws-select-text, #93c5fd)",
+      borderColor: "var(--sws-select-border, #1e40af)",
+    } : { color: "var(--brand-text-subtle, #94a3b8)" }),
+    ...(open ? { boxShadow: "inset 0 -2px 0 var(--brand-primary, #3b82f6)" } : {}),
+  };
+}
+
 export function TagsTab({ scheda }: { scheda: IdScheda }) {
   const { t } = useTranslation();
   const storeProject        = useAppStore((s) => s.project);
@@ -490,16 +507,42 @@ export function TagsTab({ scheda }: { scheda: IdScheda }) {
             const scelta = radiceScelta !== null && tag.id === radiceScelta;
             const foglie = foglieDiTolleranti(tag, storeProject?.types ?? []);
             const aperta = foglie.length > 0 && aperte.has(tag.id);
+            // The detail rows (meta, expression, generator) belong to the
+            // variable above them (27-11-2026, the maintainer: «sembra un pezzo
+            // scollegato dalla variabile»). They take the background of their
+            // row, an accent bar on the left joins them to it, and there is no
+            // line between the variable and its details: the line comes after
+            // the last detail.
+            const rowBg = scelta ? "var(--brand-surface, #1e293b)" : unused ? "rgba(245,158,11,0.07)" : i % 2 === 0 ? "transparent" : "var(--brand-bg, #0f172a)";
+            const showMeta = metaOpen.has(i);
+            // Every detail opens and closes with its button, with or without
+            // data (27-11-2026, the maintainer). Before, a tag with an
+            // expression or a generator kept that row open for good.
+            const showExpr = exprOpen.has(i);
+            const showGen = genOpen.has(i);
+            const lastDetail = showGen ? "gen" : showExpr ? "expr" : showMeta ? "meta" : null;
+            const detailJoined = lastDetail !== null && !aperta && !scelta;
+            const tdRow = detailJoined ? { ...S.td, borderBottom: "none" } : S.td;
+            // The first cell of a detail row is empty and carries the accent
+            // bar; the content starts in the Tag ID column, aligned with the
+            // left edge of the name field (27-11-2026, the maintainer).
+            const detailTd = (which: "meta" | "expr" | "gen"): React.CSSProperties => ({
+              ...S.td,
+              ...(which === lastDetail ? {} : { borderBottom: "none" }),
+            });
+            const detailBar = (which: "meta" | "expr" | "gen") => (
+              <td style={{ ...detailTd(which), boxShadow: "inset 3px 0 0 var(--brand-primary, #3b82f6)" }} />
+            );
             return (
               <React.Fragment key={i}>
               <tr
                 ref={scelta ? rigaScelta : undefined}
                 style={{
-                  background: scelta ? "var(--brand-surface, #1e293b)" : unused ? "rgba(245,158,11,0.07)" : i % 2 === 0 ? "transparent" : "var(--brand-bg, #0f172a)",
+                  background: rowBg,
                   outline: scelta ? "1px solid var(--brand-primary, #3b82f6)" : undefined,
                 }}
               >
-                <td style={{ ...S.td, textAlign: "center" }}
+                <td style={{ ...tdRow, textAlign: "center", ...(detailJoined ? { boxShadow: "inset 3px 0 0 var(--brand-primary, #3b82f6)" } : {}) }}
                   title={unused ? t("cfg.unusedHint") : uses ? `${t("cfg.usedIn")}: ${uses.slice(0, 4).map((u) => u.where).join(", ")}${uses.length > 4 ? "…" : ""}` : ""}>
                   {unused
                     ? <span style={{ color: "var(--brand-warning, #f59e0b)", fontSize: 12 }}>●</span>
@@ -507,7 +550,7 @@ export function TagsTab({ scheda }: { scheda: IdScheda }) {
                       ? <span style={{ color: "var(--brand-surface-2, #334155)", fontSize: 12 }}>●</span>
                       : null}
                 </td>
-                <td style={S.td}>
+                <td style={tdRow}>
                   <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                     {foglie.length > 0 && (
                       <button type="button" data-testid={`espandi-${tag.id}`} onClick={() => apriChiudi(tag.id)}
@@ -525,7 +568,7 @@ export function TagsTab({ scheda }: { scheda: IdScheda }) {
                     />
                   </div>
                 </td>
-                <td style={S.td}>
+                <td style={tdRow}>
                   <input
                     style={S.input}
                     placeholder={t("cfg.descriptionOptional")}
@@ -533,7 +576,7 @@ export function TagsTab({ scheda }: { scheda: IdScheda }) {
                     onChange={(e) => updateTag(i, { description: e.target.value })}
                   />
                 </td>
-                <td style={S.td}>
+                <td style={tdRow}>
                   {/* Mostra il nome canonico (`int` → i64) ma scrive nel file solo
                       quando l'utente cambia: gli alias sopravvivono finché si vuole. */}
                   <select
@@ -560,7 +603,7 @@ export function TagsTab({ scheda }: { scheda: IdScheda }) {
                     )}
                   </select>
                 </td>
-                <td style={{ ...S.td, textAlign: "center" }}>
+                <td style={{ ...tdRow, textAlign: "center" }}>
                   <input
                     type="checkbox"
                     checked={tag.history ?? false}
@@ -568,7 +611,7 @@ export function TagsTab({ scheda }: { scheda: IdScheda }) {
                     style={{ cursor: "pointer" }}
                   />
                 </td>
-                <td style={S.td}>
+                <td style={tdRow}>
                   {datastoreIds.length > 0 ? (
                     <select
                       style={{ ...S.input, cursor: "pointer" }}
@@ -585,7 +628,7 @@ export function TagsTab({ scheda }: { scheda: IdScheda }) {
                     <span style={{ color: "var(--brand-text-subtle, #94a3b8)", fontSize: 11 }}>—</span>
                   )}
                 </td>
-                <td style={{ ...S.td, textAlign: "center" }}>
+                <td style={{ ...tdRow, textAlign: "center" }}>
                   {tv != null ? (
                     <span style={{
                       fontSize: 12,
@@ -597,46 +640,38 @@ export function TagsTab({ scheda }: { scheda: IdScheda }) {
                     <span style={{ color: "var(--brand-surface-2, #334155)", fontSize: 12 }}>—</span>
                   )}
                 </td>
-                <td style={{ ...S.td, textAlign: "right" }}>
+                <td style={{ ...tdRow, textAlign: "right" }}>
+                  {/* One line of buttons of the same height (27-11-2026). */}
+                  <div style={{ display: "flex", gap: 4, justifyContent: "flex-end", alignItems: "center", flexWrap: "nowrap" }}>
                   <button
-                    style={{
-                      ...S.btn("ghost"),
-                      marginRight: 4,
-                      color: tag.expression ? "var(--sws-select-text, #818cf8)" : "var(--brand-text-subtle, #94a3b8)",
-                      fontFamily: "monospace",
-                      fontWeight: "bold",
-                    }}
+                    data-testid={`dettaglio-expr-${i}`}
+                    aria-pressed={showExpr}
+                    style={{ ...bottoneDettaglio(!!tag.expression, showExpr), fontFamily: "monospace" }}
                     title={t("cfg.computedExpr")}
                     onClick={() => toggleExpr(i)}
                   >
                     λ
                   </button>
                   <button
-                    style={{
-                      ...S.btn("ghost"),
-                      marginRight: 4,
-                      color: hasMeta(tag) ? "var(--sws-select-text, #38bdf8)" : "var(--brand-text-subtle, #94a3b8)",
-                      fontWeight: "bold",
-                    }}
+                    data-testid={`dettaglio-meta-${i}`}
+                    aria-pressed={showMeta}
+                    style={bottoneDettaglio(hasMeta(tag), showMeta)}
                     title={t("cfg.tagMeta")}
                     onClick={() => toggleMeta(i)}
                   >
                     <Icona emoji="⚙" />
                   </button>
                   <button
-                    style={{
-                      ...S.btn("ghost"),
-                      marginRight: 4,
-                      color: tag.generator?.enabled ? "var(--sws-success-text, #34d399)" : "var(--brand-text-subtle, #94a3b8)",
-                      fontWeight: "bold",
-                    }}
+                    data-testid={`dettaglio-gen-${i}`}
+                    aria-pressed={showGen}
+                    style={bottoneDettaglio(!!tag.generator, showGen)}
                     title={t("cfg.tagGenerator")}
                     onClick={() => toggleGen(i)}
                   >
                     ∿
                   </button>
                   {dichiaratiSalvati.has(tag.id) && (
-                    <button style={S.btnXs} title={t("cfg.renameTag")} onClick={() => setRinominaDi(tag.id)}><Icona emoji="✎" /></button>
+                    <button style={S.btn("ghost")} title={t("cfg.renameTag")} onClick={() => setRinominaDi(tag.id)}><Icona emoji="✎" /></button>
                   )}
                   {/* Fase 0c: una variabile usata non si cancella — al salvataggio
                       rinascerebbe (regola 0b). Prima si tolgono i riferimenti. */}
@@ -644,6 +679,7 @@ export function TagsTab({ scheda }: { scheda: IdScheda }) {
                           disabled={!!uses}
                           title={uses ? t("cfg.deleteUsedHint", { n: uses.length, dove: uses.slice(0, 3).map((u) => u.where).join(", ") }) : undefined}
                           onClick={() => { if (!uses) removeTag(i); }}>✕</button>
+                  </div>
                 </td>
               </tr>
               {/* Le foglie di una variabile strutturata, in sola lettura: unità,
@@ -700,9 +736,10 @@ export function TagsTab({ scheda }: { scheda: IdScheda }) {
                   </td>
                 </tr>
               )}
-              {metaOpen.has(i) && (
-                <tr style={{ background: "var(--sws-sunken, #0a1628)" }}>
-                  <td colSpan={8} style={{ ...S.td, paddingTop: 6, paddingBottom: 8 }}>
+              {showMeta && (
+                <tr style={{ background: rowBg }}>
+                  {detailBar("meta")}
+                  <td colSpan={7} style={{ ...detailTd("meta"), paddingTop: 6, paddingBottom: 8 }}>
                     {tag.type_ref ? (
                       // Una struttura non ha un'unità sua: ce l'hanno i membri del
                       // tipo (02-11-2026). I campi di una variabile semplice qui
@@ -793,9 +830,10 @@ export function TagsTab({ scheda }: { scheda: IdScheda }) {
                   </td>
                 </tr>
               )}
-              {(exprOpen.has(i) || !!tag.expression) && (
-                <tr style={{ background: "var(--sws-sunken, #0a1628)" }}>
-                  <td colSpan={8} style={{ ...S.td, paddingTop: 4, paddingBottom: 6 }}>
+              {showExpr && (
+                <tr style={{ background: rowBg }}>
+                  {detailBar("expr")}
+                  <td colSpan={7} style={{ ...detailTd("expr"), paddingTop: 4, paddingBottom: 6 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <span style={{ fontSize: 11, color: "var(--sws-select-text, #818cf8)", minWidth: 70, fontFamily: "monospace" }}>
                         {t("cfgUi.lambdaEspressione")}
@@ -830,9 +868,10 @@ export function TagsTab({ scheda }: { scheda: IdScheda }) {
                   </td>
                 </tr>
               )}
-              {(genOpen.has(i) || !!tag.generator) && (
-                <tr style={{ background: "var(--sws-sunken, #0a1628)" }}>
-                  <td colSpan={8} style={{ ...S.td, paddingTop: 6, paddingBottom: 8 }}>
+              {showGen && (
+                <tr style={{ background: rowBg }}>
+                  {detailBar("gen")}
+                  <td colSpan={7} style={{ ...detailTd("gen"), paddingTop: 6, paddingBottom: 8 }}>
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
                       <span style={{ fontSize: 11, color: "var(--sws-success-text, #34d399)", width: 90, fontFamily: "monospace" }}>
                         ∿ {t("cfg.tagGenerator")}

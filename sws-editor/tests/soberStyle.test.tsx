@@ -131,6 +131,22 @@ describe("applying the style", () => {
   });
 });
 
+describe("the colourful light theme", () => {
+  it("sets the IDE tokens to light colours, so no strip stays dark; the texts read on their backgrounds", () => {
+    act(() => { useAppStore.getState().setIdeStyle("colorful"); });
+    applyAppearance("light");
+    for (const name of IDE_TOKENS) expect(css(`--sws-${name}`), name).not.toBe("");
+    // The blue notice and the tinted states: dark text on a light tint.
+    for (const [text, bg] of [["select-text", "select-bg"], ["danger-text", "danger-bg"],
+      ["warning-text", "warning-bg"], ["success-text", "success-bg"], ["text", "sunken"]] as const) {
+      expect(cr(css(`--sws-${text}`), css(`--sws-${bg}`)), `${text} on ${bg}`).toBeGreaterThanOrEqual(4.5);
+      expect(lum(css(`--sws-${bg}`)), bg).toBeGreaterThan(0.5);
+    }
+    applyAppearance("dark");
+    for (const name of IDE_TOKENS) expect(css(`--sws-${name}`), name).toBe("");
+  });
+});
+
 describe("the groups of Tools", () => {
   it("every group has its two colours, the ones the theme writes", () => {
     // A group without an entry would have a header with no colour at all.
