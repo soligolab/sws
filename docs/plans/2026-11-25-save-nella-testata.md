@@ -55,3 +55,11 @@ progetto `tiny-ty`. La pagina funziona, ma il segnale di salvataggio è debole. 
 `cargo check`, `cargo test`, `pnpm build`, `pnpm exec vitest run`, `./scripts/check_static.sh`. Nell'IDE: Tags,
 Alarms, Reports e Utenti con una lista lunga che scorre sotto la testata; il Save sempre visibile; la barra verde dopo
 il salvataggio; Ctrl+S. La conferma del maintainer con `/test-changes` su una dev.
+
+## Le decisioni del 27-11-2026
+
+- **La password nuova resta un'azione a parte**, con la sua finestra, e salva subito: una password non resta in una
+  bozza non salvata. Il resto della pagina Utenti (nome, ruolo, zone, scadenza della sessione) diventa bozza.
+- **Le 8 schede che usano ancora `SaveBar`** passano alla testata nello stesso ramo (punto 6).
+- Esce nella stessa dev del piano [cambio di nome del progetto](2026-11-27-cambio-di-nome-del-progetto.md), con un
+  ramo dopo l'altro.
