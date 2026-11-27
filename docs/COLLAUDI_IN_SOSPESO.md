@@ -27,15 +27,26 @@
 
 ---
 
+## Collaudo 2.28.0-dev.5 dal cloud (27-11-2026) — le anomalie della dev.4
+
+Gateway di sws.soligo.net sulla dev.5, pannello `wp630-a-p3-07a077.local` ancora sulla dev.4 (le due correzioni sono
+dell'IDE). Azioni dall'IDE del cloud, letture via ssh.
+
+1. [x] Dopo un deploy senza utenti, «New deploy» lascia spenta «Replace users too», con il testo `declined` —
+       confermato dal maintainer il 27-11-2026.
+2. [x] Con la casella accesa, «It is the same plant» dice «The users come from the project» — confermato dal
+       maintainer il 27-11-2026 (progetto `WP630_DemoTY570`, poi «Cancel»). La finestra si legge male: punto 3 del seme
+       [conferme di un deploy](plans/semi/2026-11-25-deploy-conferme-e-login-dopo-gli-utenti.md).
+
 ## Collaudo 2.28.0-dev.4 sul WP630 (27-11-2026) — il cambio di nome del progetto, le correzioni
 
 Pannello `user@wp630-a-p3-07a077.local`, canale Sviluppo, aggiornato da `2.28.0-dev.3` a `2.28.0-dev.4` con «Aggiorna
 ora»; gateway di sws.soligo.net sulla dev.4. Azioni dall'IDE del cloud, letture via ssh sul pannello e sul VPS. Le
 voci delle 4 correzioni sono nella sezione qui sotto. Anomalie, per il ramo `fix/collaudo-dev4`:
 
-- [ ] «New deploy» rimette la spunta su «Replace users too» anche dopo un deploy fatto senza utenti: `users-pending`
+- [x] (corretta nella dev.5, confermata il 27-11-2026) «New deploy» rimette la spunta su «Replace users too» anche dopo un deploy fatto senza utenti: `users-pending`
       ricorda solo gli utenti mandati, non il «no» della persona;
-- [ ] «It is the same plant» dice «utenti conservati», e subito dopo, con «Replace users too» accesa, il deploy chiede di
+- [x] (corretta nella dev.5, confermata il 27-11-2026) «It is the same plant» dice «utenti conservati», e subito dopo, con «Replace users too» accesa, il deploy chiede di
       sostituire gli utenti: le due domande in sequenza si contraddicono.
 
 ## Collaudo del ramo `feat/plant-id-e-rinomina-tag` sul PLX800 (27-11-2026) — il cambio di nome del progetto

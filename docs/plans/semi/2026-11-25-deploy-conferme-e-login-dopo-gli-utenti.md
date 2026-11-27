@@ -17,6 +17,13 @@ Collaudo della 2.27.0-dev.3 sul PLX800 (25-11-2026), deploy dall'IDE del cloud d
    tentativo conta nel blocco (5 errori → 60 s, `SWS_LOGIN_RATE_*` in `sws-runtime/src/main.rs`). Il maintainer ha poi
    provato a mano ed è arrivato al 429 «Too Many Requests» senza capire perché.
 
+3. **La finestra «Un progetto con un altro nome sul pannello» si legge male** (collaudo della 2.28.0-dev.5 sul WP630,
+   27-11-2026; il maintainer: «riorganizza il testo di quella videata perché è impaginato in un modo da essere
+   illeggibile»). Il testo è un blocco unico costruito da `testoSceltaImpianto` (`sws-editor/src/store/conferme428.ts`):
+   l'elenco dei progetti, la frase sull'impianto e una riga «• …» per ogni scelta, separati solo da righe vuote. I
+   pulsanti stanno sotto, in un ordine diverso dalle righe e su due righe (`Delete all` va a capo). Da rifare con le
+   scelte come schede o righe con il pulsante accanto alla sua spiegazione. Il maintainer: «alla prossima occasione».
+
 ## Le misure di oggi
 
 - Le conferme del deploy: `sws-editor/src/store/conferme428.ts` (le 428 del pannello, una alla volta) e la conferma

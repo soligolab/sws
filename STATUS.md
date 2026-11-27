@@ -25,7 +25,10 @@
 - **Piani archiviati oggi**: il Save nella testata, il cambio di nome del progetto. **Piano nuovo, pronto**:
   [l'immagine base del sistema](docs/plans/2026-11-27-immagine-base-del-sistema.md) (proposte approvate). **Seme
   nuovo**: [il Live value grezzo o formattato](docs/plans/semi/2026-11-27-valore-live-grezzo-o-formattato.md).
-- **`/chiudi-plan-aperti`**: piano 1 chiuso; dopo `fix/collaudo-dev4` si passa al piano 2,
+- **`2.28.0-dev.5`** (le due anomalie della dev.4) pushata, costruita, gateway aggiornato; **collaudo dal cloud: 2 su 2**.
+  La finestra «un progetto con un altro nome» si legge male: punto 3 del seme delle conferme di un deploy, «alla
+  prossima occasione».
+- **`/chiudi-plan-aperti`**: piano 1 chiuso; ora il piano 2,
   [la versione fissata e il blocco](docs/plans/2026-11-26-versione-fissata-e-blocco.md).
 - **CasaDomotica**: al primo deploy dalla dev.4 non ha `plant_id` e arriva la domanda con 3 scelte: va scelto «stesso
   impianto», altrimenti si perde lo storico.
