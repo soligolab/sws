@@ -53,6 +53,11 @@ versioni:
         en: "In the IDE's Channel menu, «Fix a version…»: the panel goes to the version you select and does not update by itself."
       - it: "La console della piattaforma può bloccare un pannello fino a una versione: il blocco non aggiorna e non riavvia niente."
         en: "The platform console can cap a panel at a version: the cap does not update or restart anything."
+      - it: "Il blocco di versione e «Fissa una versione…» scelgono da un menù a tendina, dalla versione più recente alla più vecchia."
+        en: "The version cap and «Fix a version…» select from a drop-down list, from the newest version to the oldest."
+      # L'immagine base del sistema (piano docs/plans/2026-11-27-immagine-base-del-sistema.md).
+      - it: "Un aggiornamento scarica solo i file di SWS: il sistema operativo del pannello si scarica di nuovo solo quando cambia."
+        en: "An update downloads only the SWS files: the operating system of the panel downloads again only when it changes."
       # Le anomalie del collaudo del 26-11-2026 sul PLX800.
       - it: "Dopo «Elimina il progetto sul runtime» lo schermo del pannello lascia il sinottico: i valori non sembrano più vivi."
         en: "After «Delete project on the runtime» the panel screen leaves the synoptic: the values no longer look live."
