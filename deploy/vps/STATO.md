@@ -173,7 +173,14 @@ resta 404: così un bundle che manca non torna come HTML con stato 200.
 (`10.89.0.x`): il limite di 20 richieste/s vale per tutti insieme finché non c'è l'indirizzo vero (seme «indirizzo vero
 dietro Traefik»). Si aggiorna con `scripts/manuale/pubblica.sh`.
 
-**Versione in esecuzione: `183e33d4-amd64` (2.28.0-dev.3)** dal 26-11-2026, 18:59, su richiesta del maintainer («ok a
+**Versione in esecuzione: `f270f587-amd64` (2.28.0-dev.4)** dal 27-11-2026, su richiesta del maintainer («sì aggiorna il
+gateway»): l'identità d'impianto e il deploy con un altro nome, il Save nella testata, il tema chiaro dell'IDE. Sequenza
+solita da `ut1-HP-EliteBook-850-G6`: copia maestra e macchina uguali, `podman pull`, copia
+`sws-gateway.container.prima-2.28dev4`, `sed` del commit, `daemon-reload`, `restart`. Verificato: gateway,
+`katodo-Pompa` e `CasaDomotica (TC620_Verticale)` su `f270f587`, `SWS_VERSION` = 2.28.0-dev.4, radice 200, `/health`
+«ok». Ripiego la dev.3 (`183e33d4-amd64`).
+
+Prima: **Versione in esecuzione: `183e33d4-amd64` (2.28.0-dev.3)** dal 26-11-2026, 18:59, su richiesta del maintainer («ok a
 squash push e gateway»): la versione fissata e il blocco di versione della console (rotte
 `/api/amministrazione/pannelli/:nome/blocco` e `/api/amministrazione/versioni`), più le correzioni del collaudo sul
 PLX800. La dev.2 non è mai andata sul gateway. Sequenza solita da `ut1-HP-EliteBook-850-G6`: copia maestra e macchina
