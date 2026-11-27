@@ -17,59 +17,13 @@
 # (immagine legacy, disattivata in CI) e da `Containerfile.aarch64` (device
 # Pixsys Yocto). Vedi docs/DEPLOY_CONTAINER_X86_64.md.
 
-# `ubuntu:24.04`, la STESSA base dell'immagine aarch64.
-#
-# Non è una preferenza: la base la impone il binario. PyO3 gira con
-# `auto-initialize`, quindi il binario linka la `libpython` dell'ambiente che lo
-# compila. Prima si compilava sull'host e la riga `FROM` andava riverificata a
-# mano su ogni macchina di build — una Debian 12 produce un binario che chiede
-# `libpython3.11.so.1.0`, una macchina con pyenv `libpython3.13`, e l'immagine
-# risultava diversa da una postazione all'altra.
-#
-# Ora il binario si compila dentro `Containerfile.x86_64.builder`, che è pure
-# `ubuntu:24.04`: linka Python 3.12 e glibc 2.39, cioè esattamente ciò che
-# questa base offre. La verifica `readelf` non è sparita, la fa
-# `build_container_x86_64.sh` sul binario prodotto e si ferma se non combacia.
-#
-# Il risultato è che le due architetture sono gemelle: aarch64 ha l'SDK Yocto
-# Pixsys a garantire un binario sempre uguale, x86_64 ha l'immagine builder.
-# The base by digest, not by tag (22-11-2026): the builds of the different
-# architectures run in parallel now, and a local `ubuntu:24.04` tag flips its
-# architecture at every pull with another --platform. The digest is the
-# multi-arch index: --platform still picks the architecture. Updated by hand,
-# like rustc below, when we decide to take Ubuntu's updates.
-FROM docker.io/library/ubuntu:24.04@sha256:9c7f200c07e3d4a03e7249d2c16bf66a51120fb876aa2242cf31451412543289
-
-# python3: PyO3 gira con `auto-initialize`, quindi serve l'interprete completo
-#   (stdlib inclusa), non la sola libpython.
-# python3-pip + RestrictedPython: senza, il motore script parte NON sandboxato
-#   con un warning all'avvio. L'immagine legacy aveva esattamente questo buco.
-# curl: usato dall'HEALTHCHECK qui sotto.
-#
-# Il viewer LVGL (10-11-2026), sotto WITH_LVGL come nel gemello aarch64: qui
-# serve SOLO a `--istantanea`, la foto di una pagina che l'assistente dell'IDE
-# nel cloud chiede con `istantanea_pagina`. Nessuno schermo, quindi niente di
-# quello che sul pannello serve a disegnare (EGL, GLES, Mesa, Wayland): le sole
-# librerie che il binario chiede per partire (NEEDED) e i font.
-# Niente libsdl2-2.0-0: qui SDL2 è statico nel viewer (feature `sdl-statico`),
-#   perché il pacchetto di Ubuntu tira dentro libgbm → Mesa → LLVM, 270 MB per
-#   una libreria che `--istantanea` non inizializza mai.
-# libdrm2: il viewer la chiede per partire (percorso DRM/KMS diretto).
-# libfreetype6 + fonts-dejavu-core: il testo, come sul pannello (Q24).
-ARG WITH_LVGL=0
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-        ca-certificates \
-        curl \
-        python3 \
-        libpython3.12t64 \
-        git \
-        openssh-client \
-        python3-pip \
-        $( [ "$WITH_LVGL" = "1" ] && echo libdrm2 libfreetype6 fonts-dejavu-core ) && \
-    pip install --no-cache-dir --break-system-packages "RestrictedPython>=7.0" && \
-    apt-get purge -y python3-pip && apt-get autoremove -y && \
-    rm -rf /var/lib/apt/lists/*
+# The operating system comes from the SWS base image (Containerfile.base.<arch>),
+# pinned by digest in deploy/container/BASE. The build scripts pass it as
+# --build-arg BASE=…; without it the build stops (no default on purpose: a
+# base that changes by itself is the defect the base image removes). Plan
+# docs/plans/2026-11-27-immagine-base-del-sistema.md.
+ARG BASE
+FROM ${BASE}
 
 # L'intera bin/: con il viewer (default di build_container_x86_64.sh) ci sono
 # sws-runtime e sws-lvgl-viewer, che istantanea.rs cerca nella stessa cartella.
@@ -77,7 +31,8 @@ COPY bin/             /usr/local/bin/
 COPY templates/      /var/sws/templates/
 COPY catalogo/       /var/sws/catalogo/
 # git nei progetti (15-10-2026, docs/plans/2026-10-15-git-nel-cloud.md): git e
-# openssh-client sopra, e qui le chiavi ufficiali di GitHub, GitLab e Bitbucket,
+# openssh-client nell'immagine base (Containerfile.base.*), e qui le chiavi
+# ufficiali di GitHub, GitLab e Bitbucket,
 # così il primo push verso di loro non deve fidarsi «al primo contatto».
 # Si rigenera con scripts/known_hosts_git.sh.
 COPY ssh_known_hosts  /etc/ssh/ssh_known_hosts

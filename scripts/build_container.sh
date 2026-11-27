@@ -64,6 +64,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$SCRIPT_DIR/.." && pwd)"
 # shellcheck source=lib_build.sh
 . "$SCRIPT_DIR/lib_build.sh"
+# The system image this build starts from, read now: a missing digest stops
+# the build before the compilation, not after it.
+BASE="$(base_ref arm64)" || exit 1
 
 usage() {
     sed -n '2,59p' "${BASH_SOURCE[0]}" | sed 's/^#//; s/^ //'
@@ -339,9 +342,10 @@ if [ -z "$NOVITA_IT" ]; then
     echo "    avviso: NOVITA.yaml non ha le Novità di $VERSION — l'immagine non le porterà" >&2
 fi
 
+echo "    base: $BASE"
 echo "==> [3/4] podman build --platform linux/arm64 -t $IMAGE"
 podman build --platform linux/arm64 --format docker \
-    --build-arg "WITH_LVGL=$WITH_LVGL" \
+    --build-arg "BASE=$BASE" \
     --build-arg "SWS_VERSION=$VERSION" \
     --build-arg "SWS_NOVITA_IT=$NOVITA_IT" \
     --build-arg "SWS_NOVITA_EN=$NOVITA_EN" \

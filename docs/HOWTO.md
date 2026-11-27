@@ -53,6 +53,7 @@
 33. [Usare un modello in casa (Ollama, vLLM, LM Studio, llama.cpp)](#33-usare-un-modello-in-casa-ollama-vllm-lm-studio-llamacpp)
 34. [Il pannello non risponde dalla rete locale: il firewall](#34-il-pannello-non-risponde-dalla-rete-locale-il-firewall)
 35. [Una copia del progetto e il pannello](#35-una-copia-del-progetto-e-il-pannello)
+36. [Aggiornare il sistema operativo dei pannelli (l'immagine base)](#36-aggiornare-il-sistema-operativo-dei-pannelli-limmagine-base)
 
 ---
 
@@ -2515,3 +2516,54 @@ entra nel progetto locale e viaggia coi deploy successivi.
    **«Assegna a un tag…»** e scegli il tag nuovo.
 
 Se il tag nuovo ha già dei campioni, i campioni si fondono. Alla stessa ora resta il campione del tag nuovo.
+
+## 36. Aggiornare il sistema operativo dei pannelli (l'immagine base)
+
+Dalla 2.28.0-dev.6. L'immagine del runtime ha due parti:
+- l'**immagine base** `ghcr.io/soligolab/sws-base`: Ubuntu 24.04, i pacchetti di `apt-get` e RestrictedPython. Non
+  contiene niente di SWS;
+- **sopra**, i file di SWS: binari, pagine dell'IDE, template, font, quadlet.
+
+La base è fissata al digest in `deploy/container/BASE`, una riga per architettura. Una build del runtime prende sempre
+quella base, da qualunque macchina. Così un aggiornamento di SWS scarica solo i circa 100 MB dei file di SWS. Il
+sistema (388 MB sull'arm64) si scarica solo quando la base cambia. Piano:
+[l'immagine base del sistema](plans/2026-11-27-immagine-base-del-sistema.md).
+
+### Quando si cambia la base
+
+La base cambia solo quando lo decide il maintainer: un aggiornamento di sicurezza di Ubuntu, una libreria nuova o
+cambiata. `./scripts/check_base.sh` dà un avviso quando la base ha più di 90 giorni. L'avviso non blocca niente.
+
+### La procedura
+
+1. Se serve un pacchetto nuovo, modifica `deploy/container/Containerfile.base.aarch64` e
+   `Containerfile.base.x86_64`.
+2. Scegli la versione: `AAAA.MM.N`, il mese in cui prendi i pacchetti e un contatore (`2026.12.1`).
+3. Costruisci e pubblica le due basi:
+   ```bash
+   ./scripts/build_base.sh --version 2026.12.1 --all --push
+   ```
+   La base arm64 esegue `apt-get` sotto QEMU: alcuni minuti. Lo script rifiuta una versione che esiste già su ghcr.io.
+4. Lo script stampa le due righe per `deploy/container/BASE`. Copiale nel file.
+5. Esegui `./scripts/check_base.sh`.
+6. Fai un commit dedicato, che contiene solo `BASE` e i `Containerfile.base.*`:
+   ```bash
+   git commit -s -m "chore(base): sws-base 2026.12.1 — <il motivo>"
+   ```
+7. La dev o la rc successiva parte dalla base nuova. Al primo aggiornamento i pannelli scaricano anche il sistema.
+
+La storia del sistema dei pannelli: `git log --grep 'chore(base)'`.
+
+### Cose da sapere
+
+- **Le basi vecchie su ghcr.io non si cancellano.** Un'immagine del runtime di sei mesi fa deve ancora potersi
+  scaricare, e la sua base con lei.
+- **Una voce in `NOVITA.yaml`** solo se il cambio si vede (una libreria nuova, una correzione di sicurezza
+  importante). Gli altri cambi vanno solo nel `CHANGELOG.md`.
+- **Il pacchetto `sws-base` su ghcr.io** deve essere pubblico come `sws-runtime`, così una macchina di build nuova lo
+  scarica anche prima del `podman login`. Si cambia nelle impostazioni del pacchetto su GitHub.
+- **La versione della base** di un'immagine: l'etichetta `net.soligo.sws.base`, che `scripts/riepilogo_immagini.sh`
+  stampa.
+- **La prima base**, `2026.11.1`, non è stata costruita con `build_base.sh`. È fatta con
+  `scripts/base_from_image.py` dagli strati del sistema della 2.28.0-dev.5, senza cambiarli: i pannelli li avevano
+  già.

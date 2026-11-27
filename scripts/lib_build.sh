@@ -101,6 +101,21 @@ sys.exit(0 if r.piu_nuova('$v', '$arch', '$c', sys.stdin.read().split()) else 1)
     done
 }
 
+# The SWS base image of an architecture (arm64 or amd64), pinned by digest in
+# deploy/container/BASE (plan docs/plans/2026-11-27-immagine-base-del-sistema.md).
+# Prints the full reference. Without a line with a digest for that
+# architecture it says so and returns 1: the build must stop, because a base
+# that changes by itself is the defect that the base image removes.
+base_ref() {
+    local arch="$1" file="$REPO/deploy/container/BASE" ref
+    ref=$(awk -v a="$arch" '$1 == a { print $2 }' "$file" 2>/dev/null)
+    case "$ref" in
+        *@sha256:????????????????????????????????????????????????????????????????) echo "$ref" ;;
+        *) echo "ERROR: $file has no base with a digest for $arch (line «$arch <image>@sha256:…»)" >&2
+           return 1 ;;
+    esac
+}
+
 # The aarch64 builder's first stage (the arm64 sysroot) had no name: the final
 # builder copies from it without descending from it, so it stayed «dangling» and
 # `podman image prune` removed it — the next build redid 19 minutes of apt

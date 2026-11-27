@@ -25,7 +25,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$SCRIPT_DIR/.." && pwd)"
 BUILD_RUST=1
 BUILD_SPA=1
-# RestrictedPython: la stessa soglia dell'immagine (Containerfile.aarch64).
+# RestrictedPython: la stessa soglia dell'immagine (Containerfile.base.aarch64).
 RESTRICTED="RestrictedPython>=7.0"
 
 for a in "$@"; do

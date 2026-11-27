@@ -1,7 +1,7 @@
 # L'immagine base del sistema: il sistema operativo in uno strato con un nome, i binari sopra (27-11-2026)
 
-> **Stato: pronto** (27-11-2026). Il maintainer ha approvato le 6 proposte di «Da decidere» il 27-11-2026.
-> Primo passo quando si apre il ramo: misurare i digest degli strati del punto 6.
+> **Stato: fatto, da collaudare** (27-11-2026, ramo `feat/system-base-image`, esce nella `2.28.0-dev.6`). Il
+> maintainer ha approvato le 6 proposte di «Da decidere» il 27-11-2026.
 
 ## Contesto
 
@@ -88,3 +88,22 @@ Le misure vengono dall'immagine `sws-runtime:2.28.0-dev.3-arm64` (`podman histor
 | 4 | La sysroot dei builder | **Fuori da questo piano.** Il builder arm64 può prendere la sysroot dalla `sws-base` arm64 più i pacchetti `-dev`, così le librerie di compilazione e quelle del pannello sono le stesse. È un passo in più, da fare dopo, se serve. |
 | 5 | Le vecchie basi su ghcr.io | **Non si cancellano.** Un'immagine del runtime di sei mesi fa deve ancora potersi scaricare, e la sua base con lei. |
 | 6 | Le Novità | Un cambio di base porta una voce in `NOVITA.yaml` solo se cambia qualcosa che l'utente vede (una libreria nuova, un fix di sicurezza importante). Gli altri cambi stanno solo nel `CHANGELOG.md`. |
+
+## Com'è andata (27-11-2026, sessione su `ufficio`)
+
+- **Punto 6, cambiato col sì del maintainer.** La sessione era su `ufficio`, non sull'EliteBook con la cache. La prima
+  base è uscita dal **manifest della 2.28.0-dev.5 su ghcr.io**: `scripts/base_from_image.py` tiene i primi 2 strati,
+  scrive una config per loro, **monta** i blob da `sws-runtime` in `sws-base` (nessun download, nessuna
+  ricompressione) e pubblica `2026.11.1-arm64` e `2026.11.1-amd64`. Gli strati hanno gli stessi digest compressi della
+  dev.3, della dev.4 e della dev.5 (`5637a8fd…` e `28cd8fbe…` sull'arm64, `a3df40c2…` e `4b823b1e…` sull'amd64).
+- **La misura che conferma il difetto**: la 2.27.0, costruita su un'altra macchina, ha digest diversi **anche per lo
+  strato di Ubuntu** (`b65bbf86…` contro `5637a8fd…`): chi passa dalla 2.27.0 a una dev riscarica tutto il sistema.
+- **Le cartelle vuote** (`mkdir -p /var/sws/config /var/sws/projects`) restano nel runtime: pochi byte, e la prima
+  base resta identica ai due strati di oggi.
+- **`--all` e non `--tutte`** in `build_base.sh`: il codice è in inglese.
+- **Il pacchetto `sws-base` su ghcr.io è nato privato.** Il maintainer l'ha reso pubblico lo stesso giorno, dal
+  cellulare; una richiesta anonima al manifest risponde 200.
+- **La verifica con `podman system prune -a`** non si è fatta: la macchina è di lavoro. Al suo posto: una build di
+  prova del runtime amd64 sulla base ha gli stessi primi due strati e l'etichetta `net.soligo.sws.base`; dopo la
+  dev.6 si confrontano su ghcr.io i digest compressi dei suoi strati con quelli della base; il collaudo sul TC620 dice
+  se il pull scarica solo gli strati di SWS.

@@ -183,6 +183,11 @@ dell'immagine, e del pannello conta solo il kernel.
 | **binario** | 35 MB (14,3 compressi) | a ogni modifica Rust |
 | **SPA** | 0,4 MB | a ogni modifica frontend |
 
+Dal 27-11-2026 i primi due layer sono l'**immagine base** `sws-base`, fissata al digest in
+`deploy/container/BASE`: il Containerfile del runtime non ha più `apt-get` e comincia con `FROM ${BASE}`. Prima la
+cache del layer `apt` stava solo sulla macchina di build, e una build da un'altra macchina faceva riscaricare il
+sistema a tutti i pannelli. Come si cambia la base: `docs/HOWTO.md` §36.
+
 Un layer che cambia invalida tutti quelli **sotto** di sé, e col registry si
 trasferisce solo ciò che è cambiato. Da qui due regole già pagate a caro prezzo:
 la SPA sta **dopo** il binario (invertirli farebbe ritrasferire 14 MB per un

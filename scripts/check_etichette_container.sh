@@ -39,6 +39,7 @@ RUST=sws-runtime/crates/sws-web/src/gateway/podman.rs
 
 # Le etichette `net.soligo.sws.*` che l'immagine dichiara.
 nelle_immagini=$(grep -ho 'net\.soligo\.sws\.[a-z.]*' deploy/container/Containerfile.aarch64 deploy/container/Containerfile.x86_64 \
+  deploy/container/Containerfile.base.aarch64 deploy/container/Containerfile.base.x86_64 \
   | sed 's/\.$//' | sort -u)
 # Quelle che un quadlet azzera (`Label=nome=`).
 azzerate_quadlet() { grep -ho '^Label=net\.soligo\.sws\.[a-z.]*=$' "$1" | sed 's/^Label=//; s/=$//' | sort -u; }
@@ -47,11 +48,12 @@ azzerate_rust=$(sed -n '/ETICHETTE_DA_SVUOTARE/,/\];/p' "$RUST" | grep -o '"net\
 
 # `quadlet` è un numero, lo legge il controllo aggiornamenti dal registry, e
 # pesa decine di byte: resta. Se un giorno diventasse testo, va spostata sopra.
-ESENTI="net.soligo.sws.quadlet"
+# `base` is the version of the base image (AAAA.MM.N), a few bytes too (27-11-2026).
+ESENTI="net.soligo.sws.quadlet net.soligo.sws.base"
 
 echo "== le etichette pesanti non entrano nei container =="
 
-atteso=$(comm -23 <(echo "$nelle_immagini") <(echo "$ESENTI" | sort -u))
+atteso=$(comm -23 <(echo "$nelle_immagini") <(echo "$ESENTI" | tr " " "\n" | sort -u))
 [ -n "$atteso" ] && ok 1 "l'immagine dichiara $(echo "$atteso" | wc -l) etichette di contenuto da azzerare" \
                  || ok 0 "nessuna etichetta di contenuto trovata nei Containerfile — la guardia non sta misurando niente"
 

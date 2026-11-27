@@ -117,6 +117,10 @@ for g in "${GUSTI[@]}"; do
         printf '    caricata  non nel deposito locale — c%s solo l%sarchivio\n' "'è" "'"
     fi
 
+    # The SWS base image it starts from (deploy/container/BASE, 27-11-2026).
+    base="$(podman image inspect --format '{{index .Labels "net.soligo.sws.base"}}' "localhost/$immagine" 2>/dev/null)"
+    [ -n "$base" ] && printf '    base      sws-base %s\n' "$base"
+
     if podman image exists "${REGISTRY}:${VERSION}-${suff}" 2>/dev/null; then
         if [ "$PUBBLICATE" -eq 1 ]; then
             printf '    registry  pubblicata su %s\n' "${REGISTRY}:${VERSION}-${suff}"

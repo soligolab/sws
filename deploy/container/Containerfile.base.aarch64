@@ -1,0 +1,88 @@
+# SWS base image (arm64): the operating system of the panels, without SWS.
+#
+# Plan docs/plans/2026-11-27-immagine-base-del-sistema.md. The runtime image
+# (Containerfile.aarch64) starts FROM this image, pinned by digest in
+# deploy/container/BASE, and adds only the SWS files. So the 388 MB of the
+# system layer stay the same from one SWS version to the next, on any build
+# machine, and a panel downloads them only when the base changes.
+#
+# Change the base only with a dedicated commit, `chore(base): sws-base
+# AAAA.MM.N — <reason>`, that touches only BASE and these files
+# (docs/HOWTO.md §36). Build it with `scripts/build_base.sh --arm64 --push`.
+# The build runs the RUN below under QEMU (binfmt qemu-aarch64).
+#
+# One base for builds with and without the LVGL viewer (decision 2 of the
+# plan): the viewer libraries are always installed.
+
+# ubuntu:24.04 non è una scelta estetica. Il binario cross-compilato dichiara:
+#   NEEDED  libpython3.12.so.1.0
+#   simboli fino a GLIBC_2.39
+# quindi la base deve avere insieme Python 3.12 e glibc >= 2.39:
+#   debian:bookworm-slim  glibc 2.36 + Python 3.11  → doppiamente incompatibile
+#   debian:trixie-slim    glibc 2.41 + Python 3.13  → manca libpython3.12
+#   ubuntu:24.04          glibc 2.39 + Python 3.12  → combacia
+# Se un giorno l'SDK Pixsys passa a un'altra minor di Python, questa riga va
+# cambiata di conseguenza (ricontrollare con `readelf -d` sul binario).
+# The base by digest, not by tag (22-11-2026): the builds of the different
+# architectures run in parallel now, and a local `ubuntu:24.04` tag flips its
+# architecture at every pull with another --platform. The digest is the
+# multi-arch index: --platform still picks the architecture. Updated by hand,
+# with a `chore(base)` commit, when we decide to take Ubuntu's updates.
+FROM docker.io/library/ubuntu:24.04@sha256:9c7f200c07e3d4a03e7249d2c16bf66a51120fb876aa2242cf31451412543289
+
+# WITH_LVGL is always 1 in the base (decision 2 of the plan). It stays an ARG
+# so that the RUN line stays the same text as in the runtime images up to
+# 2.28.0-dev.5. Without libsdl2-2.0-0, sws-lvgl-viewer starts and crashes at
+# once ("cannot open shared object file", 2026-08-09): it links SDL2 dynamically.
+ARG WITH_LVGL=1
+
+# libegl1/libegl-mesa0/libgles2/libgl1-mesa-dri/libwayland-egl1/libgbm1
+# (sotto lo stesso WITH_LVGL): servono per SDL_VIDEODRIVER=kmsdrm (DRM/KMS
+# diretto via GBM+EGL, senza compositor Wayland/X11). libegl1 è il dispatch
+# loader EGL generico che le app caricano — libegl-mesa0 da solo è solo
+# l'implementazione vendor Mesa, caricata poi via ICD (stessa separazione di
+# libgl1/libgl1-mesa-dri): senza libegl1, kmsdrm fallisce con "SDL error:
+# EGL not initialized" (scoperto sul percorso container generico gemello,
+# 2026-08-10, in due passi — prima mancava libgbm1, poi anche libegl1). Mesa
+# fornisce EGL/GLES/GBM software, nessuna GPU reale richiesta. Il percorso
+# kmsdrm resta non provato **su questo** percorso SDK: dal 2026-08-24 il
+# binario aarch64 esiste (prima cross-compilazione riuscita), ma la prova sul
+# pannello si fa per prima su SDL2/Wayland, dove è weston a possedere i device
+# e non serve alcun permesso speciale.
+#
+# libdrm2 esplicito: src/drm_display.rs linka libdrm direttamente per il
+# backend "drm" (rendering via API DRM legacy, bypassa SDL2 del tutto) —
+# anche kmsdrm si è rivelato inutilizzabile su tc620-a-p3-c6-07aff9.local,
+# il driver Rockchip mostra schermo nero sul percorso KMS *atomico* (usato
+# sia da SDL2 sia dal driver drm.c vendorizzato in lvgl-sys), solo l'API
+# legacy funziona — vedi docs/OPEN_QUESTIONS.md Q14.
+
+# python3: PyO3 gira con `auto-initialize`, quindi serve l'interprete completo
+#   (stdlib inclusa), non la sola libpython.
+# python3-pip + RestrictedPython: senza, il motore script parte NON sandboxato
+#   con un warning all'avvio. L'immagine legacy aveva esattamente questo buco.
+# libfreetype6 + fonts-dejavu-core: il viewer LVGL disegna il testo con
+#   FreeType (Q24). I font Montserrat inclusi in LVGL coprono solo l'ASCII e
+#   ciò che manca NON viene disegnato affatto — su un'interfaccia italiana
+#   "più", "però", "perché" si vedono mutilate. Senza libfreetype il binario
+#   non parte proprio (è una NEEDED); senza il file di font parte e ripiega su
+#   Montserrat, dicendolo nel log.
+# curl: used by the HEALTHCHECK of the runtime image.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        ca-certificates \
+        curl \
+        python3 \
+        libpython3.12t64 \
+        git \
+        openssh-client \
+        python3-pip \
+        $( [ "$WITH_LVGL" = "1" ] && echo libsdl2-2.0-0 libegl1 libegl-mesa0 libgles2 libgl1-mesa-dri libwayland-egl1 libgbm1 libdrm2 libfreetype6 fonts-dejavu-core ) && \
+    pip install --no-cache-dir --break-system-packages "RestrictedPython>=7.0" && \
+    apt-get purge -y python3-pip && apt-get autoremove -y && \
+    rm -rf /var/lib/apt/lists/*
+
+# The label travels into every runtime image built on this base: the
+# runtime reads it to say which system a panel runs (riepilogo_immagini.sh).
+ARG SWS_BASE_VERSION=""
+LABEL net.soligo.sws.base="$SWS_BASE_VERSION"

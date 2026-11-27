@@ -50,6 +50,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$SCRIPT_DIR/.." && pwd)"
 # shellcheck source=lib_build.sh
 . "$SCRIPT_DIR/lib_build.sh"
+# The system image this build starts from, read now: a missing digest stops
+# the build before the compilation, not after it.
+BASE="$(base_ref amd64)" || exit 1
 
 usage() {
     sed -n '2,45p' "${BASH_SOURCE[0]}" | sed 's/^#//; s/^ //'
@@ -309,6 +312,7 @@ NOVITA_EN="$(python3 "$REPO/scripts/novita.py" "$VERSION" en || true)"
 COMPAT_IT="$(python3 "$REPO/scripts/novita.py" "$VERSION" it --compat || true)"
 COMPAT_EN="$(python3 "$REPO/scripts/novita.py" "$VERSION" en --compat || true)"
 
+echo "    base: $BASE"
 echo "==> [3/4] podman build --platform linux/amd64 -t $IMAGE"
 podman build --platform linux/amd64 --format docker \
     --build-arg "SWS_VERSION=$VERSION" \
@@ -317,7 +321,7 @@ podman build --platform linux/amd64 --format docker \
     --build-arg "SWS_COMPAT_IT=$COMPAT_IT" \
     --build-arg "SWS_COMPAT_EN=$COMPAT_EN" \
     --build-arg "SWS_QUADLET=$QUADLET" \
-    --build-arg "WITH_LVGL=$WITH_LVGL" \
+    --build-arg "BASE=$BASE" \
     -t "$IMAGE" \
     -f "$REPO/deploy/container/Containerfile.x86_64" \
     "$CTX"

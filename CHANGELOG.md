@@ -13,6 +13,21 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 Il lavoro della **2.28.0** (versioni `2.28.0-dev.N`), da `main`.
 
+### Aggiunto — l'immagine base del sistema (27-11-2026, ramo `feat/system-base-image`)
+
+- **L'immagine del runtime parte da `ghcr.io/soligolab/sws-base`**, fissata al digest in `deploy/container/BASE`
+  (una riga per architettura). I Containerfile del runtime non hanno più `apt-get`: cominciano con `FROM ${BASE}` e
+  aggiungono solo i file di SWS. Il sistema sta in `Containerfile.base.aarch64` e `Containerfile.base.x86_64`. Prima
+  la cache del layer `apt` stava solo sulla macchina di build: la 2.27.0, costruita su un'altra macchina, aveva
+  digest diversi anche per lo strato di Ubuntu, e ogni pannello riscaricava il sistema (388 MB sull'arm64).
+- **La prima base, `2026.11.1`**, sono gli strati del sistema della 2.28.0-dev.5, senza cambiarli
+  (`scripts/base_from_image.py`, una volta sola, blob montati e non ricompressi): chi è sulla dev.4 o sulla dev.5
+  non riscarica il sistema.
+- **`scripts/build_base.sh`** costruisce e pubblica le basi successive; un cambio di base è un commit
+  `chore(base)` dedicato (`docs/HOWTO.md` §36). L'etichetta `net.soligo.sws.base` dice la base di un'immagine.
+- **La guardia `check_base.sh`**: niente `apt-get` nei Containerfile del runtime, un digest per architettura in
+  `BASE`, Ubuntu fissato al digest nelle basi; un avviso se la base ha più di 90 giorni.
+
 ### Corretto — la scelta di una versione in un menù a tendina (27-11-2026, ramo `fix/scelta-versione`)
 
 - **Il blocco di versione della console e «Fissa una versione…» dell'IDE** scelgono la versione da un menù a tendina

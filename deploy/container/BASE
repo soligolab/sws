@@ -1,0 +1,11 @@
+# The SWS base image of each architecture: the operating system that the runtime
+# image starts from (FROM ${BASE}). One line per architecture: <arch> <image>@<digest>.
+# Read by scripts/lib_build.sh (base_ref); checked by scripts/check_base.sh.
+#
+# Change this file only with a dedicated commit, `chore(base): sws-base
+# AAAA.MM.N — <reason>` (docs/HOWTO.md §36). `git log --grep 'chore(base)'` is the
+# history of the panels' operating system.
+#
+# 2026.11.1: the system layers of 2.28.0-dev.5, unchanged (scripts/base_from_image.py).
+arm64 ghcr.io/soligolab/sws-base:2026.11.1-arm64@sha256:7836737c8c5ea31ead8889cb3e845fb5d0d6f28f60d0d8e96b37466b6fdd7001
+amd64 ghcr.io/soligolab/sws-base:2026.11.1-amd64@sha256:a3312a0ca9f3dba39a79fdecbfe8482ba19c6f45a4d2f582c34da5292b715e22
