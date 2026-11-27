@@ -12,6 +12,27 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — collaudo della 2.27.0 sul TC620; prima cosa, il piano del cambio di nome (2026-11-27, `ufficio`)
+
+- **Prima cosa della prossima sessione** (il maintainer): la revisione del piano
+  [`docs/plans/2026-11-27-cambio-di-nome-del-progetto.md`](docs/plans/2026-11-27-cambio-di-nome-del-progetto.md) — il
+  deploy di un progetto con un altro nome: A, lo stesso impianto con un nome nuovo, che tiene utenti e storico; B, un
+  progetto nuovo.
+- **Collaudo 2.27.0 del 27-11 sul TC620: 2 passate, 3 anomalie** (`docs/COLLAUDI_IN_SOSPESO.md`, sezione «Collaudo
+  2.27.0»). Passate: l'aggiornamento da rc.29 (7 avvisi una volta, 15 Novità) e il deploy di CasaDomotica
+  (TC620_Verticale) coi 30 faceplate `fit`, schermo verticale. Anomalie, tutte nel piano qui sopra:
+  1. il deploy di un progetto con un altro nome cancella lo storico del progetto sostituito, senza modo di tenerlo;
+  2. lo stesso deploy perde gli utenti, mentre il registro scrive «Utenti: non toccati»: il pannello resta senza utenti;
+  3. la copia verticale ha 800×1280 senza `orientation: portrait`: il deploy non chiede la rotazione.
+- **Rimedi a mano, col sì del maintainer**: backup del progetto del pannello (in `tmp/test-changes/2026-11-27/` su
+  `ufficio`); storico (1,6 GB) e `users.yaml` ripristinati nel progetto nuovo del TC620, runtime fermo circa 2 min e
+  30 s in tutto; sul VPS la riga `orientation: portrait` nella copia verticale (copia
+  `project.yaml.prima-orientamento-20261127`). Il TC620 ora è sulla 2.27.0, verticale, con storico e utenti.
+- **Non provate qui**: le voci 4-6 della 2.27.0 (PLX800, versione fissata), la dev.2 e la dev.3. Il gateway del cloud è
+  sulla 2.28.0-dev.1: la dev.2 e la dev.3 non ci sono ancora.
+- **Da aggiornare in STATUS**: il blocco del 26-11 si ferma alla dev.1; la dev.2 (versione fissata per pannello, blocco
+  della piattaforma) e la dev.3 (correzione del viewer dopo «Delete project») sono in `main` senza una riga qui.
+
 ## ▶ Riprendere da qui — il firewall nella 2.28.0-dev.1, collaudato; `/chiudi-plan-aperti` (2026-11-26, portatile)
 
 - **Il firewall dei dispositivi è in `main`** (squash `1fdf1482`) e nella **`2.28.0-dev.1`** (`cdc0e8bd`, tag e push

@@ -61,13 +61,18 @@ La 2.27.0 sposta `latest-*`, `rc-*` e `dev-*`: tutti e tre i canali portano alla
 contiene anche le correzioni della dev.4: le loro voci sono nel piano
 [`docs/plans/2026-11-25-correzioni-collaudo-dev3.md`](plans/2026-11-25-correzioni-collaudo-dev3.md), sezione «Verifica».
 
-1. [ ] **TC620** (2.26.0-rc.29, canale di prova), dall'IDE del cloud: «Aggiorna ora» propone la 2.27.0, con le 7 voci di
+1. [x] **TC620** (2.26.0-rc.29, canale di prova), dall'IDE del cloud: «Aggiorna ora» propone la 2.27.0, con le 7 voci di
        compatibilità in cima e le 15 Novità. Dopo il riavvio lo stato dice 2.27.0. Se fallisce: il tag `rc-arm64` non
        è stato spostato (`scripts/registro.py tags`).
-       26-11-2026: il maintainer ha aggiornato il TC620 alla 2.27.0 la mattina. Da guardare stasera: lo stato e le
-       Novità che il pannello ha mostrato.
-2. [ ] **TC620** sulla 2.27.0: un deploy di CasaDomotica (TC620_Verticale) mostra le pagine Clima, Luci, Piano terra e
+       26-11-2026: il maintainer ha aggiornato il TC620 alla 2.27.0 la mattina. Confermato dal maintainer il
+       27-11-2026: le 7 voci di compatibilità una volta sola e le 15 Novità; lo stato dice 2.27.0, canale di prova.
+2. [x] **TC620** sulla 2.27.0: un deploy di CasaDomotica (TC620_Verticale) mostra le pagine Clima, Luci, Piano terra e
        Piano superiore coi faceplate `fit`. Se fallisce: il runtime non legge `fit`.
+       Confermato dal maintainer il 27-11-2026: schermo verticale, i 30 faceplate `fit` in proporzione, storico
+       visibile. Ci si è arrivati con tre rimedi a mano, col sì del maintainer: lo storico (1,6 GB) e `users.yaml`
+       del progetto sostituito ripristinati nel progetto nuovo, e la riga `orientation: portrait` aggiunta alla copia
+       verticale sul VPS. Le tre anomalie stanno nel piano
+       [`2026-11-27-cambio-di-nome-del-progetto.md`](plans/2026-11-27-cambio-di-nome-del-progetto.md).
 3. [x] **TC620**: il menu «Canale» nella riga di «Aggiornamento del runtime» → Sviluppo → conferma con l'avviso rosso.
        Il canale di sviluppo ha la stessa 2.27.0: il pannello non si riavvia, e la riga gialla dice che resta sulla
        2.27.0 finché Sviluppo non ha una versione più alta. Alla prima 2.28.0-dev.N, «Aggiorna ora» fa il cambio.
