@@ -27,6 +27,20 @@
 
 ---
 
+## Collaudo 2.28.0-dev.7 (da fare, TC620 di casa e IDE del cloud) — il Bad visibile di default
+
+Piano [`2026-11-24-residui-rc30-e-bad-di-default.md`](plans/2026-11-24-residui-rc30-e-bad-di-default.md), parte C.
+Gateway sulla dev.7 (`325860b5`). Da un pannello sulla dev.6 l'arm64 scarica 38,8 MB. Si può fare insieme alla
+dev.6: il TC620 passa direttamente alla dev.7.
+
+1. [ ] Sul pannello (LVGL) e nel viewer web, un oggetto con un tag Bad: grigio, «?» nell'angolo in alto a sinistra,
+       pallino rosso. Un tag Uncertain: solo il pallino giallo.
+2. [ ] Un led e una tabella con un tag Bad: niente rosso, il valore grigio e il «?».
+3. [ ] Nell'IDE, la casella «Valore Bad: grigio e «?»» accesa di default; spenta scrive `bad_value_style: none` e il
+       segno sparisce. In edit il segno si vede solo con «Anteprima effetti».
+4. [ ] CasaDomotica (TC620_Verticale): dove compare il «?» davvero (per esempio Energy di sera, `host-info`). Il
+       maintainer sceglie dove mettere `none`; si applica solo nel progetto sul cloud, con la copia di sicurezza.
+
 ## Collaudo 2.28.0-dev.6 (da fare, 28-11-2026, TC620 di casa) — l'immagine base, la versione a tendina
 
 Piano [`2026-11-27-immagine-base-del-sistema.md`](plans/2026-11-27-immagine-base-del-sistema.md) e le voci 2-3 del

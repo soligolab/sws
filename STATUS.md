@@ -12,6 +12,23 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — 2.28.0-dev.7 col Bad di default, gateway aggiornato; collaudo sul TC620 (2026-11-28, `ufficio`)
+
+- **`2.28.0-dev.7` pushata e costruita** (7 min 33 s da `ufficio`, sulla base `sws-base:2026.11.1`), gateway di
+  sws.soligo.net sulla dev.7 (`325860b5`, tutti `healthy`). Dentro `7049917b`, **la parte C del Bad di default**:
+  grigio, «?» fuori dal grigio e pallino rosso su ogni oggetto con un tag, web e LVGL; `bad_value_style: none` per
+  rinunciare; led e tabella senza rosso; pallino LVGL di default sui 9 tipi. Istantanee web/LVGL di prova in
+  `tmp/bad-prova/foto/`.
+- **Collaudo** (il maintainer, dal PC): `docs/COLLAUDI_IN_SOSPESO.md`, sezioni «Collaudo 2.28.0-dev.7» e «Collaudo
+  2.28.0-dev.6». Il TC620 passa direttamente alla dev.7.
+- **CasaDomotica**: 96 oggetti con un tag nelle pagine (31 MQTT, 28 calcolati, 25 `host-info`, 12 inverter nella pagina
+  Energy). Dove mettere `none` lo si decide guardando il TC620 (voce 4 della dev.7), poi solo nel progetto sul cloud.
+  Al prossimo deploy dal cloud: «stesso impianto» (niente `plant_id` ancora). Proposte facoltative in sospeso: caldaia
+  fotografata, caldaia con fiamma e camino col fumo, stufa con l'assistente, sfondo rigenerato.
+- **`/chiudi-plan-aperti`**: piani 1 (immagine base) e 5 (Bad di default) fatti, da collaudare; 2, 3 e 4 aspettano il
+  collaudo. Il prossimo da implementare è il piano 6 dell'elenco (`2026-11-23-template-plx800-systeminfo.md`).
+- **Il WP630 dell'ufficio resta bloccato alla 2.28.0-dev.4** dalla console: «No cap» perché riprenda gli aggiornamenti.
+
 ## ▶ Riprendere da qui — 2.28.0-dev.6 sulla base nuova, gateway aggiornato; collaudo domani sul TC620 (2026-11-27 sera, `ufficio`)
 
 - **`2.28.0-dev.6` pushata e costruita** (arm64 e amd64, 23 min da `ufficio`), gateway di sws.soligo.net sulla dev.6
