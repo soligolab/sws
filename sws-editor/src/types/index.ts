@@ -687,9 +687,11 @@ export interface SynopticObject {
   /** Bordo colorato per severità quando il tag dell'oggetto ha un allarme
    *  attivo (F4.2); lampeggia finché non riconosciuto. Opt-in. */
   show_alarm_state?: boolean;
-  /** Stile per valore Bad (F4.3): "gray" = oggetto attenuato in scala di
-   *  grigi — Bad non viene più mostrato come se fosse un valore valido. */
-  bad_value_style?: "gray";
+  /** Bad value style (F4.3). Since 2.28.0-dev.7 the Bad mark is the default:
+   *  a Bad value greys the object and shows a "?" out of the grey
+   *  (`canvas/badMark.ts`). "none" gives it up; "gray" is the old opt-in and
+   *  means the same as the default. */
+  bad_value_style?: "gray" | "none";
   /** Dato stale (F4.3): se l'ultimo aggiornamento del tag è più vecchio di
    *  N secondi l'oggetto è attenuato e marcato ⌛. */
   stale_after_s?: number;

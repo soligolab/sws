@@ -6890,14 +6890,14 @@ export function ObjectProps({
                 {field(t("props.colorBad"),    colorInput("quality_dot_bad_color"))}
               </>
             )}
-            {/* F4.2/F4.3: consapevolezza allarme, Bad-gray, stale (opt-in) */}
+            {/* F4.2/F4.3: alarm border and stale (opt-in); the Bad mark is on by default since part C (24-11-2026) */}
             {field(t("props.showAlarmState"),
               <input type="checkbox" checked={!!obj.show_alarm_state}
                 onChange={(e) => onChange({ show_alarm_state: e.target.checked || undefined })} />
             )}
             {field(t("props.badValueGray"),
-              <input type="checkbox" checked={obj.bad_value_style === "gray"}
-                onChange={(e) => onChange({ bad_value_style: e.target.checked ? "gray" : undefined })} />
+              <input type="checkbox" checked={obj.bad_value_style !== "none"}
+                onChange={(e) => onChange({ bad_value_style: e.target.checked ? undefined : "none" })} />
             )}
             {field(t("props.staleAfterS"), numInput("stale_after_s", 0))}
           </>

@@ -416,6 +416,7 @@ pub const OBJECT_TYPES: &[&str] = &[
 /// Campi il cui valore è scelto da un insieme chiuso: `(campo, valori)`.
 pub const FIELD_ENUMS: &[(&str, &[&str])] = &[
     ("alarm_viewer_mode", &["list", "banner", "table"]),
+    ("bad_value_style", &["gray", "none"]),
     ("bar_mode", &["grouped", "stacked"]),
     ("bar_orientation", &["vertical", "horizontal"]),
     ("blink_mode", &["always", "tag", "alarm"]),

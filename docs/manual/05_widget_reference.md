@@ -1096,7 +1096,7 @@ confronti, ternario e funzioni. `tag` ed `expr` si escludono.
 
 | Proprietà | Descrizione |
 |-----------|-------------|
-| `bad_value_style` | `gray`: con qualità Bad l'oggetto si attenua in grigio, invece di mostrare il valore come valido |
+| `bad_value_style` | Dalla 2.28.0-dev.7 un valore Bad si vede **di default** su tutti gli oggetti con un tag: l'oggetto diventa grigio e un «?» bianco su un cerchio scuro sta nell'angolo in alto a sinistra. `none` lo toglie. `gray`, la scelta di prima, vale come il default. Su un led e in una tabella il Bad non è più rosso: il rosso è dell'allarme |
 | `stale_after_s` | Se l'ultimo aggiornamento del tag è più vecchio di N secondi, l'oggetto si attenua ed è marcato ⌛ |
 
 ---

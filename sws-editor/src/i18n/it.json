@@ -1101,7 +1101,7 @@
     "critical": "Comando critico (password)",
     "requireReason": "Motivo obbligatorio",
     "showAlarmState": "Bordo su allarme del tag",
-    "badValueGray": "Valore Bad → grigio",
+    "badValueGray": "Valore Bad: grigio e «?»",
     "staleAfterS": "Stale dopo (s, 0=off)",
     "blinkMode": "Lampeggio",
     "blinkOff": "Spento",

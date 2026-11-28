@@ -233,6 +233,12 @@ pub enum LiveKind {
         bordo: Option<*mut lvgl_sys::lv_obj_t>,
         /// Pallino di qualità (`quality_dot`) e i tre colori dichiarati.
         pallino: Option<*mut lvgl_sys::lv_obj_t>,
+        /// The tag of the dot: `fill_level_tag` on a pipe, `tag` elsewhere
+        /// (`effects::tag_del_pallino`).
+        tag_pallino: Option<String>,
+        /// The "?" of a Bad value (part C, 24-11-2026), out of `figli`: it
+        /// stays in full colour while the object goes grey.
+        segno: Option<*mut lvgl_sys::lv_obj_t>,
         dot_buono: Option<String>,
         dot_cattivo: Option<String>,
         dot_incerto: Option<String>,
@@ -728,6 +734,10 @@ pub struct AppliedFx {
     bordo_rgb: Option<(u8, u8, u8)>,
     bordo_acceso: bool,
     dot_rgb: Option<(u8, u8, u8)>,
+    /// The quality dot shown (it is hidden while the tag has no value).
+    dot_visibile: bool,
+    /// The "?" of a Bad value shown.
+    segno_visibile: bool,
 }
 
 impl Default for AppliedFx {
@@ -739,6 +749,8 @@ impl Default for AppliedFx {
             bordo_rgb: None,
             bordo_acceso: false,
             dot_rgb: None,
+            dot_visibile: false,
+            segno_visibile: false,
         }
     }
 }
@@ -3464,9 +3476,12 @@ fn crea_effetti(
 ) -> Option<LiveBinding> {
     let lampeggio = effects::lampeggio_di(obj);
     let vuole_bordo = obj.show_alarm_state == Some(true);
-    let vuole_pallino = obj.quality_dot == Some(true);
-    let vuole_attenuazione =
-        obj.stale_after_s.is_some() || obj.bad_value_style.as_deref() == Some("gray");
+    let vuole_pallino = effects::vuole_pallino(obj);
+    // The Bad mark is on by default on every object with a tag (B2,
+    // 24-11-2026); `bad_value_style: "none"` gives it up.
+    let vuole_segno =
+        obj.tag.is_some() && effects::segno_bad_attivo(obj.bad_value_style.as_deref());
+    let vuole_attenuazione = obj.stale_after_s.is_some() || vuole_segno;
     // Opacità e luminosità legate a un tag, o una luminosità statica: servono
     // anche loro il giro di ogni frame (26-09-2026, parità piena col web).
     let legame = |k: &str| obj.bindings.as_ref().and_then(|m| m.get(k)).cloned();
@@ -3539,15 +3554,22 @@ fn crea_effetti(
         None
     };
 
-    // Pallino di qualità: nell'angolo in alto a destra dell'oggetto, raggio 5
-    // come `QDot` sul web.
+    // A text's content is not known yet here: its static text or format is
+    // the estimate for the width (the web measures the same way, by length).
+    let contenuto = obj.text.as_deref().or(obj.format.as_deref()).unwrap_or("");
+
+    // Pallino di qualità: raggio 5 come `QDot` sul web, nel punto in cui il
+    // web lo disegna per quel tipo (`effects::centro_pallino`). Nasce nascosto:
+    // si vede quando il tag ha un valore, come sul web.
     let pallino = if vuole_pallino {
         unsafe {
             let p = lvgl_sys::lv_obj_create(screen_ptr);
             if p.is_null() {
                 None
             } else {
-                lvgl_sys::lv_obj_set_pos(p, (x + w - 13.0) as i16, (y + 3.0) as i16);
+                let (cx, cy) = effects::centro_pallino(obj, contenuto);
+                lvgl_sys::lv_obj_set_pos(p, (cx - 5.0) as i16, (cy - 5.0) as i16);
+                lvgl_sys::lv_obj_add_flag(p, lvgl_sys::LV_OBJ_FLAG_HIDDEN);
                 lvgl_sys::lv_obj_set_size(p, 10, 10);
                 lvgl_sys::lv_obj_set_style_radius(p, lvgl_sys::LV_RADIUS_CIRCLE as i16, 0);
                 lvgl_sys::lv_obj_set_style_border_width(p, 0, 0);
@@ -3571,6 +3593,46 @@ fn crea_effetti(
     if let Some(p) = pallino {
         figli.retain(|f| *f != p);
     }
+
+    // The "?" of a Bad value: a dark disc with a light border and a light
+    // "?", centred on the top left corner of the box (`effects::BADGE_BAD`,
+    // `BadMark` on the web). Created after the object, so it is on top; not
+    // in `figli`, so it is not greyed. Born hidden.
+    let segno = if vuole_segno {
+        unsafe {
+            let b = effects::BADGE_BAD;
+            let l = lvgl_sys::lv_label_create(screen_ptr);
+            if l.is_null() {
+                None
+            } else {
+                let (cx, cy) = effects::centro_segno_bad(obj, contenuto);
+                let d = (2.0 * b.r) as i16;
+                lvgl_sys::lv_obj_set_pos(l, (cx - b.r as f64) as i16, (cy - b.r as f64) as i16);
+                lvgl_sys::lv_obj_set_size(l, d, d);
+                testo_etichetta(l, text_cstring("?").as_ptr());
+                lvgl_sys::lv_obj_set_style_text_align(l, lvgl_sys::LV_TEXT_ALIGN_CENTER as u8, 0);
+                lvgl_sys::lv_obj_set_style_text_color(l, Color::from_rgb(b.testo).into(), 0);
+                if let Some(f) = crate::lvgl_font::per(None, true, b.px) {
+                    lvgl_sys::lv_obj_set_style_text_font(l, f, 0);
+                }
+                lvgl_sys::lv_obj_set_style_bg_color(l, Color::from_rgb(b.fondo).into(), 0);
+                lvgl_sys::lv_obj_set_style_bg_opa(l, 255, 0);
+                lvgl_sys::lv_obj_set_style_border_color(l, Color::from_rgb(b.bordo).into(), 0);
+                lvgl_sys::lv_obj_set_style_border_width(l, 1, 0);
+                lvgl_sys::lv_obj_set_style_radius(l, lvgl_sys::LV_RADIUS_CIRCLE as i16, 0);
+                lvgl_sys::lv_obj_set_style_pad_top(l, 0, 0);
+                lvgl_sys::lv_obj_set_style_pad_bottom(l, 0, 0);
+                lvgl_sys::lv_obj_set_style_pad_left(l, 0, 0);
+                lvgl_sys::lv_obj_set_style_pad_right(l, 0, 0);
+                lvgl_sys::lv_obj_clear_flag(l, lvgl_sys::LV_OBJ_FLAG_CLICKABLE);
+                lvgl_sys::lv_obj_add_flag(l, lvgl_sys::LV_OBJ_FLAG_HIDDEN);
+                figli.retain(|f| *f != l);
+                Some(l)
+            }
+        }
+    } else {
+        None
+    };
 
     let _ = tags; // lo stato iniziale lo mette il primo `update_bindings`
 
@@ -3609,10 +3671,12 @@ fn crea_effetti(
                 .unwrap_or(effects::BLINK_MS_DEFAULT),
             tag: obj.tag.clone(),
             stale_after_s: obj.stale_after_s,
-            bad_gray: obj.bad_value_style.as_deref() == Some("gray"),
+            bad_gray: vuole_segno,
             shared: shared_alarms.clone(),
             bordo,
             pallino,
+            tag_pallino: effects::tag_del_pallino(obj).cloned(),
+            segno,
             dot_buono: obj.quality_dot_good_color.clone(),
             dot_cattivo: obj.quality_dot_bad_color.clone(),
             dot_incerto: obj.quality_dot_uncertain_color.clone(),
@@ -5710,10 +5774,10 @@ fn led_state(
         },
     };
     let bad_quality = matches!(tv, Some(t) if t.quality == TagQuality::Bad);
+    // Bad is not red any more (B4, 24-11-2026): the red is the alarm's. The
+    // led keeps its last colour; the effects grey it and add the "?".
     let color_hex = if tv.is_none() {
         "#334155".to_string()
-    } else if bad_quality {
-        "#ef4444".to_string()
     } else if is_on {
         on_color.to_string()
     } else {
@@ -8620,16 +8684,22 @@ fn riga_tabella(r: &TableRow, colonne: &[ColTab], tags: &TagSnapshot) -> crate::
                 }
         }
     };
-    let colore_valore = num
-        .and_then(|n| threshold_color(n, r.alarm_low, r.warn_low, r.warn_high, r.alarm_high))
-        .unwrap_or_else(|| match tv.map(|t| &t.quality) {
-            Some(TagQuality::Good) => {
-                colori_predefiniti::testo_pagina().unwrap_or((0xe2, 0xe8, 0xf0))
-            }
-            Some(TagQuality::Bad) => (0xef, 0x44, 0x44),
-            Some(_) => (0xea, 0xb3, 0x08),
-            None => (0x47, 0x55, 0x69),
-        });
+    // A Bad value: grey and the "?" (B4, 24-11-2026), not red — the red is
+    // the alarm's — and not a threshold colour: the number is not valid. Twin
+    // of the value cell of `table` in SvgCanvas.tsx.
+    let bad = matches!(tv, Some(t) if t.quality == TagQuality::Bad);
+    let colore_valore = if bad {
+        crate::effects::GRIGIO_BAD
+    } else {
+        num.and_then(|n| threshold_color(n, r.alarm_low, r.warn_low, r.warn_high, r.alarm_high))
+            .unwrap_or_else(|| match tv.map(|t| &t.quality) {
+                Some(TagQuality::Good) => {
+                    colori_predefiniti::testo_pagina().unwrap_or((0xe2, 0xe8, 0xf0))
+                }
+                Some(_) => (0xea, 0xb3, 0x08),
+                None => (0x47, 0x55, 0x69),
+            })
+    };
     let testo2 = (0xcb, 0xd5, 0xe1);
     let celle = colonne
         .iter()
@@ -8638,6 +8708,7 @@ fn riga_tabella(r: &TableRow, colonne: &[ColTab], tags: &TagSnapshot) -> crate::
                 testo: r.label.clone(),
                 colore: testo2,
                 punto: None,
+                segno: false,
                 chiave: Chiave::Testo(r.label.clone()),
             },
             ColTab::Unita => {
@@ -8646,6 +8717,7 @@ fn riga_tabella(r: &TableRow, colonne: &[ColTab], tags: &TagSnapshot) -> crate::
                     testo: u.clone(),
                     colore: testo2,
                     punto: None,
+                    segno: false,
                     chiave: Chiave::Testo(u),
                 }
             }
@@ -8653,6 +8725,7 @@ fn riga_tabella(r: &TableRow, colonne: &[ColTab], tags: &TagSnapshot) -> crate::
                 testo: String::new(),
                 colore: testo2,
                 punto: tv.map(|t| colore_qualita(&t.quality)),
+                segno: false,
                 chiave: Chiave::Testo(tv.map(|t| format!("{:?}", t.quality)).unwrap_or_default()),
             },
             ColTab::Ora => {
@@ -8661,6 +8734,7 @@ fn riga_tabella(r: &TableRow, colonne: &[ColTab], tags: &TagSnapshot) -> crate::
                     testo: if ts > 0 { ora_hms(ts) } else { "—".into() },
                     colore: testo2,
                     punto: None,
+                    segno: false,
                     chiave: Chiave::Numero(ts as f64),
                 }
             }
@@ -8668,6 +8742,7 @@ fn riga_tabella(r: &TableRow, colonne: &[ColTab], tags: &TagSnapshot) -> crate::
                 testo: testo_valore.clone(),
                 colore: colore_valore,
                 punto: None,
+                segno: bad,
                 chiave: num
                     .map(Chiave::Numero)
                     .unwrap_or(Chiave::Testo(testo_valore.clone())),
@@ -12431,18 +12506,21 @@ fn render_alarm_history(
                         testo: quando,
                         colore: testo2,
                         punto: None,
+                        segno: false,
                         chiave: Chiave::Numero(e.ts_activated_ms as f64),
                     },
                     Cella {
                         testo: messaggio,
                         colore: testo2,
                         punto: None,
+                        segno: false,
                         chiave: Chiave::Testo(String::new()),
                     },
                     Cella {
                         testo: sistema(e.stato(), lingua).to_string(),
                         colore: testo2,
                         punto: None,
+                        segno: false,
                         chiave: Chiave::Testo(String::new()),
                     },
                 ],
@@ -12610,18 +12688,21 @@ fn render_data_log(
                         testo: quando,
                         colore: testo2,
                         punto: None,
+                        segno: false,
                         chiave: Chiave::Numero(c.ts_ms as f64),
                     },
                     Cella {
                         testo: format!("{}{unita}", crate::trend::to_fixed(v, decimali)),
                         colore: testo2,
                         punto: None,
+                        segno: false,
                         chiave: Chiave::Numero(v),
                     },
                     Cella {
                         testo: String::new(),
                         colore: testo2,
                         punto: Some(colore_qualita(&q)),
+                        segno: false,
                         chiave: Chiave::Testo(String::new()),
                     },
                 ],
@@ -18341,6 +18422,8 @@ fn update_effects(
     shared: &SharedAlarms,
     bordo: Option<*mut lvgl_sys::lv_obj_t>,
     pallino: Option<*mut lvgl_sys::lv_obj_t>,
+    tag_pallino: &Option<String>,
+    segno: Option<*mut lvgl_sys::lv_obj_t>,
     dot: (&Option<String>, &Option<String>, &Option<String>),
     ultimo: &mut AppliedFx,
     tags: &TagSnapshot,
@@ -18498,8 +18581,34 @@ fn update_effects(
         }
     }
 
+    // ── the "?" of a Bad value ────────────────────────────────────────────
+    if let Some(s) = segno {
+        let visibile = bad_gray && matches!(tv, Some(t) if t.quality == TagQuality::Bad);
+        if visibile != ultimo.segno_visibile {
+            unsafe {
+                if visibile {
+                    lvgl_sys::lv_obj_clear_flag(s, lvgl_sys::LV_OBJ_FLAG_HIDDEN);
+                } else {
+                    lvgl_sys::lv_obj_add_flag(s, lvgl_sys::LV_OBJ_FLAG_HIDDEN);
+                }
+            }
+            ultimo.segno_visibile = visibile;
+        }
+    }
+
     // ── pallino di qualità ────────────────────────────────────────────────
     if let Some(p) = pallino {
+        let tv = tag_pallino.as_deref().and_then(|t| tags.get(t));
+        if tv.is_some() != ultimo.dot_visibile {
+            unsafe {
+                if tv.is_some() {
+                    lvgl_sys::lv_obj_clear_flag(p, lvgl_sys::LV_OBJ_FLAG_HIDDEN);
+                } else {
+                    lvgl_sys::lv_obj_add_flag(p, lvgl_sys::LV_OBJ_FLAG_HIDDEN);
+                }
+            }
+            ultimo.dot_visibile = tv.is_some();
+        }
         if let Some(tv) = tv {
             let rgb = effects::colore_qualita(
                 &tv.quality,
@@ -18598,6 +18707,8 @@ pub fn update_bindings(
             shared,
             bordo,
             pallino,
+            tag_pallino,
+            segno,
             dot_buono,
             dot_cattivo,
             dot_incerto,
@@ -18625,6 +18736,8 @@ pub fn update_bindings(
                 shared,
                 *bordo,
                 *pallino,
+                tag_pallino,
+                *segno,
                 (dot_buono, dot_cattivo, dot_incerto),
                 ultimo,
                 tags,

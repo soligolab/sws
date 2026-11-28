@@ -41,6 +41,9 @@ pub struct Cella {
     pub colore: Rgb,
     /// Il pallino della qualità (al posto del testo).
     pub punto: Option<Rgb>,
+    /// The "?" of a Bad value after the text (part C, 24-11-2026): the badge of
+    /// `effects::BADGE_BAD`, at the right end of the cell, as on the web.
+    pub segno: bool,
     pub chiave: Chiave,
 }
 
@@ -330,8 +333,11 @@ pub fn disegna(
         }
         format!("{s}…")
     };
-    let testo_in = |sc: &mut Scena, c: usize, y_mezzo: f32, t: &str, colore: Rgb| {
+    // `riserva`: the pixels kept free at the right end of the cell (the "?"
+    // of a Bad value), 0 for every other cell.
+    let testo_in = |sc: &mut Scena, c: usize, y_mezzo: f32, t: &str, colore: Rgb, riserva: f32| {
         let (x, cw) = cx[c];
+        let cw = (cw - riserva).max(4.0);
         let larg = (cw - 2.0 * PAD_O).max(4.0);
         let (ax, o) = match cfg.colonne[c].allinea {
             Orizz::Sx => (x + PAD_O, Orizz::Sx),
@@ -394,7 +400,36 @@ pub fn disegna(
                         );
                     }
                 }
-                None => testo_in(&mut sc, c, ym, &cel.testo, cel.colore),
+                None if cel.segno => {
+                    let b = crate::effects::BADGE_BAD;
+                    let (x, cw) = cx[c];
+                    let (bx, riserva) = (x + cw - PAD_O - b.r, 2.0 * b.r + 4.0);
+                    if let Some(p) = PathBuilder::from_circle(bx, ym, b.r) {
+                        px.fill_path(
+                            &p,
+                            &paint(b.fondo),
+                            FillRule::Winding,
+                            Transform::identity(),
+                            None,
+                        );
+                        let s = resvg::tiny_skia::Stroke {
+                            width: 1.0,
+                            ..Default::default()
+                        };
+                        px.stroke_path(&p, &paint(b.bordo), &s, Transform::identity(), None);
+                    }
+                    sc.testi.push(Testo {
+                        x: bx,
+                        y: ym,
+                        testo: "?".into(),
+                        colore: b.testo,
+                        px: b.px,
+                        orizz: Orizz::Centro,
+                        vert: Vert::Mezzo,
+                    });
+                    testo_in(&mut sc, c, ym, &cel.testo, cel.colore, riserva);
+                }
+                None => testo_in(&mut sc, c, ym, &cel.testo, cel.colore, 0.0),
             }
         }
         if let Some(c) = righe[i].scrivibile {
@@ -419,6 +454,7 @@ pub fn disegna(
             1.0 + rh / 2.0,
             &format!("{}{freccia}", col.intestazione),
             TESTO_INT,
+            0.0,
         );
         if col.ordinabile {
             let (x, cw) = cx[c];
@@ -495,6 +531,7 @@ mod tests {
             testo: t.into(),
             colore: (1, 1, 1),
             punto: None,
+            segno: false,
             chiave: n.map(Chiave::Numero).unwrap_or(Chiave::Testo(t.into())),
         }
     }

@@ -13,6 +13,30 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 Il lavoro della **2.28.0** (versioni `2.28.0-dev.N`), da `main`.
 
+### Cambiato — il Bad visibile di default (28-11-2026, ramo `feat/bad-by-default`)
+
+Parte C del piano `docs/plans/2026-11-24-residui-rc30-e-bad-di-default.md`, decisioni B2–B4 del 24-11-2026.
+
+- **Un valore Bad si vede di default su tutti gli oggetti con un tag**, sul web e sul pannello LVGL: l'oggetto diventa
+  grigio e un «?» bianco su un cerchio scuro, fuori dal grigio, sta nell'angolo in alto a sinistra del riquadro
+  (`canvas/badMark.ts`, `effects::BADGE_BAD`). Su un testo senza riquadro allineato a sinistra sta in alto a destra,
+  lontano dal pallino. `bad_value_style: "none"` lo toglie; `"gray"`, la scelta di prima, vale come il default. La
+  casella del pannello proprietà è accesa di default («Valore Bad: grigio e «?»»). In edit si vede col toggle
+  «Anteprima effetti».
+- **Uncertain**: solo il pallino giallo, nessun «?».
+- **Led e tabella**: il Bad non è più rosso (il rosso è dell'allarme). Il led tiene il suo colore e prende il segno;
+  nella tabella il valore è grigio, senza il colore delle soglie, con il «?» in fondo alla cella.
+- **Sul pannello LVGL il pallino della qualità è di default sui 9 tipi** che lo hanno di default sul web (rect,
+  ellipse, pipe, text, state_lamp, progress_bar, gauge, text_list, kpi_tile), nel punto dove il web lo disegna per
+  quel tipo (`effects::centro_pallino`); sul tubo segue `fill_level_tag`. Nasce nascosto e si vede quando il tag ha un
+  valore, come sul web.
+- **Il pallino della qualità resta rosso col Bad, su tutti e due i motori** (il maintainer, 28-11-2026: «pallino rosso
+  ovunque»). Sul web il pallino degli oggetti di pagina lo disegna l'involucro, fuori dal gruppo che diventa grigio
+  (`canvas/qualityDot.ts`, gemello di `effects::centro_pallino`); segue il moto e l'attenuazione per ruolo, non il
+  grigio. Prima sui 9 tipi stava nel ramo del tipo e col Bad diventava grigio. Nei figli di un faceplate e di una
+  griglia resta nel ramo del tipo.
+- Avviso di compatibilità in `NOVITA.yaml`; manuale, capitolo 5, «Bad e dato vecchio».
+
 ### Aggiunto — l'immagine base del sistema (27-11-2026, ramo `feat/system-base-image`)
 
 - **L'immagine del runtime parte da `ghcr.io/soligolab/sws-base`**, fissata al digest in `deploy/container/BASE`

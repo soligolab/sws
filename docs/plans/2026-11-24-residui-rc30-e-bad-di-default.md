@@ -84,7 +84,27 @@ piano si **annida** sopra `feat/symbol-assistant-interview` (regola «un ramo al
   Restano fuori: A8 nel trend LVGL (il pannello non ha cursori di misura né finestre spostate; da controllare al
   collaudo).
 - **In `main`** con lo squash del 24-11-2026 (insieme alle sessioni 1 e 2 dell'assistente dei simboli), uscite nella
-  2.27.0-dev.3. **Parte C** da fare, su un ramo da `main`.
+  2.27.0-dev.3. **Parte C** fatta il 28-11-2026 sul ramo `feat/bad-by-default` (sotto), da collaudare.
+
+## Parte C, com'è andata (28-11-2026, ramo `feat/bad-by-default`, sessione su `ufficio`)
+
+- **Il campo resta `bad_value_style`**, non `quality_display` come diceva C.1: il campo c'era già (`"gray"`, opt-in), e
+  un nome nuovo avrebbe voluto la migrazione dei progetti. Ora `undefined` = segno acceso, `"none"` = spento, `"gray"`
+  = come il default. Nessun progetto va riscritto.
+- **Dove sta il «?»**: un cerchio scuro (r 7) con bordo e «?» chiari, centrato nell'angolo in alto a sinistra del
+  riquadro (`bbox_of` / `objectBBox`, la stessa regola sui due motori). Per un testo senza riquadro allineato a
+  sinistra va in alto a destra delle lettere: a sinistra c'è il pallino (`xPallinoTesto`). Questa scelta il piano non
+  la diceva: la decide il maintainer guardando le istantanee (`tmp/bad-prova/foto/`).
+- **Il pallino sul pannello** sta nel punto in cui il web lo disegna per ognuno dei 9 tipi; sul tubo segue
+  `fill_level_tag`, come sul web. Nasce nascosto e compare col primo valore.
+- **Il pallino col Bad, rosso ovunque** (il maintainer, 28-11-2026: «pallino rosso ovunque»). Prima sul web il
+  pallino dei 9 tipi stava dentro il gruppo dell'oggetto e col Bad diventava grigio; sul pannello stava fuori e restava
+  rosso. Ora sul web lo disegna l'involucro di pagina, fuori dal grigio (`canvas/qualityDot.ts`, gemello di
+  `effects::centro_pallino`); nei figli di faceplate e griglie resta nel ramo del tipo, dove il grigio del Bad non c'è.
+- **C.5** vale da sé: il segno passa da `fxOn`, quindi in edit si vede solo con «Anteprima effetti».
+- **C.6**: parità dei campi verde; istantanee web e LVGL di una pagina di prova (tag Bad da una sorgente Modbus senza
+  nessuno dall'altra parte) messe a confronto. Nei gemelli `demo-items-*` non c'è un tag Bad: i loro tag sono
+  simulati e sempre buoni, quindi non c'è un esempio da aggiungere lì.
 
 ## Verifica (ogni ramo, prima dello squash)
 

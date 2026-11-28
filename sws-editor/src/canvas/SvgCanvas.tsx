@@ -41,6 +41,8 @@ import { statoSimbolo, veroSimbolo } from "@/symbols/statoSimbolo";
 import { animazioniEffettive, CONTORNO_DISEGNO, useStileProgetto } from "@/symbols/stileProgetto";
 import { dipendenzeOggetto } from "@/runtime-view/collectTagIds";
 import { OggettoLib } from "@/symbols/lib/SimboloLib";
+import { BAD_MARK, badMarkCentre, badMarkShown } from "./badMark";
+import { qualityDotCentre, qualityDotTag } from "./qualityDot";
 import {
   PAGE_EDGE_RESIST_PX,
   isOffPage,
@@ -749,6 +751,27 @@ function QDot({ x, y, quality, goodColor, badColor, uncertainColor }: {
     <circle cx={x} cy={y} r={5}
       fill={qualityColor(quality, goodColor, badColor, uncertainColor)}
       style={{ pointerEvents: "none" }} />
+  );
+}
+
+/** A Bad value in a table cell: the grey of the text and the "?" after it. */
+const BAD_CELL_GREY = "var(--brand-text-muted, #94a3b8)";
+const BAD_CELL_MARK: React.CSSProperties = {
+  display: "inline-block", marginLeft: 4, width: BAD_MARK.r * 2, height: BAD_MARK.r * 2,
+  lineHeight: `${BAD_MARK.r * 2 - 2}px`, borderRadius: BAD_MARK.r, boxSizing: "border-box",
+  background: BAD_MARK.fill, border: `1px solid ${BAD_MARK.stroke}`, color: BAD_MARK.text,
+  fontSize: BAD_MARK.fontSize - 1, fontWeight: 700, textAlign: "center", verticalAlign: "middle",
+};
+
+/** The "?" of a Bad value (`canvas/badMark.ts`): a dark disc with a light
+ *  border, so it reads on a light and on a dark page. */
+function BadMark({ x, y }: { x: number; y: number }) {
+  return (
+    <g style={{ pointerEvents: "none" }} data-bad-mark="1">
+      <circle cx={x} cy={y} r={BAD_MARK.r} fill={BAD_MARK.fill} stroke={BAD_MARK.stroke} strokeWidth={1} />
+      <text x={x} y={y} textAnchor="middle" dominantBaseline="central" fontSize={BAD_MARK.fontSize}
+        fontWeight={700} fill={BAD_MARK.text} fontFamily="sans-serif">?</text>
+    </g>
   );
 }
 
@@ -2211,7 +2234,18 @@ export function SvgCanvas({
         }
         const isStale = fxOn && !!obj.stale_after_s && !!tvMain
           && nowMs - tvMain.timestamp_ms > obj.stale_after_s * 1000;
-        const isBadGray = fxOn && obj.bad_value_style === "gray" && tvMain?.quality === "Bad";
+        // The Bad mark is on by default (part C, 24-11-2026): grey here, the
+        // "?" below, out of the grey group.
+        const isBadGray = fxOn && badMarkShown(obj, tvMain);
+        // The quality dot, drawn below out of the grey group. On the nine
+        // types that had it built in it shows by default, in edit too (as
+        // before); on the others only with `quality_dot: true` and the effects.
+        const dotTagId = qualityDotTag(obj);
+        const dotTvRaw = dotTagId ? tagValues[dotTagId] : undefined;
+        const dotTv = !dotTvRaw ? undefined
+          : QDOT_BUILTIN_TYPES.has(obj.type)
+            ? (obj.quality_dot !== false && !(obj.type === "text_list" && maiRicevuto(dotTvRaw)) ? dotTvRaw : undefined)
+            : (fxOn && obj.quality_dot === true ? dotTvRaw : undefined);
         // I dati in ritardo (§5-bis) valgono per tutta la pagina, ma solo a runtime.
         const grayed = isStale || isBadGray || (!inEdit && nonAggiornato);
         const gStyle: React.CSSProperties | undefined = (() => {
@@ -2307,6 +2341,7 @@ export function SvgCanvas({
           <g style={{ ...gStyle, ...motionStyle }} data-moto={motionStyle ? obj.id : undefined} data-blink={blinkOn ? "1" : undefined} onMouseDown={obj.type !== "grid" ? onPress : undefined} onMouseUp={obj.type !== "grid" ? onRelease : undefined}>
             <SvgObject
               obj={obj}
+              qualityDotOutside
               objects={objects}
               tagValues={tagValues}
               selected={selSet.has(obj.id)}
@@ -2344,12 +2379,6 @@ export function SvgCanvas({
               <text x={obj.x} y={obj.y - 5} fontSize={11} fill="#94a3b8"
                 style={{ pointerEvents: "none" }}>⌛</text>
             )}
-            {/* F4.3: QDot opt-in sui tipi che non lo disegnano da soli */}
-            {fxOn && obj.quality_dot === true && tvMain && !QDOT_BUILTIN_TYPES.has(obj.type) && (
-              <QDot x={obj.x + objW - 8} y={obj.y + 8} quality={tvMain.quality}
-                goodColor={obj.quality_dot_good_color} badColor={obj.quality_dot_bad_color}
-                uncertainColor={obj.quality_dot_uncertain_color} />
-            )}
             {inEdit && (() => {
               const bb = objBBox(obj);
               // In una fascia della cornice (10-11-2026) il contorno d'editor
@@ -2378,6 +2407,27 @@ export function SvgCanvas({
           </g>
           {/* Fuori dal gruppo attenuato: il lucchetto si legge pieno. */}
           {lucchetto && <LucchettoRuolo destra={obj.x + objW} alto={obj.y} ruolo={lucchetto.ruolo} />}
+          {/* Out of the grey group too (28-11-2026, «pallino rosso ovunque»):
+              the quality dot and the "?" of a Bad value, in full colour. They
+              follow the motion of the object, and its dimming in edit and by
+              role, but not the grey. */}
+          {(dotTv || isBadGray) && (() => {
+            const ro = resolveObject(obj, tagValues);
+            const content = obj.type === "text" ? contenutoTesto(ro, tagValues) : "";
+            const dot = !dotTv ? null : QDOT_BUILTIN_TYPES.has(obj.type)
+              ? qualityDotCentre(ro, content, obj.type === "pipe"
+                ? percorsoTubo(ro, objects, (o) => resolveObject(o, tagValues)) : undefined)
+              : { x: ro.x + objW - 8, y: ro.y + 8 };
+            const dim = !visible && inEdit ? 0.35 : !inEdit && !roleOk ? 0.45 : undefined;
+            return (
+              <g style={{ ...motionStyle, opacity: dim, pointerEvents: "none" }}>
+                {dot && dotTv && <QDot x={dot.x} y={dot.y} quality={dotTv.quality}
+                  goodColor={obj.quality_dot_good_color} badColor={obj.quality_dot_bad_color}
+                  uncertainColor={obj.quality_dot_uncertain_color} />}
+                {isBadGray && <BadMark {...badMarkCentre(ro, content)} />}
+              </g>
+            );
+          })()}
           </Fragment>
         );
       })}
@@ -3204,6 +3254,10 @@ export function SvgCanvas({
 
 export interface ObjProps {
   obj: SynopticObject;
+  /** The page wrapper draws the quality dot itself, out of the grey group of
+   *  a Bad value (28-11-2026): the type branches then skip theirs. Children of
+   *  a faceplate or a grid do not get it, and keep drawing their own. */
+  qualityDotOutside?: boolean;
   /** Full list of page objects — used by pipe rendering to resolve anchor points. */
   objects: SynopticObject[];
   tagValues: Record<string, TagState>;
@@ -3783,7 +3837,7 @@ export const SvgObject = memo(function SvgObject(p: ObjProps) {
  *  per oggetto a ogni messaggio: nel profilo con 300 oggetti era la funzione
  *  JS più pesante (rilievo della revisione del 09-11-2026). */
 const PROP_DI_OBJ: Record<keyof ObjProps, true> = {
-  obj: true, objects: true, tagValues: true, selected: true, selectedCount: true, isEditMode: true,
+  obj: true, qualityDotOutside: true, objects: true, tagValues: true, selected: true, selectedCount: true, isEditMode: true,
   customSymbols: true, faceplates: true, selectedCell: true, selectedCellChild: true, selectedCellRange: true,
   selectedSubCell: true, onSelect: true, onStartDrag: true, onWriteTag: true, onScript: true, onNavigate: true,
   onSelectCell: true, onSelectCellChild: true, onSelectCellRange: true, onSelectSubCell: true, onExpandTrend: true,
@@ -3876,7 +3930,7 @@ function SvgObjectBase(p: ObjProps) {
 }
 
 function SvgObjectCorpo(p: ObjProps) {
-  const { objects, tagValues, selected, selectedCount = 0, isEditMode, customSymbols, faceplates = NESSUN_FACEPLATE, selectedCell, selectedCellChild, selectedCellRange, onSelect, onStartDrag, onWriteTag, onScript, onNavigate, onSelectCell, onSelectCellChild, onSelectCellRange, onExpandTrend } = p;
+  const { qualityDotOutside, objects, tagValues, selected, selectedCount = 0, isEditMode, customSymbols, faceplates = NESSUN_FACEPLATE, selectedCell, selectedCellChild, selectedCellRange, onSelect, onStartDrag, onWriteTag, onScript, onNavigate, onSelectCell, onSelectCellChild, onSelectCellRange, onExpandTrend } = p;
   const { t } = useTranslation();
   // Toggle "Anteprima effetti" (rotazioni simboli, flusso pipe) anche in edit.
   const fxPreview = useAppStore((s) => s.previewEffects);
@@ -4426,7 +4480,7 @@ function SvgObjectCorpo(p: ObjProps) {
               preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
           )}
         </>)}
-        {tv && obj.quality_dot !== false && <QDot x={obj.x + w - 8} y={obj.y + 8} quality={tv.quality} goodColor={obj.quality_dot_good_color} badColor={obj.quality_dot_bad_color} uncertainColor={obj.quality_dot_uncertain_color} />}
+        {!qualityDotOutside && tv && obj.quality_dot !== false && <QDot x={obj.x + w - 8} y={obj.y + 8} quality={tv.quality} goodColor={obj.quality_dot_good_color} badColor={obj.quality_dot_bad_color} uncertainColor={obj.quality_dot_uncertain_color} />}
       </>
     );
   }
@@ -4447,7 +4501,7 @@ function SvgObjectCorpo(p: ObjProps) {
             style={{ cursor: editCursor, ...transitionStyle(obj) }}
             onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} />
         </>)}
-        {tv && obj.quality_dot !== false && <QDot x={obj.x + w - 8} y={obj.y + 8} quality={tv.quality} goodColor={obj.quality_dot_good_color} badColor={obj.quality_dot_bad_color} uncertainColor={obj.quality_dot_uncertain_color} />}
+        {!qualityDotOutside && tv && obj.quality_dot !== false && <QDot x={obj.x + w - 8} y={obj.y + 8} quality={tv.quality} goodColor={obj.quality_dot_good_color} badColor={obj.quality_dot_bad_color} uncertainColor={obj.quality_dot_uncertain_color} />}
       </>
     );
   }
@@ -4724,7 +4778,7 @@ function SvgObjectCorpo(p: ObjProps) {
         )}
 
         {/* Quality dot at midpoint */}
-        {flTag && obj.quality_dot !== false && (
+        {!qualityDotOutside && flTag && obj.quality_dot !== false && (
           <QDot x={midPt.x + 7} y={midPt.y - 7} quality={flTag.quality}
             goodColor={obj.quality_dot_good_color}
             badColor={obj.quality_dot_bad_color}
@@ -4825,7 +4879,7 @@ function SvgObjectCorpo(p: ObjProps) {
           {/* Nell'angolo opposto al testo: un valore allineato a destra arriva
               fino al bordo, e nell'angolo in alto a destra il pallino gli
               copriva le ultime lettere (11-11-2026). */}
-          {tv && obj.quality_dot !== false && <QDot x={anchor === "end" ? obj.x + 8 : obj.x + bw - 8} y={obj.y + 8} quality={tv.quality} goodColor={obj.quality_dot_good_color} badColor={obj.quality_dot_bad_color} uncertainColor={obj.quality_dot_uncertain_color} />}
+          {!qualityDotOutside && tv && obj.quality_dot !== false && <QDot x={anchor === "end" ? obj.x + 8 : obj.x + bw - 8} y={obj.y + 8} quality={tv.quality} goodColor={obj.quality_dot_good_color} badColor={obj.quality_dot_bad_color} uncertainColor={obj.quality_dot_uncertain_color} />}
         </>
       );
     }
@@ -4854,7 +4908,7 @@ function SvgObjectCorpo(p: ObjProps) {
             {content}
           </text>
         </>)}
-        {tv && obj.quality_dot !== false && <QDot x={xPallinoTesto(obj.x, anchor, approxW)} y={obj.y - size / 2} quality={tv.quality} goodColor={obj.quality_dot_good_color} badColor={obj.quality_dot_bad_color} uncertainColor={obj.quality_dot_uncertain_color} />}
+        {!qualityDotOutside && tv && obj.quality_dot !== false && <QDot x={xPallinoTesto(obj.x, anchor, approxW)} y={obj.y - size / 2} quality={tv.quality} goodColor={obj.quality_dot_good_color} badColor={obj.quality_dot_bad_color} uncertainColor={obj.quality_dot_uncertain_color} />}
       </>
     );
   }
@@ -5037,11 +5091,11 @@ function SvgObjectCorpo(p: ObjProps) {
       typeof onVal === "boolean" ? Boolean(tv.value) === onVal
       : String(tv.value) === String(onVal)
     );
+    // Bad is not red any more (B4, 24-11-2026): the red is the alarm's. The
+    // led keeps its last colour, and the wrapper greys it and adds the "?".
     const ledColor = tv == null
       ? "var(--brand-surface-2, #334155)"
-      : tv.quality === "Bad"
-        ? "#ef4444"
-        : isOn ? coloreEffettivo(obj, "on_color") : coloreEffettivo(obj, "off_color");
+      : isOn ? coloreEffettivo(obj, "on_color") : coloreEffettivo(obj, "off_color");
     const glowColor = isOn ? coloreEffettivo(obj, "on_color") : "transparent";
 
     const ledW = r * 2;
@@ -5123,7 +5177,7 @@ function SvgObjectCorpo(p: ObjProps) {
             {label}
           </text>
         )}
-        {tv && obj.quality_dot !== false && <QDot x={obj.x} y={obj.y} quality={tv.quality} />}
+        {!qualityDotOutside && tv && obj.quality_dot !== false && <QDot x={obj.x} y={obj.y} quality={tv.quality} />}
       </g>
     );
   }
@@ -5202,7 +5256,7 @@ function SvgObjectCorpo(p: ObjProps) {
           )}
         </>)}
         {/* Quality dot — axis-aligned */}
-        {tv && obj.quality_dot !== false && <QDot x={obj.x + w - 8} y={obj.y + 8} quality={tv.quality} goodColor={obj.quality_dot_good_color} badColor={obj.quality_dot_bad_color} uncertainColor={obj.quality_dot_uncertain_color} />}
+        {!qualityDotOutside && tv && obj.quality_dot !== false && <QDot x={obj.x + w - 8} y={obj.y + 8} quality={tv.quality} goodColor={obj.quality_dot_good_color} badColor={obj.quality_dot_bad_color} uncertainColor={obj.quality_dot_uncertain_color} />}
       </g>
     );
   }
@@ -5347,7 +5401,7 @@ function SvgObjectCorpo(p: ObjProps) {
           )}
         </>)}
         {/* Quality dot — axis-aligned */}
-        {tv && obj.quality_dot !== false && <QDot x={obj.x + w - 10} y={obj.y + 10} quality={tv.quality} goodColor={obj.quality_dot_good_color} badColor={obj.quality_dot_bad_color} uncertainColor={obj.quality_dot_uncertain_color} />}
+        {!qualityDotOutside && tv && obj.quality_dot !== false && <QDot x={obj.x + w - 10} y={obj.y + 10} quality={tv.quality} goodColor={obj.quality_dot_good_color} badColor={obj.quality_dot_bad_color} uncertainColor={obj.quality_dot_uncertain_color} />}
       </g>
     );
   }
@@ -5717,8 +5771,12 @@ function SvgObjectCorpo(p: ObjProps) {
           const thr = n !== undefined
             ? thresholdColor(n, r.alarm_low, r.warn_low, r.warn_high, r.alarm_high)
             : undefined;
-          const color = thr
-            ?? (tv ? (tv.quality === "Good" ? "var(--synoptic-text, var(--brand-text, #e2e8f0))" : tv.quality === "Bad" ? "#ef4444" : "#eab308")
+          // A Bad value: grey and the "?" (B4, 24-11-2026), not red — the red
+          // is the alarm's — and not a threshold colour either: the number is
+          // not valid, so it is not above or under anything.
+          const bad = tv?.quality === "Bad";
+          const color = bad ? BAD_CELL_GREY : thr
+            ?? (tv ? (tv.quality === "Good" ? "var(--synoptic-text, var(--brand-text, #e2e8f0))" : "#eab308")
                    : "var(--brand-border, #475569)");
           if (r.writable && !isEditMode) {
             return (
@@ -5743,8 +5801,9 @@ function SvgObjectCorpo(p: ObjProps) {
             );
           }
           return (
-            <span style={{ color, fontWeight: thr ? 600 : 400 }}>
+            <span style={{ color, fontWeight: thr && !bad ? 600 : 400 }}>
               {rowText(r)}{r.writable ? " ✎" : ""}
+              {bad && <span data-bad-mark="1" style={BAD_CELL_MARK}>?</span>}
             </span>
           );
         },
@@ -5956,7 +6015,7 @@ function SvgObjectCorpo(p: ObjProps) {
           style={{ pointerEvents: "none", ...transitionStyle(obj) }}>
           {label}
         </text>
-        {tv && obj.quality_dot !== false && <QDot x={obj.x + 2} y={obj.y + 2} quality={tv.quality} />}
+        {!qualityDotOutside && tv && obj.quality_dot !== false && <QDot x={obj.x + 2} y={obj.y + 2} quality={tv.quality} />}
       </g>
     );
   }
@@ -6466,7 +6525,7 @@ function SvgObjectCorpo(p: ObjProps) {
             </foreignObject>
           </>
         )}
-        {tv && obj.quality_dot !== false && <QDot x={obj.x + w - 8} y={obj.y + h - 8} quality={tv.quality} goodColor={obj.quality_dot_good_color} badColor={obj.quality_dot_bad_color} uncertainColor={obj.quality_dot_uncertain_color} />}
+        {!qualityDotOutside && tv && obj.quality_dot !== false && <QDot x={obj.x + w - 8} y={obj.y + h - 8} quality={tv.quality} goodColor={obj.quality_dot_good_color} badColor={obj.quality_dot_bad_color} uncertainColor={obj.quality_dot_uncertain_color} />}
       </g>
     );
   }

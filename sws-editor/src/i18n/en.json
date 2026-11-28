@@ -1101,7 +1101,7 @@
     "critical": "Critical command (password)",
     "requireReason": "Reason required",
     "showAlarmState": "Border on tag alarm",
-    "badValueGray": "Bad value → gray",
+    "badValueGray": "Bad value: grey and «?»",
     "staleAfterS": "Stale after (s, 0=off)",
     "blinkMode": "Blink",
     "blinkOff": "Off",

@@ -394,6 +394,154 @@ pub fn colore_filtrato(
     (r, g, b)
 }
 
+// ── The Bad mark (part C, 24-11-2026) ─────────────────────────────────────
+//
+// Plan docs/plans/2026-11-24-residui-rc30-e-bad-di-default.md, decisions
+// B2-B4. A Bad value shows by default on every object with a tag: the object
+// goes grey and a "?" in full colour, out of the grey, sits on the top left
+// corner of its box. An object gives it up with `bad_value_style: "none"`.
+// Uncertain keeps only the yellow quality dot. Twin of
+// `sws-editor/src/canvas/badMark.ts`: change both together.
+
+/// The look of the "?": a dark disc with a light border, so it reads on a
+/// light and on a dark page.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BadgeBad {
+    pub r: f32,
+    pub fondo: (u8, u8, u8),
+    pub bordo: (u8, u8, u8),
+    pub testo: (u8, u8, u8),
+    pub px: u16,
+}
+
+/// The same numbers as `BAD_MARK` on the web.
+pub const BADGE_BAD: BadgeBad = BadgeBad {
+    r: 7.0,
+    fondo: (0x0f, 0x17, 0x2a),
+    bordo: (0xf8, 0xfa, 0xfc),
+    testo: (0xf8, 0xfa, 0xfc),
+    px: 11,
+};
+
+/// The grey of a Bad value in a table cell (`BAD_CELL_GREY` on the web).
+pub const GRIGIO_BAD: (u8, u8, u8) = (0x94, 0xa3, 0xb8);
+
+/// Does an object show the Bad mark? Yes, unless it says `"none"`. `"gray"`,
+/// the old opt-in, means the same as the default.
+pub fn segno_bad_attivo(bad_value_style: Option<&str>) -> bool {
+    bad_value_style != Some("none")
+}
+
+/// The estimated box of a text without wrap, whose `y` is the baseline: the
+/// same formula as `riquadroTestoSemplice` on the web.
+fn riquadro_testo_semplice(obj: &SynopticObject, contenuto: &str) -> (f64, f64, f64, f64) {
+    let size = obj.font_size.unwrap_or(14.0);
+    let larga = (contenuto.chars().count() as f64 * size * 0.6).max(40.0);
+    let dx = match obj.text_anchor.as_deref() {
+        Some("middle") => -larga / 2.0,
+        Some("end") => -larga,
+        _ => 0.0,
+    };
+    let x = obj.x.unwrap_or(0.0);
+    let y = obj.y.unwrap_or(0.0);
+    (x + dx - 2.0, y - size + 2.0, larga + 4.0, size + 6.0)
+}
+
+/// The centre of the "?": the top left corner of the object's box. For a text
+/// without wrap, the box its letters take (`badMarkCentre` on the web); aligned
+/// to the start, its top right corner, because the quality dot is on the left.
+pub fn centro_segno_bad(obj: &SynopticObject, contenuto: &str) -> (f64, f64) {
+    if obj.obj_type.as_deref() == Some("text") && obj.text_wrap != Some(true) {
+        let (x, y, w, _) = riquadro_testo_semplice(obj, contenuto);
+        let inizio = matches!(obj.text_anchor.as_deref(), None | Some("start"));
+        return (if inizio { x + w } else { x }, y);
+    }
+    let bb = obj.bbox();
+    (bb.x1, bb.y1)
+}
+
+/// The nine types that draw the quality dot by default on the web
+/// (`QDOT_BUILTIN_TYPES` in SvgCanvas.tsx). Since part C (B4) the panel draws
+/// it by default on them too; `quality_dot: false` turns it off.
+pub const TIPI_PALLINO_INTEGRATO: [&str; 9] = [
+    "rect",
+    "ellipse",
+    "pipe",
+    "text",
+    "state_lamp",
+    "progress_bar",
+    "gauge",
+    "text_list",
+    "kpi_tile",
+];
+
+/// Does the object draw the quality dot? On the nine types by default, on
+/// the others only with `quality_dot: true`; always with a tag to read.
+pub fn vuole_pallino(obj: &SynopticObject) -> bool {
+    let tipo = obj.obj_type.as_deref().unwrap_or("");
+    let integrato = TIPI_PALLINO_INTEGRATO.contains(&tipo);
+    let acceso = if integrato {
+        obj.quality_dot != Some(false)
+    } else {
+        obj.quality_dot == Some(true)
+    };
+    acceso && tag_del_pallino(obj).is_some()
+}
+
+/// The tag whose quality the dot shows: the fill level tag on a pipe, as on
+/// the web, `tag` on everything else.
+pub fn tag_del_pallino(obj: &SynopticObject) -> Option<&String> {
+    if obj.obj_type.as_deref() == Some("pipe") {
+        obj.fill_level_tag.as_ref()
+    } else {
+        obj.tag.as_ref()
+    }
+}
+
+/// The centre of the quality dot, type by type as the web draws it.
+pub fn centro_pallino(obj: &SynopticObject, contenuto: &str) -> (f64, f64) {
+    let x = obj.x.unwrap_or(0.0);
+    let y = obj.y.unwrap_or(0.0);
+    let w = |d: f64| obj.width.unwrap_or(d);
+    let h = |d: f64| obj.height.unwrap_or(d);
+    match obj.obj_type.as_deref().unwrap_or("") {
+        "rect" => (x + w(100.0) - 8.0, y + 8.0),
+        "ellipse" => (x + w(100.0) - 8.0, y + 8.0),
+        "progress_bar" => (x + w(200.0) - 8.0, y + 8.0),
+        "gauge" => (x + w(160.0) - 10.0, y + 10.0),
+        "kpi_tile" => (x + w(180.0) - 8.0, y + h(100.0) - 8.0),
+        "text_list" => (x + 2.0, y + 2.0),
+        "state_lamp" => (x, y),
+        "pipe" => {
+            let punti = obj.points.as_deref().unwrap_or(&[]);
+            match punti.get(punti.len().saturating_sub(1) / 2) {
+                Some(p) => (p.x + 7.0, p.y - 7.0),
+                None => (x, y),
+            }
+        }
+        "text" if obj.text_wrap == Some(true) => {
+            if obj.text_anchor.as_deref() == Some("end") {
+                (x + 8.0, y + 8.0)
+            } else {
+                (x + w(160.0) - 8.0, y + 8.0)
+            }
+        }
+        "text" => {
+            let size = obj.font_size.unwrap_or(14.0);
+            let larga = (contenuto.chars().count() as f64 * size * 0.6).max(40.0);
+            let px = match obj.text_anchor.as_deref() {
+                Some("end") => x + 8.0,
+                Some("middle") => x + larga / 2.0 + 8.0,
+                _ => x - 10.0,
+            };
+            (px, y - size / 2.0)
+        }
+        // The other types: the top right corner, as the universal dot of the
+        // web (`obj.x + objW - 8`).
+        _ => (x + w(100.0) - 8.0, y + 8.0),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -562,6 +710,63 @@ mod tests {
     // ── attenuazione ──────────────────────────────────────────────────────
 
     #[test]
+    fn il_segno_bad_e_di_default_e_none_lo_toglie() {
+        assert!(segno_bad_attivo(None), "default: on (B2, 24-11-2026)");
+        assert!(
+            segno_bad_attivo(Some("gray")),
+            "the old opt-in means the same"
+        );
+        assert!(!segno_bad_attivo(Some("none")));
+    }
+
+    #[test]
+    fn il_pallino_e_di_default_sui_nove_tipi_con_un_tag() {
+        let o = |tipo: &str, dot: Option<bool>| SynopticObject {
+            obj_type: Some(tipo.into()),
+            tag: Some("t".into()),
+            quality_dot: dot,
+            ..Default::default()
+        };
+        assert!(vuole_pallino(&o("rect", None)));
+        assert!(!vuole_pallino(&o("rect", Some(false))));
+        assert!(!vuole_pallino(&o("led", None)), "another type: opt-in");
+        assert!(vuole_pallino(&o("led", Some(true))));
+        let senza_tag = SynopticObject {
+            obj_type: Some("gauge".into()),
+            ..Default::default()
+        };
+        assert!(!vuole_pallino(&senza_tag));
+    }
+
+    #[test]
+    fn il_segno_sta_nell_angolo_in_alto_a_sinistra() {
+        let rett = SynopticObject {
+            obj_type: Some("rect".into()),
+            x: Some(10.0),
+            y: Some(20.0),
+            width: Some(50.0),
+            height: Some(30.0),
+            ..Default::default()
+        };
+        assert_eq!(centro_segno_bad(&rett, ""), (10.0, 20.0));
+        // A text without wrap: the top of its letters, not the baseline; aligned
+        // to the start, the right end, away from the quality dot.
+        let testo = SynopticObject {
+            obj_type: Some("text".into()),
+            x: Some(100.0),
+            y: Some(50.0),
+            font_size: Some(14.0),
+            ..Default::default()
+        };
+        assert_eq!(centro_segno_bad(&testo, "abc"), (142.0, 38.0));
+        let a_destra = SynopticObject {
+            text_anchor: Some("end".into()),
+            ..testo.clone()
+        };
+        assert_eq!(centro_segno_bad(&a_destra, "abc"), (58.0, 38.0));
+    }
+
+    #[test]
     fn la_qualita_cattiva_attenua_solo_se_richiesto() {
         let cattivo = TagSnapshotValue {
             value: TagValue::Float(1.0),
@@ -570,7 +775,7 @@ mod tests {
         };
         assert!(
             !attenuato(None, false, Some(&cattivo), 1_100),
-            "opt-in: senza bad_value_style non si tocca"
+            "with bad_value_style: \"none\" it does not grey"
         );
         assert!(attenuato(None, true, Some(&cattivo), 1_100));
     }
