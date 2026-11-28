@@ -173,7 +173,13 @@ resta 404: così un bundle che manca non torna come HTML con stato 200.
 (`10.89.0.x`): il limite di 20 richieste/s vale per tutti insieme finché non c'è l'indirizzo vero (seme «indirizzo vero
 dietro Traefik»). Si aggiorna con `scripts/manuale/pubblica.sh`.
 
-**Versione in esecuzione: `f17278e5-amd64` (2.28.0-dev.6)** dal 27-11-2026, su richiesta del maintainer («a build finita
+**Versione in esecuzione: `325860b5-amd64` (2.28.0-dev.7)** dal 28-11-2026, su richiesta del maintainer («sì, esatto»
+dopo «porto anche il gateway alla dev.7?»): il Bad visibile di default (grigio, «?» e pallino rosso). Sequenza solita da
+`ufficio`, copia `sws-gateway.container.prima-2.28dev7`. Verificato: gateway, `katodo-Pompa` e `CasaDomotica
+(TC620_Verticale)` `healthy` su `325860b5`, `SWS_VERSION` = 2.28.0-dev.7, radice 200, `/health` «ok». Ripiego la dev.6
+(`f17278e5-amd64`).
+
+Prima: **Versione in esecuzione: `f17278e5-amd64` (2.28.0-dev.6)** dal 27-11-2026, su richiesta del maintainer («a build finita
 aggiorna anche il gateway alla dev.6»): la prima immagine sulla base `sws-base:2026.11.1` (i primi due strati sono
 quelli della base) e la scelta della versione a tendina. Sequenza solita da `ufficio`: copia maestra e macchina uguali,
 `podman pull`, copia `sws-gateway.container.prima-2.28dev6`, `sed` del commit, `daemon-reload`, `restart`. Verificato:

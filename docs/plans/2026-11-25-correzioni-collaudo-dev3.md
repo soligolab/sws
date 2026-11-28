@@ -137,7 +137,8 @@ Si misura nello stesso ramo. Una correzione piccola e ovvia entra; il resto va i
 - **Compatibilità da proporre al maintainer**: la copia verticale di CasaDomotica e `PLX800_Verticale` hanno il
   `faceplate_scale: true` della conversione del 24-25-11. Con la correzione il testo non si deforma più, ma il
   contenuto segue ancora il riquadro per asse; la correzione dei due progetti (zoom al posto della scala) aspetta il
-  suo sì.
+  suo sì. **Fatto il 25-11-2026** per la copia verticale di CasaDomotica (30 faceplate a `fit`, col sì del maintainer);
+  `PLX800_Verticale` non aveva `faceplate_scale`.
 
 ## Verifica
 
